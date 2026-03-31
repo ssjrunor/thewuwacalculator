@@ -21,6 +21,17 @@ import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
 let gameDataRegistryCache: GameDataRegistry | null = null
 let gameDataInitializationPromise: Promise<void> | null = null
 
+function normalizePublicAssetPath(path: string): string {
+  return path.startsWith('/public/') ? path.slice('/public'.length) : path
+}
+
+function normalizeEchoCatalog(catalog: EchoDefinition[]): EchoDefinition[] {
+  return catalog.map((echo) => ({
+    ...echo,
+    icon: normalizePublicAssetPath(echo.icon),
+  }))
+}
+
 // load and cache all game data, then build the registry
 export async function initializeGameData(): Promise<void> {
   if (gameDataRegistryCache) {
@@ -55,7 +66,7 @@ export async function initializeGameData(): Promise<void> {
       initResonatorCatalog(resonatorCatalog)
       initResonatorDetails(resonatorDetails)
       initWeaponData(weaponData)
-      initEchoCatalog(echoCatalog)
+      initEchoCatalog(normalizeEchoCatalog(echoCatalog))
       initEchoStatsCatalog(echoStats)
       initSonataSets(sonataSets)
       initEchoSetDefinitions(echoSetDefs)
