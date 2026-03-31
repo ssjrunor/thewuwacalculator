@@ -126,7 +126,12 @@
     border-color 220ms ease,
     background 260ms ease,
     box-shadow 4s ease,
+    border-radius 220ms ease,
     color 220ms ease !important;
+}
+
+.trace-icon {
+  transition: all 300ms ease !important;
 }
 
 button,

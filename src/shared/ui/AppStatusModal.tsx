@@ -5,34 +5,32 @@ const STATUS_DATA = {
   lastUpdated: '30/03/2026',
   overallState: 'stable' as const,
   patchVersion: '2.4',
-  calculatorState: 'Full rebuild for v2. Actively maintained.',
+  patchVersionUrl: 'https://encore.moe/new?lang=en',
+  notes: [
+    'v2 is a full rebuild — architecture is new, most things should feel faster and more stable.',
+    "Some v1 features are still being ported over. Check known issues for what's pending.",
+  ],
   coverage: [
-    { title: 'Character Coverage', status: 'ok' as const, desc: 'All characters carried over from v1.' },
-    { title: 'Weapon Coverage',    status: 'ok' as const, desc: 'All weapons supported.' },
-    { title: 'Echoes Coverage',    status: 'ok' as const, desc: 'All echoes and sonata sets included.' },
-    { title: 'Enemies Coverage',   status: 'ok' as const, desc: 'All enemies are in.' },
-    { title: 'Icons & Assets',     status: 'wip' as const, desc: 'Some assets may still be missing.' },
+    { title: 'Characters', status: 'ok' as const,  desc: 'All characters carried over from v1.' },
+    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
+    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
+    { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies are in.' },
+    { title: 'Assets',     status: 'wip' as const, desc: 'Some icons still missing.' },
   ],
   knownIssues: [
-    'Google Drive sync being wired back in properly.',
+    'Google Drive sync being wired back in.',
     'Some v1 features still being ported over.',
   ],
   recentChanges: [
     'Full rebuild — new architecture, way less suffering.',
-    'Revamped calculator, inventory, rotations, optimizer, suggestions.',
+    'Revamped calculator, inventory, rotations, optimizer.',
   ],
 }
 
 const STATE_LABELS = {
-  stable:   'All systems nominal',
-  degraded: 'Partially updated',
-  wip:      'Work in progress',
-} as const
-
-const STATUS_COLORS = {
-  ok:  'var(--ok)',
-  wip: '#f59e0b',
-  err: 'var(--danger)',
+  stable:   'NOMINAL',
+  degraded: 'DEGRADED',
+  wip:      'IN PROGRESS',
 } as const
 
 interface AppStatusModalProps {
@@ -55,68 +53,94 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
       ariaLabel="Calculator Status"
       onClose={onClose}
     >
+      {/* Header */}
       <div className="app-status-modal__header">
-        <div className="app-status-modal__title-block">
-          <span className="app-status-modal__eyebrow">Calculator Status</span>
-          <h2 className="app-status-modal__title">Current State</h2>
-        </div>
-        <div className="app-status-modal__meta">
-          <span className={`app-status-modal__badge app-status-modal__badge--${STATUS_DATA.overallState}`}>
-            <span className="app-status-modal__dot" />
-            {STATE_LABELS[STATUS_DATA.overallState]}
-          </span>
-          <span className="app-status-modal__updated">Updated: {STATUS_DATA.lastUpdated}</span>
-        </div>
+        <span className="app-status-modal__eyebrow">Calculator Status</span>
+        <span className="app-status-modal__title">System Report</span>
       </div>
 
-      <div className="app-status-modal__body">
-        <div className="app-status-modal__grid">
-          <div className="app-status-card">
-            <div className="app-status-card__header">
-              <span className="app-status-card__label">Game Patch</span>
-              <span className="app-status-card__version">v{STATUS_DATA.patchVersion}</span>
-            </div>
-            <p className="app-status-card__note">{STATUS_DATA.calculatorState}</p>
-          </div>
+      {/* Bento grid */}
+      <div className="app-status-bento">
 
-          {STATUS_DATA.coverage.map((item) => (
-            <div key={item.title} className="app-status-card">
-              <div className="app-status-card__header">
-                <span className="app-status-card__label">{item.title}</span>
-                <span
-                  className="app-status-card__indicator"
-                  style={{ background: STATUS_COLORS[item.status] }}
-                />
-              </div>
-              <p className="app-status-card__note">{item.desc}</p>
+        {/* Hero cell */}
+        <div className="app-status-hero">
+          <div className="app-status-hero__notes-label">Dev Notes</div>
+          <div className="app-status-hero__notes">
+            {STATUS_DATA.notes.map((note, i) => (
+              <p key={i} className="app-status-hero__note">{note}</p>
+            ))}
+          </div>
+          <div className="app-status-hero__footer">
+            <div className="app-status-hero__stat">
+              <span className="app-status-hero__stat-label">Status</span>
+              <span className="app-status-hero__stat-value app-status-hero__stat-value--status">
+                <span className="app-status-hero__dot" aria-hidden="true" />
+                {STATE_LABELS[STATUS_DATA.overallState]}
+              </span>
+            </div>
+            <div className="app-status-hero__stat">
+              <span className="app-status-hero__stat-label">Patch</span>
+              <a
+                className="app-status-hero__stat-value app-status-hero__stat-value--link"
+                href={STATUS_DATA.patchVersionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                v{STATUS_DATA.patchVersion}
+                <svg className="app-status-hero__ext-icon" viewBox="0 0 10 10" aria-hidden="true">
+                  <path d="M1 9 9 1M9 1H4M9 1v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                </svg>
+              </a>
+            </div>
+            <div className="app-status-hero__stat">
+              <span className="app-status-hero__stat-label">Updated</span>
+              <span className="app-status-hero__stat-value">{STATUS_DATA.lastUpdated}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Coverage cards */}
+        {STATUS_DATA.coverage.map((item, i) => (
+          <div
+            key={item.title}
+            className={`app-status-card app-status-card--${item.status} app-status-card--${i + 1}`}
+          >
+            <div className="app-status-card__top">
+              <span className="app-status-card__label">{item.title}</span>
+              <span
+                className={`app-status-card__dot app-status-card__dot--${item.status}`}
+                aria-hidden="true"
+              />
+            </div>
+            <p className="app-status-card__desc">{item.desc}</p>
+          </div>
+        ))}
+
+        {/* Changes panel */}
+        <div className="app-status-changes">
+          <div className="app-status-panel__eyebrow">Recent Changes</div>
+          {STATUS_DATA.recentChanges.map((entry, i) => (
+            <div key={i} className={`app-status-item app-status-item--${i + 1}`}>
+              <span className="app-status-item__marker" aria-hidden="true">›</span>
+              <span className="app-status-item__text">{entry}</span>
             </div>
           ))}
         </div>
 
-        <div className="app-status-modal__panels">
-          <div className="app-status-panel">
-            <span className="app-status-panel__label">Recent Changes</span>
-            {STATUS_DATA.recentChanges.length === 0 ? (
-              <p className="app-status-panel__empty">See full changelog for history.</p>
-            ) : (
-              <ul className="app-status-panel__list">
-                {STATUS_DATA.recentChanges.map((entry, i) => <li key={i}>{entry}</li>)}
-              </ul>
-            )}
-          </div>
-          <div className="app-status-panel">
-            <span className="app-status-panel__label">Known Issues</span>
-            {STATUS_DATA.knownIssues.length === 0 ? (
-              <p className="app-status-panel__empty">None currently listed.</p>
-            ) : (
-              <ul className="app-status-panel__list">
-                {STATUS_DATA.knownIssues.map((issue, i) => <li key={i}>{issue}</li>)}
-              </ul>
-            )}
-          </div>
+        {/* Issues panel */}
+        <div className="app-status-issues">
+          <div className="app-status-panel__eyebrow">Known Issues</div>
+          {STATUS_DATA.knownIssues.map((issue, i) => (
+            <div key={i} className={`app-status-item app-status-item--iss${i + 1}`}>
+              <span className="app-status-item__marker app-status-item__marker--warn" aria-hidden="true">!</span>
+              <span className="app-status-item__text">{issue}</span>
+            </div>
+          ))}
         </div>
+
       </div>
 
+      {/* Footer */}
       <div className="app-status-modal__footer">
         <button
           type="button"
@@ -127,7 +151,7 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
         </button>
         <button
           type="button"
-          className="confirmation-modal__btn app-modal-close picker-modal__close"
+          className="confirmation-modal__btn"
           onClick={() => { navigate('/changelog'); onClose() }}
         >
           See Changelog

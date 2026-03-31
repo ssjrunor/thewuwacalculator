@@ -353,7 +353,7 @@ body.pastel-pink,
   --calc-box-shadow: none;
   --calc-grid-border: rgba(177, 0, 90, 0.15);
   --calc-row-even: rgba(255, 108, 130, 0.06);
-  --calc-row-odd: #ffebef;
+  --calc-row-odd: rgba(255, 235, 239, 0.49);
   --calc-inner-bg: rgba(255, 108, 130, 0.06);
   --calc-inner-border: rgba(177, 0, 90, 0.15);
   --calc-item-bg: rgba(255, 228, 233, 0.7);

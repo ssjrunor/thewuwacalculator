@@ -298,6 +298,20 @@ function getFeatureLabelColor(meta?: FeatureMeta): string {
   return attributeColors[meta?.element ?? 'physical'] ?? '#6c6c6c'
 }
 
+function getSkillMenuLabelColor(skill: SkillDefinition): string {
+  return getFeatureLabelColor({
+    label: skill.label,
+    tab: skill.tab,
+    archetype: skill.archetype,
+    section: skill.sectionTitle,
+    skillTypeLabel: getSkillTypeDisplay(skill.skillType).label,
+    element: skill.element,
+    aggregationType: skill.aggregationType,
+    resonatorId: '',
+    resonatorName: '',
+  })
+}
+
 function makeDefaultExpandedTabs(): Record<string, boolean> {
   return Object.fromEntries(skillTabOrder.map((tab) => [tab, true]))
 }
@@ -1758,7 +1772,7 @@ function RotationSkillMenu({
                           >
                             <div className="dropdown-item-content">
                               <div className="dropdown-main">
-                                <span style={{ color: attributeColors[group.skill.element] ?? '#6c6c6c' }}>
+                                <span style={{ color: getSkillMenuLabelColor(group.skill) }}>
                                   {group.skill.label}
                                 </span>
                               </div>
@@ -1793,7 +1807,7 @@ function RotationSkillMenu({
                               >
                                 <div className="dropdown-item-content">
                                   <div className="dropdown-main">
-                                    <span style={{ color: attributeColors[entry.skill.element] ?? '#6c6c6c' }}>
+                                    <span style={{ color: getSkillMenuLabelColor(entry.skill) }}>
                                       {getSubHitLabel(entry)}
                                     </span>
                                   </div>

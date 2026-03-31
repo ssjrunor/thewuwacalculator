@@ -2430,10 +2430,52 @@
 .rotation-pane > :nth-child(3) { animation-delay: 120ms; }
 .rotation-pane > :nth-child(4) { animation-delay: 180ms; }
 
+@keyframes rotation-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.rotation-item-wrapper,
+.rotation-block-wrapper,
+.rotation-saved-item {
+  animation: rotation-item-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rotation-list-container > :nth-child(1),
+.rotation-saved-list > :nth-child(1)  { animation-delay: 0ms; }
+.rotation-list-container > :nth-child(2),
+.rotation-saved-list > :nth-child(2)  { animation-delay: 40ms; }
+.rotation-list-container > :nth-child(3),
+.rotation-saved-list > :nth-child(3)  { animation-delay: 80ms; }
+.rotation-list-container > :nth-child(4),
+.rotation-saved-list > :nth-child(4)  { animation-delay: 120ms; }
+.rotation-list-container > :nth-child(5),
+.rotation-saved-list > :nth-child(5)  { animation-delay: 160ms; }
+.rotation-list-container > :nth-child(6),
+.rotation-saved-list > :nth-child(6)  { animation-delay: 200ms; }
+.rotation-list-container > :nth-child(7),
+.rotation-saved-list > :nth-child(7)  { animation-delay: 240ms; }
+.rotation-list-container > :nth-child(8),
+.rotation-saved-list > :nth-child(8)  { animation-delay: 280ms; }
+.rotation-list-container > :nth-child(n+9),
+.rotation-saved-list > :nth-child(n+9) { animation-delay: 300ms; }
+
 @media (prefers-reduced-motion: reduce) {
   .rotation-pane > h3,
   .rotation-pane > .rotation-view-toggle,
   .rotation-pane > .pane-section {
+    animation: none;
+  }
+
+  .rotation-item-wrapper,
+  .rotation-block-wrapper,
+  .rotation-saved-item {
     animation: none;
   }
 }

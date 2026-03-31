@@ -46,6 +46,17 @@ import {
   Archive,
 } from 'lucide-react'
 
+function waitForNextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      setTimeout(resolve, 0)
+      return
+    }
+
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
 function toTitle(value: string): string {
   return value
     .split('-')
@@ -327,6 +338,8 @@ export function SettingsPage() {
         throw new Error('Google Drive session expired. Sign in again to continue.')
       }
 
+      // Let React paint the busy state before snapshot serialization runs.
+      await waitForNextPaint()
       const raw = buildCurrentSnapshotJson()
       const result = await uploadSnapshotToDrive(accessToken, raw)
       setCloudSyncStatus(`Uploaded ${result.fileName} to Google Drive app data.`)
