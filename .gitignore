@@ -1,0 +1,13 @@
+ideas
+.node-version
+.nvmrc
+
+.claude
+.idea
+.DS_Store
+dist
+ingest
+node_modules
+package-lock.json
+scripts
+LICENSE.md

@@ -1,0 +1,499 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shared Page Design System
+   Fonts, hero headers, bento tiles, and common patterns shared across all
+   redesigned pages. Individual page CSS files extend these base classes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Mono:wght@300;400;500&display=swap');
+
+/* ── Page shell ── */
+
+.page {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2rem 2.4rem 3rem;
+  position: relative;
+}
+
+/* Ambient background orbs */
+.page::before {
+  content: '';
+  position: fixed;
+  top: -40%;
+  right: -20%;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 8%, transparent) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page::after {
+  content: '';
+  position: fixed;
+  bottom: -30%;
+  left: -15%;
+  width: 50vw;
+  height: 50vw;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 5%, transparent) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Hero header ── */
+
+.page-hero {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 2.2rem;
+  padding-bottom: 1.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 50%, transparent);
+  animation: page-hero-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-hero--split {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.page-hero-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-hero-eyebrow::before {
+  content: '';
+  width: 1.6rem;
+  height: 1px;
+  background: var(--accent);
+}
+
+.page-hero h1 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+
+.page-hero-sub {
+  font-size: 0.92rem;
+  color: var(--muted);
+  max-width: 44ch;
+  line-height: 1.55;
+}
+
+.page-hero-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+/* ── Bento grid ── */
+
+.page-bento {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
+  grid-auto-rows: auto;
+}
+
+/* ── Tile base ── */
+
+.page-tile {
+  border-radius: 1rem;
+  padding: 1.4rem 1.5rem;
+  background: var(--surface-strong);
+  border: 1px solid var(--panel-border);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 14px rgba(0, 0, 0, 0.03);
+}
+
+.page-tile:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.06);
+}
+
+/* Hover corner glow */
+.page-tile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4rem;
+  height: 4rem;
+  background: radial-gradient(
+    circle at top right,
+    color-mix(in srgb, var(--accent) 8%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.page-tile:hover::after {
+  opacity: 1;
+}
+
+/* ── Tile sizes ── */
+
+.page-tile--wide { grid-column: span 8; }
+.page-tile--narrow { grid-column: span 4; }
+.page-tile--half { grid-column: span 6; }
+.page-tile--full { grid-column: span 12; }
+.page-tile--third { grid-column: span 4; }
+
+/* ── Tile header (icon + text) ── */
+
+.tile-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+}
+
+.tile-icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.6rem;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tile-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.tile-icon--purple {
+  background: color-mix(in srgb, #9b59b6 12%, var(--surface-strong));
+  color: #9b59b6;
+}
+
+.tile-icon--amber {
+  background: color-mix(in srgb, #d4880f 12%, var(--surface-strong));
+  color: #d4880f;
+}
+
+.tile-icon--rose {
+  background: color-mix(in srgb, #e84393 12%, var(--surface-strong));
+  color: #e84393;
+}
+
+.tile-icon--blue {
+  background: color-mix(in srgb, #3498db 12%, var(--surface-strong));
+  color: #3498db;
+}
+
+.tile-icon--green {
+  background: color-mix(in srgb, var(--ok, #1eab62) 12%, var(--surface-strong));
+  color: var(--ok, #1eab62);
+}
+
+.tile-icon--danger {
+  background: color-mix(in srgb, var(--danger, #cc3f53) 10%, var(--surface-strong));
+  color: var(--danger, #cc3f53);
+}
+
+.tile-header-text h3 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.tile-header-text p {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0.15rem 0 0;
+  line-height: 1.4;
+}
+
+/* ── Prose content inside tiles ── */
+
+.tile-prose {
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.tile-prose p {
+  margin: 0.45rem 0;
+}
+
+.tile-prose p:first-child {
+  margin-top: 0;
+}
+
+.tile-prose a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 180ms ease;
+}
+
+.tile-prose a:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+.tile-prose strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tile-prose em {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.tile-prose h2 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 1.5rem 0 0.5rem;
+}
+
+.tile-prose h2:first-child {
+  margin-top: 0;
+}
+
+.tile-prose ul {
+  padding-left: 1.25rem;
+  margin: 0.4rem 0;
+}
+
+.tile-prose li {
+  margin-bottom: 0.3rem;
+}
+
+.tile-prose code {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid var(--panel-border);
+}
+
+/* ── Back button ── */
+
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 0.55rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.page-back-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--panel-border));
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.page-back-btn svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* ── Pill badge ── */
+
+.page-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ── Count badge ── */
+
+.page-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ── Accent image ── */
+
+.page-accent-img {
+  display: block;
+  max-width: 90px;
+  border-radius: 0.6rem;
+  margin-top: 0.3rem;
+  opacity: 0.9;
+  transition: transform 0.3s ease;
+}
+
+.page-accent-img:hover {
+  transform: scale(1.05);
+}
+
+/* ── Legal last-updated footer ── */
+
+.page-last-updated {
+  margin-top: 2rem;
+  opacity: 0.6;
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+/* ── Tile entrance animation ── */
+
+@keyframes page-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.page-tile {
+  animation: page-tile-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-tile:nth-child(1) { animation-delay: 0ms; }
+.page-tile:nth-child(2) { animation-delay: 70ms; }
+.page-tile:nth-child(3) { animation-delay: 140ms; }
+.page-tile:nth-child(4) { animation-delay: 210ms; }
+.page-tile:nth-child(5) { animation-delay: 280ms; }
+.page-tile:nth-child(6) { animation-delay: 350ms; }
+.page-tile:nth-child(7) { animation-delay: 420ms; }
+.page-tile:nth-child(8) { animation-delay: 490ms; }
+.page-tile:nth-child(9) { animation-delay: 560ms; }
+.page-tile:nth-child(10) { animation-delay: 630ms; }
+
+@keyframes page-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+  .page {
+    padding: 1.4rem 1.2rem 2rem;
+  }
+
+  .page-bento {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .page-tile--wide,
+  .page-tile--narrow,
+  .page-tile--third {
+    grid-column: span 6;
+  }
+
+  .page-tile--half {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 1rem 0.8rem 1.5rem;
+  }
+
+  .page-bento {
+    grid-template-columns: 1fr;
+  }
+
+  .page-tile--wide,
+  .page-tile--narrow,
+  .page-tile--half,
+  .page-tile--full,
+  .page-tile--third {
+    grid-column: span 1;
+  }
+
+  .page-hero h1 {
+    font-size: 1.8rem;
+  }
+
+  .page-hero--split {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-tile,
+  .page-hero {
+    animation: none;
+  }
+}

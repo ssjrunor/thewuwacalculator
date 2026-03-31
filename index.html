@@ -1,0 +1,67 @@
+<!--
+  Author      : Runor Ewhro
+  Description : Application shell and entry point. Runs a pre-render theme
+                initialization script to prevent flash of unstyled content
+                before React mounts.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/refined-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wuthering Waves Calculator</title>
+  </head>
+  <body>
+    <script>
+      ;(() => {
+        const STORAGE_KEY = 'wwcalc.app.v21'
+        const themeVariants = [
+          'light',
+          'pastel-pink',
+          'pastel-blue',
+          'vibrant-citrus',
+          'glassy-rainbow',
+          'sunlit-haze',
+          'dark',
+          'dark-alt',
+          'cosmic-rainbow',
+          'scarlet-nebula',
+          'emerald-forest',
+          'graphite-pop',
+          'frosted-aurora',
+        ]
+
+        try {
+          const raw = window.localStorage.getItem(STORAGE_KEY)
+          if (!raw) return
+
+          const parsed = JSON.parse(raw)
+          const ui = parsed?.ui
+          if (!ui) return
+
+          const isDark = ui.theme === 'dark'
+          const activeVariant =
+            ui.theme === 'background'
+              ? ui.backgroundVariant
+              : isDark
+                ? ui.darkVariant
+                : ui.lightVariant
+
+          if (!themeVariants.includes(activeVariant)) return
+
+          const body = document.body
+          body.classList.remove(...themeVariants, 'blur-off', 'dark-text', 'light-text')
+          body.classList.add(activeVariant, isDark ? 'dark-text' : 'light-text')
+
+          if (ui.blurMode === 'off') {
+            body.classList.add('blur-off')
+          }
+        } catch {}
+      })()
+    </script>
+    <div id="root"></div>
+    <div id="tooltip-portal"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

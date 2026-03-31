@@ -1,0 +1,541 @@
+/* Calculator results pane, overview cards, stats, and damage layout */
+
+.results-section-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.analysis-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 0.2rem;
+  min-width: 0;
+}
+
+#right-pane .analysis-overview-grid {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.resonator-flow-header,
+.calculator-mode-panel {
+  position: relative;
+  border-radius: 1.45rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-box-border));
+  --ui-surface-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 2%, transparent), transparent 48%),
+    var(--calc-box-bg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 5px 10px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.resonator-settings,
+.skills-settings,
+.inherent-skills-box,
+.stats-box,
+.damage-box {
+  --ui-surface-radius: 1.45rem;
+  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-box-border));
+  --ui-surface-border: 1px solid var(--ui-surface-border-color);
+  --ui-surface-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 2%, transparent), transparent 48%),
+    var(--calc-box-bg);
+  --ui-surface-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 5px 10px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.dark-alt .resonator-settings,
+.dark-alt .skills-settings,
+.dark-alt .inherent-skills-box,
+.dark-alt .stats-box,
+.dark-alt .damage-box {
+  --ui-surface-bg:
+          radial-gradient(circle at 12% 14%, color-mix(in srgb, var(--resonator-accent) 13%, transparent) 0, transparent 32%),
+          radial-gradient(circle at 90% 18%, rgba(255, 255, 255, 0.02) 0, transparent 22%),
+          linear-gradient(180deg, color-mix(in srgb, white 1%, transparent), transparent 42%),
+          var(--calc-box-bg);
+}
+
+.resonator-flow-header::before,
+.resonator-settings::before,
+.skills-settings::before,
+.inherent-skills-box::before,
+.stats-box::before,
+.damage-box::before,
+.calculator-mode-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--resonator-accent) 78%, transparent), transparent);
+  pointer-events: none;
+}
+
+.resonator-flow-header {
+  padding: 1.15rem 1.2rem;
+}
+
+.resonator-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+
+.resonator-snapshot-card {
+  position: relative;
+  display: grid;
+  gap: 0.3rem;
+  --ui-surface-padding: 0.82rem 0.9rem;
+  --ui-surface-radius: 1.15rem;
+  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-box-border));
+  --ui-surface-border: 1px solid var(--ui-surface-border-color);
+  --ui-surface-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 2%, transparent), transparent 68%),
+    var(--calc-item-bg);
+  overflow: hidden;
+}
+
+.dark-alt .resonator-snapshot-card,
+.dark-alt .calculator-mode-panel,
+.dark-alt .resonator-flow-header {
+  --ui-surface-bg:
+          radial-gradient(circle at 12% 14%, color-mix(in srgb, var(--resonator-accent) 13%, transparent) 0, transparent 32%),
+          radial-gradient(circle at 90% 18%, rgba(255, 255, 255, 0.02) 0, transparent 22%),
+          linear-gradient(180deg, color-mix(in srgb, white 1%, transparent), transparent 42%),
+          var(--calc-box-bg);
+}
+
+.resonator-snapshot-card.shrink {
+  container-type: inline-size;
+}
+
+.resonator-snapshot-card::after {
+  content: '';
+  position: absolute;
+  inset: auto -8% -52% 46%;
+  height: 68%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--resonator-accent) 16%, transparent) 0, transparent 68%);
+}
+
+.resonator-snapshot-label {
+  position: relative;
+  z-index: 1;
+  color: color-mix(in srgb, var(--resonator-accent) 72%, var(--calc-text));
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.resonator-snapshot-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  position: relative;
+  z-index: 1;
+  font-size: clamp(0.85rem, 1cqw, 1.25rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.resonator-snapshot-detail {
+  position: relative;
+  z-index: 1;
+  color: var(--calc-muted);
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+
+
+.panel-title {
+  margin-top: 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
+}
+
+.stat-group-title {
+  margin-top: 1.1rem;
+  margin-bottom: 0.65rem;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 0.35rem;
+  border: none;
+  background: transparent;
+}
+
+.stat-row {
+  border-radius: 1rem;
+  border: var(--ui-inner-border);
+  background: var(--calc-inner-bg);
+}
+
+.damage-section {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.damage-section .box-wrapper {
+  margin-bottom: 0;
+}
+
+.damage-inner-box {
+  min-width: 0;
+  --ui-inner-radius: 1.2rem;
+  --ui-inner-padding: 0.9rem 1rem;
+}
+
+.damage-box-title {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.damage-panel-title {
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.95rem;
+}
+
+.damage-panel-title .toggle-row.compact {
+  margin-left: auto;
+}
+
+.damage-grid {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.88rem;
+  color: var(--calc-text);
+}
+
+.damage-inner-box > .panel-overline + .damage-grid {
+  margin-top: 0.55rem;
+}
+
+.damage-grid thead th {
+  padding: 0 0 0.58rem;
+  color: var(--calc-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--calc-inner-border) 76%, transparent);
+  text-align: right;
+}
+
+.damage-grid thead th:first-child {
+  width: 46%;
+  text-align: left;
+}
+
+.damage-grid th,
+.damage-grid td {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.damage-grid tbody th,
+.damage-grid tbody td {
+  padding: 0.5rem 0;
+  /*
+  border-top: 1px solid color-mix(in srgb, var(--calc-inner-border) 76%, transparent);
+  */
+}
+
+.damage-grid tbody th {
+  padding-right: 0.9rem;
+  text-align: left;
+  font-size: 0.89rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.damage-grid tbody td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.damage-grid tbody tr:not([data-damage-kind='subhit'], [data-damage-kind='formula-row']) {
+  transition: background-color 220ms ease;
+}
+
+.damage-grid tbody tr:not([data-damage-kind='subhit'], [data-damage-kind='formula-row']):hover {
+  background-color: color-mix(in srgb, var(--resonator-accent) 3%, transparent);
+}
+
+.damage-grid tbody tr[data-damage-kind='subhit'] th,
+.damage-grid tbody tr[data-damage-kind='subhit'] td {
+  padding-top: 0.28rem;
+  padding-bottom: 0.28rem;
+  border-top: 0;
+  color: color-mix(in srgb, var(--calc-muted) 88%, var(--calc-text));
+  font-size: 0.81rem;
+}
+
+.damage-grid tbody.damage-row-expandable {
+  border: none;
+}
+
+.damage-row-expandable tr[aria-expanded] {
+  cursor: pointer;
+  transition: background-color 180ms ease;
+}
+
+.damage-row-expandable tr[aria-expanded]:hover {
+  background-color: color-mix(in srgb, var(--calc-text) 5%, transparent);
+}
+
+.damage-row-expandable tr[aria-expanded='true'] {
+  background-color: color-mix(in srgb, var(--calc-text) 3%, transparent);
+}
+
+.damage-expanded-row td {
+  padding: 0;
+  border: none;
+}
+
+.damage-expanded-row .team-state-empty {
+  margin: 0.5rem 0.75rem 0.75rem;
+  padding: 1rem;
+  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--calc-text) 2%, transparent);
+  border-style: solid;
+  border-width: 1px;
+}
+
+.damage-grid tbody tr[data-damage-kind='subhit'] th {
+  position: relative;
+  padding-left: 1rem;
+  font-weight: 600;
+}
+
+.damage-grid tbody tr[data-damage-kind='subhit'] th::before {
+  content: none;
+}
+
+.damage-grid tbody tr[data-damage-kind='feature'] > th {
+  color: var(--damage-row-accent, var(--calc-text));
+}
+
+.damage-feature-label {
+  font-weight: 700;
+}
+
+.damage-grid tbody tr[data-damage-kind='support'] th,
+.damage-grid tbody tr[data-damage-kind='support'] td {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.damage-support-label,
+.damage-support-value {
+  font-weight: 800;
+}
+
+.damage-support-placeholder {
+  color: color-mix(in srgb, var(--calc-muted) 88%, var(--calc-text));
+}
+
+.damage-grid tbody tr[data-damage-kind='total'] th,
+.damage-grid tbody tr[data-damage-kind='total'] td {
+  padding-top: 0.78rem;
+  font-weight: 800;
+  color: var(--calc-text);
+  border-top-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-inner-border));
+}
+
+.damage-grid tbody tr[data-damage-kind='total'] td {
+  color: color-mix(in srgb, var(--resonator-accent) 24%, var(--calc-text));
+}
+
+.char-menu-item,
+.ui-pill-button,
+.rarity-chip,
+.chip,
+.danger-btn,
+.skill-info-button {
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-item-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 8%, transparent), transparent 72%),
+    var(--calc-item-bg);
+  box-shadow: 0 0.55rem 1rem rgba(15, 23, 42, 0.05);
+  opacity: 1;
+}
+
+.char-menu-item {
+  border-radius: 1rem;
+}
+
+.char-menu-item:hover,
+.char-menu-item.selected,
+.ui-pill-button:hover,
+.ui-pill-button.active,
+.rarity-chip.active,
+.view-toggle-button.active,
+.chip.active,
+.danger-btn:hover {
+  transform: translateY(-1px);
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select) {
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-input-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 68%),
+    var(--calc-input-bg);
+  color: var(--calc-input-color);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0.55rem 1rem rgba(15, 23, 42, 0.04);
+}
+
+.calculator-route select {
+  appearance: auto;
+  text-align: left;
+  font-weight: 600;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 68%),
+    var(--calc-input-bg);
+  color: var(--calc-input-color);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-input-border));
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select):focus {
+  border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--calc-input-border));
+  box-shadow:
+    0 0 0 4px var(--calc-focus-ring),
+    0 0.8rem 1.6rem rgba(15, 23, 42, 0.08);
+}
+
+.calculator-route input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 26%, var(--calc-input-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent), transparent 70%),
+    var(--calc-input-bg);
+  box-shadow: 0 0.35rem 0.75rem rgba(15, 23, 42, 0.08);
+}
+
+.calculator-route input[type='checkbox']:checked {
+  box-shadow:
+    0 0.45rem 0.9rem color-mix(in srgb, var(--resonator-accent) 24%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--resonator-accent) 24%, transparent);
+}
+
+.calculator-route input[type='range'] {
+  height: 0.58rem;
+  background: linear-gradient(
+    to right,
+    var(--slider-fill-color) 0%,
+    var(--slider-fill-color) var(--slider-fill, 0%),
+    color-mix(in srgb, var(--calc-slider-empty) 96%, transparent) var(--slider-fill, 0%),
+    color-mix(in srgb, var(--calc-slider-empty) 96%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.12),
+    0 0.45rem 0.85rem rgba(15, 23, 42, 0.05);
+}
+
+.calculator-route input[type='range']::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+  border: 2px solid color-mix(in srgb, white 82%, var(--resonator-accent));
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0.2) 34%, transparent 35%),
+    var(--slider-color, #888);
+  box-shadow:
+    0 0.45rem 0.9rem color-mix(in srgb, var(--resonator-accent) 22%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--resonator-accent) 10%, transparent);
+}
+
+.calculator-route input[type='range']::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 2px solid color-mix(in srgb, white 82%, var(--resonator-accent));
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0.2) 34%, transparent 35%),
+    var(--slider-color, #888);
+  box-shadow:
+    0 0.45rem 0.9rem color-mix(in srgb, var(--resonator-accent) 22%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--resonator-accent) 10%, transparent);
+}
+
+.mode-panel-grid {
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.calculator-mode-panel .card {
+  height: 100%;
+}
+
+/* ── Results pane entrance animation ── */
+
+@keyframes results-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.calculator-results-pane > .results-pane-head,
+.calculator-results-pane > .analysis-overview-grid,
+.calculator-results-pane > .results-section-stack,
+.calculator-results-pane > .soft-empty {
+  animation: results-section-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.calculator-results-pane > :nth-child(1) { animation-delay: 0ms; }
+.calculator-results-pane > :nth-child(2) { animation-delay: 80ms; }
+.calculator-results-pane > :nth-child(3) { animation-delay: 160ms; }
+
+.analysis-overview-grid > .resonator-snapshot-card {
+  animation: results-section-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.analysis-overview-grid > :nth-child(1) { animation-delay: 100ms; }
+.analysis-overview-grid > :nth-child(2) { animation-delay: 180ms; }
+.analysis-overview-grid > :nth-child(3) { animation-delay: 260ms; }
+
+.results-section-stack > .pane-section {
+  animation: results-section-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.results-section-stack > :nth-child(1) { animation-delay: 200ms; }
+.results-section-stack > :nth-child(2) { animation-delay: 320ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .calculator-results-pane > .results-pane-head,
+  .calculator-results-pane > .analysis-overview-grid,
+  .calculator-results-pane > .results-section-stack,
+  .calculator-results-pane > .soft-empty,
+  .analysis-overview-grid > .resonator-snapshot-card,
+  .results-section-stack > .pane-section {
+    animation: none;
+  }
+}
+
+.damage-row-formula .editor-console__body {
+  padding: 0.5rem 1rem;
+}

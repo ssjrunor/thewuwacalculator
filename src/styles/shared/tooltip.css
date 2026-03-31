@@ -1,0 +1,164 @@
+/* Advanced Radix Tooltip Styles */
+
+.app-tooltip-container {
+  z-index: 9999;
+  filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.32));
+}
+
+/* Radix Animations */
+.radix-tooltip-content {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation-duration: 0.22s;
+  animation-timing-function: cubic-bezier(0.18, 0.92, 0.32, 1);
+  animation-fill-mode: both;
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+}
+
+.radix-tooltip-content.is-opening[data-side='top'] {
+  animation-name: slideDownAndFade;
+}
+.radix-tooltip-content.is-opening[data-side='right'] {
+  animation-name: slideLeftAndFade;
+}
+.radix-tooltip-content.is-opening[data-side='bottom'] {
+  animation-name: slideUpAndFade;
+}
+.radix-tooltip-content.is-opening[data-side='left'] {
+  animation-name: slideRightAndFade;
+}
+
+.radix-tooltip-content.is-closing {
+  pointer-events: none;
+  animation-duration: 0.16s;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.radix-tooltip-content.is-closing[data-side='top'] {
+  animation-name: slideUpAndFadeOut;
+}
+
+.radix-tooltip-content.is-closing[data-side='right'] {
+  animation-name: slideRightAndFadeOut;
+}
+
+.radix-tooltip-content.is-closing[data-side='bottom'] {
+  animation-name: slideDownAndFadeOut;
+}
+
+.radix-tooltip-content.is-closing[data-side='left'] {
+  animation-name: slideLeftAndFadeOut;
+}
+
+@keyframes slideUpAndFade {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes slideRightAndFade {
+  from { opacity: 0; transform: translateX(-6px) scale(0.96); filter: blur(6px); }
+  to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+
+@keyframes slideDownAndFade {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes slideLeftAndFade {
+  from { opacity: 0; transform: translateX(6px) scale(0.96); filter: blur(6px); }
+  to { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+}
+
+@keyframes slideUpAndFadeOut {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateY(-5px) scale(0.98); filter: blur(4px); }
+}
+
+@keyframes slideRightAndFadeOut {
+  from { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateX(5px) scale(0.98); filter: blur(4px); }
+}
+
+@keyframes slideDownAndFadeOut {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateY(5px) scale(0.98); filter: blur(4px); }
+}
+
+@keyframes slideLeftAndFadeOut {
+  from { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateX(-5px) scale(0.98); filter: blur(4px); }
+}
+
+.app-tooltip-content {
+  position: relative;
+  background: var(--app-bg-alt);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, #6b7cff) 25%, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  color: #f3f4f6;
+  padding: 0;
+  max-width: 20rem;
+  width: max-content;
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+/* Tooltip Header */
+.tooltip-header {
+  background: color-mix(in srgb, var(--resonator-accent, #6b7cff) 8%, rgba(255, 255, 255, 0.03));
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px 14px 0 0;
+}
+
+.tooltip-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--resonator-accent, #6b7cff);
+  text-transform: uppercase;
+}
+
+/* Tooltip Sections */
+.tooltip-section {
+  padding: 0.5rem 0.75rem;
+}
+
+.tooltip-section + .tooltip-section {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tooltip-section-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 0.5rem;
+}
+
+/* Formula Variant */
+.variant-formula {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.formula-code {
+  display: block;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace), serif;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Compatibility for Simple Tooltips */
+.simple-tooltip-text {
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  font-weight: 500;
+  color: #e5e7eb;
+}

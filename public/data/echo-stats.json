@@ -1,0 +1,73 @@
+{
+  "primaryStats": {
+    "1": {
+      "hpPercent": 22.8,
+      "atkPercent": 18,
+      "defPercent": 18
+    },
+    "3": {
+      "hpPercent": 30,
+      "atkPercent": 30,
+      "defPercent": 38,
+      "energyRegen": 32,
+      "aero": 30,
+      "glacio": 30,
+      "electro": 30,
+      "fusion": 30,
+      "havoc": 30,
+      "spectro": 30
+    },
+    "4": {
+      "hpPercent": 33,
+      "atkPercent": 33,
+      "defPercent": 41.5,
+      "critRate": 22,
+      "critDmg": 44,
+      "healingBonus": 26
+    }
+  },
+  "secondaryStats": {
+    "1": {
+      "key": "hpFlat",
+      "value": 2280
+    },
+    "3": {
+      "key": "atkFlat",
+      "value": 100
+    },
+    "4": {
+      "key": "atkFlat",
+      "value": 150
+    }
+  },
+  "substatKeys": [
+    "hpFlat",
+    "hpPercent",
+    "atkFlat",
+    "atkPercent",
+    "defFlat",
+    "defPercent",
+    "critRate",
+    "critDmg",
+    "energyRegen",
+    "basicAtk",
+    "heavyAtk",
+    "resonanceSkill",
+    "resonanceLiberation"
+  ],
+  "substatRanges": {
+    "atkPercent": { "min": 6.4, "max": 11.6, "divisions": 7 },
+    "atkFlat": { "min": 30, "max": 60, "divisions": 3 },
+    "hpPercent": { "min": 6.4, "max": 11.6, "divisions": 7 },
+    "hpFlat": { "min": 320, "max": 580, "divisions": 7 },
+    "defPercent": { "min": 8.1, "max": 14.7, "divisions": 7 },
+    "defFlat": { "min": 40, "max": 70, "divisions": 3 },
+    "critRate": { "min": 6.3, "max": 10.5, "divisions": 7 },
+    "critDmg": { "min": 12.6, "max": 21, "divisions": 7 },
+    "energyRegen": { "min": 6.8, "max": 12.4, "divisions": 7 },
+    "basicAtk": { "min": 6.4, "max": 11.6, "divisions": 7 },
+    "heavyAtk": { "min": 6.4, "max": 11.6, "divisions": 7 },
+    "resonanceSkill": { "min": 6.4, "max": 11.6, "divisions": 7 },
+    "resonanceLiberation": { "min": 6.4, "max": 11.6, "divisions": 7 }
+  }
+}

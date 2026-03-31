@@ -1,0 +1,387 @@
+.enemy-pane-v2 {
+  display: grid;
+  gap: 1rem;
+}
+
+.enemy-pane-v2__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.enemy-pane-v2__hero-copy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.enemy-pane-v2__hero-copy h3 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2vw, 1.95rem);
+  letter-spacing: -0.04em;
+}
+
+.enemy-pane-v2__mode-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.24rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--calc-box-bg) 86%, var(--calc-inner-bg));
+}
+
+.enemy-toggle {
+  min-height: 2.25rem;
+  padding: 0.45rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--calc-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.enemy-toggle.active {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent), transparent 72%),
+    color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-bg));
+  color: var(--calc-text);
+  box-shadow: 0 0.55rem 1.1rem rgba(15, 23, 42, 0.08);
+}
+
+.enemy-pane-v2__stage {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.enemy-pane-v2__stage-top {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 8rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.enemy-pane-v2__stage-top .resonator-avatar {
+  width: 7.35rem;
+  height: 7.35rem;
+  border-radius: 1.45rem;
+}
+
+.enemy-stage-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
+  border-radius: 1.15rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--resonator-accent) 18%, transparent), transparent 52%),
+    linear-gradient(180deg, color-mix(in srgb, white 5%, transparent), transparent 72%),
+    var(--calc-box-bg);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.enemy-stage-card:hover,
+.enemy-stage-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 28%, var(--calc-item-border));
+  box-shadow: 0 1rem 1.8rem rgba(15, 23, 42, 0.08);
+}
+
+.enemy-stage-card__copy {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.enemy-slider__meta .enemy-profile-tile__value-row {
+  min-height: unset;
+}
+
+.enemy-stage-card__eyebrow,
+.enemy-profile-tile__label,
+.enemy-pane-v2__section-head p,
+.enemy-slider__meta p {
+  color: var(--calc-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.enemy-stage-card__eyebrow,
+.enemy-profile-tile__label,
+.enemy-pane-v2__section-head p {
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.enemy-stage-card__copy strong {
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+}
+
+.enemy-pane-v2__description {
+  margin: 0;
+  color: var(--calc-muted);
+  line-height: 1.6;
+}
+
+.enemy-pane-v2__section-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.enemy-pane-v2__section-head h4 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.enemy-pane-v2__section-head p {
+  margin: 0.24rem 0 0;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.enemy-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.enemy-pane-v2__profile-grid {
+  display: grid;
+  grid-template-columns: auto;
+  gap: 0.85rem;
+}
+
+.enemy-profile-tile {
+  gap: 0.5rem;
+}
+
+.enemy-profile-tile__value-row,
+.enemy-profile-tile__readonly {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.enemy-profile-tile__readonly {
+  padding: 0 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 12%, var(--calc-item-border));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--calc-box-bg) 90%, transparent);
+  font-weight: 700;
+}
+
+.enemy-class-radio-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.55rem;
+}
+
+.enemy-class-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.58rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 10%, var(--calc-item-border));
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--calc-box-bg) 90%, transparent);
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.enemy-class-radio.active {
+  border-color: color-mix(in srgb, var(--resonator-accent) 30%, var(--calc-item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 12%, var(--calc-box-bg));
+}
+
+.enemy-class-radio__dot {
+  width: 0.82rem;
+  height: 0.82rem;
+  flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, var(--resonator-accent) 45%, var(--calc-text));
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 0 var(--resonator-accent);
+  transition: box-shadow 160ms ease, background 160ms ease;
+}
+
+.enemy-class-radio.active .enemy-class-radio__dot {
+  background: var(--resonator-accent);
+  box-shadow: inset 0 0 0 0.18rem color-mix(in srgb, white 20%, var(--resonator-accent));
+}
+
+.enemy-res-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.enemy-res-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 10%, var(--calc-item-border));
+  border-radius: 1rem;
+}
+
+.enemy-res-card.editable {
+  border-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
+}
+
+.enemy-res-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.enemy-res-card__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.enemy-res-card__label img {
+  width: 1rem;
+  height: 1rem;
+}
+
+.enemy-slider-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.enemy-slider {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.45rem 0;
+}
+
+.enemy-slider__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.enemy-slider__meta strong {
+  display: block;
+  margin: 0;
+  font-size: 0.92rem;
+  letter-spacing: -0.02em;
+}
+
+.enemy-slider__meta p {
+  margin: 0.24rem 0 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.enemy-picker__search {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.enemy-picker__search-input {
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0.72rem 0.88rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--calc-box-bg) 90%, transparent);
+  color: inherit;
+}
+
+.enemy-picker__filter-layout {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.enemy-picker__class-group {
+  flex-wrap: wrap;
+}
+
+.enemy-picker__media-frame {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 0.95rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 10%, var(--calc-inner-bg));
+}
+
+.enemy-picker__media-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 900px) {
+  .enemy-pane-v2__hero,
+  .enemy-pane-v2__stage-top,
+  .enemy-pane-v2__profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .enemy-preset-grid,
+  .enemy-res-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .enemy-picker__filter-layout,
+  .enemy-class-radio-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Enemy pane entrance animation ── */
+
+@keyframes enemy-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.enemy-pane-v2 > .enemy-pane-v2__hero,
+.enemy-pane-v2 > .pane-section {
+  animation: enemy-section-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.enemy-pane-v2 > :nth-child(1) { animation-delay: 0ms; }
+.enemy-pane-v2 > :nth-child(2) { animation-delay: 60ms; }
+.enemy-pane-v2 > :nth-child(3) { animation-delay: 120ms; }
+.enemy-pane-v2 > :nth-child(4) { animation-delay: 180ms; }
+.enemy-pane-v2 > :nth-child(5) { animation-delay: 240ms; }
+.enemy-pane-v2 > :nth-child(6) { animation-delay: 300ms; }
+.enemy-pane-v2 > :nth-child(7) { animation-delay: 360ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .enemy-pane-v2 > .enemy-pane-v2__hero,
+  .enemy-pane-v2 > .pane-section {
+    animation: none;
+  }
+}

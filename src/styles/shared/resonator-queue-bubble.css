@@ -1,0 +1,55 @@
+.resonator-queue-bubble {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 3rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background:
+    color-mix(in srgb, var(--surface-strong, var(--panel, #1c2330)) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 18%, var(--panel-border, rgba(255, 255, 255, 0.08)));
+  box-shadow:
+    0 0.35rem 1.2rem rgba(0, 0, 0, 0.22),
+    0 0 0 1px color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 6%, transparent);
+  user-select: none;
+  will-change: left, top;
+}
+
+.resonator-queue-bubble__icon {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 25%, var(--panel-border, rgba(255, 255, 255, 0.1)));
+  background: color-mix(in srgb, var(--calc-text, var(--text, #fff)) 6%, transparent);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.resonator-queue-bubble:hover .resonator-queue-bubble__icon {
+  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 40%, var(--panel-border, rgba(255, 255, 255, 0.15)));
+}
+
+.resonator-queue-bubble__grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 100%;
+  cursor: grab;
+  color: var(--calc-muted, var(--muted, rgba(255, 255, 255, 0.45)));
+  flex-shrink: 0;
+  transition: color 180ms ease;
+  border-radius: 4px;
+}
+
+.resonator-queue-bubble__grip:hover {
+  color: var(--calc-text, var(--text, rgba(255, 255, 255, 0.85)));
+}
+
+.resonator-queue-bubble__grip:active {
+  cursor: grabbing;
+  color: var(--resonator-accent, var(--accent, #20bfb9));
+}

@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Sen:wght@400..800&display=swap');
+
+:root {
+  --body-font: 'Sen', sans-serif;
+  --preview-font: var(--body-font);
+  font-family: var(--body-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*:focus {
+  outline: none;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  min-width: 320px;
+  font-family: var(--body-font);
+  color: var(--text, #1b2435);
+  background: var(--app-bg, #eef2f9);
+}
+
+button {
+  cursor: pointer;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: var(--ui-control-border, 1px solid var(--panel-border));
+  border-radius: var(--ui-control-radius, 10px);
+  background: var(--ui-control-bg, var(--surface-strong));
+  color: var(--ui-control-color, var(--text));
+  box-shadow: var(--ui-control-shadow, none);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ui-focus-ring, color-mix(in srgb, var(--accent) 18%, transparent));
+}
+
+input[type='checkbox'] {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+p,
+ul {
+  margin-top: 0;
+}

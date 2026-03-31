@@ -1,0 +1,836 @@
+/* Calculator route polish, interaction effects, and late route-specific overrides */
+
+/*.main-content {
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--resonator-accent) 8%, var(--calc-box-border));
+}*/
+
+.toolbar,
+.sidebar,
+.calculator-hero,
+.calculator-workspace,
+.resonator-flow-header,
+.resonator-settings,
+.skills-settings,
+.inherent-skills-box,
+.stats-box,
+.damage-box,
+.calculator-mode-panel,
+.resonator-snapshot-card,
+.pane-section,
+.card,
+.summary-row,
+.echo-row,
+.rotation-row,
+.soft-empty {
+  background: color-mix(in srgb, var(--calc-text) 3%, transparent);
+  /*
+  box-shadow: none;
+  */
+  backdrop-filter: none;
+}
+
+.toolbar-icon-button,
+.calculator-overview-pill,
+.calculator-hero-pill,
+.ui-pill-button,
+.chip,
+.danger-btn {
+  background: color-mix(in srgb, var(--resonator-accent) 6%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.main-content::before,
+.main-content::after,
+.calculator-workspace::before,
+.calculator-pane.partition::before,
+.resonator-flow-header::before,
+.resonator-settings::before,
+.skills-settings::before,
+.inherent-skills-box::before,
+.stats-box::before,
+.damage-box::before,
+.calculator-mode-panel::before,
+.resonator-snapshot-card::after {
+  content: none !important;
+}
+
+.char-menu-item,
+.ui-pill-button,
+.rarity-chip,
+.view-toggle-button,
+.skill-info-button,
+.weapon-filter-btn,
+.attribute-filter-btn {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 8%, transparent), transparent 72%),
+    var(--calc-item-bg);
+  box-shadow: 0 0.55rem 1rem rgba(15, 23, 42, 0.05);
+  backdrop-filter: none;
+}
+
+.gutter::before {
+  background: color-mix(in srgb, var(--resonator-accent) 44%, var(--calc-text));
+  box-shadow: none;
+}
+
+.gutter::after {
+  width: 0.45rem;
+  height: 3rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-box-border));
+  background: color-mix(in srgb, var(--resonator-accent) 8%, transparent);
+  box-shadow: none;
+}
+
+.gutter:is(:hover, :focus-visible)::before,
+.split.is-dragging .gutter::before {
+  box-shadow: none;
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select) {
+  background: color-mix(in srgb, var(--calc-text) 2%, transparent);
+  box-shadow: none;
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select):focus {
+  box-shadow: 0 0 0 2px var(--calc-focus-ring);
+}
+
+.calculator-route input[type='checkbox'] {
+  background: color-mix(in srgb, var(--calc-text) 2%, transparent);
+  box-shadow: none;
+}
+
+.calculator-route input[type='checkbox']:checked {
+  box-shadow: none;
+}
+
+.calculator-route input[type='range'] {
+  box-shadow: none;
+}
+
+.calculator-route input[type='range']::-webkit-slider-thumb,
+.calculator-route input[type='range']::-moz-range-thumb {
+  background: var(--slider-color, var(--resonator-accent));
+  box-shadow: none;
+}
+
+:is(.toolbar-icon-button, .sidebar-button, .sidebar-sub-button, .resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .skill-info-button, .weapon-filter-btn, .attribute-filter-btn, .trace-icon) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background 260ms ease,
+    box-shadow 4s ease,
+    color 220ms ease !important;
+}
+
+button,
+button:focus,
+button:active,
+button:focus-visible,
+button:hover {
+  outline: none !important;
+}
+
+:is(.toolbar-icon-button, .sidebar-button, .sidebar-sub-button, .resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .skill-info-button, .weapon-filter-btn, .attribute-filter-btn)::before {
+  content: '';
+  position: absolute;
+  inset: -20% auto -20% -42%;
+  width: 40%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.08) 72%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease;
+  z-index: 0;
+}
+
+:is(
+  .toolbar-icon-button,
+  .sidebar-button,
+  .sidebar-sub-button,
+  .resonator-avatar-button,
+  .char-menu-item,
+  .ui-pill-button,
+  .rarity-chip,
+  .view-toggle-button,
+  .chip,
+  .danger-btn,
+  .skill-info-button,
+  .weapon-filter-btn,
+  .attribute-filter-btn
+):is(:hover, :focus-visible)::before {
+  opacity: 1;
+  transform: translateX(380%) skewX(-18deg);
+}
+
+:is(
+  .toolbar-icon-button,
+  .sidebar-button,
+  .sidebar-sub-button,
+  .resonator-avatar-button,
+  .char-menu-item,
+  .rarity-chip,
+  .view-toggle-button,
+  .chip,
+  .danger-btn,
+  .skill-info-button,
+  .weapon-filter-btn,
+  .attribute-filter-btn
+) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.toolbar-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  isolation: isolate;
+  animation: toolbar-group-settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.toolbar-group::before,
+.toolbar-group::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.toolbar-group::before {
+  inset: 0.18rem -0.08rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--calc-item-bg) 82%, transparent);
+}
+
+.toolbar-group::after {
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 12%, var(--calc-box-border));
+  border-radius: 999px;
+  opacity: 0.56;
+  transform: scaleX(0.985);
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease;
+}
+
+.toolbar-group:is(:hover, :focus-within)::after {
+  opacity: 0.78;
+  transform: scaleX(1);
+}
+
+.toolbar-group > * {
+  position: relative;
+  z-index: 1;
+}
+
+.toolbar-icon-button {
+  width: 3rem;
+  height: 3rem;
+  padding: 0.28rem;
+  border: none;
+  border-radius: 1.15rem;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+  isolation: auto;
+  transform-origin: 50% 50%;
+  animation: toolbar-icon-settle 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--toolbar-index, 0) * 42ms);
+}
+
+.toolbar-icon-button::before {
+  content: none !important;
+}
+
+.toolbar-icon-shell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-box-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--calc-item-bg) 95%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0.65rem 1.3rem rgba(15, 23, 42, 0.08);
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms ease;
+}
+
+.toolbar-icon-shell::before,
+.toolbar-icon-shell::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.toolbar-icon-shell::before {
+  inset: 0;
+  background: rgba(255, 255, 255, 0.03);
+  z-index: 0;
+}
+
+.toolbar-icon-shell::after {
+  inset: -12%;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: inherit;
+  opacity: 0.18;
+  transform: scale(0.9);
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease;
+  z-index: 0;
+}
+
+.toolbar-icon-liquid {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(8px);
+  opacity: 0.56;
+  z-index: 0;
+  transition:
+    opacity 260ms ease,
+    filter 320ms ease;
+}
+
+.toolbar-icon-liquid--primary {
+  width: 1.65rem;
+  height: 1rem;
+  background: rgba(255, 255, 255, 0.3);
+  animation: toolbar-icon-liquid-float 8.4s ease-in-out infinite;
+  animation-delay: calc(var(--toolbar-index, 0) * -0.55s);
+}
+
+.toolbar-icon-liquid--secondary {
+  width: 1.18rem;
+  height: 0.78rem;
+  background: rgba(255, 255, 255, 0.18);
+  animation: toolbar-icon-liquid-float-alt 10.2s ease-in-out infinite;
+  animation-delay: calc(var(--toolbar-index, 0) * -0.82s);
+}
+
+.toolbar-icon-button .toolbar-icon-image {
+  position: relative;
+  z-index: 1;
+  width: 1.52rem;
+  height: 1.52rem;
+  min-width: 1.52rem;
+  min-height: 1.52rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.2rem 0.45rem rgba(15, 23, 42, 0.12));
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toolbar-icon-button:hover,
+.toolbar-icon-button:focus-visible {
+  transform: none;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-shell {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 1rem 2rem rgba(15, 23, 42, 0.12);
+}
+
+.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-shell::after {
+  opacity: 0.44;
+  transform: scale(1);
+}
+
+.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-image {
+  transform: translateY(-1px) scale(1.09);
+}
+
+.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-liquid {
+  opacity: 0.74;
+  filter: blur(9px);
+}
+
+.toolbar-icon-button:active .toolbar-icon-shell {
+  transform: scale(0.985);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0.55rem 1.1rem rgba(15, 23, 42, 0.08);
+}
+
+.toolbar-icon-button.active .toolbar-icon-shell {
+  border-color: color-mix(in srgb, var(--resonator-accent) 22%, var(--calc-box-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px color-mix(in srgb, var(--resonator-accent) 12%, transparent),
+    0 0.8rem 1.7rem rgba(15, 23, 42, 0.11);
+}
+
+.toolbar-icon-button.active .toolbar-icon-shell::after {
+  opacity: 0.46;
+  transform: scale(0.98);
+}
+
+.toolbar-icon-button.active .toolbar-icon-image {
+  transform: translateY(-1px) scale(1.05);
+}
+
+.toolbar-icon-button.active .toolbar-icon-liquid {
+  opacity: 0.66;
+}
+
+.toolbar-group:is(:hover, :focus-within) .toolbar-icon-button:not(:is(:hover, :focus-visible, .active)) .toolbar-icon-shell {
+  transform: translateY(1px) scale(0.985);
+}
+
+.toolbar-group:is(:hover, :focus-within) .toolbar-icon-button:not(:is(:hover, :focus-visible, .active)) .toolbar-icon-image {
+  transform: scale(0.96);
+}
+
+.sidebar-button:is(:hover, :focus-visible),
+.sidebar-sub-button:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--resonator-accent) 24%, var(--calc-box-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0.8rem 1.5rem color-mix(in srgb, var(--resonator-accent) 10%, transparent);
+}
+
+.resonator-avatar-button.rarity-1,
+.resonator-avatar--sprite.rarity-1,
+.co-portrait__ring.rarity-1 {
+  --avatar-rarity-border: rgba(153, 153, 153, 0.65);
+  --avatar-rarity-surface: rgba(153, 153, 153, 0.11);
+  --avatar-rarity-accent: rgb(153, 153, 153);
+}
+
+.resonator-avatar-button.rarity-2,
+.resonator-avatar--sprite.rarity-2,
+.co-portrait__ring.rarity-2 {
+  --avatar-rarity-border: rgba(98, 147, 124, 0.65);
+  --avatar-rarity-surface: rgba(98, 147, 124, 0.1);
+  --avatar-rarity-accent: rgb(98, 147, 124);
+}
+
+.resonator-avatar-button.rarity-3,
+.resonator-avatar--sprite.rarity-3,
+.co-portrait__ring.rarity-3 {
+  --avatar-rarity-border: rgba(96, 147, 185, 0.58);
+  --avatar-rarity-surface: rgba(96, 147, 185, 0.11);
+  --avatar-rarity-accent: rgb(96, 147, 185);
+}
+
+.resonator-avatar-button.rarity-4,
+.resonator-avatar--sprite.rarity-4,
+.co-portrait__ring.rarity-4 {
+  --avatar-rarity-border: rgba(132, 72, 168, 0.75);
+  --avatar-rarity-surface: rgba(121, 46, 166, 0.08);
+  --avatar-rarity-accent: rgb(132, 72, 168);
+}
+
+.resonator-avatar-button.rarity-5,
+.resonator-avatar--sprite.rarity-5,
+.co-portrait__ring.rarity-5 {
+  --avatar-rarity-border: rgba(255, 183, 0, 0.59);
+  --avatar-rarity-surface: rgba(255, 183, 0, 0.09);
+  --avatar-rarity-accent: rgb(255, 183, 0);
+}
+
+.resonator-avatar-button::after {
+  content: '';
+  position: absolute;
+  inset: 0.24rem;
+  border-radius: 1.55rem;
+  border: 1px solid color-mix(in srgb, var(--avatar-rarity-border) 58%, transparent);
+  background: radial-gradient(circle at 82% 16%, color-mix(in srgb, var(--avatar-rarity-surface) 86%, transparent), transparent 30%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--avatar-rarity-border) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--avatar-rarity-border) 10%, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.resonator-avatar-button .resonator-avatar--sprite {
+  border: 1px solid color-mix(in srgb, var(--avatar-rarity-border) 56%, var(--calc-header-icon-border));
+  background:
+    radial-gradient(circle at 84% 16%, color-mix(in srgb, var(--avatar-rarity-surface) 72%, transparent), transparent 24%),
+    color-mix(in srgb, var(--avatar-rarity-surface) 14%, var(--calc-header-icon-bg));
+}
+
+.resonator-avatar-button:hover,
+.resonator-avatar-button:focus-visible {
+  transform: translateY(-3px) scale(1.015);
+  border-color: color-mix(in srgb, var(--avatar-rarity-border) 44%, var(--calc-box-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1.2rem 2rem color-mix(in srgb, var(--avatar-rarity-border) 18%, transparent);
+}
+
+.resonator-avatar-button:hover::after,
+.resonator-avatar-button:focus-visible::after {
+  border-color: color-mix(in srgb, var(--avatar-rarity-border) 78%, transparent);
+  box-shadow:
+          inset 0 0 0 1px color-mix(in srgb, var(--avatar-rarity-border) 16%, transparent),
+          0 0.4rem 0.9rem color-mix(in srgb, var(--avatar-rarity-surface) 28%, transparent);
+}
+
+.char-menu-item,
+.ui-pill-button,
+.rarity-chip,
+.view-toggle-button,
+.chip,
+.danger-btn,
+.skill-info-button,
+.weapon-filter-btn,
+.attribute-filter-btn {
+  border-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 6%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0.1rem 1.2rem color-mix(in srgb, var(--resonator-accent) 9%, transparent);
+}
+
+.char-menu-item:is(:hover, :focus-visible),
+.ui-pill-button:is(:hover, :focus-visible),
+.rarity-chip:is(:hover, :focus-visible),
+.view-toggle-button:is(:hover, :focus-visible),
+.chip:is(:hover, :focus-visible),
+.danger-btn:is(:hover, :focus-visible),
+.skill-info-button:is(:hover, :focus-visible),
+.weapon-filter-btn:is(:hover, :focus-visible),
+.attribute-filter-btn:is(:hover, :focus-visible) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--calc-item-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+}
+
+.char-menu-item.selected,
+.ui-pill-button.active,
+.rarity-chip.active,
+.view-toggle-button.active,
+.chip.active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 56%, var(--calc-item-border));
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.28), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.danger-btn {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--calc-item-border));
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 78%),
+    color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.trace-icon:is(:hover, :focus-visible) {
+  transform: translateY(-2px) scale(1.04);
+  border-color: color-mix(in srgb, var(--resonator-accent) 46%, var(--calc-item-border));
+  box-shadow: 0 0.8rem 1.4rem color-mix(in srgb, var(--resonator-accent) 14%, transparent);
+  z-index: 3;
+}
+
+.trace-icon.active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0.85rem 1.5rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.trace-icons,
+.inherent-skills-box {
+  overflow: visible;
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select) {
+  transition:
+    border-color 220ms ease,
+    background 260ms ease,
+    box-shadow 260ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent), transparent 76%),
+    color-mix(in srgb, var(--calc-text) 2%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0.65rem 1.1rem color-mix(in srgb, var(--resonator-accent) 7%, transparent);
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select):hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 34%, var(--calc-input-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0.9rem 1.5rem color-mix(in srgb, var(--resonator-accent) 12%, transparent);
+}
+
+.calculator-route :is(input[type='number'], input[type='text'], textarea, select):focus {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 52%, var(--calc-input-border));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--resonator-accent) 14%, transparent),
+    0 1rem 1.7rem color-mix(in srgb, var(--resonator-accent) 14%, transparent);
+}
+
+.calculator-route input[type='checkbox'] {
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease !important;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.16), transparent 38%),
+    color-mix(in srgb, var(--calc-text) 2%, transparent);
+}
+
+.calculator-route input[type='checkbox']:hover {
+  transform: scale(1.06);
+  border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--calc-input-border));
+}
+
+.calculator-route input[type='checkbox']:checked {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0.6rem 1rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.calculator-route input[type='range'] {
+  transition:
+    box-shadow 220ms ease,
+    filter 220ms ease !important;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.12),
+    0 0.45rem 0.85rem color-mix(in srgb, var(--resonator-accent) 8%, transparent);
+}
+
+.calculator-route input[type='range']:hover {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.12),
+    0 0.7rem 1.2rem color-mix(in srgb, var(--resonator-accent) 14%, transparent);
+}
+
+.calculator-route input[type='range']::-webkit-slider-thumb,
+.calculator-route input[type='range']::-moz-range-thumb {
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms ease,
+    background 220ms ease !important;
+  box-shadow:
+    0 0.55rem 1rem color-mix(in srgb, var(--resonator-accent) 18%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--resonator-accent) 10%, transparent);
+}
+
+.calculator-route input[type='range']:hover::-webkit-slider-thumb,
+.calculator-route input[type='range']:focus-visible::-webkit-slider-thumb,
+.calculator-route input[type='range']:hover::-moz-range-thumb,
+.calculator-route input[type='range']:focus-visible::-moz-range-thumb {
+  transform: scale(1.08);
+  box-shadow:
+    0 0.7rem 1.2rem color-mix(in srgb, var(--resonator-accent) 24%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--resonator-accent) 12%, transparent);
+}
+
+.calc-tooltip::before {
+  background: color-mix(in srgb, var(--resonator-accent) 8%, rgba(20, 24, 31, 0.96));
+  border-left-color: color-mix(in srgb, var(--resonator-accent) 26%, rgba(255, 255, 255, 0.08));
+  border-top-color: color-mix(in srgb, var(--resonator-accent) 26%, rgba(255, 255, 255, 0.08));
+  transition:
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.calc-tooltip::after {
+  background: color-mix(in srgb, var(--resonator-accent) 7%, rgba(20, 24, 31, 0.96));
+  border-color: color-mix(in srgb, var(--resonator-accent) 26%, rgba(255, 255, 255, 0.08));
+  border-radius: 0.9rem;
+  box-shadow:
+    0 1rem 2rem rgba(0, 0, 0, 0.24),
+    0 0 0 1px color-mix(in srgb, var(--resonator-accent) 10%, transparent);
+  transition:
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.char-menu-overlay,
+.skills-modal-overlay {
+  transition:
+    opacity 260ms ease,
+    backdrop-filter 260ms ease;
+}
+
+.char-menu-panel,
+.skills-modal-content {
+  transform-origin: 50% 14%;
+}
+
+.skills-modal-content-area,
+.char-menu-body {
+  scroll-behavior: smooth;
+}
+
+@keyframes calculator-liquid-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(1.5rem, -1.2rem, 0) scale(1.08);
+  }
+}
+
+@keyframes calculator-liquid-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes toolbar-icon-liquid-float {
+  0%,
+  100% {
+    transform: translate(-0.56rem, -0.42rem) scale(0.98) rotate(-12deg);
+  }
+
+  50% {
+    transform: translate(-0.16rem, -0.62rem) scale(1.06) rotate(2deg);
+  }
+}
+
+@keyframes toolbar-icon-liquid-float-alt {
+  0%,
+  100% {
+    transform: translate(0.46rem, 0.38rem) scale(1.02) rotate(10deg);
+  }
+
+  50% {
+    transform: translate(0.18rem, 0.1rem) scale(0.92) rotate(-6deg);
+  }
+}
+
+@keyframes toolbar-group-settle {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toolbar-icon-settle {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.calculator-route .skills-settings .skill-info-button {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--calc-text);
+  display: inline-flex;
+  overflow: visible;
+  isolation: auto;
+  z-index: 10;
+  transition: transform ease 0.3s !important;
+}
+
+.calculator-route .skills-settings .skill-info-button::before {
+  content: none !important;
+}
+
+.calculator-route .skills-settings .skill-info-button > * {
+  position: static;
+  z-index: auto;
+}
+
+.calculator-route .skills-settings .skill-info-button:is(:hover, :focus-visible) {
+  transform: scale(1.2);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-content::before,
+  .main-content::after {
+    animation: none;
+  }
+
+  .toolbar-icon-button,
+  .sidebar-button,
+  .sidebar-sub-button,
+  .char-menu-item,
+  .ui-pill-button,
+  .chip,
+  .danger-btn {
+    transition: none;
+  }
+
+  .toolbar-icon-shell,
+  .toolbar-icon-shell::after,
+  .toolbar-icon-button .toolbar-icon-image {
+    transition: none;
+  }
+
+  .toolbar-group,
+  .toolbar-icon-button {
+    animation: none;
+  }
+
+  .toolbar-icon-liquid {
+    animation: none;
+  }
+}

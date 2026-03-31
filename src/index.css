@@ -1,0 +1,8 @@
+@import './styles/base.css';
+@import './styles/app-shell.css';
+@import './styles/shared-ui.css';
+@import './styles/theme-variants.css';
+@import './styles/calculator-workspace.css';
+@import './styles/calculator/weapon.css';
+@import './styles/pages/pages.css';
+@import './styles/responsive.css';

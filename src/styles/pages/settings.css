@@ -1,0 +1,520 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Settings Page — Settings-specific styles
+   Base layout (page, page-hero, page-bento, page-tile) lives in
+   page-design-system.css. This file only has settings-unique components.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Theme mode selector ── */
+
+.mode-switch {
+  display: flex;
+  border: 1px solid var(--panel-border);
+  gap: 0;
+  background: color-mix(in srgb, var(--panel-border) 30%, var(--surface-strong));
+  border-radius: 0.7rem;
+  padding: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.mode-switch-btn {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 0.01em;
+}
+
+.mode-switch-btn:hover:not(.mode-switch-btn.active) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-strong) 50%, transparent);
+}
+
+.mode-switch-btn.active {
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Theme swatch grid (oversized) ── */
+
+.settings-swatch-section {
+  margin-bottom: 0.5rem;
+}
+
+.settings-swatch-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 0.55rem;
+}
+
+.settings-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr));
+  gap: 0.65rem;
+}
+
+.settings-swatch {
+  aspect-ratio: 1 / 1;
+  border-radius: 0.7rem;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.settings-swatch--plain {
+  background: var(--preview-value, #fff);
+}
+
+.settings-swatch--gradient {
+  background: var(--preview-value);
+}
+
+.settings-swatch:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.settings-swatch--active {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: scale(1.04);
+}
+
+.settings-swatch--active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--accent) 15%, transparent),
+    transparent 70%
+  );
+}
+
+.settings-swatch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.settings-swatch-name {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 0.3rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Custom toggle switch ── */
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--panel-border) 18%, transparent);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border: none;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
+.settings-toggle:hover {
+  background: color-mix(in srgb, var(--panel-border) 35%, transparent);
+}
+
+.settings-toggle-label {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-toggle-desc {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.settings-switch {
+  position: relative;
+  width: 2.8rem;
+  height: 1.5rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--muted) 30%, var(--surface-strong));
+  transition: background 0.3s ease;
+  flex-shrink: 0;
+}
+
+.settings-switch::after {
+  content: '';
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-switch--on {
+  background: var(--accent);
+}
+
+.settings-switch--on::after {
+  transform: translateX(1.3rem);
+}
+
+/* ── Data section ── */
+
+.settings-data-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+
+.settings-data-actions--subtle {
+  margin-bottom: 0.9rem;
+}
+
+.settings-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--panel-border);
+  background: var(--surface-strong);
+  color: var(--text);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.settings-action-btn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  opacity: 0.7;
+}
+
+.settings-action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-strong));
+}
+
+.settings-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.settings-action-btn--quiet {
+  padding-inline: 0.85rem;
+  font-size: 0.77rem;
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+}
+
+.settings-action-btn--danger {
+  color: var(--danger, #cc3f53);
+  border-color: color-mix(in srgb, var(--danger, #cc3f53) 30%, var(--panel-border));
+}
+
+.settings-action-btn--danger:hover {
+  border-color: var(--danger, #cc3f53);
+  color: var(--danger, #cc3f53);
+  background: color-mix(in srgb, var(--danger, #cc3f53) 6%, var(--surface-strong));
+}
+
+/* ── File drop zone ── */
+
+.settings-dropzone {
+  border: 1.5px dashed color-mix(in srgb, var(--panel-border) 80%, transparent);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  position: relative;
+  margin-bottom: 0.6rem;
+}
+
+.settings-dropzone--compact {
+  margin-bottom: 0;
+}
+
+.settings-dropzone:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+}
+
+.settings-dropzone input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.settings-dropzone-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.settings-dropzone-text strong {
+  color: var(--accent);
+}
+
+/* ── Textarea ── */
+
+.settings-textarea {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  padding: 0.8rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--surface-strong) 85%, transparent);
+  color: var(--text);
+  resize: vertical;
+  min-height: 7rem;
+  transition: border-color 0.2s ease;
+  width: 100%;
+}
+
+.settings-textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.settings-textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.settings-data-note {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+
+/* ── Status messages ── */
+
+.settings-status {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.settings-status--success {
+  color: var(--ok, #1eab62);
+  background: color-mix(in srgb, var(--ok, #1eab62) 8%, transparent);
+}
+
+.settings-status--error {
+  color: var(--danger, #cc3f53);
+  background: color-mix(in srgb, var(--danger, #cc3f53) 8%, transparent);
+}
+
+/* ── Cloud sync badge ── */
+
+.settings-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 2rem;
+  margin-top: 0.3rem;
+}
+
+.settings-sync-status--off {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  color: var(--muted);
+}
+
+.settings-sync-status--on {
+  background: color-mix(in srgb, var(--ok, #1eab62) 12%, transparent);
+  color: var(--ok, #1eab62);
+}
+
+.settings-sync-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── Font selector ── */
+
+.settings-font-select {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.88rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 0.6rem;
+  width: fit-content;
+  border: 1px solid var(--panel-border);
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b85' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.2rem;
+}
+
+.settings-font-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-background-panel {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.settings-background-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr));
+  gap: 0.7rem;
+}
+
+.settings-background-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  color: inherit;
+  text-align: left;
+}
+
+.settings-background-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--panel-border));
+  transform: translateY(-1px);
+}
+
+.settings-background-card--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.settings-background-card-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.55rem;
+  object-fit: cover;
+  display: block;
+}
+
+.settings-background-card-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.settings-font-input {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.settings-font-preview {
+  min-height: 4.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.9rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 90%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+}
+
+.settings-font-preview-copy {
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.settings-font-preview-copy--invalid {
+  color: var(--danger, #cc3f53);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700;
+}
+
+.settings-font-meta {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.settings-font-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.settings-font-link:hover {
+  text-decoration: underline;
+}
+
+.settings-font-helper {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* ── Storage key badge ── */
+
+.settings-storage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--panel-border) 25%, transparent);
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}

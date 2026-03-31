@@ -1,0 +1,271 @@
+@media (max-width: 1300px) {
+  #left-pane {
+    min-width: 320px;
+  }
+
+  #right-pane {
+    min-width: 420px;
+  }
+
+  .overview-mosaic {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "portrait portrait"
+      "stats    stats"
+      "equip    rotation"
+      "echoes   echoes";
+  }
+
+  .overview-cell--echoes {
+    grid-row: auto;
+    grid-template-rows: none;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .character-overview-content {
+    flex-direction: column;
+  }
+
+  .overview-resonator-strip {
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 8%, var(--calc-box-border));
+    padding: 0.6rem 1rem;
+  }
+}
+
+@media (max-width: 1070px) {
+  .sidebar {
+    position: absolute;
+    top: 3.75rem;
+    left: 0;
+    z-index: 1000;
+
+    opacity: 0;
+    transform: translate3d(-1.25rem, 0, 0) scale(0.985);
+    transform-origin: left center;
+    pointer-events: none;
+    will-change: transform, opacity, filter;
+
+    backdrop-filter: blur(6px) saturate(1.35);
+    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+
+    border-right: 1px solid rgb(255 255 255 / 0.14);
+    box-shadow:
+            0 0 0 1px rgb(255 255 255 / 0.04) inset,
+            0 24px 60px rgba(0, 0, 0, 0.15),
+            0 8px 20px rgb(0 0 0 / 0.18);
+
+    transition:
+            transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 360ms ease,
+            filter 360ms ease;
+  }
+
+  .toolbar {
+    z-index: 1000;
+  }
+
+  .sidebar.open {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+  }
+
+  .main-content {
+    height: auto;
+  }
+
+  .horizontal-layout,
+  .calculator-page,
+  .calculator-workspace,
+  .calculator-stage--workspace {
+    min-height: 0;
+    overflow: auto;
+    max-height: calc(100vh - 3.75rem);
+  }
+
+  .mode-toolbar {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .mode-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .split,
+  .calculator-workspace .split {
+    flex-direction: column;
+    gap: 0.8rem;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .split.resizable-split .split-panel {
+    flex: none !important;
+    width: 100% !important;
+  }
+
+  .gutter {
+    display: none;
+  }
+
+  .calculator-hero-state-summary-head,
+  .calculator-hero-state-card-head,
+  .calculator-hero-state-scope-head,
+  .calculator-hero-state-node-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .calculator-hero-inline-pills {
+    justify-content: flex-start;
+  }
+
+  .calculator-hero-state-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #left-pane,
+  #right-pane {
+    width: 100%;
+    min-width: 100%;
+    min-height: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .calc-pane,
+  .pane-section {
+    height: auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .page-grid,
+  .mode-panel-grid,
+  .form-grid,
+  .resonator-grid,
+  .kpi-grid,
+  .analysis-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trace-icons {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .overview-dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  .calculator-hero-state-summary,
+  .overview-dashboard-left {
+    position: unset;
+  }
+}
+
+@media (max-width: 720px) {
+  .toolbar-title {
+    font-size: 0.84rem;
+    padding-left: 2.2rem;
+    text-align: left;
+  }
+
+  .timeline-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rotation-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rotation-presets-row,
+  .rotation-header,
+  .rotation-block .block-header,
+  .rotation-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rotation-block-actions,
+  .entry-type-detail,
+  .rotation-multiplier-inline {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .resonator-flow-header {
+    grid-template-columns: 1fr;
+  }
+
+  .resonator-heading-top,
+  .resonator-heading-subline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .overview-mosaic {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "portrait"
+      "stats"
+      "equip"
+      "rotation"
+      "echoes";
+  }
+
+  .overview-cell--echoes {
+    grid-row: auto;
+    grid-template-rows: none;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .overview-main-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .calculator-hero-state-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .calculator-hero-state-summary,
+  .calculator-pane.partition,
+  .resonator-flow-header,
+  .resonator-settings,
+  .skills-settings,
+  .inherent-skills-box,
+  .stats-box,
+  .damage-box,
+  .calculator-mode-panel {
+    border-radius: 1.15rem;
+  }
+
+  .damage-grid {
+    font-size: 0.84rem;
+  }
+
+  .damage-grid tbody th,
+  .damage-grid tbody td {
+    padding-top: 0.58rem;
+    padding-bottom: 0.58rem;
+  }
+
+  .trace-icons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .char-menu-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

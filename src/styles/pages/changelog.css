@@ -1,0 +1,145 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Changelog Page
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.changelog-entry {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.changelog-section {
+  display: grid;
+  gap: 1rem;
+  grid-column: 1 / -1;
+}
+
+.changelog-section-divider {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 1.5rem 0;
+}
+
+.changelog-section-divider__line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    transparent
+  );
+}
+
+.changelog-section-divider__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.6rem;
+}
+
+.changelog-section-divider__label {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 52%, var(--text));
+  text-shadow:
+    0 0 16px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 1px 0 color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.changelog-section-divider__sub {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.changelog-header-text {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.changelog-date {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.changelog-short {
+  display: inline-block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 0.22rem 0.65rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.changelog-short strong,
+.changelog-short span {
+  font-weight: 700;
+}
+
+.changelog-detail-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.changelog-detail-list li {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--muted);
+  padding-left: 1rem;
+  position: relative;
+}
+
+.changelog-detail-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 50%, var(--muted));
+}
+
+.changelog-detail-list li p {
+  margin: 0;
+  display: inline;
+}
+
+.changelog-detail-list li strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.changelog-detail-list li a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.changelog-detail-list li a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,207 @@
+.editor-console {
+    --editor-bg: rgba(17, 17, 17, 0.31);
+    --editor-text: var(--text-primary, #eaeaea);
+    --editor-muted: var(--text-muted, #8b8b8b);
+    --editor-line-number: var(--text-faint, #6f6f6f);
+
+    --editor-keyword: var(--accent, #7c9cff);
+    --editor-string: var(--success, #7fdc8a);
+    --editor-number: var(--warning, #f0b35f);
+    --editor-comment: var(--text-muted, #7b8190);
+    --editor-type: var(--info, #66c7ff);
+    --editor-property: var(--text-primary, #d8d8d8);
+    --editor-accent: var(--accent-2, #c084fc);
+
+    border-radius: 1rem;
+    overflow: hidden;
+    background: var(--editor-bg);
+    color: var(--editor-text);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.damage-row-formula-cell {
+    padding: 0 !important;
+}
+
+.formula-row {
+    background-color: transparent !important;
+}
+
+.editor-console--formula {
+    --editor-border: color-mix(in srgb, var(--border-subtle, rgba(255, 255, 255, 0.08)) 72%, #3fb7d6 28%);
+    --editor-text: color-mix(in srgb, var(--text-primary, #eaeaea) 90%, #d7eef5 10%);
+    --editor-muted: color-mix(in srgb, var(--text-muted, #8b8b8b) 70%, #9fb7bf 30%);
+    --editor-number: #b5cea8;
+    --editor-comment: #6a9955;
+    --editor-property: #9cdcfe;
+    --editor-accent: #c586c0;
+    --editor-operator: #d4d4d4;
+    --editor-result: #4ec9b0;
+}
+
+.light-text * {
+    --editor-number: #0b7285;
+    --editor-comment: #6b7280;
+    --editor-property: #c2410c;
+    --editor-accent: #1d4ed8;
+    --editor-operator: #4b5563;
+    --editor-result: #7c3aed;
+    --editor-bg: rgba(245, 245, 245, 0.44);
+}
+
+.editor-console__topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 0.9rem;
+    background: color-mix(in srgb, var(--editor-bg) 86%, white 2%);
+}
+
+.editor-console--formula .editor-console__topbar {
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--editor-bg) 72%, #0c1c23 28%),
+        color-mix(in srgb, var(--editor-bg) 88%, white 2%)
+    );
+}
+
+.editor-console__dots {
+    display: inline-flex;
+    gap: 0.4rem;
+}
+
+.editor-console__dots span {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--editor-muted) 60%, transparent);
+}
+
+.editor-console__title {
+    font-size: 1rem;
+    color: var(--editor-muted);
+    letter-spacing: 0.01em;
+}
+
+.editor-console--formula .editor-console__title {
+    color: var(--editor-property);
+}
+
+.editor-console__body {
+    padding: 0.8rem 0;
+    overflow: auto;
+    font-family:
+            'SFMono-Regular',
+            'JetBrains Mono',
+            'Fira Code',
+            'Cascadia Code',
+            monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    font-weight: 450;
+    letter-spacing: 0.01em;
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.editor-console__line {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+}
+
+.editor-console--formula .editor-console__line {
+    padding: 0.06rem 0;
+}
+
+.editor-console__line:hover {
+    background: color-mix(in srgb, var(--editor-text) 4%, transparent);
+}
+
+.editor-console--formula .editor-console__line:hover {
+    background: color-mix(in srgb, var(--editor-text) 2%, transparent);
+}
+
+.editor-console__line-number {
+    user-select: none;
+    min-width: 3.25rem;
+    padding: 0 1rem 0 0.9rem;
+    text-align: right;
+    color: var(--editor-line-number);
+}
+
+.editor-console__line-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-right: 1rem;
+}
+
+.editor-token--plain {
+    color: var(--editor-text);
+}
+
+.editor-token--keyword {
+    color: var(--editor-keyword);
+}
+
+.editor-token--string {
+    color: var(--editor-string);
+}
+
+.editor-token--number {
+    color: var(--editor-number);
+}
+
+.editor-token--comment {
+    color: var(--editor-comment);
+    font-style: italic;
+}
+
+.editor-console--formula .editor-token--comment {
+    display: inline-block;
+    color: var(--editor-accent);
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.editor-token--property {
+    color: var(--editor-property);
+}
+
+.editor-token--type {
+    color: var(--editor-type);
+}
+
+.editor-token--accent {
+    color: var(--editor-accent);
+}
+
+.editor-token--heading {
+    display: inline-block;
+    color: var(--editor-accent);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.editor-token--label {
+    color: var(--editor-property);
+    font-weight: 600;
+}
+
+.editor-token--operator {
+    color: var(--editor-operator);
+}
+
+.editor-token--result {
+    color: var(--editor-result);
+    font-weight: 700;
+}
+
+.editor-token--muted {
+    color: var(--editor-muted);
+}

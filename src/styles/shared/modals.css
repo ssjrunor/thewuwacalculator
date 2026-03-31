@@ -1,0 +1,691 @@
+/* Shared modal and picker modal system */
+
+.app-modal-overlay,
+.picker-modal__overlay {
+  --picker-modal-accent: var(--resonator-accent, var(--accent, #6b7cff));
+  --picker-modal-text: var(--calc-text, var(--text, #1b2435));
+  --picker-modal-muted: var(--calc-muted, var(--muted, rgba(27, 36, 53, 0.7)));
+  --picker-modal-surface: var(--calc-box-bg, var(--surface-strong, rgba(255, 255, 255, 0.94)));
+  --picker-modal-surface-strong: color-mix(
+    in srgb,
+    var(--picker-modal-accent) 6%,
+    var(--picker-modal-surface)
+  );
+  --picker-modal-inner: var(--calc-inner-bg, color-mix(in srgb, var(--picker-modal-text) 3%, transparent));
+  --picker-modal-border: var(--calc-box-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
+  --picker-modal-item-border: var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
+  --ui-modal-border-color: color-mix(in srgb, var(--picker-modal-accent) 24%, var(--picker-modal-border));
+  --ui-modal-bg: var(--picker-modal-surface);
+  --ui-modal-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.14);
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 2vw, 1.6rem);
+  background: color-mix(in srgb, var(--calc-shell-bg, rgba(6, 10, 26, 0.92)) 18%, rgba(6, 10, 26, 0.66));
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 260ms ease,
+    backdrop-filter 260ms ease;
+}
+
+.team-slot-card {
+  --picker-modal-item-border: var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
+}
+
+.app-modal-overlay.open,
+.picker-modal__overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-modal-overlay.closing,
+.picker-modal__overlay.closing {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-modal-panel,
+.picker-modal__panel {
+  position: relative;
+  z-index: 1300;
+  padding: var(--ui-modal-padding);
+  display: flex;
+  width: min(68rem, calc(100vw - 2rem));
+  height: max-content;
+  max-height: 80vh;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--ui-modal-border);
+  border-radius: var(--ui-modal-radius);
+  color: var(--picker-modal-text);
+  background: var(--ui-modal-bg);
+  box-shadow: var(--ui-modal-shadow);
+  transform: translateY(0.85rem) scale(0.97);
+  opacity: 0;
+  transition:
+    opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms ease;
+}
+
+.app-modal-panel--wide,
+.picker-modal__panel--wide {
+  width: min(76rem, calc(100vw - 2rem));
+}
+
+.app-modal-panel.open,
+.picker-modal__panel.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  box-shadow: 0 1.2rem 2.4rem rgba(15, 23, 42, 0.16);
+}
+
+.app-modal-panel.closing,
+.picker-modal__panel.closing {
+  opacity: 0;
+  transform: translateY(0.55rem) scale(0.975);
+}
+
+.app-modal-header {
+  display: grid;
+  gap: 0.8rem;
+  padding: var(--ui-modal-header-padding);
+  border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-border) 88%, transparent);
+}
+
+.app-modal-header-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.picker-modal__header {
+  display: grid;
+  top: 0;
+  z-index: 2;
+  gap: 0.8rem;
+  padding: var(--ui-modal-header-padding);
+  border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-border) 88%, transparent);
+}
+
+.picker-modal__header-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.picker-modal__heading {
+  min-width: 0;
+}
+
+.picker-modal__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--picker-modal-accent) 78%, var(--picker-modal-text));
+}
+
+.picker-modal__title {
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.45rem, 2vw, 1.95rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.picker-modal__description {
+  margin: 0.52rem 0 0;
+  max-width: 42rem;
+  color: color-mix(in srgb, var(--picker-modal-muted) 88%, var(--picker-modal-text));
+  line-height: 1.55;
+}
+
+.picker-modal__summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: auto;
+}
+
+.picker-modal__summary-pill {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 0.28rem 0.6rem;
+  min-width: 0;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-item-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--picker-modal-accent) 3%, var(--picker-modal-surface));
+}
+
+.picker-modal__summary-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--picker-modal-muted) 92%, transparent);
+}
+
+.picker-modal__summary-value {
+  display: block;
+  min-width: 0;
+  margin-top: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.picker-modal__summary-pill.checkbox {
+  cursor: pointer;
+}
+
+.picker-modal__summary-pill input[type='checkbox'] {
+  height: 0.92rem;
+  width: 0.92rem;
+  border: 1px solid #888;
+}
+
+.picker-modal__summary-pill input[type='checkbox']:checked::after {
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+}
+
+.app-modal-close,
+.picker-modal__close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+  padding: 0.538rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-item-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--picker-modal-text) 2%, transparent);
+  color: var(--picker-modal-text);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 200ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+.app-modal-close:is(:hover, :focus-visible),
+.picker-modal__close:is(:hover, :focus-visible) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 44%, var(--picker-modal-item-border));
+  box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.08);
+}
+
+.picker-modal__filters {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.picker-filter-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.picker-filter-section {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.picker-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.picker-modal__card,
+.picker-filter-chip,
+.picker-filter-icon,
+.picker-modal__media-frame,
+.picker-modal__meta-pill--rarity,
+.team-slot-card,
+.echo-preset-card__weapon {
+  --picker-rarity-border: color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-item-border));
+  --picker-rarity-surface: rgba(0, 0, 0, 0);
+  --picker-rarity-accent: color-mix(in srgb, var(--picker-modal-accent) 82%, var(--picker-modal-text));
+}
+
+.picker-modal__card.rarity-1,
+.picker-filter-chip.rarity-1,
+.picker-filter-icon.rarity-1,
+.picker-modal__media-frame.rarity-1,
+.picker-modal__meta-pill--rarity.rarity-1,
+.team-slot-card.rarity-1,
+.echo-preset-card__weapon.rarity-1 {
+  --picker-rarity-border: rgba(153, 153, 153, 0.65);
+  --picker-rarity-surface: rgba(153, 153, 153, 0.11);
+  --picker-rarity-accent: rgb(153, 153, 153);
+}
+
+.picker-modal__card.rarity-2,
+.picker-filter-chip.rarity-2,
+.picker-filter-icon.rarity-2,
+.picker-modal__media-frame.rarity-2,
+.picker-modal__meta-pill--rarity.rarity-2,
+.team-slot-card.rarity-2,
+.echo-preset-card__weapon.rarity-2 {
+  --picker-rarity-border: rgba(98, 147, 124, 0.65);
+  --picker-rarity-surface: rgba(98, 147, 124, 0.1);
+  --picker-rarity-accent: rgb(98, 147, 124);
+}
+
+.picker-modal__card.rarity-3,
+.picker-filter-chip.rarity-3,
+.picker-filter-icon.rarity-3,
+.picker-modal__media-frame.rarity-3,
+.picker-modal__meta-pill--rarity.rarity-3,
+.team-slot-card.rarity-3,
+.echo-preset-card__weapon.rarity-3 {
+  --picker-rarity-border: rgba(96, 147, 185, 0.58);
+  --picker-rarity-surface: rgba(96, 147, 185, 0.11);
+  --picker-rarity-accent: rgb(96, 147, 185);
+}
+
+.picker-modal__card.rarity-4,
+.picker-filter-chip.rarity-4,
+.picker-filter-icon.rarity-4,
+.picker-modal__media-frame.rarity-4,
+.picker-modal__meta-pill--rarity.rarity-4,
+.team-slot-card.rarity-4,
+.echo-preset-card__weapon.rarity-4 {
+  --picker-rarity-border: rgba(132, 72, 168, 0.75);
+  --picker-rarity-surface: rgba(121, 46, 166, 0.08);
+  --picker-rarity-accent: rgb(132, 72, 168);
+}
+
+.picker-modal__card.rarity-5,
+.picker-filter-chip.rarity-5,
+.picker-filter-icon.rarity-5,
+.picker-modal__media-frame.rarity-5,
+.picker-modal__meta-pill--rarity.rarity-5,
+.team-slot-card.rarity-5,
+.echo-preset-card__weapon.rarity-5 {
+  --picker-rarity-border: rgba(255, 183, 0, 0.59);
+  --picker-rarity-surface: rgba(255, 183, 0, 0.09);
+  --picker-rarity-accent: rgb(255, 183, 0);
+}
+
+.picker-filter-chip,
+.picker-filter-icon {
+  position: relative;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+
+  border: 1px solid var(--picker-rarity-border);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--picker-rarity-surface) 26%, color-mix(in srgb, var(--picker-modal-text) 2%, transparent));
+  color: var(--picker-modal-text);
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    background 220ms ease;
+}
+
+.picker-filter-chip {
+  min-height: 2.65rem;
+  padding: 0.5rem 0.74rem;
+  font-weight: 700;
+}
+
+
+.picker-filter-icon {
+  min-width: 2.75rem;
+  padding: 0.5rem;
+}
+
+.picker-filter-chip:is(:hover, :focus-visible),
+.picker-filter-icon:is(:hover, :focus-visible) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 74%, var(--picker-modal-item-border));
+}
+
+.picker-filter-chip.active,
+.picker-filter-icon.active {
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 82%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-rarity-surface) 54%, color-mix(in srgb, var(--picker-modal-text) 2%, transparent));
+  color: var(--picker-rarity-accent);
+}
+
+.picker-filter-icon img {
+  width: 1.45rem;
+  height: 1.45rem;
+  object-fit: contain;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-shell:not(.dark-text) :is(.picker-filter-icon--weapon img, .weapon-icon, .overview-inline-buff-icon, .picker-modal__meta-icon--weapon) {
+  filter: brightness(0) saturate(100%);
+}
+
+.app-shell:is(.dark, .dark-alt) :is(.picker-filter-icon--weapon img, .picker-modal__meta-icon--weapon) {
+  filter: none;
+}
+
+.picker-filter-icon:is(:hover, :focus-visible, .active) img {
+  transform: scale(1.06);
+}
+
+.picker-modal__frame {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.picker-modal__body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--ui-modal-body-padding);
+  scroll-behavior: smooth;
+}
+
+.picker-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.8rem;
+}
+
+/* ── Grid item entrance stagger ── */
+
+@keyframes picker-grid-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.picker-modal__grid > * {
+  animation: picker-grid-enter 350ms ease both;
+}
+
+.picker-modal__grid > :nth-child(1)  { animation-delay: 0ms; }
+.picker-modal__grid > :nth-child(2)  { animation-delay: 45ms; }
+.picker-modal__grid > :nth-child(3)  { animation-delay: 90ms; }
+.picker-modal__grid > :nth-child(4)  { animation-delay: 135ms; }
+.picker-modal__grid > :nth-child(5)  { animation-delay: 180ms; }
+.picker-modal__grid > :nth-child(6)  { animation-delay: 225ms; }
+.picker-modal__grid > :nth-child(7)  { animation-delay: 270ms; }
+.picker-modal__grid > :nth-child(8)  { animation-delay: 315ms; }
+.picker-modal__grid > :nth-child(9)  { animation-delay: 360ms; }
+.picker-modal__grid > :nth-child(n+10) { animation-delay: 380ms; }
+
+.picker-modal__empty {
+  display: grid;
+  place-items: center;
+  min-height: 14rem;
+  padding: 1.5rem;
+  border: 1px dashed color-mix(in srgb, var(--picker-modal-accent) 20%, var(--picker-modal-border));
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--picker-modal-text) 2%, transparent);
+  text-align: center;
+  color: var(--picker-modal-muted);
+}
+
+.picker-modal__card {
+  position: relative;
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.88rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--picker-rarity-border) 15%, var(--picker-modal-item-border));
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--picker-rarity-surface) 18%, var(--picker-modal-inner));
+  color: var(--picker-modal-text);
+  text-align: left;
+  cursor: pointer;
+  isolation: isolate;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background 240ms ease;
+}
+
+.picker-modal__card::before {
+  content: none;
+}
+
+.picker-modal__card:is(:hover, :focus-visible) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 68%, var(--picker-modal-item-border));
+}
+
+.picker-modal__card:is(:hover, :focus-visible)::before,
+.picker-modal__card.is-selected::before {
+  opacity: 0;
+}
+
+.picker-modal__card.is-selected {
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 82%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-rarity-surface) 34%, var(--picker-modal-inner));
+}
+
+.picker-modal__card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
+.picker-modal__card-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.82rem;
+  align-items: start;
+}
+
+.picker-modal__card-media {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+}
+
+.picker-modal__media-frame {
+  width: 4.45rem;
+  height: 4.45rem;
+  padding: 0.24rem;
+  border: 1px solid color-mix(in srgb, var(--picker-rarity-border) 78%, var(--picker-modal-item-border));
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--picker-rarity-surface) 44%, transparent);
+}
+
+.picker-modal__media-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 1.08rem;
+  object-fit: cover;
+}
+
+.picker-modal__card-copy {
+  display: grid;
+  gap: 0.46rem;
+  min-width: 0;
+}
+
+.picker-modal__card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.picker-modal__card-heading,
+.picker-modal__card-trailing {
+  min-width: 0;
+}
+
+.picker-modal__card-trailing {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.picker-modal__card-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.picker-modal__card-subtitle {
+  margin-top: 0.18rem;
+  color: color-mix(in srgb, var(--picker-modal-muted) 88%, var(--picker-modal-text));
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.picker-modal__card-description {
+  margin: 0;
+  color: color-mix(in srgb, var(--picker-modal-muted) 92%, transparent);
+  line-height: 1.5;
+}
+
+.picker-modal__card-meta,
+.picker-modal__card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  align-items: center;
+}
+
+.picker-modal__meta-pill,
+.picker-modal__selection-pill,
+.picker-modal__footer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.34rem 0.52rem;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-item-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--picker-modal-text) 2%, transparent);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.picker-modal__selection-pill {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 48%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 10%, transparent);
+  color: color-mix(in srgb, var(--picker-modal-accent) 82%, var(--picker-modal-text));
+}
+
+.picker-modal__meta-pill--rarity {
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 78%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-rarity-surface) 48%, transparent);
+  color: var(--picker-rarity-accent);
+}
+
+.picker-modal__meta-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  object-fit: contain;
+}
+
+.picker-modal__card-footer {
+  justify-content: space-between;
+  padding-top: 0.1rem;
+  color: color-mix(in srgb, var(--picker-modal-muted) 96%, transparent);
+}
+
+.picker-modal__footer-pill {
+  background: color-mix(in srgb, var(--picker-modal-text) 1%, transparent);
+}
+
+@media (max-width: 900px) {
+  .app-modal-panel,
+  .app-modal-panel--wide,
+  .picker-modal__panel,
+  .picker-modal__panel--wide {
+    width: min(100%, calc(100vw - 1rem));
+    max-height: calc(100vh - 1rem);
+    border-radius: 1.45rem;
+  }
+
+  .picker-modal__header-top,
+  .picker-filter-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .picker-modal__summary {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .picker-modal__close {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-modal-overlay,
+  .picker-modal__overlay {
+    padding: 0.5rem;
+  }
+
+  .picker-modal__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .picker-modal__card-main {
+    grid-template-columns: 1fr;
+  }
+
+  .picker-modal__card-media {
+    justify-self: start;
+  }
+
+  .picker-filter-chip,
+  .picker-filter-icon {
+    min-height: 2.45rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-modal-overlay,
+  .app-modal-panel,
+  .app-modal-close,
+  .picker-modal__overlay,
+  .picker-modal__panel,
+  .picker-modal__close,
+  .picker-filter-chip,
+  .picker-filter-icon,
+  .picker-modal__card,
+  .picker-filter-icon img {
+    transition: none;
+  }
+
+  .picker-modal__card::before {
+    transition: none;
+  }
+
+  .picker-modal__grid > * {
+    animation: none;
+  }
+}
