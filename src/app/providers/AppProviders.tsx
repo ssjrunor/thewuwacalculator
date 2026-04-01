@@ -1,18 +1,21 @@
 /*
   Author      : Runor Ewhro
   Description : Wraps the application in global providers and manages
-                persistent state sync with debounced localStorage writes.
+                debounced persistence flushing and global providers.
 */
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { useAppStore } from '@/domain/state/store'
-import { savePersistedAppState } from '@/infra/persistence/storage'
-import { selectPersistedState, type PersistedSliceKey } from '@/domain/state/serialization'
+import {
+  consumeDirtyPersistedDomains,
+  savePersistedAppState,
+  subscribeToDirtyPersistedDomains,
+} from '@/infra/persistence/storage'
+import { selectPersistedState } from '@/domain/state/serialization'
 import { detectBackgroundTextMode, resolveBackgroundWallpaper } from '@/modules/settings/model/backgroundTheme'
 import { applyBodyFontSelection } from '@/modules/settings/model/typography'
 import { AppTooltipProvider } from '@/shared/ui/Tooltip'
-import type { PersistedAppState } from '@/domain/entities/appState'
 import { getSystemThemeMode } from '@/shared/lib/systemTheme'
 
 interface AppProvidersProps {
@@ -21,70 +24,6 @@ interface AppProvidersProps {
 
 const PERSIST_DEBOUNCE_MS = 250
 const GOOGLE_CLIENT_ID_FALLBACK = 'missing-google-client-id'
-
-interface PersistedStateRefs {
-  version: PersistedAppState['version']
-  ui: PersistedAppState['ui']
-  session: PersistedAppState['calculator']['session']
-  profiles: PersistedAppState['calculator']['profiles']
-  optimizerContext: PersistedAppState['calculator']['optimizerContext']
-  suggestionsByResonatorId: PersistedAppState['calculator']['suggestionsByResonatorId']
-  inventoryEchoes: PersistedAppState['calculator']['inventoryEchoes']
-  inventoryBuilds: PersistedAppState['calculator']['inventoryBuilds']
-  inventoryRotations: PersistedAppState['calculator']['inventoryRotations']
-  inventoryHydrated: boolean
-}
-
-function selectPersistedStateRefs(state: ReturnType<typeof useAppStore.getState>): PersistedStateRefs {
-  return {
-    version: state.version,
-    ui: state.ui,
-    session: state.calculator.session,
-    profiles: state.calculator.profiles,
-    optimizerContext: state.calculator.optimizerContext,
-    suggestionsByResonatorId: state.calculator.suggestionsByResonatorId,
-    inventoryEchoes: state.calculator.inventoryEchoes,
-    inventoryBuilds: state.calculator.inventoryBuilds,
-    inventoryRotations: state.calculator.inventoryRotations,
-    inventoryHydrated: state.inventoryHydrated,
-  }
-}
-
-function getChangedPersistedSlices(left: PersistedStateRefs, right: PersistedStateRefs): PersistedSliceKey[] {
-  const changed = new Set<PersistedSliceKey>()
-
-  if (
-    left.version !== right.version
-    || left.ui !== right.ui
-    || left.session !== right.session
-  ) {
-    changed.add('session')
-  }
-
-  if (
-    left.version !== right.version
-    || left.profiles !== right.profiles
-    || left.optimizerContext !== right.optimizerContext
-    || left.suggestionsByResonatorId !== right.suggestionsByResonatorId
-  ) {
-    changed.add('profiles')
-  }
-
-  if (
-    right.inventoryHydrated
-    && (
-      left.version !== right.version
-      || left.inventoryHydrated !== right.inventoryHydrated
-      || left.inventoryEchoes !== right.inventoryEchoes
-      || left.inventoryBuilds !== right.inventoryBuilds
-      || left.inventoryRotations !== right.inventoryRotations
-    )
-  ) {
-    changed.add('inventory')
-  }
-
-  return [...changed]
-}
 
 export function AppProviders({ children }: AppProvidersProps) {
   const theme = useAppStore((state) => state.ui.theme)
@@ -97,7 +36,6 @@ export function AppProviders({ children }: AppProvidersProps) {
   const bodyFontUrl = useAppStore((state) => state.ui.bodyFontUrl)
 
   useEffect(() => {
-    let lastSavedRefs = selectPersistedStateRefs(useAppStore.getState())
     let persistTimer: number | null = null
 
     const flush = () => {
@@ -106,11 +44,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         persistTimer = null
       }
 
-      const nextRefs = selectPersistedStateRefs(useAppStore.getState())
-      const changedSlices = getChangedPersistedSlices(lastSavedRefs, nextRefs)
-      if (changedSlices.length > 0) {
-        savePersistedAppState(selectPersistedState(useAppStore.getState()), { slices: changedSlices })
-        lastSavedRefs = nextRefs
+      const dirtyDomains = consumeDirtyPersistedDomains()
+      if (dirtyDomains.length > 0) {
+        savePersistedAppState(selectPersistedState(useAppStore.getState()), { domains: dirtyDomains })
       }
     }
 
@@ -128,14 +64,7 @@ export function AppProviders({ children }: AppProvidersProps) {
       }
     }
 
-    const unsubscribe = useAppStore.subscribe((state) => {
-      const nextRefs = selectPersistedStateRefs(state)
-      if (getChangedPersistedSlices(lastSavedRefs, nextRefs).length === 0) {
-        return
-      }
-
-      scheduleFlush()
-    })
+    const unsubscribe = subscribeToDirtyPersistedDomains(scheduleFlush)
 
     window.addEventListener('beforeunload', flush)
     document.addEventListener('visibilitychange', handleVisibilityChange)

@@ -585,6 +585,31 @@ const persistedUiSchema = z.object({
   }),
 }).strict()
 
+export const persistedUiAppearanceSchema = z.object({
+  theme: persistedUiSchema.shape.theme,
+  themePreference: persistedUiSchema.shape.themePreference,
+  lightVariant: persistedUiSchema.shape.lightVariant,
+  darkVariant: persistedUiSchema.shape.darkVariant,
+  backgroundVariant: persistedUiSchema.shape.backgroundVariant,
+  backgroundImageKey: persistedUiSchema.shape.backgroundImageKey,
+  backgroundTextMode: persistedUiSchema.shape.backgroundTextMode,
+  bodyFontName: persistedUiSchema.shape.bodyFontName,
+  bodyFontUrl: persistedUiSchema.shape.bodyFontUrl,
+  blurMode: persistedUiSchema.shape.blurMode,
+  entranceAnimations: persistedUiSchema.shape.entranceAnimations,
+}).strict()
+
+export const persistedUiLayoutSchema = z.object({
+  leftPaneView: persistedUiSchema.shape.leftPaneView,
+  mainMode: persistedUiSchema.shape.mainMode,
+  showSubHits: persistedUiSchema.shape.showSubHits,
+  optimizerCpuHintSeen: persistedUiSchema.shape.optimizerCpuHintSeen,
+}).strict()
+
+export const persistedUiSavedRotationPreferencesSchema = z.object({
+  savedRotationPreferences: persistedUiSchema.shape.savedRotationPreferences,
+}).strict()
+
 const persistedCalculatorProfilesSchema = z.object({
   runtimeRevision: z.number().int().nonnegative().default(0),
   profiles: z.record(z.string(), resonatorProfileSchema),
@@ -596,6 +621,31 @@ const persistedCalculatorInventorySchema = z.object({
   inventoryEchoes: z.array(inventoryEchoesEntrySchema),
   inventoryBuilds: z.array(savedBuildSchema),
   inventoryRotations: z.array(inventoryRotationSchema),
+}).strict()
+
+export const persistedCalculatorProfilesDomainSchema = z.object({
+  runtimeRevision: persistedCalculatorProfilesSchema.shape.runtimeRevision,
+  profiles: persistedCalculatorProfilesSchema.shape.profiles,
+}).strict()
+
+export const persistedCalculatorOptimizerContextDomainSchema = z.object({
+  optimizerContext: persistedCalculatorProfilesSchema.shape.optimizerContext,
+}).strict()
+
+export const persistedCalculatorSuggestionsDomainSchema = z.object({
+  suggestionsByResonatorId: persistedCalculatorProfilesSchema.shape.suggestionsByResonatorId,
+}).strict()
+
+export const persistedCalculatorInventoryEchoesDomainSchema = z.object({
+  inventoryEchoes: persistedCalculatorInventorySchema.shape.inventoryEchoes,
+}).strict()
+
+export const persistedCalculatorInventoryBuildsDomainSchema = z.object({
+  inventoryBuilds: persistedCalculatorInventorySchema.shape.inventoryBuilds,
+}).strict()
+
+export const persistedCalculatorInventoryRotationsDomainSchema = z.object({
+  inventoryRotations: persistedCalculatorInventorySchema.shape.inventoryRotations,
 }).strict()
 
 function createPersistedAppStateSchema(version: typeof LEGACY_PERSISTED_APP_STATE_VERSION | typeof PERSISTED_APP_STATE_VERSION) {
@@ -614,11 +664,23 @@ function createPersistedAppStateSchema(version: typeof LEGACY_PERSISTED_APP_STAT
 export const persistedAppStateSchema = createPersistedAppStateSchema(PERSISTED_APP_STATE_VERSION)
 export const legacyPersistedAppStateSchema = createPersistedAppStateSchema(LEGACY_PERSISTED_APP_STATE_VERSION)
 
+export const persistedUiAppearanceSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  ui: persistedUiAppearanceSchema,
+}).strict()
+
+export const persistedUiLayoutSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  ui: persistedUiLayoutSchema,
+}).strict()
+
+export const persistedUiSavedRotationPreferencesSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  ui: persistedUiSavedRotationPreferencesSchema,
+}).strict()
+
 export const persistedSessionSliceSchema = z.object({
   version: z.literal(PERSISTED_APP_STATE_VERSION),
-  ui: z.object({
-    ...persistedUiSchema.shape,
-  }).strict(),
   calculator: z.object({
     session: combatSessionSchema,
   }).strict(),
@@ -626,14 +688,30 @@ export const persistedSessionSliceSchema = z.object({
 
 export const persistedProfilesSliceSchema = z.object({
   version: z.literal(PERSISTED_APP_STATE_VERSION),
-  calculator: z.object({
-    ...persistedCalculatorProfilesSchema.shape,
-  }).strict(),
+  calculator: persistedCalculatorProfilesDomainSchema,
 }).strict()
 
-export const persistedInventorySliceSchema = z.object({
+export const persistedOptimizerContextSliceSchema = z.object({
   version: z.literal(PERSISTED_APP_STATE_VERSION),
-  calculator: z.object({
-    ...persistedCalculatorInventorySchema.shape,
-  }).strict(),
+  calculator: persistedCalculatorOptimizerContextDomainSchema,
+}).strict()
+
+export const persistedSuggestionsSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  calculator: persistedCalculatorSuggestionsDomainSchema,
+}).strict()
+
+export const persistedInventoryEchoesSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  calculator: persistedCalculatorInventoryEchoesDomainSchema,
+}).strict()
+
+export const persistedInventoryBuildsSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  calculator: persistedCalculatorInventoryBuildsDomainSchema,
+}).strict()
+
+export const persistedInventoryRotationsSliceSchema = z.object({
+  version: z.literal(PERSISTED_APP_STATE_VERSION),
+  calculator: persistedCalculatorInventoryRotationsDomainSchema,
 }).strict()

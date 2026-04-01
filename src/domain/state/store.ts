@@ -75,7 +75,12 @@ import {
   initializePersistedAppState,
   DEFAULT_RESONATOR_ID,
 } from '@/domain/state/defaults'
-import { loadPersistedAppState, loadPersistedInventoryState } from '@/infra/persistence/storage'
+import {
+  loadPersistedAppState,
+  loadPersistedInventoryState,
+  markPersistedDomainsDirty,
+  type PersistedDomainKey,
+} from '@/infra/persistence/storage'
 import {
   applyRuntimeToCalculatorState,
   buildActiveRuntime,
@@ -509,7 +514,21 @@ const initialInventoryHydrated =
     initialPersistedState.ui.mainMode === 'optimizer'
     || INVENTORY_DEPENDENT_LEFT_PANE_VIEWS.has(initialPersistedState.ui.leftPaneView)
 
-export const useAppStore = create<AppStore>((set, get) => ({
+export const useAppStore = create<AppStore>((set, get) => {
+  const persistedSet = (
+    dirtyDomains: PersistedDomainKey[],
+    updater: (state: AppStore) => AppStore,
+  ) => {
+    set((state) => {
+      const next = updater(state)
+      if (next !== state) {
+        markPersistedDomainsDirty(dirtyDomains)
+      }
+      return next
+    })
+  }
+
+  return ({
   ...initialPersistedState,
   inventoryOpen: false,
   inventoryHasMounted: false,
@@ -559,7 +578,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setTheme: (theme) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -570,7 +589,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setThemePreference: (themePreference) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -583,7 +602,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   syncThemeWithSystem: (theme) => {
-    set((state) => {
+    persistedSet(['ui.appearance'], (state) => {
       if (state.ui.themePreference !== 'system' || state.ui.theme === theme) {
         return state
       }
@@ -599,7 +618,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setLightVariant: (lightVariant) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -609,7 +628,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setDarkVariant: (darkVariant) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -619,7 +638,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setBackgroundVariant: (backgroundVariant) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -629,7 +648,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setBackgroundImageKey: (backgroundImageKey) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -639,7 +658,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setBackgroundTextMode: (backgroundTextMode) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -649,7 +668,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setBodyFontSelection: (bodyFontName, bodyFontUrl) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -660,7 +679,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setBlurMode: (blurMode) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -670,7 +689,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setEntranceAnimations: (entranceAnimations) => {
-    set((state) => ({
+    persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -684,7 +703,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().ensureInventoryHydrated()
     }
 
-    set((state) => ({
+    persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -698,7 +717,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().ensureInventoryHydrated()
     }
 
-    set((state) => ({
+    persistedSet(['ui.layout', 'calculator.optimizerContext'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -714,7 +733,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setShowSubHits: (showSubHits) => {
-    set((state) => ({
+    persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -724,7 +743,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setOptimizerCpuHintSeen: (optimizerCpuHintSeen) => {
-    set((state) => ({
+    persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -734,7 +753,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSavedRotationPreferences: (updater) => {
-    set((state) => ({
+    persistedSet(['ui.savedRotationPreferences'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
@@ -756,7 +775,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setEnemyProfile: (enemyProfile) => {
-    set((state) => ({
+    persistedSet(['calculator.session'], (state) => ({
       ...state,
       calculator: bumpCalculatorRuntimeRevision({
         ...state.calculator,
@@ -773,7 +792,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return
     }
 
-    set((state) => ({
+    persistedSet(['calculator.session'], (state) => ({
       ...state,
       calculator: bumpCalculatorRuntimeRevision({
         ...state.calculator,
@@ -786,7 +805,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   activateResonator: (seed) => {
-    set((state) => {
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => {
       const existing = state.calculator.profiles[seed.id]
       if (existing && state.calculator.session.activeResonatorId === seed.id) {
         return state
@@ -824,7 +843,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   deleteResonatorProfile: (resonatorId, preferredNextResonatorId = null) => {
-    set((state) => {
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => {
       const targetProfile = state.calculator.profiles[resonatorId]
       if (!targetProfile) {
         return state
@@ -910,7 +929,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const seed = resonatorSeedsById[resonatorId]
     if (!seed) return
 
-    set((state) => {
+    persistedSet(['calculator.profiles'], (state) => {
       if (!state.calculator.profiles[resonatorId]) return state
 
       return {
@@ -927,7 +946,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   loadResonatorProfile: (profile) => {
-    set((state) => ({
+    persistedSet(['calculator.profiles'], (state) => ({
       ...state,
       calculator: bumpCalculatorRuntimeRevision({
         ...state.calculator,
@@ -945,7 +964,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const profile = createDefaultResonatorProfile(seed)
 
-    set((state) => ({
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => ({
       ...state,
       calculator: bumpCalculatorRuntimeRevision({
         ...state.calculator,
@@ -983,7 +1002,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = updater(target)
     if (next === target) return
 
-    set((state) => ({
+    persistedSet(['calculator.profiles'], (state) => ({
       ...state,
       calculator: replaceCalculatorWithRuntimeRevision(
           state.calculator,
@@ -1023,7 +1042,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       state: cloneSlotLocalStateValue(next.state),
     }
 
-    set((state) => ({
+    persistedSet(['calculator.profiles'], (state) => ({
       ...state,
       calculator: replaceCalculatorWithRuntimeRevision(
           state.calculator,
@@ -1039,7 +1058,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   updateResonatorSuggestionsState: (resonatorId, updater) => {
-    set((state) => ({
+    persistedSet(['calculator.suggestions'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1058,7 +1077,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setResonatorTargetSelection: (resonatorId, ownerKey, targetResonatorId) => {
-    set((state) => {
+    persistedSet(['calculator.profiles'], (state) => {
       // for teammates, write routing to the active resonator's profile
       const slotId = findSlotIdForResonator(state.calculator, resonatorId)
       const profileId = slotId && slotId !== 'active'
@@ -1110,7 +1129,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
 
     const nextEntry = createInventoryEchoEntry(echo)
-    set((state) => ({
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1142,7 +1161,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const now = Date.now()
 
-    set((state) => ({
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1153,7 +1172,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   updateEchoInInventory: (entryId, echo) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1180,7 +1199,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   removeEchoFromInventory: (entryId) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1191,7 +1210,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearInventoryEchoes: () => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1222,7 +1241,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       build,
     })
 
-    set((state) => ({
+    persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1235,7 +1254,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   updateInventoryBuild: (entryId, changes) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1264,7 +1283,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   removeInventoryBuild: (entryId) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1275,7 +1294,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearInventoryBuilds: () => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1302,7 +1321,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       summary,
     })
 
-    set((state) => ({
+    persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1315,7 +1334,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   updateInventoryRotation: (entryId, changes) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1344,7 +1363,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   removeInventoryRotation: (entryId) => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1355,7 +1374,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearInventoryRotations: () => {
     get().ensureInventoryHydrated()
-    set((state) => ({
+    persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1365,7 +1384,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   ensureOptimizerContext: () => {
-    set((state) => ({
+    persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1375,7 +1394,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   syncOptimizerContextToLiveRuntime: (resonatorId) => {
-    set((state) => ({
+    persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1385,7 +1404,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   updateOptimizerRuntime: (updater) => {
-    set((state) => {
+    persistedSet(['calculator.optimizerContext'], (state) => {
       const existing = state.calculator.optimizerContext
       if (!existing) {
         return state
@@ -1405,7 +1424,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   updateOptimizerSettings: (updater) => {
-    set((state) => {
+    persistedSet(['calculator.optimizerContext'], (state) => {
       const existing = state.calculator.optimizerContext
       if (!existing) {
         return state
@@ -1425,7 +1444,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   clearOptimizerContext: () => {
-    set((state) => ({
+    persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
@@ -1639,4 +1658,5 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     }))
   },
-}))
+  })
+})

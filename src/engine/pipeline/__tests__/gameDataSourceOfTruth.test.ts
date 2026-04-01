@@ -345,65 +345,111 @@ describe('game-data source of truth', () => {
 
   it('includes real synthetic support skill additions from old behavior files', () => {
     const baizhi = getResonatorById('1103')
+    const buling = getResonatorById('1307')
     const ciaccona = getResonatorById('1407')
     const verina = getResonatorById('1503')
     const shorekeeper = getResonatorById('1505')
     const taoqi = getResonatorById('1601')
+    const yuanwu = getResonatorById('1303')
 
-    if (!baizhi || !ciaccona || !verina || !shorekeeper || !taoqi) {
+    if (!baizhi || !buling || !ciaccona || !verina || !shorekeeper || !taoqi || !yuanwu) {
       throw new Error('missing generated resonator data for synthetic support additions')
     }
 
     const stimulusFeedback = baizhi.skills.find((skill) => skill.id === '1103:stimulus-feedback')
     const hot = baizhi.skills.find((skill) => skill.id === '1103:lightning-manipulation-hot')
+    const bulingS3Healing = buling.skills.find((skill) => skill.id === '1307:summoner-of-spirits-seeker-of-fate-healing')
+    const bulingOutroHealing = buling.skills.find((skill) => skill.id === '1307:exorcism-spell-healing')
     const interludeTune = ciaccona.skills.find((skill) => skill.id === '1407:interlude-tune')
     const graceOfLifeShield = verina.skills.find((skill) => skill.id === '1503:grace-of-life-shield')
     const blossomHealing = verina.skills.find((skill) => skill.id === '1503:moment-of-emergence-healing')
     const lifeEntwined = shorekeeper.skills.find((skill) => skill.id === '1505:life-entwined-healing')
     const strategicParryHealing = taoqi.skills.find((skill) => skill.id === '1601:strategic-parry-healing')
+    const yuanwuShield = yuanwu.skills.find((skill) => skill.id === '1303:retributive-knuckles-shield')
 
     expect(stimulusFeedback?.archetype).toBe('healing')
     expect(hot?.archetype).toBe('healing')
+    expect(bulingS3Healing?.archetype).toBe('healing')
+    expect(bulingOutroHealing?.archetype).toBe('healing')
     expect(interludeTune?.archetype).toBe('shield')
     expect(graceOfLifeShield?.archetype).toBe('shield')
     expect(blossomHealing?.archetype).toBe('healing')
     expect(lifeEntwined?.archetype).toBe('healing')
     expect(strategicParryHealing?.archetype).toBe('healing')
+    expect(yuanwuShield?.archetype).toBe('shield')
 
     const baizhiRuntime = createDefaultResonatorRuntime(baizhi)
+    const bulingRuntime = createDefaultResonatorRuntime(buling)
     const ciacconaRuntime = createDefaultResonatorRuntime(ciaccona)
     const verinaRuntime = createDefaultResonatorRuntime(verina)
     const shorekeeperRuntime = createDefaultResonatorRuntime(shorekeeper)
     const taoqiRuntime = createDefaultResonatorRuntime(taoqi)
+    const yuanwuRuntime = createDefaultResonatorRuntime(yuanwu)
 
     baizhiRuntime.base.level = 40
+    bulingRuntime.base.sequence = 0
     ciacconaRuntime.base.level = 40
     verinaRuntime.base.level = 60
     verinaRuntime.base.sequence = 0
     shorekeeperRuntime.base.level = 40
     taoqiRuntime.base.sequence = 0
+    yuanwuRuntime.base.sequence = 0
 
     expect(resolveSkill(baizhiRuntime, stimulusFeedback!).visible).toBe(false)
     expect(resolveSkill(baizhiRuntime, hot!).visible).toBe(true)
+    expect(resolveSkill(bulingRuntime, bulingS3Healing!).visible).toBe(false)
+    expect(resolveSkill(bulingRuntime, bulingOutroHealing!).visible).toBe(true)
     expect(resolveSkill(ciacconaRuntime, interludeTune!).visible).toBe(false)
     expect(resolveSkill(verinaRuntime, graceOfLifeShield!).visible).toBe(false)
     expect(resolveSkill(verinaRuntime, blossomHealing!).visible).toBe(false)
     expect(resolveSkill(shorekeeperRuntime, lifeEntwined!).visible).toBe(false)
     expect(resolveSkill(taoqiRuntime, strategicParryHealing!).visible).toBe(false)
+    expect(resolveSkill(yuanwuRuntime, yuanwuShield!).visible).toBe(false)
 
     baizhiRuntime.base.level = 70
+    bulingRuntime.base.sequence = 3
     ciacconaRuntime.base.level = 50
     verinaRuntime.base.level = 70
     verinaRuntime.base.sequence = 1
     shorekeeperRuntime.base.level = 50
     taoqiRuntime.base.sequence = 4
+    yuanwuRuntime.base.sequence = 4
 
     expect(resolveSkill(baizhiRuntime, stimulusFeedback!).visible).toBe(true)
+    expect(resolveSkill(bulingRuntime, bulingS3Healing!).visible).toBe(true)
     expect(resolveSkill(ciacconaRuntime, interludeTune!).visible).toBe(true)
     expect(resolveSkill(verinaRuntime, graceOfLifeShield!).visible).toBe(true)
     expect(resolveSkill(verinaRuntime, blossomHealing!).visible).toBe(true)
     expect(resolveSkill(shorekeeperRuntime, lifeEntwined!).visible).toBe(true)
     expect(resolveSkill(taoqiRuntime, strategicParryHealing!).visible).toBe(true)
+    expect(resolveSkill(yuanwuRuntime, yuanwuShield!).visible).toBe(true)
+  })
+
+  it('hydrates Yuanwu and Buling override states and skill typing', () => {
+    const yuanwu = getResonatorById('1303')
+    const buling = getResonatorById('1307')
+
+    if (!yuanwu || !buling) {
+      throw new Error('missing Yuanwu or Buling resonator data')
+    }
+
+    expect(yuanwu.states.find((state) => state.controlKey === 'sequence:1303:s6:active')?.label).toBe('S6: Defender of All Realms')
+    expect(yuanwu.skills.find((skill) => skill.id === '1303015')?.skillType).toEqual(['resonanceSkill'])
+    expect(yuanwu.skills.find((skill) => skill.id === '1303015')?.scaling).toEqual({
+      atk: 0,
+      hp: 0,
+      def: 1,
+      energyRegen: 0,
+    })
+
+    expect(buling.states.find((state) => state.controlKey === 'team:1307:thunder_spell_yin_and_yang:active')?.label).toBe('Thunder Spell - Yin and Yang')
+    expect(buling.states.find((state) => state.controlKey === 'sequence:1307:s6:active')?.enabledWhen).toEqual({
+      type: 'truthy',
+      from: 'sourceRuntime',
+      path: 'state.controls.team:1307:thunder_spell_heaven_earth_mind:active',
+    })
+    expect(buling.skills.find((skill) => skill.id === '1307023')?.skillType).toEqual(['resonanceLiberation'])
+    expect(buling.skills.find((skill) => skill.id === '1307031')?.skillType).toEqual(['resonanceLiberation'])
   })
 
   it('reclassifies tune rupture response rows outside the tuneBreak tab', () => {

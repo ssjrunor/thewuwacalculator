@@ -3,27 +3,29 @@ import { AppDialog } from '@/shared/ui/AppDialog'
 
 const STATUS_DATA = {
   lastUpdated: '30/03/2026',
-  overallState: 'stable' as const,
+  overallState: 'wip' as const,
   patchVersion: '2.4',
   patchVersionUrl: 'https://encore.moe/new?lang=en',
   notes: [
-    'v2 is a full rebuild — architecture is new, most things should feel faster and more stable.',
-    "Some v1 features are still being ported over. Check known issues for what's pending.",
+      'HIIII~! Welcome if you\'re not from the server and you found this, how nice, if you are, how nice.',
+      'If you see something amiss, do not fret. This is still in it\'s testing phase, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
+      'Beware, data might "mysteriously" disappear as i tweak things. Keep this in mind while you use the app.',
+    'This is a full rebuild. The architecture is new, most things should feel faster and more stable.',
   ],
   coverage: [
-    { title: 'Characters', status: 'ok' as const,  desc: 'All characters carried over from v1.' },
+    { title: 'Characters', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
     { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies are in.' },
-    { title: 'Assets',     status: 'wip' as const, desc: 'Some icons still missing.' },
+    { title: 'Assets',     status: 'ok' as const, desc: 'All assets are in.' },
   ],
   knownIssues: [
-    'Google Drive sync being wired back in.',
+    'Full sonata set condition custom configurations for optimizer related features are not yet implemented.',
+    'The guides system not fully implemented yet.',
     'Some v1 features still being ported over.',
   ],
   recentChanges: [
-    'Full rebuild — new architecture, way less suffering.',
-    'Revamped calculator, inventory, rotations, optimizer.',
+    'Revamped calculator, inventory, rotations, optimizer... etc.',
   ],
 }
 

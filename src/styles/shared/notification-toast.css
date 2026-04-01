@@ -241,6 +241,27 @@
   transform: translateY(-1px);
 }
 
+/* ── Clickable toast ── */
+
+.toast-item--clickable {
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+}
+
+.toast-item--clickable:is(:hover, :focus-visible) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow:
+    var(--toast-shadow),
+    0 0 0 2px color-mix(in srgb, var(--toast-accent) 35%, transparent);
+  outline: none;
+}
+
+.toast-item--clickable:active {
+  transform: translateY(0) scale(0.99);
+}
+
 /* ── Dismiss button ── */
 
 .toast-item__dismiss {

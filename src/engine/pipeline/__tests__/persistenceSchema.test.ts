@@ -13,9 +13,16 @@ import { getResonatorById } from '@/domain/services/catalogService'
 import {
   APP_STORAGE_BACKUP_KEY,
   APP_STORAGE_KEY,
-  APP_STORAGE_INVENTORY_KEY,
-  APP_STORAGE_PROFILES_KEY,
+  APP_STORAGE_INVENTORY_BUILDS_KEY,
+  APP_STORAGE_INVENTORY_ECHOES_KEY,
+  APP_STORAGE_INVENTORY_ROTATIONS_KEY,
+  APP_STORAGE_OPTIMIZER_CONTEXT_KEY,
   APP_STORAGE_SESSION_KEY,
+  APP_STORAGE_PROFILES_KEY,
+  APP_STORAGE_SUGGESTIONS_KEY,
+  APP_STORAGE_UI_APPEARANCE_KEY,
+  APP_STORAGE_UI_LAYOUT_KEY,
+  APP_STORAGE_UI_SAVED_ROTATION_PREFERENCES_KEY,
   LEGACY_APP_STORAGE_KEY,
   LEGACY_APP_STORAGE_RECOVERY_PREFIX,
   loadPersistedAppState,
@@ -122,9 +129,16 @@ describe('persistedAppStateSchema', () => {
     savePersistedAppState(state)
 
     expect(localStorage.getItem(APP_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(APP_STORAGE_UI_APPEARANCE_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_UI_LAYOUT_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_UI_SAVED_ROTATION_PREFERENCES_KEY)).toBeTruthy()
     expect(localStorage.getItem(APP_STORAGE_SESSION_KEY)).toBeTruthy()
     expect(localStorage.getItem(APP_STORAGE_PROFILES_KEY)).toBeTruthy()
-    expect(localStorage.getItem(APP_STORAGE_INVENTORY_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_OPTIMIZER_CONTEXT_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_SUGGESTIONS_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_INVENTORY_ECHOES_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_INVENTORY_BUILDS_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_INVENTORY_ROTATIONS_KEY)).toBeTruthy()
     expect(localStorage.getItem(APP_STORAGE_BACKUP_KEY)).toBeNull()
   })
 
@@ -148,7 +162,7 @@ describe('persistedAppStateSchema', () => {
     const loaded = loadPersistedAppState({ includeInventory: false })
 
     expect(loaded?.calculator.inventoryEchoes).toEqual([])
-    expect(localStorage.getItem(APP_STORAGE_INVENTORY_KEY)).toBeTruthy()
+    expect(localStorage.getItem(APP_STORAGE_INVENTORY_ECHOES_KEY)).toBeTruthy()
   })
 
   it('rejects unsupported legacy snapshot versions', () => {

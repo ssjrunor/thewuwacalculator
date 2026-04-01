@@ -40,6 +40,13 @@ function ToastItem({ toast }: { toast: Toast }) {
 
   const handleDismiss = () => dismiss(toast.id)
 
+  const handleClick = () => {
+    if (toast.onClick) {
+      toast.onClick()
+      handleDismiss()
+    }
+  }
+
   const position = toast.position ?? 'top-center'
   const isTop = position.startsWith('top')
   const variant = toast.variant ?? 'default'
@@ -51,10 +58,18 @@ function ToastItem({ toast }: { toast: Toast }) {
     isTop ? 'toast-item--top' : 'toast-item--bottom',
     entered && !toast.exiting ? 'toast-item--active' : '',
     toast.exiting ? 'toast-item--exiting' : '',
+    toast.onClick ? 'toast-item--clickable' : '',
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={classes} role="status" aria-live="polite">
+    <div
+      className={classes}
+      role={toast.onClick ? 'button' : 'status'}
+      aria-live="polite"
+      onClick={toast.onClick ? handleClick : undefined}
+      tabIndex={toast.onClick ? 0 : undefined}
+      onKeyDown={toast.onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}
+    >
       <div className="toast-item__icon">
         <Icon size={16} />
       </div>
@@ -63,7 +78,8 @@ function ToastItem({ toast }: { toast: Toast }) {
         <button
           type="button"
           className="toast-item__action"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             toast.action!.onClick()
             handleDismiss()
           }}
@@ -71,14 +87,16 @@ function ToastItem({ toast }: { toast: Toast }) {
           {toast.action.label}
         </button>
       )}
-      <button
-        type="button"
-        className="toast-item__dismiss"
-        aria-label="Dismiss"
-        onClick={handleDismiss}
-      >
-        <X size={14} />
-      </button>
+      {!toast.onClick && (
+        <button
+          type="button"
+          className="toast-item__dismiss"
+          aria-label="Dismiss"
+          onClick={handleDismiss}
+        >
+          <X size={14} />
+        </button>
+      )}
     </div>
   )
 }

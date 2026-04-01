@@ -24,6 +24,7 @@ export interface Toast {
   position?: ToastPosition
   duration?: number
   action?: { label: string; onClick: () => void }
+  onClick?: () => void
   exiting?: boolean
 }
 

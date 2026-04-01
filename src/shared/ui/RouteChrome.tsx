@@ -35,6 +35,9 @@ import { useToastStore } from '@/shared/util/toastStore.ts'
 import { getCuteMessage } from '@/shared/util/cuteMessages.ts'
 import { getStoredGoogleTokens } from '@/infra/googleDrive/googleAuth.ts'
 
+const ALERT_TOAST_KEY = 'alert-toast-dismissed'
+let alertToastShown = false
+
 interface NavigationLink {
   to: string
   label: string
@@ -103,6 +106,23 @@ export function RouteChrome() {
     isOverlayVisible,
     isOverlayClosing,
   } = useResponsiveSidebar()
+
+  // show a persistent alert toast on mount that opens the app status modal
+  useEffect(() => {
+    if (alertToastShown || localStorage.getItem(ALERT_TOAST_KEY)) return
+    alertToastShown = true
+    showToast({
+      content: 'ALERT: CLICK ME!',
+      variant: 'warning',
+      duration: 0,
+      position: 'top-center',
+      onClick: () => {
+        localStorage.setItem(ALERT_TOAST_KEY, '1')
+        appStatus.show()
+      },
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // move calculator toolbar into the sidebar on smaller screens
   useEffect(() => {

@@ -1111,9 +1111,9 @@ export function CalculatorSuggestionsPane({
       >
         <div className="suggestions-config-grid">
           <div className="suggestions-config-field">
-            <span className="suggestions-config-label">Runtime Toggles</span>
+            <span className="suggestions-config-label">Coming soon</span>
             <p className="suggestions-modal-hint" style={{ margin: 0 }}>
-              Set suggestions already follow the active state toggles and conditions from the current runtime.
+              Coming soon.
             </p>
           </div>
         </div>
