@@ -40,6 +40,24 @@ function getGoogleRedirectUri(): string {
   return import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? window.location.origin
 }
 
+function areGoogleUsersEqual(
+  left: GoogleDriveUser | null,
+  right: GoogleDriveUser | null,
+): boolean {
+  if (left === right) {
+    return true
+  }
+
+  if (!left || !right) {
+    return false
+  }
+
+  return left.email === right.email
+    && left.name === right.name
+    && left.picture === right.picture
+    && left.sub === right.sub
+}
+
 // manages the browser-side oauth flow and cached token lifecycle for drive sync.
 export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
   const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -68,8 +86,11 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       }
 
       const stored = getStoredGoogleTokens()
-      setAccessToken(nextToken)
-      setUser(stored?.user ?? user)
+      setAccessToken((currentToken) => (currentToken === nextToken ? currentToken : nextToken))
+      setUser((currentUser) => {
+        const nextUser = stored?.user ?? currentUser ?? null
+        return areGoogleUsersEqual(currentUser, nextUser) ? currentUser : nextUser
+      })
       return nextToken
     } catch (refreshError) {
       console.error('failed to refresh cached google drive token', refreshError)
@@ -79,7 +100,7 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       setError('Google Drive session expired. Sign in again to continue.')
       return null
     }
-  }, [accessToken, user])
+  }, [accessToken])
 
   useEffect(() => {
     void refresh()
