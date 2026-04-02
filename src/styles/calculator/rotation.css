@@ -155,6 +155,8 @@
   transition: opacity 180ms ease, color 180ms ease;
 }
 
+
+.ssc-toolbar .rotation-saved-filters__search-input,
 .rotation-saved-filters .rotation-saved-filters__search-input {
   width: 100%;
   padding: 0.38rem 0.65rem 0.38rem 1.7rem;
@@ -176,12 +178,14 @@
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
+.ssc-toolbar .rotation-saved-filters__search-input::placeholder,
 .rotation-saved-filters .rotation-saved-filters__search-input::placeholder {
   color: var(--calc-muted);
   opacity: 0.5;
   font-weight: 600;
 }
 
+.ssc-toolbar .rotation-saved-filters__search-input:focus,
 .rotation-saved-filters .rotation-saved-filters__search-input:focus {
   border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--calc-item-border));
   box-shadow:

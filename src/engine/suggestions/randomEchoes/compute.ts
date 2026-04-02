@@ -9,7 +9,7 @@ import type { EchoInstance } from '@/domain/entities/runtime'
 import { createEchoUid } from '@/domain/entities/runtime'
 import type { RandomGeneratorSetPreference } from '@/domain/entities/suggestions'
 import { getEchoById, listEchoesByCost } from '@/domain/services/echoCatalogService'
-import { OPTIMIZER_ECHOS_PER_COMBO } from '@/engine/optimizer/constants'
+import { OPTIMIZER_ECHOS_PER_COMBO } from '@/engine/optimizer/config/constants'
 import {
   buildPreparedRandomSuggestionsInput,
   runSuggestionSimulation,
@@ -20,7 +20,7 @@ import type {
   RandomSuggestionsInput,
 } from '@/engine/suggestions/types'
 import { getDefaultMainStatFilter } from '@/engine/suggestions/mainStat-suggestion/ctx-builder'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 import {
   buildCostPlans,
   buildMainStatCombinations,

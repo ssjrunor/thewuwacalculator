@@ -9,11 +9,11 @@ import {
   OPTIMIZER_CTX_META0,
   OPTIMIZER_CTX_META1,
   OPTIMIZER_CTX_SET_RUNTIME_MASK,
-} from '@/engine/optimizer/constants'
+} from '@/engine/optimizer/config/constants'
 import {
   patchTargetContextDispatchWorkgroupBase,
   patchTargetContextForGpuJob,
-} from '@/engine/optimizer/rebuild/context/pack'
+} from '@/engine/optimizer/context/pack'
 
 describe('optimizer gpu target context patching', () => {
   it('keeps the dispatch workgroup base in the shader-visible slot directly after set runtime mask', () => {

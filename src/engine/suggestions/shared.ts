@@ -7,9 +7,9 @@
 
 import type { FeatureResult } from '@/domain/gameData/contracts'
 import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
-import { buildOptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
-import { isOptimizerRotationTarget, sumOptimizerRotationDamage } from '@/engine/optimizer/rebuild/eligibility'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import { buildOptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import { isOptimizerRotationTarget, sumOptimizerRotationDamage } from '@/engine/optimizer/rules/eligibility.ts'
 import type {
   DirectSuggestionContext,
   MainStatSuggestionsInput,
@@ -24,20 +24,20 @@ import type {
 } from '@/engine/suggestions/types'
 import { runResonatorSimulation } from '@/engine/pipeline'
 import type { SimulationResult } from '@/engine/pipeline/types'
-import { stripEchoes } from '@/engine/optimizer/rebuild/compiler/shared'
-import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/rebuild/encode/sets'
-import { buildGenericMainEchoRows, buildMainEchoRows, encodeEchoRows } from '@/engine/optimizer/rebuild/encode/echoes'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/rebuild/target/context'
-import { packTargetContext } from '@/engine/optimizer/rebuild/context/pack'
-import { evalTarget } from '@/engine/optimizer/rebuild/target/evaluate'
-import { applyPersonalRotationItems } from '@/engine/optimizer/rebuild/rotation/runtime'
+import { stripEchoes } from '@/engine/optimizer/compiler/shared'
+import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/encode/sets'
+import { buildGenericMainEchoRows, buildMainEchoRows, encodeEchoRows } from '@/engine/optimizer/encode/echoes'
+import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
+import { packTargetContext } from '@/engine/optimizer/context/pack'
+import { evalTarget } from '@/engine/optimizer/target/evaluate'
+import { applyPersonalRotationItems } from '@/engine/optimizer/rotation/runtime'
 import { buildTransientCombatGraph, findCombatParticipantSlotId } from '@/domain/state/combatGraph'
 import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
 import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { buildPreparedRotationEnvironment, runFeatureSimulation } from '@/engine/rotation/system'
-import { buildCompiledOptimizerContext } from '@/engine/optimizer/rebuild/context/compiled'
-import { selectOptimizerTargetSkill, type OptimizerTargetSkill } from '@/engine/optimizer/rebuild/target/selectedSkill'
-import { OPTIMIZER_CONTEXT_FLOATS } from '@/engine/optimizer/constants'
+import { buildCompiledOptimizerContext } from '@/engine/optimizer/context/compiled'
+import { selectOptimizerTargetSkill, type OptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill'
+import { OPTIMIZER_CONTEXT_FLOATS } from '@/engine/optimizer/config/constants'
 
 interface RotationTargetContext {
   skill: FeatureResult['skill']
@@ -216,7 +216,7 @@ export function buildDirectSuggestionContext(
   })
 
   const comboSize = Math.max(1, input.runtime.build.echoes.filter((echo) => echo != null).length)
-  const setRuntimeMask = buildSetRuntimeMask(runtime)
+  const setRuntimeMask = buildSetRuntimeMask(runtime, input.setConditionals)
 
   return {
     mode: 'target',
@@ -235,7 +235,7 @@ export function buildDirectSuggestionContext(
       lockedEchoIndex: -1,
       setRuntimeMask,
     }),
-    setConstLut: buildSetRows(runtime),
+    setConstLut: buildSetRows(runtime, input.setConditionals),
   }
 }
 
@@ -321,7 +321,7 @@ export function buildRotationSuggestionContext(
     })
   }
 
-  const setRuntimeMask = buildSetRuntimeMask(rotationRuntime)
+  const setRuntimeMask = buildSetRuntimeMask(rotationRuntime, input.setConditionals)
   const contexts = new Float32Array(targets.length * OPTIMIZER_CONTEXT_FLOATS)
   const contextWeights = new Float32Array(targets.length)
 
@@ -365,7 +365,7 @@ export function buildRotationSuggestionContext(
     contextStride: OPTIMIZER_CONTEXT_FLOATS,
     contextWeights,
     contextCount: targets.length,
-    setConstLut: buildSetRows(rotationRuntime),
+    setConstLut: buildSetRows(rotationRuntime, input.setConditionals),
   }
 }
 

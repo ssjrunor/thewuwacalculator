@@ -7,10 +7,11 @@
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { RandomGeneratorSettings } from '@/domain/entities/suggestions'
 import type { ResonatorRuntimeState, ResonatorSeed, EchoInstance } from '@/domain/entities/runtime'
+import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { FinalStats, ResonatorBaseStats } from '@/domain/entities/stats'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
-import type { OptimizerTargetSkill } from '@/engine/optimizer/rebuild/target/selectedSkill'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 
 // common evaluation input shared by all suggestion pipelines
 export interface SuggestionsEvaluationInput {
@@ -19,6 +20,7 @@ export interface SuggestionsEvaluationInput {
   enemy: EnemyProfile
   runtimesById: Record<string, ResonatorRuntimeState>
   selectedTargetsByOwnerKey: Record<string, string | null>
+  setConditionals?: SonataSetConditionals
   targetFeatureId: string | null
   rotationMode: boolean
 }

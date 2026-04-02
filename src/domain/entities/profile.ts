@@ -16,6 +16,7 @@ import type {
   WeaponBuildState,
 } from './runtime'
 import type { ManualBuffs } from './manualBuffs'
+import type { SonataSetConditionals } from './sonataSetConditionals'
 
 export interface ResonatorProfileProgression {
   level: number
@@ -38,6 +39,7 @@ export interface SlotLocalState {
   controls: Record<string, boolean | number | string>
   manualBuffs: ManualBuffs
   combat: CombatState
+  setConditionals: SonataSetConditionals
 }
 
 export interface SlotRoutingState {

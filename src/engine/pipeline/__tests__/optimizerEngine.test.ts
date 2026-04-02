@@ -4,40 +4,43 @@ import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { createDefaultResonatorRuntime, createDefaultOptimizerSettings, makeDefaultEnemyProfile } from '@/domain/state/defaults'
 import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
 import { cloneEchoForSlot } from '@/domain/entities/inventoryStorage'
+import {
+  DEFAULT_SONATA_SET_CONDITIONALS,
+  withCompactSonataSetUpdates,
+} from '@/domain/entities/sonataSetConditionals'
 import { listRuntimeSkills } from '@/domain/services/runtimeSourceService'
 import {
   ECHO_OPTIMIZER_BATCH_SIZE_CAP,
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
   OPTIMIZER_REDUCE_K,
-} from '@/engine/optimizer/constants'
+} from '@/engine/optimizer/config/constants'
 import { countOptimizerCombinations, runOptimizerSearch } from '@/engine/optimizer/engine'
-import { compileOptimizerPayload } from '@/engine/optimizer/rebuild/compiler'
-import { passesConstraints as passesCpuConstraints } from '@/engine/optimizer/rebuild/cpu/constraints'
-import { encodeStatConstraints } from '@/engine/optimizer/rebuild/encode/constraints'
+import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
+import { passesConstraints as passesCpuConstraints, encodeStatConstraints } from '@/engine/optimizer/constraints/statConstraints'
 import {
   buildSetRows,
   buildSetRuntimeMask,
   getSetRowOffset,
   SET_RUNTIME_TOGGLE_ALL,
-} from '@/engine/optimizer/rebuild/encode/sets'
-import { countOptimizerCombinationsByMode } from '@/engine/optimizer/count'
+} from '@/engine/optimizer/encode/sets'
+import { countOptimizerCombinationsByMode } from '@/engine/optimizer/search/counting'
 import {
   evaluatePreparedOptimizerBaseline,
   materializeOptimizerResults,
-} from '@/engine/optimizer/rebuild/materialize'
-import { evalTarget } from '@/engine/optimizer/rebuild/target/evaluate'
-import { runTargetSearchJob } from '@/engine/optimizer/rebuild/target/search'
-import { unrankCombinadic } from '@/engine/optimizer/rebuild/combinadic'
-import { OptimizerBagResultCollector, buildOptimizerBagResultSetKey } from '@/engine/optimizer/rebuild/results'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/rebuild/target/context'
-import { createPackedTargetSkillExecution } from '@/engine/optimizer/rebuild/target/execution'
-import { applyPersonalRotationItems } from '@/engine/optimizer/rebuild/rotation/runtime'
-import { listOptimizerTargets } from '@/engine/optimizer/rebuild/target/skills'
+} from '@/engine/optimizer/results/materialize.ts'
+import { evalTarget } from '@/engine/optimizer/target/evaluate'
+import { runTargetSearchJob } from '@/engine/optimizer/search/targetCpu'
+import { unrankCombinadic } from '@/engine/optimizer/combos/combinadic.ts'
+import { OptimizerBagResultCollector, buildOptimizerBagResultSetKey } from '@/engine/optimizer/results/collector.ts'
+import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
+import { createPackedTargetSkillExecution } from '@/engine/optimizer/payloads/targetPayload'
+import { applyPersonalRotationItems } from '@/engine/optimizer/rotation/runtime'
+import { listOptimizerTargets } from '@/engine/optimizer/target/skills'
 import {
   resolveTargetGpuCollectorLimit,
   resolveTargetGpuJobResultsLimit,
-} from '@/engine/optimizer/rebuild/workers/pool'
-import { buildTargetGpuStaticKey } from '@/engine/optimizer/rebuild/workers/targetGpu'
+} from '@/engine/optimizer/workers/pool'
+import { buildTargetGpuStaticKey } from '@/engine/optimizer/workers/targetGpu'
 import { runResonatorSimulation } from '@/engine/pipeline'
 import { buildPreparedRuntimeSkill } from '@/engine/pipeline/prepareRuntimeSkill'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
@@ -381,6 +384,45 @@ describe('optimizer engine', () => {
     expect(buildSetRuntimeMask(runtime)).toBe(SET_RUNTIME_TOGGLE_ALL)
     expect(setRows[row + 6]).toBeGreaterThan(0)
     expect(setRows[row + 15]).toBeGreaterThan(10)
+  })
+
+  it('omits disabled set conditional rows from the optimizer LUT', () => {
+    const seed = getResonatorSeedById('1210')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = createDefaultResonatorRuntime(seed)
+    const enabledRows = buildSetRows(runtime, DEFAULT_SONATA_SET_CONDITIONALS)
+    const setConditionals = withCompactSonataSetUpdates(DEFAULT_SONATA_SET_CONDITIONALS, [
+      { setId: 27, partKey: 'trailblazingStar5pc', checked: false },
+    ])
+    const disabledRows = buildSetRows(runtime, setConditionals)
+    const row = getSetRowOffset(27, 3)
+
+    expect(enabledRows[row + 6]).toBeGreaterThan(0)
+    expect(disabledRows[row + 6]).toBe(0)
+    expect(enabledRows[row + 15]).toBeGreaterThan(disabledRows[row + 15])
+    expect(disabledRows[row + 15]).toBe(10)
+  })
+
+  it('removes runtime mask bits when legacy set conditionals are toggled off', () => {
+    const seed = getResonatorSeedById('1210')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = createDefaultResonatorRuntime(seed)
+    const setConditionals = withCompactSonataSetUpdates(DEFAULT_SONATA_SET_CONDITIONALS, [
+      { setId: 14, partKey: 'fivePiece', checked: false },
+      { setId: 22, partKey: 'flamewingsShadow2pcP1', checked: false },
+      { setId: 22, partKey: 'flamewingsShadow2pcP2', checked: false },
+      { setId: 29, partKey: 'soundOfTrueName5pc', checked: false },
+    ])
+
+    expect(buildSetRuntimeMask(runtime, setConditionals)).toBe(0)
   })
 
   it('still excludes activeOther set buffs from optimizer encoding', () => {

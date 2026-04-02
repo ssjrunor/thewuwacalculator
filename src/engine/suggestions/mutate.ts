@@ -17,7 +17,7 @@ import {
   getSubstatStepOptions,
 } from '@/data/gameData/catalog/echoStats'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 import type { SetPlanEntry } from '@/engine/suggestions/types'
 import { getRandomSubstat, randomSubValue } from '@/engine/suggestions/randomEchoes/lib/substats'
 import { MAIN_STAT_FILTER_ORDER } from '@/engine/suggestions/MAIN_STAT_FILTER_ORDER.ts'

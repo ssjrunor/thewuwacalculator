@@ -5,7 +5,7 @@
 */
 
 import { ECHO_PRIMARY_STATS } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 
 // main stat keys that can participate in the suggestor filter
 const MAIN_STAT_FILTER_KEYS = [

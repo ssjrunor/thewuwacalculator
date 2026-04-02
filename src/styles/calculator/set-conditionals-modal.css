@@ -1,0 +1,555 @@
+/* ── Sonata Set Conditionals Modal ── */
+
+.app-modal-panel.ssc-modal {
+  padding: 0;
+}
+
+.app-modal-panel.ssc-modal::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--picker-modal-accent) 82%, transparent) 0%,
+    color-mix(in srgb, var(--picker-modal-accent) 32%, transparent) 55%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Root ── */
+
+.ssc-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+
+.ssc-header {
+  padding: 1.1rem 1.25rem 0.95rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-border) 70%, transparent);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  flex-shrink: 0;
+}
+
+.ssc-heading {
+  min-width: 0;
+}
+
+.ssc-eyebrow {
+  margin: 0 0 0.28rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--picker-modal-accent) 76%, var(--picker-modal-text));
+}
+
+.ssc-title {
+  margin: 0;
+  font-size: clamp(1.3rem, 2vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--picker-modal-text);
+}
+
+.ssc-subtitle {
+  margin: 0.48rem 0 0;
+  font-size: 0.83rem;
+  color: color-mix(in srgb, var(--picker-modal-muted) 90%, var(--picker-modal-text));
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+.ssc-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ssc-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.36rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 22%, var(--picker-modal-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 8%, transparent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--picker-modal-accent) 84%, var(--picker-modal-text));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ssc-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.44rem 0.78rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-border));
+  background: color-mix(in srgb, var(--picker-modal-text) 2%, transparent);
+  color: var(--picker-modal-text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms ease;
+}
+
+.ssc-close-btn:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 52%, var(--picker-modal-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 8%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--picker-modal-accent) 16%, transparent);
+}
+
+.ssc-close-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--picker-modal-accent) 80%, transparent);
+  outline-offset: 2px;
+}
+
+/* ── Toolbar ── */
+
+.ssc-toolbar {
+  padding: 0.78rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-border) 50%, transparent);
+  display: flex;
+  gap: 0.58rem;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--picker-modal-text) 1.5%, transparent);
+}
+
+.ssc-tabs {
+  display: flex;
+  gap: 0.28rem;
+  flex-shrink: 0;
+}
+
+.ssc-tab {
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-border) 90%, transparent);
+  background: transparent;
+  color: var(--picker-modal-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ssc-tab:hover:not(.active) {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 42%, var(--picker-modal-border));
+  color: var(--picker-modal-text);
+  background: color-mix(in srgb, var(--picker-modal-accent) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.ssc-tab.active {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 54%, var(--picker-modal-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 14%, transparent);
+  color: color-mix(in srgb, var(--picker-modal-accent) 88%, var(--picker-modal-text));
+}
+
+.ssc-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--picker-modal-accent) 80%, transparent);
+  outline-offset: 2px;
+}
+
+/* LiquidSelect override for the sort selector */
+
+.ssc-sort {
+  flex-shrink: 0;
+}
+
+.ssc-sort .liquid-select {
+  --liquid-select-accent: var(--picker-modal-accent);
+  --liquid-select-text: var(--picker-modal-text);
+  --liquid-select-input-border: color-mix(in srgb, var(--picker-modal-border) 90%, transparent);
+}
+
+.ssc-sort .liquid-select__trigger {
+  padding: 0.44rem 0.72rem;
+  border-radius: 0.65rem;
+  font-size: 0.8rem;
+  min-width: 9rem;
+}
+
+/* ── Scrollable Body ── */
+
+.ssc-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 0;
+  padding: 0.85rem 1.25rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overscroll-behavior: contain;
+}
+
+.ssc-body::-webkit-scrollbar { width: 5px; }
+.ssc-body::-webkit-scrollbar-track { background: transparent; }
+.ssc-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--picker-modal-accent) 28%, var(--picker-modal-border));
+  border-radius: 999px;
+}
+.ssc-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--picker-modal-accent) 52%, var(--picker-modal-border));
+}
+
+/* ── Global toggle row ── */
+
+.ssc-global-row {
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  padding: 0.58rem 0.88rem;
+  border-radius: 0.82rem;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-border) 64%, transparent);
+  background: color-mix(in srgb, var(--picker-modal-text) 2%, transparent);
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.ssc-global-row:hover {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 32%, var(--picker-modal-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 9%, transparent);
+}
+
+/* ── Custom checkboxes ── */
+
+.ssc-native-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.ssc-checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1.5px solid color-mix(in srgb, var(--picker-modal-accent) 36%, var(--picker-modal-border));
+  border-radius: 0.32rem;
+  background: color-mix(in srgb, var(--picker-modal-text) 3%, transparent);
+  flex-shrink: 0;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+label:hover .ssc-checkmark {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 66%, var(--picker-modal-border));
+}
+
+label:has(.ssc-native-checkbox:checked) .ssc-checkmark {
+  background: var(--picker-modal-accent);
+  border-color: var(--picker-modal-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--picker-modal-accent) 22%, transparent);
+}
+
+label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark {
+  background: color-mix(in srgb, var(--picker-modal-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 68%, var(--picker-modal-border));
+}
+
+.ssc-checkmark-icon { display: none; }
+.ssc-dash-icon       { display: none; }
+
+label:has(.ssc-native-checkbox:checked)      .ssc-checkmark-icon { display: block; }
+label:has(.ssc-native-checkbox:indeterminate) .ssc-dash-icon      { display: block; }
+label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: none; }
+
+/* smaller variant used inside part rows */
+.ssc-part-row .ssc-checkmark {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+}
+
+.ssc-toggle-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--picker-modal-text);
+}
+
+.ssc-global-spacer { flex: 1; }
+
+.ssc-count-display {
+  font-size: 0.74rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--picker-modal-accent) 76%, var(--picker-modal-text));
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ssc-progress-track {
+  width: 5rem;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--picker-modal-border) 60%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ssc-progress-fill {
+  height: 100%;
+  background: var(--picker-modal-accent);
+  border-radius: 999px;
+  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Empty state ── */
+
+.ssc-empty {
+  display: grid;
+  place-items: center;
+  min-height: 11rem;
+  border: 1px dashed color-mix(in srgb, var(--picker-modal-accent) 22%, var(--picker-modal-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--picker-modal-text) 1.5%, transparent);
+  color: var(--picker-modal-muted);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+/* ── Set cards ── */
+
+.ssc-card {
+  border-radius: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 12%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 2%, var(--picker-modal-inner, transparent));
+  /*
+  overflow: hidden;
+  */
+  animation: ssc-card-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.ssc-card:hover {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 34%, var(--picker-modal-item-border));
+  box-shadow: 0 2px 16px color-mix(in srgb, var(--picker-modal-accent) 9%, transparent);
+}
+
+.ssc-card:nth-child(1)   { animation-delay:   0ms; }
+.ssc-card:nth-child(2)   { animation-delay:  40ms; }
+.ssc-card:nth-child(3)   { animation-delay:  80ms; }
+.ssc-card:nth-child(4)   { animation-delay: 120ms; }
+.ssc-card:nth-child(5)   { animation-delay: 160ms; }
+.ssc-card:nth-child(6)   { animation-delay: 200ms; }
+.ssc-card:nth-child(7)   { animation-delay: 240ms; }
+.ssc-card:nth-child(8)   { animation-delay: 280ms; }
+.ssc-card:nth-child(n+9) { animation-delay: 300ms; }
+
+@keyframes ssc-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ssc-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.9rem;
+  background: color-mix(in srgb, var(--picker-modal-accent) 6%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-accent) 12%, var(--picker-modal-item-border));
+}
+
+.ssc-card:not(:has(.ssc-parts)) .ssc-card-head {
+  border-bottom: none;
+}
+
+.ssc-set-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--picker-modal-accent) 28%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 10%, transparent);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.ssc-set-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ssc-set-icon-fallback {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--picker-modal-accent) 84%, var(--picker-modal-text));
+}
+
+.ssc-set-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ssc-set-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--picker-modal-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssc-set-id {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--picker-modal-muted);
+  margin-top: 0.1rem;
+  opacity: 0.8;
+}
+
+.ssc-set-counter {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 12%, var(--picker-modal-item-border));
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--picker-modal-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ssc-set-counter.partial {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 22%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 10%, transparent);
+  color: color-mix(in srgb, var(--picker-modal-accent) 84%, var(--picker-modal-text));
+}
+
+.ssc-set-counter.full {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 36%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 16%, transparent);
+  color: color-mix(in srgb, var(--picker-modal-accent) 88%, var(--picker-modal-text));
+}
+
+/* ── Part rows ── */
+
+.ssc-parts {
+  display: flex;
+  flex-direction: column;
+}
+
+.ssc-part-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.58rem 0.9rem;
+  border-top: 1px solid color-mix(in srgb, var(--picker-modal-item-border) 48%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition: background 130ms ease;
+}
+
+.ssc-part-row:first-child {
+  border-top: none;
+}
+
+.ssc-part-row:hover {
+  background: color-mix(in srgb, var(--picker-modal-accent) 3%, transparent);
+}
+
+.ssc-part-row:has(.ssc-native-checkbox:checked) {
+  background: color-mix(in srgb, var(--picker-modal-accent) 3%, transparent);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 20%, var(--picker-modal-item-border));
+}
+
+.ssc-piece-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.28rem;
+  height: 1.28rem;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--picker-modal-accent) 28%, var(--picker-modal-item-border));
+  background: color-mix(in srgb, var(--picker-modal-accent) 9%, transparent);
+  font-size: 0.62rem;
+  font-weight: 900;
+  color: color-mix(in srgb, var(--picker-modal-accent) 82%, var(--picker-modal-text));
+  flex-shrink: 0;
+  margin-top: 0.08rem;
+}
+
+.ssc-piece-badge.three {
+  background: color-mix(in srgb, var(--picker-modal-accent) 15%, transparent);
+}
+
+.ssc-piece-badge.five {
+  background: color-mix(in srgb, var(--picker-modal-accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 40%, var(--picker-modal-item-border));
+}
+
+.ssc-part-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ssc-part-desc {
+  font-size: 0.83rem;
+  font-weight: 700;
+  line-height: 1.38;
+  color: var(--picker-modal-text);
+}
+
+.ssc-part-trigger {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin-top: 0.16rem;
+  color: var(--picker-modal-muted);
+  font-style: italic;
+}
+
+/* ── Reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ssc-card { animation: none; }
+  .ssc-tab,
+  .ssc-close-btn,
+  .ssc-checkmark,
+  .ssc-part-row,
+  .ssc-global-row,
+  .ssc-progress-fill { transition: none; }
+}

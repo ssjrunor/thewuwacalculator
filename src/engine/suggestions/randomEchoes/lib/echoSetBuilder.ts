@@ -6,7 +6,7 @@
 */
 
 import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS, ECHO_SUBSTAT_KEYS } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 import { getRandomSubstat, randomSubValue } from './substats'
 
 // sentinel value meaning no concrete set is assigned yet

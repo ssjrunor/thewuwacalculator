@@ -58,6 +58,7 @@ interface ResonatorOptionsPanel {
   onOpenResonatorPicker: () => void
   onSyncLive: () => void
   onOpenMainEchoPicker: () => void
+  onOpenSetConditionals: () => void
   onClearMainEchoSelection: () => void
   onAllowedSetsChange: (value: OptimizerSetSelections) => void
   onToggleMainStat: (value: string) => void
@@ -127,6 +128,7 @@ export function CharacterOptionsPanel({
   onOpenResonatorPicker,
   onSyncLive,
   onOpenMainEchoPicker,
+  onOpenSetConditionals,
   onClearMainEchoSelection,
   onAllowedSetsChange,
   onToggleMainStat,
@@ -556,7 +558,7 @@ export function CharacterOptionsPanel({
 
               <div className="co-field">
                 <span className="co-field__label">Conditionals</span>
-                <button type="button" className="co-chip" disabled>
+                <button type="button" className="co-chip" onClick={onOpenSetConditionals}>
                   Set Conditionals
                   <ChevronDown size={12} />
                 </button>

@@ -5,6 +5,7 @@
 */
 
 import type { ResonatorProfile, SlotLocalState } from '@/domain/entities/profile'
+import { cloneCompactSonataSetConditionals, DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
 import type { SlotId } from '@/domain/entities/session'
 import type {
   ResonatorRuntimeState,
@@ -33,8 +34,26 @@ import {
 
 export const SLOT_IDS: SlotId[] = ['active', 'team1', 'team2']
 
-// clone slot-local state with safe defaults
-export function cloneSlotLocalState(state?: SlotLocalState): SlotLocalState {
+type SlotLocalStateSource = SlotLocalState | ResonatorRuntimeState['state']
+
+// clone persisted slot-local state with safe defaults
+export function cloneSlotLocalState(state?: SlotLocalStateSource): SlotLocalState {
+  const setConditionals =
+      state && 'setConditionals' in state
+          ? state.setConditionals
+          : undefined
+
+  return {
+    controls: { ...(state?.controls ?? {}) },
+    manualBuffs: cloneManualBuffs(state?.manualBuffs ?? makeDefaultCustomBuffs()),
+    combat: { ...(state?.combat ?? makeDefaultCombatState()) },
+    setConditionals: cloneCompactSonataSetConditionals(
+      setConditionals ?? DEFAULT_SONATA_SET_CONDITIONALS,
+    ),
+  }
+}
+
+function materializeRuntimeState(state?: SlotLocalState): ResonatorRuntimeState['state'] {
   return {
     controls: { ...(state?.controls ?? {}) },
     manualBuffs: cloneManualBuffs(state?.manualBuffs ?? makeDefaultCustomBuffs()),
@@ -110,7 +129,7 @@ export function materializeRuntimeFromProfileAndSlot({
       echoes: profile.runtime.build.echoes,
       team: teamSlots,
     },
-    state: cloneSlotLocalState(localState),
+    state: materializeRuntimeState(localState),
     rotation:
         slotId === 'active'
             ? cloneRotationState(rotation ?? makeDefaultRotation(seed))

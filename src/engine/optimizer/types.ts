@@ -9,6 +9,7 @@ import type { EnemyProfile } from '@/domain/entities/appState'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import type { OptimizerSettings } from '@/domain/entities/optimizer'
 import type { EchoInstance, ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { SkillDefinition } from '@/domain/entities/stats'
 
 // lifecycle states for an optimizer run
@@ -86,6 +87,7 @@ export interface OptimizerStartPayload {
   inventoryEchoes: EchoInstance[]
   enemyProfile: EnemyProfile
   selectedTargetsByOwnerKey?: Record<string, string | null>
+  setConditionals?: SonataSetConditionals
   rotationItems?: RotationNode[] | null
 }
 

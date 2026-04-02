@@ -7,15 +7,15 @@ import { computeSkillDamage } from '@/engine/formulas/damage'
 import {
   OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO,
   OPTIMIZER_STATS_PER_ECHO,
-} from '@/engine/optimizer/constants'
-import { createCpuScratch } from '@/engine/optimizer/rebuild/cpu/scratch'
-import { createComboDamageScratch, evaluateTargetSkillCombo } from '@/engine/optimizer/rebuild/cpu/computeDamage'
-import { buildCompiledOptimizerContext } from '@/engine/optimizer/rebuild/context/compiled'
-import { packTargetContext } from '@/engine/optimizer/rebuild/context/pack'
-import { packCompiledContext } from '@/engine/optimizer/rebuild/context/vector'
-import { runRotationSearchBatch } from '@/engine/optimizer/rebuild/rotation/search'
-import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/rebuild/encode/sets'
-import { evaluateTargetCpuCombo } from '@/engine/optimizer/rebuild/target/cpu'
+} from '@/engine/optimizer/config/constants'
+import { createCpuScratch } from '@/engine/optimizer/cpu/scratch'
+import { createComboDamageScratch, evaluateTargetSkillCombo } from '@/engine/optimizer/cpu/computeDamage'
+import { buildCompiledOptimizerContext } from '@/engine/optimizer/context/compiled'
+import { packTargetContext } from '@/engine/optimizer/context/pack'
+import { packCompiledContext } from '@/engine/optimizer/context/vector'
+import { runRotationSearchBatch } from '@/engine/optimizer/search/rotationCpu'
+import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/encode/sets'
+import { evaluateTargetCpuCombo } from '@/engine/optimizer/target/cpu'
 
 function makeBuff() {
   return {

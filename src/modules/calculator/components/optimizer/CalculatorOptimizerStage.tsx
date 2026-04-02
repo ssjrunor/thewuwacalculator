@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RotationNode } from '@/domain/gameData/contracts'
+import { DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
 import type { EchoInstance } from '@/domain/entities/runtime'
+import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
 import type { LiquidSelectOption, LiquidSelectOptionGroup } from '@/shared/ui/LiquidSelect'
 import { getSonataSetIcon, getSonataSetName } from '@/data/gameData/catalog/sonataSets'
 import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
@@ -14,22 +16,23 @@ import {
   selectEnemyProfile,
   selectOptimizerContext,
 } from '@/domain/state/selectors'
-import { compileOptimizerPayload } from '@/engine/optimizer/rebuild/compiler'
-import { applyKeepPercentFilter, buildOptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
+import { applyKeepPercentFilter, buildOptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 import {
   evaluatePreparedOptimizerBaseline,
   evaluateOptimizerBagResultStats,
   resolveOptimizerResultEchoes,
-} from '@/engine/optimizer/rebuild/materialize'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/rebuild/target/context'
-import { listOptimizerTargets } from '@/engine/optimizer/rebuild/target/skills'
-import { countOptimizerCombinationsByMode } from '@/engine/optimizer/count'
+} from '@/engine/optimizer/results/materialize.ts'
+import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
+import { listOptimizerTargets } from '@/engine/optimizer/target/skills'
+import { countOptimizerCombinationsByMode } from '@/engine/optimizer/search/counting'
 import type { OptimizerBagResultRef, OptimizerProgress } from '@/engine/optimizer/types'
 import { seedResonatorsById } from '@/modules/calculator/model/seedData'
 import { AppDialog } from '@/shared/ui/AppDialog'
 import { Expandable } from '@/shared/ui/Expandable'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
 import { EchoPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
+import { SonataSetConditionalsModal } from '@/modules/calculator/components/workspace/panes/left/modals/SonataSetConditionalsModal'
 import { ResonatorPickerModal } from '@/modules/calculator/components/resonator/modals/ResonatorPickerModal'
 import { CharacterOptionsPanel } from '@/modules/calculator/components/optimizer/ResonatorOptionsPanel.tsx'
 import { OptimizerControlBox } from '@/modules/calculator/components/optimizer/OptimizerControlBox'
@@ -294,6 +297,7 @@ export function CalculatorOptimizerStage() {
   const setOptimizerCpuHintSeen = useAppStore((state) => state.setOptimizerCpuHintSeen)
   const updateOptimizerRuntime = useAppStore((state) => state.updateOptimizerRuntime)
   const updateOptimizerSettings = useAppStore((state) => state.updateOptimizerSettings)
+  const updateResonatorSetConditionals = useAppStore((state) => state.updateResonatorSetConditionals)
   const switchToResonator = useAppStore((state) => state.switchToResonator)
   const startOptimizer = useAppStore((state) => state.startOptimizer)
   const cancelOptimizer = useAppStore((state) => state.cancelOptimizer)
@@ -307,6 +311,14 @@ export function CalculatorOptimizerStage() {
   const optimizerResonatorId = optimizerContext?.resonatorId ?? activeResonatorId
   const optimizerRuntime = optimizerContext?.runtime ?? null
   const optimizerSettings = optimizerContext?.settings ?? null
+  const optimizerSetConditionals = useAppStore((state) => {
+    const resonatorId = optimizerContext?.resonatorId ?? activeResonatorId
+    if (!resonatorId) {
+      return DEFAULT_SONATA_SET_CONDITIONALS
+    }
+
+    return state.calculator.profiles[resonatorId]?.runtime.local.setConditionals ?? DEFAULT_SONATA_SET_CONDITIONALS
+  })
   const activeSeed = optimizerResonatorId ? seedResonatorsById[optimizerResonatorId] ?? null : null
   const displayName = activeSeed?.name ?? 'Unknown'
   const rotationMode = optimizerSettings?.rotationMode ?? false
@@ -333,6 +345,7 @@ export function CalculatorOptimizerStage() {
   const [mainEchoPickerOpen, setMainEchoPickerOpen] = useState(false)
   const [mainEchoPickerClosing, setMainEchoPickerClosing] = useState(false)
   const [progress, setProgress] = useState<OptimizerProgress>(() => createEmptyProgress())
+  const setConditionalsModal = useAnimatedVisibility(MODAL_EXIT_MS)
 
   const modalRef = useRef<HTMLDivElement>(null)
   const modalOpenFrameRef = useRef<number | null>(null)
@@ -751,12 +764,14 @@ export function CalculatorOptimizerStage() {
       inventoryEchoes: equippedEchoes,
       enemyProfile,
       selectedTargetsByOwnerKey: activeTargetSelections,
+      setConditionals: optimizerSetConditionals,
       rotationItems: rotationMode ? selectedRotationItems : undefined,
     })
   }, [
     activeTargetSelections,
     enemyProfile,
     equippedEchoes,
+    optimizerSetConditionals,
     optimizerResonatorId,
     optimizerRuntime,
     optimizerSettings,
@@ -1045,6 +1060,7 @@ export function CalculatorOptimizerStage() {
       inventoryEchoes: filteredInventoryEchoEntries.map((entry) => entry.echo),
       enemyProfile,
       selectedTargetsByOwnerKey: activeTargetSelections,
+      setConditionals: optimizerSetConditionals,
       rotationItems: selectedRotationItems,
     }, {
       onProgress: (nextProgress) => {
@@ -1140,6 +1156,21 @@ export function CalculatorOptimizerStage() {
         <OptimizerRules />
       </AppDialog>
 
+      <SonataSetConditionalsModal
+        {...setConditionalsModal}
+        portalTarget={modalPortalTarget}
+        onClose={setConditionalsModal.hide}
+        title="Sonata Set Config"
+        setConditionals={optimizerSetConditionals}
+        onSetConditionalsChange={(updater) => {
+          if (!optimizerResonatorId) {
+            return
+          }
+
+          updateResonatorSetConditionals(optimizerResonatorId, updater)
+        }}
+      />
+
       <div className={`optimizer-pane ${isWide ? '' : 'compact'}`}>
         {isWide ? <OptimizerControlBox isWide {...controlProps} /> : null}
 
@@ -1203,6 +1234,7 @@ export function CalculatorOptimizerStage() {
                 }}
                 onOptimizerRuntimeUpdate={updateOptimizerRuntime}
                 onOpenMainEchoPicker={openMainEchoPicker}
+                onOpenSetConditionals={setConditionalsModal.show}
                 onClearMainEchoSelection={() => {
                   updateOptimizerSettings((settings) => ({
                     ...settings,

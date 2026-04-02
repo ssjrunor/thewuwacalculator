@@ -6,6 +6,7 @@
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { EchoInstance, ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { RandomGeneratorSettings, RandomGeneratorSetPreference } from '@/domain/entities/suggestions'
 import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
@@ -178,12 +179,28 @@ export function buildRandomSettingsSignature(settings: RandomGeneratorSettings):
   })
 }
 
+export function buildSetConditionalsSignature(setConditionals?: SonataSetConditionals): string {
+  if (!setConditionals) {
+    return 'null'
+  }
+
+  return JSON.stringify({
+    version: setConditionals.version,
+    encoding: setConditionals.encoding,
+    keys: setConditionals.keys,
+    setIds: setConditionals.setIds,
+    wordsPerSet: setConditionals.wordsPerSet,
+    masks: setConditionals.masks,
+  })
+}
+
 // build a stable cache/input signature from all direct-suggestion inputs
 export function buildSuggestionInputSignature(options: {
   runtime: ResonatorRuntimeState
   enemyProfile: EnemyProfile
   participantRuntimesById: Record<string, ResonatorRuntimeState>
   selectedTargetsByOwnerKey: Record<string, string | null>
+  setConditionals?: SonataSetConditionals
   targetFeatureId: string | null
   rotationMode: boolean
 }) {
@@ -193,6 +210,7 @@ export function buildSuggestionInputSignature(options: {
     rotationMode,
     runtime,
     selectedTargetsByOwnerKey,
+    setConditionals,
     targetFeatureId,
   } = options
 
@@ -201,6 +219,7 @@ export function buildSuggestionInputSignature(options: {
     enemy: buildEnemySignature(enemyProfile),
     participants: buildParticipantRuntimeSignature(participantRuntimesById),
     selectedTargetsByOwnerKey: stringifySortedRecord(selectedTargetsByOwnerKey),
+    setConditionals: buildSetConditionalsSignature(setConditionals),
     targetFeatureId,
     rotationMode,
   })

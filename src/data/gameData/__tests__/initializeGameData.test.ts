@@ -33,7 +33,7 @@ describe('initializeGameData', () => {
         case '/data/resonator-catalog.json':
         case '/data/echo-catalog.json':
         case '/data/sonata-sets.json':
-        case '/data/echo-set-defs.json':
+        case '/data/sonata-set-defs.json':
           return createJsonResponse([])
         case '/data/resonator-details.json':
           return createJsonResponse({})

@@ -9,10 +9,12 @@ import type { EnemyProfile } from '@/domain/entities/appState'
 import { cloneEchoLoadout, cloneRotationNodes } from '@/domain/entities/inventoryStorage'
 import type { ManualBuffs, ManualModifier, ManualQuickBuffs } from '@/domain/entities/manualBuffs'
 import type { ResonatorProfile, SlotLocalState, SlotRoutingState } from '@/domain/entities/profile'
+import { cloneCompactSonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type {
   CombatState,
   ResonatorBaseState,
   ResonatorRuntimeState,
+  ResonatorStateState,
   RotationState,
   SkillLevels,
   TeamMemberRuntime,
@@ -131,6 +133,15 @@ export function cloneSlotLocalStateValue(local: SlotLocalState): SlotLocalState 
     controls: { ...local.controls },
     manualBuffs: cloneManualBuffs(local.manualBuffs),
     combat: cloneCombatState(local.combat),
+    setConditionals: cloneCompactSonataSetConditionals(local.setConditionals),
+  }
+}
+
+export function cloneRuntimeStateValue(state: ResonatorStateState): ResonatorStateState {
+  return {
+    controls: { ...state.controls },
+    manualBuffs: cloneManualBuffs(state.manualBuffs),
+    combat: cloneCombatState(state.combat),
   }
 }
 
@@ -173,7 +184,7 @@ export function cloneResonatorRuntimeState(runtime: ResonatorRuntimeState): Reso
       echoes: cloneEchoLoadout(runtime.build.echoes),
       team: [...runtime.build.team],
     },
-    state: cloneSlotLocalStateValue(runtime.state),
+    state: cloneRuntimeStateValue(runtime.state),
     rotation: cloneRotationState(runtime.rotation),
     teamRuntimes: cloneTeamMemberRuntimes(runtime.teamRuntimes),
   }

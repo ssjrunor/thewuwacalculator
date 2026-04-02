@@ -5,6 +5,8 @@
 */
 
 import type { CalculatorState } from '@/domain/entities/appState'
+import { cloneCompactSonataSetConditionals, DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
+import type { SlotLocalState } from '@/domain/entities/profile'
 import type { SlotId } from '@/domain/entities/session'
 import type {
   ResonatorRuntimeState,
@@ -30,7 +32,6 @@ import {
   cloneResonatorBaseState,
   cloneRotationState,
   cloneSkillLevels,
-  cloneSlotLocalStateValue,
   cloneTraceNodeBuffs,
   cloneWeaponBuildState,
 } from '@/domain/state/runtimeCloning'
@@ -41,6 +42,20 @@ export interface WorkspaceRuntimeBundle {
   activeTargetSelections: Record<string, string | null>
   activeRuntime: ResonatorRuntimeState | null
   participantRuntimesById: Record<string, ResonatorRuntimeState>
+}
+
+function buildLocalStateFromRuntimeState(
+    runtimeState: ResonatorRuntimeState['state'],
+    existingLocal?: SlotLocalState,
+): SlotLocalState {
+  return {
+    controls: { ...runtimeState.controls },
+    manualBuffs: cloneManualBuffs(runtimeState.manualBuffs),
+    combat: { ...runtimeState.combat },
+    setConditionals: cloneCompactSonataSetConditionals(
+      existingLocal?.setConditionals ?? DEFAULT_SONATA_SET_CONDITIONALS,
+    ),
+  }
 }
 
 // build the selected target routing map from the active profile
@@ -552,7 +567,7 @@ export function applyRuntimeToCalculatorState(
       weapon: runtime.build.weapon,
       echoes: runtime.build.echoes,
     },
-    local: cloneSlotLocalStateValue(runtime.state),
+    local: buildLocalStateFromRuntimeState(runtime.state, existingRuntime?.local),
     routing: cloneSlotRoutingState(existingRuntime?.routing),
     team: normalizedRuntimeTeam,
     rotation: cloneRotationState(runtime.rotation),
@@ -578,7 +593,7 @@ export function applyRuntimeToCalculatorState(
           weapon: cloneWeaponBuildState(runtime.build.weapon),
           echoes: runtime.build.echoes,
         },
-        local: cloneSlotLocalStateValue(runtime.state),
+        local: buildLocalStateFromRuntimeState(runtime.state, existingRuntime?.local),
         routing: cloneSlotRoutingState(existingRuntime?.routing),
         team: normalizedRuntimeTeam,
         rotation: cloneRotationState(runtime.rotation),

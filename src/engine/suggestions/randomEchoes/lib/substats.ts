@@ -6,7 +6,7 @@
 */
 
 import { ECHO_SUBSTAT_KEYS, getSubstatStepOptions } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 
 // roll one random legal value for a substat, biased by rollQuality toward a local window
 export function randomSubValue(statKey: string, rollQuality = 0): number {

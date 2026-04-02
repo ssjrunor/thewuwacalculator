@@ -5,7 +5,7 @@
                contexts using the optimizer target evaluator.
 */
 
-import { evalTarget } from '@/engine/optimizer/rebuild/target/evaluate'
+import { evalTarget } from '@/engine/optimizer/target/evaluate'
 import type { SuggestionEvaluationContext } from '@/engine/suggestions/types'
 import type { RandGenEcho } from './echoSetBuilder'
 

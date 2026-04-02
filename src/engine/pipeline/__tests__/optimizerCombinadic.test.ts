@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTailComboIndexing,
   unrankCombinadic,
-} from '@/engine/optimizer/rebuild/combinadic'
+} from '@/engine/optimizer/combos/combinadic.ts'
 
 describe('optimizer combinadic', () => {
   it('builds tail combinations excluding the selected main index', () => {

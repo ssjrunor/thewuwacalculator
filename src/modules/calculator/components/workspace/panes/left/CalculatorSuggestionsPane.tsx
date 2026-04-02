@@ -4,6 +4,7 @@ import type { EnemyProfile } from '@/domain/entities/appState'
 import type { RandomGeneratorSettings, RandomGeneratorSetPreference } from '@/domain/entities/suggestions'
 import type { EchoInstance, ResonatorRuntimeState } from '@/domain/entities/runtime'
 import { cloneEchoLoadout } from '@/domain/entities/inventoryStorage'
+import { DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
 import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { selectActiveTargetSelections } from '@/domain/state/selectors'
@@ -11,7 +12,7 @@ import { useAppStore } from '@/domain/state/store'
 import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
 import { getSonataSetIcon, getSonataSetName } from '@/data/gameData/catalog/sonataSets'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
-import { isOptimizerDamageSkill } from '@/engine/optimizer/rebuild/eligibility'
+import { isOptimizerDamageSkill } from '@/engine/optimizer/rules/eligibility.ts'
 import { applySetPlanToEchoes, buildEchoMainStatLayoutSignature } from '@/engine/suggestions/mutate'
 import { applyMainStatRecipesToEchoes } from '@/engine/suggestions/mainStat-suggestion/utils'
 import { runMainStatSuggestionsJob, runRandomSuggestionsJob, runSetPlanSuggestionsJob } from '@/engine/suggestions/client'
@@ -40,6 +41,7 @@ import {
   buildMainStatCostSignature,
   buildMainStatRecipeSignature,
   buildRandomSettingsSignature,
+  buildSetConditionalsSignature,
   buildSuggestionInputSignature,
   computeDiffPercent,
   formatDamage,
@@ -57,6 +59,7 @@ import {
 } from '@/modules/calculator/model/suggestions'
 import { getEquippedEchoCost } from '@/modules/calculator/model/echoes'
 import { EchoPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
+import { SonataSetConditionalsModal } from '@/modules/calculator/components/workspace/panes/left/modals/SonataSetConditionalsModal'
 import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
 import { getBodyPortalTarget } from '@/shared/lib/portalTarget'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect'
@@ -176,11 +179,20 @@ export function CalculatorSuggestionsPane({
   const suggestionsMap = useAppStore((state) => state.calculator.suggestionsByResonatorId)
   const updateActiveResonatorSuggestionsState = useAppStore((state) => state.updateActiveResonatorSuggestionsState)
   const updateActiveResonatorRuntime = useAppStore((state) => state.updateActiveResonatorRuntime)
+  const updateActiveResonatorSetConditionals = useAppStore((state) => state.updateActiveResonatorSetConditionals)
+  const setConditionals = useAppStore((state) => (
+    state.calculator.profiles[runtime.id]?.runtime.local.setConditionals ?? DEFAULT_SONATA_SET_CONDITIONALS
+  ))
 
   const suggestionsState = suggestionsMap[runtime.id] ?? DEFAULT_SUGGESTIONS_STATE
   const targetSequenceRef = useRef({ main: 0, set: 0, random: 0 })
+  const didHydrateSetConditionalsRef = useRef(false)
   const activeSeed = useMemo(() => getResonatorSeedById(runtime.id), [runtime.id])
   const allEchoes = useMemo(() => listEchoes(), [])
+  const setConditionalsSignature = useMemo(
+    () => buildSetConditionalsSignature(setConditionals),
+    [setConditionals],
+  )
 
   const updateRandomSettings = useCallback((patch: Partial<RandomGeneratorSettings>) => {
     updateActiveResonatorSuggestionsState((state) => ({
@@ -282,6 +294,7 @@ export function CalculatorSuggestionsPane({
       enemy: enemyProfile,
       runtimesById: participantRuntimesById,
       selectedTargetsByOwnerKey,
+      setConditionals,
       targetFeatureId: suggestionsState.settings.targetFeatureId,
       rotationMode: suggestionsState.settings.rotationMode,
     }, simulation)
@@ -291,6 +304,7 @@ export function CalculatorSuggestionsPane({
     participantRuntimesById,
     runtime,
     selectedTargetsByOwnerKey,
+    setConditionals,
     simulation,
     suggestionsState.settings.rotationMode,
     suggestionsState.settings.targetFeatureId,
@@ -327,6 +341,7 @@ export function CalculatorSuggestionsPane({
     enemyProfile,
     participantRuntimesById,
     selectedTargetsByOwnerKey,
+    setConditionals,
     targetFeatureId: suggestionsState.settings.targetFeatureId,
     rotationMode: suggestionsState.settings.rotationMode,
   }), [
@@ -334,6 +349,7 @@ export function CalculatorSuggestionsPane({
     participantRuntimesById,
     runtime,
     selectedTargetsByOwnerKey,
+    setConditionals,
     suggestionsState.settings.rotationMode,
     suggestionsState.settings.targetFeatureId,
   ])
@@ -380,6 +396,7 @@ export function CalculatorSuggestionsPane({
         enemy: enemyProfile,
         runtimesById: participantRuntimesById,
         selectedTargetsByOwnerKey,
+        setConditionals,
         targetFeatureId: suggestionsState.settings.targetFeatureId,
         rotationMode: suggestionsState.settings.rotationMode,
       }, simulation) : null
@@ -415,6 +432,7 @@ export function CalculatorSuggestionsPane({
     participantRuntimesById,
     runtime,
     simulation,
+    setConditionals,
     selectedTargetsByOwnerKey,
     mainStatsCacheKey,
     suggestionsState.settings.rotationMode,
@@ -451,6 +469,7 @@ export function CalculatorSuggestionsPane({
         enemy: enemyProfile,
         runtimesById: participantRuntimesById,
         selectedTargetsByOwnerKey,
+        setConditionals,
         targetFeatureId: suggestionsState.settings.targetFeatureId,
         rotationMode: suggestionsState.settings.rotationMode,
       }, simulation) : null
@@ -486,6 +505,7 @@ export function CalculatorSuggestionsPane({
     participantRuntimesById,
     runtime,
     simulation,
+    setConditionals,
     selectedTargetsByOwnerKey,
     setPlansCacheKey,
     suggestionsState.settings.rotationMode,
@@ -522,6 +542,7 @@ export function CalculatorSuggestionsPane({
         enemy: enemyProfile,
         runtimesById: participantRuntimesById,
         selectedTargetsByOwnerKey,
+        setConditionals,
         targetFeatureId: suggestionsState.settings.targetFeatureId,
         rotationMode: suggestionsState.settings.rotationMode,
         settings: suggestionsState.random,
@@ -558,6 +579,7 @@ export function CalculatorSuggestionsPane({
     participantRuntimesById,
     runtime,
     simulation,
+    setConditionals,
     selectedTargetsByOwnerKey,
     randomCacheKey,
     suggestionsState.random,
@@ -571,6 +593,18 @@ export function CalculatorSuggestionsPane({
     void runMainStats()
     void runSetPlans()
   }, [runMainStats, runSetPlans])
+
+  useEffect(() => {
+    if (!didHydrateSetConditionalsRef.current) {
+      didHydrateSetConditionalsRef.current = true
+      return
+    }
+
+    setRandomResults([])
+    setSelectedRandomIndex(0)
+    void runMainStats(true)
+    void runSetPlans(true)
+  }, [setConditionalsSignature, runMainStats, runSetPlans])
 
   useEffect(() => {
     if (viewMode === 'random' && randomResults.length === 0 && !runningRandom && canRunDirectSuggestions) {
@@ -1103,21 +1137,14 @@ export function CalculatorSuggestionsPane({
         )}
       </SuggestionsModal>
 
-      <SuggestionsModal
+      <SonataSetConditionalsModal
         {...setConfigModal}
-        title="Sonata Set Configuration"
+        portalTarget={portalTarget}
         onClose={setConfigModal.hide}
-        extraClassName="suggestions-modal--narrow"
-      >
-        <div className="suggestions-config-grid">
-          <div className="suggestions-config-field">
-            <span className="suggestions-config-label">Coming soon</span>
-            <p className="suggestions-modal-hint" style={{ margin: 0 }}>
-              Coming soon.
-            </p>
-          </div>
-        </div>
-      </SuggestionsModal>
+        title="Sonata Set Config"
+        setConditionals={setConditionals}
+        onSetConditionalsChange={updateActiveResonatorSetConditionals}
+      />
 
       <SuggestionsModal
         {...randomConfigModal}

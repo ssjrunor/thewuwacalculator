@@ -60,7 +60,7 @@ export async function initializeGameData(): Promise<void> {
           fetch('/data/echo-catalog.json').then((r) => r.json() as Promise<EchoDefinition[]>),
           fetch('/data/echo-stats.json').then((r) => r.json() as Promise<EchoStatsCatalogData>),
           fetch('/data/sonata-sets.json').then((r) => r.json() as Promise<SonataSetDefinition[]>),
-          fetch('/data/echo-set-defs.json').then((r) => r.json() as Promise<SetDef[]>),
+          fetch('/data/sonata-set-defs.json').then((r) => r.json() as Promise<SetDef[]>),
         ])
 
       initResonatorCatalog(resonatorCatalog)

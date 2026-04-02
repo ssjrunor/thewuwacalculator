@@ -4,7 +4,7 @@ import {
   createDefaultResonatorRuntime,
   makeDefaultEnemyProfile,
 } from '@/domain/state/defaults'
-import { deriveInitialOptimizerSettings } from '@/engine/optimizer/rebuild/defaultSettings'
+import { deriveInitialOptimizerSettings } from '@/engine/optimizer/config/defaultSettings.ts'
 
 describe('optimizer default settings', () => {
   it('initializes a target skill and main-stat co-tags for a standard damage resonator', () => {

@@ -12,13 +12,13 @@ import type {
   PackedOptimizerExecutionPayload,
   PreparedOptimizerPayload,
 } from '@/engine/optimizer/types'
-import { compileOptimizerPayload } from '@/engine/optimizer/rebuild/compiler'
-import { countOptimizerCombinations } from '@/engine/optimizer/count'
-import { materializeOptimizerResults } from '@/engine/optimizer/rebuild/materialize'
-import { runTargetSearchForMainIndices } from '@/engine/optimizer/rebuild/target/search'
-import { createPackedTargetSkillExecution } from '@/engine/optimizer/rebuild/target/execution'
-import { createPackedRotationExecution } from '@/engine/optimizer/rebuild/rotation/execution'
-import { runRotationSearchForMainIndices } from '@/engine/optimizer/rebuild/rotation/search'
+import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
+import { countOptimizerCombinations } from '@/engine/optimizer/search/counting'
+import { materializeOptimizerResults } from '@/engine/optimizer/results/materialize.ts'
+import { createPackedRotationExecution } from '@/engine/optimizer/payloads/rotationPayload'
+import { createPackedTargetSkillExecution } from '@/engine/optimizer/payloads/targetPayload'
+import { runRotationSearchForMainIndices } from '@/engine/optimizer/search/rotationCpu'
+import { runTargetSearchForMainIndices } from '@/engine/optimizer/search/targetCpu'
 
 // hooks used during optimizer execution for cancellation and progress reporting
 interface OptimizerRunHooks {

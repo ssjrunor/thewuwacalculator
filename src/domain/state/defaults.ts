@@ -19,6 +19,10 @@ import type {
   InventoryRotationEntry,
 } from '@/domain/entities/inventoryStorage'
 import type { OptimizerContextState, OptimizerSettings } from '@/domain/entities/optimizer'
+import {
+  cloneCompactSonataSetConditionals,
+  DEFAULT_SONATA_SET_CONDITIONALS,
+} from '@/domain/entities/sonataSetConditionals'
 import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
 import type {
   RandomGeneratorSettings,
@@ -367,6 +371,7 @@ export function makeDefaultSlotLocalState(): SlotLocalState {
     controls: {},
     manualBuffs: makeDefaultCustomBuffs(),
     combat: makeDefaultCombatState(),
+    setConditionals: cloneCompactSonataSetConditionals(DEFAULT_SONATA_SET_CONDITIONALS),
   }
 }
 
@@ -458,6 +463,7 @@ export function applySeedStateDefaultsToLocalState(
     controls: { ...localState.controls },
     manualBuffs: cloneManualBuffs(localState.manualBuffs),
     combat: { ...localState.combat },
+    setConditionals: cloneCompactSonataSetConditionals(localState.setConditionals),
   }
 
   for (const state of getSeedStates(seed)) {

@@ -6,7 +6,7 @@
 */
 
 import { getSubstatStepOptions } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/rebuild/filter'
+import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
 import type { RandGenEcho } from './echoSetBuilder'
 import { getSubstatScore } from './substats'
 

@@ -5,6 +5,7 @@
 */
 
 import { z } from 'zod'
+import { DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
 import {
   BACKGROUND_THEME_VARIANTS,
   DARK_THEME_VARIANTS,
@@ -387,6 +388,15 @@ const optimizerSettingsSchema = z.object({
   }).strict()),
 }).strict()
 
+const compactSonataSetConditionalsSchema = z.object({
+  version: z.literal(1),
+  encoding: z.literal('bitset-v1'),
+  keys: z.array(z.string()),
+  setIds: z.array(z.number()),
+  wordsPerSet: z.number().int().nonnegative(),
+  masks: z.array(z.number().int().nonnegative()),
+}).strict()
+
 // simplified teammate runtime used inside team state
 const teamMemberRuntimeSchema = z.object({
   id: z.string(),
@@ -472,6 +482,7 @@ const resonatorProfileSchema = z.object({
       controls: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
       manualBuffs: manualBuffsSchema,
       combat: combatStateSchema,
+      setConditionals: compactSonataSetConditionalsSchema.default(DEFAULT_SONATA_SET_CONDITIONALS),
     }).strict(),
     routing: z.object({
       selectedTargetsByOwnerKey: z.record(z.string(), z.string().nullable()),

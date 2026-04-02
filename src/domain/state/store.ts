@@ -34,6 +34,7 @@ import type {
 } from '@/domain/entities/inventoryStorage'
 import type { OptimizerContextState, OptimizerSettings } from '@/domain/entities/optimizer'
 import type { ResonatorProfile } from '@/domain/entities/profile'
+import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { ResonatorSuggestionsState } from '@/domain/entities/suggestions'
 import type {
   OptimizerBagResultRef,
@@ -48,14 +49,14 @@ import {
   cancelActiveOptimizerWorkerPoolRun,
   resetOptimizerWorkerPool,
   runOptimizerWithWorkerPool,
-} from '@/engine/optimizer/rebuild/workers/pool'
-import { deriveInitialOptimizerSettings } from '@/engine/optimizer/rebuild/defaultSettings'
-import type { OptimizerCompileOutMessage } from '@/engine/optimizer/compileWorker.types'
+} from '@/engine/optimizer/workers/pool'
+import { deriveInitialOptimizerSettings } from '@/engine/optimizer/config/defaultSettings.ts'
+import type { OptimizerCompileOutMessage } from '@/engine/optimizer/compiler/compileWorker.types.ts'
 import {
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU,
-} from '@/engine/optimizer/constants'
+} from '@/engine/optimizer/config/constants'
 import {
   areEchoInstancesEquivalent,
   areBuildSnapshotsEquivalent,
@@ -93,7 +94,7 @@ import {
 import { resonatorSeedsById } from '@/domain/services/resonatorSeedService'
 import {
   cloneResonatorProfile,
-  cloneSlotLocalStateValue,
+  cloneRuntimeStateValue,
 } from '@/domain/state/runtimeCloning'
 import { getSystemThemeMode, type ResolvedSystemThemeMode } from '@/shared/lib/systemTheme'
 
@@ -183,6 +184,13 @@ export interface AppStore extends PersistedAppState {
   ) => void
   updateActiveResonatorSuggestionsState: (
       updater: (state: ResonatorSuggestionsState) => ResonatorSuggestionsState,
+  ) => void
+  updateResonatorSetConditionals: (
+      resonatorId: ResonatorId,
+      updater: (state: SonataSetConditionals) => SonataSetConditionals,
+  ) => void
+  updateActiveResonatorSetConditionals: (
+      updater: (state: SonataSetConditionals) => SonataSetConditionals,
   ) => void
   setResonatorTargetSelection: (
       resonatorId: ResonatorId,
@@ -352,7 +360,7 @@ function ensureOptimizerCompileWorker(): Worker {
   }
 
   optimizerCompileWorker = new Worker(
-      new URL('@/engine/optimizer/compile.worker.ts', import.meta.url),
+      new URL('@/engine/optimizer/workers/compile.worker.ts', import.meta.url),
       { type: 'module' },
   )
   return optimizerCompileWorker
@@ -1039,7 +1047,7 @@ export const useAppStore = create<AppStore>((set, get) => {
         },
         echoes: next.build.echoes,
       },
-      state: cloneSlotLocalStateValue(next.state),
+      state: cloneRuntimeStateValue(next.state),
     }
 
     persistedSet(['calculator.profiles'], (state) => ({
@@ -1074,6 +1082,41 @@ export const useAppStore = create<AppStore>((set, get) => {
     const activeResonatorId = getActiveResonatorId(get().calculator)
     if (!activeResonatorId) return
     get().updateResonatorSuggestionsState(activeResonatorId, updater)
+  },
+
+  updateResonatorSetConditionals: (resonatorId, updater) => {
+    persistedSet(['calculator.profiles'], (state) => {
+      const profile = state.calculator.profiles[resonatorId]
+      if (!profile) {
+        return state
+      }
+
+      return {
+        ...state,
+        calculator: {
+          ...state.calculator,
+          profiles: {
+            ...state.calculator.profiles,
+            [resonatorId]: {
+              ...profile,
+              runtime: {
+                ...profile.runtime,
+                local: {
+                  ...profile.runtime.local,
+                  setConditionals: updater(profile.runtime.local.setConditionals),
+                },
+              },
+            },
+          },
+        },
+      }
+    })
+  },
+
+  updateActiveResonatorSetConditionals: (updater) => {
+    const activeResonatorId = getActiveResonatorId(get().calculator)
+    if (!activeResonatorId) return
+    get().updateResonatorSetConditionals(activeResonatorId, updater)
   },
 
   setResonatorTargetSelection: (resonatorId, ownerKey, targetResonatorId) => {
@@ -1519,7 +1562,7 @@ export const useAppStore = create<AppStore>((set, get) => {
             compiledPayload,
             results,
             input.inventoryEchoes.map((echo) => echo.uid),
-            results.length,
+            compiledPayload.resultsLimit,
         )
 
         if (optimizerRunToken !== runToken) {
