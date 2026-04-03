@@ -17,7 +17,8 @@
 .echoes-pane-summary {
   display: flex;
   gap: 0.38rem;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-wrap: wrap;
 }
 
 .hero-badge--over {
@@ -65,7 +66,6 @@
 .echo-slot-detail-panel {
   display: grid;
   grid-template-rows: 1fr;
-  min-height: 0;
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 18%, var(--calc-item-border, var(--panel-border)));
   border-radius: 1.15rem;
   background:
@@ -82,7 +82,6 @@
   position: relative;
   display: grid;
   gap: 0.55rem;
-  max-height: 17.3775rem;
   padding: 0.72rem;
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 14%, var(--calc-item-border, var(--panel-border)));
   border-radius: 1.15rem;
@@ -116,30 +115,25 @@
   display: grid;
   gap: 0.72rem;
   align-items: stretch;
-  min-width: 0;
-  min-height: 0;
 }
 
 .echo-slot-card {
   display: grid;
   gap: 0.72rem;
-  min-width: 0;
   align-content: start;
 }
 
 .echo-slot-feature {
-  min-width: 0;
-  min-height: 0;
   display: grid;
   gap: 0.65rem;
   align-content: start;
   overflow-y: auto;
 }
 
-.echo-slot-feature label {
+/*.echo-slot-feature label {
   background: none !important;
   border: none !important;
-}
+}*/
 
 .echo-slot-feature-head {
   display: grid;
@@ -187,8 +181,7 @@
   color: var(--calc-text, var(--text));
 }
 
-.echo-slot-feature :is(.stack, .rich-description) {
-  min-width: 0;
+.echo-slot-feature :is(.rich-description) {
   border-radius: 0.52rem;
   background: color-mix(in srgb, var(--calc-box-bg, var(--surface-strong)) 55%, transparent);
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 8%, var(--calc-item-border, var(--panel-border)));
@@ -245,7 +238,6 @@
 /* ── Slot identity ── */
 
 .echo-slot-identity {
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.22rem;
@@ -267,7 +259,7 @@
   display: flex;
   align-items: center;
   gap: 0.32rem;
-  flex-wrap: wrap;
+  overflow: hidden;
 }
 
 .echo-slot-cost {
@@ -313,7 +305,6 @@
 }
 
 .echo-slot-info {
-  min-width: 0;
 }
 
 .echo-slot-label {
@@ -498,7 +489,6 @@
   font-weight: 700;
   color: var(--calc-text, var(--text));
   flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -537,7 +527,6 @@
   font-weight: 600;
   color: var(--calc-muted, var(--muted));
   flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -742,7 +731,6 @@
 }
 
 .echo-set-bonus-info {
-  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
@@ -1054,7 +1042,6 @@
   font-size: 0.74rem;
   font-weight: 600;
   color: var(--calc-muted, var(--muted));
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1227,7 +1214,6 @@
   display: flex;
   align-items: center;
   gap: 0.72rem;
-  min-width: 0;
 }
 
 .echo-edit-icon {
@@ -1241,7 +1227,6 @@
 }
 
 .echo-edit-identity {
-  min-width: 0;
 }
 
 .echo-edit-name {
@@ -1409,7 +1394,6 @@
 /* ── Substat rows ── */
 
 .echo-edit-substats-section {
-  min-height: 0;
 }
 
 .echo-edit-substats {
@@ -1453,7 +1437,6 @@
   grid-template-rows: repeat(2,auto);
   gap: 0.25rem;
   flex: 1;
-  min-width: 0;
   padding: 0.45rem 0.55rem;
   border: 1px solid color-mix(in srgb, var(--picker-modal-border) 50%, transparent);
   border-radius: 0.65rem;
@@ -1827,7 +1810,6 @@
 }
 
 .echo-bag-modal__body {
-  min-height: 0;
 }
 
 .echo-bag-modal__grid {
@@ -1848,7 +1830,6 @@
 
 .echo-bag-card__tile {
   width: 100%;
-  min-width: 0;
   border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 14%, var(--picker-modal-border));
   border-radius: 1.2rem;
   background:
@@ -1945,7 +1926,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  min-width: 0;
   flex: 1;
 }
 

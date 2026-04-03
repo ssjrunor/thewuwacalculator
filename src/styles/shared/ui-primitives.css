@@ -184,9 +184,8 @@
   --calc-support-shield-color: #838383;
 }
 
-:where(.ui-surface-card) {
+:where(.ui-surface-card, .pane-section) {
   position: relative;
-  min-width: 0;
   color: var(--calc-text, var(--text, #1b2435));
   border: var(--ui-surface-border);
   border-radius: var(--ui-surface-radius);
@@ -255,7 +254,6 @@
 }
 
 .expandable__content-inner {
-  min-width: 0;
 }
 
 @keyframes expandable-slide-down {
@@ -764,6 +762,11 @@ body.blur-off,
   --calc-box-backdrop: none;
 }
 
+
+.blur-off .frosted-aurora * {
+  backdrop-filter: none !important;
+}
+
 body.blur-off.frosted-aurora,
 .blur-off.frosted-aurora {
   --calc-toolbar-bg: rgba(255, 255, 255, 0.26);
@@ -841,7 +844,6 @@ body.blur-off.frosted-aurora,
 .ui-pill-button,
 .rarity-chip,
 .view-toggle-button,
-.skill-info-button,
 .trace-icon,
 .chip,
 .danger-btn {
@@ -1733,7 +1735,6 @@ label.is-disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem;
-  min-width: 0;
 }
 
 .sequence-card-badge,
@@ -2038,7 +2039,6 @@ label.is-disabled {
 }
 
 .mode-panel {
-  min-height: 0;
   overflow: auto;
   padding: 0.86rem;
 }

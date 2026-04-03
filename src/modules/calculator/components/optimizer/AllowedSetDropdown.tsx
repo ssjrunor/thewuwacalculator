@@ -55,6 +55,14 @@ export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetD
     return ui.theme === 'dark' ? ui.darkVariant : ui.lightVariant
   }, [ui.backgroundVariant, ui.darkVariant, ui.lightVariant, ui.theme])
 
+  const activeTextModeClass = useMemo(() => {
+    if (ui.theme === 'background') {
+      return `${ui.backgroundTextMode}-text`
+    }
+
+    return ui.theme === 'dark' ? 'dark-text' : 'light-text'
+  }, [ui.backgroundTextMode, ui.theme])
+
   const summaryLabel = useMemo(() => {
     const fiveCount = selectedIdsByPiece[5].length
     const threeCount = selectedIdsByPiece[3].length
@@ -237,7 +245,7 @@ export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetD
       ? createPortal(
           <div
             ref={menuRef}
-            className={`co-skill-select__menu co-skill-select__menu--${placement} co-set-dropdown__menu app-shell ${activeVariant}`}
+            className={`co-skill-select__menu co-skill-select__menu--${placement} co-set-dropdown__menu ${activeVariant} ${activeTextModeClass}${ui.blurMode === 'off' ? ' blur-off' : ''}`}
             tabIndex={-1}
             data-state={open ? 'open' : 'closed'}
             style={{

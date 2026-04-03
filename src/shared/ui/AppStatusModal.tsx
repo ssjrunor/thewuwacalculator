@@ -1,30 +1,31 @@
 import { useNavigate } from 'react-router-dom'
 import { AppDialog } from '@/shared/ui/AppDialog'
+import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 
 const STATUS_DATA = {
-  lastUpdated: '30/03/2026',
-  overallState: 'wip' as const,
+  lastUpdated: '03/04/2026',
+  overallState: 'stable' as const,
   patchVersion: '2.4',
   patchVersionUrl: 'https://encore.moe/new?lang=en',
   notes: [
-      'HIIII~! Welcome if you\'re not from the server and you found this, how nice, if you are, how nice.',
-      'If you see something amiss, do not fret. This is still in it\'s testing phase, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
-      'Beware, data might "mysteriously" disappear as i tweak things. Keep this in mind while you use the app.',
+    'HIIII~! Welcome if you\'re not from the old app and you found this, how nice, if you are, how nice.',
+    'Remember, you can import your data from the old app if you have any data on there~',
+    'Wait! Some complex character stuff can\'t be safely imported so you\'d have to set those manually... but it should be pretty easy~!',
+    'If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
     'This is a full rebuild. The architecture is new, most things should feel faster and more stable.',
   ],
   coverage: [
-    { title: 'Characters', status: 'ok' as const,  desc: 'All resonators supported.' },
+    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
     { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies are in.' },
-    { title: 'Assets',     status: 'ok' as const, desc: 'All assets are in.' },
   ],
   knownIssues: [
-    'Full sonata set condition custom configurations for optimizer related features are not yet implemented.',
-    'The guides system not fully implemented yet.',
-    'Some v1 features still being ported over.',
+    'The guides system not fully implemented yet.'
   ],
   recentChanges: [
+    'Did some work on the wallpaper/background theme system. TOTALLY important for the new app (ㅅ´ ˘ `).',
+    'Added set conditionals. Was in the old app, i was just too lazy to bring it over yk.',
     'Revamped calculator, inventory, rotations, optimizer... etc.',
   ],
 }
@@ -44,13 +45,15 @@ interface AppStatusModalProps {
 
 export function AppStatusModal({ visible, open, closing = false, onClose }: AppStatusModalProps) {
   const navigate = useNavigate()
+  const portalTarget = getMainContentPortalTarget()
 
   return (
     <AppDialog
       visible={visible}
       open={open}
       closing={closing}
-      portalTarget={typeof document !== 'undefined' ? document.body : null}
+      portalTarget={portalTarget}
+      overlayClassName="picker-modal__overlay"
       contentClassName="app-modal-panel app-status-modal"
       ariaLabel="Calculator Status"
       onClose={onClose}

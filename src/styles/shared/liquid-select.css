@@ -113,7 +113,6 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  min-width: 0;
   overflow: hidden;
   font-weight: 700;
   line-height: 1.2;
@@ -172,7 +171,7 @@
 }
 
 .liquid-select__menu--down {
-  transform-origin: 50% 0%;
+  transform-origin: 50% 0;
 }
 
 .liquid-select__menu--up {
@@ -239,7 +238,6 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  min-width: 0;
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;

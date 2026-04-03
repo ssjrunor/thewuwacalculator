@@ -24,7 +24,8 @@
     align-items: center;
     justify-content: center;
     padding: clamp(1rem, 2vw, 1.6rem);
-    backdrop-filter: blur(10px);
+    background: transparent;
+    overflow: hidden;
     animation: app-loader-scrim-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 

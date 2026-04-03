@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   Group,
   type GroupImperativeHandle,
@@ -111,7 +111,6 @@ export function ResizableSplit({
   }, [isDragging])
 
   const shouldSplit = !isCollapsed && !isStacked
-  const panelStyle = shouldSplit ? ({ minWidth: '0px' } as CSSProperties) : undefined
   const handleResizeStart = () => setIsDragging(true)
   const handleResizeEnd = () => {
     setIsDragging(false)
@@ -156,7 +155,6 @@ export function ResizableSplit({
             className={['split-panel', leftClassName].filter(Boolean).join(' ')}
             defaultSize={defaultLayout[leftId]}
             minSize={`${minLeftPx}px`}
-            style={panelStyle}
           >
             {left}
           </Panel>
@@ -174,7 +172,6 @@ export function ResizableSplit({
             className={['split-panel', rightClassName].filter(Boolean).join(' ')}
             defaultSize={defaultLayout[rightId]}
             minSize={`${minRightPx}px`}
-            style={panelStyle}
           >
             {right}
           </Panel>

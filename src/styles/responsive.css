@@ -83,7 +83,6 @@
   .calculator-page,
   .calculator-workspace,
   .calculator-stage--workspace {
-    min-height: 0;
     overflow: auto;
     max-height: calc(100vh - 3.75rem);
   }
@@ -102,7 +101,6 @@
     flex-direction: column;
     gap: 0.8rem;
     height: auto;
-    min-height: 0;
     overflow: visible;
   }
 
@@ -138,7 +136,7 @@
     min-height: auto;
     height: auto;
     max-height: none;
-    overflow: visible;
+    overflow-y: visible;
   }
 
   .calc-pane,
@@ -146,7 +144,7 @@
     height: auto;
     min-height: auto;
     max-height: none;
-    overflow: visible;
+    overflow-y: visible;
   }
 
   .page-grid,

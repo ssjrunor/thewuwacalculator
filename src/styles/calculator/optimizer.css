@@ -8,6 +8,7 @@
   width: 100%;
   padding: 0 1rem;
   height: 100%;
+  min-height: 0;
   overflow: auto;
   justify-content: center;
   --optimizer-color-current: var(--danger, crimson);
@@ -31,7 +32,7 @@
   gap: 0.75rem;
   padding: 0.75rem 0;
   width: min(100%, 82rem);
-  min-width: 0;
+  min-height: 0;
 }
 
 /*
@@ -43,7 +44,6 @@
 .optimizer-search-results,
 .optimizer-character-settings {
   width: 100%;
-  min-width: 0;
   max-width: 82rem;
   margin: 0;
   height: fit-content;
@@ -69,6 +69,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: auto;
   gap: 0.45rem;
 }
@@ -124,7 +125,6 @@
   justify-content: center;
   align-items: center;
   flex: 1;
-  min-width: 0;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -182,7 +182,6 @@
   align-items: center;
   padding: 0.1rem;
   flex: 1;
-  min-width: 0;
   font-size: 0.78rem;
 }
 
@@ -344,7 +343,6 @@
   flex-direction: column;
   z-index: 10;
   width: 100%;
-  min-width: 0;
   position: sticky;
   bottom: 0.75rem;
   align-self: unset;
@@ -618,7 +616,6 @@
 /* ===== SETTINGS PANEL CONTAINER ===== */
 
 .character-options-container {
-  min-height: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -769,7 +766,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  min-width: 0;
 }
 
 /* ── Skill bar (toolbar) ── */
@@ -785,7 +781,6 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
-  min-width: 0;
   flex-wrap: wrap;
 }
 
@@ -800,7 +795,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  min-width: 0;
 }
 
 .co-topbar-field__label {
@@ -901,9 +895,10 @@
 .co-topbar-select__menu {
   --co-tag-enter-offset: 0.5rem;
   position: fixed;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+  height: auto;
+  min-height: 0;
   min-width: 5.2rem;
   z-index: 9999;
   border-radius: 0.72rem;
@@ -974,7 +969,6 @@
   border-radius: 0.6rem;
   cursor: pointer;
   transition: background 160ms ease;
-  min-width: 0;
 }
 
 .co-skill-bar__main:hover {
@@ -990,12 +984,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.05rem;
-  min-width: 0;
 }
 
 .co-skill-select {
   flex: 1;
-  min-width: 0;
 }
 
 .co-skill-select__trigger {
@@ -1003,7 +995,6 @@
   align-items: center;
   gap: 0.45rem;
   width: 100%;
-  min-width: 0;
   padding: 0.25rem 0.5rem;
   border: none;
   border-radius: 0.6rem;
@@ -1153,7 +1144,6 @@
   border-right: 1px solid color-mix(in srgb, var(--calc-text, var(--text)) 5%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--calc-text, var(--text)) 5%, transparent);
   background: color-mix(in srgb, var(--calc-box-bg, var(--surface-strong)) 80%, transparent);
-  min-width: 0;
 }
 
 .co-tile__head {
@@ -1284,7 +1274,6 @@
 }
 
 .co-weapon-card__copy {
-  min-width: 0;
   flex: 1;
 }
 
@@ -1312,7 +1301,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  min-width: 0;
   padding: 0.25rem 0.45rem;
   border-radius: 0.7rem;
   border: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 50%, transparent);
@@ -1466,7 +1454,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0.32rem;
-  min-width: 0;
   flex: 1;
   text-align: left;
 }
@@ -1517,7 +1504,7 @@
   position: fixed;
   display: flex;
   flex-direction: column;
-  height: fit-content;
+  height: auto;
   min-height: 0;
   z-index: 9999;
   gap: 0.25rem;
@@ -1575,7 +1562,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  min-width: 0;
   flex: 1;
 }
 
@@ -1646,7 +1632,7 @@
   position: fixed;
   display: flex;
   flex-direction: column;
-  height: fit-content;
+  height: auto;
   min-height: 0;
   min-width: 12rem;
   z-index: 9999;
@@ -1788,7 +1774,7 @@
   position: fixed;
   display: flex;
   flex-direction: column;
-  height: fit-content;
+  height: auto;
   min-height: 0;
   min-width: 5rem;
   z-index: 9999;
@@ -1887,7 +1873,6 @@
 
 .co-limit__in {
   flex: 1;
-  min-width: 0;
   padding: 0.18rem 0.32rem;
   border-radius: 0.4rem;
   font-size: 0.66rem;
@@ -1918,7 +1903,6 @@
 
 .co-set-dropdown {
   position: relative;
-  min-width: 0;
 }
 
 .co-set-dropdown__trigger {
@@ -1981,7 +1965,6 @@
   gap: 1rem;
   align-items: center;
   flex-direction: row;
-  min-width: 0;
 }
 
 .co-set-dropdown__name {
@@ -2001,7 +1984,6 @@
 }
 
 .co-set-dropdown__trigger-value {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2043,7 +2025,6 @@
   height: 13rem;
   display: flex;
   justify-content: center;
-  min-width: 0;
 }
 
 .analytics-chart-wrapper svg,
@@ -2134,10 +2115,9 @@
 
 .opt-echo-preview__slot {
   position: relative;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.62rem;
+  gap: 0.25rem;
   padding: 0.68rem;
   border-radius: 1rem;
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent)) 14%, var(--calc-item-border, var(--panel-border)));
@@ -2200,7 +2180,6 @@
   display: flex;
   align-items: flex-start;
   gap: 0.68rem;
-  min-width: 0;
 }
 
 .opt-echo-preview__glyph-frame {
@@ -2218,8 +2197,8 @@
 }
 
 .opt-echo-preview__glyph {
-  width: 3rem;
-  height: 3rem;
+  width: 2.5rem;
+  height: 2.5rem;
   object-fit: contain;
   filter: drop-shadow(0 0.28rem 0.8rem color-mix(in srgb, var(--resonator-accent, var(--accent)) 18%, transparent));
 }
@@ -2230,9 +2209,9 @@
 
 .opt-echo-preview__summary {
   display: flex;
+  overflow: hidden;
   flex-direction: column;
   gap: 0.42rem;
-  min-width: 0;
   flex: 1;
 }
 
@@ -2251,7 +2230,6 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  min-width: 0;
 }
 
 .opt-echo-preview__set-icon {
@@ -2262,7 +2240,6 @@
 }
 
 .opt-echo-preview__set-name {
-  min-width: 0;
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--calc-muted, var(--muted));
@@ -2285,7 +2262,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.38rem 0.5rem;
+  padding: 0.25rem 0.45rem;
 }
 
 .opt-echo-preview__stats-row + .opt-echo-preview__stats-row {
@@ -2301,7 +2278,6 @@
 }
 
 .opt-echo-preview__stats-label {
-  min-width: 0;
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.02em;

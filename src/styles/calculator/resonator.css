@@ -2,7 +2,6 @@
 
 .calculator-workspace {
   --split-gutter-size: 14px;
-  min-height: 0;
 }
 
 .calculator-workspace .split {
@@ -56,7 +55,6 @@
   display: grid;
   gap: 1rem;
   align-content: start;
-  min-width: 0;
 }
 
 .calculator-pane > .resonator-pane.calc-pane {
@@ -113,7 +111,6 @@
   align-content: center;
   justify-content: initial;
   align-items: initial;
-  min-width: 0;
   gap: 0;
 }
 
@@ -122,7 +119,6 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 0.9rem;
-  min-width: 0;
 }
 
 .resonator-heading h3 {
@@ -130,7 +126,6 @@
   font-size: clamp(1.7rem, 2.4vw, 2.2rem);
   line-height: 1;
   letter-spacing: -0.04em;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -139,7 +134,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.45rem;
-  min-width: 0;
 }
 
 .hero-badge,
@@ -163,7 +157,6 @@
   align-items: center;
   gap: 0.85rem;
   margin-top: 1.05rem;
-  min-width: 0;
 }
 
 .resonator-heading-icons {
@@ -192,7 +185,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  min-width: 0;
 }
 
 .resonator-pane .panel-head.compact {
@@ -258,7 +250,6 @@
   font-size: 14px;
   font-weight: bold;
   letter-spacing: normal;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -269,9 +260,10 @@
   width: auto;
   height: auto;
   padding: 0;
-  border: none;
   border-radius: 0;
-  background: transparent;
+  background: none !important;
+  box-shadow: none !important;
+  border: none !important;
   color: var(--calc-text);
   z-index: 10;
   transition: transform ease 0.3s;
@@ -360,12 +352,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
-  min-width: 0;
 }
 
 .sequence-card-head h4 {
   margin: 0;
-  min-width: 0;
   font-size: var(--ui-panel-card-title-size);
   line-height: 1.2;
   letter-spacing: var(--ui-panel-card-title-spacing);
@@ -385,7 +375,6 @@
 
 .inherent-skill-head h4 {
   margin: 0;
-  min-width: 0;
   font-size: var(--ui-panel-card-title-size);
   line-height: 1.2;
   letter-spacing: var(--ui-panel-card-title-spacing);
@@ -522,7 +511,6 @@
 .control-panel-box h4,
 .inherent-skills .inherent-skill h4,
 .panel-title > span {
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 

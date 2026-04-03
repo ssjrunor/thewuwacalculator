@@ -1,6 +1,8 @@
 /* Rotation editor, block tree, skill menu, and saved rotation styling */
 
-.pane-section,
+/*
+.pane-section:not(.pane-section--empty),
+*/
 .card,
 .summary-row,
 .echo-row,
@@ -69,7 +71,6 @@
   align-items: center;
   gap: 0.45rem;
   width: 100%;
-  min-width: 0;
   padding: 0.35rem;
   border-radius: 0.72rem;
   background:
@@ -209,12 +210,10 @@
 
 .rotation-pane-controls .rotation-toolbar-group .liquid-select {
   flex: 1 1 0;
-  min-width: 0;
 }
 
 .rotation-pane-controls .rotation-toolbar-group .liquid-select__trigger {
   width: 100%;
-  min-width: 0;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -367,7 +366,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0;
-  min-width: 0;
   border-radius: 0.72rem;
   overflow: hidden;
   background:
@@ -419,7 +417,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  min-width: 0;
   padding-right: 0.15rem;
 }
 
@@ -469,7 +466,6 @@
   border-radius: 0;
   border: none;
   flex: 1 1 auto;
-  min-width: 0;
 }
 
 .rotation-pane-controls .rotation-button svg {
@@ -611,7 +607,6 @@
   flex-direction: column;
   gap: 0.25rem;
   flex-grow: 1;
-  min-width: 0;
   padding: 0.5rem 0.75rem 0.5rem calc(0.65rem + 3px);
   transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
@@ -656,14 +651,12 @@
 .rotation-entry-main {
   display: grid;
   gap: 0.08rem;
-  min-width: 0;
   flex: 1 1 auto;
 }
 
 .entry-name {
   color: var(--text);
   font-weight: 700;
-  min-width: 0;
   max-width: 100%;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -788,7 +781,6 @@
 
 .rotation-inline-field--node-action {
   gap: 0.35rem;
-  min-width: 0;
 }
 
 .rotation-inline-field input,
@@ -1381,7 +1373,6 @@
 .menu-header {
   display: grid;
   gap: 0.28rem;
-  min-width: 0;
 }
 
 .menu-header .panel-heading-title,
@@ -1417,7 +1408,6 @@
 
 .skill-menu-member-toggle .view-toggle-button {
   flex: 1 1 9rem;
-  min-width: 0;
   min-height: 2.2rem;
   padding-inline: 0.85rem;
   border-radius: 0.95rem;
@@ -1493,7 +1483,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  min-height: 0;
   overflow-y: auto;
   flex-grow: 1;
   position: relative;
@@ -1540,7 +1529,6 @@
 }
 
 .skill-tab-label .sequence-card-status {
-  min-height: 0;
   padding: 0.1rem 0.45rem;
   border-color: var(--ui-panel-pill-active-border-color);
   background: var(--ui-panel-pill-active-bg);
@@ -1569,7 +1557,6 @@
 .collapsible-label span {
   margin-left: 0.5rem;
   transition: margin-left 0.4s ease;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -1723,14 +1710,12 @@
 
 .dropdown-main {
   display: block;
-  min-width: 0;
   text-align: left;
   font-size: 0.92rem;
 }
 
 .dropdown-main span {
   display: block;
-  min-width: 0;
   line-height: 1.35;
   font-weight: 700;
   text-wrap: balance;
@@ -2072,13 +2057,11 @@
 .rotation-editor-modal-body {
   display: grid;
   gap: 0.85rem;
-  min-width: 0;
 }
 
 .rotation-condition-modal {
   display: grid;
   gap: 0.8rem;
-  min-width: 0;
 }
 
 .rotation-editor-modal-body--condition {
@@ -2094,7 +2077,6 @@
 .rotation-condition-panel {
   display: grid;
   gap: 0.72rem;
-  min-width: 0;
   padding: 0.82rem 0.86rem;
   border-radius: 0.98rem;
   border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
@@ -2111,11 +2093,9 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(1fr, 1fr));
   gap: 0.5rem;
-  min-width: 0;
 }
 
 .rotation-condition-modal .rotation-inline-field {
-  min-width: 0;
 }
 
 .rotation-condition-description {
@@ -2170,7 +2150,6 @@
 .rotation-negative-effect-summary__copy {
   display: grid;
   gap: 0.22rem;
-  min-width: 0;
 }
 
 .rotation-negative-effect-summary__copy strong {
@@ -2352,7 +2331,6 @@
 .rotation-saved-copy {
   display: grid;
   gap: 0.12rem;
-  min-width: 0;
 }
 
 .rotation-saved-copy strong {
@@ -2375,7 +2353,6 @@
 
 .rotation-saved-name-input {
   width: 100%;
-  min-width: 0;
   padding: 0.1rem 0.15rem;
   border: 1px solid color-mix(in srgb, var(--resonator-accent) 32%, var(--calc-item-border));
   border-radius: 0.4rem;
@@ -2407,7 +2384,6 @@
   display: grid;
   gap: 1rem;
   align-content: start;
-  min-width: 0;
 }
 
 /* ── Rotation pane entrance animation ── */
@@ -2506,7 +2482,6 @@
 .rotation-snapshot-v2__title-wrap {
   display: grid;
   gap: 0.2rem;
-  min-width: 0;
 }
 
 .rotation-snapshot-v2__title-row {
@@ -2514,11 +2489,9 @@
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
-  min-width: 0;
 }
 
 .rotation-snapshot-v2__title {
-  min-width: 0;
   font-weight: 800;
   line-height: 1.05;
   font-size: 0.68rem;
@@ -2789,7 +2762,6 @@
 .rotation-snapshot-v2__member-name {
   display: flex;
   gap: 0.25rem;
-  min-width: 0;
 }
 
 .rotation-snapshot-v2__member-name sup {
@@ -2800,7 +2772,6 @@
 }
 
 .rotation-snapshot-v2__member-name strong {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -9,10 +9,16 @@ import { restoreLatestSnapshotFromDrive, uploadSnapshotToDrive } from '@/infra/g
 import { importLegacyAppStateJson } from '@/domain/services/legacyAppStateImport'
 import { selectPersistedState } from '@/domain/state/serialization'
 import {
+  applyBackgroundMainColorToDocument,
   BACKGROUND_WALLPAPER_PRESETS,
+  detectBackgroundMainColor,
+  detectBackgroundTextMode,
+  getBackgroundWallpaperPreset,
   isUploadedBackgroundKey,
   resolveBackgroundWallpaper,
   saveUploadedBackgroundImage,
+  switchBackgroundWallpaper,
+  writeStoredBackgroundMainColor,
 } from '@/modules/settings/model/backgroundTheme'
 import {
   BODY_FONT_PRESETS,
@@ -98,6 +104,7 @@ export function SettingsPage() {
   const setDarkVariant = useAppStore((state) => state.setDarkVariant)
   const setBackgroundVariant = useAppStore((state) => state.setBackgroundVariant)
   const setBackgroundImageKey = useAppStore((state) => state.setBackgroundImageKey)
+  const setBackgroundTextMode = useAppStore((state) => state.setBackgroundTextMode)
   const setBodyFontSelection = useAppStore((state) => state.setBodyFontSelection)
   const setBlurMode = useAppStore((state) => state.setBlurMode)
   const setEntranceAnimations = useAppStore((state) => state.setEntranceAnimations)
@@ -256,9 +263,26 @@ export function SettingsPage() {
     setCloudSyncStatus('Disconnected Google Drive sync for this browser.')
   }
 
-  const handleBuiltinBackgroundSelect = (backgroundKey: string) => {
+  const applyBackgroundSelection = async (backgroundKey: string, source: Blob | string) => {
     setTheme('background')
     setBackgroundImageKey(backgroundKey)
+
+    await switchBackgroundWallpaper(source, backgroundKey)
+
+    const nextTextMode = await detectBackgroundTextMode(backgroundKey)
+    setBackgroundTextMode(nextTextMode)
+    const nextMainColor = await detectBackgroundMainColor(backgroundKey, nextTextMode)
+    writeStoredBackgroundMainColor(nextMainColor)
+    applyBackgroundMainColorToDocument(nextMainColor)
+  }
+
+  const handleBuiltinBackgroundSelect = async (backgroundKey: string) => {
+    const preset = getBackgroundWallpaperPreset(backgroundKey)
+    if (!preset) {
+      return
+    }
+
+    await applyBackgroundSelection(backgroundKey, preset.src)
   }
 
   const handleBackgroundUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -269,8 +293,7 @@ export function SettingsPage() {
 
     try {
       const backgroundKey = await saveUploadedBackgroundImage(file)
-      setTheme('background')
-      setBackgroundImageKey(backgroundKey)
+      await applyBackgroundSelection(backgroundKey, file)
       showToast({
         content: `Applied ${file.name} as the background wallpaper.`,
         variant: 'success',
@@ -472,23 +495,23 @@ export function SettingsPage() {
     selected: boolean,
     onSelect: () => void,
   ) => {
-    const preview =
-      variant === 'frosted-aurora' && backgroundPreviewUrl
-        ? `linear-gradient(135deg, rgba(11, 17, 32, 0.18), rgba(11, 17, 32, 0.28)), url(${backgroundPreviewUrl})`
-        : THEME_PREVIEWS[variant]
-    const isGradient = preview.includes('gradient')
+    const preview = THEME_PREVIEWS[variant]
 
     return (
-      <div key={variant} style={{ display: 'grid', gap: '0.15rem' }}>
-        <button
-          type="button"
-          className={`settings-swatch ${isGradient ? 'settings-swatch--gradient' : 'settings-swatch--plain'} ${selected ? 'settings-swatch--active' : ''}`}
-          style={{ '--preview-value': preview } as CSSProperties}
-          onClick={onSelect}
-          title={toTitle(variant)}
+      <button
+        key={variant}
+        type="button"
+        className={`settings-background-card settings-background-card--theme ${selected ? 'settings-background-card--active' : ''}`}
+        onClick={onSelect}
+        title={toTitle(variant)}
+      >
+        <div
+          aria-hidden="true"
+          className="settings-background-card-preview settings-background-card-preview--theme"
+          style={{ '--background-preview': preview } as CSSProperties}
         />
-        <div className="settings-swatch-name">{toTitle(variant)}</div>
-      </div>
+        <span className="settings-background-card-label">{toTitle(variant)}</span>
+      </button>
     )
   }
 
@@ -593,14 +616,14 @@ export function SettingsPage() {
                     key={preset.id}
                     type="button"
                     className={`settings-background-card ${ui.backgroundImageKey === preset.id ? 'settings-background-card--active' : ''}`}
-                    onClick={() => handleBuiltinBackgroundSelect(preset.id)}
+                    onClick={() => {
+                      void handleBuiltinBackgroundSelect(preset.id)
+                    }}
                   >
-                    <img
-                      src={preset.src}
-                      alt={preset.label}
-                      className="settings-background-card-image"
-                      loading="lazy"
-                      decoding="async"
+                    <div
+                      aria-hidden="true"
+                      className="settings-background-card-preview"
+                      style={{ '--background-preview': preset.preview } as CSSProperties}
                     />
                     <span className="settings-background-card-label">{preset.label}</span>
                   </button>
@@ -609,7 +632,7 @@ export function SettingsPage() {
                   <button
                     type="button"
                     className="settings-background-card settings-background-card--active"
-                    onClick={() => handleBuiltinBackgroundSelect(ui.backgroundImageKey)}
+                    onClick={() => setTheme('background')}
                   >
                     <img
                       src={backgroundPreviewUrl}
@@ -630,10 +653,6 @@ export function SettingsPage() {
                 <div className="settings-dropzone-text">
                   <strong>Choose an image</strong> to replace the active wallpaper
                 </div>
-              </div>
-
-              <div className="settings-data-note">
-                Background mode now uses the v1 wallpaper set, keeps uploads in indexeddb, and automatically flips text tone based on image brightness.
               </div>
             </div>
           ) : null}

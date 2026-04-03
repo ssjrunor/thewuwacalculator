@@ -100,7 +100,6 @@
 .enemy-stage-card__copy {
   display: grid;
   gap: 0.22rem;
-  min-width: 0;
 }
 
 .enemy-slider__meta .enemy-profile-tile__value-row {

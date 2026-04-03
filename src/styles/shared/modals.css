@@ -100,7 +100,7 @@
 
 .app-modal-header-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto auto;
   gap: 0.8rem;
   align-items: start;
 }
@@ -122,7 +122,6 @@
 }
 
 .picker-modal__heading {
-  min-width: 0;
 }
 
 .picker-modal__eyebrow {
@@ -160,7 +159,6 @@
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 0.28rem 0.6rem;
-  min-width: 0;
   padding: 0.58rem 0.72rem;
   border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 16%, var(--picker-modal-item-border));
   border-radius: 1rem;
@@ -178,7 +176,6 @@
 
 .picker-modal__summary-value {
   display: block;
-  min-width: 0;
   margin-top: 0;
   font-size: 0.92rem;
   font-weight: 700;
@@ -245,14 +242,12 @@
 .picker-filter-section {
   display: grid;
   gap: 0.42rem;
-  min-width: 0;
 }
 
 .picker-filter-group {
   display: flex;
   align-items: center;
   gap: 0.38rem;
-  min-width: 0;
 }
 
 .picker-modal__card,
@@ -524,7 +519,6 @@
 .picker-modal__card-copy {
   display: grid;
   gap: 0.46rem;
-  min-width: 0;
 }
 
 .picker-modal__card-head {
@@ -536,7 +530,6 @@
 
 .picker-modal__card-heading,
 .picker-modal__card-trailing {
-  min-width: 0;
 }
 
 .picker-modal__card-trailing {
@@ -624,7 +617,7 @@
   .picker-modal__panel,
   .picker-modal__panel--wide {
     width: min(100%, calc(100vw - 1rem));
-    max-height: calc(100vh - 1rem);
+    max-height: min(82vh, calc(100vh - 5rem));
     border-radius: 1.45rem;
   }
 
@@ -635,7 +628,6 @@
 
   .picker-modal__summary {
     justify-content: flex-start;
-    min-width: 0;
   }
 
   .picker-modal__close {

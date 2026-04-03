@@ -468,6 +468,7 @@ export function TeamMemberConfigModal({
                 </div>
                 <RuntimeMainEchoPanel
                   runtime={runtime}
+                  team={true}
                   activeRuntime={activeRuntime}
                   onRuntimeUpdate={cascadedRuntimeUpdate}
                   getSelectedTarget={getSelectedTarget}

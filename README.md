@@ -12,13 +12,13 @@ This repo is the current app codebase for the calculator, including the main wor
 - inventory and saved-build management
 - optimizer mode for brute-force echo searches
 - overview and guide/content pages
-- data ingest scripts for resonators, weapons, and echoes
+- tracked app source, tests, and static assets used by the calculator
 
 ## Local development
 
 Requirements:
 
-- Node `^25.8.0`
+- Node `24.x`
 
 Install and run:
 
@@ -35,20 +35,13 @@ npm test
 npm run lint
 ```
 
-## Data and ingest
+Some package scripts are intended for local maintenance workflows and depend on ignored files that are not included in this repository. The public repo is focused on the app itself.
 
-The repo includes ingest/build scripts for game data generation:
+## License
 
-```bash
-npm run ingest:resonators
-npm run ingest:resonators:index
-npm run ingest:resonators:module
-npm run ingest:echoes:module
-npm run ingest:weapons
-npm run ingest:weapons:module
-```
+This project is source-available, not open source. See [LICENSE.md](/Users/runorewhro/projects/thewuwacalculator/LICENSE.md) for the full terms.
 
-Runtime catalog-style data is emitted as JSON under `public/data`.
+In short, the code is provided for reference and educational use only. You may view and study it, but you may not copy, modify, redistribute, sublicense, or reuse substantial portions of it without prior written permission from the author.
 
 ## Project notes
 

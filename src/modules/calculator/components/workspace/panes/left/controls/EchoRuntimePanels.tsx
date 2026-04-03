@@ -246,18 +246,17 @@ export function RuntimeMainEchoPanel({
   onRuntimeUpdate,
   getSelectedTarget,
   setSelectedTarget,
+  team
 }: {
   runtime: ResonatorRuntimeState
   activeRuntime: ResonatorRuntimeState
   onRuntimeUpdate: RuntimeUpdateHandler
+  team: true | false
   getSelectedTarget?: (ownerKey: string) => string | null
   setSelectedTarget?: (ownerKey: string, targetResonatorId: string | null) => void
 }) {
   const mainEcho = runtime.build.echoes[0]
-  const mainEchoDefinition = useMemo(
-    () => (mainEcho ? getEchoById(mainEcho.id) : null),
-    [mainEcho],
-  )
+  const mainEchoDefinition = mainEcho ? getEchoById(mainEcho.id) : null
   const mainEchoSource = useMemo(() => getMainEchoSourceRef(runtime), [runtime])
   const mainEchoStates = useMemo(() => {
     if (!mainEchoSource) {
@@ -290,7 +289,7 @@ export function RuntimeMainEchoPanel({
       ) : null}
 
       {mainEchoStates.length > 0 ? (
-        <div className="stack">
+        <div className={team ? "team-member-config-modal__state-row team-state-control team-member-config-modal__state-row--mini" : "stack"}>
           {mainEchoStates.map((state) => {
             const targetMode = getStateTeamTargetMode(state)
             const teamTargetSelect = targetMode

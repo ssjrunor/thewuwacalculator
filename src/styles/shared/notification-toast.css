@@ -10,7 +10,8 @@
   gap: 0.55rem;
   pointer-events: none;
   padding: 1rem;
-  max-width: min(26rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  width: fit-content;
 }
 
 .toast-container--top-left     { top: 0; left: 0; }
@@ -211,7 +212,6 @@
 
 .toast-item__content {
   flex: 1;
-  min-width: 0;
   padding-top: 0.12rem;
   opacity: 0;
 }

@@ -3,7 +3,6 @@
 .results-section-stack {
   display: grid;
   gap: 1rem;
-  min-width: 0;
 }
 
 .analysis-overview-grid {
@@ -11,7 +10,6 @@
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.8rem;
   margin-bottom: 0.2rem;
-  min-width: 0;
 }
 
 #right-pane .analysis-overview-grid {
@@ -134,7 +132,6 @@
 }
 
 .resonator-snapshot-value {
-  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
@@ -185,7 +182,6 @@
 .damage-section {
   display: grid;
   gap: 0.9rem;
-  min-width: 0;
 }
 
 .damage-section .box-wrapper {
@@ -193,7 +189,6 @@
 }
 
 .damage-inner-box {
-  min-width: 0;
   --ui-inner-radius: 1.2rem;
   --ui-inner-padding: 0.9rem 1rem;
 }
@@ -245,7 +240,6 @@
 
 .damage-grid th,
 .damage-grid td {
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -368,8 +362,7 @@
 .ui-pill-button,
 .rarity-chip,
 .chip,
-.danger-btn,
-.skill-info-button {
+.danger-btn {
   border-radius: 999px;
   border-color: color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-item-border));
   background:

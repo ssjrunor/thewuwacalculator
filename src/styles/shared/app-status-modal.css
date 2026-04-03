@@ -73,13 +73,13 @@
 .app-status-bento {
   display: grid;
   overflow: auto;
-  grid-template-columns: 2fr 1fr 1fr;
-  grid-template-rows: repeat(3, minmax(5rem, auto)) auto;
+  grid-template-columns: 2.5fr 1fr 1fr;
+  grid-template-rows: repeat(4, auto);
   grid-template-areas:
     "hero c1  c2"
     "hero c3  c4"
-    "hero c5  c5"
-    "chg  iss iss";
+    "hero iss  iss"
+    "hero chg  chg";
   gap: 0.55rem;
   padding: 0.75rem;
 }
@@ -88,6 +88,7 @@
   grid-area: hero;
   position: relative;
   overflow: hidden;
+  height: fit-content;
   padding: 1.1rem;
   border-radius: 0.7rem;
   border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 25%, var(--picker-modal-border));

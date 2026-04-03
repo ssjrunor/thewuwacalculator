@@ -13,7 +13,17 @@ import {
   subscribeToDirtyPersistedDomains,
 } from '@/infra/persistence/storage'
 import { selectPersistedState } from '@/domain/state/serialization'
-import { detectBackgroundTextMode, resolveBackgroundWallpaper } from '@/modules/settings/model/backgroundTheme'
+import {
+  applyBackgroundMainColorToDocument,
+  applyBackgroundWallpaperToDocument,
+  detectBackgroundMainColor,
+  detectBackgroundTextMode,
+  getImmediateBackgroundWallpaperUrl,
+  readActiveBackgroundKey,
+  readStoredBackgroundMainColor,
+  resolveBackgroundWallpaper,
+  writeStoredBackgroundMainColor,
+} from '@/modules/settings/model/backgroundTheme'
 import { applyBodyFontSelection } from '@/modules/settings/model/typography'
 import { AppTooltipProvider } from '@/shared/ui/Tooltip'
 import { getSystemThemeMode } from '@/shared/lib/systemTheme'
@@ -28,7 +38,6 @@ const GOOGLE_CLIENT_ID_FALLBACK = 'missing-google-client-id'
 export function AppProviders({ children }: AppProvidersProps) {
   const theme = useAppStore((state) => state.ui.theme)
   const themePreference = useAppStore((state) => state.ui.themePreference)
-  const backgroundImageKey = useAppStore((state) => state.ui.backgroundImageKey)
   const backgroundTextMode = useAppStore((state) => state.ui.backgroundTextMode)
   const setBackgroundTextMode = useAppStore((state) => state.setBackgroundTextMode)
   const syncThemeWithSystem = useAppStore((state) => state.syncThemeWithSystem)
@@ -104,11 +113,39 @@ export function AppProviders({ children }: AppProvidersProps) {
   useEffect(() => {
     let cancelled = false
     let cleanupResolvedWallpaper: (() => void) | null = null
+    let skipNextFocus = false
+    let lastAppliedBackgroundKey: string | null = null
 
-    const root = document.documentElement
+    const applyActiveBackground = async () => {
+      if (skipNextFocus) {
+        skipNextFocus = false
+        return
+      }
 
-    const applyBackgroundThemeImage = async () => {
-      const resolved = await resolveBackgroundWallpaper(backgroundImageKey)
+      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActiveBackgroundKey()
+      if (activeKey && activeKey === lastAppliedBackgroundKey) {
+        const storedMainColor = readStoredBackgroundMainColor()
+        if (storedMainColor) {
+          applyBackgroundMainColorToDocument(storedMainColor)
+        }
+        return
+      }
+
+      const immediateWallpaperUrl = activeKey ? getImmediateBackgroundWallpaperUrl(activeKey) : null
+      if (immediateWallpaperUrl) {
+        cleanupResolvedWallpaper?.()
+        cleanupResolvedWallpaper = null
+        applyBackgroundWallpaperToDocument(immediateWallpaperUrl)
+        lastAppliedBackgroundKey = activeKey
+
+        const storedMainColor = readStoredBackgroundMainColor()
+        if (storedMainColor) {
+          applyBackgroundMainColorToDocument(storedMainColor)
+        }
+        return
+      }
+
+      const resolved = await resolveBackgroundWallpaper(activeKey)
       if (cancelled) {
         resolved.revoke?.()
         return
@@ -116,25 +153,76 @@ export function AppProviders({ children }: AppProvidersProps) {
 
       cleanupResolvedWallpaper?.()
       cleanupResolvedWallpaper = resolved.revoke ?? null
-      root.style.setProperty('--background-wallpaper-image', `url("${resolved.url}")`)
+      applyBackgroundWallpaperToDocument(resolved.url)
+      lastAppliedBackgroundKey = activeKey
 
-      if (theme !== 'background') {
-        return
-      }
-
-      const nextTextMode = await detectBackgroundTextMode(backgroundImageKey)
-      if (!cancelled && nextTextMode !== backgroundTextMode) {
-        setBackgroundTextMode(nextTextMode)
+      const storedMainColor = readStoredBackgroundMainColor()
+      if (storedMainColor) {
+        applyBackgroundMainColorToDocument(storedMainColor)
       }
     }
 
-    void applyBackgroundThemeImage()
+    void applyActiveBackground()
+
+    const onFocus = () => {
+      void applyActiveBackground()
+    }
+
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target
+      if (target instanceof HTMLInputElement && target.type === 'file') {
+        skipNextFocus = true
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('popstate', onFocus)
+    window.addEventListener('hashchange', onFocus)
+    document.addEventListener('click', onDocumentClick, true)
 
     return () => {
       cancelled = true
       cleanupResolvedWallpaper?.()
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('popstate', onFocus)
+      window.removeEventListener('hashchange', onFocus)
+      document.removeEventListener('click', onDocumentClick, true)
     }
-  }, [backgroundImageKey, backgroundTextMode, setBackgroundTextMode, theme])
+  }, [])
+
+  useEffect(() => {
+    if (theme !== 'background') {
+      return
+    }
+
+    let cancelled = false
+
+    const syncBackgroundTextMode = async () => {
+      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActiveBackgroundKey()
+      const nextTextMode = await detectBackgroundTextMode(activeKey)
+      if (!cancelled && nextTextMode !== backgroundTextMode) {
+        setBackgroundTextMode(nextTextMode)
+      }
+
+      const storedMainColor = readStoredBackgroundMainColor()
+      if (storedMainColor) {
+        applyBackgroundMainColorToDocument(storedMainColor)
+        return
+      }
+
+      const nextMainColor = await detectBackgroundMainColor(activeKey, nextTextMode)
+      if (!cancelled) {
+        writeStoredBackgroundMainColor(nextMainColor)
+        applyBackgroundMainColorToDocument(nextMainColor)
+      }
+    }
+
+    void syncBackgroundTextMode()
+
+    return () => {
+      cancelled = true
+    }
+  }, [backgroundTextMode, setBackgroundTextMode, theme])
 
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? GOOGLE_CLIENT_ID_FALLBACK}>

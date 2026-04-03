@@ -49,7 +49,48 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `new app, new foundation, way less suffering (〜^∇^)〜`,
   },
+  {
+    date: '03/04/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          Polished up <strong>Background Mode</strong> a lot more. The wallpaper side of the app should feel way nicer now instead of just being "yes there is technically an image behind the UI" and calling it a day.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Wallpaper picking now uses cleaner preview cards, custom uploads behave better, switching backgrounds feels smoother, and the frosted/glassy look should match the active wallpaper much more naturally across the app.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Also brought over <strong>Set Conditionals</strong> properly. You can now control which set-effect parts the app is allowed to consider for optimization/simulation stuff instead of having to just trust whatever mystery assumptions it was making in the background (Not really but you get the point).
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          ALSO... cleaned up a bunch of layout and popup styling weirdness while i was in there, so some menus, panels, and calculator sections should feel a bit less cramped and a bit less likely to do silly things.
+        `,
+      },
+    ],
+    shortDesc: `Background mode polish + Set Conditionals~! (〜^∇^)〜`,
+  },
 ]
+
+export const latestCurrentChangelogEntry =
+  currentChangelogEntries[currentChangelogEntries.length - 1] ?? null
+
+export function getCurrentChangelogToastVersion(entry: ChangelogRecord | null): string {
+  if (!entry) {
+    return 'none'
+  }
+
+  return `${entry.date}:${entry.shortDesc ?? entry.entries[0]?.content ?? 'update'}`
+}
 
 export const legacyChangelogEntries: ChangelogRecord[] = [
   {

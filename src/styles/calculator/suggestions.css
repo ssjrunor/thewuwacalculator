@@ -22,7 +22,7 @@
   position: sticky;
   top: 0;
   backdrop-filter: blur(20px);
-  z-index: 1;
+  z-index: 2;
   flex-shrink: 0;
 }
 
@@ -345,7 +345,7 @@
 /* ── Suggestions modal ── */
 
 .suggestions-modal {
-  width: min(62rem, calc(100vw - 2rem));
+  width: min(72rem, calc(100vw - 2rem));
 }
 
 /* Accent strip along top edge of modal panel */
@@ -369,7 +369,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
-  min-width: 0;
 }
 
 .suggestions-modal-title {
@@ -588,7 +587,6 @@
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 18%, var(--calc-item-border, var(--panel-border)));
   background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, transparent);
   cursor: pointer;
-  min-width: 0;
   transition: border-color 140ms ease, background 140ms ease;
   text-align: left;
 }
@@ -713,7 +711,6 @@
 .rc-section-head .liquid-select,
 .rc-section-head .liquid-select__trigger {
   flex: 1;
-  min-width: 0;
 }
 
 .rc-set-row {
@@ -739,7 +736,6 @@
   font-size: 0.76rem;
   font-weight: 600;
   flex: 1;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

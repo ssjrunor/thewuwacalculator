@@ -4,7 +4,7 @@
                sidebar navigation, route outlet, and global overlay UI.
 */
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -34,9 +34,13 @@ import { useCookieBanner } from '@/app/hooks/useCookieBanner.ts'
 import { useToastStore } from '@/shared/util/toastStore.ts'
 import { getCuteMessage } from '@/shared/util/cuteMessages.ts'
 import { getStoredGoogleTokens } from '@/infra/googleDrive/googleAuth.ts'
+import {
+  getCurrentChangelogToastVersion,
+  latestCurrentChangelogEntry,
+} from '@/data/content/changelogEntries'
 
-const ALERT_TOAST_KEY = 'alert-toast-dismissed'
-let alertToastShown = false
+const CHANGELOG_TOAST_STORAGE_KEY = 'seen-changelog-version'
+let changelogToastShown = false
 
 interface NavigationLink {
   to: string
@@ -107,22 +111,31 @@ export function RouteChrome() {
     isOverlayClosing,
   } = useResponsiveSidebar()
 
-  // show a persistent alert toast on mount that opens the app status modal
+  // show the latest changelog summary once per update, mirroring the old app behavior.
   useEffect(() => {
-    if (alertToastShown || localStorage.getItem(ALERT_TOAST_KEY)) return
-    alertToastShown = true
+    if (changelogToastShown || !latestCurrentChangelogEntry?.shortDesc) {
+      return
+    }
+
+    const latestVersion = getCurrentChangelogToastVersion(latestCurrentChangelogEntry)
+    if (localStorage.getItem(CHANGELOG_TOAST_STORAGE_KEY) === latestVersion) {
+      return
+    }
+
+    changelogToastShown = true
     showToast({
-      content: 'ALERT: CLICK ME!',
-      variant: 'warning',
-      duration: 0,
+      content: (
+        <span dangerouslySetInnerHTML={{ __html: latestCurrentChangelogEntry.shortDesc }} />
+      ),
+      variant: 'success',
+      duration: 60000,
       position: 'top-center',
       onClick: () => {
-        localStorage.setItem(ALERT_TOAST_KEY, '1')
-        appStatus.show()
+        localStorage.setItem(CHANGELOG_TOAST_STORAGE_KEY, latestVersion)
+        navigate('/changelog')
       },
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [navigate, showToast])
 
   // move calculator toolbar into the sidebar on smaller screens
   useEffect(() => {
@@ -185,26 +198,29 @@ export function RouteChrome() {
       .filter(Boolean)
       .join(' ')
 
-  // sync body classes with the selected ui theme settings
-  useEffect(() => {
-    const body = document.body
-    const themeClasses = [...ALL_THEME_VARIANTS, 'blur-off', 'no-entrance-anim', 'dark-text', 'light-text']
-    const textModeClass =
-      ui.theme === 'background'
-        ? `${ui.backgroundTextMode}-text`
-        : ui.theme === 'dark'
-          ? 'dark-text'
-          : 'light-text'
+  // sync the html theme classes the same way the old repo did, with app-shell mirroring for local styling hooks
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const themeClasses = [...ALL_THEME_VARIANTS, 'blur-off', 'no-entrance-anim', 'light-text', 'dark-text']
+    const textModeClass = ui.theme === 'background'
+      ? `${ui.backgroundTextMode}-text`
+      : ui.theme === 'dark'
+        ? 'dark-text'
+        : 'light-text'
 
-    body.classList.remove(...themeClasses)
-    body.classList.add(activeVariant, textModeClass)
+    root.classList.remove(...themeClasses)
+    root.classList.add(activeVariant)
+    root.classList.add(textModeClass)
 
     if (ui.blurMode === 'off') {
-      body.classList.add('blur-off')
+      root.classList.add('blur-off')
     }
     if (ui.entranceAnimations === 'off') {
-      body.classList.add('no-entrance-anim')
+      root.classList.add('no-entrance-anim')
     }
+
+    root.dataset.themeLocked = 'true'
+    root.dataset.themeLoaded = 'true'
   }, [activeVariant, ui.backgroundTextMode, ui.blurMode, ui.entranceAnimations, ui.theme])
 
   const themeToggleLabel = ui.theme === 'dark' ? 'Dawn' : 'Dusk'

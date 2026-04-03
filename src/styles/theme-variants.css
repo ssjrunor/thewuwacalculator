@@ -302,22 +302,40 @@ body.frosted-aurora,
   --partition-bg: transparent;
   --hover: rgba(255, 255, 255, 0.3);
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  --background-wallpaper-image: url('/assets/backgrounds/wallpaperflare1.jpg');
-  background:
-    linear-gradient(135deg, rgba(235, 244, 255, 0.28), rgba(246, 251, 255, 0.14)),
-    var(--background-wallpaper-image);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
 }
 
-.blur-off .toolbar,
-.blur-off .sidebar,
-.blur-off .partition,
-.blur-off .calculator-toolbar,
-.blur-off .mode-toolbar,
-.blur-off .page-shell {
+.frosted-aurora #root,
+.frosted-aurora body,
+.frosted-aurora.app-shell {
+  background: none !important;
+}
+
+html.frosted-aurora {
+  background-color: var(--bg-main-color, white) !important;
+}
+
+.app-shell.frosted-aurora {
+  background-color: color-mix(in srgb, var(--bg-main-color, #fefeff) 22%, rgba(255, 255, 255, 0.9));
+  background-image:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-main-color, #fefeff) 24%, rgba(255, 255, 255, 0.34)),
+      rgba(235, 245, 255, 0.18)
+    ),
+    var(--background-wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+
+.blur-off.frosted-aurora .toolbar,
+.blur-off.frosted-aurora .sidebar,
+.blur-off.frosted-aurora .partition,
+.blur-off.frosted-aurora .calculator-toolbar,
+.blur-off.frosted-aurora .mode-toolbar,
+.blur-off.frosted-aurora .page-shell {
   backdrop-filter: none;
 }
 
@@ -393,24 +411,30 @@ body.frosted-aurora,
   color: #f0f0f0;
 }
 
-.frosted-aurora.light-text {
+.frosted-aurora.light-text body,
+.app-shell.frosted-aurora.light-text {
   --text: #001f37;
+  --calc-text: #001f37;
+  --calc-muted: #274c6b;
+  --calc-side-icon: #001f37;
+  --calc-side-icon-hover: #001f37;
+  --picker-modal-text: #001f37;
   --muted: #274c6b;
 }
 
-.frosted-aurora.dark-text {
+.frosted-aurora.dark-text body,
+.app-shell.frosted-aurora.dark-text {
   --text: floralwhite;
+  --calc-text: floralwhite;
+  --calc-muted: floralwhite;
+  --calc-side-icon: floralwhite;
+  --calc-side-icon-hover: floralwhite;
+  --picker-modal-text: floralwhite;
   --muted: floralwhite;
-  background:
-    linear-gradient(135deg, rgba(9, 17, 31, 0.34), rgba(11, 17, 32, 0.52)),
-    var(--background-wallpaper-image);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
 }
 
-.frosted-aurora.dark-text .hamburger-button span {
+.frosted-aurora.dark-text .hamburger-button span,
+.frosted-aurora .dark-text .hamburger-button span {
   background-color: floralwhite;
 }
 
@@ -422,7 +446,8 @@ body.frosted-aurora,
   background-color: white;
 }
 
-.frosted-aurora.light-text .hamburger-button span {
+.frosted-aurora.light-text .hamburger-button span,
+.frosted-aurora .light-text .hamburger-button span {
   background-color: #001f37;
 }
 
@@ -497,6 +522,7 @@ body.frosted-aurora,
 .frosted-aurora .toolbar,
 .frosted-aurora .sidebar {
   background: transparent;
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
 }
 
@@ -508,19 +534,25 @@ body.frosted-aurora,
   border-right-color: rgba(255, 255, 255, 0.18);
 }
 
-.frosted-aurora.light-text .sidebar-button:hover {
+.frosted-aurora.light-text .sidebar-button:hover,
+.frosted-aurora .light-text .sidebar-button:hover {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
   background: rgba(0, 0, 0, 0.13);
 }
 
-.frosted-aurora.dark-text .sidebar-button:hover {
+.frosted-aurora.dark-text .sidebar-button:hover,
+.frosted-aurora .dark-text .sidebar-button:hover {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   backdrop-filter: blur(20px) saturate(160%);
   background: rgba(255, 255, 255, 0.09);
 }
 
 .frosted-aurora .partition {
+  background: transparent;
+}
+
+.frosted-aurora .layout {
   background: transparent;
 }
 
@@ -736,15 +768,15 @@ body.frosted-aurora,
   backdrop-filter: blur(20px) saturate(160%);
 }
 
-.frosted-aurora.light-text :is(input[type='number'], input[type='text'], textarea, select, .ui-pill-button, .chip, .danger-btn, .toggle-row, .toolbar-tab, .toolbar-tab-icon) {
+.frosted-aurora .light-text :is(input[type='number'], input[type='text'], textarea, select, .ui-pill-button, .chip, .danger-btn, .toggle-row, .toolbar-tab, .toolbar-tab-icon, .stack label:not(.team-state-target, .state-control-label)) {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(245, 248, 255, 0.29));
   border-color: rgba(255, 255, 255, 0.11);
   color: #001f37;
   backdrop-filter: blur(20px) saturate(160%);
 }
 
-.frosted-aurora.dark-text :is(input[type='number'], input[type='text'], textarea, select, .ui-pill-button, .chip, .danger-btn, .toggle-row, .toolbar-tab, .toolbar-tab-icon) {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.15), rgba(235, 245, 255, 0.31));
+.frosted-aurora .dark-text :is(input[type='number'], input[type='text'], textarea, select, .ui-pill-button, .chip, .danger-btn, .toggle-row, .toolbar-tab, .toolbar-tab-icon, .stack label:not(.team-state-target, .state-control-label)) {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.15), rgba(235, 245, 255, 0.31)) !important;
   border-color: rgba(255, 255, 255, 0.11);
   color: floralwhite;
   backdrop-filter: blur(20px) saturate(160%);
@@ -1235,15 +1267,24 @@ body.frosted-aurora,
   border-color: rgba(255, 64, 129, 0.5);
 }
 
-.frosted-aurora .app-modal-panel {
-  background: transparent;
+.frosted-aurora .app-modal-panel,
+.frosted-aurora .echo-edit-panel {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.4)) 24%, rgba(255, 255, 255, 0.28)),
+    rgba(235, 245, 255, 0.24)
+  );
   border-color: rgba(255, 255, 255, 0.34);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(20px) saturate(160%);
 }
 
 .frosted-aurora .skills-modal-content-area {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.3), rgba(235, 245, 255, 0.24));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.42)) 22%, rgba(255, 255, 255, 0.3)),
+    rgba(235, 245, 255, 0.24)
+  );
   color: #002244;
   backdrop-filter: blur(20px) saturate(160%);
 }
@@ -1359,14 +1400,16 @@ body.frosted-aurora,
   -webkit-text-fill-color: transparent;
 }
 
-.frosted-aurora.light-text :is(.highlight, .echo-slot-title, .echo-name) {
+.frosted-aurora.light-text :is(.highlight, .echo-slot-title, .echo-name),
+.frosted-aurora .light-text :is(.highlight, .echo-slot-title, .echo-name) {
   color: white !important;
   text-shadow:
     0 0 1px rgb(0, 0, 0),
     0 0 2px rgb(0, 0, 0) !important;
 }
 
-.frosted-aurora.dark-text :is(.highlight, .echo-slot-title, .echo-name) {
+.frosted-aurora.dark-text :is(.highlight, .echo-slot-title, .echo-name),
+.frosted-aurora .dark-text :is(.highlight, .echo-slot-title, .echo-name) {
   color: rgba(255, 176, 75, 0.89) !important;
   text-shadow:
     0 0 6px rgba(0, 0, 0, 0.41),
@@ -1395,21 +1438,110 @@ body.frosted-aurora,
 .blur-off.frosted-aurora input[type='number'],
 .blur-off.frosted-aurora input[type='text'],
 .blur-off.frosted-aurora select {
+  /*
   border: 1px solid floralwhite;
+  */
 }
 
 .blur-off.frosted-aurora .resonator-settings,
 .blur-off.frosted-aurora .skills-settings,
 .blur-off.frosted-aurora .inherent-skills-box,
-.blur-off.frosted-aurora .app-modal-panel,
-.blur-off.frosted-aurora .damage-inner-box {
-  background-color: rgba(255, 255, 255, 0.09);
-}
-
-.blur-off.frosted-aurora .toolbar {
-  border-bottom: 1px solid white;
-}
-
+.blur-off.frosted-aurora .ui-surface-card,
+.blur-off.frosted-aurora .damage-inner-box,
+.blur-off.frosted-aurora .echo-slot,
+.blur-off.frosted-aurora .echo-set-bonus,
+.blur-off.frosted-aurora .echo-totals,
+.blur-off.frosted-aurora .hero-badge,
+.blur-off.frosted-aurora .ui-pill-button,
+.blur-off.frosted-aurora .hero-chip,
+.blur-off.frosted-aurora .resonator-heading-icons,
+.blur-off.frosted-aurora .resonator-flow-header,
+.blur-off.frosted-aurora .pane-section:not(.suggestions-controls),
+.blur-off.frosted-aurora .rotation-item,
+.blur-off.frosted-aurora .rotation-saved-item,
+.blur-off.frosted-aurora .page-tile,
+.blur-off.frosted-aurora .overview-mosaic,
+.blur-off.frosted-aurora .overview-cell--echoes,
+.blur-off.frosted-aurora .overview-stats-tree,
+.blur-off.frosted-aurora .overview-resonator-pill,
+.blur-off.frosted-aurora .main-stat-card,
+.blur-off.frosted-aurora .set-plan-card,
+.blur-off.frosted-aurora .echo-slot-detail-panel,
+.blur-off.frosted-aurora .stat-row:nth-child(odd),
+.blur-off.frosted-aurora .sequence-card-badge,
+.blur-off.frosted-aurora .sequence-card-status,
+.blur-off.frosted-aurora .team-member-config-modal__state-row,
+.blur-off.frosted-aurora .team-member-config-modal__summary-pill,
+.blur-off.frosted-aurora .toolbar,
 .blur-off.frosted-aurora .sidebar {
-  border-right: 1px solid white;
+  background-color: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 55%, rgba(255, 255, 255, 0.09)) !important;
+}
+
+.blur-off.frosted-aurora .toolbar-group::before {
+  background: none;
+}
+
+.blur-off.frosted-aurora .optimizer-character-settings,
+.blur-off.frosted-aurora .optimizer-search-results,
+.blur-off.frosted-aurora .sticky-controls {
+  background: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 55%, rgba(255, 255, 255, 0.09)) !important;
+}
+
+.blur-off.frosted-aurora .stat-row:nth-child(even) {
+  background-color: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 40%, rgba(255, 255, 255, 0.09)) !important;
+}
+
+.blur-off.frosted-aurora .overview-cell:not(.overview-cell--echoes, .overview-cell--portrait, .overview-cell--rotation) {
+  background: color-mix(in srgb, var(--calc-header-icon-bg) 18%, var(--calc-item-bg));
+}
+
+.blur-off.dark-text .settings-action-btn,
+.blur-off.dark-text .settings-font-preview-copy,
+.blur-off.frosted-aurora .view-toggle-button:not(.active) {
+  color: #001f37;
+}
+
+.blur-off.dark-text button,
+.blur-off.dark-text .liquid-select__option {
+  color: floralwhite;
+}
+
+.blur-off.frosted-aurora .skills-modal-content-area,
+.blur-off.frosted-aurora .picker-modal__panel,
+.blur-off.frosted-aurora .toast-item,
+.blur-off.frosted-aurora .char-menu-panel,
+.blur-off.frosted-aurora .skill-menu-panel,
+.blur-off.frosted-aurora .app-modal-panel,
+.blur-off.frosted-aurora .echo-edit-panel,
+.blur-off.frosted-aurora .liquid-select__menu,
+.blur-off.frosted-aurora .co-skill-select__menu,
+.blur-off.frosted-aurora .opt-results-header,
+.blur-off.frosted-aurora .opt-pagination,
+.blur-off.frosted-aurora .suggestions-controls,
+.blur-off.frosted-aurora .resonator-queue-bubble {
+  background: var(--bg-main-color, rgba(255, 255, 255, 0.14));
+  backdrop-filter: none;
+}
+
+@keyframes frosted-aurora-drift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes frosted-aurora-sparkle {
+  0% {
+    transform: translateY(0);
+    opacity: 0.02;
+  }
+
+  50% {
+    transform: translateY(-20px);
+    opacity: 0.03;
+  }
+
+  100% {
+    transform: translateY(0);
+    opacity: 0.02;
+  }
 }

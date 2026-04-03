@@ -12,7 +12,6 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
-  min-width: 0;
   padding: 0.75rem;
   overflow: hidden;
   background:
@@ -56,7 +55,6 @@
 }
 
 .team-slot-copy {
-  min-width: 0;
   display: grid;
   gap: 0.16rem;
 }
@@ -66,7 +64,6 @@
   align-items: center;
   justify-content: flex-start;
   gap: 0.45rem;
-  min-width: 0;
 }
 
 .team-slot-label {
@@ -78,7 +75,6 @@
 }
 
 .team-slot-name {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -139,7 +135,6 @@
   --ui-surface-bg: var(--calc-item-bg);
   display: grid;
   gap: 0;
-  min-width: 0;
   overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: 260px;
@@ -159,7 +154,6 @@
 }
 
 .team-state-expandable-trigger {
-  min-width: 0;
   border-radius: 0.95rem;
 }
 
@@ -169,14 +163,12 @@
 }
 
 .team-state-expandable {
-  min-width: 0;
 }
 
 .team-state-source {
   display: flex;
   align-items: center;
   gap: 0.72rem;
-  min-width: 0;
 }
 
 .team-state-source-frame {
@@ -201,7 +193,6 @@
 .team-state-source-copy {
   display: grid;
   gap: 0.15rem;
-  min-width: 0;
 }
 
 .team-state-source-copy span {
@@ -213,7 +204,6 @@
 }
 
 .team-state-source-copy strong {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -448,7 +438,6 @@
 }
 
 .team-member-config-modal__hero-main {
-  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.9rem;
@@ -456,7 +445,6 @@
 }
 
 .team-member-config-modal__hero-id {
-  min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 1rem;
@@ -466,7 +454,6 @@
 .team-member-config-modal__heading {
   display: grid;
   gap: 0.55rem;
-  min-width: 0;
 }
 
 .team-member-config-modal__eyebrow {
@@ -501,7 +488,6 @@
 .team-member-config-modal__copy {
   display: grid;
   gap: 0.18rem;
-  min-width: 0;
 }
 
 .team-member-config-modal__title {
@@ -555,7 +541,6 @@
 
 .team-member-config-modal__summary-value {
   display: block;
-  min-width: 0;
   font-size: 0.88rem;
   font-weight: 700;
   line-height: 1.2;
@@ -565,7 +550,6 @@
 }
 
 .team-member-config-modal__workspace {
-  min-height: 0;
   display: grid;
   grid-template-columns: minmax(20rem, 40%) minmax(0, 1fr);
   gap: 0.9rem;
@@ -573,7 +557,6 @@
 }
 
 .team-member-config-modal__rail {
-  min-height: 0;
   overflow-y: auto;
   display: grid;
   align-content: start;
@@ -581,7 +564,6 @@
 }
 
 .team-member-config-modal__content {
-  min-height: 0;
   gap: 0.75rem;
   align-content: flex-start;
   overflow: auto;
@@ -592,7 +574,6 @@
   display: grid;
   padding: 0.75rem;
   gap: 0.72rem;
-  min-width: 0;
 }
 
 .team-member-config-modal__section--config {
@@ -610,16 +591,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
-  min-width: 0;
   padding: 0.5rem 0.75rem 0 0.75rem;
-  background: linear-gradient(180deg, var(--calc-box-bg) 50%, transparent);
 }
 
 .team-member-config-modal__section-title {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  min-width: 0;
 }
 
 .team-member-config-modal__section-icon {
@@ -637,7 +615,6 @@
 .team-member-config-modal__section-copy {
   display: grid;
   gap: 0.14rem;
-  min-width: 0;
 }
 
 .team-member-config-modal__section-copy h3 {
@@ -735,7 +712,6 @@
 }
 
 .team-member-config-modal__state-gallery {
-  min-height: 0;
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
@@ -750,7 +726,6 @@
 }
 
 .team-member-config-modal__state-row {
-  min-width: 0;
   height: fit-content;
   border-radius: 1rem 1.18rem 0.96rem 1.1rem;
   background:
@@ -767,13 +742,11 @@
 }
 
 .team-member-config-modal__state-row .toggle-row {
-  min-width: 0;
 }
 
 .team-member-config-modal__state-row .stack,
 .team-member-config-modal__state-row label,
 .team-member-config-modal__state-row .rich-description {
-  min-width: 0;
 }
 
 .team-member-config-modal__weapon-desc {
@@ -799,17 +772,7 @@
 }
 
 .team-state-config .state-control-field {
-  padding: 0.5rem;
   font-size: 0.8rem;
-}
-
-.teams.pane-section {
-  /*
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  backdrop-filter: blur(10px);
-  */
 }
 
 @media (max-width: 1180px) {
@@ -842,7 +805,7 @@
 
 @media (max-width: 960px) {
   .team-member-config-modal {
-    max-height: min(92vh, 62rem);
+    max-height: min(82vh, 62rem);
   }
 
   .team-member-config-modal__workspace {
@@ -889,7 +852,6 @@
   }
 
   .team-member-config-modal__summary-pill {
-    min-width: 0;
   }
 
   .team-member-config-modal__stats-grid,

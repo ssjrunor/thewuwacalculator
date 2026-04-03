@@ -106,7 +106,7 @@ export function Expandable({
             style={mergedTriggerStyle}
           >
             {noHeaderWrapper ? renderedHeader : (
-              <div style={ignoreDefaultTriggerStyle ? undefined : { minWidth: 0 }}>{renderedHeader}</div>
+              <div>{renderedHeader}</div>
             )}
             {!hideChevron && (
               <span aria-hidden="true" className={chevronContainerClassName}>

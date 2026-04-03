@@ -48,6 +48,14 @@
   margin-bottom: 0.5rem;
 }
 
+.frosted-aurora .page-tile {
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+
 .settings-swatch-label {
   font-family: 'DM Mono', monospace;
   font-size: 0.66rem;
@@ -59,70 +67,8 @@
 
 .settings-swatch-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr));
-  gap: 0.65rem;
-}
-
-.settings-swatch {
-  aspect-ratio: 1 / 1;
-  border-radius: 0.7rem;
-  border: 2.5px solid transparent;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  overflow: hidden;
-}
-
-.settings-swatch--plain {
-  background: var(--preview-value, #fff);
-}
-
-.settings-swatch--gradient {
-  background: var(--preview-value);
-}
-
-.settings-swatch:hover {
-  transform: scale(1.08) translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-}
-
-.settings-swatch--active {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 4px 16px rgba(0, 0, 0, 0.15);
-  transform: scale(1.04);
-}
-
-.settings-swatch--active::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle at center,
-    color-mix(in srgb, var(--accent) 15%, transparent),
-    transparent 70%
-  );
-}
-
-.settings-swatch:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.settings-swatch-name {
-  font-size: 0.68rem;
-  color: var(--muted);
-  text-align: center;
-  margin-top: 0.3rem;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+  gap: 0.5rem;
 }
 
 /* ── Custom toggle switch ── */
@@ -408,20 +354,21 @@
 
 .settings-background-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.2rem, 1fr));
-  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fill, minmax(4.8rem, 1fr));
+  gap: 0.45rem;
 }
 
 .settings-background-card {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.35rem;
-  border-radius: 0.75rem;
+  gap: 0.2rem;
+  padding: 0.18rem;
+  border-radius: 0.56rem;
   border: 1px solid var(--panel-border);
   background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   color: inherit;
   text-align: left;
+  box-shadow: none;
 }
 
 .settings-background-card:hover {
@@ -429,24 +376,70 @@
   transform: translateY(-1px);
 }
 
-.settings-background-card--active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+.settings-background-card--theme {
+  gap: 0.28rem;
 }
 
+.settings-background-card--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.settings-background-card-preview,
 .settings-background-card-image {
   width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 0.55rem;
-  object-fit: cover;
+  aspect-ratio: 16 / 11;
+  border-radius: 0.42rem;
   display: block;
 }
 
+.settings-background-card-preview {
+  position: relative;
+  overflow: hidden;
+  background: var(--background-preview, linear-gradient(135deg, #6b7cff 0%, #9ad7cf 100%));
+}
+
+.settings-background-card {
+  width: 5.084375rem
+}
+
+.settings-background-card-preview::before,
+.settings-background-card-preview::after {
+  content: '';
+  position: absolute;
+  inset: auto;
+  border-radius: 999px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.settings-background-card-preview::before {
+  width: 70%;
+  height: 120%;
+  right: -18%;
+  bottom: -36%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.32), transparent);
+  transform: rotate(18deg);
+}
+
+.settings-background-card-preview::after {
+  width: 48%;
+  height: 82%;
+  left: -8%;
+  top: -24%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.32), transparent 72%);
+}
+
+.settings-background-card-image {
+  object-fit: cover;
+}
+
 .settings-background-card-label {
-  font-size: 0.68rem;
+  font-size: 0.56rem;
   font-weight: 700;
   color: var(--text);
   text-transform: capitalize;
+  letter-spacing: 0.01em;
 }
 
 .settings-font-input {

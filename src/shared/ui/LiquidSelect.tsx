@@ -96,6 +96,14 @@ export function LiquidSelect<T extends LiquidSelectValue>({
     return ui.theme === 'dark' ? ui.darkVariant : ui.lightVariant
   }, [ui.backgroundVariant, ui.darkVariant, ui.lightVariant, ui.theme])
 
+  const activeTextModeClass = useMemo(() => {
+    if (ui.theme === 'background') {
+      return `${ui.backgroundTextMode}-text`
+    }
+
+    return ui.theme === 'dark' ? 'dark-text' : 'light-text'
+  }, [ui.backgroundTextMode, ui.theme])
+
 
   const [menuLayout, setMenuLayout] = useState<MenuLayout>({
     left: 0,
@@ -362,7 +370,7 @@ export function LiquidSelect<T extends LiquidSelectValue>({
           <div
             ref={menuRef}
             id={listboxId}
-            className={`${b} ${b}__menu ${b}__menu--${placement} app-shell ${activeVariant}`}
+            className={`${b} ${b}__menu ${b}__menu--${placement} ${activeVariant} ${activeTextModeClass}${ui.blurMode === 'off' ? ' blur-off' : ''}`}
             role="listbox"
             aria-activedescendant={resolvedOptions[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
             tabIndex={-1}
