@@ -50,9 +50,8 @@ import {
   resetOptimizerWorkerPool,
   runOptimizerWithWorkerPool,
 } from '@/engine/optimizer/workers/pool'
-import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
-import { materializeOptimizerResults } from '@/engine/optimizer/results/materialize.ts'
 import { deriveInitialOptimizerSettings } from '@/engine/optimizer/config/defaultSettings.ts'
+import type { OptimizerCompileOutMessage } from '@/engine/optimizer/compiler/compileWorker.types.ts'
 import {
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
@@ -352,6 +351,140 @@ function getOptimizerContextFromLiveRuntime(
 
 // optimizer worker lifecycle state
 let optimizerRunToken = 0
+let optimizerCompileWorker: Worker | null = null
+
+// create or reuse the compile worker
+function ensureOptimizerCompileWorker(): Worker {
+  if (optimizerCompileWorker) {
+    return optimizerCompileWorker
+  }
+
+  optimizerCompileWorker = new Worker(
+      new URL('@/engine/optimizer/workers/compile.worker.ts', import.meta.url),
+      { type: 'module' },
+  )
+  return optimizerCompileWorker
+}
+
+// fully stop the compile worker
+function stopOptimizerCompileWorker(): void {
+  optimizerCompileWorker?.terminate()
+  optimizerCompileWorker = null
+}
+
+// collect transferable buffers from a prepared optimizer payload
+function collectPreparedPayloadTransferables(payload: PreparedOptimizerPayload): Transferable[] {
+  const maybePush = (items: Transferable[], buffer: ArrayBufferLike) => {
+    if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
+      return
+    }
+    items.push(buffer)
+  }
+
+  const out: Transferable[] = []
+  maybePush(out, payload.constraints.buffer)
+  maybePush(out, payload.costs.buffer)
+  maybePush(out, payload.sets.buffer)
+  maybePush(out, payload.kinds.buffer)
+  maybePush(out, payload.comboIndexMap.buffer)
+  maybePush(out, payload.comboBinom.buffer)
+  maybePush(out, payload.lockedMainCandidateIndices.buffer)
+
+  if (payload.mode === 'rotation') {
+    maybePush(out, payload.contexts.buffer)
+    maybePush(out, payload.contextWeights.buffer)
+    maybePush(out, payload.displayContext.buffer)
+    maybePush(out, payload.stats.buffer)
+    maybePush(out, payload.setConstLut.buffer)
+    maybePush(out, payload.mainEchoBuffs.buffer)
+    return out
+  }
+
+  maybePush(out, payload.stats.buffer)
+  maybePush(out, payload.setConstLut.buffer)
+  maybePush(out, payload.mainEchoBuffs.buffer)
+  return out
+}
+
+// wait for a specific compile worker response type
+async function waitForCompileWorkerMessage<T extends OptimizerCompileOutMessage['type']>(
+    worker: Worker,
+    runId: number,
+    expectedType: T,
+    dispatch: () => void,
+): Promise<Extract<OptimizerCompileOutMessage, { type: T }>> {
+  return await new Promise((resolve, reject) => {
+    const handleMessage = (event: MessageEvent<OptimizerCompileOutMessage>) => {
+      const message = event.data
+      if (message.runId !== runId) {
+        return
+      }
+
+      worker.removeEventListener('message', handleMessage)
+      worker.removeEventListener('error', handleError)
+
+      if (message.type === 'error') {
+        reject(new Error(message.message))
+        return
+      }
+
+      if (message.type !== expectedType) {
+        reject(new Error(`Unexpected optimizer compile worker response: ${message.type}`))
+        return
+      }
+
+      resolve(message as Extract<OptimizerCompileOutMessage, { type: T }>)
+    }
+
+    const handleError = (event: ErrorEvent) => {
+      worker.removeEventListener('message', handleMessage)
+      worker.removeEventListener('error', handleError)
+      reject(new Error(event.message || 'Optimizer compile worker failed unexpectedly'))
+    }
+
+    worker.addEventListener('message', handleMessage)
+    worker.addEventListener('error', handleError)
+    dispatch()
+  })
+}
+
+// compile the optimizer payload in the worker
+async function compileOptimizerPayloadInWorker(
+    worker: Worker,
+    runId: number,
+    input: OptimizerStartPayload,
+): Promise<PreparedOptimizerPayload> {
+  const message = await waitForCompileWorkerMessage(worker, runId, 'done', () => {
+    worker.postMessage({
+      type: 'start',
+      runId,
+      payload: input,
+    })
+  })
+  return message.payload
+}
+
+// materialize optimizer result refs into full result entries
+async function materializeOptimizerResultsInWorker(
+    worker: Worker,
+    runId: number,
+    payload: PreparedOptimizerPayload,
+    results: OptimizerBagResultRef[],
+    uidByIndex: string[],
+    limit: number,
+): Promise<OptimizerResultEntry[]> {
+  const message = await waitForCompileWorkerMessage(worker, runId, 'materialized', () => {
+    worker.postMessage({
+      type: 'materialize',
+      runId,
+      payload,
+      results,
+      uidByIndex,
+      limit,
+    }, collectPreparedPayloadTransferables(payload))
+  })
+  return message.results
+}
 
 // infer the batch size before execution starts
 function inferOptimizerBatchSizeFromInput(input: OptimizerStartPayload): number | null {
@@ -426,6 +559,7 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   resetState: () => {
+    stopOptimizerCompileWorker()
     cancelActiveOptimizerWorkerPoolRun()
     set(() => ({
       ...createDefaultAppState(),
@@ -1368,6 +1502,7 @@ export const useAppStore = create<AppStore>((set, get) => {
       current.cancelOptimizer()
     }
 
+    stopOptimizerCompileWorker()
     resetOptimizerWorkerPool()
     const runToken = ++optimizerRunToken
 
@@ -1384,9 +1519,11 @@ export const useAppStore = create<AppStore>((set, get) => {
       },
     }))
 
+    const compileWorker = ensureOptimizerCompileWorker()
+
     void (async () => {
       try {
-        const compiledPayload = compileOptimizerPayload(input)
+        const compiledPayload = await compileOptimizerPayloadInWorker(compileWorker, runToken, input)
         if (optimizerRunToken !== runToken) {
           return
         }
@@ -1419,10 +1556,14 @@ export const useAppStore = create<AppStore>((set, get) => {
           return
         }
 
-        const finalizedResults = materializeOptimizerResults(input.inventoryEchoes, results, {
-          payload: compiledPayload,
-          limit: compiledPayload.resultsLimit,
-        })
+        const finalizedResults = await materializeOptimizerResultsInWorker(
+            compileWorker,
+            runToken,
+            compiledPayload,
+            results,
+            input.inventoryEchoes.map((echo) => echo.uid),
+            compiledPayload.resultsLimit,
+        )
 
         if (optimizerRunToken !== runToken) {
           return
@@ -1441,7 +1582,15 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         }))
 
+        if (optimizerCompileWorker === compileWorker) {
+          stopOptimizerCompileWorker()
+        }
+
       } catch (error) {
+        if (optimizerCompileWorker === compileWorker) {
+          stopOptimizerCompileWorker()
+        }
+
         if (optimizerRunToken !== runToken) {
           return
         }
@@ -1464,6 +1613,7 @@ export const useAppStore = create<AppStore>((set, get) => {
 
   cancelOptimizer: () => {
     optimizerRunToken += 1
+    stopOptimizerCompileWorker()
     cancelActiveOptimizerWorkerPoolRun()
 
     set((state) => ({
@@ -1481,6 +1631,7 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   clearOptimizerResults: () => {
+    stopOptimizerCompileWorker()
     set((state) => ({
       ...state,
       optimizer: {
