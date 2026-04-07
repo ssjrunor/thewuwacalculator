@@ -21,6 +21,11 @@ import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
 let gameDataRegistryCache: GameDataRegistry | null = null
 let gameDataInitializationPromise: Promise<void> | null = null
 
+export function hydrateGameDataRegistry(registry: GameDataRegistry): void {
+  gameDataRegistryCache = registry
+  gameDataInitializationPromise = Promise.resolve()
+}
+
 function normalizePublicAssetPath(path: string): string {
   return path.startsWith('/public/') ? path.slice('/public'.length) : path
 }

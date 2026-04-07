@@ -6,6 +6,12 @@ import type { EchoInstance } from '@/domain/entities/runtime'
 import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
 import type { LiquidSelectOption, LiquidSelectOptionGroup } from '@/shared/ui/LiquidSelect'
 import { getSonataSetIcon, getSonataSetName } from '@/data/gameData/catalog/sonataSets'
+import { getEchoCatalogById } from '@/data/gameData/catalog/echoes'
+import { getGameData } from '@/data/gameData'
+import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
+import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
+import { getResonatorCatalogById } from '@/data/gameData/resonators/resonatorDataStore'
+import { getWeaponsById } from '@/data/gameData/weapons/weaponDataStore'
 import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
 import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
@@ -760,6 +766,14 @@ export function CalculatorOptimizerStage() {
     return compileOptimizerPayload({
       resonatorId: optimizerResonatorId,
       resonatorSeed: seedResonatorsById[optimizerResonatorId],
+      staticData: {
+        gameDataRegistry: getGameData(),
+        resonatorCatalogById: getResonatorCatalogById(),
+        resonatorDetailsById: getResonatorDetailsById(),
+        weaponsById: getWeaponsById(),
+        echoCatalogById: getEchoCatalogById(),
+        echoSetDefs: ECHO_SET_DEFS,
+      },
       runtime: optimizerRuntime,
       settings: optimizerSettings,
       inventoryEchoes: equippedEchoes,
@@ -1057,6 +1071,14 @@ export function CalculatorOptimizerStage() {
     startOptimizer({
       resonatorId: optimizerContext.resonatorId,
       resonatorSeed: seedResonatorsById[optimizerContext.resonatorId],
+      staticData: {
+        gameDataRegistry: getGameData(),
+        resonatorCatalogById: getResonatorCatalogById(),
+        resonatorDetailsById: getResonatorDetailsById(),
+        weaponsById: getWeaponsById(),
+        echoCatalogById: getEchoCatalogById(),
+        echoSetDefs: ECHO_SET_DEFS,
+      },
       runtime: optimizerContext.runtime,
       settings: optimizerContext.settings,
       inventoryEchoes: filteredInventoryEchoEntries.map((entry) => entry.echo),

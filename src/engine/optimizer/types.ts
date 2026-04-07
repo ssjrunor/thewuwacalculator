@@ -6,11 +6,16 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
+import type { EchoDefinition } from '@/domain/entities/catalog'
+import type { GameDataRegistry } from '@/domain/gameData/contracts'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import type { OptimizerSettings } from '@/domain/entities/optimizer'
+import type { ResonatorDetails } from '@/domain/entities/resonator'
 import type { EchoInstance, ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
 import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { SkillDefinition } from '@/domain/entities/stats'
+import type { GeneratedWeapon } from '@/domain/entities/weapon'
+import type { SetDef } from '@/data/gameData/echoSets/effects'
 
 // lifecycle states for an optimizer run
 export type OptimizerStatus = 'idle' | 'running' | 'done' | 'error' | 'cancelled'
@@ -83,6 +88,14 @@ export interface PreparedOptimizerSharedPayload {
 export interface OptimizerStartPayload {
   resonatorId: string
   resonatorSeed?: ResonatorSeed
+  staticData?: {
+    gameDataRegistry: GameDataRegistry
+    resonatorCatalogById: Record<string, ResonatorSeed>
+    resonatorDetailsById: Record<string, ResonatorDetails>
+    weaponsById: Record<string, GeneratedWeapon>
+    echoCatalogById: Record<string, EchoDefinition>
+    echoSetDefs: SetDef[]
+  }
   runtime: ResonatorRuntimeState
   settings: OptimizerSettings
   inventoryEchoes: EchoInstance[]

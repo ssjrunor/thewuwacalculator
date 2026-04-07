@@ -8,8 +8,14 @@
 
 /// <reference lib="webworker" />
 
-import { initializeGameData } from '@/data/gameData'
+import { hydrateGameDataRegistry, initializeGameData } from '@/data/gameData'
+import { initEchoCatalog } from '@/data/gameData/catalog/echoes.ts'
+import { initResonatorCatalog } from '@/data/gameData/resonators/resonatorDataStore.ts'
+import { initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore.ts'
+import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore.ts'
+import { initEchoSetDefinitions } from '@/data/gameData/echoSets/effects.ts'
 import type {
+  OptimizerStartPayload,
   PreparedOptimizerPayload,
   PreparedRotationRun,
   PreparedTargetSkillRun,
@@ -38,6 +44,17 @@ async function loadOptimizerCompileModules() {
   }
 
   return optimizerCompileModulesPromise
+}
+
+function hydrateOptimizerStaticData(
+    snapshot: NonNullable<OptimizerStartPayload['staticData']>,
+): void {
+  hydrateGameDataRegistry(snapshot.gameDataRegistry)
+  initResonatorCatalog(Object.values(snapshot.resonatorCatalogById))
+  initResonatorDetails(snapshot.resonatorDetailsById)
+  initWeaponData(Object.values(snapshot.weaponsById))
+  initEchoCatalog(Object.values(snapshot.echoCatalogById))
+  initEchoSetDefinitions(snapshot.echoSetDefs)
 }
 
 // typed-array families we may clone into SharedArrayBuffer-backed views
@@ -198,7 +215,11 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
 
   try {
     if (message.type === 'start') {
-      await initializeGameData()
+      if (message.payload.staticData) {
+        hydrateOptimizerStaticData(message.payload.staticData)
+      } else {
+        await initializeGameData()
+      }
       const { compileOptimizerPayload } = await loadOptimizerCompileModules()
 
       // compile the raw payload, then upgrade eligible buffers to shared memory
