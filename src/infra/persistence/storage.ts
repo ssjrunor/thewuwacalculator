@@ -427,7 +427,9 @@ function normalizePersistedAppStatePayload(parsed: unknown): PersistedAppState {
   throw new Error('Snapshot validation failed.')
 }
 
-function normalizePersistedAppState(state: PersistedAppState): PersistedAppState {
+function normalizePersistedAppState(
+  state: Omit<PersistedAppState, 'version'> & { version: number },
+): PersistedAppState {
   return initializePersistedAppState(state)
 }
 

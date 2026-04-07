@@ -208,9 +208,9 @@ describe('persistedAppStateSchema', () => {
       },
     }
 
-    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).glacioChafe
-    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).electroFlare
-    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).electroRage
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as unknown as Record<string, unknown>).glacioChafe
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as unknown as Record<string, unknown>).electroFlare
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as unknown as Record<string, unknown>).electroRage
 
     localStorage.setItem(APP_STORAGE_PROFILES_KEY, JSON.stringify(legacyProfilesSlice))
 

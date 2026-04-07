@@ -200,8 +200,12 @@ describe('game-data source of truth', () => {
     const deniaStates = listStatesForSource('resonator', '1211')
     const deniaEffects = listEffectsForSource('resonator', '1211')
     const deniaSkills = listSkillsForSource('resonator', '1211')
-    const deniaBaseRuntime = createDefaultResonatorRuntime('1211')
-    const deniaS3Runtime = createDefaultResonatorRuntime('1211')
+    const denia = getResonatorById('1211')
+    if (!denia) {
+      throw new Error('missing resonator 1211')
+    }
+    const deniaBaseRuntime = createDefaultResonatorRuntime(denia)
+    const deniaS3Runtime = createDefaultResonatorRuntime(denia)
     deniaS3Runtime.base.sequence = 3
 
     expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:fusion_burst_mode:active')?.label)
@@ -389,9 +393,9 @@ describe('game-data source of truth', () => {
     expect(buling.rotations[0]?.items).toHaveLength(10)
     expect(luuk.rotations[0]?.items).toHaveLength(13)
 
-    expect(hiyuki.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1108028')?.multiplier).toBe(3)
-    expect(denia.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1211401')?.multiplier).toBe(7)
-    expect(luuk.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1510:outro')?.multiplier).toBe(1)
+    expect(hiyuki.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1108028')?.multiplier).toBe(3)
+    expect(denia.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1211401')?.multiplier).toBe(7)
+    expect(luuk.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1510:outro')?.multiplier).toBe(1)
   })
 
 
