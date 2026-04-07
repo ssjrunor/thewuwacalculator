@@ -9,11 +9,10 @@
 /// <reference lib="webworker" />
 
 import { hydrateGameDataRegistry, initializeGameData } from '@/data/gameData'
-import { initEchoCatalog } from '@/data/gameData/catalog/echoes.ts'
-import { initResonatorCatalog } from '@/data/gameData/resonators/resonatorDataStore.ts'
-import { initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore.ts'
-import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore.ts'
-import { initEchoSetDefinitions } from '@/data/gameData/echoSets/effects.ts'
+import { initEchoCatalog } from '@/data/gameData/catalog/echoes'
+import { initResonatorCatalog, initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore'
+import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
+import { initEchoSetDefinitions } from '@/data/gameData/echoSets/effects'
 import type {
   OptimizerStartPayload,
   PreparedOptimizerPayload,

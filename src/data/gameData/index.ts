@@ -18,12 +18,36 @@ import { buildWeaponSources } from '@/data/gameData/weapons/effects'
 import { initResonatorCatalog, initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore'
 import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
 
-let gameDataRegistryCache: GameDataRegistry | null = null
-let gameDataInitializationPromise: Promise<void> | null = null
+const GAME_DATA_GLOBAL_STATE_KEY = '__wuwaGameDataState__'
+
+type GameDataGlobalState = {
+  registry: GameDataRegistry | null
+  initializationPromise: Promise<void> | null
+}
+
+function getGameDataGlobalState(): GameDataGlobalState {
+  const scope = globalThis as typeof globalThis & {
+    [GAME_DATA_GLOBAL_STATE_KEY]?: GameDataGlobalState
+  }
+
+  const existing = scope[GAME_DATA_GLOBAL_STATE_KEY]
+  if (existing) {
+    return existing
+  }
+
+  const created: GameDataGlobalState = {
+    registry: null,
+    initializationPromise: null,
+  }
+
+  scope[GAME_DATA_GLOBAL_STATE_KEY] = created
+  return created
+}
 
 export function hydrateGameDataRegistry(registry: GameDataRegistry): void {
-  gameDataRegistryCache = registry
-  gameDataInitializationPromise = Promise.resolve()
+  const state = getGameDataGlobalState()
+  state.registry = registry
+  state.initializationPromise = Promise.resolve()
 }
 
 function normalizePublicAssetPath(path: string): string {
@@ -39,12 +63,14 @@ function normalizeEchoCatalog(catalog: EchoDefinition[]): EchoDefinition[] {
 
 // load and cache all game data, then build the registry
 export async function initializeGameData(): Promise<void> {
-  if (gameDataRegistryCache) {
+  const state = getGameDataGlobalState()
+
+  if (state.registry) {
     return
   }
 
-  if (!gameDataInitializationPromise) {
-    gameDataInitializationPromise = (async () => {
+  if (!state.initializationPromise) {
+    state.initializationPromise = (async () => {
       const [
         resonatorSources,
         echoSources,
@@ -83,20 +109,23 @@ export async function initializeGameData(): Promise<void> {
         ...sonataSetSources,
       ]
 
-      gameDataRegistryCache = buildGameDataRegistry(allSources)
+      getGameDataGlobalState().registry = buildGameDataRegistry(allSources)
     })().catch((error) => {
-      gameDataInitializationPromise = null
+      const nextState = getGameDataGlobalState()
+      nextState.initializationPromise = null
       throw error
     })
   }
 
-  await gameDataInitializationPromise
+  await state.initializationPromise
 }
 
 // get the global game-data registry (must call initializeGameData first)
 export function getGameData(): GameDataRegistry {
-  if (!gameDataRegistryCache) {
+  const state = getGameDataGlobalState()
+  if (!state.registry) {
     throw new Error('Game data not initialized — call initializeGameData() first')
   }
-  return gameDataRegistryCache
+
+  return state.registry
 }

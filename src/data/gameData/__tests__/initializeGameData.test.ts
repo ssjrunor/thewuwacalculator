@@ -21,6 +21,9 @@ function resolveRequestUrl(input: RequestInfo | URL): string {
 describe('initializeGameData', () => {
   it('dedupes concurrent initialization work', async () => {
     vi.resetModules()
+    delete (globalThis as typeof globalThis & {
+      __wuwaGameDataState__?: unknown
+    }).__wuwaGameDataState__
     const previousFetch = globalThis.fetch
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -64,6 +67,9 @@ describe('initializeGameData', () => {
       expect(() => getGameData()).not.toThrow()
     } finally {
       globalThis.fetch = previousFetch
+      delete (globalThis as typeof globalThis & {
+        __wuwaGameDataState__?: unknown
+      }).__wuwaGameDataState__
       vi.resetModules()
     }
   })

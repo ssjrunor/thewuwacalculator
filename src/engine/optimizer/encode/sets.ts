@@ -5,7 +5,7 @@
                optimizer evaluation.
 */
 
-import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
+import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
 import {
   getCompactSonataSetPart,
   isCompactSonataSetConditionals,
