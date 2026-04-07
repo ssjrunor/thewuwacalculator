@@ -7,6 +7,7 @@ const OPTIMIZER_DAMAGE_ARCHETYPES = new Set<SkillArchetype>([
   'spectroFrazzle',
   'aeroErosion',
   'fusionBurst',
+  'glacioChafe',
 ])
 
 export function isOptimizerDamageSkill(

@@ -1495,14 +1495,14 @@ html.frosted-aurora {
   background: color-mix(in srgb, var(--calc-header-icon-bg) 18%, var(--calc-item-bg));
 }
 
-.blur-off.dark-text .settings-action-btn,
-.blur-off.dark-text .settings-font-preview-copy,
+.blur-off.dark-text.frosted-aurora .settings-action-btn,
+.blur-off.dark-text.frosted-aurora .settings-font-preview-copy,
 .blur-off.frosted-aurora .view-toggle-button:not(.active) {
   color: #001f37;
 }
 
-.blur-off.dark-text button,
-.blur-off.dark-text .liquid-select__option {
+.blur-off.dark-text.frosted-aurora button,
+.blur-off.dark-text.frosted-aurora .liquid-select__option {
   color: floralwhite;
 }
 

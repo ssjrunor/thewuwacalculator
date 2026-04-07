@@ -26,5 +26,7 @@
   { "id": 26, "name": "Rite of Gilded Revelation", "icon": "/assets/sonata-icons/riteOfGildedRevelation.webp" },
   { "id": 27, "name": "Trailblazing Star", "icon": "/assets/sonata-icons/trailblazingStar.webp" },
   { "id": 28, "name": "Chromatic Foam", "icon": "/assets/sonata-icons/chromaticFoam.webp" },
-  { "id": 29, "name": "Sound of True Name", "icon": "/assets/sonata-icons/soundOfTrueName.webp" }
+  { "id": 29, "name": "Sound of True Name", "icon": "/assets/sonata-icons/soundOfTrueName.webp" },
+  { "id": 30, "name": "Wishes of Quiet Snowfall", "icon": "/assets/sonata-icons/wishesOfQuietSnowfall.webp" },
+  { "id": 31, "name": "Reel of Spliced Memories", "icon": "/assets/sonata-icons/reelOfSplicedMemories.webp" }
 ]

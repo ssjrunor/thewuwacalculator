@@ -101,7 +101,9 @@ export function cloneCombatState(combat: CombatState): CombatState {
     aeroErosion: combat.aeroErosion,
     fusionBurst: combat.fusionBurst,
     havocBane: combat.havocBane,
+    glacioChafe: combat.glacioChafe,
     electroFlare: combat.electroFlare,
+    electroRage: combat.electroRage,
   }
 }
 

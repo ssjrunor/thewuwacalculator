@@ -6,6 +6,7 @@ import { RichDescription } from '@/shared/ui/RichDescription'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import { NumberInput } from '@/modules/calculator/components/workspace/panes/left/controls/NumberInput'
 import { getSourceStateDisplay } from '@/modules/calculator/model/sourceStateDisplay'
+import { resolveSourceStateOptions } from '@/modules/calculator/model/sourceStateEvaluation'
 import {
   isSourceStateEnabled,
   setSourceStateValue,
@@ -73,6 +74,9 @@ export function SourceStateControl({
   const isEnabled = isSourceStateEnabled(sourceRuntime, targetRuntime, state, activeRuntime)
   const disabledReason = !isEnabled ? getSourceStateDisabledReason(state) : null
   const display = getSourceStateDisplay(state)
+  const selectOptions = state.kind === 'select'
+    ? resolveSourceStateOptions(sourceRuntime, targetRuntime, state, activeRuntime)
+    : []
 
   if (state.kind === 'toggle') {
     return (
@@ -84,32 +88,44 @@ export function SourceStateControl({
             type="checkbox"
             checked={toBoolean(current ?? state.defaultValue ?? false)}
             disabled={!isEnabled}
-            onChange={(event) => setSourceStateValue(onRuntimeUpdate, targetRuntime, state, event.target.checked)}
+            onChange={(event) => setSourceStateValue(onRuntimeUpdate, sourceRuntime, targetRuntime, state, event.target.checked, activeRuntime)}
           />
         </label>
-        {!hideDescription && display.description ? <RichDescription description={display.description} params={descriptionParams} /> : null}
+        {!hideDescription && display.description ? (
+          <RichDescription
+            description={display.description}
+            params={descriptionParams}
+            unstyled={state.source.type === 'echoSet'}
+          />
+        ) : null}
         {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
       </div>
     )
   }
 
-  if (state.kind === 'select' && state.options) {
+  if (state.kind === 'select' && selectOptions.length > 0) {
     return (
       <div className={['stack', 'state-control-field', !isEnabled ? 'is-disabled' : ''].join(' ')}>
         {teamTargetSelect}
         <label className={!isEnabled ? 'is-disabled' : undefined}>
           {display.label}
           <LiquidSelect
-            value={String(current ?? state.defaultValue ?? '')}
-            options={state.options.map((option) => ({
+            value={String(current ?? state.defaultValue ?? selectOptions[0]?.id ?? '')}
+            options={selectOptions.map((option) => ({
               value: option.id,
               label: option.label,
             }))}
             disabled={!isEnabled}
-            onChange={(nextValue) => setRuntimePath(onRuntimeUpdate, state.path, nextValue)}
+            onChange={(nextValue) => setSourceStateValue(onRuntimeUpdate, sourceRuntime, targetRuntime, state, nextValue, activeRuntime)}
           />
         </label>
-        {!hideDescription && display.description ? <RichDescription description={display.description} params={descriptionParams} /> : null}
+        {!hideDescription && display.description ? (
+          <RichDescription
+            description={display.description}
+            params={descriptionParams}
+            unstyled={state.source.type === 'echoSet'}
+          />
+        ) : null}
         {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
       </div>
     )
@@ -133,7 +149,13 @@ export function SourceStateControl({
           onChange={(value) => setRuntimePath(onRuntimeUpdate, state.path, value)}
         />
       </label>
-      {!hideDescription && display.description ? <RichDescription description={display.description} params={descriptionParams} /> : null}
+      {!hideDescription && display.description ? (
+        <RichDescription
+          description={display.description}
+          params={descriptionParams}
+          unstyled={state.source.type === 'echoSet'}
+        />
+      ) : null}
       {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
     </div>
   )

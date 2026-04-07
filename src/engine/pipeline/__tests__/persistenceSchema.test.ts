@@ -191,6 +191,40 @@ describe('persistedAppStateSchema', () => {
     expect(parsed.ui.optimizerCpuHintSeen).toBe(false)
   })
 
+  it('re-persists normalized current storage slices after schema defaults change', () => {
+    const seed = getResonatorById('1412')
+    if (!seed) {
+      throw new Error('missing seed resonator 1412')
+    }
+
+    const state = createDefaultAppState()
+    state.calculator.profiles[seed.id] = createDefaultResonatorProfile(seed)
+
+    const legacyProfilesSlice = {
+      version: state.version,
+      calculator: {
+        runtimeRevision: state.calculator.runtimeRevision,
+        profiles: structuredClone(state.calculator.profiles),
+      },
+    }
+
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).glacioChafe
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).electroFlare
+    delete (legacyProfilesSlice.calculator.profiles[seed.id].runtime.local.combat as Record<string, unknown>).electroRage
+
+    localStorage.setItem(APP_STORAGE_PROFILES_KEY, JSON.stringify(legacyProfilesSlice))
+
+    const loaded = loadPersistedAppState()
+    expect(loaded?.calculator.profiles[seed.id].runtime.local.combat.glacioChafe).toBe(0)
+    expect(loaded?.calculator.profiles[seed.id].runtime.local.combat.electroFlare).toBe(0)
+    expect(loaded?.calculator.profiles[seed.id].runtime.local.combat.electroRage).toBe(0)
+
+    const rewritten = JSON.parse(localStorage.getItem(APP_STORAGE_PROFILES_KEY) ?? '{}')
+    expect(rewritten.calculator.profiles[seed.id].runtime.local.combat.glacioChafe).toBe(0)
+    expect(rewritten.calculator.profiles[seed.id].runtime.local.combat.electroFlare).toBe(0)
+    expect(rewritten.calculator.profiles[seed.id].runtime.local.combat.electroRage).toBe(0)
+  })
+
   it('hydrates optimizer settings that are missing combo target fields and low-memory mode', () => {
     const seed = getResonatorById('1506')
     if (!seed) {

@@ -108,7 +108,8 @@
           var(--calc-box-bg);
 }
 
-.resonator-snapshot-card.shrink {
+.resonator-snapshot-card.shrink,
+.resonator-snapshot-card:has(.enemy-status-card-body) {
   container-type: inline-size;
 }
 
@@ -151,7 +152,50 @@
   line-height: 1.45;
 }
 
+.enemy-status-card-body .resonator-snapshot-detail {
+  font-size: unset;
+}
 
+.enemy-status-card-body {
+  --enemy-status-count: 1;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(0.25rem, calc(7cqw - (var(--enemy-status-count) - 1) * 0.05rem), 0.67rem);
+}
+
+.enemy-status-card-body--empty {
+  align-items: center;
+  color: var(--calc-muted);
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.enemy-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.enemy-status-row__abbr {
+  text-transform: uppercase;
+}
+
+.enemy-status-row__middle {
+  color: var(--calc-muted);
+  font-weight: 800;
+}
+
+.enemy-status-row__value {
+  color: var(--calc-muted);
+  letter-spacing: -0.01em;
+}
 
 .panel-title {
   margin-top: 0;

@@ -8,12 +8,15 @@
 import type { EnemyProfile } from '@/domain/entities/appState'
 import { ATTRIBUTE_TO_ENEMY_RES_INDEX, isUnsetEnemyProfile } from '@/domain/entities/appState'
 import type {
+  AttributeKey,
   DamageResult,
   FinalStats,
   ModBuff,
+  NegativeEffectKey,
   SkillDefinition,
   SkillTypeKey,
 } from '@/domain/entities/stats'
+import { getNegativeEffectDefaultMax } from '@/domain/gameData/negativeEffects'
 import { getNegativeEffectBase } from '@/engine/formulas/negativeEffects'
 import { getTuneRuptureLevelScale } from '@/engine/formulas/tuneRupture'
 import { aggregateSkillTypeBuffs, makeModBuff } from '@/engine/resolvers/buffPool'
@@ -489,18 +492,29 @@ function computeNegativeEffectDamage(
     enemy: EnemyProfile,
     level: number,
     stacks: number,
-    archetype: Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst'>,
+    archetype: Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>,
+    additionalStacks = 0,
 ): DamageResult {
   // no stacks means no damage instance
-  if (stacks <= 0) {
+  if (stacks <= 0 && additionalStacks <= 0) {
     return makeZeroResult(skill)
   }
 
-  const element = archetype === 'spectroFrazzle'
-      ? 'spectro'
-      : archetype === 'aeroErosion'
-          ? 'aero'
-          : 'fusion'
+  const archetypeToElementMap: {
+    spectroFrazzle: AttributeKey;
+    aeroErosion: AttributeKey;
+    glacioChafe: AttributeKey;
+    electroFlare: AttributeKey;
+    fusionBurst: AttributeKey
+  } = {
+    spectroFrazzle: 'spectro',
+    aeroErosion: 'aero',
+    glacioChafe: 'glacio',
+    electroFlare: 'electro',
+    fusionBurst: 'fusion',
+  }
+
+  const element = archetypeToElementMap[archetype]
 
   const baseRes = isUnsetEnemyProfile(enemy) ? 0 : resolveEnemyResistance(enemy, element)
 
@@ -511,9 +525,9 @@ function computeNegativeEffectDamage(
 
   const attributeAll = finalStats.attribute.all
   const attributeElement = finalStats.attribute[element]
-  const effectSkillType = finalStats.skillType[archetype]
-  const effectTypes: SkillTypeKey[] = [archetype]
+  const effectTypes: SkillTypeKey[] = skill.skillType
   const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, effectTypes)
+  const negativeEffectBuff = finalStats.negativeEffect[archetype as NegativeEffectKey]
 
   const resShred =
       attributeAll.resShred +
@@ -550,21 +564,23 @@ function computeNegativeEffectDamage(
       : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
 
   // base per-stack damage is provided by the negative-effect formula helper
-  const perStackBase = getNegativeEffectBase(archetype, level, stacks)
+  const perStackBase =
+      getNegativeEffectBase(archetype, level, stacks) +
+      (archetype === 'electroFlare' ? getNegativeEffectBase(archetype, level, additionalStacks) : 0)
 
   const hits = resolveDamageHits(skill, 1)
   const totalHitScale = sumHitScale(hits)
 
   const bonusMultiplier =
       (1 + finalStats.amplify / 100) *
-      (1 + effectSkillType.amplify / 100) *
-      (1 + effectSkillType.dmgBonus / 100) *
+      (1 + aggregatedEffectType.amplify / 100) *
+      (1 + aggregatedEffectType.dmgBonus / 100) *
       (1 + finalStats.special / 100)
 
   const damage = Math.floor(
       (
           perStackBase *
-          (archetype === 'fusionBurst' ? (1 + finalStats.fusionBurstMultiplier) : 1)
+          (1 + negativeEffectBuff.multiplier)
       ) *
       totalHitScale *
       bonusMultiplier *
@@ -573,8 +589,8 @@ function computeNegativeEffectDamage(
       (1 + dmgVuln / 100),
   )
 
-  const critRate = skill.negativeEffectCritRate ?? 0
-  const critMultiplier = skill.negativeEffectCritDmg ?? 1
+  const critRate = (skill.negativeEffectCritRate ?? 0) + (negativeEffectBuff.critRate / 100)
+  const critMultiplier = (skill.negativeEffectCritDmg ?? 1) + (negativeEffectBuff.critDmg / 100)
 
   const subHits = hits.map((hit) => {
     const normal = totalHitScale > 0 ? (damage * hit.multiplier) / totalHitScale : 0
@@ -603,7 +619,14 @@ export function computeSkillDamage(
     skill: SkillDefinition,
     enemy: EnemyProfile,
     level: number,
-    combatState?: { spectroFrazzle?: number; aeroErosion?: number; fusionBurst?: number },
+    combatState?: {
+      spectroFrazzle?: number
+      aeroErosion?: number
+      fusionBurst?: number
+      glacioChafe?: number
+      electroFlare?: number
+      electroRage?: number
+    },
 ): DamageResult {
   switch (skill.archetype) {
     case 'healing':
@@ -641,6 +664,29 @@ export function computeSkillDamage(
           level,
           combatState?.fusionBurst ?? 0,
           'fusionBurst',
+      )
+
+    case 'glacioChafe':
+      return computeNegativeEffectDamage(
+          skill,
+          finalStats,
+          enemy,
+          level,
+          combatState?.glacioChafe ?? 0,
+          'glacioChafe',
+      )
+
+    case 'electroFlare':
+      return computeNegativeEffectDamage(
+          skill,
+          finalStats,
+          enemy,
+          level,
+          combatState?.electroFlare ?? 0,
+          'electroFlare',
+          (combatState?.electroFlare ?? 0) > getNegativeEffectDefaultMax('electroFlare')
+            ? (combatState?.electroRage ?? 0)
+            : 0,
       )
 
     case 'skillDamage':

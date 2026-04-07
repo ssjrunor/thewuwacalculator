@@ -13,7 +13,9 @@ import {
   ECHO_OPTIMIZER_MAX_COST,
   OPTIMIZER_ARCHETYPE_AERO_EROSION,
   OPTIMIZER_ARCHETYPE_DAMAGE,
+  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
   OPTIMIZER_ARCHETYPE_FUSION_BURST,
+  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
   OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
   OPTIMIZER_ARCHETYPE_TUNE_RUPTURE,
   OPTIMIZER_CONTEXT_FLOATS,
@@ -218,31 +220,43 @@ function classMultiplier(enemyClass: number): number {
 
 // build the pre-scaled base multiplier for negative-effect archetypes
 function buildNegativeEffectBaseScale(compiled: CompiledTargetSkillContext): number {
-  const stacks = compiled.archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
+  const primaryStacks = compiled.archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
       ? compiled.combatSpectroFrazzle
       : compiled.archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
           ? compiled.combatAeroErosion
-          : compiled.combatFusionBurst
+          : compiled.archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+              ? compiled.combatFusionBurst
+              : compiled.archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                  ? compiled.combatGlacioChafe
+              : compiled.combatElectroFlare
+  const extraElectroRageStacks = compiled.archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+      ? compiled.combatElectroRage
+      : 0
 
-  if (stacks <= 0) {
+  if (primaryStacks <= 0 && extraElectroRageStacks <= 0) {
     return 0
   }
 
-  const base = getNegativeEffectBase(
+  const base =
+      getNegativeEffectBase(
       compiled.archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
           ? 'spectroFrazzle'
           : compiled.archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
               ? 'aeroErosion'
-              : 'fusionBurst',
+              : compiled.archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+                  ? 'fusionBurst'
+                  : compiled.archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                      ? 'glacioChafe'
+                  : 'electroFlare',
       compiled.level,
-      stacks,
-  )
+      primaryStacks,
+  ) + (
+        compiled.archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+          ? getNegativeEffectBase('electroFlare', compiled.level, extraElectroRageStacks)
+          : 0
+      )
 
-  const fusionBurstMultiplier = compiled.archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
-      ? (1 + compiled.staticFusionBurstMultiplier)
-      : 1
-
-  return base * compiled.hitScale * fusionBurstMultiplier
+  return base * compiled.hitScale * (1 + compiled.negativeEffectMultiplier)
 }
 
 // pack one compiled target context into the fixed float/u32 layout used by execution
@@ -310,6 +324,8 @@ export function packTargetContext(options: {
     case OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE:
     case OPTIMIZER_ARCHETYPE_AERO_EROSION:
     case OPTIMIZER_ARCHETYPE_FUSION_BURST:
+    case OPTIMIZER_ARCHETYPE_GLACIO_CHAFE:
+    case OPTIMIZER_ARCHETYPE_ELECTRO_FLARE:
       packedMultiplier = buildNegativeEffectBaseScale(compiled)
       packedFlatDmg = 0
       packedDmgBonus = 1 + (compiled.staticDmgBonus / 100)

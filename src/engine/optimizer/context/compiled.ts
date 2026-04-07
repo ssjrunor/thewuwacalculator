@@ -11,6 +11,7 @@ import { ATTRIBUTE_TO_ENEMY_RES_INDEX, isUnsetEnemyProfile } from '@/domain/enti
 import type {
   FinalStats,
   ModBuff,
+  NegativeEffectKey,
   SkillArchetype,
   SkillDefinition,
   SkillTypeKey,
@@ -20,7 +21,9 @@ import type { CompiledTargetSkillContext } from '@/engine/optimizer/types.ts'
 import {
   OPTIMIZER_ARCHETYPE_AERO_EROSION,
   OPTIMIZER_ARCHETYPE_DAMAGE,
+  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
   OPTIMIZER_ARCHETYPE_FUSION_BURST,
+  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
   OPTIMIZER_ARCHETYPE_HEALING,
   OPTIMIZER_ARCHETYPE_SHIELD,
   OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
@@ -91,6 +94,10 @@ export function mapSkillArchetype(archetype: SkillArchetype): number {
       return OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
     case 'aeroErosion':
       return OPTIMIZER_ARCHETYPE_AERO_EROSION
+    case 'electroFlare':
+      return OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+    case 'glacioChafe':
+      return OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
     case 'fusionBurst':
       return OPTIMIZER_ARCHETYPE_FUSION_BURST
     case 'skillDamage':
@@ -186,7 +193,7 @@ function buildNegativeEffectBuckets(options: {
   skill: SkillDefinition
   enemy: EnemyProfile
   level: number
-  archetype: Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst'>
+  archetype: Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>
 }) {
   const { finalStats, skill, enemy, level, archetype } = options
   const ignoresEnemy = isUnsetEnemyProfile(enemy)
@@ -195,13 +202,17 @@ function buildNegativeEffectBuckets(options: {
       ? 'spectro'
       : archetype === 'aeroErosion'
           ? 'aero'
-          : 'fusion'
+          : archetype === 'fusionBurst'
+              ? 'fusion'
+              : archetype === 'glacioChafe'
+                  ? 'glacio'
+              : 'electro'
 
   const baseRes = ignoresEnemy ? 0 : resolveEnemyResistance(enemy, element)
   const attributeAll = finalStats.attribute.all
   const attributeElement = finalStats.attribute[element]
-  const effectSkillType = finalStats.skillType[archetype]
-  const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, [archetype] as SkillTypeKey[])
+  const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, skill.skillType as SkillTypeKey[])
+  const negativeEffectBuff = finalStats.negativeEffect[archetype as NegativeEffectKey]
 
   const resShred =
       attributeAll.resShred +
@@ -237,17 +248,18 @@ function buildNegativeEffectBuckets(options: {
 
   const amplifyMultiplier =
       (1 + finalStats.amplify / 100) *
-      (1 + effectSkillType.amplify / 100)
+      (1 + aggregatedEffectType.amplify / 100)
 
   return {
     resMult,
     defMult,
     dmgVuln,
-    dmgBonus: effectSkillType.dmgBonus,
+    dmgBonus: aggregatedEffectType.dmgBonus,
     amplify: (amplifyMultiplier - 1) * 100,
     special: finalStats.special,
-    critRate: (skill.negativeEffectCritRate ?? 0) * 100,
-    critDmg: (skill.negativeEffectCritDmg ?? 1) * 100,
+    multiplier: negativeEffectBuff.multiplier,
+    critRate: ((skill.negativeEffectCritRate ?? 0) * 100) + negativeEffectBuff.critRate,
+    critDmg: ((skill.negativeEffectCritDmg ?? 1) * 100) + negativeEffectBuff.critDmg,
   }
 }
 
@@ -262,6 +274,9 @@ export function buildCompiledOptimizerContext(options: {
     spectroFrazzle?: number
     aeroErosion?: number
     fusionBurst?: number
+    glacioChafe?: number
+    electroFlare?: number
+    electroRage?: number
   }
 }): CompiledTargetSkillContext {
   const { resonatorId, runtime, skill, finalStats, enemy, combatState } = options
@@ -279,7 +294,11 @@ export function buildCompiledOptimizerContext(options: {
   // different archetypes need different hit-scale fallback logic
   const hitInfo = skill.archetype === 'tuneRupture'
       ? resolveSkillHitScale(skill, skill.tuneRuptureScale ?? 16)
-      : skill.archetype === 'spectroFrazzle' || skill.archetype === 'aeroErosion' || skill.archetype === 'fusionBurst'
+      : skill.archetype === 'spectroFrazzle'
+          || skill.archetype === 'aeroErosion'
+          || skill.archetype === 'fusionBurst'
+          || skill.archetype === 'glacioChafe'
+          || skill.archetype === 'electroFlare'
           ? resolveSkillHitScale(skill, 1)
           : { hitScale: direct.hitScale, hitCount: direct.hitCount }
 
@@ -291,9 +310,11 @@ export function buildCompiledOptimizerContext(options: {
   let staticDmgBonus = direct.dmgBonus
   let staticAmplify = direct.amplify
   let staticSpecial = direct.special
-  const staticFusionBurstMultiplier = finalStats.fusionBurstMultiplier
   let staticTuneBreakBoost = finalStats.tuneBreakBoost
   let staticDmgVuln = (direct.dmgVulnMultiplier - 1) * 100
+  let negativeEffectMultiplier = 0
+  let negativeEffectCritRate = skill.negativeEffectCritRate ?? 0
+  let negativeEffectCritDmg = skill.negativeEffectCritDmg ?? 1
 
   // override the shared defaults for archetypes with custom damage rules
   switch (skill.archetype) {
@@ -319,7 +340,9 @@ export function buildCompiledOptimizerContext(options: {
 
     case 'spectroFrazzle':
     case 'aeroErosion':
-    case 'fusionBurst': {
+    case 'fusionBurst':
+    case 'glacioChafe':
+    case 'electroFlare': {
       const buckets = buildNegativeEffectBuckets({
         finalStats,
         skill,
@@ -336,6 +359,9 @@ export function buildCompiledOptimizerContext(options: {
       staticAmplify = buckets.amplify
       staticSpecial = buckets.special
       staticDmgVuln = buckets.dmgVuln
+      negativeEffectMultiplier = buckets.multiplier
+      negativeEffectCritRate = buckets.critRate / 100
+      negativeEffectCritDmg = buckets.critDmg / 100
       break
     }
 
@@ -374,7 +400,6 @@ export function buildCompiledOptimizerContext(options: {
     defMult,
     dmgReduction: 1 + (staticDmgVuln / 100),
 
-    staticFusionBurstMultiplier,
     staticTuneBreakBoost,
     staticResShred: 0,
     staticDefIgnore: 0,
@@ -400,11 +425,15 @@ export function buildCompiledOptimizerContext(options: {
     tuneRuptureCritRate: skill.tuneRuptureCritRate ?? 0,
     tuneRuptureCritDmg: skill.tuneRuptureCritDmg ?? 1,
 
-    negativeEffectCritRate: skill.negativeEffectCritRate ?? 0,
-    negativeEffectCritDmg: skill.negativeEffectCritDmg ?? 1,
+    negativeEffectMultiplier,
+    negativeEffectCritRate,
+    negativeEffectCritDmg,
 
     combatSpectroFrazzle: combatState?.spectroFrazzle ?? 0,
     combatAeroErosion: combatState?.aeroErosion ?? 0,
     combatFusionBurst: combatState?.fusionBurst ?? 0,
+    combatGlacioChafe: combatState?.glacioChafe ?? 0,
+    combatElectroFlare: combatState?.electroFlare ?? 0,
+    combatElectroRage: combatState?.electroRage ?? 0,
   }
 }

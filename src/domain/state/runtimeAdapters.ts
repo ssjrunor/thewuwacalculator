@@ -8,6 +8,8 @@ import type { CalculatorState } from '@/domain/entities/appState'
 import { cloneCompactSonataSetConditionals, DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
 import type { SlotLocalState } from '@/domain/entities/profile'
 import type { SlotId } from '@/domain/entities/session'
+import { normalizeResonatorRuntimeControls } from '@/domain/gameData/controlOptions'
+import { normalizeNegativeEffectCombatState } from '@/domain/gameData/negativeEffects'
 import type {
   ResonatorRuntimeState,
   TeamMemberRuntime,
@@ -42,6 +44,29 @@ export interface WorkspaceRuntimeBundle {
   activeTargetSelections: Record<string, string | null>
   activeRuntime: ResonatorRuntimeState | null
   participantRuntimesById: Record<string, ResonatorRuntimeState>
+}
+
+function normalizeRuntimeNegativeEffects(runtime: ResonatorRuntimeState): ResonatorRuntimeState {
+  const controls = normalizeResonatorRuntimeControls(runtime)
+  const combat = normalizeNegativeEffectCombatState(runtime)
+  const controlsUnchanged = Object.keys(controls).every((key) => controls[key] === runtime.state.controls[key])
+    && Object.keys(runtime.state.controls).every((key) => runtime.state.controls[key] === controls[key])
+  const combatUnchanged = Object.keys(combat).every(
+    (key) => combat[key as keyof typeof combat] === runtime.state.combat[key as keyof typeof combat],
+  )
+
+  if (controlsUnchanged && combatUnchanged) {
+    return runtime
+  }
+
+  return {
+    ...runtime,
+    state: {
+      ...runtime.state,
+      controls,
+      combat,
+    },
+  }
 }
 
 function buildLocalStateFromRuntimeState(
@@ -105,7 +130,7 @@ export function buildWorkspaceRuntimeBundle(calculator: CalculatorState): Worksp
     ...activeProfile.runtime.routing.selectedTargetsByOwnerKey,
   }
   const seed = getResonatorSeedById(activeResonatorId)
-  const activeRuntime = seed
+  const rawActiveRuntime = seed
       ? materializeRuntimeFromProfileAndSlot({
         seed,
         profile: activeProfile,
@@ -115,6 +140,7 @@ export function buildWorkspaceRuntimeBundle(calculator: CalculatorState): Worksp
         rotation: activeProfile.runtime.rotation,
       })
       : null
+  const activeRuntime = rawActiveRuntime ? normalizeRuntimeNegativeEffects(rawActiveRuntime) : null
 
   const participantRuntimesById: Record<string, ResonatorRuntimeState> = {}
   if (activeRuntime) {
@@ -137,10 +163,10 @@ export function buildWorkspaceRuntimeBundle(calculator: CalculatorState): Worksp
         teammateSeed,
         compactRuntime,
         activeProfile.runtime.local.controls,
-        activeProfile.runtime.local.combat,
+        activeRuntime?.state.combat ?? activeProfile.runtime.local.combat,
         activeTeamSlots,
     )
-    participantRuntimesById[runtime.id] = runtime
+    participantRuntimesById[runtime.id] = normalizeRuntimeNegativeEffects(runtime)
   }
 
   return {
@@ -227,13 +253,13 @@ function buildTeamMemberRuntimeFromSlot(
   const seed = getResonatorSeedById(tmr.id)
   if (!seed) return null
 
-  return materializeTeamMemberFromCompactRuntime(
-      seed,
-      tmr,
-      activeProfile.runtime.local.controls,
-      activeProfile.runtime.local.combat,
-      buildActiveTeamSlots(calculator),
-  )
+  return normalizeRuntimeNegativeEffects(materializeTeamMemberFromCompactRuntime(
+    seed,
+    tmr,
+    activeProfile.runtime.local.controls,
+    activeProfile.runtime.local.combat,
+    buildActiveTeamSlots(calculator),
+  ))
 }
 
 // build a full runtime for a resonator from calculator state
@@ -269,14 +295,14 @@ export function buildRuntimeFromProfile(
     return null
   }
 
-  return materializeRuntimeFromProfileAndSlot({
+  return normalizeRuntimeNegativeEffects(materializeRuntimeFromProfileAndSlot({
     seed,
     profile,
     slotId: 'active',
     localState: profile.runtime.local,
     teamSlots: buildActiveTeamSlots(calculator),
     rotation: profile.runtime.rotation,
-  })
+  }))
 }
 
 // build a normalized initialized runtime view for a profile
@@ -290,14 +316,14 @@ export function buildInitializedRuntimeView(
     return null
   }
 
-  return materializeRuntimeFromProfileAndSlot({
+  return normalizeRuntimeNegativeEffects(materializeRuntimeFromProfileAndSlot({
     seed,
     profile,
     slotId: 'active',
     localState: profile.runtime.local,
     teamSlots: normalizeProfileTeam(resonatorId, profile.runtime.team),
     rotation: profile.runtime.rotation,
-  })
+  }))
 }
 
 // build the active runtime
@@ -329,12 +355,13 @@ export function buildRuntimeParticipantLookup(
       const seed = getResonatorSeedById(memberId)
       if (seed) {
         runtimes[memberId] = materializeTeamMemberFromCompactRuntime(
-            seed,
-            compactRuntime,
-            runtime.state.controls,
-            runtime.state.combat,
-            runtime.build.team,
+          seed,
+          compactRuntime,
+          runtime.state.controls,
+          runtime.state.combat,
+          runtime.build.team,
         )
+        runtimes[memberId] = normalizeRuntimeNegativeEffects(runtimes[memberId])
         continue
       }
     }

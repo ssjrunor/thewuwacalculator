@@ -13,6 +13,7 @@ import type {
   SourceOwnerDefinition,
   SourceStateDefinition,
 } from '@/domain/gameData/contracts'
+import type { CombatState } from '@/domain/entities/runtime'
 import type { AttributeKey, ResonatorBaseStats, SkillDefinition } from '@/domain/entities/stats'
 
 export type ResonatorSkillTabKey =
@@ -30,12 +31,17 @@ export interface ResonatorStateControl {
   kind: 'toggle' | 'number' | 'select'
   target: 'controls'
   disabledReason?: string
+  visibleWhen?: ConditionExpression
   enabledWhen?: ConditionExpression
   resets?: string[]
   min?: number
   max?: number
   step?: number
   options?: number[]
+  optionsWhen?: Array<{
+    when: ConditionExpression
+    options: number[]
+  }>
   sequenceAwareOptions?: {
     threshold: number
     below: number[]
@@ -61,6 +67,7 @@ export interface ResonatorStatePanel {
   body: string
   param?: Array<string | number>
   keywords?: string[]
+  visibleWhen?: ConditionExpression
   controls: ResonatorStateControl[]
 }
 
@@ -79,6 +86,39 @@ export interface ResonatorSkillPanel {
   multipliers: ResonatorSkillMultiplier[]
   keywords?: string[]
 }
+
+export interface ResonatorNegativeEffectSourceEntry {
+  key: keyof CombatState
+  max?: number
+  enabledWhen?: ConditionExpression
+}
+
+export interface ResonatorNegativeEffectMaxAddEntry {
+  type: 'maxAdd'
+  key: keyof CombatState
+  value: number
+  enabledWhen?: ConditionExpression
+}
+
+export interface ResonatorNegativeEffectGlobalMaxAddEntry {
+  type: 'globalMaxAdd'
+  value: number
+  enabledWhen?: ConditionExpression
+}
+
+export interface ResonatorNegativeEffectBehaviorEntry {
+  type: 'behavior'
+  key: keyof CombatState
+  stackMode?: 'fixedMax'
+  label?: string
+  enabledWhen?: ConditionExpression
+}
+
+export type ResonatorNegativeEffectSource =
+  | ResonatorNegativeEffectSourceEntry
+  | ResonatorNegativeEffectMaxAddEntry
+  | ResonatorNegativeEffectGlobalMaxAddEntry
+  | ResonatorNegativeEffectBehaviorEntry
 
 export interface ResonatorInherentSkill {
   id: string
@@ -128,6 +168,7 @@ export interface ResonatorDetails {
   resonanceChains: ResonanceChain[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]
+  negativeEffectSources?: ResonatorNegativeEffectSource[]
 }
 
 export interface Resonator {
@@ -147,6 +188,7 @@ export interface Resonator {
   resonanceChains: ResonanceChain[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]
+  negativeEffectSources?: ResonatorNegativeEffectSource[]
   owners: SourceOwnerDefinition[]
   states: SourceStateDefinition[]
   conditions: ConditionDefinition[]

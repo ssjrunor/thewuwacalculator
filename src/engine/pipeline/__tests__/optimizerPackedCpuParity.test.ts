@@ -30,6 +30,14 @@ function makeBuff() {
   }
 }
 
+function makeNegativeEffectBuff() {
+  return {
+    critRate: 0,
+    critDmg: 0,
+    multiplier: 0,
+  }
+}
+
 function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
   return {
     atk: { base: 1000, final: 1000 },
@@ -58,9 +66,20 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
       spectroFrazzle: makeBuff(),
       aeroErosion: makeBuff(),
       fusionBurst: makeBuff(),
+      havocBane: makeBuff(),
+      glacioChafe: makeBuff(),
+      electroFlare: makeBuff(),
       healing: makeBuff(),
       shield: makeBuff(),
       tuneRupture: makeBuff(),
+    },
+    negativeEffect: {
+      spectroFrazzle: makeNegativeEffectBuff(),
+      aeroErosion: makeNegativeEffectBuff(),
+      fusionBurst: makeNegativeEffectBuff(),
+      havocBane: makeNegativeEffectBuff(),
+      glacioChafe: makeNegativeEffectBuff(),
+      electroFlare: makeNegativeEffectBuff(),
     },
     flatDmg: 0,
     amplify: 0,
@@ -74,7 +93,6 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
     defShred: 0,
     dmgVuln: 0,
     tuneBreakBoost: 0,
-    fusionBurstMultiplier: 0,
     special: 0,
     ...overrides,
   }
@@ -131,6 +149,38 @@ const fusionBurstSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
+const glacioChafeSkill: SkillDefinition = {
+  id: 'glacio-chafe',
+  label: 'Glacio Chafe',
+  tab: 'negativeEffect',
+  element: 'glacio',
+  skillType: ['glacioChafe'],
+  archetype: 'glacioChafe',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 0,
+  flat: 0,
+  negativeEffectCritRate: 0.3,
+  negativeEffectCritDmg: 2.4,
+  hits: [{ count: 1, multiplier: 1 }],
+}
+
+const electroFlareSkill: SkillDefinition = {
+  id: 'electro-flare',
+  label: 'Electro Flare',
+  tab: 'negativeEffect',
+  element: 'electro',
+  skillType: ['electroFlare'],
+  archetype: 'electroFlare',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 0,
+  flat: 0,
+  negativeEffectCritRate: 0.2,
+  negativeEffectCritDmg: 2.2,
+  hits: [{ count: 1, multiplier: 1 }],
+}
+
 const resonanceSkillTarget: SkillDefinition = {
   id: 'rotation-skill',
   label: 'Rotation Skill',
@@ -173,7 +223,14 @@ function createDisabledConstraints(): Float32Array {
 }
 
 function evaluatePackedCpuSkill(params: {
-  runtimeCombat?: { spectroFrazzle?: number; aeroErosion?: number; fusionBurst?: number }
+  runtimeCombat?: {
+    spectroFrazzle?: number
+    aeroErosion?: number
+    fusionBurst?: number
+    glacioChafe?: number
+    electroFlare?: number
+    electroRage?: number
+  }
   finalStats: FinalStats
   skill: SkillDefinition
   enemy: EnemyProfile
@@ -275,7 +332,13 @@ describe('optimizer packed cpu parity', () => {
       amplify: 12,
       dmgVuln: 7,
       special: 14,
-      fusionBurstMultiplier: 1.8,
+      negativeEffect: {
+        ...makeFinalStats().negativeEffect,
+        fusionBurst: {
+          ...makeNegativeEffectBuff(),
+          multiplier: 1.8,
+        },
+      },
       skillType: {
         ...makeFinalStats().skillType,
         fusionBurst: {
@@ -291,6 +354,86 @@ describe('optimizer packed cpu parity', () => {
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: fusionBurstSkill,
+      enemy,
+      runtimeCombat: combat,
+    })
+
+    expect(Math.abs(packed - expected)).toBeLessThan(0.001)
+  })
+
+  it('matches computeSkillDamage for glacio chafe', () => {
+    const enemy = makeDefaultEnemyProfile()
+    const finalStats = makeFinalStats({
+      skillType: {
+        ...makeFinalStats().skillType,
+        glacioChafe: {
+          ...makeBuff(),
+          dmgBonus: 18,
+          amplify: 12,
+        },
+      },
+    })
+    const combat = { glacioChafe: 4 }
+    const expected = computeSkillDamage(finalStats, glacioChafeSkill, enemy, 90, combat).avg
+    const actual = evaluatePackedCpuSkill({
+      finalStats,
+      skill: glacioChafeSkill,
+      enemy,
+      runtimeCombat: combat,
+    })
+
+    expect(Math.abs(actual - expected)).toBeLessThan(0.001)
+  })
+
+  it('matches computeSkillDamage for electro flare', () => {
+    const enemy = makeDefaultEnemyProfile()
+    const finalStats = makeFinalStats({
+      amplify: 16,
+      dmgVuln: 11,
+      special: 9,
+      skillType: {
+        ...makeFinalStats().skillType,
+        electroFlare: {
+          ...makeBuff(),
+          amplify: 14,
+          dmgBonus: 27,
+        },
+      },
+    })
+
+    const combat = { electroFlare: 5 }
+    const expected = computeSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
+    const packed = evaluatePackedCpuSkill({
+      finalStats,
+      skill: electroFlareSkill,
+      enemy,
+      runtimeCombat: combat,
+    })
+
+    expect(Math.abs(packed - expected)).toBeLessThan(0.001)
+  })
+
+  it('matches computeSkillDamage for electro flare when electro rage stacks are also present', () => {
+    const enemy = makeDefaultEnemyProfile()
+    const finalStats = makeFinalStats({
+      amplify: 16,
+      dmgVuln: 11,
+      special: 9,
+      skillType: {
+        ...makeFinalStats().skillType,
+        electroFlare: {
+          ...makeBuff(),
+          amplify: 14,
+          dmgBonus: 27,
+        },
+      },
+    })
+
+    const combat = { electroFlare: 11, electroRage: 3 }
+    const expected = computeSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
+    const packed = evaluatePackedCpuSkill({
+      finalStats,
+      skill: electroFlareSkill,
       enemy,
       runtimeCombat: combat,
     })

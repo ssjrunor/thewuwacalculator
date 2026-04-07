@@ -3,30 +3,34 @@ import { AppDialog } from '@/shared/ui/AppDialog'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 
 const STATUS_DATA = {
-  lastUpdated: '03/04/2026',
+  lastUpdated: '07/04/2026',
   overallState: 'stable' as const,
-  patchVersion: '2.4',
-  patchVersionUrl: 'https://encore.moe/new?lang=en',
+  patchVersion: '3.3.2',
+  dataSources: [
+    { label: 'Encore', href: 'https://encore.moe/new?lang=en' },
+    { label: 'Nanoka', href: 'https://ww.nanoka.cc/' },
+  ],
   notes: [
-    'HIIII~! Welcome if you\'re not from the old app and you found this, how nice, if you are, how nice.',
+    'HIIII~!',
+    'It took quite the time to add the 3.3 stuff i know....',
     'Remember, you can import your data from the old app if you have any data on there~',
-    'Wait! Some complex character stuff can\'t be safely imported so you\'d have to set those manually... but it should be pretty easy~!',
-    'If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
-    'This is a full rebuild. The architecture is new, most things should feel faster and more stable.',
+    'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
+    'Denia and Hiyuki are yet to release in game and as such their default rotations were crafted using my intuition. If they seem weird or anything... tell me on Discord.'
   ],
   coverage: [
-    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
-    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
-    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
-    { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies are in.' },
+    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported. Some assets aren\'t available yet.' },
+    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported. Some assets aren\'t available yet.' },
+    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included. Some assets aren\'t available yet.' },
+    { title: 'Enemies',    status: 'ok' as const,  desc: 'I\'m kinda tired so 3.3 enemies will come later.' },
   ],
   knownIssues: [
-    'The guides system not fully implemented yet.'
+    'The guides system not fully implemented yet.',
   ],
   recentChanges: [
-    'Did some work on the wallpaper/background theme system. TOTALLY important for the new app (ㅅ´ ˘ `).',
-    'Added set conditionals. Was in the old app, i was just too lazy to bring it over yk.',
-    'Revamped calculator, inventory, rotations, optimizer... etc.',
+    'HIYUKI (ˊᵒ̴̶̷̤ ꇴ ᵒ̴̶̷̤ˋ).',
+    'DENIA (ง ˃ ³ ˂)ว',
+    'Added Glacio Chafe (and Bite) and Electro Flare (and Rage). Revamped the negative effects display system as well...',
+    'Added preset/default rotations for  Buling, Luuk Herssen, Denia and Hiyuki.'
   ],
 }
 
@@ -85,17 +89,26 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
             </div>
             <div className="app-status-hero__stat">
               <span className="app-status-hero__stat-label">Patch</span>
-              <a
-                className="app-status-hero__stat-value app-status-hero__stat-value--link"
-                href={STATUS_DATA.patchVersionUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                v{STATUS_DATA.patchVersion}
-                <svg className="app-status-hero__ext-icon" viewBox="0 0 10 10" aria-hidden="true">
-                  <path d="M1 9 9 1M9 1H4M9 1v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                </svg>
-              </a>
+              <span className="app-status-hero__stat-value">v{STATUS_DATA.patchVersion}</span>
+            </div>
+            <div className="app-status-hero__stat">
+              <span className="app-status-hero__stat-label">Sources</span>
+              <div className="app-status-hero__source-links">
+                {STATUS_DATA.dataSources.map((source) => (
+                  <a
+                    key={source.label}
+                    className="app-status-hero__stat-value app-status-hero__stat-value--link"
+                    href={source.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {source.label}
+                    <svg className="app-status-hero__ext-icon" viewBox="0 0 10 10" aria-hidden="true">
+                      <path d="M1 9 9 1M9 1H4M9 1v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  </a>
+                ))}
+              </div>
             </div>
             <div className="app-status-hero__stat">
               <span className="app-status-hero__stat-label">Updated</span>

@@ -21,6 +21,8 @@ const SKILLTYPE_FLAG_MAP: Record<string, number> = {
   tuneRupture: 1 << 10,
   electroFlare: 1 << 11,
   fusionBurst: 1 << 12,
+  glacioChafe: 1 << 13,
+  havocBane: 1 << 14,
 }
 
 // compact 3-bit element id map used inside the encoded skill id

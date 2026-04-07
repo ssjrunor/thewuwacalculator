@@ -9,6 +9,7 @@ import { RichDescription } from '@/shared/ui/RichDescription'
 import { Tooltip } from '@/shared/ui/Tooltip'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import { ModalCloseButton } from '@/shared/ui/ModalCloseButton'
+import { normalizeResonatorRuntimeControls } from '@/domain/gameData/controlOptions'
 import { ResonatorPickerModal } from '@/modules/calculator/components/resonator/modals/ResonatorPickerModal'
 import {
   RESONATOR_FILTER_ATTRIBUTES,
@@ -36,7 +37,11 @@ import {
   toStoredControlValue,
 } from '@/modules/calculator/model/resonatorPanel'
 import { getWeapon } from '@/modules/calculator/model/weapon'
-import { evaluateResonatorControlEnabled } from '@/modules/calculator/model/resonatorControlEvaluation'
+import {
+  evaluateResonatorControlEnabled,
+  evaluateResonatorControlVisible,
+  evaluateResonatorVisibility,
+} from '@/modules/calculator/model/resonatorControlEvaluation'
 import { getResonatorControlDisabledReason } from '@/modules/calculator/model/stateDisabledReason'
 import { getControlInactiveValue } from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
 import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
@@ -232,13 +237,23 @@ export function Resonator({
 
   const updateSequence = (sequence: number) => {
     const nextSequence = clampNumber(Math.round(sequence), 0, 6)
-    onRuntimeUpdate((prev) => ({
-      ...prev,
-      base: {
-        ...prev.base,
-        sequence: nextSequence,
-      },
-    }))
+    onRuntimeUpdate((prev) => {
+      const nextRuntime = {
+        ...prev,
+        base: {
+          ...prev.base,
+          sequence: nextSequence,
+        },
+      }
+
+      return {
+        ...nextRuntime,
+        state: {
+          ...nextRuntime.state,
+          controls: normalizeResonatorRuntimeControls(nextRuntime),
+        },
+      }
+    })
   }
 
   const updateSkillLevel = (key: ResonatorSliderSkillTabKey, value: number) => {
@@ -281,7 +296,13 @@ export function Resonator({
       if (control.kind === 'toggle' && Boolean(rawValue) && control.resets?.length) {
         for (const key of control.resets) {
           const target = controlsByKey[key]
-          nextControls[key] = target ? getControlInactiveValue(target) : false
+          nextControls[key] = target ? getControlInactiveValue(target, {
+            ...prev,
+            state: {
+              ...prev.state,
+              controls: nextControls,
+            },
+          }) : false
         }
       }
 
@@ -291,15 +312,29 @@ export function Resonator({
         }
 
         if (nextControls[candidate.disabledWhen.key] === candidate.disabledWhen.equals) {
-          nextControls[candidate.key] = getControlInactiveValue(candidate)
+          nextControls[candidate.key] = getControlInactiveValue(candidate, {
+            ...prev,
+            state: {
+              ...prev.state,
+              controls: nextControls,
+            },
+          })
         }
       }
 
-      return {
+      const nextRuntime = {
         ...prev,
         state: {
           ...prev.state,
           controls: nextControls,
+        },
+      }
+
+      return {
+        ...nextRuntime,
+        state: {
+          ...nextRuntime.state,
+          controls: normalizeResonatorRuntimeControls(nextRuntime, nextControls),
         },
       }
     })
@@ -315,6 +350,9 @@ export function Resonator({
         : false)
       || !evaluateResonatorControlEnabled(runtime, control),
     )
+
+  const getControlVisible = (control: ResonatorStateControl): boolean =>
+    evaluateResonatorControlVisible(runtime, control)
 
   const getSequenceControlStatus = (control: ResonatorStateControl) => {
     const controlValue = getControlValue(control)
@@ -343,6 +381,10 @@ export function Resonator({
       className?: string
     },
   ) => {
+    if (!getControlVisible(control)) {
+      return null
+    }
+
     const controlValue = getControlValue(control)
     const isDisabled = options?.disabled ?? getControlDisabled(control)
     const disabledReason = isDisabled
@@ -367,7 +409,7 @@ export function Resonator({
     }
 
     if (control.kind === 'select') {
-      const optionsList = getControlOptions(control, runtime.base.sequence)
+      const optionsList = getControlOptions(control, runtime)
       return (
         <div key={control.key} className={['state-control-field', isDisabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
           <label className={['state-control-label', options?.className, isDisabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
@@ -842,18 +884,29 @@ export function Resonator({
           </div>
         )}
 
-        {details?.statePanels.map((panel) => (
-          <div key={panel.id} className="control-panel-box ui-surface-card ui-surface-card--inner">
-            <h4>{panel.title}</h4>
-            <RichDescription
-              description={panel.body}
-              params={panel.param}
-              accentColor={currentSliderColor}
-              extraKeywords={mergeDescriptionKeywords(details?.descriptionKeywords, panel.keywords)}
-            />
-            <div className="stack">{panel.controls.map((control) => renderControlField(control))}</div>
-          </div>
-        ))}
+        {details?.statePanels.map((panel) => {
+          if (!evaluateResonatorVisibility(runtime, panel.visibleWhen)) {
+            return null
+          }
+
+          const visibleControls = panel.controls.filter((control) => getControlVisible(control))
+          if (visibleControls.length === 0) {
+            return null
+          }
+
+          return (
+            <div key={panel.id} className="control-panel-box ui-surface-card ui-surface-card--inner">
+              <h4>{panel.title}</h4>
+              <RichDescription
+                description={panel.body}
+                params={panel.param}
+                accentColor={currentSliderColor}
+                extraKeywords={mergeDescriptionKeywords(details?.descriptionKeywords, panel.keywords)}
+              />
+              <div className="stack">{visibleControls.map((control) => renderControlField(control))}</div>
+            </div>
+          )
+        })}
       </div>
 
       {details && runtime.base.sequence > 0 && (

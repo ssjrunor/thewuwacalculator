@@ -13,7 +13,7 @@ import {
   setSourceStateValue,
   type RuntimeUpdateHandler,
 } from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
-import { evaluateSourceStateVisibility } from '@/modules/calculator/model/sourceStateEvaluation'
+import { evaluateSourceStateVisibility, resolveSourceStateOptions } from '@/modules/calculator/model/sourceStateEvaluation'
 import { getSourceStateDisplay } from '@/modules/calculator/model/sourceStateDisplay'
 import { getWeapon, withDefaultWeaponImage } from '@/modules/calculator/model/weapon'
 import { AllowedSetDropdown } from './AllowedSetDropdown'
@@ -217,7 +217,7 @@ export function CharacterOptionsPanel({
               checked={checked}
               disabled={!isEnabled}
               onChange={(event) => {
-                setSourceStateValue(onOptimizerRuntimeUpdate, runtime, state, event.target.checked)
+                setSourceStateValue(onOptimizerRuntimeUpdate, runtime, runtime, state, event.target.checked)
               }}
             />
             <span className="co-runtime-state__switch" />
@@ -247,7 +247,7 @@ export function CharacterOptionsPanel({
                   className={`co-runtime-state__stack-btn${value === stackValue ? ' is-active' : ''}`}
                   disabled={!isEnabled}
                   onClick={() => {
-                    setSourceStateValue(onOptimizerRuntimeUpdate, runtime, state, value)
+                    setSourceStateValue(onOptimizerRuntimeUpdate, runtime, runtime, state, value)
                   }}
                 >
                   {value}
@@ -259,8 +259,9 @@ export function CharacterOptionsPanel({
       )
     }
 
-    if (state.kind === 'select' && state.options) {
-      const selectedValue = String(currentValue ?? state.defaultValue ?? state.options[0]?.id ?? '')
+    if (state.kind === 'select') {
+      const selectOptions = resolveSourceStateOptions(runtime, runtime, state)
+      const selectedValue = String(currentValue ?? state.defaultValue ?? selectOptions[0]?.id ?? '')
       const isActive = toNumber(selectedValue, 0) > 0
       return (
         <div
@@ -271,12 +272,12 @@ export function CharacterOptionsPanel({
           <div className="co-runtime-state__select">
             <LiquidSelect
               value={selectedValue}
-              options={state.options.map((option) => ({
+              options={selectOptions.map((option) => ({
                 value: option.id,
                 label: option.label,
               }))}
               onChange={(value) => {
-                setSourceStateValue(onOptimizerRuntimeUpdate, runtime, state, value)
+                setSourceStateValue(onOptimizerRuntimeUpdate, runtime, runtime, state, value)
               }}
               disabled={!isEnabled}
               baseClass="co-runtime-select"
@@ -305,7 +306,7 @@ export function CharacterOptionsPanel({
             step={0.1}
             disabled={!isEnabled}
             onChange={(value) => {
-              setSourceStateValue(onOptimizerRuntimeUpdate, runtime, state, value)
+              setSourceStateValue(onOptimizerRuntimeUpdate, runtime, runtime, state, value)
             }}
           />
         </div>

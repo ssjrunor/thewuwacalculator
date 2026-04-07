@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { EnemyClassId, EnemyElementId } from '@/domain/entities/enemy'
 import { ENEMY_CLASS_LABELS, ENEMY_PRESETS, getEnemyIconPath } from '@/domain/entities/enemy'
 import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
+import { resolveNegativeEffectsForRuntime } from '@/domain/gameData/negativeEffects'
 import { filterEnemyCatalog, getEnemyCatalogEntryById } from '@/domain/services/enemyCatalogService'
 import { EnemyPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EnemyPickerModal'
 import {
@@ -114,11 +115,52 @@ export function CalculatorEnemyPane({
   )
 
   const combatState = runtime.state.combat
+  const visibleNegativeEffects = useMemo(
+    () => resolveNegativeEffectsForRuntime(runtime),
+    [runtime],
+  )
+  const adjustableNegativeEffects = useMemo(
+    () => visibleNegativeEffects.filter((effect) => effect.sliderVisible),
+    [visibleNegativeEffects],
+  )
   const isCustomMode = isCustomEnemyProfile(enemyProfile)
   const tuneStrain = getEnemyTuneStrain(enemyProfile)
   const enemyClass = getResolvedEnemyClass(enemyProfile)
   const resistanceRows = getEnemyResistanceRows(enemyProfile, ENEMY_ELEMENT_OPTIONS)
   const selectedEnemyIcon = selectedEnemy?.icon ?? getEnemyIconPath(enemyProfile.id) ?? '/assets/default-icon.webp'
+
+  useEffect(() => {
+    const entriesToClamp = visibleNegativeEffects.filter((effect) => combatState[effect.key] > effect.max)
+
+    if (entriesToClamp.length === 0) {
+      return
+    }
+
+    onRuntimeUpdate((currentRuntime) => {
+      const nextCombat = { ...currentRuntime.state.combat }
+      let changed = false
+
+      for (const effect of entriesToClamp) {
+        const currentValue = nextCombat[effect.key]
+        if (currentValue > effect.max) {
+          nextCombat[effect.key] = effect.max
+          changed = true
+        }
+      }
+
+      if (!changed) {
+        return currentRuntime
+      }
+
+      return {
+        ...currentRuntime,
+        state: {
+          ...currentRuntime.state,
+          combat: nextCombat,
+        },
+      }
+    })
+  }, [combatState, onRuntimeUpdate, visibleNegativeEffects])
 
   const openPicker = () => {
     enemyPicker.show()
@@ -340,54 +382,27 @@ export function CalculatorEnemyPane({
         />
       </div>
 
-      <div className="pane-section">
-        <div className="enemy-pane-v2__section-head">
-          <div><h4>Negative Effects</h4></div>
-        </div>
+      {adjustableNegativeEffects.length > 0 ? (
+        <div className="pane-section">
+          <div className="enemy-pane-v2__section-head">
+            <div><h4>Negative Effects</h4></div>
+          </div>
 
-        <div className="enemy-slider-grid">
-          <SliderControl
-            label="Spectro Frazzle"
-            value={combatState.spectroFrazzle}
-            min={0}
-            max={60}
-            accent="rgb(202,179,63)"
-            onChange={(value) => handleCombatStateChange('spectroFrazzle', value, 0, 60)}
-          />
-          <SliderControl
-            label="Aero Erosion"
-            value={combatState.aeroErosion}
-            min={0}
-            max={12}
-            accent="rgb(15,205,160)"
-            onChange={(value) => handleCombatStateChange('aeroErosion', value, 0, 12)}
-          />
-          <SliderControl
-            label="Fusion Burst"
-            value={combatState.fusionBurst}
-            min={0}
-            max={13}
-            accent="rgb(197,52,79)"
-            onChange={(value) => handleCombatStateChange('fusionBurst', value, 0, 13)}
-          />
-          <SliderControl
-            label="Havoc Bane"
-            value={combatState.havocBane}
-            min={0}
-            max={6}
-            accent="rgb(172,9,96)"
-            onChange={(value) => handleCombatStateChange('havocBane', value, 0, 6)}
-          />
-          <SliderControl
-              label="Electro Flare"
-              value={combatState.electroFlare}
-              min={0}
-              max={13}
-              accent="rgb(167,13,209)"
-              onChange={(value) => handleCombatStateChange('electroFlare', value, 0, 13)}
-          />
+          <div className="enemy-slider-grid">
+            {adjustableNegativeEffects.map((effect) => (
+              <SliderControl
+                key={effect.key}
+                label={effect.label}
+                value={combatState[effect.key]}
+                min={0}
+                max={effect.max}
+                accent={effect.accent}
+                onChange={(value) => handleCombatStateChange(effect.key, value, 0, effect.max)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="pane-section enemy-pane-v2__presets">
         <div className="enemy-pane-v2__section-head">

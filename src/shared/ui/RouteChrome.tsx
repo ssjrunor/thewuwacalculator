@@ -132,10 +132,10 @@ export function RouteChrome() {
       position: 'top-center',
       onClick: () => {
         localStorage.setItem(CHANGELOG_TOAST_STORAGE_KEY, latestVersion)
-        navigate('/changelog')
+        appStatus.show()
       },
     })
-  }, [navigate, showToast])
+  }, [appStatus, showToast])
 
   // move calculator toolbar into the sidebar on smaller screens
   useEffect(() => {

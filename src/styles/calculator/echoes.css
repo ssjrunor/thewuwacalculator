@@ -1830,6 +1830,7 @@
 
 .echo-bag-card__tile {
   width: 100%;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 14%, var(--picker-modal-border));
   border-radius: 1.2rem;
   background:
@@ -2353,6 +2354,11 @@
   gap: 0.4rem;
   padding: 0.8rem 0 0.2rem;
   flex-wrap: wrap;
+}
+
+.echo-parser-preview .app-modal-header-top {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
 }
 
 .echo-parser-preview-grid {

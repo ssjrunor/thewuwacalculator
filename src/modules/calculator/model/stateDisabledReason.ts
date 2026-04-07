@@ -17,6 +17,9 @@ const STACK_LABELS: Partial<Record<string, string>> = {
   'state.combat.aeroErosion': 'Aero Erosion',
   'state.combat.fusionBurst': 'Fusion Burst',
   'state.combat.havocBane': 'Havoc Bane',
+  'state.combat.glacioChafe': 'Glacio Chafe',
+  'state.combat.electroFlare': 'Electro Flare',
+  'state.combat.electroRage': 'Electro Rage',
 }
 
 // try to resolve a nice display label for a control key

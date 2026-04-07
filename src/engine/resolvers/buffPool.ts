@@ -9,6 +9,9 @@ import type {
   AttributeKey,
   BaseStatBuff,
   ModBuff,
+  NegativeEffectBuff,
+  NegativeEffectBucket,
+  NegativeEffectKey,
   SkillTypeBucket,
   SkillTypeKey,
   UnifiedBuffPool,
@@ -39,9 +42,21 @@ const skillTypeKeys: Array<keyof SkillTypeBucket> = [
   'spectroFrazzle',
   'aeroErosion',
   'fusionBurst',
+  'havocBane',
+  'glacioChafe',
+  'electroFlare',
   'healing',
   'shield',
   'tuneRupture',
+]
+
+const negativeEffectKeys: NegativeEffectKey[] = [
+  'spectroFrazzle',
+  'aeroErosion',
+  'fusionBurst',
+  'havocBane',
+  'glacioChafe',
+  'electroFlare',
 ]
 
 // create a zeroed base stat buff object
@@ -60,6 +75,14 @@ export function makeModBuff(): ModBuff {
     dmgVuln: 0,
     critRate: 0,
     critDmg: 0,
+  }
+}
+
+export function makeNegativeEffectBuff(): NegativeEffectBuff {
+  return {
+    critRate: 0,
+    critDmg: 0,
+    multiplier: 0,
   }
 }
 
@@ -82,6 +105,12 @@ export function makeSkillTypeBucket(): SkillTypeBucket {
   return Object.fromEntries(skillTypeKeys.map((key) => [key, makeModBuff()])) as SkillTypeBucket
 }
 
+export function makeNegativeEffectBucket(): NegativeEffectBucket {
+  return Object.fromEntries(
+      negativeEffectKeys.map((key) => [key, makeNegativeEffectBuff()]),
+  ) as NegativeEffectBucket
+}
+
 // create a fully zeroed unified buff pool
 export function makeUnifiedBuffPool(): UnifiedBuffPool {
   return {
@@ -90,6 +119,7 @@ export function makeUnifiedBuffPool(): UnifiedBuffPool {
     def: makeBaseStatBuff(),
     attribute: makeAttributeBucket(),
     skillType: makeSkillTypeBucket(),
+    negativeEffect: makeNegativeEffectBucket(),
     flatDmg: 0,
     amplify: 0,
     critRate: 0,
@@ -102,7 +132,6 @@ export function makeUnifiedBuffPool(): UnifiedBuffPool {
     defShred: 0,
     dmgVuln: 0,
     tuneBreakBoost: 0,
-    fusionBurstMultiplier: 0,
     special: 0,
   }
 }

@@ -24,6 +24,7 @@ import { Expandable } from '@/shared/ui/Expandable'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import type { RuntimeUpdateHandler } from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
 import {getResonatorById} from "@/domain/services/catalogService.ts";
+import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 
 interface ManualBuffEditorProps {
   runtime: ResonatorRuntimeState
@@ -98,6 +99,9 @@ const ADVANCED_SKILL_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'spectroFrazzle', label: 'Spectro Frazzle' },
   { value: 'aeroErosion', label: 'Aero Erosion' },
   { value: 'fusionBurst', label: 'Fusion Burst' },
+  { value: 'havocBane', label: 'Havoc Bane' },
+  { value: 'glacioChafe', label: 'Glacio Chafe' },
+  { value: 'electroFlare', label: 'Electro Flare' },
   { value: 'healing', label: 'Healing' },
   { value: 'shield', label: 'Shield' },
   { value: 'tuneRupture', label: 'Tune Rupture' },
@@ -252,13 +256,16 @@ export function ManualBuffEditor({
 
   const skillOptions = Array.from(
     new Map(
-      (resonator?.skills ?? []).map((skill) => [
-        skill.id,
-        {
-          value: skill.id,
-          label: skill.label,
-        },
-      ]),
+      (resonator?.skills ?? []).map((rawSkill) => {
+        const skill = resolveSkill(runtime, rawSkill)
+        return [
+          skill.id,
+          {
+            value: skill.id,
+            label: skill.label,
+          },
+        ]
+      }),
     ).values(),
   )
   const tabOptions = SKILL_TAB_OPTIONS.filter(({ value }) =>

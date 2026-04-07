@@ -7,6 +7,11 @@
 
 import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
 import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
+import {
+  getNegativeEffectCombatKey,
+  getNegativeEffectEntryForRuntime,
+  isNegativeEffectVisibleForRuntime,
+} from '@/domain/gameData/negativeEffects'
 import type { SkillDefinition } from '@/domain/entities/stats'
 import { evaluateCondition } from '@/engine/effects/evaluator'
 import { applyManualSkillModifiers } from '@/engine/manualBuffs'
@@ -39,6 +44,43 @@ function resolveTableValue(values: number[] | undefined, index: number, fallback
   return values[index] ?? values[values.length - 1] ?? fallback
 }
 
+function resolveConditionalSkillType(runtime: ResonatorRuntimeState, skill: SkillDefinition): SkillDefinition['skillType'] {
+  if (!skill.skillTypeWhen || skill.skillTypeWhen.length === 0) {
+    return skill.skillType
+  }
+
+  const teamMemberIds = Array.from(
+    new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
+  )
+  const scope = {
+    context: {
+      source: {
+        type: 'resonator' as const,
+        id: runtime.id,
+      },
+      sourceRuntime: runtime,
+      targetRuntime: runtime,
+      activeRuntime: runtime,
+      targetRuntimeId: runtime.id,
+      activeResonatorId: runtime.id,
+      teamMemberIds,
+      team: buildTeamCompositionInfo(teamMemberIds),
+      echoSetCounts: computeEchoSetCounts(runtime.build.echoes),
+    },
+    sourceRuntime: runtime,
+    targetRuntime: runtime,
+    activeRuntime: runtime,
+  }
+
+  for (const entry of skill.skillTypeWhen) {
+    if (evaluateCondition(entry.when, scope)) {
+      return entry.skillType
+    }
+  }
+
+  return skill.skillType
+}
+
 // determine whether a skill should be exposed for the current runtime state
 // this respects both a hard visible=false flag and an optional visibleWhen condition
 export function isSkillVisible(runtime: ResonatorRuntimeState, skill: SkillDefinition): boolean {
@@ -46,15 +88,23 @@ export function isSkillVisible(runtime: ResonatorRuntimeState, skill: SkillDefin
     return false
   }
 
+  const negativeEffectCombatKey = skill.tab === 'negativeEffect'
+      ? getNegativeEffectCombatKey(skill.archetype)
+      : null
+
+  if (negativeEffectCombatKey && !isNegativeEffectVisibleForRuntime(runtime, negativeEffectCombatKey)) {
+    return false
+  }
+
+  const teamMemberIds = Array.from(
+      new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
+  )
+
   if (!skill.visibleWhen) {
     return true
   }
 
   // build the team context expected by the condition evaluator
-  const teamMemberIds = Array.from(
-      new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
-  )
-
   return evaluateCondition(skill.visibleWhen, {
     context: {
       source: {
@@ -81,7 +131,12 @@ export function isSkillVisible(runtime: ResonatorRuntimeState, skill: SkillDefin
 // expands hit tables if present, and finally applies manual skill overrides
 export function resolveSkill(runtime: ResonatorRuntimeState, skill: SkillDefinition): SkillDefinition {
   const visible = isSkillVisible(runtime, skill)
+  const skillType = resolveConditionalSkillType(runtime, skill)
   const levelIndex = resolveLevelIndex(runtime, skill)
+  const negativeEffectKey = skill.tab === 'negativeEffect' ? getNegativeEffectCombatKey(skill.archetype) : null
+  const label = negativeEffectKey
+    ? (getNegativeEffectEntryForRuntime(runtime, negativeEffectKey)?.label ?? skill.label)
+    : skill.label
 
   // resolve scalar values from their level tables, falling back to base values
   const multiplier = resolveTableValue(skill.multiplierValues, levelIndex, skill.multiplier)
@@ -92,7 +147,9 @@ export function resolveSkill(runtime: ResonatorRuntimeState, skill: SkillDefinit
   if (!skill.hitTable || skill.hitTable.length === 0) {
     return applyManualSkillModifiers({
       ...skill,
+      label,
       visible,
+      skillType,
       multiplier,
       flat,
       fixedDmg,
@@ -109,7 +166,9 @@ export function resolveSkill(runtime: ResonatorRuntimeState, skill: SkillDefinit
   // recompute the aggregate multiplier from the resolved hit entries
   return applyManualSkillModifiers({
     ...skill,
+    label,
     visible,
+    skillType,
     flat,
     fixedDmg,
     multiplier: sumHits({ hits }),

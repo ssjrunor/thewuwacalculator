@@ -77,6 +77,10 @@ export function InfoPage() {
               <a href="https://encore.moe/?lang=en/" target="_blank" rel="noopener noreferrer">
                 encore.moe
               </a>
+              {' '}and{' '}
+              <a href="https://nanoka.cc" target="_blank" rel="noopener noreferrer">
+                nanoka.cc
+              </a>
               . Damage math follows the{' '}
               <a
                 href="https://wutheringwaves.fandom.com/wiki/Damage"
@@ -85,7 +89,7 @@ export function InfoPage() {
               >
                 Wuthering Waves Wiki
               </a>{' '}
-              model and ongoing community testing, with patch notes tracked in the changelog.
+              model and ongoing community testing, with patch/catalog updates pulled into the app and tracked in the changelog.
             </p>
           </div>
         </section>

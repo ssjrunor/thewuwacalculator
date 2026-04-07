@@ -32,7 +32,7 @@ import {cloneRotationNodes} from '@/domain/entities/inventoryStorage'
 import {useAppStore} from '@/domain/state/store'
 import type {AttributeKey, SkillAggregationType, SkillDefinition} from '@/domain/entities/stats'
 import type {SimulationResult} from '@/engine/pipeline/types'
-import {isSkillVisible} from '@/engine/pipeline/resolveSkill'
+import {isSkillVisible, resolveSkill} from '@/engine/pipeline/resolveSkill'
 import {buildRuntimeSourceCatalog, getMainEchoSourceRef} from '@/domain/services/runtimeSourceService'
 import {listResonatorRotations, listStatesForSource} from '@/domain/services/gameDataService'
 import {buildMemberContributions} from '@/modules/calculator/components/workspace/panes/right/rightPaneUtils'
@@ -61,7 +61,11 @@ import {getWeaponById} from '@/domain/services/weaponCatalogService'
 import {resolvePassiveParams} from '@/modules/calculator/model/weapon'
 import {computeEchoSetCounts} from '@/engine/pipeline/buildCombatContext'
 import {getEchoSetDef} from '@/data/gameData/echoSets/effects'
-import {getNegativeEffectAttribute, getNegativeEffectCombatKey} from '@/domain/gameData/negativeEffects'
+import {
+  getNegativeEffectAttribute,
+  getNegativeEffectCombatKey,
+  getNegativeEffectEntryForRuntime,
+} from '@/domain/gameData/negativeEffects'
 import {
   createNegativeEffectConfigDraft,
   serializeNegativeEffectConfigDraft,
@@ -177,6 +181,7 @@ interface FeatureMeta {
   resonatorName: string
   variant?: 'skill' | 'subHit'
   hitIndex?: number
+  fixedStacks?: boolean
 }
 
 interface RotationMemberEntry {
@@ -1593,13 +1598,22 @@ function RotationSkillMenu({
   const activeMember = members.find((member) => member.id === activeMemberId) ?? null
   const activeRuntime = activeMember?.runtime ?? null
   const activeMemberName = activeMember?.name ?? 'Active Member'
+  const resolvedSkillsById = useMemo(() => {
+    if (!activeMember || !activeRuntime) {
+      return {}
+    }
+
+    return Object.fromEntries(
+      activeMember.skills.map((skill) => [skill.id, resolveSkill(activeRuntime, skill)]),
+    ) as Record<string, SkillDefinition>
+  }, [activeMember, activeRuntime])
   const entries = useMemo<SkillMenuEntry[]>(() => {
     if (!activeMember) {
       return []
     }
 
     return activeMember.features.reduce<SkillMenuEntry[]>((list, feature) => {
-        const skill = activeMember.skills.find((entry) => entry.id === feature.skillId)
+        const skill = resolvedSkillsById[feature.skillId]
         if (!skill || (activeRuntime && !isSkillVisible(activeRuntime, skill))) {
           return list
         }
@@ -1617,7 +1631,7 @@ function RotationSkillMenu({
 
         return list
       }, [])
-  }, [activeMember, activeRuntime])
+  }, [activeMember, activeRuntime, resolvedSkillsById])
 
   const groupedEntries = useMemo(() => {
     const grouped: Partial<Record<SkillTabKey, SkillMenuGroup[]>> = {}
@@ -1629,7 +1643,8 @@ function RotationSkillMenu({
       featuresBySkillId.set(entry.skill.id, current)
     }
 
-    for (const skill of activeMember?.skills ?? []) {
+    for (const rawSkill of activeMember?.skills ?? []) {
+      const skill = resolvedSkillsById[rawSkill.id] ?? rawSkill
       if (activeRuntime && !isSkillVisible(activeRuntime, skill)) {
         continue
       }
@@ -1657,7 +1672,7 @@ function RotationSkillMenu({
     }
 
     return grouped
-  }, [activeMember, activeMemberId, activeMemberName, activeRuntime, entries])
+  }, [activeMember, activeMemberId, activeMemberName, activeRuntime, entries, resolvedSkillsById])
   const hasSubHitEntries = useMemo(() => entries.some((entry) => entry.variant === 'subHit'), [entries])
   const visibleSkillCount = useMemo(
     () =>
@@ -1722,8 +1737,8 @@ function RotationSkillMenu({
                 <span className="picker-modal__summary-label">Skills</span>
                 <span className="picker-modal__summary-value">{visibleSkillCount}</span>
               </div>
+              <ModalCloseButton onClick={onClose} />
             </div>
-            <ModalCloseButton onClick={onClose} />
           </div>
           {members.length > 1 ? (
             <div className="rotation-view-toggle skill-menu-member-toggle">
@@ -2365,6 +2380,7 @@ function RotationTreeNode({
     const previousFeatureId = previousFeatureById[node.featureId]
     const memberIcon = getNodeMemberIcon(node, runtime, featureMetaById, conditionChoices)
     const isNegativeEffectFeature = meta?.tab === 'negativeEffect'
+    const usesFixedNegativeEffectStacks = Boolean(meta?.fixedStacks)
     const negativeEffectAttribute = getNegativeEffectAttribute(meta?.archetype)
 
     if (orphaned) {
@@ -2483,7 +2499,7 @@ function RotationTreeNode({
               >
                 <Pencil size={15} />
               </button>
-              {isNegativeEffectFeature ? (
+              {isNegativeEffectFeature && !usesFixedNegativeEffectStacks ? (
                 <button
                   type="button"
                   className="block-icon-button rotation-negative-effect-button"
@@ -3609,19 +3625,25 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     for (const member of availableMembers) {
       for (const feature of member.features) {
         const skill = member.skills.find((entry) => entry.id === feature.skillId)
+        const resolvedSkill = skill ? resolveSkill(member.runtime, skill) : null
+        const negativeEffectCombatKey = getNegativeEffectCombatKey(resolvedSkill?.archetype)
+        const fixedStacks = negativeEffectCombatKey
+          ? getNegativeEffectEntryForRuntime(member.runtime, negativeEffectCombatKey)?.stackMode === 'fixedMax'
+          : false
         lookup[feature.id] = {
-          label: feature.label,
+          label: resolvedSkill?.tab === 'negativeEffect' ? resolvedSkill.label : feature.label,
           skillId: feature.skillId,
-          tab: skill?.tab ?? 'feature',
-          archetype: skill?.archetype,
-          section: skill?.sectionTitle,
-          skillTypeLabel: getSkillTypeDisplay(skill?.skillType?.[0]).label,
-          element: skill?.element ?? member.attribute,
-          aggregationType: skill?.aggregationType ?? 'damage',
+          tab: resolvedSkill?.tab ?? skill?.tab ?? 'feature',
+          archetype: resolvedSkill?.archetype ?? skill?.archetype,
+          section: resolvedSkill?.sectionTitle ?? skill?.sectionTitle,
+          skillTypeLabel: getSkillTypeDisplay(resolvedSkill?.skillType?.[0] ?? skill?.skillType?.[0]).label,
+          element: resolvedSkill?.element ?? skill?.element ?? member.attribute,
+          aggregationType: resolvedSkill?.aggregationType ?? skill?.aggregationType ?? 'damage',
           resonatorId: member.id,
           resonatorName: member.name,
           variant: getFeatureVariant(feature),
           hitIndex: typeof feature.hitIndex === 'number' ? feature.hitIndex : undefined,
+          fixedStacks,
         }
       }
     }

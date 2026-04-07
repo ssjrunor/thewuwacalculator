@@ -7,6 +7,7 @@
 */
 
 import type { OptimizerResultStats } from '@/engine/optimizer/types.ts'
+import { getNegativeEffectDefaultMax } from '@/domain/gameData/negativeEffects'
 import { getNegativeEffectBase } from '@/engine/formulas/negativeEffects.ts'
 import { getTuneRuptureLevelScale } from '@/engine/formulas/tuneRupture.ts'
 import { createCpuScratch, type CpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
@@ -15,7 +16,9 @@ import { passesConstraints } from '@/engine/optimizer/constraints/statConstraint
 import {
   OPTIMIZER_ARCHETYPE_AERO_EROSION,
   OPTIMIZER_ARCHETYPE_DAMAGE,
+  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
   OPTIMIZER_ARCHETYPE_FUSION_BURST,
+  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
   OPTIMIZER_ARCHETYPE_HEALING,
   OPTIMIZER_ARCHETYPE_SHIELD,
   OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
@@ -36,7 +39,6 @@ import {
   OPTIMIZER_VEC_DMG_VULN,
   OPTIMIZER_VEC_ENERGY_REGEN,
   OPTIMIZER_VEC_FLAT_DMG,
-  OPTIMIZER_VEC_FUSION_BURST_MULTIPLIER,
   OPTIMIZER_VEC_HEALING_BONUS,
   OPTIMIZER_VEC_HP_FLAT,
   OPTIMIZER_VEC_HP_PERCENT,
@@ -52,6 +54,9 @@ import {
   CTX_BASE_DEF as OPT_CTX_BASE_DEF,
   CTX_BASE_HP as OPT_CTX_BASE_HP,
   CTX_COMBAT_AERO_EROSION as OPT_CTX_COMBAT_AERO_EROSION,
+  CTX_COMBAT_ELECTRO_FLARE as OPT_CTX_COMBAT_ELECTRO_FLARE,
+  CTX_COMBAT_GLACIO_CHAFE as OPT_CTX_COMBAT_GLACIO_CHAFE,
+  CTX_COMBAT_ELECTRO_RAGE as OPT_CTX_COMBAT_ELECTRO_RAGE,
   CTX_COMBAT_FUSION_BURST as OPT_CTX_COMBAT_FUSION_BURST,
   CTX_COMBAT_SPECTRO_FRAZZLE as OPT_CTX_COMBAT_SPECTRO_FRAZZLE,
   CTX_ENEMY_BASE_RES as OPT_CTX_ENEMY_BASE_RES,
@@ -83,8 +88,8 @@ import {
   CTX_STATIC_FINAL_ER as OPT_CTX_STATIC_FINAL_ER,
   CTX_STATIC_FINAL_HP as OPT_CTX_STATIC_FINAL_HP,
   CTX_STATIC_FLAT_DMG as OPT_CTX_STATIC_FLAT_DMG,
-  CTX_STATIC_FUSION_BURST_MULTIPLIER as OPT_CTX_STATIC_FUSION_BURST_MULTIPLIER,
   CTX_STATIC_HEALING_BONUS as OPT_CTX_STATIC_HEALING_BONUS,
+  CTX_NEGATIVE_EFFECT_MULTIPLIER as OPT_CTX_NEGATIVE_EFFECT_MULTIPLIER,
   CTX_STATIC_RES_SHRED as OPT_CTX_STATIC_RES_SHRED,
   CTX_STATIC_SHIELD_BONUS as OPT_CTX_STATIC_SHIELD_BONUS,
   CTX_STATIC_SPECIAL as OPT_CTX_STATIC_SPECIAL,
@@ -320,9 +325,8 @@ function evaluatePackedContextDamage(
   const defShred = context[contextOffset + OPT_CTX_STATIC_DEF_SHRED] + comboVector[OPTIMIZER_VEC_DEF_SHRED]
   const dmgVulnPct = context[contextOffset + OPT_CTX_STATIC_DMG_VULN] + comboVector[OPTIMIZER_VEC_DMG_VULN]
 
-  const fusionBurstMultiplier =
-      context[contextOffset + OPT_CTX_STATIC_FUSION_BURST_MULTIPLIER] +
-      comboVector[OPTIMIZER_VEC_FUSION_BURST_MULTIPLIER]
+  const negativeEffectMultiplier =
+      context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_MULTIPLIER]
 
   const tuneBreakBoostPct =
       context[contextOffset + OPT_CTX_STATIC_TUNE_BREAK_BOOST] +
@@ -386,34 +390,54 @@ function evaluatePackedContextDamage(
 
     case OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE:
     case OPTIMIZER_ARCHETYPE_AERO_EROSION:
-    case OPTIMIZER_ARCHETYPE_FUSION_BURST: {
+    case OPTIMIZER_ARCHETYPE_FUSION_BURST:
+    case OPTIMIZER_ARCHETYPE_GLACIO_CHAFE:
+    case OPTIMIZER_ARCHETYPE_ELECTRO_FLARE: {
       const archetype = context[contextOffset + OPT_CTX_ARCHETYPE]
 
-      const stacks =
+      const primaryStacks =
           archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
               ? context[contextOffset + OPT_CTX_COMBAT_SPECTRO_FRAZZLE]
               : archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
                   ? context[contextOffset + OPT_CTX_COMBAT_AERO_EROSION]
-                  : context[contextOffset + OPT_CTX_COMBAT_FUSION_BURST]
+                  : archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+                      ? context[contextOffset + OPT_CTX_COMBAT_FUSION_BURST]
+                      : archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                          ? context[contextOffset + OPT_CTX_COMBAT_GLACIO_CHAFE]
+                      : context[contextOffset + OPT_CTX_COMBAT_ELECTRO_FLARE]
+      const extraElectroRageStacks =
+          archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+              && primaryStacks > getNegativeEffectDefaultMax('electroFlare')
+              ? context[contextOffset + OPT_CTX_COMBAT_ELECTRO_RAGE]
+              : 0
 
-      if (stacks <= 0) {
+      if (primaryStacks <= 0 && extraElectroRageStacks <= 0) {
         return 0
       }
 
-      const perStackBase = getNegativeEffectBase(
+      const perStackBase =
+          getNegativeEffectBase(
           archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
               ? 'spectroFrazzle'
               : archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
                   ? 'aeroErosion'
-                  : 'fusionBurst',
+                  : archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+                      ? 'fusionBurst'
+                      : archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                          ? 'glacioChafe'
+                      : 'electroFlare',
           context[contextOffset + OPT_CTX_LEVEL],
-          stacks,
-      )
+          primaryStacks,
+      ) + (
+            archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+                ? getNegativeEffectBase('electroFlare', context[contextOffset + OPT_CTX_LEVEL], extraElectroRageStacks)
+                : 0
+          )
 
       const normal = Math.floor(
           perStackBase *
           context[contextOffset + OPT_CTX_HIT_SCALE] *
-          (archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST ? (1 + fusionBurstMultiplier) : 1) *
+          (1 + negativeEffectMultiplier) *
           (1 + amplifyPct / 100) *
           (1 + damageBonusPct / 100) *
           (1 + specialPct / 100) *

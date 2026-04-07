@@ -28,6 +28,9 @@ export type SkillTypeKey =
     | 'spectroFrazzle'
     | 'aeroErosion'
     | 'fusionBurst'
+    | 'havocBane'
+    | 'glacioChafe'
+    | 'electroFlare'
     | 'healing'
     | 'shield'
     | 'tuneRupture'
@@ -38,6 +41,7 @@ export type SkillArchetype =
     | 'spectroFrazzle'
     | 'aeroErosion'
     | 'fusionBurst'
+    | 'glacioChafe'
     | 'electroFlare'
     | 'healing'
     | 'shield'
@@ -60,8 +64,23 @@ export interface ModBuff {
   critDmg: number
 }
 
+export type NegativeEffectKey =
+    | 'spectroFrazzle'
+    | 'aeroErosion'
+    | 'fusionBurst'
+    | 'havocBane'
+    | 'glacioChafe'
+    | 'electroFlare'
+
+export interface NegativeEffectBuff {
+  critRate: number
+  critDmg: number
+  multiplier: number
+}
+
 export type AttributeBucket = Record<'all' | AttributeKey, ModBuff>
 export type SkillTypeBucket = Record<SkillTypeKey, ModBuff>
+export type NegativeEffectBucket = Record<NegativeEffectKey, NegativeEffectBuff>
 
 export interface UnifiedBuffPool {
   atk: BaseStatBuff
@@ -69,6 +88,7 @@ export interface UnifiedBuffPool {
   def: BaseStatBuff
   attribute: AttributeBucket
   skillType: SkillTypeBucket
+  negativeEffect: NegativeEffectBucket
   flatDmg: number
   amplify: number
   critRate: number
@@ -81,7 +101,6 @@ export interface UnifiedBuffPool {
   defShred: number
   dmgVuln: number
   tuneBreakBoost: number
-  fusionBurstMultiplier: number
   special: number
 }
 
@@ -102,6 +121,7 @@ export interface FinalStats {
   def: { base: number; final: number }
   attribute: AttributeBucket
   skillType: SkillTypeBucket
+  negativeEffect: NegativeEffectBucket
   flatDmg: number
   amplify: number
   critRate: number
@@ -114,7 +134,6 @@ export interface FinalStats {
   defShred: number
   dmgVuln: number
   tuneBreakBoost: number
-  fusionBurstMultiplier: number
   special: number
 }
 
@@ -177,6 +196,10 @@ export interface SkillDefinition {
   levelSource?: SkillLevelSourceKey | null
   visible?: boolean
   visibleWhen?: ConditionExpression
+  skillTypeWhen?: Array<{
+    when: ConditionExpression
+    skillType: SkillTypeKey[]
+  }>
   hits: Array<{
     label?: string
     count: number

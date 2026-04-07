@@ -1481,8 +1481,8 @@
       },
       {
         "key": "chromaticFoamOutro",
-        "label": "While the self buff is active, Outro Skill grants the incoming Resonator 25% Fusion DMG Bonus.",
-        "trigger": "Triggered by using Outro Skill while the self buff is active."
+        "label": "While this effect is active, casting an Outro Skill grants the incoming Resonator 25% Fusion DMG Bonus for 15s.",
+        "trigger": "Triggered by using Outro Skill while this effect is active."
       }
     ]
   },
@@ -1537,6 +1537,129 @@
         "key": "soundOfTrueName5pc",
         "label": "Dealing Echo Skill DMG increases Echo Skill Crit. Rate by 20% and grants 15% Aero DMG Bonus for 5s.",
         "trigger": "Triggered by dealing Echo Skill DMG."
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "name": "Wishes of Quiet Snowfall",
+    "setMax": 5,
+    "desc": {
+      "twoPiece": "Glacio DMG +10%",
+      "fivePiece": "Inflicting Glacio Chafe on enemies increases Glacio DMG dealt by 10% for 15s. The Resonator gains the Snowfall effect, which can be triggered once every 25s. While Snowfall is active: dealing Resonance Liberation DMG removes Snowfall and increases the Resonator's Crit. Rate by 25% for 30s. Casting Outro Skill removes Snowfall and grants 25% Glacio DMG Bonus to the incoming Resonator for 30s."
+    },
+    "twoPiece": [
+      {
+        "value": 10,
+        "path": [
+          "attribute",
+          "glacio",
+          "dmgBonus"
+        ]
+      }
+    ],
+    "fivePiece": null,
+    "states": {
+      "snowfall": {
+        "max": [
+          {
+            "value": 10,
+            "path": [
+              "attribute",
+              "glacio",
+              "dmgBonus"
+            ]
+          }
+        ]
+      },
+      "snowfallCrit": {
+        "max": [
+          {
+            "value": 25,
+            "path": [
+              "critRate"
+            ]
+          }
+        ]
+      },
+      "snowfallOutro": {
+        "max": [
+          {
+            "value": 25,
+            "path": [
+              "attribute",
+              "glacio",
+              "dmgBonus"
+            ],
+            "targetScope": "activeOther"
+          }
+        ]
+      }
+    },
+    "parts": [
+      {
+        "key": "twoPiece",
+        "label": "Glacio DMG +10%",
+        "trigger": "Always active at 2pc."
+      },
+      {
+        "key": "snowfall",
+        "label": "Inflicting Glacio Chafe on enemies increases Glacio DMG dealt by 10% for 15s.",
+        "trigger": "Triggered by inflicting Glacio Chafe."
+      },
+      {
+        "key": "snowfallCrit",
+        "label": "The Resonator gains the Snowfall effect, which can be triggered once every 25s. While Snowfall is active: dealing Resonance Liberation DMG removes Snowfall and increases the Resonator's Crit. Rate by 25% for 30s.",
+        "trigger": "Triggered by dealing Resonance Liberation DMG while Snowfall is active."
+      },
+      {
+        "key": "snowfallOutro",
+        "label": "Casting Outro Skill removes Snowfall and grants 25% Glacio DMG Bonus to the incoming Resonator for 30s.",
+        "trigger": "Triggered by casting Outro Skill while Snowfall is active."
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "name": "Reel of Spliced Memories",
+    "setMax": 5,
+    "desc": {
+      "twoPiece": "ATK +10%",
+      "fivePiece": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 15 for 30s. Effects of the same name do not stack."
+    },
+    "twoPiece": [
+      {
+        "value": 10,
+        "path": [
+          "atk",
+          "percent"
+        ]
+      }
+    ],
+    "fivePiece": null,
+    "states": {
+      "reelOfSplicedMemories5pc": {
+        "max": [
+          {
+            "value": 15,
+            "path": [
+              "tuneBreakBoost"
+            ],
+            "targetScope": "teamWide"
+          }
+        ]
+      }
+    },
+    "parts": [
+      {
+        "key": "twoPiece",
+        "label": "ATK +10%",
+        "trigger": "Always active at 2pc."
+      },
+      {
+        "key": "reelOfSplicedMemories5pc",
+        "label": "Tune Break Boost +15",
+        "trigger": "Triggered by inflicting Tune Rupture - Shifting or Tune Strain - Shifting."
       }
     ]
   }

@@ -39,6 +39,7 @@ import { evaluateSourceStateVisibility } from '@/modules/calculator/model/source
 import { hideBrokenImage } from '@/shared/lib/imageFallback'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 import { useToastStore } from '@/shared/util/toastStore.ts'
+import { formatDescription } from '@/shared/lib/formatDescription'
 import { IoArchive } from 'react-icons/io5'
 import { RiDeleteBin2Fill } from 'react-icons/ri'
 
@@ -304,7 +305,7 @@ function EchoSetBonus({
           {passiveParts.map((part) => (
             <div key={part.key} className="echo-set-tier">
               <span className="echo-set-tier-tag">{tierLabel(part.key)}</span>
-              <span className="echo-set-tier-desc">{part.label}</span>
+              <RichDescription description={part.label} className="echo-set-tier-desc" unstyled />
             </div>
           ))}
         </div>
@@ -378,9 +379,17 @@ function EchoSetStatePart({
             onChange={() => updateControl(!checked)}
           />
           <span className="echo-set-state-switch" />
-          <span className="echo-set-state-label">{label}</span>
+          <span
+            className="echo-set-state-label"
+            dangerouslySetInnerHTML={{ __html: formatDescription(label) }}
+          />
         </label>
-        {trigger ? <span className="echo-set-state-trigger">{trigger}</span> : null}
+        {trigger ? (
+          <span
+            className="echo-set-state-trigger"
+            dangerouslySetInnerHTML={{ __html: formatDescription(trigger) }}
+          />
+        ) : null}
       </div>
     )
   }
@@ -394,7 +403,10 @@ function EchoSetStatePart({
   return (
     <div className={`echo-set-state${stackValue > 0 ? ' echo-set-state--active' : ''}`}>
       <div className="echo-set-state-stack">
-        <span className="echo-set-state-label">{label}</span>
+        <span
+          className="echo-set-state-label"
+          dangerouslySetInnerHTML={{ __html: formatDescription(label) }}
+        />
         <div className="echo-set-state-stack-control">
           {Array.from({ length: maxStacks + 1 }, (_, i) => (
             <button
@@ -408,7 +420,12 @@ function EchoSetStatePart({
           ))}
         </div>
       </div>
-      {trigger ? <span className="echo-set-state-trigger">{trigger}</span> : null}
+      {trigger ? (
+        <span
+          className="echo-set-state-trigger"
+          dangerouslySetInnerHTML={{ __html: formatDescription(trigger) }}
+        />
+      ) : null}
     </div>
   )
 }

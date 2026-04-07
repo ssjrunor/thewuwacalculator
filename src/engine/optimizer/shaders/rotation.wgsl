@@ -70,6 +70,8 @@ const ARCHETYPE_TUNE_RUPTURE: u32 = 3u;
 const ARCHETYPE_SPECTRO_FRAZZLE: u32 = 4u;
 const ARCHETYPE_AERO_EROSION: u32 = 5u;
 const ARCHETYPE_FUSION_BURST: u32 = 6u;
+const ARCHETYPE_ELECTRO_FLARE: u32 = 7u;
+const ARCHETYPE_GLACIO_CHAFE: u32 = 8u;
 
 struct Params {
     // base stats and already-baked final stats from the optimizer context
@@ -828,7 +830,9 @@ fn evalMainPos(
     } else if (
         archetype == ARCHETYPE_SPECTRO_FRAZZLE ||
         archetype == ARCHETYPE_AERO_EROSION ||
-        archetype == ARCHETYPE_FUSION_BURST
+        archetype == ARCHETYPE_FUSION_BURST ||
+        archetype == ARCHETYPE_ELECTRO_FLARE ||
+        archetype == ARCHETYPE_GLACIO_CHAFE
     ) {
         let normal = floor(
             pre.multiplier *

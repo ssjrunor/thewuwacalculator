@@ -1,8 +1,9 @@
 import type { FeatureResult } from '@/domain/gameData/contracts'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import { ATTRIBUTE_TO_ENEMY_RES_INDEX, isUnsetEnemyProfile } from '@/domain/entities/appState'
+import { getNegativeEffectDefaultMax } from '@/domain/gameData/negativeEffects'
 import type { CombatState } from '@/domain/entities/runtime'
-import type { FinalStats, ModBuff, SkillDefinition, SkillTypeKey } from '@/domain/entities/stats'
+import type { FinalStats, ModBuff, NegativeEffectKey, SkillDefinition, SkillTypeKey } from '@/domain/entities/stats'
 import { getNegativeEffectBase as computeNegativeEffectBase } from '@/engine/formulas/negativeEffects'
 import { getTuneRuptureLevelScale } from '@/engine/formulas/tuneRupture'
 import { aggregateSkillTypeBuffs, makeModBuff } from '@/engine/resolvers/buffPool'
@@ -770,7 +771,13 @@ function buildTuneRuptureConsoleText(
 }
 
 function getNegativeEffectBase(archetype: SkillDefinition['archetype'], level: number, stacks: number): number {
-  if (archetype !== 'spectroFrazzle' && archetype !== 'aeroErosion' && archetype !== 'fusionBurst') {
+  if (
+    archetype !== 'spectroFrazzle'
+    && archetype !== 'aeroErosion'
+    && archetype !== 'fusionBurst'
+    && archetype !== 'glacioChafe'
+    && archetype !== 'electroFlare'
+  ) {
     return 0
   }
 
@@ -786,19 +793,34 @@ function buildNegativeEffectConsoleText(
 ): string {
   const { skill } = entry
   const sections: string[][] = []
-  const effectArchetype = skill.archetype as Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst'>
+  const effectArchetype = skill.archetype as Extract<
+    SkillDefinition['archetype'],
+    'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'
+  >
   const stacks = effectArchetype === 'spectroFrazzle'
     ? combatState.spectroFrazzle
     : effectArchetype === 'aeroErosion'
       ? combatState.aeroErosion
-      : combatState.fusionBurst
+      : effectArchetype === 'fusionBurst'
+        ? combatState.fusionBurst
+        : effectArchetype === 'glacioChafe'
+          ? combatState.glacioChafe
+        : combatState.electroFlare
+  const extraStacks = effectArchetype === 'electroFlare'
+    && combatState.electroFlare > getNegativeEffectDefaultMax('electroFlare')
+    ? combatState.electroRage
+    : 0
   const element = effectArchetype === 'spectroFrazzle'
     ? 'spectro'
     : effectArchetype === 'aeroErosion'
       ? 'aero'
-      : 'fusion'
-  const effectSkillType = finalStats.skillType[effectArchetype]
-  const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, [effectArchetype])
+      : effectArchetype === 'fusionBurst'
+        ? 'fusion'
+        : effectArchetype === 'glacioChafe'
+          ? 'glacio'
+        : 'electro'
+  const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, skill.skillType)
+  const negativeEffectBuff = finalStats.negativeEffect[effectArchetype as NegativeEffectKey]
   const attributeAll = finalStats.attribute.all
   const attributeElement = finalStats.attribute[element]
   const ignoresEnemy = isUnsetEnemyProfile(enemy)
@@ -816,25 +838,27 @@ function buildNegativeEffectConsoleText(
     : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
   const hits = resolveDamageHits(skill, 1)
   const totalHitScale = sumHitScale(hits)
-  const perStackBase = getNegativeEffectBase(effectArchetype, level, stacks)
+  const perStackBase =
+    getNegativeEffectBase(effectArchetype, level, stacks) +
+    (effectArchetype === 'electroFlare' ? getNegativeEffectBase(effectArchetype, level, extraStacks) : 0)
   const bonusMultiplier =
     (1 + finalStats.amplify / 100) *
-    (1 + effectSkillType.amplify / 100) *
-    (1 + effectSkillType.dmgBonus / 100) *
+    (1 + aggregatedEffectType.amplify / 100) *
+    (1 + aggregatedEffectType.dmgBonus / 100) *
     (1 + finalStats.special / 100)
-  const fusionMultiplier = effectArchetype === 'fusionBurst' ? (1 + finalStats.fusionBurstMultiplier) : 1
-  const critRatePercent = (skill.negativeEffectCritRate ?? 0) * 100
-  const critDmgPercent = (skill.negativeEffectCritDmg ?? 1) * 100
+  const negativeEffectMultiplier = 1 + negativeEffectBuff.multiplier
+  const critRatePercent = ((skill.negativeEffectCritRate ?? 0) * 100) + negativeEffectBuff.critRate
+  const critDmgPercent = ((skill.negativeEffectCritDmg ?? 1) * 100) + negativeEffectBuff.critDmg
 
   pushSection(sections, '// Summary', `Normal ${formatWhole(entry.normal)} | Crit ${formatWhole(entry.crit)} | Avg ${formatWhole(entry.avg)}`)
 
-  if (stacks <= 0) {
+  if (stacks <= 0 && extraStacks <= 0) {
     pushSection(sections, '// Output', `Normal ${formatWhole(entry.normal)} = 0 because the current stack count is 0`)
     return joinSections(sections)
   }
 
   const totalMultiplier =
-    fusionMultiplier *
+    negativeEffectMultiplier *
     bonusMultiplier *
     resMult *
     defenseMultiplier *
@@ -849,17 +873,21 @@ function buildNegativeEffectConsoleText(
     sections,
     '// Core',
     `${joinInline([
-      `Stacks ${formatFixed(stacks, 0)} = Current ${getSkillTypeDisplay(skill.skillType).label} stacks`,
-      `Per Stack ${formatFixed(perStackBase)} = ${effectArchetype}`,
+      effectArchetype === 'electroFlare'
+        ? `Stacks ${formatFixed(stacks, 0)} + ${formatFixed(extraStacks, 0)} = Current Electro Flare + Electro Rage stacks`
+        : `Stacks ${formatFixed(stacks, 0)} = Current ${getSkillTypeDisplay(skill.skillType).label} stacks`,
+      effectArchetype === 'electroFlare'
+        ? `Base ${formatFixed(perStackBase)} = Electro Flare base + Electro Rage base`
+        : `Per Stack ${formatFixed(perStackBase)} = ${effectArchetype}`,
       `Hit Scale ${formatFixed(totalHitScale)} = ${buildHitSpread(hits, (hit) => formatFixed(hit.multiplier))}`,
     ])}`,
     `Multi ${joinInline([
       `Total ${formatMultiplierPercent(totalMultiplier, 10)}`,
-      effectArchetype === 'fusionBurst' && hasNonZeroValue(finalStats.fusionBurstMultiplier)
-        ? `Fusion ${formatMultiplierPercent(fusionMultiplier, 4)}`
+      hasNonZeroValue(negativeEffectBuff.multiplier)
+        ? `${getSkillTypeDisplay(skill.skillType).label} ${formatMultiplierPercent(negativeEffectMultiplier, 4)}`
         : null,
-      hasNonZeroValue(finalStats.amplify) || hasNonZeroValue(effectSkillType.amplify) || hasNonZeroValue(effectSkillType.dmgBonus) || hasNonZeroValue(finalStats.special)
-        ? `Bonus ${formatMultiplierPercent(bonusMultiplier, 10)} = ${formatMultiplierPercent(1 + finalStats.amplify / 100, 4)} x ${formatMultiplierPercent(1 + effectSkillType.amplify / 100, 4)} x ${formatMultiplierPercent(1 + effectSkillType.dmgBonus / 100, 4)} x ${formatMultiplierPercent(1 + finalStats.special / 100, 4)}`
+      hasNonZeroValue(finalStats.amplify) || hasNonZeroValue(aggregatedEffectType.amplify) || hasNonZeroValue(aggregatedEffectType.dmgBonus) || hasNonZeroValue(finalStats.special)
+        ? `Bonus ${formatMultiplierPercent(bonusMultiplier, 10)} = ${formatMultiplierPercent(1 + finalStats.amplify / 100, 4)} x ${formatMultiplierPercent(1 + aggregatedEffectType.amplify / 100, 4)} x ${formatMultiplierPercent(1 + aggregatedEffectType.dmgBonus / 100, 4)} x ${formatMultiplierPercent(1 + finalStats.special / 100, 4)}`
         : null,
       `Def ${formatMultiplierPercent(defenseMultiplier, 10)}`,
       `RES ${formatMultiplierPercent(resMult, 10)}`,
@@ -882,10 +910,10 @@ function buildNegativeEffectConsoleText(
     sections,
     '// Final',
     `${joinInline([
-      hasNonZeroValue(critRatePercent) ? `Rate ${formatPercent(critRatePercent)} = Skill Negative Effect Crit Rate` : null,
-      `Dmg ${formatPercent(critDmgPercent)} = Skill Negative Effect Crit Damage`,
+      hasNonZeroValue(critRatePercent) ? `Rate ${formatPercent(critRatePercent)} = Skill + Negative Effect Crit Rate` : null,
+      `Dmg ${formatPercent(critDmgPercent)} = Skill + Negative Effect Crit Damage`,
       `Crit ${formatWhole(entry.crit)} = ${formatWhole(entry.normal)} x ${formatPercent(critDmgPercent)}`,
-      (skill.negativeEffectCritRate ?? 0) >= 1
+      critRatePercent >= 100
         ? `Avg ${formatWhole(entry.avg)} = Guaranteed crit because Crit Rate is ${formatPercent(critRatePercent)}`
         : `Avg ${formatWhole(entry.avg)} = (${formatWhole(entry.crit)} x ${formatPercent(critRatePercent)}) + (${formatWhole(entry.normal)} x ${formatPercent(100 - critRatePercent)})`,
     ])}`,
@@ -910,6 +938,8 @@ export function buildSkillFormulaConsoleText(
     case 'spectroFrazzle':
     case 'aeroErosion':
     case 'fusionBurst':
+    case 'glacioChafe':
+    case 'electroFlare':
       return buildNegativeEffectConsoleText(entry, finalStats, enemy, level, combatState)
     case 'skillDamage':
     default:

@@ -33,6 +33,7 @@ export function computeFinalStatsFromPool(
     def: { base: defBase, final: defFinal },
     attribute: pool.attribute,
     skillType: pool.skillType,
+    negativeEffect: pool.negativeEffect,
     flatDmg: pool.flatDmg,
     amplify: pool.amplify,
     critRate: baseStats.critRate + pool.critRate,
@@ -45,7 +46,6 @@ export function computeFinalStatsFromPool(
     defShred: pool.defShred,
     dmgVuln: pool.dmgVuln,
     tuneBreakBoost: baseStats.tuneBreakBoost + pool.tuneBreakBoost,
-    fusionBurstMultiplier: pool.fusionBurstMultiplier,
     special: pool.special,
   }
 }

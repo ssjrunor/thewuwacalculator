@@ -4,6 +4,8 @@
                control options, and image preloading.
 */
 
+import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
+import { resolveResonatorControlOptions } from '@/domain/gameData/controlOptions'
 import type { AttributeKey } from '@/domain/entities/stats'
 import type { ResonatorSkillTabKey, ResonatorStateControl } from '@/modules/calculator/model/resonator'
 
@@ -72,15 +74,9 @@ export function preloadImage(src: string): Promise<void> {
 // resolve select options that change once the resonator reaches a threshold sequence
 export function getControlOptions(
   control: ResonatorStateControl,
-  sequence: number,
+  runtime: ResonatorRuntimeState,
 ): number[] {
-  if (control.sequenceAwareOptions) {
-    return sequence >= control.sequenceAwareOptions.threshold
-      ? control.sequenceAwareOptions.atOrAbove
-      : control.sequenceAwareOptions.below
-  }
-
-  return control.options ?? []
+  return resolveResonatorControlOptions(runtime, control)
 }
 
 // scale a stored control value into its user-facing display value

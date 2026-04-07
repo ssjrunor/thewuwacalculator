@@ -427,6 +427,10 @@ function normalizePersistedAppStatePayload(parsed: unknown): PersistedAppState {
   throw new Error('Snapshot validation failed.')
 }
 
+function normalizePersistedAppState(state: PersistedAppState): PersistedAppState {
+  return initializePersistedAppState(state)
+}
+
 function buildStateWithoutInventory(state: PersistedAppState): PersistedAppState {
   return initializePersistedAppState({
     ...state,
@@ -501,6 +505,7 @@ function migrateLegacyState(includeInventory: boolean): PersistedAppState | null
 
 function assemblePersistedAppState(includeInventory: boolean): PersistedAppState | null {
   const state = createPersistedStateDraft(includeInventory)
+  const loadedDomains: PersistedDomainKey[] = []
   let hasLoadedDomain = false
 
   for (const key of getPersistedDomainKeys(includeInventory)) {
@@ -510,10 +515,17 @@ function assemblePersistedAppState(includeInventory: boolean): PersistedAppState
     }
 
     PERSISTED_DOMAIN_SPECS[key].apply(state, domain)
+    loadedDomains.push(key)
     hasLoadedDomain = true
   }
 
-  return hasLoadedDomain ? initializePersistedAppState(state) : null
+  if (!hasLoadedDomain) {
+    return null
+  }
+
+  const normalizedState = normalizePersistedAppState(state)
+  savePersistedAppState(normalizedState, { domains: loadedDomains })
+  return normalizedState
 }
 
 // parse persisted app state from raw json text
@@ -577,10 +589,13 @@ export function loadPersistedInventoryState(): {
     }
   }
 
+  const normalizedState = normalizePersistedAppState(state)
+  savePersistedAppState(normalizedState, { domains: INVENTORY_DOMAIN_KEYS })
+
   return {
-    inventoryEchoes: state.calculator.inventoryEchoes,
-    inventoryBuilds: state.calculator.inventoryBuilds,
-    inventoryRotations: state.calculator.inventoryRotations,
+    inventoryEchoes: normalizedState.calculator.inventoryEchoes,
+    inventoryBuilds: normalizedState.calculator.inventoryBuilds,
+    inventoryRotations: normalizedState.calculator.inventoryRotations,
   }
 }
 
@@ -596,10 +611,12 @@ export function savePersistedAppState(
       return
     }
 
+    const normalizedState = normalizePersistedAppState(result.data)
+
     const domains = new Set(options.domains ?? ALL_PERSISTED_DOMAIN_KEYS)
     for (const key of domains) {
       const spec = PERSISTED_DOMAIN_SPECS[key]
-      localStorage.setItem(spec.storageKey, JSON.stringify(spec.build(state)))
+      localStorage.setItem(spec.storageKey, JSON.stringify(spec.build(normalizedState)))
     }
   } catch (error) {
     console.warn('[storage] failed to persist app state', error)

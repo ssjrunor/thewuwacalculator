@@ -120,7 +120,6 @@ export interface CompiledTargetSkillContext {
   resMult: number
   defMult: number
   dmgReduction: number
-  staticFusionBurstMultiplier: number
   staticTuneBreakBoost: number
   staticResShred: number
   staticDefIgnore: number
@@ -140,11 +139,15 @@ export interface CompiledTargetSkillContext {
   tuneRuptureScale: number
   tuneRuptureCritRate: number
   tuneRuptureCritDmg: number
+  negativeEffectMultiplier: number
   negativeEffectCritRate: number
   negativeEffectCritDmg: number
   combatSpectroFrazzle: number
   combatAeroErosion: number
   combatFusionBurst: number
+  combatGlacioChafe: number
+  combatElectroFlare: number
+  combatElectroRage: number
 }
 
 // prepared target-skill optimizer run before final packed execution handoff

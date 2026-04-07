@@ -33,6 +33,7 @@ import { evaluateCondition, evaluateFormula } from '@/engine/effects/evaluator'
 import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
 import type { CombatContext } from '@/engine/pipeline/types'
 import { prepareRuntimeSkill } from '@/engine/pipeline/prepareRuntimeSkill'
+import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 
 // build a stack progression for negative-effect skills across multiple instances
 // stacks decay every stableWidth hits until they reach zero
@@ -269,7 +270,7 @@ function scaleResult(result: ReturnType<typeof computeSkillDamage>, weight: numb
 
 // hide zero-output negative-effect feature rows so empty stack states do not surface in results
 function shouldIncludeFeatureResult(skill: SkillDefinition, result: ReturnType<typeof computeSkillDamage>): boolean {
-  return !((skill.archetype === 'spectroFrazzle' || skill.archetype === 'aeroErosion' || skill.archetype === 'fusionBurst')
+  return !((skill.archetype === 'spectroFrazzle' || skill.archetype === 'aeroErosion' || skill.archetype === 'fusionBurst' || skill.archetype === 'glacioChafe' || skill.archetype === 'electroFlare')
       && result.avg <= 0);
 }
 
@@ -1185,12 +1186,13 @@ function visitFeatureRows(
       const skill = feature && rowRuntime && rowSeed ? findSkill(rowRuntime, rowSeed, feature.skillId) : null
 
       if (feature && skill && rowSeed) {
+        const resolvedSkill = resolveSkill(rowRuntime, skill)
         const nodeState = resolveFeatureNodeState(runtime, item)
         rows.push({
           id: item.id,
           featureId: feature.id,
-          label: feature.label,
-          tab: skill.tab,
+          label: resolvedSkill.tab === 'negativeEffect' ? resolvedSkill.label : feature.label,
+          tab: resolvedSkill.tab,
           multiplier: nodeState.multiplier,
           enabled: nodeState.enabled,
           resonatorId: rowSeed.id,

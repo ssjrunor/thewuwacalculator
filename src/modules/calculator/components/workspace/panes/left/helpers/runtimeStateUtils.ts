@@ -1,6 +1,12 @@
 import type { SyntheticEvent } from 'react'
 import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
 import type { ResonatorStateControl } from '@/domain/entities/resonator'
+import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
+import {
+  getResonatorControlInactiveValue,
+  getSourceStateInactiveValue,
+  normalizeResonatorRuntimeControls,
+} from '@/domain/gameData/controlOptions'
 import { writeRuntimePath } from '@/domain/gameData/runtimePath'
 import type { ConditionExpression, EffectDefinition, FormulaExpression, SourceStateDefinition } from '@/domain/gameData/contracts'
 import { getResonator } from '@/modules/calculator/model/resonator'
@@ -28,29 +34,22 @@ export function setRuntimePath(
   onRuntimeUpdate((prev) => writeRuntimePath(prev, path, value))
 }
 
-function getSourceStateInactiveValue(state: SourceStateDefinition): boolean | number | string {
-  if (state.kind === 'toggle') {
-    return false
-  }
-
-  if (state.kind === 'select') {
-    return state.defaultValue ?? state.options?.[0]?.id ?? ''
-  }
-
-  return state.defaultValue ?? state.min ?? 0
-}
-
 export function setSourceStateValue(
   onRuntimeUpdate: RuntimeUpdateHandler,
-  _runtime: ResonatorRuntimeState,
+  sourceRuntime: ResonatorRuntimeState,
+  targetRuntime: ResonatorRuntimeState,
   state: SourceStateDefinition,
   value: string | number | boolean,
+  activeRuntime: ResonatorRuntimeState = targetRuntime,
 ): void {
   onRuntimeUpdate((prev) => {
     let nextRuntime = writeRuntimePath(prev, state.path, value)
 
     if (state.kind === 'toggle' && value === true && state.resets?.length) {
       const allStates = listStatesForSource(state.source.type, state.source.id)
+      const scopedTargetRuntime = nextRuntime
+      const scopedSourceRuntime = sourceRuntime.id === targetRuntime.id ? scopedTargetRuntime : sourceRuntime
+      const scopedActiveRuntime = activeRuntime.id === targetRuntime.id ? scopedTargetRuntime : activeRuntime
 
       for (const resetControlKey of state.resets) {
         const resetState = allStates.find((candidate) => candidate.controlKey === resetControlKey)
@@ -62,7 +61,7 @@ export function setSourceStateValue(
         nextRuntime = writeRuntimePath(
           nextRuntime,
           resetState.path,
-          getSourceStateInactiveValue(resetState),
+          getSourceStateInactiveValue(scopedSourceRuntime, scopedTargetRuntime, resetState, scopedActiveRuntime),
         )
       }
     }
@@ -123,11 +122,22 @@ function effectReferencesState(effect: EffectDefinition, controlKey: string): bo
   return effect.operations.some((op) => formulaReferencesControl(op.value, controlKey))
 }
 
+function negativeEffectSourceReferencesState(
+  state: SourceStateDefinition,
+): boolean {
+  if (state.source.type !== 'resonator') {
+    return false
+  }
+
+  const negativeEffectSources = getResonatorDetailsById()[state.source.id]?.negativeEffectSources ?? []
+  return negativeEffectSources.some((source) => conditionReferencesControl(source.enabledWhen, state.controlKey))
+}
+
 export function stateHasTeamFacingEffects(
   state: SourceStateDefinition,
   options: { includeTeamWide: boolean },
 ): boolean {
-  return listEffectsForOwnerKey(state.ownerKey)
+  const hasTeamFacingEffect = listEffectsForOwnerKey(state.ownerKey)
     .filter((effect) => effectReferencesState(effect, state.controlKey))
     .some((effect) => {
       if (
@@ -140,6 +150,12 @@ export function stateHasTeamFacingEffects(
 
       return options.includeTeamWide && effect.targetScope === 'teamWide'
     })
+
+  if (hasTeamFacingEffect) {
+    return true
+  }
+
+  return negativeEffectSourceReferencesState(state)
 }
 
 export function getStateTeamTargetMode(state: SourceStateDefinition): 'active' | 'activeOther' | null {
@@ -184,19 +200,15 @@ export function getTeamTargetOptions(
     .filter((option): option is { value: string; label: string } => option != null)
 }
 
-export function getControlInactiveValue(control: ResonatorStateControl): boolean | number {
-  if (control.kind === 'toggle') {
-    return false
-  }
-
-  if (control.kind === 'select') {
-    return control.min ?? control.options?.[0] ?? 0
-  }
-
-  return control.min ?? 0
+export function getControlInactiveValue(
+  control: ResonatorStateControl,
+  runtime?: ResonatorRuntimeState,
+): boolean | number {
+  return getResonatorControlInactiveValue(control, runtime)
 }
 
 export function applyCascadeResets(
+  runtime: ResonatorRuntimeState,
   prevControls: Record<string, boolean | number | string>,
   nextControls: Record<string, boolean | number | string>,
   allControls: ResonatorStateControl[],
@@ -211,7 +223,15 @@ export function applyCascadeResets(
     if (control.kind === 'toggle' && result[key] === true && control.resets?.length) {
       for (const resetKey of control.resets) {
         const target = controlsByKey[resetKey]
-        result[resetKey] = target ? getControlInactiveValue(target) : false
+        result[resetKey] = target
+          ? getResonatorControlInactiveValue(target, {
+            ...runtime,
+            state: {
+              ...runtime.state,
+              controls: result,
+            },
+          })
+          : false
       }
     }
   }
@@ -219,9 +239,21 @@ export function applyCascadeResets(
   for (const candidate of allControls) {
     if (!candidate.disabledWhen) continue
     if (result[candidate.disabledWhen.key] === candidate.disabledWhen.equals) {
-      result[candidate.key] = getControlInactiveValue(candidate)
+      result[candidate.key] = getResonatorControlInactiveValue(candidate, {
+        ...runtime,
+        state: {
+          ...runtime.state,
+          controls: result,
+        },
+      })
     }
   }
 
-  return result
+  return normalizeResonatorRuntimeControls({
+    ...runtime,
+    state: {
+      ...runtime.state,
+      controls: result,
+    },
+  }, result)
 }

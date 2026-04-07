@@ -3,37 +3,56 @@ import type { FinalStats, SkillDefinition } from '@/domain/entities/stats'
 import { computeSkillDamage } from '@/engine/formulas/damage'
 import type { EnemyProfile } from '@/domain/entities/appState'
 
+function makeBuff() {
+  return { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 }
+}
+
+function makeNegativeEffectBuff() {
+  return { critRate: 0, critDmg: 0, multiplier: 0 }
+}
+
 function makeFinalStats(): FinalStats {
   return {
     atk: { base: 1000, final: 1000 },
     hp: { base: 1000, final: 1000 },
     def: { base: 1000, final: 1000 },
     attribute: {
-      all: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      physical: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      glacio: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      fusion: { resShred: 20, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      electro: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      aero: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      spectro: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      havoc: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
+      all: makeBuff(),
+      physical: makeBuff(),
+      glacio: makeBuff(),
+      fusion: { ...makeBuff(), resShred: 20 },
+      electro: makeBuff(),
+      aero: makeBuff(),
+      spectro: makeBuff(),
+      havoc: makeBuff(),
     },
     skillType: {
-      all: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      basicAtk: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      heavyAtk: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      resonanceSkill: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      resonanceLiberation: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      introSkill: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      outroSkill: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      echoSkill: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      coord: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      spectroFrazzle: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      aeroErosion: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      fusionBurst: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      healing: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      shield: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
-      tuneRupture: { resShred: 0, dmgBonus: 0, amplify: 0, defIgnore: 0, defShred: 0, dmgVuln: 0, critRate: 0, critDmg: 0 },
+      all: makeBuff(),
+      basicAtk: makeBuff(),
+      heavyAtk: makeBuff(),
+      resonanceSkill: makeBuff(),
+      resonanceLiberation: makeBuff(),
+      introSkill: makeBuff(),
+      outroSkill: makeBuff(),
+      echoSkill: makeBuff(),
+      coord: makeBuff(),
+      spectroFrazzle: makeBuff(),
+      aeroErosion: makeBuff(),
+      fusionBurst: makeBuff(),
+      havocBane: makeBuff(),
+      glacioChafe: makeBuff(),
+      electroFlare: makeBuff(),
+      healing: makeBuff(),
+      shield: makeBuff(),
+      tuneRupture: makeBuff(),
+    },
+    negativeEffect: {
+      spectroFrazzle: makeNegativeEffectBuff(),
+      aeroErosion: makeNegativeEffectBuff(),
+      fusionBurst: makeNegativeEffectBuff(),
+      havocBane: makeNegativeEffectBuff(),
+      glacioChafe: makeNegativeEffectBuff(),
+      electroFlare: makeNegativeEffectBuff(),
     },
     flatDmg: 0,
     amplify: 0,
@@ -47,7 +66,6 @@ function makeFinalStats(): FinalStats {
     defShred: 0,
     dmgVuln: 0,
     tuneBreakBoost: 0,
-    fusionBurstMultiplier: 0,
     special: 0,
   }
 }

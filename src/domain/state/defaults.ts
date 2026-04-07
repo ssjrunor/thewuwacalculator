@@ -248,7 +248,9 @@ export function makeDefaultCombatState(): CombatState {
     aeroErosion: 0,
     fusionBurst: 0,
     havocBane: 0,
+    glacioChafe: 0,
     electroFlare: 0,
+    electroRage: 0,
   }
 }
 

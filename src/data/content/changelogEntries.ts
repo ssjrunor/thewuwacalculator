@@ -79,6 +79,36 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `Background mode polish + Set Conditionals~! (〜^∇^)〜`,
   },
+  {
+    date: '07/04/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.3 support</strong> is in now, so <strong>Hiyuki</strong> and <strong>Denia</strong> are both available in the calculator along with their base kit logic, new weapons, and the new sonata sets instead of the patch just sort of staring at the app awkwardly from outside.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Also finished wiring more of the negative-effect side properly. <strong>Glacio Chafe</strong>, <strong>Glacio Bite</strong>, <strong>Electro Flare</strong>, and <strong>Electro Rage</strong> all behave much more like real systems now instead of loose mystery values, and the enemy UI got cleaned up so statuses show up in a way that is way easier to read at a glance.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Brought in preset/default rotations for some of the newer roster too, including <strong>Buling</strong>, <strong>Luuk Herssen</strong>, <strong>Denia</strong>, and <strong>Hiyuki</strong>, so there is less "ok now i guess i manually build the whole thing from scratch" energy when opening them for the first time.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Importing older saved data should behave better now as well. Some older exported resonator setups were getting grumpy after schema changes, so persistence/import handling was tightened up to normalize things more safely instead of just refusing to save and acting dramatic.
+        `,
+      }
+    ],
+    shortDesc: `3.3 support, negative effects cleanup and default rotations~! (〜^∇^)〜`,
+  },
 ]
 
 export const latestCurrentChangelogEntry =

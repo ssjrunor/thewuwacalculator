@@ -7,6 +7,7 @@ interface RichDescriptionProps {
   accentColor?: string
   className?: string
   extraKeywords?: string[]
+  unstyled?: boolean
 }
 
 export function RichDescription({
@@ -15,6 +16,7 @@ export function RichDescription({
   accentColor,
   className,
   extraKeywords = [],
+  unstyled = false,
 }: RichDescriptionProps) {
   const html = useMemo(
     () => formatDescription(description, params, accentColor, { extraKeywords }),
@@ -23,9 +25,13 @@ export function RichDescription({
 
   return (
     <div
-      className={['rich-description', 'changelog-entries', 'main-echo-description', 'guides', className]
-        .filter(Boolean)
-        .join(' ')}
+      className={
+        unstyled
+          ? className
+          : ['rich-description', 'changelog-entries', 'main-echo-description', 'guides', className]
+              .filter(Boolean)
+              .join(' ')
+      }
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

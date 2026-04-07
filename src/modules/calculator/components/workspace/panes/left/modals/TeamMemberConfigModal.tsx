@@ -161,6 +161,7 @@ export function TeamMemberConfigModal({
     onRuntimeUpdate((prev) => {
       const next = updater(prev)
       const cascadedControls = applyCascadeResets(
+        next,
         prev.state.controls,
         next.state.controls,
         availableControls,

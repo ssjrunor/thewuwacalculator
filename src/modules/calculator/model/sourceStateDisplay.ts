@@ -72,6 +72,6 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
   return {
     sourceName: setDef.name,
     label: `${setDef.name} ${getEchoSetPieceLabel(state.id, setDef.setMax)}`,
-    description: part?.label ?? state.label ?? state.description,
+    description: state.description ?? part?.label ?? state.label,
   }
 }

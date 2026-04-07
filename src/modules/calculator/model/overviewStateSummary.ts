@@ -99,7 +99,6 @@ function formatTopStatLabel(stat: string): string {
     dmgBonus: 'DMG Bonus',
     dmgVuln: 'DMG Vulnerability',
     tuneBreakBoost: 'Tune Break Bonus',
-    fusionBurstMultiplier: 'Fusion Burst Multiplier',
     special: 'Special',
   }
 
@@ -144,6 +143,10 @@ function formatModLabel(mod: string): string {
   }
 
   return labels[mod] ?? toTitle(mod)
+}
+
+function formatNegativeEffectLabel(key: string): string {
+  return getSkillTypeDisplay(key).label
 }
 
 // group label shown above nodes with the same owner scope
@@ -325,9 +328,7 @@ function formatOperationLabels(
     // top-level scalar adders like crit rate, flat damage, healing bonus, etc.
     if (operation.type === 'add_top_stat') {
       const rawValue = evaluateFormula(operation.value, scope)
-      const value = operation.stat === 'fusionBurstMultiplier'
-          ? formatSignedValue(rawValue * 100, '%')
-          : formatSignedValue(rawValue, '%')
+      const value = formatSignedValue(rawValue, '%')
       return withHighlight(formatTopStatLabel(operation.stat), '', value)
     }
 
@@ -354,6 +355,27 @@ function formatOperationLabels(
           withHighlight(
               getSkillTypeDisplay(st).label,
               formatModLabel(operation.mod),
+              value,
+          ),
+      )
+    }
+
+    if (operation.type === 'add_negative_effect_mod') {
+      const negativeEffects = Array.isArray(operation.negativeEffect)
+          ? operation.negativeEffect
+          : [operation.negativeEffect]
+      const rawValue = evaluateFormula(operation.value, scope)
+      const value = operation.mod === 'multiplier'
+          ? formatSignedValue(rawValue * 100, '%')
+          : formatSignedValue(rawValue, '%')
+      const modLabel = operation.mod === 'multiplier'
+          ? 'Multiplier'
+          : formatModLabel(operation.mod)
+
+      return negativeEffects.map((negativeEffect) =>
+          withHighlight(
+              formatNegativeEffectLabel(negativeEffect),
+              modLabel,
               value,
           ),
       )

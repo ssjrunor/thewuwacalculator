@@ -8,7 +8,7 @@
 import type { CompiledTargetSkillContext } from '@/engine/optimizer/types.ts'
 
 // total float slots reserved for one packed compiled context
-export const PACKED_CONTEXT_STRIDE = 48
+export const PACKED_CONTEXT_STRIDE = 51
 
 // field offsets inside the packed compiled-context array
 export const CTX_ARCHETYPE = 0
@@ -33,7 +33,7 @@ export const CTX_STATIC_DMG_BONUS = 18
 export const CTX_STATIC_AMPLIFY = 19
 export const CTX_STATIC_FLAT_DMG = 20
 export const CTX_STATIC_SPECIAL = 21
-export const CTX_STATIC_FUSION_BURST_MULTIPLIER = 22
+export const CTX_NEGATIVE_EFFECT_MULTIPLIER = 22
 export const CTX_STATIC_TUNE_BREAK_BOOST = 23
 export const CTX_STATIC_RES_SHRED = 24
 export const CTX_STATIC_DEF_IGNORE = 25
@@ -58,6 +58,9 @@ export const CTX_NEGATIVE_EFFECT_CRIT_DMG = 43
 export const CTX_COMBAT_SPECTRO_FRAZZLE = 44
 export const CTX_COMBAT_AERO_EROSION = 45
 export const CTX_COMBAT_FUSION_BURST = 46
+export const CTX_COMBAT_ELECTRO_FLARE = 47
+export const CTX_COMBAT_ELECTRO_RAGE = 48
+export const CTX_COMBAT_GLACIO_CHAFE = 49
 
 // write every field from the structured compiled context into a flat float array
 export function packCompiledContext(context: CompiledTargetSkillContext): Float32Array {
@@ -88,7 +91,7 @@ export function packCompiledContext(context: CompiledTargetSkillContext): Float3
   out[CTX_STATIC_AMPLIFY] = context.staticAmplify
   out[CTX_STATIC_FLAT_DMG] = context.staticFlatDmg
   out[CTX_STATIC_SPECIAL] = context.staticSpecial
-  out[CTX_STATIC_FUSION_BURST_MULTIPLIER] = context.staticFusionBurstMultiplier
+  out[CTX_NEGATIVE_EFFECT_MULTIPLIER] = context.negativeEffectMultiplier
   out[CTX_STATIC_TUNE_BREAK_BOOST] = context.staticTuneBreakBoost
   out[CTX_STATIC_RES_SHRED] = context.staticResShred
   out[CTX_STATIC_DEF_IGNORE] = context.staticDefIgnore
@@ -119,6 +122,9 @@ export function packCompiledContext(context: CompiledTargetSkillContext): Float3
   out[CTX_COMBAT_SPECTRO_FRAZZLE] = context.combatSpectroFrazzle
   out[CTX_COMBAT_AERO_EROSION] = context.combatAeroErosion
   out[CTX_COMBAT_FUSION_BURST] = context.combatFusionBurst
+  out[CTX_COMBAT_ELECTRO_FLARE] = context.combatElectroFlare
+  out[CTX_COMBAT_ELECTRO_RAGE] = context.combatElectroRage
+  out[CTX_COMBAT_GLACIO_CHAFE] = context.combatGlacioChafe
 
   return out
 }

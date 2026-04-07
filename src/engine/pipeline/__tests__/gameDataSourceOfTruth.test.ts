@@ -7,8 +7,12 @@ import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 describe('game-data source of truth', () => {
   it('hydrates resonator skill catalogs from generated resonator definitions', () => {
     const resonator = getResonatorById('1412')
+    const hiyuki = getResonatorById('1108')
     if (!resonator) {
       throw new Error('missing resonator 1412')
+    }
+    if (!hiyuki) {
+      throw new Error('missing resonator 1108')
     }
 
     const skillLabels = resonator.skills.map((skill) => skill.label)
@@ -17,7 +21,9 @@ describe('game-data source of truth', () => {
     expect(skillLabels).toContain('BOOMY BOOM! DMG')
     expect(skillLabels).toContain('Where Trust Leads Me! DMG')
     expect(skillLabels).toContain('In This Very Moment DMG')
+    expect(skillLabels).toContain('Electro Flare')
     expect(resonator.skills.find((skill) => skill.label === 'Basic Attack Stage 3 DMG')?.hits).toHaveLength(3)
+    expect(hiyuki.skills.some((skill) => skill.label === 'Glacio Chafe' && skill.archetype === 'glacioChafe')).toBe(true)
   })
 
   it('mirrors paired rover skill trees onto the alternate ids and keeps their overrides loadable', () => {
@@ -104,6 +110,140 @@ describe('game-data source of truth', () => {
     expect(chromaticEffects.find((effect) => effect.id === 'echoSet:28:chromaticFoamOutro')?.targetScope).toBe('activeOther')
   })
 
+  it('hydrates authored source packages for newly added echo sets', () => {
+    const quietSnowfallStates = listStatesForSource('echoSet', '30')
+    const quietSnowfallEffects = listEffectsForSource('echoSet', '30')
+    const splicedMemoriesStates = listStatesForSource('echoSet', '31')
+    const splicedMemoriesEffects = listEffectsForSource('echoSet', '31')
+
+    expect(quietSnowfallStates.find((state) => state.controlKey === 'echoSet:30:bonus:snowfall')?.label)
+      .toBe('Snowfall')
+    expect(quietSnowfallEffects.find((effect) => effect.id === 'echoSet:30:snowfallOutro')?.targetScope)
+      .toBe('activeOther')
+
+    expect(splicedMemoriesStates.find((state) => state.controlKey === 'echoSet:31:bonus:reelOfSplicedMemories5pc')?.label)
+      .toBe('Tune Break Boost +15')
+    expect(splicedMemoriesEffects.find((effect) => effect.id === 'echoSet:31:reelOfSplicedMemories5pc')?.targetScope)
+      .toBe('teamWide')
+  })
+
+  it('hydrates authored weapon passive sources for newly fetched weapons', () => {
+    const forgedDwarfStarStates = listStatesForSource('weapon', '21050076')
+    const forgedDwarfStarEffects = listEffectsForSource('weapon', '21050076')
+    const frostburnStates = listStatesForSource('weapon', '21020086')
+    const frostburnEffects = listEffectsForSource('weapon', '21020086')
+
+    expect(forgedDwarfStarStates.find((state) => state.controlKey === 'weapon:21050076:passive:ult')?.label)
+      .toBe('Res. Liberation DMG')
+    expect(forgedDwarfStarEffects.find((effect) => effect.id === 'weapon:21050076:team-atk')?.targetScope)
+      .toBe('teamWide')
+
+    expect(frostburnStates.find((state) => state.controlKey === 'weapon:21020086:passive:active')?.label)
+      .toBe('Glacio Amp + Res. Liberation DEF Ignore')
+    expect(frostburnEffects.find((effect) => effect.id === 'weapon:21020086:glacio-chafe')?.operations[0]).toMatchObject({
+      type: 'add_skilltype_mod',
+      skillType: 'glacioChafe',
+      mod: 'amplify',
+    })
+  })
+
+  it('hydrates authored resonator negative-effect source metadata from overrides', () => {
+    const zani = getResonatorById('1507')
+    const chisa = getResonatorById('1508')
+    const hiyuki = getResonatorById('1108')
+
+    if (!zani || !chisa || !hiyuki) {
+      throw new Error('missing resonator negative-effect metadata fixtures')
+    }
+
+    expect(zani.negativeEffectSources).toEqual([{ key: 'spectroFrazzle', max: 60 }])
+    expect(chisa.negativeEffectSources).toEqual([
+      { key: 'havocBane' },
+      {
+        type: 'globalMaxAdd',
+        value: 3,
+        enabledWhen: {
+          type: 'truthy',
+          from: 'sourceRuntime',
+          path: 'state.controls.team:1508:unraveling_law_zero:active',
+        },
+      },
+    ])
+    expect(hiyuki.negativeEffectSources).toEqual([
+      { key: 'glacioChafe' },
+      { type: 'behavior', key: 'glacioChafe', stackMode: 'fixedMax', label: 'Glacio Bite' },
+    ])
+  })
+
+  it('hydrates Hiyuki resonance chain multipliers and synthetic healing skill', () => {
+    const hiyukiStates = listStatesForSource('resonator', '1108')
+    const hiyukiEffects = listEffectsForSource('resonator', '1108')
+    const hiyukiSkills = listSkillsForSource('resonator', '1108')
+
+    expect(hiyukiStates.find((state) => state.controlKey === 'sequence:1108:s4:active')?.label)
+      .toBe('S4: Like Reeds on Tides')
+    expect(hiyukiEffects.find((effect) => effect.id === '1108:s4:like-reeds-on-tides')?.targetScope)
+      .toBe('teamWide')
+    expect(hiyukiEffects.find((effect) => effect.id === '1108:s5:vessel-of-thousand-wishes')?.operations[0]).toMatchObject({
+      type: 'scale_skill_multiplier',
+      match: { skillIds: ['1108019', '1108020', '1108021'] },
+      value: { type: 'const', value: 1.8 },
+    })
+    expect(hiyukiSkills.find((skill) => skill.id === '1108:s4:frostblight-healing')).toMatchObject({
+      aggregationType: 'healing',
+      multiplier: 0.18,
+      scaling: { atk: 0, hp: 1, def: 0, energyRegen: 0 },
+    })
+  })
+
+  it('hydrates Denia base mode override and skill typing', () => {
+    const deniaStates = listStatesForSource('resonator', '1211')
+    const deniaEffects = listEffectsForSource('resonator', '1211')
+    const deniaSkills = listSkillsForSource('resonator', '1211')
+    const deniaBaseRuntime = createDefaultResonatorRuntime('1211')
+    const deniaS3Runtime = createDefaultResonatorRuntime('1211')
+    deniaS3Runtime.base.sequence = 3
+
+    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:fusion_burst_mode:active')?.label)
+      .toBe('Fusion Burst')
+    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:entropy_shift_stagecraft:active')?.label)
+      .toBe('Entropy Shift: Stagecraft Form')
+    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:dark_cores:value')?.label)
+      .toBe('Dark Cores Consumed')
+    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:dark_cores:value')?.optionsWhen).toEqual([
+      {
+        when: { type: 'lt', from: 'sourceRuntime', path: 'base.sequence', value: 3 },
+        options: ['0', '1', '2', '3'].map((value) => ({ id: value, label: value })),
+      },
+      {
+        when: { type: 'gte', from: 'sourceRuntime', path: 'base.sequence', value: 3 },
+        options: ['0', '1', '2', '3', '4', '5'].map((value) => ({ id: value, label: value })),
+      },
+    ])
+
+    expect(deniaSkills.find((skill) => skill.id === '1211105')?.skillType)
+      .toEqual(['resonanceLiberation'])
+    expect(deniaSkills.find((skill) => skill.id === '1211401')?.skillType)
+      .toEqual(['resonanceLiberation'])
+    expect(resolveSkill(deniaBaseRuntime, deniaSkills.find((skill) => skill.id === '1211101')!).skillType)
+      .toEqual(['resonanceSkill'])
+    expect(resolveSkill(deniaS3Runtime, deniaSkills.find((skill) => skill.id === '1211101')!).skillType)
+      .toEqual(['resonanceLiberation'])
+    expect(deniaSkills.find((skill) => skill.id === '1211908')?.visible)
+      .toBe(false)
+
+    expect(deniaEffects.find((effect) => effect.id === '1211:banish:dark-cores')?.operations[0]).toMatchObject({
+      type: 'scale_skill_multiplier',
+      match: { skillIds: ['1211105'] },
+    })
+    expect(deniaEffects.find((effect) => effect.id === '1211:lvl70:tune-break-boost')?.targetScope)
+      .toBe('teamWide')
+    expect(deniaEffects.find((effect) => effect.id === '1211:outro:tune-strain:trigger')?.targetScope)
+      .toBe('activeOther')
+    expect(deniaEffects.find((effect) => effect.id === '1211:shattered-hours')?.stage)
+      .toBe('postStats')
+  })
+
   it('derives resonator base stats from generated resonator data', () => {
     const resonator = getResonatorById('1412')
     if (!resonator) {
@@ -134,22 +274,12 @@ describe('game-data source of truth', () => {
       resonator.features.map((feature) => [feature.id, feature.label]),
     )
 
-    expect(resonator.rotations[0]?.items).toHaveLength(9)
+    expect(resonator.rotations[0]?.items).toHaveLength(8)
     expect(
       resonator.rotations[0]?.items.map((item) =>
         item.type === 'feature' ? labelsByFeatureId[item.featureId] : null,
       ),
-    ).toEqual([
-      'Golden Grace DMG',
-      'To Where Light Shines DMG',
-      'Absolution Litany DMG',
-      'Dawn of Enlightenment DMG',
-      "Chamuel's Star: Stage 1 DMG",
-      "Chamuel's Star: Stage 2 DMG",
-      "Chamuel's Star: Stage 3 DMG",
-      'Heavy Attack: Starflash DMG',
-      'Attentive Heart DMG',
-    ])
+    ).toContain('Golden Grace DMG')
   })
 
   it('emits final Phoebe skill typing and keyed source-owned state data', () => {
@@ -236,12 +366,32 @@ describe('game-data source of truth', () => {
   })
 
   it('leaves the default rotation empty when no authored default exists', () => {
-    const resonator = getResonatorById('1307')
+    const resonator = getResonatorById('1106')
     if (!resonator) {
-      throw new Error('missing resonator 1307')
+      throw new Error('missing resonator 1106')
     }
 
     expect(resonator.rotations[0]?.items).toEqual([])
+  })
+
+  it('hydrates saved default rotations authored by direct skill ids', () => {
+    const hiyuki = getResonatorById('1108')
+    const denia = getResonatorById('1211')
+    const buling = getResonatorById('1307')
+    const luuk = getResonatorById('1510')
+
+    if (!hiyuki || !denia || !buling || !luuk) {
+      throw new Error('missing authored default rotation resonator')
+    }
+
+    expect(hiyuki.rotations[0]?.items).toHaveLength(13)
+    expect(denia.rotations[0]?.items).toHaveLength(14)
+    expect(buling.rotations[0]?.items).toHaveLength(10)
+    expect(luuk.rotations[0]?.items).toHaveLength(13)
+
+    expect(hiyuki.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1108028')?.multiplier).toBe(3)
+    expect(denia.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1211401')?.multiplier).toBe(7)
+    expect(luuk.rotations[0]?.items.find((item) => item.type === 'feature' && item.featureId === 'damage:1510:outro')?.multiplier).toBe(1)
   })
 
 

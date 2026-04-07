@@ -39,7 +39,7 @@
     --editor-result: #4ec9b0;
 }
 
-.light-text * {
+.light-text html {
     --editor-number: #0b7285;
     --editor-comment: #6b7280;
     --editor-property: #c2410c;

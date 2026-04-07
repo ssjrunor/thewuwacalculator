@@ -1387,6 +1387,7 @@
 .skill-menu-summary {
   display: flex;
   flex-wrap: wrap;
+  margin-left: auto;
   justify-content: flex-end;
   gap: 0.45rem;
 }

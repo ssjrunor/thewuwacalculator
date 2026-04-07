@@ -16,6 +16,14 @@ function makeBuff() {
   }
 }
 
+function makeNegativeEffectBuff() {
+  return {
+    critRate: 0,
+    critDmg: 0,
+    multiplier: 0,
+  }
+}
+
 function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
   return {
     atk: { base: 1000, final: 1000 },
@@ -44,9 +52,20 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
       spectroFrazzle: makeBuff(),
       aeroErosion: makeBuff(),
       fusionBurst: makeBuff(),
+      havocBane: makeBuff(),
+      glacioChafe: makeBuff(),
+      electroFlare: makeBuff(),
       healing: makeBuff(),
       shield: makeBuff(),
       tuneRupture: makeBuff(),
+    },
+    negativeEffect: {
+      spectroFrazzle: makeNegativeEffectBuff(),
+      aeroErosion: makeNegativeEffectBuff(),
+      fusionBurst: makeNegativeEffectBuff(),
+      havocBane: makeNegativeEffectBuff(),
+      glacioChafe: makeNegativeEffectBuff(),
+      electroFlare: makeNegativeEffectBuff(),
     },
     flatDmg: 0,
     amplify: 0,
@@ -60,7 +79,6 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
     defShred: 0,
     dmgVuln: 0,
     tuneBreakBoost: 0,
-    fusionBurstMultiplier: 0,
     special: 0,
     ...overrides,
   }
@@ -164,6 +182,34 @@ const fusionBurstSkill: SkillDefinition = {
   element: 'fusion',
   skillType: ['fusionBurst'],
   archetype: 'fusionBurst',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 0,
+  flat: 0,
+  hits: [{ count: 1, multiplier: 1 }],
+}
+
+const glacioChafeSkill: SkillDefinition = {
+  id: 'glacio-chafe',
+  label: 'Glacio Chafe',
+  tab: 'negativeEffect',
+  element: 'glacio',
+  skillType: ['glacioChafe'],
+  archetype: 'glacioChafe',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 0,
+  flat: 0,
+  hits: [{ count: 1, multiplier: 1 }],
+}
+
+const electroFlareSkill: SkillDefinition = {
+  id: 'electro-flare',
+  label: 'Electro Flare',
+  tab: 'negativeEffect',
+  element: 'electro',
+  skillType: ['electroFlare'],
+  archetype: 'electroFlare',
   aggregationType: 'damage',
   scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
   multiplier: 0,
@@ -336,7 +382,15 @@ describe('damage formula parity', () => {
   it('computes fusion burst from its base formula and dedicated multiplier', () => {
     const baseline = computeSkillDamage(makeFinalStats(), fusionBurstSkill, enemy, 90, { fusionBurst: 3 })
     const boosted = computeSkillDamage(
-      makeFinalStats({ fusionBurstMultiplier: 2 }),
+      makeFinalStats({
+        negativeEffect: {
+          ...makeFinalStats().negativeEffect,
+          fusionBurst: {
+            ...makeNegativeEffectBuff(),
+            multiplier: 2,
+          },
+        },
+      }),
       fusionBurstSkill,
       enemy,
       90,
@@ -350,6 +404,28 @@ describe('damage formula parity', () => {
     expect(boosted.normal).toBeGreaterThan(baseline.normal)
   })
 
+  it('computes glacio chafe from its level-and-stack base formula', () => {
+    const baseline = computeSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 3 })
+    const boosted = computeSkillDamage(
+      makeFinalStats({
+        skillType: {
+          ...makeFinalStats().skillType,
+          glacioChafe: {
+            ...makeBuff(),
+            dmgBonus: 50,
+          },
+        },
+      }),
+      glacioChafeSkill,
+      enemy,
+      90,
+      { glacioChafe: 3 },
+    )
+
+    expect(baseline.avg).toBeGreaterThan(0)
+    expect(boosted.avg).toBeGreaterThan(baseline.avg)
+  })
+
   it('lets negative effects use fixed crit scalars when present', () => {
     const critSkill: SkillDefinition = {
       ...fusionBurstSkill,
@@ -361,5 +437,61 @@ describe('damage formula parity', () => {
 
     expect(result.crit).toBeGreaterThan(result.normal)
     expect(result.avg).toBeGreaterThan(result.normal)
+  })
+
+  it('computes electro flare damage from electro flare stacks', () => {
+    const baseline = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 3 })
+    const buffed = computeSkillDamage(
+      makeFinalStats({
+        amplify: 10,
+        dmgVuln: 9,
+        special: 20,
+        skillType: {
+          ...makeFinalStats().skillType,
+          electroFlare: {
+            ...makeBuff(),
+            amplify: 18,
+            dmgBonus: 24,
+          },
+        },
+      }),
+      electroFlareSkill,
+      enemy,
+      90,
+      { electroFlare: 3 },
+    )
+
+    expect(baseline.avg).toBeGreaterThan(0)
+    expect(buffed.avg).toBeGreaterThan(baseline.avg)
+  })
+
+  it('adds electro rage damage into electro flare only when electro flare is above its default cap', () => {
+    const baseline = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11 })
+    const withElectroRage = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11, electroRage: 2 })
+    const gatedOff = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 10, electroRage: 2 })
+    const buffed = computeSkillDamage(
+      makeFinalStats({
+        amplify: 10,
+        dmgVuln: 9,
+        special: 20,
+        skillType: {
+          ...makeFinalStats().skillType,
+          electroFlare: {
+            ...makeBuff(),
+            amplify: 18,
+            dmgBonus: 24,
+          },
+        },
+      }),
+      electroFlareSkill,
+      enemy,
+      90,
+      { electroFlare: 11, electroRage: 2 },
+    )
+
+    expect(baseline.avg).toBeGreaterThan(0)
+    expect(withElectroRage.avg).toBeGreaterThan(baseline.avg)
+    expect(gatedOff.avg).toBeLessThan(withElectroRage.avg)
+    expect(buffed.avg).toBeGreaterThan(withElectroRage.avg)
   })
 })

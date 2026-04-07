@@ -61,7 +61,7 @@ import { getEquippedEchoCost } from '@/modules/calculator/model/echoes'
 import { EchoPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
 import { SonataSetConditionalsModal } from '@/modules/calculator/components/workspace/panes/left/modals/SonataSetConditionalsModal'
 import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
-import { getBodyPortalTarget } from '@/shared/lib/portalTarget'
+import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
 import { AppDialog } from '@/shared/ui/AppDialog'
@@ -81,7 +81,7 @@ interface SuggestionTargetOption {
 }
 
 const MODAL_EXIT_DURATION_MS = 320
-const portalTarget = getBodyPortalTarget()
+const portalTarget = getMainContentPortalTarget()
 
 function SuggestionsModal(props: {
   open: boolean
@@ -225,7 +225,9 @@ export function CalculatorSuggestionsPane({
       ))
       .map((entry) => ({
         value: entry.id,
-        label: entry.feature.label || entry.skill.label,
+        label: entry.skill.tab === 'negativeEffect'
+          ? entry.skill.label
+          : (entry.feature.label || entry.skill.label),
       }))
 
     if ((simulation?.rotations.personal.entries ?? []).some((entry) => (

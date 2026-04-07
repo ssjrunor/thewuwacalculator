@@ -128,7 +128,7 @@
 
 .app-status-hero__footer {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: auto auto auto auto;
   margin-top: auto;
   padding-top: 0.65rem;
   border-top: 1px solid var(--picker-modal-border);
@@ -163,6 +163,12 @@
   font-weight: 600;
   color: var(--picker-modal-text);
   letter-spacing: 0.02em;
+}
+
+.app-status-hero__source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.55rem;
 }
 
 /* Status value — green + pulsing dot */
@@ -356,6 +362,11 @@
       "c5   c5"
       "chg  chg"
       "iss  iss";
+  }
+
+  .app-status-hero__footer {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 0.6rem;
   }
 }
 

@@ -45,6 +45,7 @@ export function getResonatorGameDataById(resonatorId: string): Resonator | null 
     inherentSkills: details.inherentSkills,
     resonanceChains: details.resonanceChains,
     descriptionKeywords: details.descriptionKeywords,
+    negativeEffectSources: details.negativeEffectSources,
     owners: listOwnersForSource('resonator', resonatorId),
     states: listStatesForSource('resonator', resonatorId),
     conditions: listConditionsForSource('resonator', resonatorId),

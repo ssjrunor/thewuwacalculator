@@ -146,7 +146,7 @@ function EchoSetBonusCard({
           {passiveParts.map((part) => (
             <div key={part.key} className="echo-set-tier">
               <span className="echo-set-tier-tag">{tierLabel(part.key)}</span>
-              <span className="echo-set-tier-desc">{part.label}</span>
+              <RichDescription description={part.label} className="echo-set-tier-desc" unstyled />
             </div>
           ))}
         </div>

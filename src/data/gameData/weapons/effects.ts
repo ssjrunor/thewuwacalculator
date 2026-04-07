@@ -747,6 +747,27 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     ],
   }),
 
+  // Sword (21020086): ATK% + toggle -> glacio amplify + liberation defIgnore + toggle -> glacio chafe amplify
+  '21020086': (id, p) => ({
+    owners: [makeOwner(id, 'Passive', `ATK is increased by {0}.`)],
+    states: [
+      makeToggle(id, 'active', 'Glacio Amp + Res. Liberation DEF Ignore',
+        `When the wielder applies Glacio Chafe, Glacio DMG is Amplified by {1}, and Resonance Liberation DMG ignores {2} of the target's DEF.`),
+      makeToggle(id, 'glacio_chafe', 'Glacio Chafe DMG',
+        `If the wielder is the active Resonator in the team, Glacio Chafe DMG dealt to all targets within a certain range is Amplified by {3} for {4}s.`),
+    ],
+    effects: [
+      makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
+      makeEffect(id, 'active', 'Glacio Amp + Res. Liberation DEF Ignore', [
+        addAttributeMod('glacio', 'amplify', rankTable(p, 1)),
+        addSkilltypeMod('resonanceLiberation', 'defIgnore', rankTable(p, 2)),
+      ], truthyCondition(`weapon:${id}:passive:active`)),
+      makeEffect(id, 'glacio-chafe', 'Glacio Chafe DMG',
+        [addSkilltypeMod('glacioChafe', 'amplify', rankTable(p, 3))],
+        truthyCondition(`weapon:${id}:passive:glacio_chafe`)),
+    ],
+  }),
+
   // Sword (21020094): toggle + stacks -> ATK%
   '21020094': (id, p) => ({
     owners: [makeOwner(id, 'Passive')],
@@ -1491,6 +1512,26 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))],
         truthyCondition(`weapon:${id}:passive:active`)),
+    ],
+  }),
+
+  // Rectifier (21050076): ATK% + toggle -> liberation dmg + toggle -> team ATK%
+  '21050076': (id, p) => ({
+    owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
+    states: [
+      makeToggle(id, 'ult', 'Res. Liberation DMG',
+        `When the wielder inflicts Fusion Burst Effect or Tune Strain - Shifting on the target, it increases their Resonance Liberation DMG Bonus by {1} for {2}s.`),
+      makeToggle(id, 'team_atk', 'Team ATK',
+        `Under this effect, when Resonators in the team inflict Fusion Burst Effect or Tune Strain - Shifting, their ATK is increased by {3} for {4}s. Effects of the same name cannot be stacked.`),
+    ],
+    effects: [
+      makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
+      makeEffect(id, 'ult', 'Res. Liberation DMG',
+        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        truthyCondition(`weapon:${id}:passive:ult`)),
+      makeEffect(id, 'team-atk', 'Team ATK',
+        [addBaseStat('atk', 'percent', rankTable(p, 3))],
+        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 

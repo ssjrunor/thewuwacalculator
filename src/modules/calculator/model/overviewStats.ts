@@ -322,7 +322,8 @@ const ATTRIBUTE_LABELS: Record<'all' | AttributeKey, string> = {
 const SKILL_TYPE_KEYS: SkillTypeKey[] = [
   'all', 'basicAtk', 'heavyAtk', 'resonanceSkill', 'resonanceLiberation',
   'introSkill', 'outroSkill', 'echoSkill', 'coord',
-  'spectroFrazzle', 'aeroErosion', 'fusionBurst', 'healing', 'shield', 'tuneRupture',
+  'spectroFrazzle', 'aeroErosion', 'fusionBurst', 'havocBane', 'glacioChafe', 'electroFlare',
+  'healing', 'shield', 'tuneRupture',
 ]
 
 // compact number formatter that removes trailing zeroes from decimals

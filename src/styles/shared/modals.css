@@ -100,9 +100,9 @@
 
 .app-modal-header-top {
   display: grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: auto auto;
   gap: 0.8rem;
-  align-items: start;
+  align-items: center;
 }
 
 .picker-modal__header {
@@ -219,6 +219,8 @@
     border-color 200ms ease,
     box-shadow 220ms ease,
     background 220ms ease;
+  width: fit-content;
+  margin-left: auto;
 }
 
 .app-modal-close:is(:hover, :focus-visible),

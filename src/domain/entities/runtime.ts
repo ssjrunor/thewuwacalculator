@@ -55,7 +55,9 @@ export interface CombatState {
   aeroErosion: number
   fusionBurst: number
   havocBane: number
+  glacioChafe: number
   electroFlare: number
+  electroRage: number
 }
 
 export interface EchoInstance {

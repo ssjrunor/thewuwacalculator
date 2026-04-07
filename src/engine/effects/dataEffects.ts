@@ -295,6 +295,17 @@ function applyRuntimeOperation(
     for (const st of skillTypes) {
       pool.skillType[st][operation.mod] += value
     }
+    return
+  }
+
+  if (operation.type === 'add_negative_effect_mod') {
+    const negativeEffects = Array.isArray(operation.negativeEffect)
+        ? operation.negativeEffect
+        : [operation.negativeEffect]
+
+    for (const key of negativeEffects) {
+      pool.negativeEffect[key][operation.mod] += value
+    }
   }
 }
 

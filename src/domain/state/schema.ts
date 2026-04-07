@@ -66,11 +66,13 @@ const skillLevelsSchema = z.object({
 
 // combat status effect state
 const combatStateSchema = z.object({
-  spectroFrazzle: z.number(),
-  aeroErosion: z.number(),
-  fusionBurst: z.number(),
-  havocBane: z.number(),
-  electroFlare: z.number(),
+  spectroFrazzle: z.number().default(0),
+  aeroErosion: z.number().default(0),
+  fusionBurst: z.number().default(0),
+  havocBane: z.number().default(0),
+  glacioChafe: z.number().default(0),
+  electroFlare: z.number().default(0),
+  electroRage: z.number().default(0),
 }).strict()
 
 // equipped echo instance

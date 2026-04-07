@@ -49,6 +49,8 @@ export const OPTIMIZER_ARCHETYPE_TUNE_RUPTURE = 3
 export const OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE = 4
 export const OPTIMIZER_ARCHETYPE_AERO_EROSION = 5
 export const OPTIMIZER_ARCHETYPE_FUSION_BURST = 6
+export const OPTIMIZER_ARCHETYPE_ELECTRO_FLARE = 7
+export const OPTIMIZER_ARCHETYPE_GLACIO_CHAFE = 8
 
 // detect available CPU cores in the browser and leave one free when possible
 const detectedCores =

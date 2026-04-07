@@ -383,6 +383,7 @@
 .suggestions-modal-header-actions {
   display: flex;
   gap: 0.5rem;
+  margin-left: auto;
   align-items: center;
   flex-shrink: 0;
 }

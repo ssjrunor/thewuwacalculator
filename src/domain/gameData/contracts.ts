@@ -11,6 +11,8 @@ import type {
   AttributeKey,
   FinalStats,
   ModBuff,
+  NegativeEffectBuff,
+  NegativeEffectKey,
   ResonatorBaseStats,
   SkillAggregationType,
   SkillArchetype,
@@ -54,6 +56,11 @@ export interface SourceStateOption {
   label: string
 }
 
+export interface SourceStateConditionalOptions {
+  when: ConditionExpression
+  options: SourceStateOption[]
+}
+
 export interface SourceStateDefinition {
   id: string
   label: string
@@ -68,6 +75,7 @@ export interface SourceStateDefinition {
   min?: number
   max?: number
   options?: SourceStateOption[]
+  optionsWhen?: SourceStateConditionalOptions[]
   description?: string
   disabledReason?: string
   visibleWhen?: ConditionExpression
@@ -199,7 +207,6 @@ export type TopBuffStatKey =
     | 'shieldBonus'
     | 'dmgBonus'
     | 'tuneBreakBoost'
-    | 'fusionBurstMultiplier'
     | 'special'
 
 export type EffectOperation =
@@ -224,6 +231,12 @@ export type EffectOperation =
   type: 'add_skilltype_mod'
   skillType: SkillTypeKey | SkillTypeKey[]
   mod: keyof ModBuff
+  value: FormulaExpression
+}
+    | {
+  type: 'add_negative_effect_mod'
+  negativeEffect: NegativeEffectKey | NegativeEffectKey[]
+  mod: keyof NegativeEffectBuff
   value: FormulaExpression
 }
     | {
