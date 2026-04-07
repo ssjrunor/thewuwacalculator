@@ -759,6 +759,7 @@ export function CalculatorOptimizerStage() {
 
     return compileOptimizerPayload({
       resonatorId: optimizerResonatorId,
+      resonatorSeed: seedResonatorsById[optimizerResonatorId],
       runtime: optimizerRuntime,
       settings: optimizerSettings,
       inventoryEchoes: equippedEchoes,
@@ -1055,6 +1056,7 @@ export function CalculatorOptimizerStage() {
     setProgress(createEmptyProgress())
     startOptimizer({
       resonatorId: optimizerContext.resonatorId,
+      resonatorSeed: seedResonatorsById[optimizerContext.resonatorId],
       runtime: optimizerContext.runtime,
       settings: optimizerContext.settings,
       inventoryEchoes: filteredInventoryEchoEntries.map((entry) => entry.echo),

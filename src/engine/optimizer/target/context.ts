@@ -8,7 +8,7 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
+import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime.ts'
 import type { SkillDefinition } from '@/domain/entities/stats.ts'
 import { getResonatorSeedById } from '@/domain/services/resonatorSeedService.ts'
 import { buildPreparedRuntimeSkill, buildRuntimeSkillContext } from '@/engine/pipeline/prepareRuntimeSkill.ts'
@@ -37,6 +37,9 @@ interface TargetContextInput {
   // active resonator id
   resonatorId: string
 
+  // optional already-resolved seed from the main thread/runtime owner
+  resonatorSeed?: ResonatorSeed
+
   // exact skill id to prepare for optimization
   skillId: string
 
@@ -52,7 +55,7 @@ interface TargetContextInput {
 
 export function compileOptimizerTargetContext(input: TargetContextInput): PreparedOptimizerTargetContext {
   // resolve the seed first because all skill/runtime preparation depends on it
-  const seed = getResonatorSeedById(input.resonatorId)
+  const seed = input.resonatorSeed ?? getResonatorSeedById(input.resonatorId)
   if (!seed) {
     throw new Error(`Missing resonator seed for optimizer id ${input.resonatorId}`)
   }

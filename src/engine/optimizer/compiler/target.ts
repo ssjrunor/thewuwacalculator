@@ -26,6 +26,7 @@ export function compileTargetRun(input: OptimizerStartPayload): PreparedTargetSk
   const target = compileOptimizerTargetContext({
     runtime,
     resonatorId: input.resonatorId,
+    resonatorSeed: input.resonatorSeed,
     skillId: input.settings.targetSkillId!,
     enemy: input.enemyProfile,
     runtimesById: participants,

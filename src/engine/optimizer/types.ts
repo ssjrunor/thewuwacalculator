@@ -8,7 +8,7 @@
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import type { OptimizerSettings } from '@/domain/entities/optimizer'
-import type { EchoInstance, ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { EchoInstance, ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
 import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
 import type { SkillDefinition } from '@/domain/entities/stats'
 
@@ -82,6 +82,7 @@ export interface PreparedOptimizerSharedPayload {
 // input payload used to start building an optimizer execution context
 export interface OptimizerStartPayload {
   resonatorId: string
+  resonatorSeed?: ResonatorSeed
   runtime: ResonatorRuntimeState
   settings: OptimizerSettings
   inventoryEchoes: EchoInstance[]

@@ -72,7 +72,7 @@ function buildCompiledContext(options: {
 // - encoded inventory echo rows
 // - set LUT and main-echo buff rows
 export function compileRotationRun(input: OptimizerStartPayload): PreparedRotationRun {
-  const seed = getResonatorSeedById(input.resonatorId)
+  const seed = input.resonatorSeed ?? getResonatorSeedById(input.resonatorId)
   if (!seed) {
     throw new Error(`Missing resonator seed for optimizer id ${input.resonatorId}`)
   }
