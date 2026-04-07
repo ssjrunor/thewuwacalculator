@@ -160,6 +160,7 @@ export function stateHasTeamFacingEffects(
 
 export function getStateTeamTargetMode(state: SourceStateDefinition): 'active' | 'activeOther' | null {
   const effects = listEffectsForOwnerKey(state.ownerKey)
+    .filter((effect) => effectReferencesState(effect, state.controlKey))
 
   if (effects.some((effect) => effect.targetScope === 'active')) {
     return 'active'

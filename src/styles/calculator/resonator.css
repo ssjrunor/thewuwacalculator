@@ -408,15 +408,6 @@
   filter: grayscale(1);
 }
 
-.inherent-skill-control .liquid-select,
-.inherent-skill-control input[type='number'] {
-  max-width: min(100%, calc(var(--ui-panel-control-max-width) - 2rem));
-}
-
-.resonator-pane .toggle-row {
-  width: fit-content;
-}
-
 .toggle-row.sequence-toggle-row span {
   font-size: 0.86rem;
   font-weight: 600;

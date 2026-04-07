@@ -1155,6 +1155,7 @@ input[type='range']::-moz-range-thumb:hover {
 
 .toggle-row.compact {
   min-width: auto;
+  width: fit-content;
 }
 
 .stack {
@@ -1505,15 +1506,6 @@ label.is-disabled {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.resonator-level-input {
-  width: 60px;
-  max-width: 60px;
-  padding: 4px;
-  border-radius: 4px;
-  font-size: 14px;
-  text-align: right;
 }
 
 .skills-settings {

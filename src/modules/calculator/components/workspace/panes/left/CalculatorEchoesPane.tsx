@@ -10,6 +10,7 @@ import { getMainEchoSourceRef } from '@/domain/services/runtimeSourceService'
 import { getSonataSetName, getSonataSetIcon } from '@/data/gameData/catalog/sonataSets'
 import { getEchoSetDef, getEchoSetControlKey } from '@/data/gameData/echoSets/effects'
 import type { SetDef } from '@/data/gameData/echoSets/effects'
+import { selectActiveTargetSelections } from '@/domain/state/selectors'
 import { useAppStore } from '@/domain/state/store'
 import { Expandable } from '@/shared/ui/Expandable'
 import { RichDescription } from '@/shared/ui/RichDescription'
@@ -35,6 +36,10 @@ import type { RuntimeUpdateHandler } from '@/modules/calculator/components/works
 import { ConfirmationModal } from '@/shared/ui/ConfirmationModal'
 import { useConfirmation } from '@/app/hooks/useConfirmation.ts'
 import { SourceStateControl } from '@/modules/calculator/components/workspace/panes/left/controls/SourceStateControl'
+import {
+  getStateTeamTargetMode,
+  getTeamTargetOptions,
+} from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
 import { evaluateSourceStateVisibility } from '@/modules/calculator/model/sourceStateEvaluation'
 import { hideBrokenImage } from '@/shared/lib/imageFallback'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
@@ -237,11 +242,15 @@ function EchoSetBonus({
   count,
   runtime,
   onRuntimeUpdate,
+  selectedTargetsByOwnerKey,
+  setResonatorTargetSelection,
 }: {
   setId: number
   count: number
   runtime: ResonatorRuntimeState
   onRuntimeUpdate: RuntimeUpdateHandler
+  selectedTargetsByOwnerKey: Record<string, string | null>
+  setResonatorTargetSelection: (resonatorId: string, ownerKey: string, targetResonatorId: string | null) => void
 }) {
   const def = getEchoSetDef(setId)
   if (!def) return null
@@ -323,6 +332,8 @@ function EchoSetBonus({
               trigger={part.trigger}
               runtime={runtime}
               onRuntimeUpdate={onRuntimeUpdate}
+              selectedTargetsByOwnerKey={selectedTargetsByOwnerKey}
+              setResonatorTargetSelection={setResonatorTargetSelection}
             />
           ))}
         </div>
@@ -338,6 +349,8 @@ function EchoSetStatePart({
   trigger,
   runtime,
   onRuntimeUpdate,
+  selectedTargetsByOwnerKey,
+  setResonatorTargetSelection,
 }: {
   setDef: SetDef
   stateKey: string
@@ -345,12 +358,29 @@ function EchoSetStatePart({
   trigger: string
   runtime: ResonatorRuntimeState
   onRuntimeUpdate: RuntimeUpdateHandler
+  selectedTargetsByOwnerKey: Record<string, string | null>
+  setResonatorTargetSelection: (resonatorId: string, ownerKey: string, targetResonatorId: string | null) => void
 }) {
   const stateEntry = setDef.states[stateKey]
   if (!stateEntry) return null
+  const sourceState = listStatesForSource('echoSet', String(setDef.id)).find((state) => state.id === stateKey) ?? null
 
   const ck = getEchoSetControlKey(setDef.id, stateKey)
   const currentValue = (runtime.state?.controls as Record<string, unknown> | undefined)?.[ck]
+  const targetMode = sourceState ? getStateTeamTargetMode(sourceState) : null
+  const targetOptions = sourceState && targetMode
+    ? getTeamTargetOptions(runtime, runtime.id, targetMode)
+    : []
+  const currentTarget = sourceState
+    ? selectedTargetsByOwnerKey[sourceState.ownerKey] ?? null
+    : null
+  const fallbackTarget = targetOptions[0]?.value ?? null
+  const selectedTarget = (
+    typeof currentTarget === 'string'
+      && targetOptions.some((option) => option.value === currentTarget)
+  )
+    ? currentTarget
+    : fallbackTarget
 
   const perStack = stateEntry.perStack ?? stateEntry.max
   const isToggle = perStack.every((ps, i) => ps.value === stateEntry.max[i].value)
@@ -367,6 +397,31 @@ function EchoSetStatePart({
       },
     }))
   }
+
+  const updateSelectedTarget = (targetResonatorId: string | null) => {
+    if (!sourceState) {
+      return
+    }
+    setResonatorTargetSelection(runtime.id, sourceState.ownerKey, targetResonatorId)
+  }
+
+  const targetPills = targetOptions.length > 0 ? (
+    <div className="echo-set-state-targets">
+      <span className="echo-set-state-targets-label">Target</span>
+      <div className="echo-set-state-targets-pills">
+        {targetOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`echo-set-state-target-pill${option.value === selectedTarget ? ' echo-set-state-target-pill--active' : ''}`}
+            onClick={() => updateSelectedTarget(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
 
   if (isToggle) {
     const checked = Boolean(currentValue)
@@ -390,6 +445,7 @@ function EchoSetStatePart({
             dangerouslySetInnerHTML={{ __html: formatDescription(trigger) }}
           />
         ) : null}
+        {targetPills}
       </div>
     )
   }
@@ -426,6 +482,7 @@ function EchoSetStatePart({
           dangerouslySetInnerHTML={{ __html: formatDescription(trigger) }}
         />
       ) : null}
+      {targetPills}
     </div>
   )
 }
@@ -509,11 +566,13 @@ export function CalculatorEchoesPane({ runtime, onRuntimeUpdate }: CalculatorEch
   const allEchoes = useMemo(() => listEchoes(), [])
   const inventoryEchoes = useAppStore((state) => state.calculator.inventoryEchoes)
   const inventoryBuilds = useAppStore((state) => state.calculator.inventoryBuilds)
+  const selectedTargetsByOwnerKey = useAppStore(selectActiveTargetSelections)
   const showToast = useToastStore((s) => s.show)
   const confirmation = useConfirmation()
   const portalTarget = getMainContentPortalTarget()
   const addEchoToInventory = useAppStore((state) => state.addEchoToInventory)
   const addBuildToInventory = useAppStore((state) => state.addBuildToInventory)
+  const setResonatorTargetSelection = useAppStore((state) => state.setResonatorTargetSelection)
   const activeSeed = useMemo(() => getResonatorSeedById(runtime.id), [runtime.id])
   const mainEcho = runtime.build.echoes[0]
   const mainEchoDefinition = useMemo(
@@ -941,6 +1000,8 @@ export function CalculatorEchoesPane({ runtime, onRuntimeUpdate }: CalculatorEch
                       count={count}
                       runtime={runtime}
                       onRuntimeUpdate={onRuntimeUpdate}
+                      selectedTargetsByOwnerKey={selectedTargetsByOwnerKey}
+                      setResonatorTargetSelection={setResonatorTargetSelection}
                   />
               ))}
             </div>

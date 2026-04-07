@@ -907,6 +907,58 @@
   padding-left: 2.18rem;
 }
 
+.echo-set-state-targets {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  margin-top: 0.42rem;
+  padding-top: 0.42rem;
+  border-top: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 42%, transparent);
+}
+
+.echo-set-state-targets-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--calc-muted, var(--muted));
+  opacity: 0.72;
+  flex-shrink: 0;
+}
+
+.echo-set-state-targets-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.28rem;
+}
+
+.echo-set-state-target-pill {
+  min-height: 1.45rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 60%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--calc-text, var(--text)) 2%, transparent);
+  color: var(--calc-muted, var(--muted));
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.echo-set-state-target-pill:hover {
+  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 28%, var(--calc-item-border, var(--panel-border)));
+  color: var(--calc-text, var(--text));
+}
+
+.echo-set-state-target-pill--active {
+  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 48%, var(--calc-item-border, var(--panel-border)));
+  background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 14%, transparent);
+  color: var(--calc-text, var(--text));
+}
+
 /* ── Stack buttons ── */
 
 .echo-set-state-stack {

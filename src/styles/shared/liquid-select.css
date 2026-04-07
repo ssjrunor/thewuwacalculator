@@ -10,8 +10,12 @@
   --liquid-select-surface: var(--calc-box-bg, var(--surface-strong, rgba(255, 255, 255, 0.94)));
   --liquid-select-menu-z-index: 1300;
   position: relative;
-  width: 100%;
+  width: fit-content;
   z-index: 1;
+}
+
+.rotation-toolbar-field .liquid-select {
+  width: 100%;
 }
 
 .liquid-select.open {
