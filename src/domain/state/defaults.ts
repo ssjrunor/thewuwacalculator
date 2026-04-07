@@ -58,6 +58,13 @@ import type {
   SlotLocalState,
   SlotRoutingState,
 } from '@/domain/entities/profile'
+
+export type PersistedAppStateInput = Omit<PersistedAppState, 'version' | 'ui'> & {
+  version: number
+  ui: Omit<UiState, 'themePreference'> & {
+    themePreference?: UiState['themePreference']
+  }
+}
 import type { CombatSession } from '@/domain/entities/session'
 import type {
   ManualBuffs,
@@ -718,7 +725,7 @@ function buildInitializedCalculatorState(base?: CalculatorState): CalculatorStat
 
 // normalize a loaded persisted app state
 export function initializePersistedAppState(
-    state: Omit<PersistedAppState, 'version'> & { version: number },
+    state: PersistedAppStateInput,
 ): PersistedAppState {
   const themePreference: ThemePreference = state.ui.themePreference
     ?? (state.ui.theme === 'background' ? 'background' : 'system')

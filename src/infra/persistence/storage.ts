@@ -5,6 +5,7 @@
 */
 
 import type { PersistedAppState } from '@/domain/entities/appState'
+import type { PersistedAppStateInput } from '@/domain/state/defaults'
 import { createDefaultAppState, initializePersistedAppState } from '@/domain/state/defaults'
 import {
   LEGACY_PERSISTED_APP_STATE_VERSION,
@@ -74,7 +75,7 @@ const ALL_PERSISTED_DOMAIN_KEYS: PersistedDomainKey[] = [
   ...INVENTORY_DOMAIN_KEYS,
 ]
 
-type PersistedStateDraft = Omit<PersistedAppState, 'version'> & { version: number }
+type PersistedStateDraft = PersistedAppStateInput
 type PersistedDomainSchema = {
   safeParse: (value: unknown) => { success: boolean; data?: unknown }
 }
@@ -428,7 +429,7 @@ function normalizePersistedAppStatePayload(parsed: unknown): PersistedAppState {
 }
 
 function normalizePersistedAppState(
-  state: Omit<PersistedAppState, 'version'> & { version: number },
+  state: PersistedAppStateInput,
 ): PersistedAppState {
   return initializePersistedAppState(state)
 }
@@ -613,7 +614,7 @@ export function savePersistedAppState(
       return
     }
 
-    const normalizedState = normalizePersistedAppState(result.data)
+    const normalizedState = normalizePersistedAppState(result.data as unknown as PersistedAppStateInput)
 
     const domains = new Set(options.domains ?? ALL_PERSISTED_DOMAIN_KEYS)
     for (const key of domains) {
