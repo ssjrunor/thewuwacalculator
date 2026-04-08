@@ -42,6 +42,7 @@ import {
   buildTargetGpuStaticPayload,
   type TargetJobSpec,
 } from '@/engine/optimizer/workers/targetGpu.ts'
+import { logOptimizer } from '@/engine/optimizer/config/log.ts'
 
 // guardrails for GPU result collection so per-job and collector heaps do not blow up
 const TARGET_GPU_RESULT_LIMIT_CAP = 65536
@@ -357,6 +358,7 @@ function ensureWorkerPool(count: number): OptimizerPoolWorker[] {
     return workers
   }
 
+  logOptimizer('[optimizer:pool] creating worker pool', { count, previous: workers.length })
   resetOptimizerWorkerPool()
   workers = Array.from({ length: count }, () => createWorkerHandle())
   return workers
@@ -364,6 +366,13 @@ function ensureWorkerPool(count: number): OptimizerPoolWorker[] {
 
 // tear down the entire pool and reject anything waiting
 export function resetOptimizerWorkerPool(): void {
+  if (workers.length > 0 || queue.length > 0) {
+    logOptimizer('[optimizer:pool] resetting worker pool', {
+      workerCount: workers.length,
+      queuedJobs: queue.length,
+    })
+  }
+
   const reason = new Error('Optimizer worker pool reset')
 
   rejectQueuedJobs(reason)
@@ -383,6 +392,7 @@ export function cancelActiveOptimizerWorkerPoolRun(): void {
   }
 
   const runId = activeRunId
+  logOptimizer('[optimizer:pool] cancelling active run', { runId, workerCount: workers.length })
 
   for (const handle of workers) {
     const message: OptimizerTaskInMessage = {
@@ -401,12 +411,23 @@ async function initTargetWorker(
     handle: OptimizerPoolWorker,
     payload: OptimizerTaskInMessage,
 ): Promise<void> {
+  const initType = payload.type
+  const runId = payload.runId
+  logOptimizer('[optimizer:pool] sending init to worker', { type: initType, runId })
+
+  const t0 = performance.now()
   await new Promise<void>((resolve, reject) => {
     handle.ready = false
     handle.initResolve = resolve
     handle.initReject = reject
 
     handle.worker.postMessage(payload)
+  })
+
+  logOptimizer('[optimizer:pool] worker ready', {
+    type: initType,
+    runId,
+    elapsedMs: Math.round(performance.now() - t0),
   })
 }
 
@@ -857,15 +878,38 @@ export async function runOptimizerWithWorkerPool(
     backend: OptimizerBackend,
     hooks: PoolRunHooks = {},
 ): Promise<OptimizerBagResultRef[]> {
+  logOptimizer('[optimizer:pool] run starting', {
+    mode: payload.mode,
+    backend,
+    comboTotalCombos: payload.comboTotalCombos,
+    resultsLimit: payload.resultsLimit,
+    lowMemoryMode: payload.lowMemoryMode,
+    lockedMainRequested: payload.lockedMainRequested,
+    lockedMainCandidateCount: payload.lockedMainCandidateIndices.length,
+    contextCount: 'contextCount' in payload ? payload.contextCount : undefined,
+  })
+
   resetOptimizerWorkerPool()
 
+  const t0 = performance.now()
+  let results: OptimizerBagResultRef[]
+
   if (payload.mode === 'rotation') {
-    return backend === 'gpu'
-        ? runRotationGpuWithWorkerPool(payload, hooks)
-        : runRotationCpuWithWorkerPool(payload, hooks)
+    results = backend === 'gpu'
+        ? await runRotationGpuWithWorkerPool(payload, hooks)
+        : await runRotationCpuWithWorkerPool(payload, hooks)
+  } else {
+    results = backend === 'gpu'
+        ? await runTargetSkillGpuWithWorkerPool(payload, hooks)
+        : await runTargetSkillCpuWithWorkerPool(payload, hooks)
   }
 
-  return backend === 'gpu'
-      ? runTargetSkillGpuWithWorkerPool(payload, hooks)
-      : runTargetSkillCpuWithWorkerPool(payload, hooks)
+  logOptimizer('[optimizer:pool] run complete', {
+    mode: payload.mode,
+    backend,
+    resultCount: results.length,
+    elapsedMs: Math.round(performance.now() - t0),
+  })
+
+  return results
 }

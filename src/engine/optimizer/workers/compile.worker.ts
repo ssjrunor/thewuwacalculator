@@ -25,6 +25,7 @@ import type {
   OptimizerCompileInMessage,
   OptimizerMaterializeDoneMessage,
 } from '@/engine/optimizer/compiler/compileWorker.types.ts'
+import { errorOptimizer, logOptimizer } from '@/engine/optimizer/config/log.ts'
 
 let optimizerCompileModulesPromise: Promise<{
   compileOptimizerPayload: typeof import('@/engine/optimizer/compiler').compileOptimizerPayload
@@ -212,17 +213,58 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
   const message = event.data
   const scope = self as DedicatedWorkerGlobalScope
 
+  logOptimizer('[optimizer:compile-worker] message received', {
+    type: message.type,
+    runId: message.runId,
+    sharedArrayBufferAvailable: typeof SharedArrayBuffer !== 'undefined',
+  })
+
   try {
     if (message.type === 'start') {
       if (message.payload.staticData) {
+        logOptimizer('[optimizer:compile-worker] hydrating game data from static snapshot', {
+          runId: message.runId,
+        })
         hydrateOptimizerStaticData(message.payload.staticData)
+        logOptimizer('[optimizer:compile-worker] static data hydrated', { runId: message.runId })
       } else {
+        logOptimizer('[optimizer:compile-worker] fetching game data via initializeGameData()', {
+          runId: message.runId,
+        })
         await initializeGameData()
+        logOptimizer('[optimizer:compile-worker] game data ready', { runId: message.runId })
       }
+
+      logOptimizer('[optimizer:compile-worker] loading compiler modules', { runId: message.runId })
       const { compileOptimizerPayload } = await loadOptimizerCompileModules()
+      logOptimizer('[optimizer:compile-worker] compiler modules loaded', { runId: message.runId })
+
+      logOptimizer('[optimizer:compile-worker] compiling payload', {
+        runId: message.runId,
+        rotationMode: message.payload.settings.rotationMode,
+        inventorySize: message.payload.inventoryEchoes.length,
+      })
+
+      const t0 = performance.now()
+      const compiled = compileOptimizerPayload(message.payload)
+
+      logOptimizer('[optimizer:compile-worker] payload compiled, upgrading buffers', {
+        runId: message.runId,
+        mode: compiled.mode,
+        comboTotalCombos: compiled.comboTotalCombos,
+        contextCount: 'contextCount' in compiled ? compiled.contextCount : undefined,
+        elapsedMs: Math.round(performance.now() - t0),
+        willShareBuffers: typeof SharedArrayBuffer !== 'undefined',
+      })
 
       // compile the raw payload, then upgrade eligible buffers to shared memory
-      const payload = sharePreparedPayload(compileOptimizerPayload(message.payload))
+      const payload = sharePreparedPayload(compiled)
+
+      const transferables = collectTransferables(payload)
+      logOptimizer('[optimizer:compile-worker] posting compiled payload', {
+        runId: message.runId,
+        transferableCount: transferables.length,
+      })
 
       const response: OptimizerCompileDoneMessage = {
         type: 'done',
@@ -231,11 +273,18 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
       }
 
       // transfer regular ArrayBuffers to avoid copying large payloads
-      scope.postMessage(response, collectTransferables(payload))
+      scope.postMessage(response, transferables)
       return
     }
 
     // materialize result refs back into UID-based result entries
+    logOptimizer('[optimizer:compile-worker] materializing results', {
+      runId: message.runId,
+      resultCount: message.results.length,
+      limit: message.limit,
+    })
+
+    const t0 = performance.now()
     const { materializeOptimizerResultsFromUids } = await loadOptimizerCompileModules()
     const results = materializeOptimizerResultsFromUids(
         message.uidByIndex,
@@ -246,6 +295,12 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
         },
     )
 
+    logOptimizer('[optimizer:compile-worker] materialization complete', {
+      runId: message.runId,
+      finalizedCount: results.length,
+      elapsedMs: Math.round(performance.now() - t0),
+    })
+
     const response: OptimizerMaterializeDoneMessage = {
       type: 'materialized',
       runId: message.runId,
@@ -254,6 +309,13 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
 
     scope.postMessage(response)
   } catch (error) {
+    errorOptimizer('[optimizer:compile-worker] error', {
+      runId: message.runId,
+      type: message.type,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
     const response: OptimizerCompileErrorMessage = {
       type: 'error',
       runId: message.runId,

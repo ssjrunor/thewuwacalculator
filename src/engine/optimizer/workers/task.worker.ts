@@ -13,6 +13,7 @@ import type {
   OptimizerTaskProgressMessage,
   OptimizerTaskReadyMessage,
 } from '@/engine/optimizer/workers/messages.ts'
+import { errorOptimizer, logOptimizer } from '@/engine/optimizer/config/log.ts'
 
 const PROGRESS_FLUSH_INTERVAL_MS = 80
 
@@ -49,6 +50,7 @@ self.onmessage = async (event: MessageEvent<OptimizerTaskInMessage>) => {
 
   if (message.type === 'cancel') {
     if (activeRunId === message.runId) {
+      logOptimizer('[optimizer:task-worker] cancellation requested', { runId: message.runId })
       cancelled = true
     }
     return
@@ -68,30 +70,72 @@ self.onmessage = async (event: MessageEvent<OptimizerTaskInMessage>) => {
     targetGpuInitialized = false
     canUseGpuBackend = false
 
+    logOptimizer('[optimizer:task-worker] init message received', {
+      type: message.type,
+      runId: message.runId,
+      targetBackend,
+    })
+
     try {
       if (message.type === 'initTargetGpu' || message.type === 'initRotationGpu') {
+        logOptimizer('[optimizer:task-worker] detecting WebGPU support', { runId: message.runId })
         canUseGpuBackend = await detectWebGpuSupport()
+        logOptimizer('[optimizer:task-worker] WebGPU detection result', {
+          runId: message.runId,
+          canUseGpuBackend,
+        })
+
         if (!canUseGpuBackend) {
           throw new Error('WebGPU is not available for target optimizer worker')
         }
+
+        logOptimizer('[optimizer:task-worker] initializing GPU resources', {
+          runId: message.runId,
+          type: message.type,
+        })
+
         if (message.type === 'initTargetGpu') {
           await initializeTargetGpu(message.payload)
         } else {
           await initializeRotationGpu(message.payload)
         }
+
         targetGpuInitialized = true
+        logOptimizer('[optimizer:task-worker] GPU resources ready', { runId: message.runId, type: message.type })
       } else {
         packedTargetPayload = message.payload
+        logOptimizer('[optimizer:task-worker] CPU payload stored', {
+          runId: message.runId,
+          mode: message.payload.mode,
+        })
       }
 
       postReady(message.runId)
     } catch (error) {
+      errorOptimizer('[optimizer:task-worker] init failed', {
+        runId: message.runId,
+        type: message.type,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       postError(message.runId, error)
     }
     return
   }
 
   if (message.type === 'runTarget' || message.type === 'runTargetCpuBatch') {
+    const jobT0 = performance.now()
+    const jobComboCount = message.type === 'runTargetCpuBatch' ? message.comboCount : message.comboCount
+
+    logOptimizer('[optimizer:task-worker] job started', {
+      type: message.type,
+      runId: message.runId,
+      comboCount: jobComboCount,
+      lockedMainIndex: message.lockedMainIndex,
+      jobResultsLimit: message.jobResultsLimit,
+      backend: targetBackend,
+    })
+
     let flushProcessed = () => {}
     try {
       if (message.type === 'runTarget' && (targetBackend === 'gpu-target' || targetBackend === 'gpu-rotation')) {
@@ -122,6 +166,12 @@ self.onmessage = async (event: MessageEvent<OptimizerTaskInMessage>) => {
                 isCancelled: () => isCancelled(message.runId),
               },
             )
+
+        logOptimizer('[optimizer:task-worker] GPU job done', {
+          runId: message.runId,
+          resultCount: results.length,
+          elapsedMs: Math.round(performance.now() - jobT0),
+        })
 
         const doneMessage: OptimizerTaskDoneMessage = {
           type: 'done',
@@ -211,6 +261,13 @@ self.onmessage = async (event: MessageEvent<OptimizerTaskInMessage>) => {
 
       flushProcessed()
 
+      logOptimizer('[optimizer:task-worker] CPU job done', {
+        type: message.type,
+        runId: message.runId,
+        resultCount: results.length,
+        elapsedMs: Math.round(performance.now() - jobT0),
+      })
+
       const doneMessage: OptimizerTaskDoneMessage = {
         type: 'done',
         runId: message.runId,
@@ -225,6 +282,13 @@ self.onmessage = async (event: MessageEvent<OptimizerTaskInMessage>) => {
         self.postMessage(doneMessage)
       }
     } catch (error) {
+      errorOptimizer('[optimizer:task-worker] job failed', {
+        type: message.type,
+        runId: message.runId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        elapsedMs: Math.round(performance.now() - jobT0),
+      })
       flushProcessed()
       postError(message.runId, error)
     }

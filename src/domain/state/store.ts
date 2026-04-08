@@ -57,6 +57,7 @@ import {
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
   ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU,
 } from '@/engine/optimizer/config/constants'
+import { errorOptimizer, logOptimizer } from '@/engine/optimizer/config/log.ts'
 import {
   areEchoInstancesEquivalent,
   areBuildSnapshotsEquivalent,
@@ -359,10 +360,21 @@ function ensureOptimizerCompileWorker(): Worker {
     return optimizerCompileWorker
   }
 
+  logOptimizer('[optimizer:store] spawning compile worker')
   optimizerCompileWorker = new Worker(
       new URL('@/engine/optimizer/workers/compile.worker.ts', import.meta.url),
       { type: 'module' },
   )
+
+  optimizerCompileWorker.onerror = (event) => {
+    errorOptimizer('[optimizer:store] compile worker uncaught error', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+    })
+  }
+
   return optimizerCompileWorker
 }
 
@@ -454,6 +466,15 @@ async function compileOptimizerPayloadInWorker(
     runId: number,
     input: OptimizerStartPayload,
 ): Promise<PreparedOptimizerPayload> {
+  logOptimizer('[optimizer:store] dispatching compile job to worker', {
+    runId,
+    resonatorId: input.resonatorId,
+    rotationMode: input.settings.rotationMode,
+    inventorySize: input.inventoryEchoes.length,
+    hasStaticData: !!input.staticData,
+  })
+
+  const t0 = performance.now()
   const message = await waitForCompileWorkerMessage(worker, runId, 'done', () => {
     worker.postMessage({
       type: 'start',
@@ -461,6 +482,17 @@ async function compileOptimizerPayloadInWorker(
       payload: input,
     })
   })
+
+  logOptimizer('[optimizer:store] compile worker responded', {
+    runId,
+    mode: message.payload.mode,
+    comboTotalCombos: message.payload.comboTotalCombos,
+    comboN: message.payload.comboN,
+    comboK: message.payload.comboK,
+    contextCount: 'contextCount' in message.payload ? message.payload.contextCount : undefined,
+    elapsedMs: Math.round(performance.now() - t0),
+  })
+
   return message.payload
 }
 
@@ -473,6 +505,14 @@ async function materializeOptimizerResultsInWorker(
     uidByIndex: string[],
     limit: number,
 ): Promise<OptimizerResultEntry[]> {
+  logOptimizer('[optimizer:store] dispatching materialize job to worker', {
+    runId,
+    resultCount: results.length,
+    limit,
+    mode: payload.mode,
+  })
+
+  const t0 = performance.now()
   const message = await waitForCompileWorkerMessage(worker, runId, 'materialized', () => {
     worker.postMessage({
       type: 'materialize',
@@ -483,6 +523,13 @@ async function materializeOptimizerResultsInWorker(
       limit,
     }, collectPreparedPayloadTransferables(payload))
   })
+
+  logOptimizer('[optimizer:store] materialize complete', {
+    runId,
+    finalizedCount: message.results.length,
+    elapsedMs: Math.round(performance.now() - t0),
+  })
+
   return message.results
 }
 
@@ -1506,6 +1553,17 @@ export const useAppStore = create<AppStore>((set, get) => {
     resetOptimizerWorkerPool()
     const runToken = ++optimizerRunToken
 
+    logOptimizer('[optimizer:store] run started', {
+      runToken,
+      resonatorId: input.resonatorId,
+      rotationMode: input.settings.rotationMode,
+      enableGpu: input.settings.enableGpu,
+      lowMemoryMode: input.settings.lowMemoryMode,
+      inventorySize: input.inventoryEchoes.length,
+      resultsLimit: input.settings.resultsLimit,
+      sharedArrayBufferAvailable: typeof SharedArrayBuffer !== 'undefined',
+    })
+
     set((state) => ({
       ...state,
       optimizer: {
@@ -1520,15 +1578,26 @@ export const useAppStore = create<AppStore>((set, get) => {
     }))
 
     const compileWorker = ensureOptimizerCompileWorker()
+    const runStartTime = performance.now()
 
     void (async () => {
       try {
         const compiledPayload = await compileOptimizerPayloadInWorker(compileWorker, runToken, input)
         if (optimizerRunToken !== runToken) {
+          logOptimizer('[optimizer:store] run superseded after compile, dropping', { runToken })
           return
         }
 
         const backend: OptimizerBackend = input.settings.enableGpu ? 'gpu' : 'cpu'
+
+        logOptimizer('[optimizer:store] starting pool search', {
+          runToken,
+          backend,
+          mode: compiledPayload.mode,
+          comboTotalCombos: compiledPayload.comboTotalCombos,
+          resultsLimit: compiledPayload.resultsLimit,
+          lowMemoryMode: compiledPayload.lowMemoryMode,
+        })
 
         set((state) => ({
           ...state,
@@ -1542,6 +1611,7 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         }))
 
+        const searchT0 = performance.now()
         const results = await runOptimizerWithWorkerPool(compiledPayload, backend, {
           onProgress: (progress) => {
             if (optimizerRunToken !== runToken) {
@@ -1553,8 +1623,15 @@ export const useAppStore = create<AppStore>((set, get) => {
         })
 
         if (optimizerRunToken !== runToken) {
+          logOptimizer('[optimizer:store] run superseded after search, dropping', { runToken })
           return
         }
+
+        logOptimizer('[optimizer:store] pool search complete', {
+          runToken,
+          rawResultCount: results.length,
+          searchElapsedMs: Math.round(performance.now() - searchT0),
+        })
 
         const finalizedResults = await materializeOptimizerResultsInWorker(
             compileWorker,
@@ -1566,8 +1643,15 @@ export const useAppStore = create<AppStore>((set, get) => {
         )
 
         if (optimizerRunToken !== runToken) {
+          logOptimizer('[optimizer:store] run superseded after materialize, dropping', { runToken })
           return
         }
+
+        logOptimizer('[optimizer:store] run complete', {
+          runToken,
+          finalResultCount: finalizedResults.length,
+          totalElapsedMs: Math.round(performance.now() - runStartTime),
+        })
 
         set((state) => ({
           ...state,
@@ -1587,6 +1671,13 @@ export const useAppStore = create<AppStore>((set, get) => {
         }
 
       } catch (error) {
+        errorOptimizer('[optimizer:store] run failed', {
+          runToken,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          elapsedMs: Math.round(performance.now() - runStartTime),
+        })
+
         if (optimizerCompileWorker === compileWorker) {
           stopOptimizerCompileWorker()
         }

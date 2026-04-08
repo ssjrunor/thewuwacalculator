@@ -130,5 +130,8 @@ export const WORKER_COUNT = {
   gpu: OPTIMIZER_WORKER_COUNT_GPU,
 } as const
 
+// set to false to silence all [optimizer:*] console output
+export const OPTIMIZER_LOGGING = true
+
 // below this threshold, parallel overhead may outweigh the benefit
 export const OPTIMIZER_MIN_PARALLEL_COMBOS = 20_000
