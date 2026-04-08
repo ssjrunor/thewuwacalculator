@@ -131,7 +131,7 @@ export const WORKER_COUNT = {
 } as const
 
 // set to false to silence all [optimizer:*] console output
-export const OPTIMIZER_LOGGING = true
+export const OPTIMIZER_LOGGING = false
 
 // below this threshold, parallel overhead may outweigh the benefit
 export const OPTIMIZER_MIN_PARALLEL_COMBOS = 20_000
