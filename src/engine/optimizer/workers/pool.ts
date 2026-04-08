@@ -13,9 +13,9 @@ import {
   OPTIMIZER_MIN_PARALLEL_COMBOS,
   WORKER_COUNT,
 } from '@/engine/optimizer/config/constants.ts'
-import { countOptimizerCombinationsForMainIndices } from '@/engine/optimizer/search/counting.ts'
-import { OptimizerBagResultCollector } from '@/engine/optimizer/results/collector.ts'
-import { generateTargetCpuComboBatches } from '@/engine/optimizer/target/batches.ts'
+import {countOptimizerCombinationsForMainIndices} from '@/engine/optimizer/search/counting.ts'
+import {OptimizerBagResultCollector} from '@/engine/optimizer/results/collector.ts'
+import {generateTargetCpuComboBatches} from '@/engine/optimizer/target/batches.ts'
 import {
   createPackedTargetSkillExecution,
   sharePackedTargetSkillExecution,
@@ -28,30 +28,36 @@ import type {
   OptimizerBackend,
   OptimizerBagResultRef,
   OptimizerProgress,
+  PackedOptimizerExecutionPayload,
+  PackedRotationExecutionPayload,
   PreparedOptimizerPayload,
   PreparedRotationRun,
   PreparedTargetSkillRun,
 } from '@/engine/optimizer/types.ts'
 import type {
+  OptimizerTargetGpuStaticPayload,
   OptimizerTaskDoneMessage,
   OptimizerTaskInMessage,
   OptimizerTaskOutMessage,
 } from '@/engine/optimizer/workers/messages.ts'
 import {
-  buildTargetJobs,
   buildTargetGpuStaticPayload,
+  buildTargetJobs,
   type TargetJobSpec,
 } from '@/engine/optimizer/workers/targetGpu.ts'
-import { logOptimizer } from '@/engine/optimizer/config/log.ts'
+import {logOptimizer} from '@/engine/optimizer/config/log.ts'
 
 // guardrails for GPU result collection so per-job and collector heaps do not blow up
 const TARGET_GPU_RESULT_LIMIT_CAP = 65536
 const TARGET_GPU_JOB_OVERSAMPLE = 2
 const TARGET_GPU_COLLECTOR_OVERSAMPLE = 8
+const OPTIMIZER_WORKER_TASK_TIMEOUT_MS = 300_000
 
 interface PoolRunHooks {
   onProgress?: (progress: OptimizerProgress) => void
 }
+
+type OptimizerPoolGpuMode = 'target' | 'rotation'
 
 // one queued GPU target job defined by a contiguous combo range
 interface OptimizerPoolRunTargetJob {
@@ -85,13 +91,28 @@ type OptimizerPoolJob =
     | OptimizerPoolRunTargetJob
     | OptimizerPoolRunTargetCpuBatchJob
 
-// wrapper around a real worker plus initialization / in-flight job state
+interface OptimizerPoolCpuRunContext {
+  kind: 'cpu'
+  payload: PackedOptimizerExecutionPayload
+}
+
+interface OptimizerPoolGpuRunContext {
+  kind: 'gpu'
+  mode: OptimizerPoolGpuMode
+  payload: OptimizerTargetGpuStaticPayload | PackedRotationExecutionPayload
+}
+
+type OptimizerPoolRunContext =
+    | OptimizerPoolCpuRunContext
+    | OptimizerPoolGpuRunContext
+
+// each worker keeps only the bits needed to know whether it can reuse
+// a cached cpu payload or a lazily initialized gpu backend.
 interface OptimizerPoolWorker {
   worker: Worker
-  initResolve: (() => void) | null
-  initReject: ((error: Error) => void) | null
   currentJob: OptimizerPoolJob | null
-  ready: boolean
+  cpuPayloadLoaded: boolean
+  gpuBackend: OptimizerPoolGpuMode | null
 }
 
 // global worker-pool state reused across optimizer runs
@@ -99,6 +120,13 @@ let workers: OptimizerPoolWorker[] = []
 let queue: OptimizerPoolJob[] = []
 let nextRunId = 1
 let activeRunId: number | null = null
+// the active run context is shared by the pool, but actual reuse happens
+// inside each worker once its first task lands.
+let activeRunContext: OptimizerPoolRunContext | null = null
+
+function hasSharedArrayBuffer(): boolean {
+  return typeof SharedArrayBuffer !== 'undefined'
+}
 
 // scale a result limit upward for GPU local collection, but clamp it hard
 function clampTargetGpuResultLimit(resultsLimit: number, oversample: number): number {
@@ -192,60 +220,196 @@ function rejectQueuedJobs(reason: Error): void {
 
 // fully dispose a worker handle, rejecting anything waiting on it
 function disposeWorkerHandle(handle: OptimizerPoolWorker, reason: Error): void {
-  if (handle.initReject) {
-    handle.initReject(reason)
-  }
-
   if (handle.currentJob) {
     handle.currentJob.reject(reason)
   }
 
-  handle.initResolve = null
-  handle.initReject = null
   handle.currentJob = null
-  handle.ready = false
+  handle.cpuPayloadLoaded = false
+  handle.gpuBackend = null
   handle.worker.terminate()
 }
 
-// send the next assigned job to a worker using the correct message shape
-function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): void {
-  handle.currentJob = job
+function resolveWorkerJobMessage(
+    handle: OptimizerPoolWorker,
+    job: OptimizerPoolJob,
+): {
+  message: OptimizerTaskInMessage
+  transferables: Transferable[]
+} {
+  if (!activeRunContext) {
+    throw new Error('Optimizer worker run context is missing')
+  }
 
   if (job.type === 'runTargetCpuBatch') {
+    if (activeRunContext.kind !== 'cpu') {
+      throw new Error('CPU optimizer job was dispatched without a CPU run context')
+    }
+
     const message: OptimizerTaskInMessage = {
       type: 'runTargetCpuBatch',
       runId: job.runId,
+      payload: handle.cpuPayloadLoaded ? undefined : activeRunContext.payload,
       combosBatch: job.combosBatch,
       comboCount: job.comboCount,
       lockedMainIndex: job.lockedMainIndex,
       jobResultsLimit: job.jobResultsLimit,
     }
 
-    // transfer the batch buffer to avoid copying large arrays
-    handle.worker.postMessage(message, [job.combosBatch.buffer])
-    return
+    // once a worker sees the payload once, later cpu tasks can stay small.
+    handle.cpuPayloadLoaded = true
+
+    return {
+      message,
+      transferables: [job.combosBatch.buffer],
+    }
+  }
+
+  if (activeRunContext.kind !== 'gpu') {
+    throw new Error('GPU optimizer job was dispatched without a GPU run context')
+  }
+
+  if (activeRunContext.mode === 'target') {
+    const message: OptimizerTaskInMessage = {
+      type: 'runTargetGpu',
+      runId: job.runId,
+      comboStart: job.comboStart,
+      comboCount: job.comboCount,
+      lockedMainIndex: job.lockedMainIndex,
+      jobResultsLimit: job.jobResultsLimit,
+      bootstrapPayload: handle.gpuBackend === 'target'
+        ? undefined
+        : activeRunContext.payload as OptimizerTargetGpuStaticPayload,
+    }
+
+    // only the first target gpu task per worker needs the bootstrap payload.
+    handle.gpuBackend = 'target'
+    return { message, transferables: [] }
   }
 
   const message: OptimizerTaskInMessage = {
-    type: 'runTarget',
+    type: 'runRotationGpu',
     runId: job.runId,
     comboStart: job.comboStart,
     comboCount: job.comboCount,
     lockedMainIndex: job.lockedMainIndex,
     jobResultsLimit: job.jobResultsLimit,
+    bootstrapPayload: handle.gpuBackend === 'rotation'
+      ? undefined
+      : activeRunContext.payload as PackedRotationExecutionPayload,
   }
 
-  handle.worker.postMessage(message)
+  // same idea for rotation gpu workers.
+  handle.gpuBackend = 'rotation'
+  return { message, transferables: [] }
 }
 
-// feed idle ready workers from the size-prioritized queue
+// send the next assigned job to a worker using request-scoped listeners instead
+// of a persistent worker "ready" handshake.
+function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): void {
+  handle.currentJob = job
+
+  let message: OptimizerTaskInMessage
+  let transferables: Transferable[] = []
+
+  try {
+    const resolved = resolveWorkerJobMessage(handle, job)
+    message = resolved.message
+    transferables = resolved.transferables
+  } catch (error) {
+    handle.currentJob = null
+    job.reject(error instanceof Error ? error : new Error(String(error)))
+    scheduleQueuedJobs()
+    return
+  }
+
+  const worker = handle.worker
+  const timeoutLabel = message.type
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const cleanup = () => {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+    worker.removeEventListener('message', onMessage)
+    worker.removeEventListener('error', onError)
+  }
+
+  const finishWithError = (error: Error) => {
+    cleanup()
+    if (handle.currentJob === job) {
+      handle.currentJob = null
+    }
+    job.reject(error)
+    scheduleQueuedJobs()
+  }
+
+  const armTimeout = () => {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId)
+    }
+    // turn silent worker stalls into a surfaced optimizer error.
+    timeoutId = setTimeout(() => {
+      finishWithError(new Error(`Optimizer worker task timed out: ${timeoutLabel}`))
+    }, OPTIMIZER_WORKER_TASK_TIMEOUT_MS)
+  }
+
+  const onMessage = (event: MessageEvent<OptimizerTaskOutMessage>) => {
+    const workerMessage = event.data
+
+    if (!workerMessage || workerMessage.runId !== job.runId) {
+      return
+    }
+
+    if (workerMessage.type === 'progress') {
+      job.onProgress?.(workerMessage.processedDelta)
+      armTimeout()
+      return
+    }
+
+    cleanup()
+
+    if (handle.currentJob === job) {
+      handle.currentJob = null
+    }
+
+    if (workerMessage.type === 'error') {
+      job.reject(new Error(workerMessage.message))
+    } else {
+      job.resolve(workerMessage)
+    }
+
+    scheduleQueuedJobs()
+  }
+
+  const onError = (event: ErrorEvent) => {
+    finishWithError(new Error(event.message || 'Optimizer task worker failed unexpectedly'))
+  }
+
+  worker.addEventListener('message', onMessage)
+  worker.addEventListener('error', onError)
+  armTimeout()
+
+  try {
+    if (transferables.length > 0) {
+      worker.postMessage(message, transferables)
+    } else {
+      worker.postMessage(message)
+    }
+  } catch (error) {
+    finishWithError(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
+// feed idle workers from the size-prioritized queue
 function scheduleQueuedJobs(): void {
   if (queue.length === 0) {
     return
   }
 
   for (const handle of workers) {
-    if (!handle.ready || handle.currentJob) {
+    if (handle.currentJob) {
       continue
     }
 
@@ -265,91 +429,12 @@ function createWorkerHandle(): OptimizerPoolWorker {
       { type: 'module' },
   )
 
-  const handle: OptimizerPoolWorker = {
+  return {
     worker,
-    initResolve: null,
-    initReject: null,
     currentJob: null,
-    ready: false,
+    cpuPayloadLoaded: false,
+    gpuBackend: null,
   }
-
-  worker.onmessage = (event: MessageEvent<OptimizerTaskOutMessage>) => {
-    const message = event.data
-
-    // worker finished static initialization and is ready to accept jobs
-    if (message.type === 'ready') {
-      handle.ready = true
-
-      if (handle.initResolve) {
-        const resolve = handle.initResolve
-        handle.initResolve = null
-        handle.initReject = null
-        resolve()
-      }
-
-      scheduleQueuedJobs()
-      return
-    }
-
-    const currentJob = handle.currentJob
-
-    // forward progress deltas only to the active matching job
-    if (message.type === 'progress') {
-      if (currentJob && currentJob.runId === message.runId) {
-        currentJob.onProgress?.(message.processedDelta)
-      }
-      return
-    }
-
-    // worker-level error, either during init or while running a job
-    if (message.type === 'error') {
-      if (handle.initReject) {
-        const reject = handle.initReject
-        handle.initResolve = null
-        handle.initReject = null
-        reject(new Error(message.message))
-        return
-      }
-
-      if (currentJob && currentJob.runId === message.runId) {
-        handle.currentJob = null
-        currentJob.reject(new Error(message.message))
-        scheduleQueuedJobs()
-      }
-      return
-    }
-
-    // ignore stale or mismatched run responses
-    if (!currentJob || currentJob.runId !== message.runId) {
-      return
-    }
-
-    // successful completion of the current job
-    if (message.type === 'done') {
-      handle.currentJob = null
-      currentJob.resolve(message)
-      scheduleQueuedJobs()
-    }
-  }
-
-  worker.onerror = (event) => {
-    const error = new Error(event.message || 'Optimizer task worker failed unexpectedly')
-
-    if (handle.initReject) {
-      const reject = handle.initReject
-      handle.initResolve = null
-      handle.initReject = null
-      reject(error)
-    }
-
-    if (handle.currentJob) {
-      const job = handle.currentJob
-      handle.currentJob = null
-      job.reject(error)
-    }
-  }
-
-  return handle
 }
 
 // ensure the global pool has exactly the requested number of workers
@@ -383,6 +468,7 @@ export function resetOptimizerWorkerPool(): void {
 
   workers = []
   activeRunId = null
+  activeRunContext = null
 }
 
 // cancel the active run on every worker and then reset the pool
@@ -404,31 +490,6 @@ export function cancelActiveOptimizerWorkerPoolRun(): void {
 
   activeRunId = null
   resetOptimizerWorkerPool()
-}
-
-// initialize one worker with a static payload and wait until it sends "ready"
-async function initTargetWorker(
-    handle: OptimizerPoolWorker,
-    payload: OptimizerTaskInMessage,
-): Promise<void> {
-  const initType = payload.type
-  const runId = payload.runId
-  logOptimizer('[optimizer:pool] sending init to worker', { type: initType, runId })
-
-  const t0 = performance.now()
-  await new Promise<void>((resolve, reject) => {
-    handle.ready = false
-    handle.initResolve = resolve
-    handle.initReject = reject
-
-    handle.worker.postMessage(payload)
-  })
-
-  logOptimizer('[optimizer:pool] worker ready', {
-    type: initType,
-    runId,
-    elapsedMs: Math.round(performance.now() - t0),
-  })
 }
 
 // insert jobs into the queue ordered by size so larger jobs get dispatched first
@@ -523,7 +584,7 @@ async function runTargetSkillGpuWithWorkerPool(
 
   const jobs = buildTargetJobs(payload, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU)
   const workerCount = Math.min(WORKER_COUNT.gpu, Math.max(1, jobs.length))
-  const pool = ensureWorkerPool(workerCount)
+  ensureWorkerPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
@@ -534,16 +595,13 @@ async function runTargetSkillGpuWithWorkerPool(
   const collector = new OptimizerBagResultCollector(collectorLimit)
   const jobResultsLimit = resolveTargetGpuJobResultsLimit(effectiveResultsLimit)
 
-  // static GPU payload uploaded once per worker before jobs begin
-  const gpuInitPayload = buildTargetGpuStaticPayload(payload)
-
-  await Promise.all(
-      pool.map((handle) => initTargetWorker(handle, {
-        type: 'initTargetGpu',
-        runId,
-        payload: gpuInitPayload,
-      })),
-  )
+  // gpu workers bootstrap lazily inside their first real task instead of
+  // blocking the whole run on a separate ready handshake.
+  activeRunContext = {
+    kind: 'gpu',
+    mode: 'target',
+    payload: buildTargetGpuStaticPayload(payload),
+  }
 
   try {
     for (const job of jobs) {
@@ -568,6 +626,7 @@ async function runTargetSkillGpuWithWorkerPool(
       activeRunId = null
       progress.complete()
     }
+    activeRunContext = null
   }
 
   return collector.sorted()
@@ -589,7 +648,7 @@ async function runRotationGpuWithWorkerPool(
 
   const jobs = buildTargetJobs(payload, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU)
   const workerCount = Math.min(WORKER_COUNT.gpu, Math.max(1, jobs.length))
-  const pool = ensureWorkerPool(workerCount)
+  ensureWorkerPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
@@ -600,16 +659,12 @@ async function runRotationGpuWithWorkerPool(
   const collector = new OptimizerBagResultCollector(collectorLimit)
   const jobResultsLimit = resolveTargetGpuJobResultsLimit(effectiveResultsLimit)
 
-  // rotation GPU workers receive a fully packed payload directly
-  const gpuInitPayload = createPackedRotationExecution(payload)
-
-  await Promise.all(
-      pool.map((handle) => initTargetWorker(handle, {
-        type: 'initRotationGpu',
-        runId,
-        payload: gpuInitPayload,
-      })),
-  )
+  // same lazy bootstrap path for rotation gpu workers.
+  activeRunContext = {
+    kind: 'gpu',
+    mode: 'rotation',
+    payload: createPackedRotationExecution(payload),
+  }
 
   try {
     for (const job of jobs) {
@@ -634,6 +689,7 @@ async function runRotationGpuWithWorkerPool(
       activeRunId = null
       progress.complete()
     }
+    activeRunContext = null
   }
 
   return collector.sorted()
@@ -672,7 +728,7 @@ async function runTargetSkillCpuWithWorkerPool(
 
   const workerCount = Math.min(workerTarget, Math.max(1, estimatedJobs))
   const maxInFlightJobs = lowMemoryMode ? 1 : workerCount
-  const pool = ensureWorkerPool(workerCount)
+  ensureWorkerPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
@@ -681,16 +737,10 @@ async function runTargetSkillCpuWithWorkerPool(
   const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
   const collector = new OptimizerBagResultCollector(effectiveResultsLimit)
 
-  // shared packed CPU payload reused by all workers
-  const cpuInitPayload = sharePackedTargetSkillExecution(createPackedTargetSkillExecution(payload))
-
-  await Promise.all(
-      pool.map((handle) => initTargetWorker(handle, {
-        type: 'initTargetCpu',
-        runId,
-        payload: cpuInitPayload,
-      })),
-  )
+  activeRunContext = {
+    kind: 'cpu',
+    payload: sharePackedTargetSkillExecution(createPackedTargetSkillExecution(payload)),
+  }
 
   try {
     const inFlight = new Set<Promise<void>>()
@@ -753,6 +803,7 @@ async function runTargetSkillCpuWithWorkerPool(
       activeRunId = null
       progress.complete()
     }
+    activeRunContext = null
   }
 
   return collector.sorted()
@@ -790,7 +841,7 @@ async function runRotationCpuWithWorkerPool(
 
   const workerCount = Math.min(workerTarget, Math.max(1, estimatedJobs))
   const maxInFlightJobs = lowMemoryMode ? 1 : workerCount
-  const pool = ensureWorkerPool(workerCount)
+  ensureWorkerPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
@@ -799,16 +850,10 @@ async function runRotationCpuWithWorkerPool(
   const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
   const collector = new OptimizerBagResultCollector(effectiveResultsLimit)
 
-  // packed rotation execution payload is shared across CPU workers
-  const cpuInitPayload = sharePackedRotationExecution(createPackedRotationExecution(payload))
-
-  await Promise.all(
-      pool.map((handle) => initTargetWorker(handle, {
-        type: 'initTargetCpu',
-        runId,
-        payload: cpuInitPayload,
-      })),
-  )
+  activeRunContext = {
+    kind: 'cpu',
+    payload: sharePackedRotationExecution(createPackedRotationExecution(payload)),
+  }
 
   try {
     const inFlight = new Set<Promise<void>>()
@@ -867,6 +912,7 @@ async function runRotationCpuWithWorkerPool(
       activeRunId = null
       progress.complete()
     }
+    activeRunContext = null
   }
 
   return collector.sorted()
@@ -884,6 +930,7 @@ export async function runOptimizerWithWorkerPool(
     comboTotalCombos: payload.comboTotalCombos,
     resultsLimit: payload.resultsLimit,
     lowMemoryMode: payload.lowMemoryMode,
+    sharedArrayBufferAvailable: hasSharedArrayBuffer(),
     lockedMainRequested: payload.lockedMainRequested,
     lockedMainCandidateCount: payload.lockedMainCandidateIndices.length,
     contextCount: 'contextCount' in payload ? payload.contextCount : undefined,

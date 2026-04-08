@@ -1,8 +1,8 @@
 /*
   Author: Runor Ewhro
   Description: defines the message protocol and gpu-static payload shapes used
-               by optimizer workers for cpu/gpu init, job execution, progress,
-               completion, cancellation, and error reporting.
+               by optimizer workers for cpu/gpu job execution, optional gpu
+               bootstrap, progress, completion, cancellation, and error reporting.
 */
 
 import type {
@@ -55,45 +55,38 @@ export interface OptimizerTargetGpuStaticPayload {
 // gpu target workers emit the same compact bag-result references used elsewhere
 export type OptimizerTargetGpuResultEntry = OptimizerBagResultRef
 
-// initialize a worker with a fully packed cpu execution payload
-export interface OptimizerTaskInitTargetCpuMessage {
-  type: 'initTargetCpu'
+// cpu work is sent as explicit combo batches.
+// the first task can also seed the worker-local packed payload.
+export interface OptimizerTaskRunTargetCpuBatchMessage {
+  type: 'runTargetCpuBatch'
   runId: number
-  payload: PackedOptimizerExecutionPayload
+  payload?: PackedOptimizerExecutionPayload
+  combosBatch: Int32Array
+  comboCount: number
+  lockedMainIndex: number
+  jobResultsLimit: number
 }
 
-// initialize a worker with a target gpu static payload
-export interface OptimizerTaskInitTargetGpuMessage {
-  type: 'initTargetGpu'
-  runId: number
-  payload: OptimizerTargetGpuStaticPayload
-}
-
-// initialize a worker with a rotation gpu execution payload
-export interface OptimizerTaskInitRotationGpuMessage {
-  type: 'initRotationGpu'
-  runId: number
-  payload: PackedRotationExecutionPayload
-}
-
-// run a rank-window gpu/cpu target search job
-export interface OptimizerTaskRunTargetMessage {
-  type: 'runTarget'
+// target gpu jobs can lazily carry the static bootstrap payload on first use.
+export interface OptimizerTaskRunTargetGpuMessage {
+  type: 'runTargetGpu'
   runId: number
   comboStart: number
   comboCount: number
   lockedMainIndex: number
   jobResultsLimit: number
+  bootstrapPayload?: OptimizerTargetGpuStaticPayload
 }
 
-// run an explicit cpu batch of concrete combos
-export interface OptimizerTaskRunTargetCpuBatchMessage {
-  type: 'runTargetCpuBatch'
+// rotation gpu jobs do the same, but with the packed rotation bootstrap payload.
+export interface OptimizerTaskRunRotationGpuMessage {
+  type: 'runRotationGpu'
   runId: number
-  combosBatch: Int32Array
+  comboStart: number
   comboCount: number
   lockedMainIndex: number
   jobResultsLimit: number
+  bootstrapPayload?: PackedRotationExecutionPayload
 }
 
 // cancel the active run inside a worker
@@ -104,18 +97,10 @@ export interface OptimizerTaskCancelMessage {
 
 // all messages a worker can receive
 export type OptimizerTaskInMessage =
-    | OptimizerTaskInitTargetCpuMessage
-    | OptimizerTaskInitTargetGpuMessage
-    | OptimizerTaskInitRotationGpuMessage
-    | OptimizerTaskRunTargetMessage
     | OptimizerTaskRunTargetCpuBatchMessage
+    | OptimizerTaskRunTargetGpuMessage
+    | OptimizerTaskRunRotationGpuMessage
     | OptimizerTaskCancelMessage
-
-// worker finished initialization and is ready for jobs
-export interface OptimizerTaskReadyMessage {
-  type: 'ready'
-  runId: number
-}
 
 // incremental processed-row update emitted during long-running jobs
 export interface OptimizerTaskProgressMessage {
@@ -142,7 +127,6 @@ export interface OptimizerTaskErrorMessage {
 
 // all messages a worker can post back to the pool
 export type OptimizerTaskOutMessage =
-    | OptimizerTaskReadyMessage
     | OptimizerTaskProgressMessage
     | OptimizerTaskDoneMessage
     | OptimizerTaskErrorMessage
