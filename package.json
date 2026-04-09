@@ -12,6 +12,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "dev:cloudflare": "wrangler dev",
+    "deploy:cloudflare": "npm run build && wrangler deploy",
     "ingest:resonators": "node scripts/ingest/fetchResonators.mjs",
     "ingest:resonators:index": "node scripts/ingest/buildResonatorIndex.mjs --source-data-dir ingest/resonators --output-dir ingest/resonators/runtime",
     "ingest:resonators:module": "node scripts/ingest/buildResonatorModule.mjs --input-file ingest/resonators/resonators.json",
@@ -55,6 +57,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.81.1"
   }
 }

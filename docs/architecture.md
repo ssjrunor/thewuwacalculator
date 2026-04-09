@@ -23,7 +23,7 @@ At a high level, the app works like this:
 - Web Workers for suggestions and optimizer compilation/execution
 - WebGPU for accelerated optimizer paths when available
 - Tesseract.js plus image matching for OCR-assisted echo import
-- Vercel serverless functions in `api/` for Google OAuth code exchange and refresh
+- Cloudflare Worker routes for Google OAuth code exchange and refresh
 
 ## Top-Level Layout
 
@@ -45,8 +45,10 @@ The codebase is organized around a fairly clear split between app shell, state/d
   Shared UI primitives, small libs, and local utility stores.
 - `public/data`
   Checked-in runtime JSON consumed at startup.
-- `api`
-  Minimal server endpoints for Google OAuth token exchange/refresh.
+- `public/_headers`
+  Deployment headers for cross-origin isolation on the static app shell.
+- `wrangler.jsonc`
+  Cloudflare Worker and static asset deployment configuration.
 
 ## Bootstrap Flow
 
@@ -583,8 +585,8 @@ Core files:
 
 - [src/infra/googleDrive/googleAuth.ts](/Users/runorewhro/projects/thewuwacalculator/src/infra/googleDrive/googleAuth.ts)
 - [src/infra/googleDrive/driveSync.ts](/Users/runorewhro/projects/thewuwacalculator/src/infra/googleDrive/driveSync.ts)
-- [api/exchange-code.js](/Users/runorewhro/projects/thewuwacalculator/api/exchange-code.js)
-- [api/refresh-token.js](/Users/runorewhro/projects/thewuwacalculator/api/refresh-token.js)
+- [src/infra/googleDrive/server/googleOAuthServer.ts](/Users/runorewhro/projects/thewuwacalculator/src/infra/googleDrive/server/googleOAuthServer.ts)
+- [src/cloudflare/worker.ts](/Users/runorewhro/projects/thewuwacalculator/src/cloudflare/worker.ts)
 
 The app stores OAuth tokens in local storage, uses serverless endpoints to exchange/refresh tokens, and syncs snapshots into Google Drive `appDataFolder`.
 
@@ -644,14 +646,15 @@ Responsibilities:
 Relevant files:
 
 - [vite.config.ts](/Users/runorewhro/projects/thewuwacalculator/vite.config.ts)
-- [vercel.json](/Users/runorewhro/projects/thewuwacalculator/vercel.json)
+- [wrangler.jsonc](/Users/runorewhro/projects/thewuwacalculator/wrangler.jsonc)
+- [public/_headers](/Users/runorewhro/projects/thewuwacalculator/public/_headers)
 
 Key deployment details:
 
 - Vite aliases `@` to `src`
-- cross-origin isolation headers are enabled in dev and preview to support advanced worker/WebGPU scenarios
+- cross-origin isolation headers are enabled in dev/preview and shipped through Cloudflare static asset headers to support advanced worker/WebGPU scenarios
 - Rollup manual chunks separate React core, UI vendors, icons, schema libs, and calculator effect data
-- Vercel routes all non-filesystem requests back to `index.html`, so the frontend behaves as a SPA
+- Cloudflare serves `dist` as static assets, runs the Worker first for `/api/*`, and falls back to `index.html` for SPA routes
 
 ## Testing Shape
 

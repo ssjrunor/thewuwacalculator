@@ -1,3 +1,5 @@
+import { getGoogleAuthEndpoint } from './googleAuthEndpoints'
+
 export interface StoredGoogleUser {
   email?: string
   name?: string
@@ -58,7 +60,7 @@ export async function refreshGoogleAccessTokenIfNeeded(
     return tokens.access_token
   }
 
-  const response = await fetch('/api/refresh-token', {
+  const response = await fetch(getGoogleAuthEndpoint('refresh-token'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

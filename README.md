@@ -27,13 +27,39 @@ npm install
 npm run dev
 ```
 
+Google Drive sync in local development also expects server-side OAuth vars in `.env.local` or your shell:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:5174
+```
+
 Useful commands:
 
 ```bash
 npm run build
 npm test
 npm run lint
+npm run dev:cloudflare
+npm run deploy:cloudflare
 ```
+
+## Cloudflare deployment
+
+The app now deploys as a Cloudflare Worker with static assets from `dist` and worker-handled Google OAuth endpoints under `/api/*`.
+
+Basic deploy flow:
+
+```bash
+npm install
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+npm run deploy:cloudflare
+```
+
+Set `GOOGLE_REDIRECT_URI` as a Worker variable or secret if your OAuth callback must differ from the site origin. Cross-origin isolation headers are served from [public/_headers](/Users/runorewhro/projects/thewuwacalculator/public/_headers), and SPA routing is handled in [wrangler.jsonc](/Users/runorewhro/projects/thewuwacalculator/wrangler.jsonc).
 
 Some package scripts are intended for local maintenance workflows and depend on ignored files that are not included in this repository. The public repo is focused on the app itself.
 

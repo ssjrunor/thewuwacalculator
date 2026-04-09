@@ -8,6 +8,7 @@ import {
   type StoredGoogleTokens,
   type StoredGoogleUser,
 } from '@/infra/googleDrive/googleAuth'
+import { getGoogleAuthEndpoint } from '@/infra/googleDrive/googleAuthEndpoints'
 
 const GOOGLE_DRIVE_SCOPE = [
   'https://www.googleapis.com/auth/drive.appdata',
@@ -122,7 +123,7 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       try {
         setError(null)
 
-        const response = await fetch('/api/exchange-code', {
+        const response = await fetch(getGoogleAuthEndpoint('exchange-code'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
