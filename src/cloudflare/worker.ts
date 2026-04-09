@@ -3,7 +3,7 @@ import {
   handleRefreshTokenRequest,
   type GoogleAuthEnv,
   type GoogleAuthHandlerResult,
-} from '@/infra/googleDrive/server/googleOAuthServer'
+} from '../infra/googleDrive/server/googleOAuthServer'
 
 interface CloudflareEnv extends GoogleAuthEnv {
   ASSETS: {
