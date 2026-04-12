@@ -12,6 +12,7 @@ import { ResonatorPickerModal } from '@/modules/calculator/components/resonator/
 import { SourceStateControl } from '@/modules/calculator/components/workspace/panes/left/controls/SourceStateControl'
 import { TeamMemberConfigModal } from '@/modules/calculator/components/workspace/panes/left/modals/TeamMemberConfigModal'
 import {
+  filterSourceStatesWithDependencies,
   getStateTeamTargetMode,
   getTeamTargetOptions,
   isSourceStateVisible,
@@ -55,13 +56,27 @@ export function CalculatorTeamsPane({
   const [configResonatorId, setConfigResonatorId] = useState<string | null>(null)
   const teamPicker = useAnimatedVisibility(EXIT_DURATION_MS)
   const configModal = useAnimatedVisibility(EXIT_DURATION_MS)
+  const {
+    closing: teamPickerClosing,
+    hide: hideTeamPicker,
+    open: teamPickerOpen,
+    show: showTeamPicker,
+    visible: teamPickerVisible,
+  } = teamPicker
+  const {
+    closing: configModalClosing,
+    hide: hideConfigModal,
+    open: configModalOpen,
+    show: showConfigModal,
+    visible: configModalVisible,
+  } = configModal
   const modalPortalTarget = getMainContentPortalTarget()
 
   const closeTeamPicker = useCallback(() => {
-    teamPicker.hide(() => {
+    hideTeamPicker(() => {
       setTeamPickerSlotIndex(null)
     })
-  }, [teamPicker])
+  }, [hideTeamPicker])
 
   const openTeamPicker = useCallback((slotIndex: number) => {
     if (slotIndex === 0) {
@@ -69,19 +84,19 @@ export function CalculatorTeamsPane({
     }
 
     setTeamPickerSlotIndex(slotIndex)
-    teamPicker.show()
-  }, [teamPicker])
+    showTeamPicker()
+  }, [showTeamPicker])
 
   const closeConfigModal = useCallback(() => {
-    configModal.hide(() => {
+    hideConfigModal(() => {
       setConfigResonatorId(null)
     })
-  }, [configModal])
+  }, [hideConfigModal])
 
   const openConfigModal = useCallback((resonatorId: string) => {
     setConfigResonatorId(resonatorId)
-    configModal.show()
-  }, [configModal])
+    showConfigModal()
+  }, [showConfigModal])
 
   const selectTeamMember = useCallback((slotIndex: number, nextMemberId: string | null) => {
     if (nextMemberId) {
@@ -198,21 +213,24 @@ export function CalculatorTeamsPane({
     const weaponId = memberRuntime.build.weapon.id
     const weaponDef = !isUnsetWeaponId(weaponId) ? getWeapon(weaponId) : null
     const weaponParams = weaponDef ? resolvePassiveParams(weaponDef.passive.params, memberRuntime.build.weapon.rank) : []
-    const resonatorStates = listStatesForSource('resonator', resolvedMemberId)
-      .filter((state) =>
+    const includeTeamWide = resolvedMemberId !== runtime.id
+    const resonatorStates = filterSourceStatesWithDependencies(
+      listStatesForSource('resonator', resolvedMemberId),
+      (state) =>
         stateHasTeamFacingEffects(state, {
-          includeTeamWide: resolvedMemberId !== runtime.id,
+          includeTeamWide,
         }),
-      )
-      .filter((state) => isSourceStateVisible(memberRuntime, runtime, state))
+      (state) => isSourceStateVisible(memberRuntime, runtime, state),
+    )
     const weaponStates = !isUnsetWeaponId(weaponId)
-      ? listStatesForSource('weapon', weaponId)
-          .filter((state) =>
+      ? filterSourceStatesWithDependencies(
+          listStatesForSource('weapon', weaponId),
+          (state) =>
             stateHasTeamFacingEffects(state, {
-              includeTeamWide: resolvedMemberId !== runtime.id,
+              includeTeamWide,
             }),
-          )
-          .filter((state) => isSourceStateVisible(memberRuntime, runtime, state))
+          (state) => isSourceStateVisible(memberRuntime, runtime, state),
+        )
       : []
     const weaponStateKeys = new Set(weaponStates.map((s) => s.controlKey))
     const stateDefinitions = [...resonatorStates, ...weaponStates]
@@ -433,11 +451,11 @@ export function CalculatorTeamsPane({
         </div>
       </div>
 
-      {configModal.visible && configMember && configRuntime ? (
+      {configModalVisible && configMember && configRuntime ? (
         <TeamMemberConfigModal
-          visible={configModal.visible}
-          open={configModal.open}
-          closing={configModal.closing}
+          visible={configModalVisible}
+          open={configModalOpen}
+          closing={configModalClosing}
           portalTarget={modalPortalTarget}
           member={configMember}
           runtime={configRuntime}
@@ -463,11 +481,11 @@ export function CalculatorTeamsPane({
         />
       ) : null}
 
-      {teamPicker.visible ? (
+      {teamPickerVisible ? (
         <ResonatorPickerModal
-          visible={teamPicker.visible}
-          open={teamPicker.open}
-          closing={teamPicker.closing}
+          visible={teamPickerVisible}
+          open={teamPickerOpen}
+          closing={teamPickerClosing}
           portalTarget={modalPortalTarget}
           eyebrow="Team Slots"
           title="Select Teammate"

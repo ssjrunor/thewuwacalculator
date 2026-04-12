@@ -14,6 +14,7 @@ import { listStatesForSource, getOwnerForKey } from '@/domain/services/gameDataS
 import { getMainEchoSourceRef } from '@/domain/services/runtimeSourceService'
 import type { RuntimeUpdateHandler } from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
 import {
+  filterSourceStatesWithDependencies,
   getStateEffectTargetScopes,
   isSourceStateEnabled,
   setSourceStateValue,
@@ -105,6 +106,14 @@ interface OptimizerTeammateCardProps {
 
 type PanelTargetScope = 'self' | 'active' | 'activeOther' | 'teamWide' | 'otherTeammates'
 
+const ACTIVE_CARD_TARGET_SCOPES: readonly PanelTargetScope[] = ['self', 'active', 'teamWide']
+const TEAMMATE_CARD_TARGET_SCOPES: readonly PanelTargetScope[] = [
+  'active',
+  'activeOther',
+  'teamWide',
+  'otherTeammates',
+]
+
 interface CardStateGroups {
   resonator: StateGroup[]
   weapon: StateGroup[]
@@ -127,58 +136,23 @@ function groupStates(states: SourceStateDefinition[], fallbackScope: 'resonator'
   }))
 }
 
-function collectDependentControlKeys(
-  states: SourceStateDefinition[],
-  allowedTargetScopes: Set<PanelTargetScope>,
-): Set<string> {
-  const statesByControlKey = new Map(states.map((state) => [state.controlKey, state]))
-  const included = new Set<string>()
-
-  function includeState(controlKey: string) {
-    if (included.has(controlKey)) {
-      return
-    }
-
-    const state = statesByControlKey.get(controlKey)
-    if (!state) {
-      return
-    }
-
-    included.add(controlKey)
-
-    for (const dependency of state.controlDependencies ?? []) {
-      includeState(dependency)
-    }
-  }
-
-  for (const state of states) {
-    const targetScopes = getStateEffectTargetScopes(state)
-    if (targetScopes.some((scope) => allowedTargetScopes.has(scope))) {
-      includeState(state.controlKey)
-    }
-  }
-
-  return included
-}
-
 function filterStatesForCard(
   states: SourceStateDefinition[],
   runtime: ResonatorRuntimeState,
   activeRuntime: ResonatorRuntimeState,
-  allowedTargetScopes: Set<PanelTargetScope>,
+  allowedTargetScopes: readonly PanelTargetScope[],
 ): SourceStateDefinition[] {
-  const includedControlKeys = collectDependentControlKeys(states, allowedTargetScopes)
-
-  return states.filter((state) =>
-    includedControlKeys.has(state.controlKey)
-    && evaluateSourceStateVisibility(runtime, runtime, state, activeRuntime),
+  return filterSourceStatesWithDependencies(
+    states,
+    (state) => getStateEffectTargetScopes(state).some((scope) => allowedTargetScopes.includes(scope)),
+    (state) => evaluateSourceStateVisibility(runtime, runtime, state, activeRuntime),
   )
 }
 
 function buildCardStateGroups(
   runtime: ResonatorRuntimeState,
   activeRuntime: ResonatorRuntimeState,
-  allowedTargetScopes: Set<PanelTargetScope>,
+  allowedTargetScopes: readonly PanelTargetScope[],
 ): CardStateGroups {
   const allResonatorStates = listStatesForSource('resonator', runtime.id)
   const resonatorStates = filterStatesForCard(allResonatorStates, runtime, activeRuntime, allowedTargetScopes)
@@ -212,7 +186,7 @@ function OptimizerMainEchoCard({
 }: {
   runtime: ResonatorRuntimeState
   activeRuntime: ResonatorRuntimeState
-  allowedTargetScopes: Set<PanelTargetScope>
+  allowedTargetScopes: readonly PanelTargetScope[]
   onRuntimeUpdate: RuntimeUpdateHandler
   invalidMainEcho?: EchoDefinition | null
   onMainEchoClick?: (() => void) | undefined
@@ -365,7 +339,7 @@ function OptimizerEchoSetCards({
 }: {
   runtime: ResonatorRuntimeState
   activeRuntime: ResonatorRuntimeState
-  allowedTargetScopes: Set<PanelTargetScope>
+  allowedTargetScopes: readonly PanelTargetScope[]
   onRuntimeUpdate: RuntimeUpdateHandler
   configurable?: boolean
   setPreferences?: RandomGeneratorSetPreference[] | undefined
@@ -820,10 +794,7 @@ function OptimizerRuntimeCard({
   onRemoveSetPreference,
   onSetPreferenceCount,
 }: OptimizerRuntimeCardProps) {
-  const allowedTargetScopes = useMemo<Set<PanelTargetScope>>(
-    () => new Set(editableLevel ? ['self', 'active', 'teamWide'] : ['active', 'activeOther', 'teamWide', 'otherTeammates']),
-    [editableLevel],
-  )
+  const allowedTargetScopes = editableLevel ? ACTIVE_CARD_TARGET_SCOPES : TEAMMATE_CARD_TARGET_SCOPES
   const level = editableLevel ? runtime.base.level : MAX_RESONATOR_LEVEL
   const sequence = runtime.base.sequence ?? 0
   const weaponId = runtime.build.weapon.id ?? null

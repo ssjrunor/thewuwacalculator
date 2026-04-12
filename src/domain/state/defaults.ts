@@ -580,13 +580,10 @@ export function makeDefaultTeamMemberRuntime(seed: ResonatorSeed): TeamMemberRun
   return {
     id: seed.id,
     base: {
-      level: MAX_RESONATOR_LEVEL,
       sequence: 0,
-      skillLevels: makeMaxSkillLevels(),
-      traceNodes: makeMaxTraceNodeBuffs(seed),
     },
     build: {
-      weapon: { ...weapon, level: MAX_WEAPON_LEVEL },
+      weapon: (({ id, rank, baseAtk }) => ({ id, rank, baseAtk }))(weapon),
       echoes: [null, null, null, null, null],
     },
     manualBuffs: makeDefaultCustomBuffs(),

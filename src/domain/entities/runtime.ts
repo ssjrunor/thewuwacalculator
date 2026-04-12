@@ -125,9 +125,9 @@ export interface RotationState {
 
 export interface TeamMemberRuntime {
   id: ResonatorId
-  base: ResonatorBaseState
+  base: TeamMemberBaseViewState
   build: {
-    weapon: WeaponBuildState
+    weapon: TeamMemberWeaponViewState
     echoes: Array<EchoInstance | null>
   }
   manualBuffs: ManualBuffs

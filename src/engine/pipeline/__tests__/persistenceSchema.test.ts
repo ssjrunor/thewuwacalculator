@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_ENEMY_ID } from '@/domain/entities/enemy'
-import { persistedAppStateSchema } from '@/domain/state/schema'
+import { PERSISTED_APP_STATE_VERSION, persistedAppStateSchema } from '@/domain/state/schema'
 import {
   DEFAULT_RESONATOR_ID,
   createDefaultAppState,
   createOptimizerContextFromRuntime,
   createDefaultResonatorProfile,
   initializePersistedAppState,
+  makeDefaultSkillLevels,
+  makeDefaultTeamMemberRuntime,
+  makeDefaultTraceNodeBuffs,
 } from '@/domain/state/defaults'
 import { createInventoryEchoEntry } from '@/domain/entities/inventoryStorage'
 import { getResonatorById } from '@/domain/services/catalogService'
@@ -70,6 +73,63 @@ describe('persistedAppStateSchema', () => {
     expect(state.calculator.inventoryBuilds).toEqual([])
     expect(state.calculator.inventoryRotations).toEqual([])
     expect(state.calculator.optimizerContext).toBeNull()
+  })
+
+  it('normalizes old full teammate progression without dropping the profile slice', () => {
+    const activeSeed = getResonatorById('1506')
+    const teammateSeed = getResonatorById('1102')
+    if (!activeSeed || !teammateSeed) {
+      throw new Error('missing resonator seeds')
+    }
+
+    const profile = createDefaultResonatorProfile(activeSeed)
+    profile.runtime.team = [activeSeed.id, teammateSeed.id, null]
+    profile.runtime.teamRuntimes = [
+      {
+        ...makeDefaultTeamMemberRuntime(teammateSeed),
+        base: {
+          level: 1,
+          sequence: 2,
+          skillLevels: makeDefaultSkillLevels(),
+          traceNodes: makeDefaultTraceNodeBuffs(),
+        },
+        build: {
+          ...makeDefaultTeamMemberRuntime(teammateSeed).build,
+          weapon: {
+            ...makeDefaultTeamMemberRuntime(teammateSeed).build.weapon,
+            level: 1,
+          },
+        },
+      } as unknown as ReturnType<typeof makeDefaultTeamMemberRuntime>,
+      null,
+    ]
+
+    localStorage.setItem(APP_STORAGE_PROFILES_KEY, JSON.stringify({
+      version: PERSISTED_APP_STATE_VERSION,
+      calculator: {
+        runtimeRevision: 1,
+        profiles: {
+          [activeSeed.id]: profile,
+        },
+      },
+    }))
+
+    const loaded = loadPersistedAppState({ includeInventory: false })
+    expect(loaded?.calculator.profiles[activeSeed.id]).toBeTruthy()
+    expect(loaded?.calculator.profiles[activeSeed.id].runtime.teamRuntimes[0]?.base).toEqual({
+      sequence: 2,
+    })
+    expect(loaded?.calculator.profiles[activeSeed.id].runtime.teamRuntimes[0]?.build.weapon).toEqual(
+      expect.not.objectContaining({ level: expect.any(Number) }),
+    )
+
+    const rewritten = JSON.parse(localStorage.getItem(APP_STORAGE_PROFILES_KEY) ?? '{}')
+    expect(rewritten.calculator.profiles[activeSeed.id].runtime.teamRuntimes[0].base).toEqual({
+      sequence: 2,
+    })
+    expect(rewritten.calculator.profiles[activeSeed.id].runtime.teamRuntimes[0].build.weapon).toEqual(
+      expect.not.objectContaining({ level: expect.any(Number) }),
+    )
   })
 
   it('hydrates missing active resonator state back to the default resonator', () => {

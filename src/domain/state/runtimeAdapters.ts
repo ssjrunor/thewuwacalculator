@@ -31,7 +31,6 @@ import {
 } from '@/domain/state/runtimeMaterialization'
 import {
   cloneManualBuffs,
-  cloneResonatorBaseState,
   cloneRotationState,
   cloneSkillLevels,
   cloneTraceNodeBuffs,
@@ -476,9 +475,15 @@ function applyTeamMemberRuntimeToActiveProfile(
   // build updated compact team member runtime
   const updatedTmr: TeamMemberRuntime = {
     id: resonatorId,
-    base: cloneResonatorBaseState(runtime.base),
+    base: {
+      sequence: runtime.base.sequence,
+    },
     build: {
-      weapon: cloneWeaponBuildState(runtime.build.weapon),
+      weapon: {
+        id: runtime.build.weapon.id,
+        rank: runtime.build.weapon.rank,
+        baseAtk: runtime.build.weapon.baseAtk,
+      },
       echoes: runtime.build.echoes,
     },
     manualBuffs: cloneManualBuffs(runtime.state.manualBuffs),

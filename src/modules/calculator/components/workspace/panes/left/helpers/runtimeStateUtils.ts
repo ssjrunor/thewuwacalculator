@@ -153,6 +153,52 @@ export function getStateEffectTargetScopes(
   return Array.from(scopes)
 }
 
+export function collectSourceStateDependencyKeys(
+  states: SourceStateDefinition[],
+  shouldIncludeState: (state: SourceStateDefinition) => boolean,
+): Set<string> {
+  const statesByControlKey = new Map(states.map((state) => [state.controlKey, state]))
+  const included = new Set<string>()
+
+  function includeState(controlKey: string) {
+    if (included.has(controlKey)) {
+      return
+    }
+
+    const state = statesByControlKey.get(controlKey)
+    if (!state) {
+      return
+    }
+
+    included.add(controlKey)
+
+    for (const dependency of state.controlDependencies ?? []) {
+      includeState(dependency)
+    }
+  }
+
+  for (const state of states) {
+    if (shouldIncludeState(state)) {
+      includeState(state.controlKey)
+    }
+  }
+
+  return included
+}
+
+export function filterSourceStatesWithDependencies(
+  states: SourceStateDefinition[],
+  shouldIncludeState: (state: SourceStateDefinition) => boolean,
+  shouldRenderState: (state: SourceStateDefinition) => boolean,
+): SourceStateDefinition[] {
+  const includedControlKeys = collectSourceStateDependencyKeys(states, shouldIncludeState)
+
+  return states.filter((state) =>
+    includedControlKeys.has(state.controlKey)
+    && shouldRenderState(state),
+  )
+}
+
 export function stateHasTeamFacingEffects(
   state: SourceStateDefinition,
   options: { includeTeamWide: boolean },

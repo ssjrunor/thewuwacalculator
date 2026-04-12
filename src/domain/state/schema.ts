@@ -104,6 +104,24 @@ const weaponBuildSchema = z.object({
   baseAtk: z.number(),
 }).strict()
 
+// teammate weapon storage omits fixed level and resolves it at runtime
+const teamMemberWeaponBuildSchema = z.preprocess((value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const weapon = value as { id?: unknown; rank?: unknown; baseAtk?: unknown }
+    return {
+      id: weapon.id,
+      rank: weapon.rank,
+      baseAtk: weapon.baseAtk,
+    }
+  }
+
+  return value
+}, z.object({
+  id: z.string().nullable(),
+  rank: z.number(),
+  baseAtk: z.number(),
+}).strict())
+
 // saved build entry
 const savedBuildSchema = z.object({
   id: z.string(),
@@ -125,6 +143,19 @@ const baseStateSchema = z.object({
   skillLevels: skillLevelsSchema,
   traceNodes: traceNodeBuffsSchema,
 }).strict()
+
+// teammate progression persists only the player-editable sequence
+const teamMemberBaseStateSchema = z.preprocess((value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      sequence: (value as { sequence?: unknown }).sequence,
+    }
+  }
+
+  return value
+}, z.object({
+  sequence: z.number(),
+}).strict())
 
 // runtime mutation step used in rotations
 const runtimeChangeSchema = z.object({
@@ -402,9 +433,9 @@ const compactSonataSetConditionalsSchema = z.object({
 // simplified teammate runtime used inside team state
 const teamMemberRuntimeSchema = z.object({
   id: z.string(),
-  base: baseStateSchema,
+  base: teamMemberBaseStateSchema,
   build: z.object({
-    weapon: weaponBuildSchema,
+    weapon: teamMemberWeaponBuildSchema,
     echoes: z.array(echoInstanceSchema.nullable()),
   }).strict(),
   manualBuffs: manualBuffsSchema,

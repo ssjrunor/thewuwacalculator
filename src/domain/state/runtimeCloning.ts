@@ -159,9 +159,15 @@ export function cloneResonatorBaseState(base: ResonatorBaseState): ResonatorBase
 export function cloneTeamMemberRuntime(teamMember: TeamMemberRuntime): TeamMemberRuntime {
   return {
     id: teamMember.id,
-    base: cloneResonatorBaseState(teamMember.base),
+    base: {
+      sequence: teamMember.base.sequence,
+    },
     build: {
-      weapon: cloneWeaponBuildState(teamMember.build.weapon),
+      weapon: {
+        id: teamMember.build.weapon.id,
+        rank: teamMember.build.weapon.rank,
+        baseAtk: teamMember.build.weapon.baseAtk,
+      },
       echoes: cloneEchoLoadout(teamMember.build.echoes),
     },
     manualBuffs: cloneManualBuffs(teamMember.manualBuffs),

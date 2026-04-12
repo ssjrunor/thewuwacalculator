@@ -20,12 +20,12 @@ import {
   MAX_WEAPON_LEVEL,
   makeDefaultCombatState,
   makeDefaultCustomBuffs,
+  makeMaxSkillLevels,
   makeDefaultRotation,
 } from '@/domain/state/defaults'
 import { makeMaxTraceNodeBuffs } from '@/domain/state/traceNodes'
 import {
   cloneManualBuffs,
-  cloneResonatorBaseState,
   cloneRotationState,
   cloneSkillLevels,
   cloneTraceNodeBuffs,
@@ -168,9 +168,17 @@ export function materializeTeamMemberFromCompactRuntime(
 ): ResonatorRuntimeState {
   return {
     id: tmr.id,
-    base: cloneResonatorBaseState(tmr.base),
+    base: {
+      sequence: tmr.base.sequence,
+      level: MAX_RESONATOR_LEVEL,
+      skillLevels: makeMaxSkillLevels(),
+      traceNodes: makeMaxTraceNodeBuffs(seed),
+    },
     build: {
-      weapon: cloneWeaponBuildState(tmr.build.weapon),
+      weapon: {
+        ...tmr.build.weapon,
+        level: MAX_WEAPON_LEVEL,
+      },
       echoes: [...tmr.build.echoes],
       team: teamSlots,
     },

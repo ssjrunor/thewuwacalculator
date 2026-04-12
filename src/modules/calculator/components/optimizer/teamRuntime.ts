@@ -1,25 +1,20 @@
 import type { ResonatorRuntimeState, TeamMemberRuntime } from '@/domain/entities/runtime'
 import { cloneEchoLoadout } from '@/domain/entities/inventoryStorage'
-import { MAX_RESONATOR_LEVEL, MAX_WEAPON_LEVEL } from '@/domain/state/defaults'
-import {
-  cloneManualBuffs,
-  cloneResonatorBaseState,
-  cloneWeaponBuildState,
-} from '@/domain/state/runtimeCloning'
+import { cloneManualBuffs } from '@/domain/state/runtimeCloning'
 
 // compacts a materialized teammate runtime back into the lightweight optimizer form.
 export function compactTeamMemberRuntime(runtime: ResonatorRuntimeState): TeamMemberRuntime {
   return {
     id: runtime.id,
-    base: cloneResonatorBaseState({
-      ...runtime.base,
-      level: MAX_RESONATOR_LEVEL,
-    }),
+    base: {
+      sequence: runtime.base.sequence,
+    },
     build: {
-      weapon: cloneWeaponBuildState({
-        ...runtime.build.weapon,
-        level: MAX_WEAPON_LEVEL,
-      }),
+      weapon: {
+        id: runtime.build.weapon.id,
+        rank: runtime.build.weapon.rank,
+        baseAtk: runtime.build.weapon.baseAtk,
+      },
       echoes: cloneEchoLoadout(runtime.build.echoes),
     },
     manualBuffs: cloneManualBuffs(runtime.state.manualBuffs),
