@@ -1750,6 +1750,13 @@ label.is-disabled {
   color: var(--ui-panel-pill-strong-color);
 }
 
+.sequence-card-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .sequence-card-status.active {
   border-color: var(--ui-panel-pill-active-border-color);
   background: var(--ui-panel-pill-active-bg);

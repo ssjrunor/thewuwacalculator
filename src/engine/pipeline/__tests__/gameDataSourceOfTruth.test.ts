@@ -224,6 +224,13 @@ describe('game-data source of truth', () => {
         options: ['0', '1', '2', '3', '4', '5'].map((value) => ({ id: value, label: value })),
       },
     ])
+    expect(denia.resonanceChains.find((chain) => chain.index === 2)?.controls?.map((control) => control.key))
+      .toEqual(['sequence:1211:s2:active', 'sequence:1211:s2:stacks'])
+    expect(deniaStates.find((state) => state.controlKey === 'sequence:1211:s2:stacks')).toMatchObject({
+      label: 'Degenerate Voidmatter',
+      kind: 'select',
+      controlDependencies: ['sequence:1211:s2:active'],
+    })
 
     expect(deniaSkills.find((skill) => skill.id === '1211105')?.skillType)
       .toEqual(['resonanceLiberation'])
@@ -246,6 +253,37 @@ describe('game-data source of truth', () => {
       .toBe('activeOther')
     expect(deniaEffects.find((effect) => effect.id === '1211:shattered-hours')?.stage)
       .toBe('postStats')
+    expect(deniaEffects.find((effect) => effect.id === '1211:s2:degenerate-voidmatter')?.operations[0])
+      .toMatchObject({
+        type: 'add_attribute_mod',
+        attribute: 'fusion',
+        mod: 'resShred',
+      })
+  })
+
+  it('hydrates control dependencies for override-authored source states', () => {
+    const aemeathStates = Object.fromEntries(
+      listStatesForSource('resonator', '1210').map((state) => [state.controlKey, state]),
+    )
+    const deniaStates = Object.fromEntries(
+      listStatesForSource('resonator', '1211').map((state) => [state.controlKey, state]),
+    )
+    const phoebeStates = Object.fromEntries(
+      listStatesForSource('resonator', '1506').map((state) => [state.controlKey, state]),
+    )
+
+    expect(aemeathStates['resonator:1210:fusion_trail:value']?.controlDependencies)
+      .toEqual(['resonator:1210:fusion_burst_mode:active'])
+    expect(aemeathStates['inherent:1210:lvl70:stacks']?.controlDependencies)
+      .toEqual(['resonator:1210:tune_rupture_mode:active', 'resonator:1210:fusion_burst_mode:active'])
+    expect(aemeathStates['team:1210:silent_protection_trigger:active']?.controlDependencies)
+      .toEqual(['team:1210:silent_protection:active'])
+    expect(deniaStates['team:1211:unfinished_lies:active']?.controlDependencies)
+      .toEqual(['resonator:1211:fusion_burst_mode:active', 'resonator:1211:tune_strain_mode:active'])
+    expect(deniaStates['team:1211:unfinished_lies_trigger:active']?.controlDependencies)
+      .toEqual(['team:1211:unfinished_lies:active', 'resonator:1211:tune_strain_mode:active'])
+    expect(phoebeStates['sequence:1506:s2:boat_adrift']?.controlDependencies)
+      .toEqual(['resonator:1506:confession:active'])
   })
 
   it('derives resonator base stats from generated resonator data', () => {

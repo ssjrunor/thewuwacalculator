@@ -1003,7 +1003,69 @@
   color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 78%, var(--calc-text, var(--text)));
 }
 
-/* ── Echo Totals ── */
+
+.echo-set-state-step,
+.co-runtime-state--step {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.echo-set-state-step-header,
+.co-runtime-state__step-header {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.echo-set-state-step-count,
+.co-runtime-state__step-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.05em;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.echo-set-state-step-count-input,
+.co-runtime-state__step-count-input {
+  /* Reset */
+
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  width: 5.5ch !important;
+
+  cursor: text;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.echo-set-state-step-count-input:focus,
+.co-runtime-state__step-count-input:focus {
+  border-bottom-color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 55%, transparent);
+  background: color-mix(in srgb, var(--resonator-accent, var(--accent)) 5%, transparent);
+  border-radius: 2px 2px 0 0;
+}
+
+.co-runtime-state__step-count-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.echo-set-state-step-max,
+.co-runtime-state__step-max {
+  font-size: 0.65em;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.32;
+  vertical-align: 0.1em;
+}
 
 .echo-totals {
   padding: 0.65rem 0.75rem;

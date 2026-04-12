@@ -27,6 +27,7 @@ type Buff = {
 
 type StateEntry = {
   perStack?: Buff[]
+  perStep?: Buff[]
   max: Buff[]
 }
 
@@ -318,8 +319,8 @@ function buildSetPackage(def: SetDef): SourcePackage {
 
   // build all toggle or stack-driven state effects for this set
   for (const [stateId, state] of Object.entries(def.states)) {
-    const perStack = state.perStack ?? state.max
-    const isToggle = perStack.every((ps, index) => ps.value === state.max[index].value)
+    const perStep = state.perStep ?? state.perStack ?? state.max
+    const isToggle = perStep.every((ps, index) => ps.value === state.max[index].value)
     const part = def.parts.find((entry) => entry.key === stateId)
 
     // toggle state: one on/off control that grants the full max values
@@ -339,9 +340,10 @@ function buildSetPackage(def: SetDef): SourcePackage {
         )
       }
     } else {
-      // stack state: derive maximum stacks from per-stack and max values
+      // stack/step state: derive the maximum reachable value from the step and max values.
+      // perStep is still rendered like a stack control for now, but it stays distinct in data.
       const maxStacks = Math.round(
-          Math.max(...perStack.map((ps, index) => state.max[index].value / ps.value)),
+          Math.max(...perStep.map((ps, index) => state.max[index].value / ps.value)),
       )
 
       states.push(
@@ -354,8 +356,8 @@ function buildSetPackage(def: SetDef): SourcePackage {
           Array<{ perStack: Buff; max: Buff }>
       >()
 
-      for (let index = 0; index < perStack.length; index += 1) {
-        const perStackBuff = perStack[index]
+      for (let index = 0; index < perStep.length; index += 1) {
+        const perStackBuff = perStep[index]
         const maxBuff = state.max[index]
         const scope = perStackBuff.targetScope ?? maxBuff.targetScope ?? 'self'
         const existing = pairsByScope.get(scope)

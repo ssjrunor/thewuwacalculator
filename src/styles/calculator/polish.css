@@ -425,7 +425,8 @@ button:hover {
 
 .resonator-avatar-button.rarity-1,
 .resonator-avatar--sprite.rarity-1,
-.co-portrait__ring.rarity-1 {
+.co-portrait__ring.rarity-1,
+.opt-team__thumb-ring.rarity-1 {
   --avatar-rarity-border: rgba(153, 153, 153, 0.65);
   --avatar-rarity-surface: rgba(153, 153, 153, 0.11);
   --avatar-rarity-accent: rgb(153, 153, 153);
@@ -433,7 +434,8 @@ button:hover {
 
 .resonator-avatar-button.rarity-2,
 .resonator-avatar--sprite.rarity-2,
-.co-portrait__ring.rarity-2 {
+.co-portrait__ring.rarity-2,
+.opt-team__thumb-ring.rarity-2 {
   --avatar-rarity-border: rgba(98, 147, 124, 0.65);
   --avatar-rarity-surface: rgba(98, 147, 124, 0.1);
   --avatar-rarity-accent: rgb(98, 147, 124);
@@ -441,7 +443,8 @@ button:hover {
 
 .resonator-avatar-button.rarity-3,
 .resonator-avatar--sprite.rarity-3,
-.co-portrait__ring.rarity-3 {
+.co-portrait__ring.rarity-3,
+.opt-team__thumb-ring.rarity-3 {
   --avatar-rarity-border: rgba(96, 147, 185, 0.58);
   --avatar-rarity-surface: rgba(96, 147, 185, 0.11);
   --avatar-rarity-accent: rgb(96, 147, 185);
@@ -449,7 +452,8 @@ button:hover {
 
 .resonator-avatar-button.rarity-4,
 .resonator-avatar--sprite.rarity-4,
-.co-portrait__ring.rarity-4 {
+.co-portrait__ring.rarity-4,
+.opt-team__thumb-ring.rarity-4 {
   --avatar-rarity-border: rgba(132, 72, 168, 0.75);
   --avatar-rarity-surface: rgba(121, 46, 166, 0.08);
   --avatar-rarity-accent: rgb(132, 72, 168);
@@ -457,7 +461,8 @@ button:hover {
 
 .resonator-avatar-button.rarity-5,
 .resonator-avatar--sprite.rarity-5,
-.co-portrait__ring.rarity-5 {
+.co-portrait__ring.rarity-5,
+.opt-team__thumb-ring.rarity-5 {
   --avatar-rarity-border: rgba(255, 183, 0, 0.59);
   --avatar-rarity-surface: rgba(255, 183, 0, 0.09);
   --avatar-rarity-accent: rgb(255, 183, 0);

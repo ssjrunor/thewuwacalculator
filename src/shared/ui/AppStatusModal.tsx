@@ -3,7 +3,7 @@ import { AppDialog } from '@/shared/ui/AppDialog'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 
 const STATUS_DATA = {
-  lastUpdated: '07/04/2026',
+  lastUpdated: '11/04/2026',
   overallState: 'stable' as const,
   patchVersion: '3.3.2',
   dataSources: [
@@ -12,7 +12,7 @@ const STATUS_DATA = {
   ],
   notes: [
     'HIIII~!',
-    'It took quite the time to add the 3.3 stuff i know....',
+    'I added new stuff to the optimizer... yeah.',
     'Remember, you can import your data from the old app if you have any data on there~',
     'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
     'Denia and Hiyuki are yet to release in game and as such their default rotations were crafted using my intuition. If they seem weird or anything... tell me on Discord.'
@@ -21,16 +21,14 @@ const STATUS_DATA = {
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported. Some assets aren\'t available yet.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported. Some assets aren\'t available yet.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included. Some assets aren\'t available yet.' },
-    { title: 'Enemies',    status: 'ok' as const,  desc: 'I\'m kinda tired so 3.3 enemies will come later.' },
+    { title: 'Enemies',    status: 'wip' as const,  desc: 'I\'m kinda tired so 3.3 enemies will come later.' },
   ],
   knownIssues: [
     'The guides system not fully implemented yet.',
   ],
   recentChanges: [
-    'HIYUKI (ˊᵒ̴̶̷̤ ꇴ ᵒ̴̶̷̤ˋ).',
-    'DENIA (ง ˃ ³ ˂)ว',
-    'Added Glacio Chafe (and Bite) and Electro Flare (and Rage). Revamped the negative effects display system as well...',
-    'Added preset/default rotations for  Buling, Luuk Herssen, Denia and Hiyuki.'
+    'Added team and manual buffs to the optimizer.',
+    'Optimizer result Equip now asks for Sim or Sim & Live, so applying a result is less suspicious.',
   ],
 }
 

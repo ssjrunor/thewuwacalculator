@@ -178,6 +178,10 @@ function getPartEntries(def: SetDef, partKey: string) {
     return state.max
   }
 
+  if (Array.isArray(state.perStep) && state.perStep.length > 0) {
+    return state.perStep
+  }
+
   if (Array.isArray(state.perStack) && state.perStack.length > 0) {
     return state.perStack
   }

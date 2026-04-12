@@ -312,6 +312,7 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
 }
 
 .ssc-progress-track {
+  display: block;
   width: 5rem;
   height: 4px;
   border-radius: 999px;
@@ -321,9 +322,10 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
 }
 
 .ssc-progress-fill {
+  display: block;
   height: 100%;
   background: var(--picker-modal-accent);
-  border-radius: 999px;
+  border-radius: inherit;
   transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 

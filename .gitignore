@@ -7,7 +7,6 @@ ideas
 .DS_Store
 .dev.vars
 .dev.vars.*
-!.dev.vars.example
 .wrangler
 dist
 ingest

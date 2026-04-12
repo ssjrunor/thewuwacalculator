@@ -109,6 +109,36 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `3.3 support, negative effects cleanup and default rotations~! (〜^∇^)〜`,
   },
+  {
+    date: '11/04/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>Optimizer</strong> got a much bigger simulation setup pass. The page is now split into clearer <strong>Simulation Settings</strong>, <strong>Simulation Team</strong>, and <strong>Simulation Results</strong> sections, so the app should feel less like everything was stuffed into one suspiciously powerful drawer.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          You can now adjust the optimizer team directly in the optimizer view: active resonator setup, teammate slots, weapons, main echoes, set plans, relevant state toggles, ranks, sequences, and team-facing effects are all much easier to reach without bouncing around the rest of the calculator.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Manual buffs are also less buried now. Common ATK/HP/DEF/Crit/ER/healing values have quick inputs in the optimizer, while the full modifier editor lives behind <strong>Advanced Modifiers</strong> for the more cursed-but-useful stuff.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Equipping optimizer results is safer too. Applying a result now asks whether it should update only the optimizer simulation or both the simulation and the live build.
+        `,
+      },
+    ],
+    shortDesc: `More Optimizer sh-... s-stuff~! oh, 3.3.2 beta stuff too i guess (〜^∇^)〜`,
+  },
 ]
 
 export const latestCurrentChangelogEntry =

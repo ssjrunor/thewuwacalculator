@@ -13,6 +13,7 @@ import type { SetDef } from '@/data/gameData/echoSets/effects'
 import { selectActiveTargetSelections } from '@/domain/state/selectors'
 import { useAppStore } from '@/domain/state/store'
 import { Expandable } from '@/shared/ui/Expandable'
+import { StepScrubber } from '@/shared/ui/StepScrubber'
 import { RichDescription } from '@/shared/ui/RichDescription'
 import { EchoPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
 import { EchoEditModal } from '@/modules/calculator/components/inventory/modals/EchoEditModal'
@@ -382,8 +383,10 @@ function EchoSetStatePart({
     ? currentTarget
     : fallbackTarget
 
-  const perStack = stateEntry.perStack ?? stateEntry.max
-  const isToggle = perStack.every((ps, i) => ps.value === stateEntry.max[i].value)
+  const perStep = stateEntry.perStep ?? []
+  const perStack = stateEntry.perStack ?? []
+  const stackLikeEntries = perStep.length > 0 ? perStep : (perStack.length > 0 ? perStack : stateEntry.max)
+  const isToggle = stackLikeEntries.every((ps, i) => ps.value === stateEntry.max[i].value)
 
   const updateControl = (value: boolean | number) => {
     onRuntimeUpdate((prev) => ({
@@ -450,9 +453,57 @@ function EchoSetStatePart({
     )
   }
 
-  // Stack control
+  if (perStep.length > 0) {
+    const maxSteps = Math.round(
+      Math.max(...perStep.map((ps, i) => stateEntry.max[i].value / ps.value)),
+    )
+    const stepValue = typeof currentValue === 'number' ? currentValue : 0
+
+    return (
+      <div className={`echo-set-state${stepValue > 0 ? ' echo-set-state--active' : ''}`}>
+        <div className="echo-set-state-step">
+          <div className="echo-set-state-step-header">
+            <span
+              className="echo-set-state-label"
+              dangerouslySetInnerHTML={{ __html: formatDescription(label) }}
+            />
+            <div className="echo-set-state-step-count">
+              <input
+                type="number"
+                className="echo-set-state-step-count-input"
+                value={stepValue}
+                min={0}
+                max={maxSteps}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10)
+                  if (!isNaN(parsed)) {
+                    updateControl(Math.min(maxSteps, Math.max(0, parsed)))
+                  }
+                }}
+              />
+              <span className="echo-set-state-step-max">/{maxSteps}</span>
+            </div>
+          </div>
+          <StepScrubber
+            min={0}
+            max={maxSteps}
+            value={stepValue}
+            onChange={updateControl}
+          />
+        </div>
+        {trigger ? (
+          <span
+            className="echo-set-state-trigger"
+            dangerouslySetInnerHTML={{ __html: formatDescription(trigger) }}
+          />
+        ) : null}
+        {targetPills}
+      </div>
+    )
+  }
+
   const maxStacks = Math.round(
-    Math.max(...perStack.map((ps, i) => stateEntry.max[i].value / ps.value)),
+    Math.max(...stackLikeEntries.map((ps, i) => stateEntry.max[i].value / ps.value)),
   )
   const stackValue = typeof currentValue === 'number' ? currentValue : 0
 

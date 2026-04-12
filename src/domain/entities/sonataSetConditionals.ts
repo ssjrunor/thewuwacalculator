@@ -184,24 +184,49 @@ export function getCompactSonataSetPart(
   return ((word >>> (bitIndex & 31)) & 1) === 1
 }
 
-function convertCompactSonataSetConditionalsToRaw(
+function createEmptyCompactMasks(setCount: number, wordsPerSet: number): number[] {
+  return new Array(Math.max(0, setCount * wordsPerSet)).fill(0)
+}
+
+function normalizeCompactMasks(
     compactSelection: CompactSonataSetConditionals,
-): RawSonataSetConditionals {
-  const raw: RawSonataSetConditionals = {}
+    keys: string[],
+    setIds: number[],
+    wordsPerSet: number,
+): number[] {
+  const masks = createEmptyCompactMasks(setIds.length, wordsPerSet)
+  const sourceWordsPerSet = Math.max(0, compactSelection.wordsPerSet)
 
-  for (const setId of compactSelection.setIds) {
-    const parts: Record<string, boolean> = {}
-
-    for (const partKey of compactSelection.keys) {
-      if (getCompactSonataSetPart(compactSelection, setId, partKey, false)) {
-        parts[partKey] = true
-      }
-    }
-
-    raw[setId] = parts
+  if (sourceWordsPerSet === 0 || wordsPerSet === 0) {
+    return masks
   }
 
-  return raw
+  const wordsToCopy = Math.min(sourceWordsPerSet, wordsPerSet)
+  const sourceSetIds = compactSelection.setIds.map((setId) => Number(setId))
+
+  for (let sourceRow = 0; sourceRow < sourceSetIds.length; sourceRow += 1) {
+    const targetRow = setIds.indexOf(sourceSetIds[sourceRow])
+    if (targetRow < 0) {
+      continue
+    }
+
+    for (let wordIndex = 0; wordIndex < wordsToCopy; wordIndex += 1) {
+      const sourceOffset = sourceRow * sourceWordsPerSet + wordIndex
+      const targetOffset = targetRow * wordsPerSet + wordIndex
+      masks[targetOffset] = compactSelection.masks[sourceOffset] >>> 0
+    }
+  }
+
+  for (let bitIndex = keys.length; bitIndex < wordsPerSet * BIT_WORD_SIZE; bitIndex += 1) {
+    const wordIndex = bitIndex >>> 5
+    const bitMask = (1 << (bitIndex & 31)) >>> 0
+    for (let row = 0; row < setIds.length; row += 1) {
+      const offset = row * wordsPerSet + wordIndex
+      masks[offset] = (masks[offset] & ~bitMask) >>> 0
+    }
+  }
+
+  return masks
 }
 
 export function withCompactSonataSetUpdates(
@@ -212,11 +237,12 @@ export function withCompactSonataSetUpdates(
     return compactSelection
   }
 
-  if (compactSelection.wordsPerSet === 0) {
-    return compactSelection
-  }
-
-  const raw = convertCompactSonataSetConditionalsToRaw(compactSelection)
+  const keys = [...compactSelection.keys]
+  const setIds = compactSelection.setIds.map((setId) => Number(setId))
+  let wordsPerSet = Math.ceil(keys.length / BIT_WORD_SIZE)
+  let masks = normalizeCompactMasks(compactSelection, keys, setIds, wordsPerSet)
+  const bitByKey = new Map(keys.map((partKey, bitIndex) => [partKey, bitIndex]))
+  const rowBySetId = new Map(setIds.map((setId, row) => [setId, row]))
   let changed = false
 
   for (const update of updates) {
@@ -225,23 +251,59 @@ export function withCompactSonataSetUpdates(
       continue
     }
 
-    const nextSet = { ...(raw[setId] ?? {}) }
-    const previous = Boolean(nextSet[update.partKey])
+    let row = rowBySetId.get(setId)
+    let bitIndex = bitByKey.get(update.partKey)
+
+    if (row == null || bitIndex == null) {
+      if (!update.checked) {
+        continue
+      }
+
+      if (bitIndex == null) {
+        bitIndex = keys.length
+        keys.push(update.partKey)
+        bitByKey.set(update.partKey, bitIndex)
+
+        const nextWordsPerSet = Math.ceil(keys.length / BIT_WORD_SIZE)
+        if (nextWordsPerSet !== wordsPerSet) {
+          const nextMasks = createEmptyCompactMasks(setIds.length, nextWordsPerSet)
+          for (let currentRow = 0; currentRow < setIds.length; currentRow += 1) {
+            for (let wordIndex = 0; wordIndex < wordsPerSet; wordIndex += 1) {
+              nextMasks[currentRow * nextWordsPerSet + wordIndex] =
+                masks[currentRow * wordsPerSet + wordIndex] >>> 0
+            }
+          }
+          masks = nextMasks
+          wordsPerSet = nextWordsPerSet
+        }
+      }
+
+      if (row == null) {
+        row = setIds.length
+        setIds.push(setId)
+        rowBySetId.set(setId, row)
+        masks.push(...createEmptyCompactMasks(1, wordsPerSet))
+      }
+    }
+
+    if (wordsPerSet === 0 || row == null || bitIndex == null) {
+      continue
+    }
+
+    const wordIndex = bitIndex >>> 5
+    const offset = row * wordsPerSet + wordIndex
+    const bitMask = (1 << (bitIndex & 31)) >>> 0
+    const previous = ((masks[offset] >>> (bitIndex & 31)) & 1) === 1
 
     if (previous === update.checked) {
-      if (!raw[setId]) {
-        raw[setId] = nextSet
-      }
       continue
     }
 
     if (update.checked) {
-      nextSet[update.partKey] = true
+      masks[offset] = ((masks[offset] >>> 0) | bitMask) >>> 0
     } else {
-      delete nextSet[update.partKey]
+      masks[offset] = ((masks[offset] >>> 0) & ~bitMask) >>> 0
     }
-
-    raw[setId] = nextSet
     changed = true
   }
 
@@ -249,7 +311,14 @@ export function withCompactSonataSetUpdates(
     return compactSelection
   }
 
-  return convertRawSonataSetConditionalsToCompact(raw)
+  return {
+    version: DEFAULT_COMPACT_VERSION,
+    encoding: COMPACT_ENCODING,
+    keys,
+    setIds,
+    wordsPerSet,
+    masks,
+  }
 }
 
 export function cloneCompactSonataSetConditionals(

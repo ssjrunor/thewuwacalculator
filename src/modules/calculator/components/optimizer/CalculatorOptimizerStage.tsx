@@ -1,53 +1,78 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import type { RotationNode } from '@/domain/gameData/contracts'
-import { DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
-import type { EchoInstance } from '@/domain/entities/runtime'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
-import type { LiquidSelectOption, LiquidSelectOptionGroup } from '@/shared/ui/LiquidSelect'
-import { getSonataSetIcon, getSonataSetName } from '@/data/gameData/catalog/sonataSets'
-import { getEchoCatalogById } from '@/data/gameData/catalog/echoes'
-import { getGameData } from '@/data/gameData'
-import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
-import { getResonatorCatalogById } from '@/data/gameData/resonators/resonatorDataStore'
-import { getWeaponsById } from '@/data/gameData/weapons/weaponDataStore'
-import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
-import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
-import { useAppStore } from '@/domain/state/store'
+import {type ReactNode, useCallback} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import type {RotationNode} from '@/domain/gameData/contracts'
+import {DEFAULT_SONATA_SET_CONDITIONALS} from '@/domain/entities/sonataSetConditionals'
+import { isUnsetWeaponId, type EchoInstance, type ResonatorRuntimeState, type TeamMemberRuntime } from '@/domain/entities/runtime'
+import {cloneEchoForSlot} from '@/domain/entities/inventoryStorage'
+import { makeDefaultTeamMemberRuntime } from '@/domain/state/defaults'
+import { materializeTeamMemberFromCompactRuntime } from '@/domain/state/runtimeMaterialization'
+import {useAnimatedModalValue, useAnimatedVisibility} from '@/app/hooks/useAnimatedVisibility.ts'
+import type {LiquidSelectOption, LiquidSelectOptionGroup} from '@/shared/ui/LiquidSelect'
+import {getSonataSetIcon, getSonataSetName} from '@/data/gameData/catalog/sonataSets'
+import {getEchoCatalogById} from '@/data/gameData/catalog/echoes'
+import {getGameData} from '@/data/gameData'
+import {ECHO_SET_DEFS, getEchoSetDef} from '@/data/gameData/echoSets/effects'
+import {getResonatorCatalogById, getResonatorDetailsById} from '@/data/gameData/resonators/resonatorDataStore'
+import {getWeaponsById} from '@/data/gameData/weapons/weaponDataStore'
+import {getEchoById, listEchoes} from '@/domain/services/echoCatalogService'
+import { listStatesForSource } from '@/domain/services/gameDataService'
+import { listWeaponsByType } from '@/domain/services/weaponCatalogService'
+import {buildRuntimeParticipantLookup} from '@/domain/state/runtimeAdapters'
+import {useAppStore} from '@/domain/state/store'
 import {
   selectActiveResonatorId,
   selectActiveTargetSelections,
   selectEnemyProfile,
   selectOptimizerContext,
 } from '@/domain/state/selectors'
-import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
-import { applyKeepPercentFilter, buildOptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import {compileOptimizerPayload} from '@/engine/optimizer/compiler'
+import {applyKeepPercentFilter, buildOptimizerStatWeightMap} from '@/engine/optimizer/search/filtering.ts'
 import {
-  evaluatePreparedOptimizerBaseline,
   evaluateOptimizerBagResultStats,
+  evaluatePreparedOptimizerBaseline,
   resolveOptimizerResultEchoes,
 } from '@/engine/optimizer/results/materialize.ts'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
-import { listOptimizerTargets } from '@/engine/optimizer/target/skills'
-import { countOptimizerCombinationsByMode } from '@/engine/optimizer/search/counting'
-import type { OptimizerBagResultRef, OptimizerProgress } from '@/engine/optimizer/types'
-import { seedResonatorsById } from '@/modules/calculator/model/seedData'
-import { AppDialog } from '@/shared/ui/AppDialog'
-import { Expandable } from '@/shared/ui/Expandable'
+import {compileOptimizerTargetContext} from '@/engine/optimizer/target/context'
+import {listOptimizerTargets} from '@/engine/optimizer/target/skills'
+import {countOptimizerCombinationsByMode} from '@/engine/optimizer/search/counting'
+import type {OptimizerBagResultRef, OptimizerProgress} from '@/engine/optimizer/types'
+import {seedResonatorsById} from '@/modules/calculator/model/seedData'
+import {AppDialog} from '@/shared/ui/AppDialog'
+import {Expandable} from '@/shared/ui/Expandable'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
-import { EchoPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
-import { SonataSetConditionalsModal } from '@/modules/calculator/components/workspace/panes/left/modals/SonataSetConditionalsModal'
-import { ResonatorPickerModal } from '@/modules/calculator/components/resonator/modals/ResonatorPickerModal'
-import { CharacterOptionsPanel } from '@/modules/calculator/components/optimizer/ResonatorOptionsPanel.tsx'
-import { OptimizerControlBox } from '@/modules/calculator/components/optimizer/OptimizerControlBox'
-import { OptimizerRow, type OptimizerDisplayRow, type OptimizerDisplaySetEntry } from '@/modules/calculator/components/optimizer/OptimizerRow'
-import { OptimizerRules } from '@/modules/calculator/components/optimizer/OptimizerRules'
-import { HEADER_TITLES } from '@/modules/calculator/components/optimizer/mockData'
-import { formatStatKeyLabel, formatStatKeyValue, toTitle } from '@/modules/calculator/model/overviewStats'
-import { modalContent } from '@/modules/calculator/components/optimizer/OptimizerModals'
-import { RESONATOR_MENU } from '@/modules/calculator/model/resonator'
+import {EchoPickerModal} from '@/modules/calculator/components/workspace/panes/left/modals/EchoPickerModal'
+import { WeaponPickerModal } from '@/modules/calculator/components/workspace/panes/left/modals/WeaponPickerModal'
+import {
+  SonataSetConditionalsModal
+} from '@/modules/calculator/components/workspace/panes/left/modals/SonataSetConditionalsModal'
+import {ResonatorPickerModal} from '@/modules/calculator/components/resonator/modals/ResonatorPickerModal'
+import {CharacterOptionsPanel} from '@/modules/calculator/components/optimizer/ResonatorOptionsPanel.tsx'
+import { OptimizerTeamPanel } from '@/modules/calculator/components/optimizer/OptimizerTeamPanel'
+import {
+  buildTeammateControls,
+  compactTeamMemberRuntime,
+} from '@/modules/calculator/components/optimizer/teamRuntime'
+import {OptimizerControlBox} from '@/modules/calculator/components/optimizer/OptimizerControlBox'
+import {
+  type OptimizerDisplayRow,
+  type OptimizerDisplaySetEntry,
+  OptimizerRow
+} from '@/modules/calculator/components/optimizer/OptimizerRow'
+import {OptimizerRules} from '@/modules/calculator/components/optimizer/OptimizerRules'
+import {HEADER_TITLES} from '@/modules/calculator/components/optimizer/mockData'
+import {formatStatKeyLabel, formatStatKeyValue, toTitle} from '@/modules/calculator/model/overviewStats'
+import {modalContent} from '@/modules/calculator/components/optimizer/OptimizerModals'
+import {RESONATOR_MENU} from '@/modules/calculator/model/resonator'
+import { getWeapon, resolveWeaponStatsAtLevel } from '@/modules/calculator/model/weapon'
+import {
+  type TeammateEchoPlan,
+  addTeammateSetPreference as addTeammateEchoPlanSetPreference,
+  deriveTeammateEchoPlan,
+  removeTeammateSetPreference as removeTeammateEchoPlanSetPreference,
+  resolveTeammateEchoPlan,
+  selectTeammateMainEcho,
+  setTeammateSetPreferenceCount as setTeammateEchoPlanSetPreferenceCount,
+} from '@/modules/calculator/components/optimizer/teammateEchoPlan'
 
 function createEmptyProgress(): OptimizerProgress {
   return {
@@ -147,12 +172,87 @@ type PreviewTarget =
   | { kind: 'base' }
   | { kind: 'result'; index: number }
 
+type OptimizerPickerSlot = 'active' | 0 | 1
+type OptimizerMainEchoPickerTarget = 'filter' | 0 | 1
+
+const RUNTIME_CONTROL_PREFIX = 'runtime.state.controls.'
+
+function makeEmptyTeammateEchoPlans(): [TeammateEchoPlan | null, TeammateEchoPlan | null] {
+  return [null, null]
+}
+
 function normalizeEchoLoadout(echoes: ReadonlyArray<EchoInstance | null | undefined>): Array<EchoInstance | null> {
   const out: Array<EchoInstance | null> = [null, null, null, null, null]
   for (let index = 0; index < out.length; index += 1) {
     out[index] = echoes[index] ?? null
   }
   return out
+}
+
+function materializeOptimizerSlotRuntime(
+  runtime: ResonatorRuntimeState,
+  slot: OptimizerPickerSlot,
+): ResonatorRuntimeState | null {
+  if (slot === 'active') {
+    return runtime
+  }
+
+  const memberId = runtime.build.team[slot + 1]
+  if (!memberId) {
+    return null
+  }
+
+  const seed = seedResonatorsById[memberId] ?? null
+  if (!seed) {
+    return null
+  }
+
+  const compactRuntime = runtime.teamRuntimes[slot]
+  const resolvedCompactRuntime = compactRuntime?.id === memberId
+    ? compactRuntime
+    : makeDefaultTeamMemberRuntime(seed)
+
+  return materializeTeamMemberFromCompactRuntime(
+    seed,
+    resolvedCompactRuntime,
+    runtime.state.controls,
+    runtime.state.combat,
+    runtime.build.team,
+  )
+}
+
+function clearWeaponStateControls(
+  controls: Record<string, boolean | number | string>,
+  weaponId: string | null,
+  prefix = '',
+) {
+  if (!weaponId || isUnsetWeaponId(weaponId)) {
+    return
+  }
+
+  const targetPrefix = `${prefix}weapon:${weaponId}:`
+  for (const key of Object.keys(controls)) {
+    if (key.startsWith(targetPrefix)) {
+      delete controls[key]
+    }
+  }
+}
+
+function applyWeaponStateDefaults(
+  controls: Record<string, boolean | number | string>,
+  weaponId: string,
+  prefix = '',
+) {
+  for (const state of listStatesForSource('weapon', weaponId)) {
+    if (state.defaultValue === undefined) {
+      continue
+    }
+
+    const controlKey = state.path.startsWith(RUNTIME_CONTROL_PREFIX)
+      ? state.path.slice(RUNTIME_CONTROL_PREFIX.length)
+      : state.controlKey
+    controls[`${prefix}${controlKey}`] = state.defaultValue
+  }
 }
 
 function OptimizerPreviewEchoTile(props: {
@@ -302,19 +402,19 @@ export function CalculatorOptimizerStage() {
   const syncOptimizerContextToLiveRuntime = useAppStore((state) => state.syncOptimizerContextToLiveRuntime)
   const setOptimizerCpuHintSeen = useAppStore((state) => state.setOptimizerCpuHintSeen)
   const updateOptimizerRuntime = useAppStore((state) => state.updateOptimizerRuntime)
+  const updateResonatorRuntime = useAppStore((state) => state.updateResonatorRuntime)
   const updateOptimizerSettings = useAppStore((state) => state.updateOptimizerSettings)
   const updateResonatorSetConditionals = useAppStore((state) => state.updateResonatorSetConditionals)
   const switchToResonator = useAppStore((state) => state.switchToResonator)
   const startOptimizer = useAppStore((state) => state.startOptimizer)
   const cancelOptimizer = useAppStore((state) => state.cancelOptimizer)
   const clearOptimizerResults = useAppStore((state) => state.clearOptimizerResults)
-  const applyOptimizerResult = useAppStore((state) => state.applyOptimizerResult)
+  const optimizerResonatorId = optimizerContext?.resonatorId ?? activeResonatorId
 
   useEffect(() => {
     ensureOptimizerContext()
   }, [activeResonatorId, ensureOptimizerContext])
 
-  const optimizerResonatorId = optimizerContext?.resonatorId ?? activeResonatorId
   const optimizerRuntime = optimizerContext?.runtime ?? null
   const optimizerSettings = optimizerContext?.settings ?? null
   const optimizerSetConditionals = useAppStore((state) => {
@@ -344,21 +444,28 @@ export function CalculatorOptimizerStage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalClosing, setModalClosing] = useState(false)
   const [uiModalContent, setUiModalContent] = useState<ReactNode>(null)
-  const [resonatorPickerVisible, setResonatorPickerVisible] = useState(false)
-  const [resonatorPickerOpen, setResonatorPickerOpen] = useState(false)
-  const [resonatorPickerClosing, setResonatorPickerClosing] = useState(false)
   const [mainEchoPickerVisible, setMainEchoPickerVisible] = useState(false)
   const [mainEchoPickerOpen, setMainEchoPickerOpen] = useState(false)
   const [mainEchoPickerClosing, setMainEchoPickerClosing] = useState(false)
+  const [mainEchoPickerTarget, setMainEchoPickerTarget] = useState<OptimizerMainEchoPickerTarget>('filter')
+  const [teammateEchoPlanStore, setTeammateEchoPlanStore] = useState<{
+    resonatorId: string | null
+    plans: [TeammateEchoPlan | null, TeammateEchoPlan | null]
+  }>(() => ({
+    resonatorId: null,
+    plans: makeEmptyTeammateEchoPlans(),
+  }))
   const [progress, setProgress] = useState<OptimizerProgress>(() => createEmptyProgress())
   const setConditionalsModal = useAnimatedVisibility(MODAL_EXIT_MS)
+  const equipChoiceModal = useAnimatedModalValue<number>()
+  const resonatorPicker = useAnimatedModalValue<OptimizerPickerSlot>(180)
+  const weaponPicker = useAnimatedModalValue<OptimizerPickerSlot>(180)
 
   const modalRef = useRef<HTMLDivElement>(null)
   const modalOpenFrameRef = useRef<number | null>(null)
   const modalCloseTimerRef = useRef<number | null>(null)
   const rulesOpenFrameRef = useRef<number | null>(null)
   const rulesCloseTimerRef = useRef<number | null>(null)
-  const resonatorPickerCloseTimerRef = useRef<number | null>(null)
   const mainEchoPickerCloseTimerRef = useRef<number | null>(null)
   const [modalPortalTarget, setModalPortalTarget] = useState<HTMLElement | null>(null)
 
@@ -374,6 +481,94 @@ export function CalculatorOptimizerStage() {
   useEffect(() => {
     setModalPortalTarget(modalRef.current)
   }, [])
+
+  const teammateEchoPlans = useMemo(
+    () => (
+      teammateEchoPlanStore.resonatorId === optimizerResonatorId
+        ? teammateEchoPlanStore.plans
+        : makeEmptyTeammateEchoPlans()
+    ),
+    [optimizerResonatorId, teammateEchoPlanStore],
+  )
+
+  const setTeammateEchoPlans = useCallback((
+    action:
+      | [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      | ((
+        prev: [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      ) => [TeammateEchoPlan | null, TeammateEchoPlan | null]),
+  ) => {
+    setTeammateEchoPlanStore((prevStore) => {
+      const previousPlans = prevStore.resonatorId === optimizerResonatorId
+        ? prevStore.plans
+        : makeEmptyTeammateEchoPlans()
+      const nextPlans = typeof action === 'function'
+        ? action(previousPlans)
+        : action
+
+      return {
+        resonatorId: optimizerResonatorId,
+        plans: nextPlans,
+      }
+    })
+  }, [optimizerResonatorId])
+
+  const teammateEchoPlanState = useMemo(() => {
+    if (!optimizerRuntime) {
+      return {
+        runtime: null,
+        plans: [null, null] as [TeammateEchoPlan | null, TeammateEchoPlan | null],
+        invalidMainEchoes: [null, null] as [string | null, string | null],
+      }
+    }
+
+    const resolvedPlans = [...teammateEchoPlans] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+    const invalidMainEchoes: [string | null, string | null] = [null, null]
+    const nextTeamRuntimes = [...optimizerRuntime.teamRuntimes] as [TeamMemberRuntime | null, TeamMemberRuntime | null]
+    let changed = false
+
+    for (const slotIndex of [0, 1] as const) {
+      const memberRuntime = materializeOptimizerSlotRuntime(optimizerRuntime, slotIndex)
+      if (!memberRuntime) {
+        continue
+      }
+
+      const resolvedPlan = resolveTeammateEchoPlan(
+        memberRuntime.build.echoes,
+        teammateEchoPlans[slotIndex],
+      )
+      resolvedPlans[slotIndex] = resolvedPlan.plan
+      invalidMainEchoes[slotIndex] = resolvedPlan.invalidMainEchoId
+
+      if (resolvedPlan.effectiveEchoes.every((echo, echoIndex) => echo === memberRuntime.build.echoes[echoIndex])) {
+        continue
+      }
+
+      nextTeamRuntimes[slotIndex] = compactTeamMemberRuntime({
+        ...memberRuntime,
+        build: {
+          ...memberRuntime.build,
+          echoes: resolvedPlan.effectiveEchoes,
+        },
+      })
+      changed = true
+    }
+
+    return {
+      runtime: changed
+        ? {
+            ...optimizerRuntime,
+            teamRuntimes: nextTeamRuntimes,
+          }
+        : optimizerRuntime,
+      plans: resolvedPlans,
+      invalidMainEchoes,
+    }
+  }, [optimizerRuntime, teammateEchoPlans])
+
+  const effectiveOptimizerRuntime = teammateEchoPlanState.runtime
+  const resolvedTeammateEchoPlans = teammateEchoPlanState.plans
+  const invalidTeammateMainEchoIds = teammateEchoPlanState.invalidMainEchoes
 
   const resetOptimizerPresentation = () => {
     clearOptimizerResults()
@@ -472,15 +667,10 @@ export function CalculatorOptimizerStage() {
         : `/assets/resonators/profiles/${optimizerResonatorId}.webp`
       : '/assets/default-icon.webp'
 
-  const visibleSkills = useMemo(() => {
-    if (!optimizerRuntime) {
-      return []
-    }
-
-    return listOptimizerTargets(optimizerRuntime)
-  }, [optimizerRuntime])
-
-  const targetableSkills = visibleSkills
+  const targetableSkills = useMemo(
+    () => (effectiveOptimizerRuntime ? listOptimizerTargets(effectiveOptimizerRuntime) : []),
+    [effectiveOptimizerRuntime],
+  )
 
   const skillOptions = useMemo<LiquidSelectOption<string>[]>(() => {
     return targetableSkills.map((skill) => ({
@@ -509,8 +699,8 @@ export function CalculatorOptimizerStage() {
       .filter((group) => group.options.length > 0)
   }, [targetableSkills])
 
-  const comboOptions = useMemo<LiquidSelectOption<string>[]>(() => {
-    if (!optimizerRuntime || !optimizerResonatorId) {
+  const comboOptions: LiquidSelectOption<string>[] = (() => {
+    if (!effectiveOptimizerRuntime || !optimizerResonatorId) {
       return []
     }
 
@@ -531,20 +721,20 @@ export function CalculatorOptimizerStage() {
     }
 
     return options
-  }, [displayName, inventoryRotations, optimizerResonatorId, optimizerRuntime])
+  })()
 
-  const selectedRotationItems = useMemo<RotationNode[] | null>(() => {
-    if (!optimizerRuntime || !optimizerResonatorId) {
+  const selectedRotationItems: RotationNode[] | null = (() => {
+    if (!effectiveOptimizerRuntime || !optimizerResonatorId) {
       return null
     }
 
     const selectedSourceId = optimizerSettings?.targetComboSourceId
     if (!selectedSourceId) {
-      return optimizerRuntime.rotation.personalItems
+      return effectiveOptimizerRuntime.rotation.personalItems
     }
 
     if (selectedSourceId === `live:${optimizerResonatorId}`) {
-      return optimizerRuntime.rotation.personalItems
+      return effectiveOptimizerRuntime.rotation.personalItems
     }
 
     if (selectedSourceId.startsWith('saved:')) {
@@ -557,13 +747,8 @@ export function CalculatorOptimizerStage() {
       return saved?.items ?? null
     }
 
-    return optimizerRuntime.rotation.personalItems
-  }, [
-    inventoryRotations,
-    optimizerResonatorId,
-    optimizerRuntime,
-    optimizerSettings?.targetComboSourceId,
-  ])
+    return effectiveOptimizerRuntime.rotation.personalItems
+  })()
 
   useEffect(() => {
     if (!optimizerSettings) {
@@ -632,12 +817,7 @@ export function CalculatorOptimizerStage() {
       if (allowedSetIds.size > 0 && !allowedSetIds.has(echo.set)) {
         return false
       }
-
-      if (allowedMainStatKeys.size > 0 && !allowedMainStatKeys.has(echo.mainStats.primary.key)) {
-        return false
-      }
-
-      return true
+      return !(allowedMainStatKeys.size > 0 && !allowedMainStatKeys.has(echo.mainStats.primary.key));
     })
   }, [inventoryEchoEntries, optimizerSettings])
 
@@ -648,7 +828,7 @@ export function CalculatorOptimizerStage() {
     const targetSkillId = optimizerSettings?.targetSkillId
     if (
       !resonatorId ||
-      !optimizerRuntime ||
+      !effectiveOptimizerRuntime ||
       !targetSkillId ||
       rotationMode
     ) {
@@ -656,25 +836,18 @@ export function CalculatorOptimizerStage() {
     }
 
     return compileOptimizerTargetContext({
-      runtime: optimizerRuntime,
+      runtime: effectiveOptimizerRuntime,
       resonatorId,
       skillId: targetSkillId,
       enemy: enemyProfile,
-      runtimesById: buildRuntimeParticipantLookup(optimizerRuntime),
+      runtimesById: buildRuntimeParticipantLookup(effectiveOptimizerRuntime),
       selectedTargetsByOwnerKey: activeTargetSelections,
     })
-  }, [
-    activeTargetSelections,
-    enemyProfile,
-    optimizerResonatorId,
-    optimizerRuntime,
-    optimizerSettings,
-    rotationMode,
-  ])
+  }, [activeTargetSelections, effectiveOptimizerRuntime, enemyProfile, optimizerResonatorId, optimizerSettings, rotationMode])
 
   const optimizerWeightMap = useMemo(() => {
     if (
-      !optimizerRuntime ||
+      !effectiveOptimizerRuntime ||
       !optimizerSettings ||
       rotationMode ||
       !preparedTargetSkill
@@ -686,16 +859,10 @@ export function CalculatorOptimizerStage() {
       finalStats: preparedTargetSkill.combat.finalStats,
       skill: preparedTargetSkill.skill,
       enemy: enemyProfile,
-      level: optimizerRuntime.base.level,
-      combat: optimizerRuntime.state.combat,
+      level: effectiveOptimizerRuntime.base.level,
+      combat: effectiveOptimizerRuntime.state.combat,
     })
-  }, [
-    enemyProfile,
-    optimizerRuntime,
-    optimizerSettings,
-    preparedTargetSkill,
-    rotationMode,
-  ])
+  }, [effectiveOptimizerRuntime, enemyProfile, optimizerSettings, preparedTargetSkill, rotationMode])
 
   const filteredInventoryEchoEntries = useMemo(() => {
     if (!optimizerSettings) {
@@ -745,17 +912,14 @@ export function CalculatorOptimizerStage() {
     shouldCountCombinations,
   ])
 
-  const equippedEchoes = useMemo(
-    () => normalizeEchoLoadout(optimizerRuntime?.build.echoes ?? []).filter(
-      (echo): echo is EchoInstance => echo != null,
-    ),
-    [optimizerRuntime?.build.echoes],
+  const equippedEchoes = normalizeEchoLoadout(effectiveOptimizerRuntime?.build.echoes ?? []).filter(
+    (echo): echo is EchoInstance => echo != null,
   )
 
   const baselinePreparedPayload = useMemo(() => {
     if (
       !optimizerResonatorId ||
-      !optimizerRuntime ||
+      !effectiveOptimizerRuntime ||
       !optimizerSettings ||
       (!rotationMode && !optimizerSettings.targetSkillId) ||
       equippedEchoes.length === 0
@@ -774,7 +938,7 @@ export function CalculatorOptimizerStage() {
         echoCatalogById: getEchoCatalogById(),
         echoSetDefs: ECHO_SET_DEFS,
       },
-      runtime: optimizerRuntime,
+      runtime: effectiveOptimizerRuntime,
       settings: optimizerSettings,
       inventoryEchoes: equippedEchoes,
       enemyProfile,
@@ -786,9 +950,9 @@ export function CalculatorOptimizerStage() {
     activeTargetSelections,
     enemyProfile,
     equippedEchoes,
-    optimizerSetConditionals,
     optimizerResonatorId,
-    optimizerRuntime,
+    effectiveOptimizerRuntime,
+    optimizerSetConditionals,
     optimizerSettings,
     rotationMode,
     selectedRotationItems,
@@ -806,12 +970,12 @@ export function CalculatorOptimizerStage() {
     )
   }, [baselinePreparedPayload, equippedEchoes])
 
-  const baseResult = useMemo<OptimizerDisplayRow>(() => {
-    if (!optimizerRuntime) {
+  const baseResult: OptimizerDisplayRow = (() => {
+    if (!effectiveOptimizerRuntime) {
       return buildPlaceholderResult()
     }
 
-    const summary = summarizeEchoLoadout(optimizerRuntime.build.echoes)
+    const summary = summarizeEchoLoadout(effectiveOptimizerRuntime.build.echoes)
 
     return {
       damage: baselineEvaluation?.damage ?? 0,
@@ -820,7 +984,7 @@ export function CalculatorOptimizerStage() {
       mainEchoIcon: summary.mainEchoIcon,
       stats: baselineEvaluation?.stats ?? null,
     }
-  }, [baselineEvaluation, optimizerRuntime])
+  })()
 
   const inventoryEchoesByUid = useMemo(
     () => new Map(inventoryEchoEntries.map((entry) => [entry.echo.uid, entry.echo] as const)),
@@ -859,14 +1023,7 @@ export function CalculatorOptimizerStage() {
           : null,
       }
     })
-  }, [
-    inventoryEchoesByUid,
-    optimizerResults,
-    optimizerResolutionPayload,
-    optimizerResultEchoes,
-    pageEnd,
-    pageStart,
-  ])
+  }, [inventoryEchoesByUid, optimizerResults, optimizerResolutionPayload, optimizerResultEchoes, pageEnd, pageStart])
   const globalSelectedIndex = pageStart + selectedIndex
   const resolvedPreviewTarget = useMemo<PreviewTarget>(() => {
     if (previewTarget.kind === 'result' && !optimizerResults[previewTarget.index]) {
@@ -887,12 +1044,12 @@ export function CalculatorOptimizerStage() {
     : null
   const previewEchoes = useMemo(() => {
     if (resolvedPreviewTarget.kind === 'base') {
-      return normalizeEchoLoadout(optimizerRuntime?.build.echoes ?? [])
+      return normalizeEchoLoadout(effectiveOptimizerRuntime?.build.echoes ?? [])
     }
 
     const entry = optimizerResults[resolvedPreviewTarget.index]
     if (!entry) {
-      return normalizeEchoLoadout(optimizerRuntime?.build.echoes ?? [])
+      return normalizeEchoLoadout(effectiveOptimizerRuntime?.build.echoes ?? [])
     }
 
     if (hasLegacyOptimizerResultEntry(entry)) {
@@ -904,12 +1061,72 @@ export function CalculatorOptimizerStage() {
     inventoryEchoesByUid,
     optimizerResultEchoes,
     optimizerResults,
-    optimizerRuntime,
+    effectiveOptimizerRuntime?.build.echoes,
     resolvedPreviewTarget,
   ])
 
   const showBasePreview = () => {
     setPreviewTarget({ kind: 'base' })
+  }
+
+  function resolveOptimizerResultLoadout(index: number): Array<EchoInstance | null> {
+    const entry = optimizerResults[index]
+    if (!entry) {
+      return normalizeEchoLoadout([])
+    }
+
+    if (hasLegacyOptimizerResultEntry(entry)) {
+      return normalizeEchoLoadout(
+        entry.uids
+          .map((uid) => inventoryEchoesByUid.get(uid) ?? null)
+          .map((echo, slotIndex) => (echo ? cloneEchoForSlot(echo, slotIndex) : null)),
+      )
+    }
+
+    return normalizeEchoLoadout(
+      resolveOptimizerResultEchoes(optimizerResultEchoes, entry)
+        .map((echo, slotIndex) => echo ? cloneEchoForSlot(echo, slotIndex) : null),
+    )
+  }
+
+  function applyOptimizerResultToSimulation(index: number) {
+    const nextEchoes = resolveOptimizerResultLoadout(index)
+    if (nextEchoes.every((echo) => echo == null)) {
+      return
+    }
+
+    updateOptimizerRuntime((runtime) => ({
+      ...runtime,
+      build: {
+        ...runtime.build,
+        echoes: nextEchoes,
+      },
+    }))
+  }
+
+  function applyOptimizerResultToSimulationAndLive(index: number) {
+    const nextEchoes = resolveOptimizerResultLoadout(index)
+    if (nextEchoes.every((echo) => echo == null)) {
+      return
+    }
+
+    applyOptimizerResultToSimulation(index)
+
+    if (!optimizerResonatorId) {
+      return
+    }
+
+    updateResonatorRuntime(optimizerResonatorId, (runtime) => ({
+      ...runtime,
+      build: {
+        ...runtime.build,
+        echoes: nextEchoes,
+      },
+    }))
+
+    if (activeResonatorId !== optimizerResonatorId) {
+      switchToResonator(optimizerResonatorId)
+    }
   }
 
   const showResultPreview = (index: number) => {
@@ -977,38 +1194,293 @@ export function CalculatorOptimizerStage() {
     }
   }, [optimizerSettings?.lockedMainEchoId])
 
-  const openResonatorPicker = () => {
-    if (resonatorPickerCloseTimerRef.current !== null) {
-      window.clearTimeout(resonatorPickerCloseTimerRef.current)
-      resonatorPickerCloseTimerRef.current = null
+  const selectedResonatorPickerSlot = resonatorPicker.value
+  const selectedWeaponPickerSlot = weaponPicker.value
+
+  const eligibleOptimizerTeamResonators = useMemo(() => {
+    if (!optimizerRuntime || selectedResonatorPickerSlot === null || selectedResonatorPickerSlot === 'active') {
+      return RESONATOR_MENU
     }
 
-    setResonatorPickerClosing(false)
-    setResonatorPickerVisible(true)
-    window.requestAnimationFrame(() => setResonatorPickerOpen(true))
+    const occupiedIds = new Set(
+      optimizerRuntime.build.team.filter(
+        (memberId, memberIndex): memberId is string =>
+          Boolean(memberId) && memberIndex !== selectedResonatorPickerSlot + 1,
+      ),
+    )
+
+    return RESONATOR_MENU.filter((entry) => !occupiedIds.has(entry.id))
+  }, [optimizerRuntime, selectedResonatorPickerSlot])
+
+  const selectedWeaponPickerRuntime = useMemo(
+    () => (
+      optimizerRuntime && selectedWeaponPickerSlot !== null
+        ? materializeOptimizerSlotRuntime(optimizerRuntime, selectedWeaponPickerSlot)
+        : null
+    ),
+    [optimizerRuntime, selectedWeaponPickerSlot],
+  )
+
+  const selectedWeaponPickerWeapons = useMemo(() => {
+    if (!selectedWeaponPickerRuntime) {
+      return []
+    }
+
+    const seed = seedResonatorsById[selectedWeaponPickerRuntime.id] ?? null
+    if (!seed) {
+      return []
+    }
+
+    return listWeaponsByType(seed.weaponType)
+  }, [selectedWeaponPickerRuntime])
+
+  const applyOptimizerWeaponSelection = useCallback((slot: OptimizerPickerSlot, weaponId: string) => {
+    const selectedWeapon = getWeapon(weaponId)
+    if (!selectedWeapon) {
+      return
+    }
+
+    updateOptimizerRuntime((prev) => {
+      if (slot === 'active') {
+        const nextControls = { ...prev.state.controls }
+        clearWeaponStateControls(nextControls, prev.build.weapon.id)
+        applyWeaponStateDefaults(nextControls, selectedWeapon.id)
+        const stats = resolveWeaponStatsAtLevel(selectedWeapon, prev.build.weapon.level)
+
+        return {
+          ...prev,
+          build: {
+            ...prev.build,
+            weapon: {
+              ...prev.build.weapon,
+              id: selectedWeapon.id,
+              baseAtk: stats.atk,
+              rank: 1,
+            },
+          },
+          state: {
+            ...prev.state,
+            controls: nextControls,
+          },
+        }
+      }
+
+      const memberId = prev.build.team[slot + 1]
+      if (!memberId) {
+        return prev
+      }
+
+      const seed = seedResonatorsById[memberId] ?? null
+      if (!seed) {
+        return prev
+      }
+
+      const existingCompactRuntime = prev.teamRuntimes[slot]
+      const resolvedCompactRuntime = existingCompactRuntime?.id === memberId
+        ? existingCompactRuntime
+        : makeDefaultTeamMemberRuntime(seed)
+      const currentRuntime = materializeTeamMemberFromCompactRuntime(
+        seed,
+        resolvedCompactRuntime,
+        prev.state.controls,
+        prev.state.combat,
+        prev.build.team,
+      )
+      const nextControls = { ...currentRuntime.state.controls }
+      clearWeaponStateControls(nextControls, currentRuntime.build.weapon.id)
+      applyWeaponStateDefaults(nextControls, selectedWeapon.id)
+      const stats = resolveWeaponStatsAtLevel(selectedWeapon, currentRuntime.build.weapon.level)
+      const nextRuntime: ResonatorRuntimeState = {
+        ...currentRuntime,
+        build: {
+          ...currentRuntime.build,
+          weapon: {
+            ...currentRuntime.build.weapon,
+            id: selectedWeapon.id,
+            baseAtk: stats.atk,
+            rank: 1,
+          },
+        },
+        state: {
+          ...currentRuntime.state,
+          controls: nextControls,
+        },
+      }
+      const nextTeamRuntimes = [...prev.teamRuntimes] as [TeamMemberRuntime | null, TeamMemberRuntime | null]
+      nextTeamRuntimes[slot] = compactTeamMemberRuntime(nextRuntime)
+
+      return {
+        ...prev,
+        state: {
+          ...prev.state,
+          controls: buildTeammateControls(prev.state.controls, [memberId], memberId, nextRuntime),
+        },
+        teamRuntimes: nextTeamRuntimes,
+      }
+    })
+  }, [updateOptimizerRuntime])
+
+  const applyOptimizerTeammateSelection = useCallback((slotIndex: 0 | 1, resonatorId: string) => {
+    updateOptimizerRuntime((prev) => {
+      const nextSeed = seedResonatorsById[resonatorId] ?? null
+      if (!nextSeed) {
+        return prev
+      }
+
+      const currentMemberId = prev.build.team[slotIndex + 1]
+      const nextTeam = [...prev.build.team] as typeof prev.build.team
+      nextTeam[slotIndex + 1] = resonatorId
+
+      const nextRuntime = materializeTeamMemberFromCompactRuntime(
+        nextSeed,
+        makeDefaultTeamMemberRuntime(nextSeed),
+        prev.state.controls,
+        prev.state.combat,
+        nextTeam,
+      )
+      const existingCompactRuntime = prev.teamRuntimes[slotIndex]
+      const memberIdsToClear = Array.from(
+        new Set([existingCompactRuntime?.id, currentMemberId].filter((value): value is string => Boolean(value))),
+      )
+      const nextTeamRuntimes = [...prev.teamRuntimes] as [TeamMemberRuntime | null, TeamMemberRuntime | null]
+      nextTeamRuntimes[slotIndex] = compactTeamMemberRuntime(nextRuntime)
+
+      return {
+        ...prev,
+        build: {
+          ...prev.build,
+          team: nextTeam,
+        },
+        state: {
+          ...prev.state,
+          controls: buildTeammateControls(prev.state.controls, memberIdsToClear, resonatorId, nextRuntime),
+        },
+        teamRuntimes: nextTeamRuntimes,
+      }
+    })
+
+    setTeammateEchoPlans((prev) => {
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = null
+      return next
+    })
+  }, [setTeammateEchoPlans, updateOptimizerRuntime])
+
+  const addTeammateSetPreference = useCallback((slotIndex: 0 | 1, setId: number) => {
+    setTeammateEchoPlans((prev) => {
+      const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, slotIndex) : null
+      if (!memberRuntime) {
+        return prev
+      }
+
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = addTeammateEchoPlanSetPreference(
+        prev[slotIndex] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+        setId,
+      )
+      return next
+    })
+  }, [optimizerRuntime, setTeammateEchoPlans])
+
+  const removeTeammateSetPreference = useCallback((slotIndex: 0 | 1, setId: number) => {
+    setTeammateEchoPlans((prev) => {
+      const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, slotIndex) : null
+      if (!memberRuntime) {
+        return prev
+      }
+
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = removeTeammateEchoPlanSetPreference(
+        prev[slotIndex] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+        setId,
+      )
+      return next
+    })
+  }, [optimizerRuntime, setTeammateEchoPlans])
+
+  const setTeammateSetPreferenceCount = useCallback((slotIndex: 0 | 1, setId: number, count: number) => {
+    setTeammateEchoPlans((prev) => {
+      const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, slotIndex) : null
+      if (!memberRuntime) {
+        return prev
+      }
+
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = setTeammateEchoPlanSetPreferenceCount(
+        prev[slotIndex] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+        setId,
+        count,
+      )
+      return next
+    })
+  }, [optimizerRuntime, setTeammateEchoPlans])
+
+  const removeTeammate = useCallback((slotIndex: 0 | 1) => {
+    updateOptimizerRuntime((prev) => {
+      const currentMemberId = prev.build.team[slotIndex + 1]
+      const nextTeam = [...prev.build.team] as typeof prev.build.team
+      nextTeam[slotIndex + 1] = null
+      const nextTeamRuntimes = [...prev.teamRuntimes] as [TeamMemberRuntime | null, TeamMemberRuntime | null]
+      nextTeamRuntimes[slotIndex] = null
+      const nextControls: Record<string, boolean | number | string> = {}
+      for (const [key, value] of Object.entries(prev.state.controls)) {
+        if (!currentMemberId || !key.startsWith(`team:${currentMemberId}:`)) {
+          nextControls[key] = value
+        }
+      }
+      return {
+        ...prev,
+        build: { ...prev.build, team: nextTeam },
+        teamRuntimes: nextTeamRuntimes,
+        state: { ...prev.state, controls: nextControls },
+      }
+    })
+    setTeammateEchoPlans((prev) => {
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = null
+      return next
+    })
+  }, [setTeammateEchoPlans, updateOptimizerRuntime])
+
+  const removeTeammateMainEcho = useCallback((slotIndex: 0 | 1) => {
+    setTeammateEchoPlans((prev) => {
+      const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, slotIndex) : null
+      if (!memberRuntime) {
+        return prev
+      }
+
+      const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+      next[slotIndex] = selectTeammateMainEcho(
+        prev[slotIndex] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+        null,
+      )
+      return next
+    })
+  }, [optimizerRuntime, setTeammateEchoPlans])
+
+  const openResonatorPicker = (slot: OptimizerPickerSlot = 'active') => {
+    resonatorPicker.show(slot)
   }
 
   const closeResonatorPicker = () => {
-    setResonatorPickerOpen(false)
-    setResonatorPickerClosing(true)
-
-    if (resonatorPickerCloseTimerRef.current !== null) {
-      window.clearTimeout(resonatorPickerCloseTimerRef.current)
-    }
-
-    resonatorPickerCloseTimerRef.current = window.setTimeout(() => {
-      setResonatorPickerVisible(false)
-      setResonatorPickerClosing(false)
-      resonatorPickerCloseTimerRef.current = null
-    }, 180)
+    resonatorPicker.hide()
   }
 
-  const openMainEchoPicker = () => {
+  const openWeaponPicker = (slot: OptimizerPickerSlot) => {
+    weaponPicker.show(slot)
+  }
+
+  const closeWeaponPicker = () => {
+    weaponPicker.hide()
+  }
+
+  const openMainEchoPicker = (target: OptimizerMainEchoPickerTarget = 'filter') => {
     if (mainEchoPickerCloseTimerRef.current !== null) {
       window.clearTimeout(mainEchoPickerCloseTimerRef.current)
       mainEchoPickerCloseTimerRef.current = null
     }
 
+    setMainEchoPickerTarget(target)
     setMainEchoPickerClosing(false)
     setMainEchoPickerVisible(true)
     window.requestAnimationFrame(() => setMainEchoPickerOpen(true))
@@ -1025,9 +1497,14 @@ export function CalculatorOptimizerStage() {
     mainEchoPickerCloseTimerRef.current = window.setTimeout(() => {
       setMainEchoPickerVisible(false)
       setMainEchoPickerClosing(false)
+      setMainEchoPickerTarget('filter')
       mainEchoPickerCloseTimerRef.current = null
     }, 180)
   }
+
+  const selectedMainEchoId = mainEchoPickerTarget === 'filter'
+    ? optimizerSettings?.lockedMainEchoId ?? null
+    : resolvedTeammateEchoPlans[mainEchoPickerTarget]?.mainEchoId ?? null
 
   useEffect(() => {
     return () => {
@@ -1103,11 +1580,20 @@ export function CalculatorOptimizerStage() {
     }
 
     syncOptimizerContextToLiveRuntime(optimizerResonatorId ?? undefined)
+    setTeammateEchoPlans([null, null])
     resetOptimizerPresentation()
   }
 
   function handleHalt() {
     cancelOptimizer()
+  }
+
+  function handleEquip() {
+    if (isLoading || !optimizerResults[activeResultIndex]) {
+      return
+    }
+
+    equipChoiceModal.show(activeResultIndex)
   }
 
   const controlProps = {
@@ -1146,7 +1632,7 @@ export function CalculatorOptimizerStage() {
     onRunOptimizer: handleRunOptimizer,
     onReset: handleReset,
     onHalt: handleHalt,
-    onEquip: () => applyOptimizerResult(activeResultIndex),
+    onEquip: handleEquip,
     onGuide: () => {},
     onRules: openRulesModal,
     onClear: () => {
@@ -1180,6 +1666,58 @@ export function CalculatorOptimizerStage() {
         <OptimizerRules />
       </AppDialog>
 
+      <AppDialog
+        visible={equipChoiceModal.visible}
+        open={equipChoiceModal.open}
+        closing={equipChoiceModal.closing}
+        portalTarget={modalPortalTarget}
+        contentClassName="app-modal-panel confirmation-modal confirmation-modal--info"
+        ariaLabel="Equip optimizer result"
+        onClose={equipChoiceModal.hide}
+      >
+        <div className="confirmation-modal__body">
+          <h2 className="confirmation-modal__title">
+            Equip optimizer result
+          </h2>
+          <div className="confirmation-modal__message">
+            Choose whether to apply this result to the optimizer sim only or to both sim and live.
+          </div>
+        </div>
+        <div className="confirmation-modal__actions rotation-load-choice-actions">
+          <button
+            type="button"
+            className="confirmation-modal__btn confirmation-modal__btn--cancel"
+            onClick={equipChoiceModal.hide}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="confirmation-modal__btn confirmation-modal__btn--confirm"
+            onClick={() => {
+              if (equipChoiceModal.value != null) {
+                applyOptimizerResultToSimulation(equipChoiceModal.value)
+              }
+              equipChoiceModal.hide()
+            }}
+          >
+            Sim
+          </button>
+          <button
+            type="button"
+            className="confirmation-modal__btn confirmation-modal__btn--confirm"
+            onClick={() => {
+              if (equipChoiceModal.value != null) {
+                applyOptimizerResultToSimulationAndLive(equipChoiceModal.value)
+              }
+              equipChoiceModal.hide()
+            }}
+          >
+            Sim & Live
+          </button>
+        </div>
+      </AppDialog>
+
       <SonataSetConditionalsModal
         {...setConditionalsModal}
         portalTarget={modalPortalTarget}
@@ -1200,9 +1738,11 @@ export function CalculatorOptimizerStage() {
 
         <div className="optimizer-details optimizer-details--compact">
           <Expandable
-            header="Character Settings"
+            header="Simulation Settings"
             defaultOpen
             className="optimizer-character-settings"
+            triggerClassName="opt-expandable-trigger"
+            triggerStyle={{ alignItems: 'center' }}
           >
             <div className="character-options-container">
               <CharacterOptionsPanel
@@ -1225,7 +1765,7 @@ export function CalculatorOptimizerStage() {
                 selectedBonus={optimizerSettings?.selectedBonus ?? null}
                 statConstraints={optimizerSettings?.statConstraints ?? {}}
                 optimizerRuntime={optimizerRuntime}
-                onOpenResonatorPicker={openResonatorPicker}
+                onOpenResonatorPicker={() => openResonatorPicker('active')}
                 onSyncLive={handleSyncLive}
                 onTargetModeChange={(value) => {
                   const nextRotationMode = value === 'combo'
@@ -1312,7 +1852,29 @@ export function CalculatorOptimizerStage() {
             </div>
           </Expandable>
 
-          <Expandable header="Results" defaultOpen className="optimizer-search-results">
+          <Expandable header="Simulation Team" defaultOpen className="optimizer-search-results" triggerClassName="opt-expandable-trigger" triggerStyle={{ alignItems: 'center' }}>
+            <OptimizerTeamPanel
+                rarity={activeSeed?.rarity ?? 4}
+                displayName={displayName}
+                optimizerRuntime={effectiveOptimizerRuntime}
+                invalidMainEchoIds={invalidTeammateMainEchoIds}
+                teammateSetPreferences={[
+                  resolvedTeammateEchoPlans[0]?.setPreferences ?? [],
+                  resolvedTeammateEchoPlans[1]?.setPreferences ?? [],
+                ]}
+                onRuntimeUpdate={updateOptimizerRuntime}
+                onOpenTeammatePicker={openResonatorPicker}
+                onOpenWeaponPicker={openWeaponPicker}
+                onOpenTeammateMainEchoPicker={(slotIndex) => openMainEchoPicker(slotIndex)}
+                onAddTeammateSetPreference={addTeammateSetPreference}
+                onRemoveTeammateSetPreference={removeTeammateSetPreference}
+                onSetTeammateSetPreferenceCount={setTeammateSetPreferenceCount}
+                onRemoveTeammate={removeTeammate}
+                onRemoveTeammateMainEcho={removeTeammateMainEcho}
+            />
+          </Expandable>
+
+          <Expandable header="Simulation Results" defaultOpen className="optimizer-search-results" triggerClassName="opt-expandable-trigger" triggerStyle={{ alignItems: 'center' }}>
             <div className="results-container">
                 <div
                   className={`opt-results-header${resolvedPreviewTarget.kind === 'base' ? ' is-selected' : ''}`}
@@ -1420,9 +1982,8 @@ export function CalculatorOptimizerStage() {
                 </div>
               </div>
             </Expandable>
+          {!isWide ? <OptimizerControlBox isWide={false} {...controlProps} /> : null}
         </div>
-
-        {!isWide ? <OptimizerControlBox isWide={false} {...controlProps} /> : null}
       </div>
 
       <EchoPickerModal
@@ -1431,46 +1992,120 @@ export function CalculatorOptimizerStage() {
         closing={mainEchoPickerClosing}
         portalTarget={modalPortalTarget}
         echoes={allEchoes}
-        selectedEchoId={optimizerSettings?.lockedMainEchoId ?? null}
+        selectedEchoId={selectedMainEchoId}
         slotIndex={0}
         maxCost={12}
         onSelect={(echoId: string) => {
-          updateOptimizerSettings((settings) => ({
-            ...settings,
-            lockedMainEchoId: echoId,
-          }))
+          if (mainEchoPickerTarget === 'filter') {
+            updateOptimizerSettings((settings) => ({
+              ...settings,
+              lockedMainEchoId: echoId,
+            }))
+            return
+          }
+
+          setTeammateEchoPlans((prev) => {
+            const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, mainEchoPickerTarget) : null
+            if (!memberRuntime) {
+              return prev
+            }
+
+            const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+            next[mainEchoPickerTarget] = selectTeammateMainEcho(
+              prev[mainEchoPickerTarget] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+              echoId,
+            )
+            return next
+          })
         }}
         onClear={() => {
-          updateOptimizerSettings((settings) => ({
-            ...settings,
-            lockedMainEchoId: null,
-          }))
+          if (mainEchoPickerTarget === 'filter') {
+            updateOptimizerSettings((settings) => ({
+              ...settings,
+              lockedMainEchoId: null,
+            }))
+            return
+          }
+
+          setTeammateEchoPlans((prev) => {
+            const memberRuntime = optimizerRuntime ? materializeOptimizerSlotRuntime(optimizerRuntime, mainEchoPickerTarget) : null
+            if (!memberRuntime) {
+              return prev
+            }
+
+            const next = [...prev] as [TeammateEchoPlan | null, TeammateEchoPlan | null]
+            next[mainEchoPickerTarget] = selectTeammateMainEcho(
+              prev[mainEchoPickerTarget] ?? deriveTeammateEchoPlan(memberRuntime.build.echoes),
+              null,
+            )
+            return next
+          })
         }}
         onClose={closeMainEchoPicker}
       />
 
       <ResonatorPickerModal
-        visible={resonatorPickerVisible}
-        open={resonatorPickerOpen}
-        closing={resonatorPickerClosing}
+        visible={resonatorPicker.visible}
+        open={resonatorPicker.open}
+        closing={resonatorPicker.closing}
         portalTarget={modalPortalTarget}
-        eyebrow="Roster"
-        title="Select Resonator"
-        resonators={RESONATOR_MENU}
-        selectedResonatorId={optimizerResonatorId ?? null}
-        selectionLabel="Active"
+        eyebrow={selectedResonatorPickerSlot === 'active' ? 'Roster' : 'Team Slots'}
+        title={selectedResonatorPickerSlot === 'active' ? 'Select Resonator' : 'Select Teammate'}
+        description={
+          selectedResonatorPickerSlot === 'active'
+            ? undefined
+            : 'Occupied team members are hidden so every slot stays unique.'
+        }
+        resonators={eligibleOptimizerTeamResonators}
+        selectedResonatorId={
+          selectedResonatorPickerSlot === null
+            ? null
+            : selectedResonatorPickerSlot === 'active'
+              ? optimizerResonatorId ?? null
+              : optimizerRuntime?.build.team[selectedResonatorPickerSlot + 1] ?? null
+        }
+        selectionLabel={selectedResonatorPickerSlot === 'active' ? 'Active' : 'Selected'}
         summaryPrimary={{
-          label: 'Current',
-          value: displayName,
+          label: selectedResonatorPickerSlot === 'active' ? 'Current' : 'Slot',
+          value:
+            selectedResonatorPickerSlot === 'active'
+              ? displayName
+              : `Teammate ${(selectedResonatorPickerSlot ?? 0) + 1}`,
         }}
         emptyState={<p>I hope Solon Lee releases the character you're searching for.</p>}
         closeLabel="Close"
         panelWidth="regular"
         onSelect={(resonatorId) => {
-          switchToResonator(resonatorId)
+          if (selectedResonatorPickerSlot === null || selectedResonatorPickerSlot === 'active') {
+            switchToResonator(resonatorId)
+          } else {
+            applyOptimizerTeammateSelection(selectedResonatorPickerSlot, resonatorId)
+          }
           closeResonatorPicker()
         }}
         onClose={closeResonatorPicker}
+      />
+
+      <WeaponPickerModal
+        visible={weaponPicker.visible}
+        open={weaponPicker.open}
+        closing={weaponPicker.closing}
+        portalTarget={modalPortalTarget}
+        weapons={selectedWeaponPickerWeapons}
+        selectedWeaponId={
+          selectedWeaponPickerRuntime?.build.weapon.id && !isUnsetWeaponId(selectedWeaponPickerRuntime.build.weapon.id)
+            ? selectedWeaponPickerRuntime.build.weapon.id
+            : null
+        }
+        onSelect={(weaponId) => {
+          if (selectedWeaponPickerSlot === null) {
+            return
+          }
+
+          applyOptimizerWeaponSelection(selectedWeaponPickerSlot, weaponId)
+          closeWeaponPicker()
+        }}
+        onClose={closeWeaponPicker}
       />
     </div>
   )

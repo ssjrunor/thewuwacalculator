@@ -133,23 +133,41 @@ function negativeEffectSourceReferencesState(
   return negativeEffectSources.some((source) => conditionReferencesControl(source.enabledWhen, state.controlKey))
 }
 
+export function getStateEffectTargetScopes(
+  state: SourceStateDefinition,
+): Array<NonNullable<EffectDefinition['targetScope']> | 'self'> {
+  const scopes = new Set<NonNullable<EffectDefinition['targetScope']> | 'self'>()
+
+  for (const effect of listEffectsForOwnerKey(state.ownerKey)) {
+    if (!effectReferencesState(effect, state.controlKey)) {
+      continue
+    }
+
+    scopes.add(effect.targetScope ?? 'self')
+  }
+
+  if (negativeEffectSourceReferencesState(state)) {
+    scopes.add('teamWide')
+  }
+
+  return Array.from(scopes)
+}
+
 export function stateHasTeamFacingEffects(
   state: SourceStateDefinition,
   options: { includeTeamWide: boolean },
 ): boolean {
-  const hasTeamFacingEffect = listEffectsForOwnerKey(state.ownerKey)
-    .filter((effect) => effectReferencesState(effect, state.controlKey))
-    .some((effect) => {
-      if (
-        effect.targetScope === 'active'
-        || effect.targetScope === 'activeOther'
-        || effect.targetScope === 'otherTeammates'
-      ) {
-        return true
-      }
+  const hasTeamFacingEffect = getStateEffectTargetScopes(state).some((targetScope) => {
+    if (
+      targetScope === 'active'
+      || targetScope === 'activeOther'
+      || targetScope === 'otherTeammates'
+    ) {
+      return true
+    }
 
-      return options.includeTeamWide && effect.targetScope === 'teamWide'
-    })
+    return options.includeTeamWide && targetScope === 'teamWide'
+  })
 
   if (hasTeamFacingEffect) {
     return true
@@ -159,14 +177,13 @@ export function stateHasTeamFacingEffects(
 }
 
 export function getStateTeamTargetMode(state: SourceStateDefinition): 'active' | 'activeOther' | null {
-  const effects = listEffectsForOwnerKey(state.ownerKey)
-    .filter((effect) => effectReferencesState(effect, state.controlKey))
+  const effects = getStateEffectTargetScopes(state)
 
-  if (effects.some((effect) => effect.targetScope === 'active')) {
+  if (effects.some((effect) => effect === 'active')) {
     return 'active'
   }
 
-  if (effects.some((effect) => effect.targetScope === 'activeOther')) {
+  if (effects.some((effect) => effect === 'activeOther')) {
     return 'activeOther'
   }
 

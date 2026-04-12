@@ -94,9 +94,7 @@ export function normalizeResonatorRuntimeControls(
 
   const availableControls = [
     ...details.statePanels.flatMap((panel) => panel.controls),
-    ...details.resonanceChains
-      .map((entry) => entry.control ?? entry.toggleControl)
-      .filter((control): control is ResonatorStateControl => Boolean(control)),
+    ...details.resonanceChains.flatMap((entry) => entry.controls ?? []),
   ]
 
   const nextControls = { ...controls }

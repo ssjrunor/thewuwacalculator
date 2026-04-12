@@ -1203,7 +1203,7 @@
         ]
       },
       "neonlightLeapOffTune": {
-        "perStack": [
+        "perStep": [
           {
             "value": 0.3,
             "path": [
@@ -1262,7 +1262,7 @@
     "fivePiece": null,
     "states": {
       "starryRadiance5pc": {
-        "perStack": [
+        "perStep": [
           {
             "value": 0.2,
             "path": [

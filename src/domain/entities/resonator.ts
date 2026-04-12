@@ -137,6 +137,7 @@ export interface ResonanceChain {
   name: string
   desc: string
   param: string[]
+  controls?: ResonatorStateControl[]
   control?: ResonatorStateControl
   toggleControl?: ResonatorStateControl
   keywords?: string[]

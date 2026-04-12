@@ -69,6 +69,7 @@ export interface SourceStateDefinition {
   controlKey: string
   path: string
   resets?: string[]
+  controlDependencies?: string[]
   displayScope?: 'self' | 'team' | 'both'
   kind: 'toggle' | 'stack' | 'number' | 'select'
   defaultValue?: boolean | number | string

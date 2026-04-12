@@ -75,6 +75,10 @@ function getPartEntries(
     return state.max
   }
 
+  if (Array.isArray(state.perStep) && state.perStep.length > 0) {
+    return state.perStep
+  }
+
   if (Array.isArray(state.perStack) && state.perStack.length > 0) {
     return state.perStack
   }
@@ -361,7 +365,10 @@ export function SonataSetConditionalsModal(props: {
             <span className="ssc-count-display">
               {visibleStats.checked} / {visibleStats.total}
             </span>
-            <span className="ssc-progress-track">
+            <span
+              className="ssc-progress-track"
+              aria-hidden="true"
+            >
               <span className="ssc-progress-fill" style={{ width: progressPct }} />
             </span>
           </label>

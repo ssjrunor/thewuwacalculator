@@ -1,7 +1,7 @@
 import { Check, ChevronDown } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '@/domain/state/store'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { OptimizerSetSelections } from '@/domain/entities/optimizer'
 import { getSonataSetIcon } from '@/data/gameData/catalog/sonataSets'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
@@ -17,6 +17,10 @@ const OVERLAY_PORTAL_SELECTOR =
 interface AllowedSetDropdownProps {
   selectedIdsByPiece: OptimizerSetSelections
   onChange: (nextSelectedIdsByPiece: OptimizerSetSelections) => void
+  triggerClassName?: string
+  renderTriggerContent?: (args: { summaryLabel: string; open: boolean }) => ReactNode
+  resetLabel?: string
+  resetMeta?: string
 }
 
 type PieceCount = 3 | 5
@@ -29,7 +33,14 @@ interface MenuLayout {
   maxHeight: number
 }
 
-export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetDropdownProps) {
+export function AllowedSetDropdown({
+  selectedIdsByPiece,
+  onChange,
+  triggerClassName,
+  renderTriggerContent,
+  resetLabel = 'All Sets',
+  resetMeta = 'No set restriction',
+}: AllowedSetDropdownProps) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -267,18 +278,18 @@ export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetD
                 selectedIdsByPiece[3].length === 0 && selectedIdsByPiece[5].length === 0 ? ' selected is-active' : ''
               }`}
               onClick={() => {
-                onChange({ 3: [], 5: [] })
-              }}
-              onMouseDown={(event) => event.preventDefault()}
-            >
-              <span className="co-skill-select__option-label co-set-dropdown__copy">
-                <span className="co-set-dropdown__name">All Sets</span>
-                <span className="co-set-dropdown__meta">No set restriction</span>
-              </span>
-              <span className="co-skill-select__option-check co-set-dropdown__check" aria-hidden="true">
-                <Check size={14} />
-              </span>
-            </button>
+              onChange({ 3: [], 5: [] })
+            }}
+            onMouseDown={(event) => event.preventDefault()}
+          >
+            <span className="co-skill-select__option-label co-set-dropdown__copy">
+              <span className="co-set-dropdown__name">{resetLabel}</span>
+              <span className="co-set-dropdown__meta">{resetMeta}</span>
+            </span>
+            <span className="co-skill-select__option-check co-set-dropdown__check" aria-hidden="true">
+              <Check size={14} />
+            </span>
+          </button>
 
             {optionGroups.map((group) => (
               <div key={group.pieceCount} className="co-skill-select__group">
@@ -331,7 +342,7 @@ export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetD
       <button
         ref={triggerRef}
         type="button"
-        className="co-chip co-set-dropdown__trigger"
+        className={`co-chip co-set-dropdown__trigger${triggerClassName ? ` ${triggerClassName}` : ''}`}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => {
@@ -342,8 +353,14 @@ export function AllowedSetDropdown({ selectedIdsByPiece, onChange }: AllowedSetD
           }
         }}
       >
-        <span className="co-set-dropdown__trigger-value">{summaryLabel}</span>
-        <ChevronDown size={12} />
+        {renderTriggerContent ? (
+          renderTriggerContent({ summaryLabel, open })
+        ) : (
+          <>
+            <span className="co-set-dropdown__trigger-value">{summaryLabel}</span>
+            <ChevronDown size={12} />
+          </>
+        )}
       </button>
       {menu}
     </div>

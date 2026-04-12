@@ -2,7 +2,6 @@ import { type CSSProperties, useCallback, useMemo, useState } from 'react'
 import { Settings2, Swords } from 'lucide-react'
 import { isUnsetWeaponId, type ResonatorRuntimeState } from '@/domain/entities/runtime'
 import { cloneEchoLoadout, type InventoryBuildEntry } from '@/domain/entities/inventoryStorage'
-import type { ResonatorStateControl } from '@/domain/entities/resonator'
 import type { SourceStateDefinition } from '@/domain/gameData/contracts'
 import { listWeaponsByType } from '@/domain/services/weaponCatalogService'
 import { listStatesForSource, listOwnersForSource } from '@/domain/services/gameDataService'
@@ -152,9 +151,7 @@ export function TeamMemberConfigModal({
 
   const availableControls = useMemo(() => [
     ...member.statePanels.flatMap((panel) => panel.controls),
-    ...member.resonanceChains
-      .map((entry) => entry.control ?? entry.toggleControl)
-      .filter((c): c is ResonatorStateControl => Boolean(c)),
+    ...member.resonanceChains.flatMap((entry) => entry.controls ?? []),
   ], [member])
 
   const cascadedRuntimeUpdate: RuntimeUpdateHandler = useCallback((updater) => {

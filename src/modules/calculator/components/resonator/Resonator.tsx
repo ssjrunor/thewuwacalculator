@@ -58,7 +58,13 @@ interface ResonatorPaneProps {
   isDarkMode: boolean
 }
 
-// surfaces the resonator selector and slider controls that drive the runtime.
+interface ResonanceChainControls {
+  controls?: ResonatorStateControl[]
+}
+
+function getResonanceChainControls(entry: ResonanceChainControls): ResonatorStateControl[] {
+  return entry.controls ?? []
+}
 
 function NumberInput({
   value,
@@ -117,9 +123,7 @@ export function Resonator({
   const activeSprite = resonator?.sprite ?? '/assets/default-icon.webp'
   const availableControls = [
     ...(details?.statePanels.flatMap((panel) => panel.controls) ?? []),
-    ...(details?.resonanceChains
-      .map((entry) => entry.control ?? entry.toggleControl)
-      .filter((control): control is ResonatorStateControl => Boolean(control)) ?? []),
+    ...(details?.resonanceChains.flatMap((entry) => getResonanceChainControls(entry)) ?? []),
   ]
   const controlsByKey = Object.fromEntries(availableControls.map((control) => [control.key, control]))
 
@@ -917,8 +921,12 @@ export function Resonator({
             {details.resonanceChains
               .filter((entry) => entry.index <= runtime.base.sequence)
               .map((entry) => {
-                const sequenceControl = entry.control ?? entry.toggleControl
-                const sequenceControlStatus = sequenceControl ? getSequenceControlStatus(sequenceControl) : null
+                const sequenceControls = getResonanceChainControls(entry)
+                const sequenceControlStatuses = sequenceControls
+                  .map((control) => ({
+                    control,
+                    status: getSequenceControlStatus(control),
+                  }))
 
                 return (
                   <article key={`chain-${entry.index}`} className="control-panel-box sequence-node ui-surface-card ui-surface-card--inner">
@@ -927,10 +935,17 @@ export function Resonator({
                         <span className="sequence-card-badge">S{entry.index}</span>
                         <h4 className="highlight">{entry.name}</h4>
                       </div>
-                      {sequenceControlStatus ? (
-                        <span className={sequenceControlStatus.active ? 'sequence-card-status active' : 'sequence-card-status'}>
-                          {sequenceControlStatus.label}
-                        </span>
+                      {sequenceControlStatuses.length > 0 ? (
+                        <div className="sequence-card-status-list">
+                          {sequenceControlStatuses.map(({ control, status }) => (
+                            <span
+                              key={control.key}
+                              className={status.active ? 'sequence-card-status active' : 'sequence-card-status'}
+                            >
+                              {status.label}
+                            </span>
+                          ))}
+                        </div>
                       ) : null}
                     </div>
 
@@ -943,12 +958,12 @@ export function Resonator({
                       />
                     </div>
 
-                    {sequenceControl && (
+                    {sequenceControls.length > 0 && (
                       <div className="sequence-card-footer">
-                        {renderControlField(sequenceControl, {
-                          disabled: runtime.base.sequence < entry.index,
-                          className: 'sequence-toggle-row',
-                        })}
+                        {sequenceControls.map((control) => renderControlField(control, {
+                            disabled: runtime.base.sequence < entry.index,
+                            className: 'sequence-toggle-row',
+                          }))}
                       </div>
                     )}
                   </article>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import {
   Legend,
   PolarAngleAxis,
@@ -9,10 +9,21 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { MOCK_RADAR_DATA } from './mockData'
+import type { OptimizerDisplayStats } from './OptimizerRow'
+
+interface StatProfileRow {
+  stat: string
+  current: number
+  candidate: number
+  currentNorm: number
+  candidateNorm: number
+}
 
 function formatStatValue(statLabel: string, value: number | null | undefined): string {
-  if (value == null) return '-'
+  if (value == null || !Number.isFinite(value)) {
+    return '-'
+  }
+
   switch (statLabel) {
     case 'ATK':
     case 'HP':
@@ -22,73 +33,109 @@ function formatStatValue(statLabel: string, value: number | null | undefined): s
     case 'CR%':
     case 'CD%':
     case 'BNS%':
-      return (value ?? 0).toFixed(1)
+      return value.toFixed(1)
     default:
-      return typeof value === 'number' ? value.toFixed(1) : String(value)
+      return value.toFixed(1)
   }
 }
 
-function StatProfileTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: Record<string, number> }>; label?: string }) {
-  if (!active || !payload || payload.length === 0) return null
+function StatProfileTooltip(props: {
+  active?: boolean
+  payload?: Array<{ payload: StatProfileRow }>
+  label?: string
+}) {
+  if (!props.active || !props.payload?.length) {
+    return null
+  }
 
-  const row = payload[0].payload
+  const row = props.payload[0]?.payload
+  if (!row) {
+    return null
+  }
 
   return (
     <div className="analytics-tooltip">
       <div className="analytics-tooltip__header">
-        <span className="analytics-tooltip__label">{label}</span>
+        <span className="analytics-tooltip__label">{props.label}</span>
       </div>
       <div className="analytics-tooltip__row">
         <span className="analytics-tooltip__tag analytics-tooltip__tag--current">Current</span>
-        <span className="analytics-tooltip__value">{formatStatValue(label ?? '', row.current) || 'Unset'}</span>
+        <span className="analytics-tooltip__value">{formatStatValue(row.stat, row.current)}</span>
       </div>
       <div className="analytics-tooltip__row">
         <span className="analytics-tooltip__tag analytics-tooltip__tag--candidate">Candidate</span>
-        <span className="analytics-tooltip__value">{formatStatValue(label ?? '', row.candidate) || 'Unset'}</span>
+        <span className="analytics-tooltip__value">{formatStatValue(row.stat, row.candidate)}</span>
       </div>
     </div>
   )
 }
 
-export function StatProfileCard() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [currentColor, setCurrentColor] = useState('crimson')
-  const [candidateColor, setCandidateColor] = useState('#20bfb9')
-  const [candidateFill, setCandidateFill] = useState('#60fffa')
+function buildProfileRows(
+  currentStats: OptimizerDisplayStats,
+  candidateStats: OptimizerDisplayStats,
+  rotationMode: boolean,
+): StatProfileRow[] {
+  const baseRows = [
+    { stat: 'ATK', current: currentStats.atk, candidate: candidateStats.atk },
+    { stat: 'HP', current: currentStats.hp, candidate: candidateStats.hp },
+    { stat: 'DEF', current: currentStats.def, candidate: candidateStats.def },
+    { stat: 'ER%', current: currentStats.er, candidate: candidateStats.er },
+    { stat: 'CR%', current: currentStats.cr, candidate: candidateStats.cr },
+    { stat: 'CD%', current: currentStats.cd, candidate: candidateStats.cd },
+  ]
 
-  useEffect(() => {
-    if (!containerRef.current) return
-    const styles = getComputedStyle(containerRef.current)
-    const current = styles.getPropertyValue('--optimizer-color-current').trim()
-    const candidate = styles.getPropertyValue('--optimizer-color-candidate').trim()
-    if (current) setCurrentColor(current)
-    if (candidate) {
-      setCandidateColor(candidate)
-      setCandidateFill(candidate)
-    }
-  }, [])
-
-  const normalizedData = useMemo(() => {
-    return MOCK_RADAR_DATA.map((row) => {
-      const maxVal = Math.max(row.current ?? 0, row.candidate ?? 0) || 1
-      return {
-        ...row,
-        currentNorm: (row.current / maxVal) * 100,
-        candidateNorm: (row.candidate / maxVal) * 100,
-      }
+  if (!rotationMode) {
+    baseRows.push({
+      stat: 'BNS%',
+      current: currentStats.bonus,
+      candidate: candidateStats.bonus,
     })
-  }, [])
+  }
+
+  return baseRows.map((row) => {
+    const maxValue = Math.max(row.current, row.candidate, 1)
+    return {
+      ...row,
+      currentNorm: (row.current / maxValue) * 100,
+      candidateNorm: (row.candidate / maxValue) * 100,
+    }
+  })
+}
+
+export function StatProfileCard({
+  currentStats,
+  candidateStats,
+  rotationMode,
+}: {
+  currentStats: OptimizerDisplayStats | null
+  candidateStats: OptimizerDisplayStats | null
+  rotationMode: boolean
+}) {
+  const chartData = useMemo(() => {
+    if (!currentStats || !candidateStats) {
+      return []
+    }
+
+    return buildProfileRows(currentStats, candidateStats, rotationMode)
+  }, [candidateStats, currentStats, rotationMode])
+
+  if (!currentStats || !candidateStats) {
+    return (
+      <div className="co-profile-card co-profile-card--empty">
+        Run the optimizer and select a result to compare it against your current build.
+      </div>
+    )
+  }
 
   return (
-    <div ref={containerRef}>
-      <div className="card-title">Stat Profile</div>
+    <div className="co-profile-graph">
       <div className="analytics-card-header">
         <span className="analytics-subtitle">Current vs candidate</span>
       </div>
       <div className="analytics-body">
         <div className="analytics-chart-wrapper">
-          <ResponsiveContainer width={200} height={190}>
-            <RadarChart data={normalizedData}>
+          <ResponsiveContainer width="100%" height={190}>
+            <RadarChart data={chartData}>
               <PolarGrid />
               <PolarAngleAxis dataKey="stat" tick={{ fontSize: 13 }} />
               <PolarRadiusAxis tick={{ fontSize: 8 }} domain={[0, 100]} />
@@ -96,16 +143,16 @@ export function StatProfileCard() {
                 name="Current"
                 dataKey="currentNorm"
                 fillOpacity={0.25}
-                stroke={currentColor}
-                fill={currentColor}
+                stroke="var(--optimizer-color-current)"
+                fill="var(--optimizer-color-current)"
                 isAnimationActive={false}
               />
               <Radar
                 name="Candidate"
                 dataKey="candidateNorm"
                 fillOpacity={0.25}
-                stroke={candidateColor}
-                fill={candidateFill}
+                stroke="var(--optimizer-color-candidate)"
+                fill="var(--optimizer-color-candidate)"
                 isAnimationActive={false}
               />
               <Legend />

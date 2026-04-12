@@ -40,6 +40,13 @@ function createFallbackTarget(seedId: string): OptimizerTargetSkill {
   }
 }
 
+// Only normal skill-damage targets should drive the representative display stats.
+// Tune rupture and negative-effect entries still contribute damage, but they
+// should not become the one context shown in the optimizer UI.
+function isDisplayContextTarget(target: Pick<SkillDefinition, 'archetype'>): boolean {
+  return target.archetype === 'skillDamage'
+}
+
 // Build the fully compiled scalar context for one rotation target.
 // This strips away most object lookups and prepares the numeric values
 // that will later be packed into the optimizer context float array.
@@ -196,9 +203,12 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
   const contextWeights = new Float32Array(contextCount)
 
   // One representative display context is kept for showing derived stats in the UI.
-  // The implementation chooses the target with the lowest crit sum as the display baseline.
+  // In rotation mode this should come from the lowest positive rotation value.
+  // If no target has a positive value, fall back to a zero-value target.
   let displayContext = new Float32Array(OPTIMIZER_CONTEXT_FLOATS)
-  let displayLowestCritSum = Number.POSITIVE_INFINITY
+  let displayLowestPositiveValue = Number.POSITIVE_INFINITY
+  let displayLowestPositiveCritSum = Number.POSITIVE_INFINITY
+  let displayLowestZeroCritSum = Number.POSITIVE_INFINITY
 
   for (let index = 0; index < targets.length; index += 1) {
     const target = targets[index]
@@ -236,11 +246,33 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
     // Preserve the target's weight for later weighted aggregation.
     contextWeights[index] = target.weight ?? 1
 
-    // Choose a display context heuristically. The current rule picks the one
-    // with the lowest crit-rate + crit-damage sum.
+    // Choose a representative display context from the smallest positive
+    // rotation value. If there are no positive values at all, use a zero-value one.
+    if (!isDisplayContextTarget(target.skill)) {
+      continue
+    }
+
     const critSum = compiled.staticCritRate + compiled.staticCritDmg
-    if (critSum < displayLowestCritSum) {
-      displayLowestCritSum = critSum
+    const displayValue = Number.isFinite(target.weight) ? target.weight : 1
+    if (
+      displayValue > 0 &&
+      (
+        displayValue < displayLowestPositiveValue ||
+        (displayValue === displayLowestPositiveValue && critSum < displayLowestPositiveCritSum)
+      )
+    ) {
+      displayLowestPositiveValue = displayValue
+      displayLowestPositiveCritSum = critSum
+      displayContext = new Float32Array(packedContext)
+      continue
+    }
+
+    if (
+      displayLowestPositiveValue === Number.POSITIVE_INFINITY &&
+      displayValue === 0 &&
+      critSum < displayLowestZeroCritSum
+    ) {
+      displayLowestZeroCritSum = critSum
       displayContext = new Float32Array(packedContext)
     }
   }
