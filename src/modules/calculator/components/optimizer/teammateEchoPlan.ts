@@ -58,7 +58,7 @@ function deriveSetPreferencesFromEchoes(
 ): RandomGeneratorSetPreference[] {
   const counts = computeEchoSetCounts(normalizeEchoLoadout(echoes))
   const preferences = Object.entries(counts)
-    .flatMap(([rawSetId, count]) => {
+    .flatMap(([rawSetId, count]): RandomGeneratorSetPreference[] => {
       const setId = Number(rawSetId)
       const def = getEchoSetDef(setId)
       if (!def) {
@@ -66,15 +66,15 @@ function deriveSetPreferencesFromEchoes(
       }
 
       if (def.setMax === 3) {
-        return count >= 3 ? [{ setId, count: 3 as const }] : []
+        return count >= 3 ? [{ setId, count: 3 }] : []
       }
 
       if (count >= 5) {
-        return [{ setId, count: 5 as const }]
+        return [{ setId, count: 5 }]
       }
 
       if (count >= 2) {
-        return [{ setId, count: 2 as const }]
+        return [{ setId, count: 2 }]
       }
 
       return []
