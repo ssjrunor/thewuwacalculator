@@ -6,6 +6,7 @@
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { TeamCompositionInfo } from '@/domain/gameData/teamComposition'
+import type { ResonatorNegativeEffectSource } from '@/domain/entities/resonator'
 import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
 import type {
   AttributeKey,
@@ -423,10 +424,10 @@ export interface EffectRuntimeContext {
   echoSetCounts: Record<string, number>
   team: TeamCompositionInfo
   source: DataSourceRef & {
-    negativeEffectSources?: Array<Record<string, unknown>>
+    negativeEffectSources?: ResonatorNegativeEffectSource[]
   }
-  target: DataSourceRef & {
-    negativeEffectSources?: Array<Record<string, unknown>>
+  target?: DataSourceRef & {
+    negativeEffectSources?: ResonatorNegativeEffectSource[]
   }
   sourceRuntime: ResonatorRuntimeState
   targetRuntime: ResonatorRuntimeState
