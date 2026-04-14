@@ -173,6 +173,101 @@ describe('team composition context', () => {
     }
   })
 
+  it('supports includes conditions against source negative-effect metadata', () => {
+    const detailsById = getResonatorDetailsById()
+    const originalSources = detailsById['1508']?.negativeEffectSources
+
+    if (!detailsById['1508']) {
+      throw new Error('missing resonator details 1508')
+    }
+
+    detailsById['1508'].negativeEffectSources = [
+      { key: 'havocBane' },
+      {
+        type: 'globalMaxAdd',
+        value: 5,
+        enabledWhen: {
+          type: 'includes',
+          from: 'context',
+          path: 'source.negativeEffectSources',
+          itemPath: 'key',
+          value: 'fusionBurst',
+        },
+      },
+    ]
+
+    try {
+      const withoutFusionBurst = withTeam('1207', ['1508', null])
+      const baseEntries = resolveNegativeEffectsForRuntime(withoutFusionBurst)
+
+      expect(baseEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(3)
+      expect(baseEntries.find((entry) => entry.key === 'fusionBurst')).toBeUndefined()
+
+      detailsById['1508'].negativeEffectSources = [
+        { key: 'havocBane' },
+        { key: 'fusionBurst' },
+        {
+          type: 'globalMaxAdd',
+          value: 5,
+          enabledWhen: {
+            type: 'includes',
+            from: 'context',
+            path: 'source.negativeEffectSources',
+            itemPath: 'key',
+            value: 'fusionBurst',
+          },
+        },
+      ]
+
+      const withFusionBurst = withTeam('1207', ['1508', null])
+      const boostedEntries = resolveNegativeEffectsForRuntime(withFusionBurst)
+
+      expect(boostedEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(8)
+      expect(boostedEntries.find((entry) => entry.key === 'fusionBurst')?.max).toBe(15)
+    } finally {
+      detailsById['1508'].negativeEffectSources = originalSources
+    }
+  })
+
+  it('supports includes conditions against target negative-effect metadata', () => {
+    const detailsById = getResonatorDetailsById()
+    const originalSources = detailsById['1508']?.negativeEffectSources
+
+    if (!detailsById['1508']) {
+      throw new Error('missing resonator details 1508')
+    }
+
+    detailsById['1508'].negativeEffectSources = [
+      { key: 'havocBane' },
+      {
+        type: 'globalMaxAdd',
+        value: 5,
+        enabledWhen: {
+          type: 'includes',
+          from: 'context',
+          path: 'target.negativeEffectSources',
+          itemPath: 'key',
+          value: 'fusionBurst',
+        },
+      },
+    ]
+
+    try {
+      const nonFusionTarget = withTeam('1207', ['1508', null])
+      const baseEntries = resolveNegativeEffectsForRuntime(nonFusionTarget)
+
+      expect(baseEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(3)
+
+      const fusionTarget = withTeam('1211', ['1508', null])
+      const boostedEntries = resolveNegativeEffectsForRuntime(fusionTarget)
+
+      expect(boostedEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(8)
+      expect(boostedEntries.find((entry) => entry.key === 'fusionBurst')?.max).toBe(15)
+    } finally {
+      detailsById['1508'].negativeEffectSources = originalSources
+    }
+  })
+
   it('resolves Hiyuki glacio chafe behavior as fixed-max Glacio Bite', () => {
     const runtime = withTeam('1207', ['1108', null])
     runtime.state.combat.glacioChafe = 2

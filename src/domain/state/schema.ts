@@ -335,6 +335,22 @@ const conditionExpressionSchema: z.ZodTypeAny = z.lazy(() =>
         value: z.number(),
       }).strict(),
       z.object({
+        type: z.literal('includes'),
+        from: z.enum([
+          'sourceRuntime',
+          'sourceFinalStats',
+          'targetRuntime',
+          'activeRuntime',
+          'pool',
+          'baseStats',
+          'finalStats',
+          'context',
+        ]).optional(),
+        path: z.string(),
+        value: z.union([z.string(), z.number(), z.boolean()]),
+        itemPath: z.string().optional(),
+      }).strict(),
+      z.object({
         type: z.literal('and'),
         values: z.array(conditionExpressionSchema),
       }).strict(),

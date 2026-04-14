@@ -136,7 +136,11 @@ function readPath(scope: EffectEvalScope, path: string, from?: EvalScopeRoot): u
     return readRuntimePath(root as typeof scope.sourceRuntime, ref.path)
   }
 
-  const parts = ref.path.split('.').filter(Boolean)
+  return readObjectPath(root, ref.path)
+}
+
+function readObjectPath(root: unknown, path: string): unknown {
+  const parts = path.split('.').filter(Boolean)
   let cursor: unknown = root
 
   for (const part of parts) {
@@ -264,6 +268,18 @@ export function evaluateCondition(
 
   if (condition.type === 'lte') {
     return toNumber(readPath(scope, condition.path, condition.from), 0) <= condition.value
+  }
+
+  if (condition.type === 'includes') {
+    const container = readPath(scope, condition.path, condition.from)
+    if (!Array.isArray(container)) {
+      return false
+    }
+
+    return container.some((item) => {
+      const candidate = condition.itemPath ? readObjectPath(item, condition.itemPath) : item
+      return candidate === condition.value
+    })
   }
 
   if (condition.type === 'and') {

@@ -153,6 +153,12 @@ function buildNegativeEffectSourceScope(
       source: {
         type: 'resonator' as const,
         id: sourceRuntime.id,
+        negativeEffectSources: getNegativeEffectSourcesForResonator(sourceRuntime.id),
+      },
+      target: {
+        type: 'resonator' as const,
+        id: activeRuntime.id,
+        negativeEffectSources: getNegativeEffectSourcesForResonator(activeRuntime.id),
       },
       sourceRuntime,
       targetRuntime: activeRuntime,

@@ -6,6 +6,7 @@
 */
 
 import { getGameData } from '@/data/gameData'
+import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
 import { listSourceEffects } from '@/domain/gameData/registry'
 import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
 import type {
@@ -141,6 +142,8 @@ function buildEffectContexts(
     targetRuntime: ResonatorRuntimeState,
     options: DataEffectOptions = {},
 ): EffectRuntimeContext[] {
+  const resonatorDetailsById = getResonatorDetailsById()
+
   if (isGraphOptions(options)) {
     const targetParticipant = options.graph.participants[options.targetSlotId]
     if (!targetParticipant) {
@@ -161,6 +164,12 @@ function buildEffectContexts(
         source: {
           type: 'resonator',
           id: sourceParticipant.resonatorId,
+          negativeEffectSources: resonatorDetailsById[sourceParticipant.resonatorId]?.negativeEffectSources,
+        },
+        target: {
+          type: 'resonator',
+          id: targetParticipant.resonatorId,
+          negativeEffectSources: resonatorDetailsById[targetParticipant.resonatorId]?.negativeEffectSources,
         },
         sourceRuntime: sourceParticipant.runtime,
         targetRuntime: targetParticipant.runtime,
@@ -217,6 +226,12 @@ function buildEffectContexts(
       source: {
         type: 'resonator',
         id: sourceId,
+        negativeEffectSources: resonatorDetailsById[sourceId]?.negativeEffectSources,
+      },
+      target: {
+        type: 'resonator',
+        id: targetRuntime.id,
+        negativeEffectSources: resonatorDetailsById[targetRuntime.id]?.negativeEffectSources,
       },
       sourceRuntime,
       targetRuntime,

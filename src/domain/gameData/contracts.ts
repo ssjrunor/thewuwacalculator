@@ -178,6 +178,13 @@ export type ConditionExpression =
   value: number
 }
     | {
+  type: 'includes'
+  from?: EvalScopeRoot
+  path: string
+  value: string | number | boolean
+  itemPath?: string
+}
+    | {
   type: 'and'
   values: ConditionExpression[]
 }
@@ -415,7 +422,12 @@ export interface EffectRuntimeContext {
   slotIndex?: number
   echoSetCounts: Record<string, number>
   team: TeamCompositionInfo
-  source: DataSourceRef
+  source: DataSourceRef & {
+    negativeEffectSources?: Array<Record<string, unknown>>
+  }
+  target: DataSourceRef & {
+    negativeEffectSources?: Array<Record<string, unknown>>
+  }
   sourceRuntime: ResonatorRuntimeState
   targetRuntime: ResonatorRuntimeState
   activeRuntime?: ResonatorRuntimeState
