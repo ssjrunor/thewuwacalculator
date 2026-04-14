@@ -1,0 +1,71 @@
+.admin-auth-tile {
+  align-self: start;
+}
+
+.admin-auth-form {
+  display: grid;
+  gap: 0.85rem;
+  max-width: 26rem;
+}
+
+.admin-field {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.admin-field span {
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-field input {
+  width: 100%;
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface-strong) 84%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.72rem 0.82rem;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.admin-field input:focus {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--panel-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.admin-error {
+  margin: 0;
+  color: var(--danger, #cc3f53);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-active-card {
+  display: grid;
+  gap: 0.18rem;
+  max-width: 26rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--ok, #1eab62) 28%, var(--panel-border));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--ok, #1eab62) 8%, var(--surface-strong));
+}
+
+.admin-active-card span {
+  color: color-mix(in srgb, var(--ok, #1eab62) 72%, var(--text));
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.admin-active-card strong {
+  color: var(--text);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1rem;
+}
