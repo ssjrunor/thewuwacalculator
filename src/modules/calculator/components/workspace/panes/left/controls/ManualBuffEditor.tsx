@@ -25,6 +25,7 @@ import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import type { RuntimeUpdateHandler } from '@/modules/calculator/components/workspace/panes/left/helpers/runtimeStateUtils'
 import {getResonatorById} from "@/domain/services/catalogService.ts";
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
+import { MANUAL_BUFF_SKILL_TAB_ORDER, makeSkillTabOptions } from '@/modules/calculator/model/skillTabs'
 
 interface ManualBuffEditorProps {
   runtime: ResonatorRuntimeState
@@ -134,17 +135,7 @@ const MODIFIER_VALUE_OPTIONS: Array<{ value: ManualModifierValueKey; label: stri
   { value: 'critDmg', label: 'Crit DMG' },
 ]
 
-const SKILL_TAB_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'normalAttack', label: 'Normal Attack' },
-  { value: 'resonanceSkill', label: 'Resonance Skill' },
-  { value: 'forteCircuit', label: 'Forte Circuit' },
-  { value: 'resonanceLiberation', label: 'Resonance Liberation' },
-  { value: 'introSkill', label: 'Intro Skill' },
-  { value: 'outroSkill', label: 'Outro Skill' },
-  { value: 'tuneBreak', label: 'Tune Break' },
-  { value: 'echoAttacks', label: 'Echo Attacks' },
-  { value: 'negativeEffect', label: 'Negative Effect' },
-]
+const SKILL_TAB_OPTIONS: Array<{ value: string; label: string }> = makeSkillTabOptions(MANUAL_BUFF_SKILL_TAB_ORDER)
 
 const MANUAL_BUFFS_EXPORT_VERSION = 1
 

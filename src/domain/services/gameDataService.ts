@@ -10,6 +10,7 @@ import {
   getStateByControlKey,
   getResonatorFeatures,
   getResonatorRotations,
+  getResonatorSkills,
   listConditionsByOwnerKey,
   listSourceConditions,
   listSourceEffects,
@@ -118,6 +119,11 @@ export function listRotationsForSource(
 // list all features for a resonator
 export function listResonatorFeatures(resonatorId: string): FeatureDefinition[] {
   return getResonatorFeatures(getGameData(), resonatorId)
+}
+
+// list all skills for a resonator
+export function listResonatorSkills(resonatorId: string): SkillDefinition[] {
+  return getResonatorSkills(getGameData(), resonatorId)
 }
 
 // list all rotations for a resonator

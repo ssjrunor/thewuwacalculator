@@ -16,6 +16,10 @@ import type { ResonatorSeed } from '@/domain/entities/runtime'
 import type { AttributeKey } from '@/domain/entities/stats'
 import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
 import { getResonatorSeedById, listResonatorSeeds } from '@/domain/services/resonatorSeedService'
+import {
+  WEAPON_TYPE_OPTIONS,
+  WEAPON_TYPE_TO_KEY as DISPLAY_WEAPON_TYPE_TO_KEY,
+} from '@/modules/calculator/model/display'
 
 // slider tabs exclude outro because it does not use the same slider flow
 export type ResonatorSliderSkillTabKey = Exclude<ResonatorSkillTabKey, 'outroSkill'>
@@ -33,22 +37,10 @@ export type {
 }
 
 // convert numeric weapon type ids used by menu entries into filter keys
-export const WEAPON_TYPE_TO_KEY: Record<ResonatorMenuEntry['weaponType'], string> = {
-  1: 'broadblade',
-  2: 'sword',
-  3: 'pistols',
-  4: 'gauntlets',
-  5: 'rectifier',
-}
+export const WEAPON_TYPE_TO_KEY: Record<ResonatorMenuEntry['weaponType'], string> = DISPLAY_WEAPON_TYPE_TO_KEY
 
 // ordered weapon filter options for the resonator picker ui
-export const RESONATOR_FILTER_WEAPONS: Array<{ key: string; label: string }> = [
-  { key: 'broadblade', label: 'Broadblade' },
-  { key: 'sword', label: 'Sword' },
-  { key: 'pistols', label: 'Pistols' },
-  { key: 'gauntlets', label: 'Gauntlets' },
-  { key: 'rectifier', label: 'Rectifier' },
-]
+export const RESONATOR_FILTER_WEAPONS: Array<{ key: string; label: string }> = WEAPON_TYPE_OPTIONS
 
 // ordered attribute filters used by the resonator menu/filter ui
 export const RESONATOR_FILTER_ATTRIBUTES: AttributeKey[] = [

@@ -32,6 +32,7 @@ import {
 import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { getSkillTypeDisplay } from '@/modules/calculator/model/skillTypes'
 import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
+import { toTitle } from '@/shared/lib/format'
 
 export interface OverviewStateSummaryNode {
   id: string
@@ -54,16 +55,6 @@ export interface OverviewStateSummaryGroup {
   sourceName: string
   sourceProfile: string
   scopes: OverviewStateSummaryScopeGroup[]
-}
-
-// normalize ids / camelCase / snake_case / kebab-case into readable labels
-function toTitle(value: string): string {
-  if (!value) return ''
-  return value
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/[-_]+/g, ' ')
-      .replace(/\b\w/g, (match) => match.toUpperCase())
-      .trim()
 }
 
 // compact number formatting used in human-readable effect labels

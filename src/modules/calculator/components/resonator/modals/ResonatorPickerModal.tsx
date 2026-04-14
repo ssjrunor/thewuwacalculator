@@ -6,7 +6,7 @@ import {
   RESONATOR_FILTER_WEAPONS,
   WEAPON_TYPE_TO_KEY,
 } from '@/modules/calculator/model/resonator'
-import { toTitle } from '@/modules/calculator/model/overviewStats'
+import { toTitle } from '@/shared/lib/format'
 import { withDefaultIconImage } from '@/shared/lib/imageFallback'
 import { PickerModal } from '@/shared/ui/PickerModal'
 

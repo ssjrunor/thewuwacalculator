@@ -4,7 +4,7 @@ import { isUnsetWeaponId, type ResonatorRuntimeState } from '@/domain/entities/r
 import { listWeaponsByType } from '@/domain/services/weaponCatalogService'
 import { listOwnersForSource, listStatesForSource } from '@/domain/services/gameDataService'
 import { getResonator, WEAPON_TYPE_TO_KEY } from '@/modules/calculator/model/resonator'
-import { toTitle } from '@/modules/calculator/model/overviewStats'
+import { toTitle } from '@/shared/lib/format'
 import {
   getWeapon,
   resolveWeaponStatsAtLevel,

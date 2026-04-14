@@ -5,25 +5,18 @@
                coloring for elemental and status-related terms.
 */
 
+import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
+
 const FIXED_HIGHLIGHTS: Record<string, string> = {
-  'Spectro Frazzle': 'rgb(202,179,63)',
-  'Aero Erosion': 'rgb(15,205,160)',
-  'Havoc Bane': 'rgb(172,9,96)',
-  'Fusion Burst': 'rgb(197,52,79)',
-  'Electro Flare': 'rgb(167,13,209)',
-  'Glacio Chafe': 'rgb(62,189,227)',
+  'Spectro Frazzle': ATTRIBUTE_COLORS.spectro,
+  'Aero Erosion': ATTRIBUTE_COLORS.aero,
+  'Havoc Bane': ATTRIBUTE_COLORS.havoc,
+  'Fusion Burst': ATTRIBUTE_COLORS.fusion,
+  'Electro Flare': ATTRIBUTE_COLORS.electro,
+  'Glacio Chafe': ATTRIBUTE_COLORS.glacio,
 }
 
-const ATTRIBUTE_COLORS: Record<string, string> = {
-  glacio: 'rgb(62,189,227)',
-  spectro: 'rgb(202,179,63)',
-  havoc: 'rgb(172,9,96)',
-  electro: 'rgb(167,13,209)',
-  aero: 'rgb(15,205,160)',
-  fusion: 'rgb(197,52,79)',
-}
-
-const ELEMENT_KEYWORDS = Object.keys(ATTRIBUTE_COLORS)
+const ELEMENT_KEYWORDS = ['glacio', 'spectro', 'havoc', 'electro', 'aero', 'fusion'] as const
 
 // phrases that should be highlighted case-insensitively in formatted descriptions
 const ELEMENT_PHRASES = ELEMENT_KEYWORDS.flatMap((element) => [
@@ -70,7 +63,8 @@ function highlightKeywordsInHtml(html: string, extraKeywords: string[] = []): st
 
   // protect elemental resistance phrases with their own explicit colored markup
   processed = processed.replace(resRegex, (match) => {
-    const color = ATTRIBUTE_COLORS[match.split(' ')[0].toLowerCase()] ?? 'inherit'
+    const elementKey = match.split(' ')[0].toLowerCase() as keyof typeof ATTRIBUTE_COLORS
+    const color = ATTRIBUTE_COLORS[elementKey] ?? 'inherit'
     const token = `__WWCALC_RES_${protectedSegments.size}__`
     protectedSegments.set(
         token,

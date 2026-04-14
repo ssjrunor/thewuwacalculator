@@ -31,6 +31,7 @@ import {
 import { useGoogleDriveAuth } from '@/app/hooks/useGoogleDriveAuth'
 import { DATA_EXPORT_ACTIONS, buildDataExportFile, resolveImportedData } from '@/modules/settings/model/dataManagement'
 import { useToastStore } from '@/shared/util/toastStore.ts'
+import { toTitle } from '@/shared/lib/format'
 import {
   THEME_PREVIEWS,
   THEME_VARIANTS_BY_MODE,
@@ -61,13 +62,6 @@ function waitForNextPaint(): Promise<void> {
 
     window.requestAnimationFrame(() => resolve())
   })
-}
-
-function toTitle(value: string): string {
-  return value
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
 }
 
 function ToggleSwitch({

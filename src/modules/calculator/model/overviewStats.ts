@@ -11,6 +11,8 @@ import { resolveResonatorBaseStats } from '@/domain/services/resonatorSeedServic
 import { getWeaponById } from '@/domain/services/weaponCatalogService'
 import { getSkillTypeDisplay } from '@/modules/calculator/model/skillTypes'
 import { seedResonatorsById } from '@/modules/calculator/model/seedData'
+import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
+import { toTitle } from '@/shared/lib/format'
 
 export interface OverviewStatRow {
   label: string
@@ -47,17 +49,6 @@ export const STAT_ICON_MAP: Record<string, string> = {
   'Havoc DMG Bonus': '/assets/stat-icons/havoc.png',
 }
 
-// shared element colors for attribute-based display rows
-export const ATTRIBUTE_COLORS: Record<AttributeKey, string> = {
-  aero: '#0fcda0',
-  glacio: '#3ebde3',
-  spectro: '#d0b33f',
-  fusion: '#c5344f',
-  electro: '#a70dd1',
-  havoc: '#ac0960',
-  physical: '#8c8c8c',
-}
-
 // compact number formatter for large damage/stat readouts
 export function formatCompactNumber(raw: number | null): string {
   if (raw === null || !Number.isFinite(raw)) {
@@ -68,15 +59,6 @@ export function formatCompactNumber(raw: number | null): string {
   if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`
   if (num >= 1e7) return `${(num / 1e6).toFixed(1)}M`
   return num.toLocaleString()
-}
-
-// generic camelCase / snake_case / kebab-case -> title case helper
-export function toTitle(value: string): string {
-  return value
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/[-_]+/g, ' ')
-      .replace(/\b\w/g, (match) => match.toUpperCase())
-      .trim()
 }
 
 // format overview stat values according to whether they are flat or percent-based

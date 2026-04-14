@@ -4,10 +4,8 @@ import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
 import type { SimulationResult } from '@/engine/pipeline/types'
 import { useAppStore } from '@/domain/state/store'
 import { getPrimarySkillType, getSkillTypeDisplay } from '@/modules/calculator/model/skillTypes'
-import {
-  ATTRIBUTE_COLORS,
-  formatCompactNumber,
-} from '@/modules/calculator/model/overviewStats'
+import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
+import { formatCompactNumber } from '@/modules/calculator/model/overviewStats'
 import { Tooltip, DamageTooltip } from '@/shared/ui/Tooltip'
 import {
   buildContributionBreakdown,

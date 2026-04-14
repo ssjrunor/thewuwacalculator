@@ -179,6 +179,7 @@
 .confirmation-modal__body {
   display: grid;
   gap: 0.5rem;
+  overflow: auto;
   position: relative;
   z-index: 1;
 }

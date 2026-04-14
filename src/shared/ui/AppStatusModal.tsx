@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import { AppDialog } from '@/shared/ui/AppDialog'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
+import { CURRENT_PATCH_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
   lastUpdated: '11/04/2026',
   overallState: 'stable' as const,
-  patchVersion: '3.3.2',
+  patchVersion: CURRENT_PATCH_VERSION,
   dataSources: [
     { label: 'Encore', href: 'https://encore.moe/new?lang=en' },
     { label: 'Nanoka', href: 'https://ww.nanoka.cc/' },

@@ -24,7 +24,7 @@ import {
   type ResonatorSliderSkillTabKey,
   type ResonatorStateControl,
 } from '@/modules/calculator/model/resonator.ts'
-import { toTitle } from '@/modules/calculator/model/overviewStats'
+import { toTitle } from '@/shared/lib/format'
 import {
   attributeSliderColors,
   formatSkillKey,

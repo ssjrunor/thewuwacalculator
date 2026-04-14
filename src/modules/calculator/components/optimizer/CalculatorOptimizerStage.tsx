@@ -60,7 +60,9 @@ import {
 } from '@/modules/calculator/components/optimizer/OptimizerRow'
 import {OptimizerRules} from '@/modules/calculator/components/optimizer/OptimizerRules'
 import {HEADER_TITLES} from '@/modules/calculator/components/optimizer/mockData'
-import {formatStatKeyLabel, formatStatKeyValue, toTitle} from '@/modules/calculator/model/overviewStats'
+import {formatStatKeyLabel, formatStatKeyValue} from '@/modules/calculator/model/overviewStats'
+import { toTitle } from '@/shared/lib/format'
+import { OPTIMIZER_SKILL_TAB_ORDER, getSkillTabLabel } from '@/modules/calculator/model/skillTabs'
 import {modalContent} from '@/modules/calculator/components/optimizer/OptimizerModals'
 import {RESONATOR_MENU} from '@/modules/calculator/model/resonator'
 import { getWeapon, resolveWeaponStatsAtLevel } from '@/modules/calculator/model/weapon'
@@ -85,28 +87,6 @@ function createEmptyProgress(): OptimizerProgress {
 }
 
 const MODAL_EXIT_MS = 320
-
-const OPTIMIZER_SKILL_TAB_ORDER = [
-  'normalAttack',
-  'resonanceSkill',
-  'forteCircuit',
-  'resonanceLiberation',
-  'introSkill',
-  'outroSkill',
-  'tuneBreak',
-  'negativeEffect',
-] as const
-
-const OPTIMIZER_SKILL_TAB_LABELS: Record<string, string> = {
-  normalAttack: 'Normal Attack',
-  resonanceSkill: 'Resonance Skill',
-  forteCircuit: 'Forte Circuit',
-  resonanceLiberation: 'Resonance Liberation',
-  introSkill: 'Intro Skill',
-  outroSkill: 'Outro Skill',
-  tuneBreak: 'Tune Break',
-  negativeEffect: 'Negative Effects',
-}
 
 function mapMainStatFilterToEchoKey(filterKey: string, selectedBonus: string | null): string | null {
   if (filterKey === 'atk%') return 'atkPercent'
@@ -693,7 +673,7 @@ export function CalculatorOptimizerStage() {
 
     return OPTIMIZER_SKILL_TAB_ORDER
       .map((tab) => ({
-        label: OPTIMIZER_SKILL_TAB_LABELS[tab],
+        label: getSkillTabLabel(tab),
         options: grouped.get(tab) ?? [],
       }))
       .filter((group) => group.options.length > 0)

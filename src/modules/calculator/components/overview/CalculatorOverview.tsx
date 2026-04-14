@@ -26,8 +26,8 @@ import { getPrimarySkillType, getSkillTypeDisplay } from '@/modules/calculator/m
 import { getEchoCostById } from '@/modules/calculator/model/echoes'
 import { getRotationFooter, getWeaponVisualKey, groupByAverage } from '@/modules/calculator/model/overview'
 import type { StatsTreeNode } from '@/modules/calculator/model/overviewStats'
+import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
 import {
-  ATTRIBUTE_COLORS,
   STAT_ICON_MAP,
   buildOverviewStatsView,
   buildStatsTree,
@@ -35,8 +35,8 @@ import {
   formatDisplayValue,
   formatStatKeyLabel,
   formatStatKeyValue,
-  toTitle,
 } from '@/modules/calculator/model/overviewStats'
+import { toTitle } from '@/shared/lib/format'
 import { useConfirmation } from '@/app/hooks/useConfirmation.ts'
 import { Expandable } from '@/shared/ui/Expandable'
 import { useAppStore } from '@/domain/state/store.ts'

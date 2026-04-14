@@ -10,7 +10,7 @@ body.light,
   --muted: #5b6b85;
   --accent: #20bfb9;
   --accent-strong: #149fa9;
-  --danger: #d94664;
+  --danger: crimson;
   --ok: #1eab62;
   --ui-inner-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.16);
   --toolbar-bg: rgba(255, 255, 255, 0.9);
@@ -137,7 +137,7 @@ body.sunlit-haze,
   --muted: #5a7080;
   --accent: #c8960c;
   --accent-strong: #a67c00;
-  --danger: #d94664;
+  --danger: crimson;
   --ok: #1eab62;
   --toolbar-bg: transparent;
   --sidebar-bg: transparent;
@@ -177,7 +177,7 @@ body.dark,
   --muted: #a8b3c6;
   --accent: #20bfb9;
   --accent-strong: #0da5a7;
-  --danger: #ff5c77;
+  --danger: crimson;
   --ok: #7ed79f;
   --toolbar-bg: #1f2937;
   --sidebar-bg: #1f2937;
@@ -276,7 +276,7 @@ body.graphite-pop,
   --accent: #00e5ff;
   --accent-strong: #00bcd4;
   --surface-strong: color-mix(in srgb, var(--calc-text) 3%, transparent);
-  --danger: #ff4081;
+  --danger: crimson;
   --ok: #69f0ae;
   --toolbar-bg: #222222;
   --sidebar-bg: #222222;
