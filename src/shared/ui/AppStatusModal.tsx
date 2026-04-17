@@ -4,7 +4,7 @@ import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
 import { CURRENT_PATCH_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
-  lastUpdated: '11/04/2026',
+  lastUpdated: '17/04/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_PATCH_VERSION,
   dataSources: [
@@ -13,7 +13,7 @@ const STATUS_DATA = {
   ],
   notes: [
     'HIIII~!',
-    'I added new stuff to the optimizer... yeah.',
+    'Rotation building got a useful little upgrade: feature conditions, cleaner condition editing, add-below actions, and a bit of UI polish. Check it out when you get a chance~',
     'Remember, you can import your data from the old app if you have any data on there~',
     'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
     'Denia and Hiyuki are yet to release in game and as such their default rotations were crafted using my intuition. If they seem weird or anything... tell me on Discord.'
@@ -28,8 +28,10 @@ const STATUS_DATA = {
     'The guides system not fully implemented yet.',
   ],
   recentChanges: [
-    'Added team and manual buffs to the optimizer.',
-    'Optimizer result Equip now asks for Sim or Sim & Live, so applying a result is less suspicious.',
+    'Feature nodes can now carry attached condition/state changes.',
+    'Reworked the condition editor so adding and editing rotation state changes is less cramped.',
+    'Rotation lists can now add actions directly below a specific feature.',
+    'Cleaned up the rotation UI a bit.',
   ],
 }
 

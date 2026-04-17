@@ -108,6 +108,7 @@ export function cloneRotationNodes(
   return items.map((node) => {
     const clonedNode = structuredClone(node) as RotationNode
     const nextId = options?.freshIds ? createRotationNodeId(clonedNode.type) : clonedNode.id
+    delete (clonedNode as { condition?: unknown }).condition
 
     if (clonedNode.type === 'feature') {
       return {

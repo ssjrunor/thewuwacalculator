@@ -18,8 +18,6 @@ import {
   Trash2
 } from 'lucide-react'
 import type {
-  ConditionExpression,
-  EvalScopeRoot,
   FeatureDefinition,
   RotationNode,
   RuntimeChange,
@@ -41,7 +39,7 @@ import {getSkillTypeDisplay} from '@/modules/calculator/model/skillTypes'
 import {LiquidSelect} from '@/shared/ui/LiquidSelect'
 import {AppDialog} from '@/shared/ui/AppDialog'
 import {ModalCloseButton} from '@/shared/ui/ModalCloseButton'
-import {formatConditionExpression, formatRuntimeChange} from '@/shared/lib/formatGameData'
+import {formatRuntimeChange} from '@/shared/lib/formatGameData'
 import {RichDescription} from '@/shared/ui/RichDescription'
 import {Expandable} from '@/shared/ui/Expandable'
 import {ConfirmationModal} from '@/shared/ui/ConfirmationModal'
@@ -70,23 +68,17 @@ import {
   createNegativeEffectConfigDraft,
   serializeNegativeEffectConfigDraft,
 } from '@/modules/calculator/model/negativeEffectConfig'
-import {CgExport} from "react-icons/cg";
+import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
+import { ROTATION_SKILL_TAB_ORDER, SKILL_TAB_LABELS, type SkillTabKey } from '@/modules/calculator/model/skillTabs'
+import { extractRotationStats } from '@/modules/calculator/model/rotationAnalytics'
+import { buildRotationActionSequence } from '@/modules/calculator/model/rotationSequence'
+import { RotationActionSequenceList } from '@/modules/calculator/components/rotation/RotationActionSequenceList'
+import { formatDateShort, formatPercent } from '@/shared/lib/format'
+import { CgListTree} from "react-icons/cg";
+import {GrLinkDown} from "react-icons/gr";
+import {PiDownloadSimpleBold, PiPlusBold, PiUploadSimpleBold} from "react-icons/pi";
 
 // orchestrates the rotation editor surface and the helper dialogs around it.
-const skillTabOrder = [
-  'combo',
-  'normalAttack',
-  'resonanceSkill',
-  'forteCircuit',
-  'resonanceLiberation',
-  'introSkill',
-  'outroSkill',
-  'tuneBreak',
-  'echoAttacks',
-  'negativeEffect',
-] as const
-
-type SkillTabKey = (typeof skillTabOrder)[number]
 type RotationBranch = 'root' | 'items' | 'setup'
 type RotationDragArea = 'root' | 'block-items' | 'block-setup'
 
@@ -106,6 +98,7 @@ interface NodeTotals {
 interface RotationInsertTarget {
   parentId: string | null
   branch: RotationBranch
+  index?: number
 }
 
 interface RotationDropTarget extends RotationInsertTarget {
@@ -126,8 +119,17 @@ interface ConditionEditorState {
   nodeId?: string
 }
 
-interface ConditionBuilderState {
+interface FeatureConditionEditorState {
   nodeId: string
+}
+
+type FeatureConditionActionType = 'set' | 'add'
+
+interface FeatureConditionDraftRow {
+  id: string
+  action: FeatureConditionActionType
+  choiceId: string
+  value: string | number | boolean
 }
 
 interface NegativeEffectConfigState {
@@ -136,6 +138,14 @@ interface NegativeEffectConfigState {
 
 interface BlockPickerState {
   target: RotationInsertTarget
+}
+
+interface RotationLoadPayload {
+  mode: 'personal' | 'team'
+  resonatorId: ResonatorId
+  resonatorName: string
+  team?: ResonatorRuntimeState['build']['team']
+  items: RotationNode[]
 }
 
 interface SkillMenuEntry {
@@ -252,29 +262,6 @@ interface NodeMemberIcon {
   profile: string
 }
 
-const attributeColors: Record<AttributeKey, string> = {
-  aero: '#0fcda0',
-  glacio: '#3ebde3',
-  spectro: '#d0b33f',
-  fusion: '#c5344f',
-  electro: '#a70dd1',
-  havoc: '#ac0960',
-  physical: '#8c8c8c',
-}
-
-const skillTabLabels: Record<SkillTabKey, string> = {
-  combo: 'Combo',
-  normalAttack: 'Normal Attack',
-  resonanceSkill: 'Resonance Skill',
-  forteCircuit: 'Forte Circuit',
-  resonanceLiberation: 'Resonance Liberation',
-  introSkill: 'Intro Skill',
-  outroSkill: 'Outro Skill',
-  tuneBreak: 'Tune Break',
-  echoAttacks: 'Echo Attacks',
-  negativeEffect: 'Negative Effects',
-}
-
 const SUPPORT_STYLE: Record<Exclude<SkillAggregationType, 'damage'>, { label: string; color: string }> = {
   healing: {
     label: 'Healing',
@@ -285,6 +272,8 @@ const SUPPORT_STYLE: Record<Exclude<SkillAggregationType, 'damage'>, { label: st
     color: 'var(--calc-support-shield-color)',
   },
 }
+
+const EMPTY_FEATURE_CONDITION_CHANGES: RuntimeChange[] = []
 
 function getSupportStyle(aggregationType?: SkillAggregationType) {
   if (!aggregationType || aggregationType === 'damage') {
@@ -300,7 +289,7 @@ function getFeatureLabelColor(meta?: FeatureMeta): string {
     return supportStyle.color
   }
 
-  return attributeColors[meta?.element ?? 'physical'] ?? '#6c6c6c'
+  return ATTRIBUTE_COLORS[meta?.element ?? 'physical'] ?? '#6c6c6c'
 }
 
 function getSkillMenuLabelColor(skill: SkillDefinition): string {
@@ -318,7 +307,7 @@ function getSkillMenuLabelColor(skill: SkillDefinition): string {
 }
 
 function makeDefaultExpandedTabs(): Record<string, boolean> {
-  return Object.fromEntries(skillTabOrder.map((tab) => [tab, true]))
+  return Object.fromEntries(ROTATION_SKILL_TAB_ORDER.map((tab) => [tab, true]))
 }
 
 function getFeatureVariant(feature: FeatureDefinition): 'skill' | 'subHit' {
@@ -338,97 +327,6 @@ function formatNumber(raw: number): string {
   if (rounded >= 1e9) return `${(rounded / 1e9).toFixed(1)}B`
   if (rounded >= 1e6) return `${(rounded / 1e6).toFixed(1)}M`
   return rounded.toLocaleString()
-}
-
-function normalizeCondition(expression?: ConditionExpression): ConditionExpression | undefined {
-  if (!expression || expression.type === 'always') {
-    return undefined
-  }
-
-  return expression
-}
-
-function normalizeConditionPathRef(
-  path: string,
-  from?: EvalScopeRoot,
-): { path: string; from?: EvalScopeRoot } {
-  if (from) {
-    return { path, from }
-  }
-
-  if (path.startsWith('runtime.')) {
-    return {
-      from: 'sourceRuntime',
-      path: path.replace(/^runtime\./, ''),
-    }
-  }
-
-  if (path.startsWith('sourceRuntime.')) {
-    return {
-      from: 'sourceRuntime',
-      path: path.replace(/^sourceRuntime\./, ''),
-    }
-  }
-
-  if (path.startsWith('targetRuntime.')) {
-    return {
-      from: 'targetRuntime',
-      path: path.replace(/^targetRuntime\./, ''),
-    }
-  }
-
-  if (path.startsWith('activeRuntime.')) {
-    return {
-      from: 'activeRuntime',
-      path: path.replace(/^activeRuntime\./, ''),
-    }
-  }
-
-  return { path, from }
-}
-
-function normalizeStoredConditionExpression(
-  expression?: ConditionExpression,
-): ConditionExpression | undefined {
-  const normalized = normalizeCondition(expression)
-  if (!normalized) {
-    return undefined
-  }
-
-  switch (normalized.type) {
-    case 'not':
-      return {
-        ...normalized,
-        value: normalizeStoredConditionExpression(normalized.value) ?? { type: 'always' },
-      }
-    case 'and':
-    case 'or':
-      return {
-        ...normalized,
-        values: normalized.values
-          .map((value) => normalizeStoredConditionExpression(value) ?? { type: 'always' }),
-      }
-    case 'truthy':
-    case 'eq':
-    case 'neq':
-    case 'gt':
-    case 'gte':
-    case 'lt':
-    case 'lte': {
-      const ref = normalizeConditionPathRef(normalized.path, normalized.from)
-      return {
-        ...normalized,
-        path: ref.path,
-        ...(ref.from ? { from: ref.from } : {}),
-      }
-    }
-    default:
-      return normalized
-  }
-}
-
-function isMeaningfulCondition(expression?: ConditionExpression): boolean {
-  return Boolean(normalizeCondition(expression))
 }
 
 function sumTotals(entries: SimulationResult['perSkill']): NodeTotals {
@@ -609,22 +507,28 @@ function insertRotationNode(
   }
 
   if (!target.parentId || target.branch === 'root') {
-    return [...items, node]
+    const nextItems = [...items]
+    nextItems.splice(target.index ?? nextItems.length, 0, node)
+    return nextItems
   }
 
   return items.map((item) => {
     if (item.id === target.parentId) {
       if (target.branch === 'items' && (item.type === 'repeat' || item.type === 'uptime')) {
+        const nextItems = [...item.items]
+        nextItems.splice(target.index ?? nextItems.length, 0, node)
         return {
           ...item,
-          items: [...item.items, node],
+          items: nextItems,
         }
       }
 
       if (target.branch === 'setup' && item.type === 'uptime') {
+        const nextSetup = [...(item.setup ?? [])]
+        nextSetup.splice(target.index ?? nextSetup.length, 0, node)
         return {
           ...item,
-          setup: [...(item.setup ?? []), node],
+          setup: nextSetup,
         }
       }
     }
@@ -646,6 +550,21 @@ function insertRotationNode(
 
     return item
   })
+}
+
+function insertRotationNodes(
+  items: RotationNode[],
+  target: RotationInsertTarget,
+  nodes: RotationNode[],
+): RotationNode[] {
+  return nodes.reduce((nextItems, node, offset) => insertRotationNode(
+    nextItems,
+    {
+      ...target,
+      index: target.index === undefined ? undefined : target.index + offset,
+    },
+    node,
+  ), items)
 }
 
 function findRotationNode(items: RotationNode[], nodeId: string): RotationNode | null {
@@ -931,78 +850,33 @@ function buildConditionValue(definition: SourceStateDefinition): string | number
   return Math.max(definition.min ?? 0, definition.kind === 'stack' ? 1 : 0)
 }
 
-function makeExpressionForType(
-  type: ConditionExpression['type'],
-  choice?: ConditionChoice,
-): ConditionExpression {
-  const ref = normalizeConditionPathRef(choice?.state.path ?? 'runtime.state.controls.example')
-  const path = ref.path
-  const defaultValue = choice ? buildConditionValue(choice.state) : true
-
-  switch (type) {
-    case 'always':
-      return { type: 'always' }
-    case 'not':
-      return { type: 'not', value: { type: 'always' } }
-    case 'truthy':
-      return { type: 'truthy', path, ...(ref.from ? { from: ref.from } : {}) }
-    case 'eq':
-      return { type: 'eq', path, value: defaultValue, ...(ref.from ? { from: ref.from } : {}) }
-    case 'neq':
-      return { type: 'neq', path, value: defaultValue, ...(ref.from ? { from: ref.from } : {}) }
-    case 'gt':
-      return { type: 'gt', path, value: Number(defaultValue) || 0, ...(ref.from ? { from: ref.from } : {}) }
-    case 'gte':
-      return { type: 'gte', path, value: Number(defaultValue) || 0, ...(ref.from ? { from: ref.from } : {}) }
-    case 'lt':
-      return { type: 'lt', path, value: Number(defaultValue) || 0, ...(ref.from ? { from: ref.from } : {}) }
-    case 'lte':
-      return { type: 'lte', path, value: Number(defaultValue) || 0, ...(ref.from ? { from: ref.from } : {}) }
-    case 'and':
-      return { type: 'and', values: [{ type: 'always' }] }
-    case 'or':
-      return { type: 'or', values: [{ type: 'always' }] }
-    default:
-      return { type: 'always' }
-  }
-}
-
-function getExpressionRef(expression: ConditionExpression): { path: string; from?: EvalScopeRoot } | null {
-  if ('path' in expression) {
-    return normalizeConditionPathRef(expression.path, expression.from)
-  }
-
-  return null
-}
-
-function getChoiceForExpression(expression: ConditionExpression, choices: ConditionChoice[]): ConditionChoice | undefined {
-  const ref = getExpressionRef(expression)
-  if (!ref) {
-    return undefined
-  }
-
-  return choices.find((choice) => {
-    const choiceRef = normalizeConditionPathRef(choice.state.path)
-    return choiceRef.path === ref.path && choiceRef.from === ref.from
-  })
-}
-
 function renderConditionValueField(
   definition: SourceStateDefinition,
   value: string | number | boolean,
   onChange: (value: string | number | boolean) => void,
 ) {
   if (definition.kind === 'toggle') {
+    const checked = value === true
+
     return (
-      <LiquidSelect
-        value={String(value === true)}
-        options={[
-          { value: 'true', label: 'True' },
-          { value: 'false', label: 'False' },
-        ]}
-        onChange={(nextValue) => onChange(nextValue === 'true')}
-        ariaLabel={`${definition.label} value`}
-      />
+      <div className="feature-condition-boolean-stack" role="group" aria-label={`${definition.label} value`}>
+        <button
+          type="button"
+          className={`feature-condition-boolean-stack__btn${checked ? ' is-active' : ''}`}
+          aria-pressed={checked}
+          onClick={() => onChange(true)}
+        >
+          True
+        </button>
+        <button
+          type="button"
+          className={`feature-condition-boolean-stack__btn${!checked ? ' is-active' : ''}`}
+          aria-pressed={!checked}
+          onClick={() => onChange(false)}
+        >
+          False
+        </button>
+      </div>
     )
   }
 
@@ -1054,8 +928,14 @@ function formatConditionChange(change: RuntimeChange, choice?: ConditionChoice |
   }
 
   if (change.type === 'set') {
-    return `${choice.label} = ${formatStateValue(choice.state, change.value)}`
+    if (typeof change.value === "number" && !Number.isNaN(change.value)) {
+      return `${choice.label} at ${formatStateValue(choice.state, change.value)} stack${(change.value ?? 0) !== 1 ? 's' : ''}`
+    } else if (typeof change.value === "boolean") {
+      return `${choice.label} ${change.value ? 'active' : 'inactive'}`
+    }
+    return `Let ${choice.label} be ${formatStateValue(choice.state, change.value)}`
   }
+
 
   if (change.type === 'add') {
     return `${choice.label} + ${String(change.value)}`
@@ -1064,67 +944,127 @@ function formatConditionChange(change: RuntimeChange, choice?: ConditionChoice |
   return `${choice.label} = ${formatStateValue(choice.state, change.value ?? true)}`
 }
 
+function getConditionChoiceForChange(
+  choices: ConditionChoice[],
+  change: RuntimeChange | undefined,
+  fallbackResonatorId?: string,
+): ConditionChoice | null {
+  if (!change) {
+    return null
+  }
+
+  return choices.find(
+    (choice) =>
+      choice.resonatorId === (change.resonatorId ?? fallbackResonatorId) &&
+      choice.state.path === change.path,
+  ) ?? null
+}
+
+function isNumericConditionState(state: SourceStateDefinition): boolean {
+  return state.kind === 'stack' || state.kind === 'number'
+}
+
+function normalizeFeatureConditionAction(
+  action: FeatureConditionActionType,
+  choice: ConditionChoice | null | undefined,
+): FeatureConditionActionType {
+  return action === 'add' && choice && !isNumericConditionState(choice.state) ? 'set' : action
+}
+
+function makeFeatureConditionDraftRow(
+  choice: ConditionChoice | undefined,
+  action: FeatureConditionActionType = 'set',
+): FeatureConditionDraftRow {
+  const normalizedAction = normalizeFeatureConditionAction(action, choice)
+  return {
+    id: makeNodeId('rotation:feature-condition'),
+    action: normalizedAction,
+    choiceId: choice?.id ?? '',
+    value: normalizedAction === 'add' ? 1 : choice ? buildConditionValue(choice.state) : true,
+  }
+}
+
+function makeFeatureConditionDraftFromChange(
+  change: RuntimeChange,
+  choices: ConditionChoice[],
+  fallbackResonatorId?: string,
+): FeatureConditionDraftRow {
+  const choice = getConditionChoiceForChange(choices, change, fallbackResonatorId)
+  const action = normalizeFeatureConditionAction(change.type === 'add' ? 'add' : 'set', choice)
+
+  return {
+    id: makeNodeId('rotation:feature-condition'),
+    action,
+    choiceId: choice?.id ?? '',
+    value: action === 'add'
+      ? typeof change.value === 'number'
+        ? change.value
+        : 1
+      : change.type === 'toggle'
+        ? (change.value ?? true)
+        : change.value,
+  }
+}
+
+function serializeFeatureConditionDraftRows(
+  rows: FeatureConditionDraftRow[],
+  choices: ConditionChoice[],
+): RuntimeChange[] {
+  return rows.reduce<RuntimeChange[]>((changes, row) => {
+    const choice = choices.find((entry) => entry.id === row.choiceId)
+    if (!choice) {
+      return changes
+    }
+
+    const action = normalizeFeatureConditionAction(row.action, choice)
+    if (action === 'add') {
+      const value = Number(row.value)
+      changes.push({
+        type: 'add',
+        path: choice.state.path,
+        value: Number.isFinite(value) ? value : 0,
+        resonatorId: choice.resonatorId,
+      })
+      return changes
+    }
+
+    changes.push({
+      type: 'set',
+      path: choice.state.path,
+      value: row.value,
+      resonatorId: choice.resonatorId,
+    })
+    return changes
+  }, [])
+}
+
+function makeRotationConditionNodeFromChange(
+  change: RuntimeChange,
+  choices: ConditionChoice[],
+  options: {
+    id?: string
+    enabled?: boolean
+    fallbackResonatorId?: string
+  } = {},
+): Extract<RotationNode, { type: 'condition' }> {
+  const choice = getConditionChoiceForChange(choices, change, options.fallbackResonatorId)
+
+  return {
+    id: options.id ?? makeNodeId('rotation:condition'),
+    type: 'condition',
+    resonatorId: change.resonatorId ?? choice?.resonatorId ?? options.fallbackResonatorId,
+    label: choice?.label,
+    enabled: options.enabled ?? true,
+    changes: [change],
+  }
+}
+
 function formatConditionChoiceLabel(choice: ConditionChoice): string {
   if (!choice.sourceName || choice.label === choice.sourceName || choice.label.startsWith(`${choice.sourceName} `)) {
     return choice.label
   }
 
   return `${choice.sourceName} · ${choice.label}`
-}
-
-function formatConditionNumber(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value)
-  }
-
-  return value.toFixed(2).replace(/\.?0+$/, '')
-}
-
-function formatRotationConditionExpression(
-  expression: ConditionExpression | undefined,
-  choices: ConditionChoice[],
-): string {
-  if (!expression || expression.type === 'always') {
-    return 'Always'
-  }
-
-  if (expression.type === 'not') {
-    return `Not (${formatRotationConditionExpression(expression.value, choices)})`
-  }
-
-  if (expression.type === 'and') {
-    return expression.values.map((value) => formatRotationConditionExpression(value, choices)).join(' and ')
-  }
-
-  if (expression.type === 'or') {
-    return expression.values.map((value) => formatRotationConditionExpression(value, choices)).join(' or ')
-  }
-
-  const choice = getChoiceForExpression(expression, choices)
-  if (!choice) {
-    return formatConditionExpression(expression)
-  }
-
-  const label = formatConditionChoiceLabel(choice)
-
-  switch (expression.type) {
-    case 'truthy':
-      return label
-    case 'eq':
-      return `${label} = ${formatStateValue(choice.state, expression.value)}`
-    case 'neq':
-      return `${label} != ${formatStateValue(choice.state, expression.value)}`
-    case 'gt':
-      return `${label} > ${formatConditionNumber(expression.value)}`
-    case 'gte':
-      return `${label} >= ${formatConditionNumber(expression.value)}`
-    case 'lt':
-      return `${label} < ${formatConditionNumber(expression.value)}`
-    case 'lte':
-      return `${label} <= ${formatConditionNumber(expression.value)}`
-    default:
-      return formatConditionExpression(expression)
-  }
 }
 
 function makeConditionChoice(
@@ -1264,6 +1204,7 @@ function RotationDragPreview({
   if (node.type === 'feature') {
     const meta = featureMetaById[node.featureId]
     const totals = getNodeTotals(node, resultMap)
+    const attachedChanges = node.changes ?? []
 
     return (
       <article className={`rotation-item rotation-drag-preview ui-surface-card ui-surface-card--inner ${compact ? 'compact' : ''}`}>
@@ -1283,6 +1224,15 @@ function RotationDragPreview({
             </span>
           ) : null}
         </div>
+        {attachedChanges.length > 0 ? (
+          <div className="rotation-condition-list">
+            {attachedChanges.map((change, changeIndex) => (
+              <span key={`${change.path}:${changeIndex}`} className="rotation-condition-chip">
+                {formatConditionChange(change, getConditionChoiceForChange(conditionChoices, change, node.resonatorId))}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {!compact ? (
           <div className="rotation-footer">
             <RotationValues totals={totals} aggregationType={meta?.aggregationType} />
@@ -1293,12 +1243,7 @@ function RotationDragPreview({
   }
 
   const displayedChange = node.changes[0]
-  const conditionChoice =
-    conditionChoices.find(
-      (choice) =>
-        choice.resonatorId === (node.changes[0]?.resonatorId ?? node.resonatorId) &&
-        choice.state.path === node.changes[0]?.path,
-    ) ?? null
+  const conditionChoice = getConditionChoiceForChange(conditionChoices, displayedChange, node.resonatorId)
 
   return (
     <article className={`rotation-item rotation-condition rotation-drag-preview ui-surface-card ui-surface-card--inner ${compact ? 'compact' : ''}`}>
@@ -1377,194 +1322,6 @@ function RotationModalFrame({
       </div>
       {footer ? <div className="rotation-modal-footer">{footer}</div> : null}
     </AppDialog>
-  )
-}
-
-function ConditionExpressionEditor({
-  expression,
-  choices,
-  onChange,
-  onRemove,
-}: {
-  expression: ConditionExpression
-  choices: ConditionChoice[]
-  onChange: (nextExpression: ConditionExpression) => void
-  onRemove?: () => void
-}) {
-  const choice = getChoiceForExpression(expression, choices)
-  const choiceId = choice?.id ?? ''
-
-  const typeOptions: Array<{ value: ConditionExpression['type']; label: string }> = [
-    { value: 'always', label: 'Always' },
-    { value: 'truthy', label: 'Truthy' },
-    { value: 'eq', label: 'Equals' },
-    { value: 'neq', label: 'Not Equal' },
-    { value: 'gt', label: 'Greater Than' },
-    { value: 'gte', label: 'Greater or Equal' },
-    { value: 'lt', label: 'Less Than' },
-    { value: 'lte', label: 'Less or Equal' },
-    { value: 'not', label: 'Not' },
-    { value: 'and', label: 'And' },
-    { value: 'or', label: 'Or' },
-  ]
-
-  const updatePath = (nextChoiceId: string) => {
-    const nextChoice = choices.find((entry) => entry.id === nextChoiceId)
-    if (!nextChoice) {
-      return
-    }
-
-    const ref = normalizeConditionPathRef(nextChoice.state.path)
-
-    switch (expression.type) {
-      case 'truthy':
-        onChange({ ...expression, path: ref.path, ...(ref.from ? { from: ref.from } : {}) })
-        break
-      case 'eq':
-      case 'neq':
-        onChange({
-          ...expression,
-          path: ref.path,
-          ...(ref.from ? { from: ref.from } : {}),
-          value: buildConditionValue(nextChoice.state),
-        })
-        break
-      case 'gt':
-      case 'gte':
-      case 'lt':
-      case 'lte':
-        onChange({
-          ...expression,
-          path: ref.path,
-          ...(ref.from ? { from: ref.from } : {}),
-          value: Number(buildConditionValue(nextChoice.state)) || 0,
-        })
-        break
-      default:
-        break
-    }
-  }
-
-  const renderComparatorValue = () => {
-    if (!choice) {
-      return null
-    }
-
-    if (expression.type === 'eq' || expression.type === 'neq') {
-      return renderConditionValueField(choice.state, expression.value, (value) => {
-        onChange({
-          ...expression,
-          value,
-        })
-      })
-    }
-
-    if (expression.type === 'gt' || expression.type === 'gte' || expression.type === 'lt' || expression.type === 'lte') {
-      return (
-        <input
-          type="number"
-          className="resonator-level-input"
-          value={expression.value}
-          onChange={(event) => {
-            onChange({
-              ...expression,
-              value: Number(event.target.value) || 0,
-            })
-          }}
-        />
-      )
-    }
-
-    return null
-  }
-
-  return (
-    <div className="condition-builder-node">
-      <div className="condition-builder-header">
-        <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
-          <span>Type</span>
-          <LiquidSelect
-            value={expression.type}
-            options={typeOptions}
-            onChange={(nextType) => {
-              const nextChoice = choice ?? choices[0]
-              onChange(makeExpressionForType(nextType as ConditionExpression['type'], nextChoice))
-            }}
-            ariaLabel="Condition type"
-          />
-        </div>
-        {onRemove ? (
-          <button type="button" className="rotation-button clear mini" onClick={onRemove}>
-            Remove
-          </button>
-        ) : null}
-      </div>
-
-      {(expression.type === 'truthy' || expression.type === 'eq' || expression.type === 'neq' || expression.type === 'gt' || expression.type === 'gte' || expression.type === 'lt' || expression.type === 'lte') ? (
-        <div className="condition-builder-grid">
-          <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
-            <span>State</span>
-            <LiquidSelect
-              value={choiceId}
-              options={choices.map((entry) => ({
-                value: entry.id,
-                label: formatConditionChoiceLabel(entry),
-              }))}
-              onChange={updatePath}
-              ariaLabel="Condition path"
-            />
-          </div>
-          {expression.type !== 'truthy' ? (
-            <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
-              <span>Value</span>
-              {renderComparatorValue()}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {expression.type === 'not' ? (
-        <div className="condition-builder-children">
-          <ConditionExpressionEditor
-            expression={expression.value}
-            choices={choices}
-            onChange={(nextValue) => onChange({ ...expression, value: nextValue })}
-          />
-        </div>
-      ) : null}
-
-      {(expression.type === 'and' || expression.type === 'or') ? (
-        <div className="condition-builder-children">
-          {expression.values.map((entry, index) => (
-            <ConditionExpressionEditor
-              key={`${expression.type}-${index}`}
-              expression={entry}
-              choices={choices}
-              onChange={(nextValue) => {
-                const nextValues = [...expression.values]
-                nextValues[index] = nextValue
-                onChange({ ...expression, values: nextValues })
-              }}
-              onRemove={() => {
-                const nextValues = expression.values.filter((_, valueIndex) => valueIndex !== index)
-                onChange({
-                  ...expression,
-                  values: nextValues.length > 0 ? nextValues : [{ type: 'always' }],
-                })
-              }}
-            />
-          ))}
-          <button
-            type="button"
-            className="rotation-button mini"
-            onClick={() => onChange({ ...expression, values: [...expression.values, { type: 'always' }] })}
-          >
-            <Plus size={14} />
-            Add Condition
-          </button>
-        </div>
-      ) : null}
-    </div>
   )
 }
 
@@ -1757,7 +1514,7 @@ function RotationSkillMenu({
         </div>
 
         <div className="skill-menu-list">
-          {skillTabOrder.map((tabKey) => {
+          {ROTATION_SKILL_TAB_ORDER.map((tabKey) => {
             const groups = groupedEntries[tabKey]
             if (!groups?.length) {
               return null
@@ -1766,7 +1523,7 @@ function RotationSkillMenu({
             return (
               <div key={tabKey} className={`skill-tab-section ${expandedTabs[tabKey] ? 'open' : 'closed'}`}>
                 <button type="button" className="skill-tab-label collapsible-label" onClick={() => toggleTab(tabKey)}>
-                  <span>{skillTabLabels[tabKey]}</span>
+                  <span>{SKILL_TAB_LABELS[tabKey]}</span>
                   <span className={expandedTabs[tabKey] ? 'sequence-card-status active' : 'sequence-card-status'}>
                     {groups.length} {groups.length === 1 ? 'Skill' : 'Skills'}
                   </span>
@@ -1844,13 +1601,16 @@ function RotationSkillMenu({
   )
 }
 
-function ConditionEditorModal({
+function FeatureConditionsModal({
   visible,
   open,
   closing = false,
   portalTarget,
   choices,
-  initialNode,
+  initialChanges,
+  featureLabel,
+  eyebrow = 'Feature Conditions',
+  emptyText = 'Select a state from the picker to attach a condition.',
   onClose,
   onSave,
 }: {
@@ -1859,167 +1619,327 @@ function ConditionEditorModal({
   closing?: boolean
   portalTarget: HTMLElement | null
   choices: ConditionChoice[]
-  initialNode: Extract<RotationNode, { type: 'condition' }> | null
+  initialChanges: RuntimeChange[]
+  featureLabel: string
+  eyebrow?: string
+  emptyText?: string
   onClose: () => void
-  onSave: (node: Extract<RotationNode, { type: 'condition' }>) => void
+  onSave: (changes: RuntimeChange[]) => void
 }) {
-  const initialChange = initialNode?.changes[0]
-  const initialChoice = initialChange
-    ? choices.find(
-        (choice) =>
-          choice.resonatorId === (initialChange.resonatorId ?? initialNode?.resonatorId) &&
-          choice.state.path === initialChange.path,
-      )
-    : choices[0]
-  const [selectedChoiceId, setSelectedChoiceId] = useState(() => initialChoice?.id ?? '')
-  const [value, setValue] = useState<string | number | boolean>(() =>
-    initialChoice
-      ? initialChange?.type === 'toggle'
-        ? (initialChange.value ?? true)
-        : (initialChange?.value ?? buildConditionValue(initialChoice.state))
-      : true,
-  )
+  const [rows, setRows] = useState<FeatureConditionDraftRow[]>([])
+  const [activeRowId, setActiveRowId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
-  const selectedChoice = choices.find((choice) => choice.id === selectedChoiceId) ?? null
+  useEffect(() => {
+    if (!visible) {
+      return
+    }
+
+    const nextRows = initialChanges.map((change) => makeFeatureConditionDraftFromChange(change, choices))
+    setRows(nextRows)
+    setActiveRowId(nextRows[0]?.id ?? null)
+    setQuery('')
+  }, [choices, initialChanges, visible])
+
+  const activeRow = rows.find((row) => row.id === activeRowId) ?? null
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredChoices = useMemo(() => {
+    if (!normalizedQuery) {
+      return choices
+    }
+
+    return choices.filter((choice) =>
+      [
+        choice.label,
+        choice.sourceName,
+        choice.resonatorName,
+        formatConditionChoiceLabel(choice),
+      ].some((value) => value.toLowerCase().includes(normalizedQuery)),
+    )
+  }, [choices, normalizedQuery])
+  const groupedChoices = useMemo(() => {
+    const groups: Array<{ key: string; label: string; choices: ConditionChoice[] }> = []
+    const groupByKey = new Map<string, { key: string; label: string; choices: ConditionChoice[] }>()
+
+    for (const choice of filteredChoices) {
+      const key = `${choice.resonatorId}:${choice.sourceName}`
+      const label = choice.sourceName === choice.resonatorName
+        ? choice.resonatorName
+        : `${choice.resonatorName} · ${choice.sourceName}`
+      let group = groupByKey.get(key)
+      if (!group) {
+        group = { key, label, choices: [] }
+        groupByKey.set(key, group)
+        groups.push(group)
+      }
+      group.choices.push(choice)
+    }
+
+    return groups
+  }, [filteredChoices])
+
+  const updateRow = (rowId: string, updater: (row: FeatureConditionDraftRow) => FeatureConditionDraftRow) => {
+    setRows((current) => current.map((row) => (row.id === rowId ? updater(row) : row)))
+  }
+
+  const addRow = () => {
+    const nextRow = makeFeatureConditionDraftRow(choices[0])
+    setRows((current) => [...current, nextRow])
+    setActiveRowId(nextRow.id)
+  }
+
+  const removeRow = (rowId: string) => {
+    setRows((current) => {
+      const nextRows = current.filter((row) => row.id !== rowId)
+      if (activeRowId === rowId) {
+        setActiveRowId(nextRows[0]?.id ?? null)
+      }
+      return nextRows
+    })
+  }
+
+  const selectChoiceForActiveRow = (choice: ConditionChoice) => {
+    if (!activeRow) {
+      const nextRow = makeFeatureConditionDraftRow(choice)
+      setRows((current) => [...current, nextRow])
+      setActiveRowId(nextRow.id)
+      return
+    }
+
+    updateRow(activeRow.id, (row) => {
+      const action = normalizeFeatureConditionAction(row.action, choice)
+      return {
+        ...row,
+        action,
+        choiceId: choice.id,
+        value: action === 'add' ? 1 : buildConditionValue(choice.state),
+      }
+    })
+  }
+
+  const renderRowValueField = (row: FeatureConditionDraftRow, choice: ConditionChoice | undefined) => {
+    if (!choice) {
+      return <span className="feature-conditions-row__missing">Select a state</span>
+    }
+
+    if (row.action === 'add') {
+      return (
+        <input
+          type="number"
+          className="resonator-level-input feature-conditions-row__value"
+          step={choice.state.kind === 'stack' ? 1 : 0.1}
+          value={typeof row.value === 'number' ? row.value : Number(row.value) || 0}
+          onChange={(event) => {
+            const raw = Number(event.target.value)
+            updateRow(row.id, (current) => ({
+              ...current,
+              value: choice.state.kind === 'stack' ? Math.floor(raw || 0) : raw || 0,
+            }))
+          }}
+        />
+      )
+    }
+
+    return renderConditionValueField(choice.state, row.value, (value) => {
+      updateRow(row.id, (current) => ({
+        ...current,
+        value,
+      }))
+    })
+  }
+
+  if (!visible || !portalTarget) {
+    return null
+  }
 
   return (
-    <RotationModalFrame
+    <AppDialog
       visible={visible}
       open={open}
       closing={closing}
       portalTarget={portalTarget}
-      title={initialNode ? 'Edit Condition' : 'Add Condition'}
-      bodyClassName="rotation-editor-modal-body--condition"
+      contentClassName="app-modal-panel feature-conditions-modal"
+      ariaLabel="Set feature conditions"
       onClose={onClose}
-      footer={(
-        <>
+    >
+      <div className="feature-conditions-root">
+        <div className="feature-conditions-header">
+          <div>
+            <span className="feature-conditions-eyebrow">{eyebrow}</span>
+            <h2 className="feature-conditions-title">{featureLabel}</h2>
+          </div>
+          <ModalCloseButton onClick={onClose} />
+        </div>
+
+        <div className="feature-conditions-body">
+          <section className="feature-conditions-panel feature-conditions-panel--rows">
+            <div className="feature-conditions-panel-head">
+              <span>Attached Conditions</span>
+              <button
+                type="button"
+                className="block-icon-button"
+                title="Add condition"
+                onClick={addRow}
+                disabled={choices.length === 0}
+              >
+                <Plus size={15} />
+              </button>
+            </div>
+
+            <div className="feature-conditions-row-list">
+              {rows.length === 0 ? (
+                <div className="soft-empty feature-conditions-empty">
+                  {emptyText}
+                </div>
+              ) : (
+                rows.map((row, rowIndex) => {
+                  const choice = choices.find((entry) => entry.id === row.choiceId)
+                  const canAdd = choice ? isNumericConditionState(choice.state) : false
+                  const action = normalizeFeatureConditionAction(row.action, choice)
+                  const isActive = activeRowId === row.id
+                  const hasDescription = Boolean(choice?.description)
+
+                  return (
+                    <article
+                      key={row.id}
+                      className={`feature-conditions-row${isActive ? ' active' : ''}${isActive && hasDescription ? ' expanded' : ''}`}
+                      onClick={() => setActiveRowId(row.id)}
+                    >
+                      <div className="feature-conditions-row__top">
+                        <button
+                          type="button"
+                          className="feature-conditions-row__state"
+                          onClick={() => setActiveRowId(row.id)}
+                        >
+                          <span className="feature-conditions-row__index">#{rowIndex + 1}</span>
+                          <strong>{choice ? formatConditionChoiceLabel(choice) : 'Select a state'}</strong>
+                        </button>
+                        <button
+                          type="button"
+                          className="block-icon-button delete"
+                          title="Remove condition"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            removeRow(row.id)
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      <div className="feature-conditions-row__controls">
+                        <div className="feature-conditions-action-toggle" aria-label="Condition action">
+                          <button
+                            type="button"
+                            className={action === 'set' ? 'active' : ''}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              updateRow(row.id, (current) => ({
+                                ...current,
+                                action: 'set',
+                                value: choice ? buildConditionValue(choice.state) : true,
+                              }))
+                            }}
+                          >
+                            Set
+                          </button>
+                          <button
+                            type="button"
+                            className={action === 'add' ? 'active' : ''}
+                            disabled={!canAdd}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              updateRow(row.id, (current) => ({
+                                ...current,
+                                action: 'add',
+                                value: 1,
+                              }))
+                            }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                        {renderRowValueField({ ...row, action }, choice)}
+                      </div>
+
+                      {isActive && choice?.description ? (
+                        <div
+                          className="feature-conditions-row__description"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <RichDescription description={choice.description} params={choice.descriptionParams} />
+                        </div>
+                      ) : null}
+                    </article>
+                  )
+                })
+              )}
+            </div>
+          </section>
+
+          <section className="feature-conditions-panel feature-conditions-panel--picker">
+            <div className="feature-conditions-panel-head">
+              <div className="feature-conditions-panel-head__head">
+                <span>State Picker</span>
+                <small>{activeRow ? 'Editing selected row' : 'Choose a state to add'}</small>
+              </div>
+              <div className="feature-conditions-search">
+                <Search size={14} />
+                <input
+                    type="search"
+                    value={query}
+                    placeholder="Search states"
+                    onChange={(event) => setQuery(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="feature-conditions-picker-list">
+              {choices.length === 0 ? (
+                <div className="soft-empty feature-conditions-empty">
+                  No states are available for this rotation.
+                </div>
+              ) : groupedChoices.length === 0 ? (
+                <div className="soft-empty feature-conditions-empty">
+                  No states match that search.
+                </div>
+              ) : (
+                groupedChoices.map((group) => (
+                  <div key={group.key} className="feature-conditions-choice-group">
+                    <span className="feature-conditions-choice-group__label">{group.label}</span>
+                    <div className="feature-conditions-choice-grid">
+                      {group.choices.map((choice) => (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          className={activeRow?.choiceId === choice.id ? 'feature-conditions-choice active' : 'feature-conditions-choice'}
+                          onClick={() => selectChoiceForActiveRow(choice)}
+                        >
+                          <strong>{choice.sourceName} · {choice.label}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="feature-conditions-footer">
           <button type="button" className="rotation-button clear" onClick={onClose}>
             Cancel
           </button>
           <button
             type="button"
             className="rotation-button"
-            onClick={() => {
-              if (!selectedChoice) {
-                return
-              }
-
-              onSave({
-                id: initialNode?.id ?? makeNodeId('rotation:condition'),
-                type: 'condition',
-                resonatorId: selectedChoice.resonatorId,
-                label: selectedChoice.label,
-                enabled: initialNode?.enabled ?? true,
-                condition: initialNode?.condition,
-                changes: [
-                  {
-                    type: 'set',
-                    path: selectedChoice.state.path,
-                    value,
-                    resonatorId: selectedChoice.resonatorId,
-                  },
-                ],
-              })
-            }}
+            onClick={() => onSave(serializeFeatureConditionDraftRows(rows, choices))}
           >
             Save
           </button>
-        </>
-      )}
-    >
-      <div className="rotation-condition-modal">
-        <div className="rotation-condition-panel">
-          <div className="rotation-condition-grid">
-            <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
-              <span>State</span>
-              <LiquidSelect
-              value={selectedChoiceId}
-              options={choices.map((choice) => ({
-                  value: choice.id,
-                  label: formatConditionChoiceLabel(choice),
-                }))}
-                onChange={(nextValue) => {
-                  setSelectedChoiceId(nextValue)
-                  const nextChoice = choices.find((choice) => choice.id === nextValue)
-                  if (nextChoice) {
-                    setValue(buildConditionValue(nextChoice.state))
-                  }
-                }}
-                ariaLabel="Condition source state"
-              />
-            </div>
-
-            {selectedChoice ? (
-              <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide rotation-condition-value-field">
-                <span>Value</span>
-                {renderConditionValueField(selectedChoice.state, value, setValue)}
-              </div>
-            ) : null}
-          </div>
         </div>
-
-        {selectedChoice?.description ? (
-          <div className="rotation-condition-panel rotation-condition-panel--description">
-            <div className="rotation-condition-description">
-              <RichDescription description={selectedChoice.description} params={selectedChoice.descriptionParams} />
-            </div>
-          </div>
-        ) : null}
       </div>
-    </RotationModalFrame>
-  )
-}
-
-function ConditionBuilderModal({
-  visible,
-  open,
-  closing = false,
-  portalTarget,
-  choices,
-  initialExpression,
-  onClose,
-  onSave,
-}: {
-  visible: boolean
-  open: boolean
-  closing?: boolean
-  portalTarget: HTMLElement | null
-  choices: ConditionChoice[]
-  initialExpression?: ConditionExpression
-  onClose: () => void
-  onSave: (expression: ConditionExpression | undefined) => void
-}) {
-  const [draft, setDraft] = useState<ConditionExpression>(() => initialExpression ?? { type: 'always' })
-
-  return (
-    <RotationModalFrame
-      visible={visible}
-      open={open}
-      closing={closing}
-      portalTarget={portalTarget}
-      title="Edit Rule"
-      width="wide"
-      onClose={onClose}
-      footer={(
-        <>
-          <button type="button" className="rotation-button clear" onClick={() => setDraft({ type: 'always' })}>
-            Clear Rule
-          </button>
-          <button type="button" className="rotation-button clear" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rotation-button"
-            onClick={() => onSave(normalizeStoredConditionExpression(draft))}
-          >
-            Save Rule
-          </button>
-        </>
-      )}
-    >
-      <ConditionExpressionEditor expression={draft} choices={choices} onChange={setDraft} />
-    </RotationModalFrame>
+    </AppDialog>
   )
 }
 
@@ -2203,6 +2123,208 @@ function BlockPickerModal({
   )
 }
 
+const ROTATION_INLINE_ADD_MENU_WIDTH = 168
+const ROTATION_INLINE_ADD_MENU_OFFSET = 8
+const ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING = 12
+
+function RotationInlineAddMenu({
+  portalTarget,
+  allowFeature = true,
+  allowCondition = true,
+  allowBlock = true,
+  onAddFeature,
+  onAddCondition,
+  onAddBlock,
+}: {
+  portalTarget: HTMLElement | null
+  allowFeature?: boolean
+  allowCondition?: boolean
+  allowBlock?: boolean
+  onAddFeature: () => void
+  onAddCondition: () => void
+  onAddBlock: () => void
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const frameRef = useRef<number | null>(null)
+  const [open, setOpen] = useState(false)
+  const [placement, setPlacement] = useState<'up' | 'down'>('down')
+  const [menuLayout, setMenuLayout] = useState<CSSProperties>({
+    left: `${ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING}px`,
+    top: `${ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING}px`,
+    width: `${ROTATION_INLINE_ADD_MENU_WIDTH}px`,
+  })
+  const visibleOptionCount = [allowFeature, allowCondition, allowBlock].filter(Boolean).length
+  const resolvedPortalTarget = portalTarget ?? getBodyPortalTarget()
+
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+  }, [])
+
+  const clearMeasureFrame = useCallback(() => {
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+    }
+  }, [])
+
+  const measureMenu = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return
+    }
+
+    const estimatedHeight = 18 + visibleOptionCount * 42
+    const spaceBelow = window.innerHeight - rect.bottom - ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING
+    const spaceAbove = rect.top - ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING
+    const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow
+    const width = Math.min(
+      ROTATION_INLINE_ADD_MENU_WIDTH,
+      window.innerWidth - ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING * 2,
+    )
+    const left = Math.min(
+      Math.max(ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING, rect.right - width),
+      Math.max(
+        ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING,
+        window.innerWidth - ROTATION_INLINE_ADD_MENU_VIEWPORT_PADDING - width,
+      ),
+    )
+
+    setPlacement(openUpward ? 'up' : 'down')
+    setMenuLayout({
+      left: `${left}px`,
+      width: `${width}px`,
+      top: openUpward ? undefined : `${rect.bottom + ROTATION_INLINE_ADD_MENU_OFFSET}px`,
+      bottom: openUpward ? `${window.innerHeight - rect.top + ROTATION_INLINE_ADD_MENU_OFFSET}px` : undefined,
+    })
+  }, [visibleOptionCount])
+
+  const scheduleMeasureMenu = useCallback(() => {
+    clearMeasureFrame()
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null
+      measureMenu()
+    })
+  }, [clearMeasureFrame, measureMenu])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    scheduleMeasureMenu()
+    menuRef.current?.focus()
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return
+      }
+
+      closeMenu()
+    }
+
+    const handleWindowChange = () => {
+      scheduleMeasureMenu()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('scroll', handleWindowChange, true)
+    window.addEventListener('resize', handleWindowChange)
+
+    return () => {
+      clearMeasureFrame()
+      document.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('scroll', handleWindowChange, true)
+      window.removeEventListener('resize', handleWindowChange)
+    }
+  }, [clearMeasureFrame, closeMenu, open, scheduleMeasureMenu])
+
+  useEffect(() => clearMeasureFrame, [clearMeasureFrame])
+
+  const handleSelect = useCallback((action: () => void) => {
+    closeMenu()
+    action()
+  }, [closeMenu])
+
+  const menu =
+    open && resolvedPortalTarget
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="rotation-inline-add-popover"
+            data-placement={placement}
+            style={menuLayout}
+            tabIndex={-1}
+            role="menu"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' || event.key === 'Tab') {
+                closeMenu()
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="rotation-inline-add-option"
+              role="menuitem"
+              disabled={!allowFeature}
+              onClick={() => handleSelect(onAddFeature)}
+            >
+              <span>Feature</span>
+              <span className="rotation-inline-add-option__hint">Skill step</span>
+            </button>
+            <button
+              type="button"
+              className="rotation-inline-add-option"
+              role="menuitem"
+              disabled={!allowCondition}
+              onClick={() => handleSelect(onAddCondition)}
+            >
+              <span>Condition</span>
+              <span className="rotation-inline-add-option__hint">State change</span>
+            </button>
+            <button
+              type="button"
+              className="rotation-inline-add-option"
+              role="menuitem"
+              disabled={!allowBlock}
+              onClick={() => handleSelect(onAddBlock)}
+            >
+              <span>Block</span>
+              <span className="rotation-inline-add-option__hint">Repeat or uptime</span>
+            </button>
+          </div>,
+          resolvedPortalTarget,
+        )
+      : null
+
+  return (
+    <div ref={rootRef} className="rotation-inline-add-menu">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`block-icon-button${open ? ' active' : ''}`}
+        title="Add below"
+        aria-label="Add below this rotation item"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          if (open) {
+            closeMenu()
+          } else {
+            scheduleMeasureMenu()
+            setOpen(true)
+          }
+        }}
+      >
+        <GrLinkDown size={15} />
+      </button>
+      {menu}
+    </div>
+  )
+}
+
 function RotationNodeCard({
   children,
   depth,
@@ -2249,6 +2371,7 @@ function RotationNodeCard({
 }
 
 function RotationTreeNode({
+  portalTarget,
   runtime,
   runtimesById,
   treeItems,
@@ -2277,11 +2400,12 @@ function RotationTreeNode({
   onOpenFeatureMenu,
   onOpenNegativeEffectConfig,
   onOpenConditionEditor,
-  onOpenConditionBuilder,
+  onOpenFeatureConditionEditor,
   onOpenBlockPicker,
   onUpdateNode,
   onInsertNodeAt,
 }: {
+  portalTarget: HTMLElement | null
   runtime: ResonatorRuntimeState
   runtimesById: Record<string, ResonatorRuntimeState>
   treeItems: RotationNode[]
@@ -2310,7 +2434,7 @@ function RotationTreeNode({
   onOpenFeatureMenu: (state: FeatureMenuState) => void
   onOpenNegativeEffectConfig: (state: NegativeEffectConfigState) => void
   onOpenConditionEditor: (state: ConditionEditorState) => void
-  onOpenConditionBuilder: (state: ConditionBuilderState) => void
+  onOpenFeatureConditionEditor: (state: FeatureConditionEditorState) => void
   onOpenBlockPicker: (target: RotationInsertTarget) => void
   onUpdateNode: (nodeId: string, updater: (node: RotationNode) => RotationNode) => void
   onInsertNodeAt: (target: RotationDropTarget, node: RotationNode) => void
@@ -2322,6 +2446,13 @@ function RotationTreeNode({
   const dragArea: RotationDragArea = branch === 'setup' ? 'block-setup' : branch === 'items' ? 'block-items' : 'root'
   const disabled = !(node.enabled ?? true)
   const canDropDraggedNodeHere = canInsertNodeIntoBranch(draggedNode, branch)
+  const addBelowTarget: RotationInsertTarget = {
+    parentId,
+    branch,
+    index: index + 1,
+  }
+  const allowAddFeatureBelow = branch !== 'setup'
+  const allowAddBlockBelow = branch !== 'setup'
   const conditionChoice =
     node.type === 'condition'
       ? conditionChoices.find(
@@ -2382,6 +2513,7 @@ function RotationTreeNode({
     const isNegativeEffectFeature = meta?.tab === 'negativeEffect'
     const usesFixedNegativeEffectStacks = Boolean(meta?.fixedStacks)
     const negativeEffectAttribute = getNegativeEffectAttribute(meta?.archetype)
+    const attachedChanges = node.changes ?? []
 
     if (orphaned) {
       return (
@@ -2410,11 +2542,6 @@ function RotationTreeNode({
                 style={{ color: getFeatureLabelColor(meta) }}
               >
                 {meta?.label ?? node.featureId}
-              </span>
-              <span className="rotation-entry-sub">
-                {isMeaningfulCondition(node.condition)
-                  ? `${runtime.rotation.view === 'team' ? ' · ' : ''}Anchor: ${formatRotationConditionExpression(node.condition, conditionChoices)}`
-                  : ''}
               </span>
             </div>
             <div className="rotation-node-actions">
@@ -2519,12 +2646,29 @@ function RotationTreeNode({
                 </button>
               ) : null}
               <button
-                type="button"
-                className="rotation-button mini"
-                onClick={() => onOpenConditionBuilder({ nodeId: node.id })}
+                  type="button"
+                  className="block-icon-button"
+                  onClick={() => onOpenFeatureConditionEditor({ nodeId: node.id })}
+                  aria-label="Set/Add Condition"
+                  title="Set/Add Condition"
               >
-                When
+                <PiPlusBold />
               </button>
+              <RotationInlineAddMenu
+                portalTarget={portalTarget}
+                allowFeature={allowAddFeatureBelow}
+                allowCondition
+                allowBlock={allowAddBlockBelow}
+                onAddFeature={() =>
+                  onOpenFeatureMenu({
+                    mode: 'add',
+                    activeMemberId: node.resonatorId ?? meta?.resonatorId ?? defaultFeatureMemberId,
+                    target: addBelowTarget,
+                  })
+                }
+                onAddCondition={() => onOpenConditionEditor({ mode: 'add', target: addBelowTarget })}
+                onAddBlock={() => onOpenBlockPicker(addBelowTarget)}
+              />
               <button
                 type="button"
                 className="block-icon-button power"
@@ -2568,6 +2712,18 @@ function RotationTreeNode({
               />
             </div>
           </div>
+          {attachedChanges.length > 0 ? (
+              <div className="rotation-condition-list">
+                {attachedChanges.map((change, changeIndex) => (
+                    <span key={`${change.path}:${changeIndex}`} className="rotation-condition-chip">
+                  {formatConditionChange(
+                      change,
+                      getConditionChoiceForChange(conditionChoices, change, node.resonatorId ?? meta?.resonatorId ?? runtime.id),
+                  )}
+                </span>
+                ))}
+              </div>
+          ) : null}
         </article>
       </RotationNodeCard>
     )
@@ -2595,15 +2751,24 @@ function RotationTreeNode({
       )
     }
 
+   /* const conditionActive = (() => {
+      if (displayedChange.type === 'set') {
+        if (typeof displayedChange.value === "number" && !Number.isNaN(displayedChange.value)) {
+          return displayedChange.value > 0
+        }
+        if (typeof displayedChange.value === "boolean") {
+          return displayedChange.value
+        }
+      }
+      return true
+    })()*/
+
     return (
       <RotationNodeCard depth={depth} disabled={disabled} isDragOver={isDragOver} isDragging={draggedId === node.id} {...sharedDragProps}>
         <div className="rotation-item rotation-condition">
           <div className="rotation-header">
             <div className="rotation-entry-main">
-              <span className="entry-name">{node.label ?? conditionChoice?.label ?? 'Condition'}</span>
-              <span className="rotation-entry-sub">
-                {isMeaningfulCondition(node.condition) ? ` · Anchor: ${formatRotationConditionExpression(node.condition, conditionChoices)}` : ''}
-              </span>
+              <span className="entry-name">{formatConditionChange(displayedChange, conditionChoice) ?? node.label ?? conditionChoice?.label ?? 'Condition'}</span>
             </div>
             <div className="rotation-node-actions">
               <button
@@ -2614,9 +2779,21 @@ function RotationTreeNode({
               >
                 <Pencil size={15} />
               </button>
-              <button type="button" className="rotation-button mini" onClick={() => onOpenConditionBuilder({ nodeId: node.id })}>
-                When
-              </button>
+              <RotationInlineAddMenu
+                portalTarget={portalTarget}
+                allowFeature={allowAddFeatureBelow}
+                allowCondition
+                allowBlock={allowAddBlockBelow}
+                onAddFeature={() =>
+                  onOpenFeatureMenu({
+                    mode: 'add',
+                    activeMemberId: node.resonatorId ?? conditionChoice?.resonatorId ?? defaultFeatureMemberId,
+                    target: addBelowTarget,
+                  })
+                }
+                onAddCondition={() => onOpenConditionEditor({ mode: 'add', target: addBelowTarget })}
+                onAddBlock={() => onOpenBlockPicker(addBelowTarget)}
+              />
               <button
                 type="button"
                 className="block-icon-button power"
@@ -2634,13 +2811,6 @@ function RotationTreeNode({
                 </span>
               ) : null}
             </div>
-          </div>
-          <div className="rotation-condition-list">
-            {displayedChange ? (
-              <span className="rotation-condition-chip">{formatConditionChange(displayedChange, conditionChoice)}</span>
-            ) : (
-              <span className="rotation-condition-chip">No condition selected</span>
-            )}
           </div>
         </div>
       </RotationNodeCard>
@@ -2694,14 +2864,6 @@ function RotationTreeNode({
         <div className="block-header">
           <div className="rotation-entry-main">
             <h4 className="entry-name">{node.type === 'repeat' ? 'Repeat' : 'Uptime'}</h4>
-{/*
-            <span className="rotation-entry-sub">
-              {node.type === 'repeat'
-                ? `${typeof node.times === 'number' ? node.times : 'Formula'} repetitions`
-                : `${Math.round((typeof node.ratio === 'number' ? node.ratio : 1) * 100)}% active`}
-              {isMeaningfulCondition(node.condition) ? ` · Anchor: ${formatRotationConditionExpression(node.condition, conditionChoices)}` : ''}
-            </span>
-*/}
           </div>
           <div className="rotation-node-actions">
             {node.type === 'repeat' ? (
@@ -2753,9 +2915,21 @@ function RotationTreeNode({
             <button type="button" className="rotation-collapse-button" onClick={() => onToggleCollapse(node.id)}>
               {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
-            <button type="button" className="rotation-button mini" onClick={() => onOpenConditionBuilder({ nodeId: node.id })}>
-              When
-            </button>
+            <RotationInlineAddMenu
+              portalTarget={portalTarget}
+              allowFeature={allowAddFeatureBelow}
+              allowCondition
+              allowBlock={allowAddBlockBelow}
+              onAddFeature={() =>
+                onOpenFeatureMenu({
+                  mode: 'add',
+                  activeMemberId: node.resonatorId ?? defaultFeatureMemberId,
+                  target: addBelowTarget,
+                })
+              }
+              onAddCondition={() => onOpenConditionEditor({ mode: 'add', target: addBelowTarget })}
+              onAddBlock={() => onOpenBlockPicker(addBelowTarget)}
+            />
             <button
               type="button"
               className="block-icon-button power"
@@ -2828,6 +3002,7 @@ function RotationTreeNode({
                       <React.Fragment key={child.id}>
                         {dragOverKey === childDragKey ? renderDraggedPlaceholder(`setup-preview:${child.id}`) : null}
                         <RotationTreeNode
+                          portalTarget={portalTarget}
                           runtime={runtime}
                           runtimesById={runtimesById}
                           treeItems={treeItems}
@@ -2856,7 +3031,7 @@ function RotationTreeNode({
                           onOpenFeatureMenu={onOpenFeatureMenu}
                           onOpenNegativeEffectConfig={onOpenNegativeEffectConfig}
                           onOpenConditionEditor={onOpenConditionEditor}
-                          onOpenConditionBuilder={onOpenConditionBuilder}
+                          onOpenFeatureConditionEditor={onOpenFeatureConditionEditor}
                           onOpenBlockPicker={onOpenBlockPicker}
                           onUpdateNode={onUpdateNode}
                           onInsertNodeAt={onInsertNodeAt}
@@ -2936,6 +3111,7 @@ function RotationTreeNode({
                     <React.Fragment key={child.id}>
                       {dragOverKey === childDragKey ? renderDraggedPlaceholder(`items-preview:${child.id}`) : null}
                       <RotationTreeNode
+                        portalTarget={portalTarget}
                         runtime={runtime}
                         runtimesById={runtimesById}
                         treeItems={treeItems}
@@ -2964,7 +3140,7 @@ function RotationTreeNode({
                         onOpenFeatureMenu={onOpenFeatureMenu}
                         onOpenNegativeEffectConfig={onOpenNegativeEffectConfig}
                         onOpenConditionEditor={onOpenConditionEditor}
-                        onOpenConditionBuilder={onOpenConditionBuilder}
+                        onOpenFeatureConditionEditor={onOpenFeatureConditionEditor}
                         onOpenBlockPicker={onOpenBlockPicker}
                         onUpdateNode={onUpdateNode}
                         onInsertNodeAt={onInsertNodeAt}
@@ -2986,186 +3162,6 @@ function RotationTreeNode({
       </div>
     </RotationNodeCard>
   )
-}
-
-function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return '—'
-  return `${value.toFixed(1)}%`
-}
-
-function formatDateShort(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-  }).format(timestamp)
-}
-
-function getOptionalString(node: RotationNode, key: string): string | null {
-  const value = (node as unknown as Record<string, unknown>)[key]
-  return typeof value === 'string' && value ? value : null
-}
-
-function getNodeItems(node: RotationNode): RotationNode[] {
-  if ('items' in node && Array.isArray(node.items)) return node.items
-  return []
-}
-
-function getNodeSetup(node: RotationNode): RotationNode[] {
-  if ('setup' in node && Array.isArray(node.setup)) return node.setup
-  return []
-}
-
-function getNodeLabel(node: RotationNode): string {
-  return (
-      getOptionalString(node, 'label') ||
-      getOptionalString(node, 'name') ||
-      getOptionalString(node, 'title') ||
-      getOptionalString(node, 'skillName') ||
-      getOptionalString(node, 'action') ||
-      (node.type === 'condition' ? 'Condition' : null) ||
-      (node.type === 'feature' ? 'Feature' : null) ||
-      (node.type === 'repeat' ? 'Repeat' : null) ||
-      node.type
-  )
-}
-
-type RotationPreviewGroup = {
-  kind: string
-  count: number
-  label: string
-}
-
-function getPreviewKind(node: RotationNode): string {
-  if (node.type === 'feature') return 'feature'
-  if (node.type === 'condition') {
-    const label = getNodeLabel(node).toLowerCase()
-    if (label.includes('uptime')) return 'uptime'
-    return 'condition'
-  }
-  if (node.type === 'repeat') return 'repeat'
-  return node.type
-}
-
-function getPreviewGroupLabel(kind: string, count: number): string {
-  const plural = count === 1 ? '' : 's'
-
-  switch (kind) {
-    case 'feature':
-      return `${count} Feature${plural}`
-    case 'uptime':
-      return `${count} Uptime${plural}`
-    case 'condition':
-      return `${count} Condition${plural}`
-    case 'repeat':
-      return `${count} Repeat${plural}`
-    default:
-      return `${count} ${kind[0].toUpperCase()}${kind.slice(1)}${plural}`
-  }
-}
-
-type FlattenedPreviewNode = {
-  node: RotationNode
-  inSetup: boolean
-  depth: number
-}
-
-function flattenRotationNodes(
-    nodes: RotationNode[],
-    depth = 1,
-    inSetup = false,
-): FlattenedPreviewNode[] {
-  const result: FlattenedPreviewNode[] = []
-
-  for (const node of nodes) {
-    result.push({ node, inSetup, depth })
-
-    const setup = getNodeSetup(node)
-    const children = getNodeItems(node)
-
-    if (setup.length > 0) {
-      result.push(...flattenRotationNodes(setup, depth + 1, true))
-    }
-
-    if (children.length > 0) {
-      result.push(...flattenRotationNodes(children, depth + 1, inSetup))
-    }
-  }
-
-  return result
-}
-
-function buildGroupedPreview(nodes: RotationNode[], limit = 10): RotationPreviewGroup[] {
-  const flattened = flattenRotationNodes(nodes)
-  const groups: RotationPreviewGroup[] = []
-
-  for (const { node } of flattened) {
-    const kind = getPreviewKind(node)
-    const last = groups[groups.length - 1]
-
-    if (last && last.kind === kind) {
-      last.count += 1
-      last.label = getPreviewGroupLabel(last.kind, last.count)
-    } else {
-      groups.push({
-        kind,
-        count: 1,
-        label: getPreviewGroupLabel(kind, 1),
-      })
-    }
-  }
-
-  return groups.slice(0, limit)
-}
-
-type RotationExtractedStats = {
-  totalNodes: number
-  topLevelNodes: number
-  setupNodes: number
-  repeatNodes: number
-  conditionNodes: number
-  featureNodes: number
-  deepestDepth: number
-  preview: RotationPreviewGroup[]
-}
-
-function extractRotationStats(items: RotationNode[]): RotationExtractedStats {
-  let totalNodes = 0
-  let setupNodes = 0
-  let repeatNodes = 0
-  let conditionNodes = 0
-  let featureNodes = 0
-  let deepestDepth = 0
-
-  const visit = (nodes: RotationNode[], depth: number, inSetup = false) => {
-    deepestDepth = Math.max(deepestDepth, depth)
-
-    for (const node of nodes) {
-      totalNodes += 1
-      if (inSetup) setupNodes += 1
-      if (node.type === 'repeat') repeatNodes += 1
-      if (node.type === 'condition') conditionNodes += 1
-      if (node.type === 'feature') featureNodes += 1
-
-      const setup = getNodeSetup(node)
-      const children = getNodeItems(node)
-
-      if (setup.length > 0) visit(setup, depth + 1, true)
-      if (children.length > 0) visit(children, depth + 1, inSetup)
-    }
-  }
-
-  visit(items, 1)
-
-  return {
-    totalNodes,
-    topLevelNodes: items.length,
-    setupNodes,
-    repeatNodes,
-    conditionNodes,
-    featureNodes,
-    deepestDepth,
-    preview: buildGroupedPreview(items, 10),
-  }
 }
 
 function SavedRotationSnapshotSummary({
@@ -3374,9 +3370,10 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({})
   const featureMenuModal = useAnimatedModalValue<FeatureMenuState>()
   const conditionEditorModal = useAnimatedModalValue<ConditionEditorState>()
-  const conditionBuilderModal = useAnimatedModalValue<ConditionBuilderState>()
+  const featureConditionEditorModal = useAnimatedModalValue<FeatureConditionEditorState>()
   const negativeEffectConfigModal = useAnimatedModalValue<NegativeEffectConfigState>()
   const blockPickerModal = useAnimatedModalValue<BlockPickerState>()
+  const actionListModal = useAnimatedModalValue<InventoryRotationEntry>()
   const loadChoiceModal = useAnimatedModalValue<InventoryRotationEntry>()
   const [savedSearchInput, setSavedSearchInput] = useState(() =>
     savedRotationPreferences.autoSearchActiveResonator ? seed.name : '',
@@ -3701,12 +3698,6 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     return lookup
   }, [availableMembers])
 
-  const conditionStateChoices = useMemo<ConditionChoice[]>(() => {
-    return availableMembers.flatMap((member) =>
-      member.states.map((state) => makeConditionChoice(member, state)),
-    )
-  }, [availableMembers])
-
   const conditionChoices = useMemo<ConditionChoice[]>(() => {
     return availableMembers.flatMap((member) => {
       const stateChoices = member.states.map((state) => makeConditionChoice(member, state))
@@ -3840,10 +3831,13 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
         return found?.type === 'condition' ? found : null
       })()
     : null
-
-  const editedConditionRuleNode = conditionBuilderModal.value?.nodeId
-    ? findRotationNode(currentItems, conditionBuilderModal.value.nodeId)
+  const editedFeatureConditionNode = featureConditionEditorModal.value?.nodeId
+    ? (() => {
+        const found = findRotationNode(currentItems, featureConditionEditorModal.value.nodeId)
+        return found?.type === 'feature' ? found : null
+      })()
     : null
+
   const editedNegativeEffectFeatureNode = negativeEffectConfigModal.value?.nodeId
     ? (() => {
         const found = findRotationNode(currentItems, negativeEffectConfigModal.value.nodeId)
@@ -3905,6 +3899,10 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
 
   const insertCurrentNode = (target: RotationInsertTarget, node: RotationNode) => {
     updateCurrentItems((items) => insertRotationNode(items, target, node))
+  }
+
+  const insertCurrentNodes = (target: RotationInsertTarget, nodes: RotationNode[]) => {
+    updateCurrentItems((items) => insertRotationNodes(items, target, nodes))
   }
 
   const handleDragOverTarget = useCallback((key: string | null, area: RotationDragArea | null) => {
@@ -3991,7 +3989,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     })
   }
 
-  const applyRotationToResonator = (entry: InventoryRotationEntry, targetId: string) => {
+  const applyRotationToResonator = (entry: RotationLoadPayload, targetId: string) => {
     if (entry.mode === 'team' && entry.team) {
       for (const memberId of entry.team) {
         if (!memberId) continue
@@ -4098,6 +4096,14 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     featureMenuModal.value?.mode === 'edit' && editedFeatureNode
       ? featureMetaById[editedFeatureNode.featureId]?.variant === 'subHit'
       : false
+  const actionListSequence = useMemo(() => {
+    return actionListModal.value
+      ? buildRotationActionSequence({
+          items: actionListModal.value.items,
+          resonatorId: actionListModal.value.resonatorId,
+        })
+      : null
+  }, [actionListModal.value])
   const showEditor = runtime.rotation.view !== 'saved'
   const draggedEntryNode = isEntryNode(draggedNode) ? draggedNode : null
   const showDragPreview =
@@ -4220,7 +4226,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
               </div>
             </div>
 
-            {runtime.rotation.view === 'team' ? (
+            {(runtime.rotation.view === 'team' && appendSourceOptions.length > 0) ? (
               <div className="rotation-toolbar rotation-toolbar--footer rotation-toolbar--append">
                 <div className="rotation-toolbar-group rotation-toolbar-group--append">
                   <div className="rotation-toolbar-field ui-inline-field ui-inline-field--wide">
@@ -4275,6 +4281,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
                 currentItems.map((node, index) => (
                   <RotationTreeNode
                     key={node.id}
+                    portalTarget={portalTarget}
                     runtime={runtime}
                     runtimesById={runtimesById}
                     treeItems={currentItems}
@@ -4317,7 +4324,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
                     onOpenFeatureMenu={featureMenuModal.show}
                     onOpenNegativeEffectConfig={negativeEffectConfigModal.show}
                     onOpenConditionEditor={conditionEditorModal.show}
-                    onOpenConditionBuilder={conditionBuilderModal.show}
+                    onOpenFeatureConditionEditor={featureConditionEditorModal.show}
                     onOpenBlockPicker={(target) => blockPickerModal.show({ target })}
                     onUpdateNode={updateCurrentNode}
                     onInsertNodeAt={(target, node) => updateCurrentItems((items) => insertNodeAtTarget(items, target, node))}
@@ -4336,11 +4343,11 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
               <div className="rotation-toolbar-group">
                 <LiquidSelect
                   value={savedSortBy}
-                  options={[
-                    { value: 'date', label: 'Date' },
-                    { value: 'name', label: 'Name' },
-                    { value: 'avg', label: 'Avg DMG' },
-                  ]}
+	                  options={[
+	                    { value: 'date', label: 'Date' },
+	                    { value: 'name', label: 'Name' },
+	                    { value: 'avg', label: 'Avg DMG' },
+	                  ]}
                   onChange={(nextValue) =>
                     setSavedRotationPreferences((current) => ({
                       ...current,
@@ -4365,29 +4372,29 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
                 </button>
 
               </div>
-              <div className="rotation-toolbar-group">
-                <button
-                    type="button"
-                    className="rotation-button"
-                    onClick={() => importFileInputRef.current?.click()}
-                >
-                  Import
-                </button>
-                <button
-                    type="button"
-                    className="rotation-button clear"
-                    disabled={savedRotationEntries.length === 0}
-                    onClick={() => confirmation.confirm({
-                      title: 'You sure about that? ( · ❛ ֊ ❛)',
-                      message: 'This will delete all saved rotations. This cannot be undone.',
-                      confirmLabel: 'Clear All',
-                      variant: 'danger',
-                      onConfirm: clearInventoryRotations,
-                    })}
-                >
-                  Clear
-                </button>
-              </div>
+	              <div className="rotation-toolbar-group">
+	                <button
+	                  type="button"
+	                  className="rotation-button"
+	                  onClick={() => importFileInputRef.current?.click()}
+	                >
+	                  Import
+	                </button>
+	                <button
+	                  type="button"
+	                  className="rotation-button clear"
+	                  disabled={savedRotationEntries.length === 0}
+	                  onClick={() => confirmation.confirm({
+	                    title: 'You sure about that? ( · ❛ ֊ ❛)',
+	                    message: 'This will delete all saved rotations. This cannot be undone.',
+	                    confirmLabel: 'Clear All',
+	                    variant: 'danger',
+	                    onConfirm: clearInventoryRotations,
+	                  })}
+	                >
+	                  Clear
+	                </button>
+	              </div>
             </div>
 
             <div className="rotation-toolbar rotation-toolbar--footer">
@@ -4418,7 +4425,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
                   >
                     Team
                   </button>
-                </div>
+	                </div>
                 <div className="rotation-saved-filters__search">
                   <Search size={13} className="rotation-saved-filters__search-icon" />
                   <input
@@ -4460,118 +4467,131 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
             <div className="rotation-saved-list">
               {savedRotationEntries.length ? (
                 savedRotationEntries.map((entry) => (
-                  <Expandable
-                    key={entry.id}
-                    as="div"
-                    className="rotation-saved-item"
-                    chevronContainerClassName="rotation-button mini rotation-saved-chevron"
-                    chevronSize={11}
-                    header={
-                      <div className="rotation-saved-item-header">
-                        <div className="rotation-saved-copy">
-                          {editingRotationId === entry.id ? (
-                            <input
-                              className="rotation-saved-name-input"
-                              value={editingRotationName}
-                              onChange={(e) => setEditingRotationName(e.target.value)}
-                              onBlur={() => {
-                                const trimmed = editingRotationName.trim()
-                                if (trimmed && trimmed !== entry.name) {
-                                  updateInventoryRotation(entry.id, { name: trimmed })
-                                }
-                                setEditingRotationId(null)
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  (e.target as HTMLInputElement).blur()
-                                } else if (e.key === 'Escape') {
-                                  setEditingRotationId(null)
-                                }
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              autoFocus
-                            />
-                          ) : (
-                            <strong>{entry.name}</strong>
-                          )}
-                          <span>
-                            {entry.resonatorName} · {entry.mode === 'team' ? 'Team' : 'Personal'}
-                            {entry.summary && (
-                              <>
-                                {' · '}
-                                <span className="value avg">
-                                  {Math.round(entry.summary.total.avg).toLocaleString()}
-                                </span>{' '}
-                                avg
-                              </>
-                            )}
-                          </span>
-                      </div>
-                      <div className="rotation-saved-actions">
-                        <button
-                          type="button"
-                          className="rotation-button mini"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingRotationId(entry.id)
-                            setEditingRotationName(entry.name)
-                          }}
-                          title="Rename"
-                        >
-                          <Pencil size={11} />
-                        </button>
-                        <button
-                            type="button"
-                            className="rotation-button mini"
-                            title="Export"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleExportRotation(entry)
+                <Expandable
+                  key={entry.id}
+                  as="div"
+                  className="rotation-saved-item"
+                  chevronContainerClassName="rotation-button mini rotation-saved-chevron"
+                  chevronSize={11}
+                  header={
+                    <div className="rotation-saved-item-header">
+                      <div className="rotation-saved-copy">
+                        {editingRotationId === entry.id ? (
+                          <input
+                            className="rotation-saved-name-input"
+                            value={editingRotationName}
+                            onChange={(e) => setEditingRotationName(e.target.value)}
+                            onBlur={() => {
+                              const trimmed = editingRotationName.trim()
+                              if (trimmed && trimmed !== entry.name) {
+                                updateInventoryRotation(entry.id, { name: trimmed })
+                              }
+                              setEditingRotationId(null)
                             }}
-                        >
-                          <CgExport size={11} />
-                        </button>
-                        <button
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur()
+                              } else if (e.key === 'Escape') {
+                                setEditingRotationId(null)
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        ) : (
+                          <strong>{entry.name}</strong>
+                        )}
+                        <span>
+                          {entry.resonatorName} · {entry.mode === 'team' ? 'Team' : 'Personal'}
+                          {entry.summary && (
+                            <>
+                              {' · '}
+                              <span className="value avg">
+                                {Math.round(entry.summary.total.avg).toLocaleString()}
+                              </span>{' '}
+                              avg
+                            </>
+                          )}
+                        </span>
+                    </div>
+                    <div className="rotation-saved-actions">
+                      <button
+                        type="button"
+                        title="Actions"
+                        className="rotation-button mini"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          actionListModal.show(entry)
+                        }}
+                      >
+                        <CgListTree size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        className="rotation-button mini"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingRotationId(entry.id)
+                          setEditingRotationName(entry.name)
+                        }}
+                        title="Rename"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
                           type="button"
                           className="rotation-button mini"
+                          title="Export"
                           onClick={(e) => {
                             e.stopPropagation()
-                            loadChoiceModal.show(entry)
+                            handleExportRotation(entry)
                           }}
-                        >
-                          Load
-                        </button>
-                        <button
-                          type="button"
-                          className="rotation-button clear mini"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            confirmation.confirm({
-                              title: 'You sure about that? ( · ❛ ֊ ❛)',
-                              message: `Delete "${entry.name}" from your saved rotations?`,
-                              confirmLabel: 'Delete',
-                              variant: 'danger',
-                              onConfirm: () => removeInventoryRotation(entry.id),
-                            })
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      >
+                        <PiUploadSimpleBold size={11} />
+                      </button>
+                          <button
+                        type="button"
+                        className="rotation-button mini"
+                        title="Load"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          loadChoiceModal.show(entry)
+                        }}
+                      >
+                        <PiDownloadSimpleBold size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete"
+                        className="rotation-button clear mini"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          confirmation.confirm({
+                            title: 'You sure about that? ( · ❛ ֊ ❛)',
+                            message: `Delete "${entry.name}" from your saved rotations?`,
+                            confirmLabel: 'Delete',
+                            variant: 'danger',
+                            onConfirm: () => removeInventoryRotation(entry.id),
+                          })
+                        }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
                     </div>
-                    }
-                  >
-                    {entry ? (
-                        <SavedRotationSnapshotSummary
-                            entry={entry}
-                            resolveResonatorName={(id) => getResonatorSeedById(id)?.name ?? id}
-                        />
-                    ) : (
-                        <div className="team-state-empty">
-                          No saved rotation snapshot yet.
-                        </div>
-                    )}
-                  </Expandable>
+                  </div>
+                  }
+                >
+                  {entry ? (
+                      <SavedRotationSnapshotSummary
+                          entry={entry}
+                          resolveResonatorName={(id) => getResonatorSeedById(id)?.name ?? id}
+                      />
+                  ) : (
+                      <div className="team-state-empty">
+                        No saved rotation snapshot yet.
+                      </div>
+                  )}
+                </Expandable>
                 ))
               ) : (
                 <div className="soft-empty">No saved rotations yet.</div>
@@ -4669,49 +4689,107 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
         }}
       />
 
-      <ConditionEditorModal
+      <FeatureConditionsModal
         key={conditionEditorModal.value ? `${conditionEditorModal.value.mode}:${conditionEditorModal.value.nodeId ?? 'new'}` : 'condition-editor:closed'}
         visible={conditionEditorModal.visible}
         open={conditionEditorModal.open}
         closing={conditionEditorModal.closing}
         portalTarget={portalTarget}
         choices={conditionChoices}
-        initialNode={editedConditionNode}
+        initialChanges={editedConditionNode?.changes ?? EMPTY_FEATURE_CONDITION_CHANGES}
+        featureLabel={conditionEditorModal.value?.mode === 'edit' ? 'Edit Condition' : 'Add Conditions'}
+        eyebrow="Rotation Conditions"
+        emptyText="Select states from the picker to add a condition to the rotation list."
         onClose={conditionEditorModal.hide}
-        onSave={(node) => {
-          const memberSeed = node.resonatorId ? seedResonatorsById[node.resonatorId] : null
-          if (memberSeed && node.resonatorId !== runtime.id) {
-            ensureTeamMemberRuntime(memberSeed)
+        onSave={(changes) => {
+          for (const change of changes) {
+            const memberSeed = change.resonatorId ? seedResonatorsById[change.resonatorId] : null
+            if (memberSeed && change.resonatorId !== runtime.id) {
+              ensureTeamMemberRuntime(memberSeed)
+            }
           }
 
           if (conditionEditorModal.value?.mode === 'edit' && conditionEditorModal.value.nodeId) {
-            updateCurrentNode(conditionEditorModal.value.nodeId, () => node)
-          } else {
-            insertCurrentNode(conditionEditorModal.value?.target ?? { parentId: null, branch: 'root' }, node)
+            const nodeId = conditionEditorModal.value.nodeId
+            if (changes.length === 0) {
+              deleteCurrentNode(nodeId)
+              conditionEditorModal.hide()
+              return
+            }
+
+            const replacementNodes = changes.map((change, index) => makeRotationConditionNodeFromChange(
+              change,
+              conditionChoices,
+              {
+                id: index === 0 ? nodeId : undefined,
+                enabled: editedConditionNode?.enabled ?? true,
+                fallbackResonatorId: editedConditionNode?.resonatorId,
+              },
+            ))
+
+            updateCurrentItems((items) => {
+              const nextItems = updateRotationNode(items, nodeId, () => replacementNodes[0])
+              const location = findNodeLocation(nextItems, nodeId)
+              if (!location) {
+                return nextItems
+              }
+
+              return insertRotationNodes(
+                nextItems,
+                {
+                  parentId: location.parentId,
+                  branch: location.branch,
+                  index: location.index + 1,
+                },
+                replacementNodes.slice(1),
+              )
+            })
+            conditionEditorModal.hide()
+            return
           }
+
+          const nodes = changes.map((change) => makeRotationConditionNodeFromChange(change, conditionChoices))
+          insertCurrentNodes(conditionEditorModal.value?.target ?? { parentId: null, branch: 'root' }, nodes)
           conditionEditorModal.hide()
         }}
       />
 
-      <ConditionBuilderModal
-        key={conditionBuilderModal.value?.nodeId ?? 'condition-builder:closed'}
-        visible={conditionBuilderModal.visible}
-        open={conditionBuilderModal.open}
-        closing={conditionBuilderModal.closing}
+      <FeatureConditionsModal
+        key={featureConditionEditorModal.value?.nodeId ?? 'feature-condition-editor:closed'}
+        visible={featureConditionEditorModal.visible}
+        open={featureConditionEditorModal.open}
+        closing={featureConditionEditorModal.closing}
         portalTarget={portalTarget}
-        choices={conditionStateChoices}
-        initialExpression={editedConditionRuleNode?.condition}
-        onClose={conditionBuilderModal.hide}
-        onSave={(expression) => {
-          if (!conditionBuilderModal.value?.nodeId) {
+        choices={conditionChoices}
+        initialChanges={editedFeatureConditionNode?.changes ?? EMPTY_FEATURE_CONDITION_CHANGES}
+        featureLabel={
+          editedFeatureConditionNode
+            ? featureMetaById[editedFeatureConditionNode.featureId]?.label ?? editedFeatureConditionNode.featureId
+            : 'Feature'
+        }
+        onClose={featureConditionEditorModal.hide}
+        onSave={(changes) => {
+          if (!featureConditionEditorModal.value?.nodeId) {
             return
           }
 
-          updateCurrentNode(conditionBuilderModal.value.nodeId, (current) => ({
-            ...current,
-            condition: expression,
-          }))
-          conditionBuilderModal.hide()
+          for (const change of changes) {
+            const memberSeed = change.resonatorId ? seedResonatorsById[change.resonatorId] : null
+            if (memberSeed && change.resonatorId !== runtime.id) {
+              ensureTeamMemberRuntime(memberSeed)
+            }
+          }
+
+          updateCurrentNode(featureConditionEditorModal.value.nodeId, (current) =>
+            current.type === 'feature'
+              ? (() => {
+                  const { changes: _removedChanges, ...featureNode } = current
+                  void _removedChanges
+                  return changes.length > 0 ? { ...featureNode, changes } : featureNode
+                })()
+              : current,
+          )
+          featureConditionEditorModal.hide()
         }}
       />
 
@@ -4767,6 +4845,33 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
         onConfirm={confirmation.onConfirm}
         onCancel={confirmation.onCancel}
       />
+
+      <AppDialog
+        visible={actionListModal.visible}
+        open={actionListModal.open}
+        closing={actionListModal.closing}
+        portalTarget={portalTarget}
+        contentClassName="app-modal-panel confirmation-modal confirmation-modal--info rotation-action-list-modal"
+        ariaLabel="Saved rotation action sequence"
+        onClose={actionListModal.hide}
+      >
+        <div className="confirmation-modal__body rotation-action-list-modal__body">
+          <div className="rotation-action-list-modal__head">
+            <h2 className="confirmation-modal__title">{actionListModal.value?.name ?? 'Saved Rotation'}</h2>
+            <ModalCloseButton onClick={actionListModal.hide} />
+          </div>
+          <div className="rotation-action-list-modal__list">
+            {actionListSequence ? (
+              <RotationActionSequenceList
+                actions={actionListSequence.actions}
+                conditionChoices={conditionChoices}
+                entries={actionListSequence.entries}
+                spans={actionListSequence.spans}
+              />
+            ) : null}
+          </div>
+        </div>
+      </AppDialog>
 
       <AppDialog
         visible={loadChoiceModal.visible}

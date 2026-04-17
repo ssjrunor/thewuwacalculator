@@ -359,6 +359,7 @@ export type RotationNode =
   negativeEffectStacks?: number
   negativeEffectInstances?: number
   negativeEffectStableWidth?: number
+  changes?: RuntimeChange[]
   condition?: ConditionExpression
 })
     | (RotationNodeBase & {

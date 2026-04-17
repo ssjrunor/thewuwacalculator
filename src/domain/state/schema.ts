@@ -374,6 +374,7 @@ const rotationNodeSchema: z.ZodTypeAny = z.lazy(() =>
         negativeEffectStacks: z.number().optional(),
         negativeEffectInstances: z.number().optional(),
         negativeEffectStableWidth: z.number().optional(),
+        changes: z.array(runtimeChangeSchema).optional(),
         condition: conditionExpressionSchema.optional(),
       }).strict(),
       z.object({

@@ -782,15 +782,19 @@ function runFeatureNode(
     fallbackResonatorId: string,
 ): RotationExecState {
   const ownerResonatorId = resolveNodeResonatorId(state, node, fallbackResonatorId)
-  const featureData = findFeatureOwner(state, node.featureId, ownerResonatorId)
+  const localFeatureState = (node.changes ?? []).reduce(
+      (nextState, change) => applyRuntimeChange(nextState, change, ownerResonatorId),
+      state,
+  )
+  const featureData = findFeatureOwner(localFeatureState, node.featureId, ownerResonatorId)
   if (!featureData) {
     return state
   }
 
   const { participant, feature } = featureData
-  const primaryRuntime = getPrimaryRuntime(state) ?? participant.runtime
+  const primaryRuntime = getPrimaryRuntime(localFeatureState) ?? participant.runtime
   const featureScope = buildScope(participant.runtime, feature.source, primaryRuntime, participant.runtime)
-  if (!evaluateCondition(feature.condition, featureScope) || !evaluateCondition(node.condition, featureScope)) {
+  if (!evaluateCondition(feature.condition, featureScope)) {
     return state
   }
 
@@ -806,9 +810,9 @@ function runFeatureNode(
 
   const resolvedSkill = prepareRuntimeSkill(participant.runtime, skill, {
     ...participant.context,
-    graph: state.overlay.version === 0 ? getBaseGraph(state) : getMaterializedGraph(state),
+    graph: localFeatureState.overlay.version === 0 ? getBaseGraph(localFeatureState) : getMaterializedGraph(localFeatureState),
     targetSlotId:
-        findCombatParticipantSlotId(getBaseGraph(state), participant.seed.id) ?? state.environment.primarySlotId,
+        findCombatParticipantSlotId(getBaseGraph(localFeatureState), participant.seed.id) ?? localFeatureState.environment.primarySlotId,
   })
   if (resolvedSkill.visible === false) {
     return state
@@ -934,17 +938,6 @@ function runConditionNode(
     return state
   }
 
-  const primaryRuntime = getPrimaryRuntime(state) ?? participant.runtime
-  const scope = buildScope(
-      participant.runtime,
-      { type: 'resonator', id: participant.seed.id },
-      primaryRuntime,
-      participant.runtime,
-  )
-  if (!evaluateCondition(node.condition, scope)) {
-    return state
-  }
-
   return node.changes.reduce(
       (nextState, change) => applyRuntimeChange(nextState, change, scopeResonatorId),
       state,
@@ -961,16 +954,6 @@ function runRepeatNode(
   const participant = getParticipant(state, scopeResonatorId)
   const rotationRuntime = getPrimaryRuntime(state)
   if (!participant || !rotationRuntime) {
-    return state
-  }
-
-  const scope = buildScope(
-      participant.runtime,
-      { type: 'resonator', id: participant.seed.id },
-      rotationRuntime,
-      participant.runtime,
-  )
-  if (!evaluateCondition(node.condition, scope)) {
     return state
   }
 
@@ -1082,16 +1065,6 @@ function runUptimeNode(
   const participant = getParticipant(state, scopeResonatorId)
   const rotationRuntime = getPrimaryRuntime(state)
   if (!participant || !rotationRuntime) {
-    return state
-  }
-
-  const scope = buildScope(
-      participant.runtime,
-      { type: 'resonator', id: participant.seed.id },
-      rotationRuntime,
-      participant.runtime,
-  )
-  if (!evaluateCondition(node.condition, scope)) {
     return state
   }
 

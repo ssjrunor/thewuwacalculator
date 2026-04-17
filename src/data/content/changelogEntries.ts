@@ -139,6 +139,36 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `More Optimizer sh-... s-stuff~! oh, 3.3.2 beta stuff too i guess (〜^∇^)〜`,
   },
+  {
+    date: '17/04/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          Rotation editing got some new toys. You can now attach <strong>conditions/state changes directly to features</strong>, so a feature can temporarily set up the state it needs before it gets calculated instead of needing an awkward separate wrapper every time.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The condition editor also got cleaned up into a nicer picker/editing flow. It should be easier to search for the state you want, add multiple changes, tweak values, and generally avoid the old "wait where do i put this again" feeling.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          You can also add new actions below a specific rotation feature now, which should make building or adjusting longer rotations less annoying. Less dragging things around like you're defusing a tiny UI bomb.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          There are a few smaller rotation UI/readability changes in here too, including a cleaner action preview and more useful team damage breakdowns by contributor and skill type.
+        `,
+      },
+    ],
+    shortDesc: `Rotation stuff~! (〜^∇^)〜`,
+  },
 ]
 
 export const latestCurrentChangelogEntry =

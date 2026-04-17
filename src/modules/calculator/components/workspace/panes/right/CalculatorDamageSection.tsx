@@ -24,6 +24,19 @@ interface CalculatorDamageSectionProps {
   enemy: EnemyProfile
 }
 
+interface SummaryBreakdownGroupProps {
+  rowLabel: string
+  rowKey: string
+  total: SimulationResult['rotations']['team']['total']
+  breakdown: Array<{
+    label: string
+    percent: number
+    normal: number
+    crit: number
+    avg: number
+  }>
+}
+
 // builds the detailed damage grid that mirrors the live simulation output.
 const SUPPORT_ROW_STYLE: Record<'healing' | 'shield', { label: string; color: string }> = {
   healing: {
@@ -64,6 +77,15 @@ export function CalculatorDamageSection({ simulation, runtime, enemy }: Calculat
           ),
       [simulation.rotations.team.entries],
   )
+  const teamSkillTypeBreakdown = useMemo(
+      () =>
+          buildContributionBreakdown(
+              simulation.rotations.team.entries.filter((entry) => entry.aggregationType === 'damage'),
+              (entry) => getPrimarySkillType(entry.skill.skillType) ?? 'all',
+              (entry) => getSkillTypeDisplay(entry.skill.skillType).label,
+          ),
+      [simulation.rotations.team.entries],
+  )
 
   const toggleRow = (rowId: string) => {
     setExpandedRows((prev) => ({
@@ -71,6 +93,41 @@ export function CalculatorDamageSection({ simulation, runtime, enemy }: Calculat
       [rowId]: !prev[rowId],
     }))
   }
+
+  const renderSummaryBreakdownGroup = ({
+    rowLabel,
+    rowKey,
+    total,
+    breakdown,
+  }: SummaryBreakdownGroupProps) => (
+      <>
+        {total.normal !== 0 ? (
+          <tr data-damage-kind="total">
+            <th scope="row">{rowLabel}</th>
+            <td>{formatCompactNumber(total.normal)}</td>
+            <td>{formatCompactNumber(total.crit)}</td>
+            <td>{formatCompactNumber(total.avg)}</td>
+          </tr>
+        ) : (
+          <tr data-damage-kind="total">
+            <th scope="row">{rowLabel}</th>
+            <td>-</td>
+            <td>-</td>
+            <td>-</td>
+          </tr>
+        )}
+        {breakdown.map((entry) => (
+          <tr key={`${rowKey}:${entry.label}`} data-damage-kind="subhit">
+            <th scope="row" className="pane-hint">
+              ↳ {entry.label} ({formatContributionPercent(entry.percent)})
+            </th>
+            <td>{formatCompactNumber(entry.normal)}</td>
+            <td>{formatCompactNumber(entry.crit)}</td>
+            <td>{formatCompactNumber(entry.avg)}</td>
+          </tr>
+        ))}
+      </>
+  )
 
   const renderFeatureRow = (entry: SimulationResult['allSkills'][number]) => {
     const rowId = entry.id
@@ -333,31 +390,18 @@ export function CalculatorDamageSection({ simulation, runtime, enemy }: Calculat
                 </tr>
                 </thead>
                 <tbody>
-                {simulation.rotations.team.total.normal !== 0 ? (
-                  <tr data-damage-kind="total">
-                    <th scope="row">Damage</th>
-                    <td>{formatCompactNumber(simulation.rotations.team.total.normal)}</td>
-                    <td>{formatCompactNumber(simulation.rotations.team.total.crit)}</td>
-                    <td>{formatCompactNumber(simulation.rotations.team.total.avg)}</td>
-                  </tr>
-                ) : (
-                  <tr data-damage-kind="total">
-                    <th scope="row">Damage</th>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                  </tr>
-                )}
-                {teamBreakdown.map((entry) => (
-                  <tr key={`team:${entry.label}`} data-damage-kind="subhit">
-                    <th scope="row" className="pane-hint">
-                      ↳ {entry.label} ({formatContributionPercent(entry.percent)})
-                    </th>
-                    <td>{formatCompactNumber(entry.normal)}</td>
-                    <td>{formatCompactNumber(entry.crit)}</td>
-                    <td>{formatCompactNumber(entry.avg)}</td>
-                  </tr>
-                ))}
+                {renderSummaryBreakdownGroup({
+                  rowLabel: 'Contributors',
+                  rowKey: 'team-contributors',
+                  total: simulation.rotations.team.total,
+                  breakdown: teamBreakdown,
+                })}
+                {renderSummaryBreakdownGroup({
+                  rowLabel: 'Skill Types',
+                  rowKey: 'team-skill-types',
+                  total: simulation.rotations.team.total,
+                  breakdown: teamSkillTypeBreakdown,
+                })}
                 {simulation.rotations.team.totalsByAggregation.healing.avg !== 0 && (
                   <tr data-damage-kind="support" data-support-kind="healing">
                     <th scope="row" className="damage-support-label" style={{ color: SUPPORT_ROW_STYLE.healing.color }}>
