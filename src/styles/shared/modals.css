@@ -73,6 +73,10 @@
     box-shadow 260ms ease;
 }
 
+.app-modal-panel:has(.echo-parser-body) {
+  overflow: auto;
+}
+
 .app-modal-panel--wide,
 .picker-modal__panel--wide {
   width: min(76rem, calc(100vw - 2rem));
