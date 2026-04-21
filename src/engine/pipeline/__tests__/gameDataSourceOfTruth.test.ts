@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { getResonatorById, listResonators } from '@/domain/services/catalogService'
+import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { listEffectsForSource, listSkillsForSource, listSources, listStatesForSource } from '@/domain/services/gameDataService'
 import { createDefaultResonatorRuntime } from '@/domain/state/defaults'
+import { applySkillDataEffects } from '@/engine/effects/dataEffects'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 
 describe('game-data source of truth', () => {
@@ -175,6 +177,69 @@ describe('game-data source of truth', () => {
     ])
   })
 
+  it('hydrates Zani Nightfall as nine hits with targeted Blaze multiplier rows', () => {
+    const zani = getResonatorById('1507')
+    const seed = getResonatorSeedById('1507')
+    if (!zani || !seed) {
+      throw new Error('missing Zani data')
+    }
+
+    const nightfall = zani.skills.find((skill) => skill.id === '1507023')
+    if (!nightfall) {
+      throw new Error('missing Zani Nightfall skill')
+    }
+
+    expect(nightfall.hits).toHaveLength(9)
+    expect(nightfall.hitTable?.[0]?.values).toHaveLength(20)
+    expect(nightfall.hitTable?.map((entry) => Number((entry.values[9] * 100).toFixed(2)))).toEqual([
+      51.7,
+      51.7,
+      15.91,
+      15.91,
+      79.53,
+      7.96,
+      7.96,
+      27.84,
+      139.17,
+    ])
+    expect(nightfall.hitTable?.reduce((total, entry) => total + entry.values[9], 0)).toBeCloseTo(3.9768)
+    expect(nightfall.hitTable?.reduce((total, entry) => total + entry.values[19], 0)).toBeCloseTo(7.2563)
+    expect(zani.features.filter((feature) => feature.skillId === '1507023' && feature.variant === 'subHit'))
+      .toHaveLength(9)
+
+    const blazeEffect = zani.effects.find((effect) => effect.id === '1507:blaze:nightfall')
+    expect(blazeEffect?.operations.map((operation) => ({
+      type: operation.type,
+      hitIndex: operation.type === 'add_skill_hit_multiplier' ? operation.hitIndex : null,
+    }))).toEqual([
+      { type: 'add_skill_hit_multiplier', hitIndex: 0 },
+      { type: 'add_skill_hit_multiplier', hitIndex: 1 },
+      { type: 'add_skill_hit_multiplier', hitIndex: 4 },
+      { type: 'add_skill_hit_multiplier', hitIndex: 8 },
+    ])
+
+    const runtime = createDefaultResonatorRuntime(seed)
+    runtime.base.skillLevels.forteCircuit = 10
+    runtime.state.controls['resonator:1507:inferno:active'] = true
+    runtime.state.controls['resonator:1507:nightfall_blaze:value'] = 40
+
+    const resolved = resolveSkill(runtime, nightfall)
+    const boosted = applySkillDataEffects(runtime, resolved)
+
+    expect(boosted.hits.map((hit) => Number((hit.multiplier * 100).toFixed(2)))).toEqual([
+      101.45,
+      101.45,
+      15.91,
+      15.91,
+      179.03,
+      7.96,
+      7.96,
+      27.84,
+      338.17,
+    ])
+    expect(boosted.multiplier).toBeCloseTo(7.9568)
+  })
+
   it('hydrates Hiyuki resonance chain multipliers and synthetic healing skill', () => {
     const hiyukiStates = listStatesForSource('resonator', '1108')
     const hiyukiEffects = listEffectsForSource('resonator', '1108')
@@ -207,6 +272,7 @@ describe('game-data source of truth', () => {
     const deniaBaseRuntime = createDefaultResonatorRuntime(denia)
     const deniaS3Runtime = createDefaultResonatorRuntime(denia)
     deniaS3Runtime.base.sequence = 3
+    deniaS3Runtime.state.controls['resonator:1211:dark_cores:value'] = 5
 
     expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:fusion_burst_mode:active')?.label)
       .toBe('Fusion Burst')
@@ -226,6 +292,18 @@ describe('game-data source of truth', () => {
     ])
     expect(denia.resonanceChains.find((chain) => chain.index === 2)?.controls?.map((control) => control.key))
       .toEqual(['sequence:1211:s2:active', 'sequence:1211:s2:stacks'])
+    expect(denia.inherentSkills.find((skill) => skill.unlockLevel === 70)?.control).toMatchObject({
+      key: 'inherent:1211:lvl70:off_tune_overcap',
+      kind: 'number',
+      displayMultiplier: 10,
+      inputMax: 50,
+    })
+    expect(deniaStates.find((state) => state.controlKey === 'inherent:1211:lvl70:off_tune_overcap')).toMatchObject({
+      label: 'Etched Colors Off-Tune Overcap',
+      kind: 'select',
+      options: ['0', '1', '2', '3', '4', '5'].map((value) => ({ id: value, label: value })),
+      controlDependencies: ['resonator:1211:tune_strain_mode:active'],
+    })
     expect(deniaStates.find((state) => state.controlKey === 'sequence:1211:s2:stacks')).toMatchObject({
       label: 'Degenerate Voidmatter',
       kind: 'select',
@@ -249,6 +327,33 @@ describe('game-data source of truth', () => {
     })
     expect(deniaEffects.find((effect) => effect.id === '1211:lvl70:tune-break-boost')?.targetScope)
       .toBe('teamWide')
+    expect(deniaEffects.find((effect) => effect.id === '1211:lvl70:tune-break-boost')?.operations[0])
+      .toMatchObject({
+        type: 'add_top_stat',
+        stat: 'tuneBreakBoost',
+        value: {
+          type: 'add',
+          values: [
+            { type: 'const', value: 10 },
+            {
+              type: 'clamp',
+              max: 40,
+              value: {
+                type: 'mul',
+                values: [
+                  {
+                    type: 'read',
+                    from: 'sourceRuntime',
+                    path: 'state.controls.inherent:1211:lvl70:off_tune_overcap',
+                    default: 0,
+                  },
+                  { type: 'const', value: 8 },
+                ],
+              },
+            },
+          ],
+        },
+      })
     expect(deniaEffects.find((effect) => effect.id === '1211:outro:tune-strain:trigger')?.targetScope)
       .toBe('activeOther')
     expect(deniaEffects.find((effect) => effect.id === '1211:shattered-hours')?.stage)
@@ -282,6 +387,8 @@ describe('game-data source of truth', () => {
       .toEqual(['resonator:1211:fusion_burst_mode:active', 'resonator:1211:tune_strain_mode:active'])
     expect(deniaStates['team:1211:unfinished_lies_trigger:active']?.controlDependencies)
       .toEqual(['team:1211:unfinished_lies:active', 'resonator:1211:tune_strain_mode:active'])
+    expect(deniaStates['inherent:1211:lvl70:off_tune_overcap']?.controlDependencies)
+      .toEqual(['resonator:1211:tune_strain_mode:active'])
     expect(phoebeStates['sequence:1506:s2:boat_adrift']?.controlDependencies)
       .toEqual(['resonator:1506:confession:active'])
   })
@@ -806,6 +913,9 @@ describe('game-data source of truth', () => {
 
     const skillsById = Object.fromEntries(resonator.skills.map((skill) => [skill.id, skill]))
     const statesByKey = Object.fromEntries(resonator.states.map((state) => [state.controlKey, state]))
+    const rotationFeatureIds = resonator.rotations[0]?.items
+      .map((item) => (item.type === 'feature' ? item.featureId : null))
+      .filter(Boolean)
     const runtimeEffects = listEffectsForSource('resonator', '1412', 'runtime')
     const skillEffects = listEffectsForSource('resonator', '1412', 'skill')
 
@@ -813,6 +923,22 @@ describe('game-data source of truth', () => {
     expect(skillsById['1412011']?.skillType).toEqual(['resonanceSkill'])
     expect(skillsById['1412021']?.skillType).toEqual(['echoSkill'])
     expect(skillsById['1412:outro']?.multiplier).toBe(7.95)
+    expect(rotationFeatureIds).toEqual([
+      'damage:1412019',
+      'damage:1412002',
+      'damage:1412003',
+      'damage:1412004',
+      'damage:1412005',
+      'damage:1412023',
+      'damage:1412015',
+      'damage:1412002',
+      'damage:1412003',
+      'damage:1412004',
+      'damage:1412005',
+      'damage:1412022',
+      'damage:1412025',
+      'damage:1412:outro',
+    ])
 
     expect(statesByKey['resonator:1412:soliskin_vitality:value']?.ownerKey).toBe('resonator:1412:soliskin_vitality')
     expect(statesByKey['resonator:1412:innate_gift:stacks']?.ownerKey).toBe('resonator:1412:innate_gift')

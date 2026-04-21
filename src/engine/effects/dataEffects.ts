@@ -7,10 +7,13 @@
 
 import { getGameData } from '@/data/gameData'
 import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
-import { listSourceEffects } from '@/domain/gameData/registry'
+import {
+  listSourceEffects,
+  listSourceRuntimeEffectsByStage,
+} from '@/domain/gameData/registry'
 import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
 import type {
-  DataSourceRef,
+  EffectDefinition,
   EffectEvalScope,
   EffectOperation,
   EffectRuntimeContext,
@@ -29,6 +32,7 @@ import type {
 import { evaluateCondition, evaluateFormula } from '@/engine/effects/evaluator'
 import { effectTargetsRuntime } from '@/engine/effects/targetScope'
 import { makeModBuff } from '@/engine/resolvers/buffPool'
+import { getMainEchoSourceRef } from '@/domain/services/runtimeSourceService'
 
 interface LegacyDataEffectOptions {
   teamRuntime?: ResonatorRuntimeState
@@ -51,6 +55,15 @@ interface GraphDataEffectOptions {
 }
 
 type DataEffectOptions = LegacyDataEffectOptions | GraphDataEffectOptions
+
+interface EffectContextEntry {
+  baseContext: EffectRuntimeContext
+  runtimePreStatsEffects: EffectDefinition[]
+  runtimePostStatsEffects: EffectDefinition[]
+  skillEffects: EffectDefinition[]
+}
+
+const graphEffectContextCache = new WeakMap<CombatGraph, Partial<Record<SlotId, EffectContextEntry[]>>>()
 
 // check whether effect options use combat graph mode
 function isGraphOptions(options: DataEffectOptions): options is GraphDataEffectOptions {
@@ -75,20 +88,15 @@ function resolveSourceRuntime(
   return runtimesById[sourceId] ?? null
 }
 
-// build selected target routing for a source participant from the graph
-function buildSelectedTargetsByOwnerKey(
-    graph: CombatGraph,
-    sourceResonatorId: string,
-): Record<string, string | null> {
-  const sourceParticipant = Object.values(graph.participants).find(
-      (participant) => participant.resonatorId === sourceResonatorId,
-  )
+function makeEffectContextEntry(baseContext: EffectRuntimeContext): EffectContextEntry {
+  const registry = getGameData()
 
-  if (!sourceParticipant) {
-    return {}
+  return {
+    baseContext,
+    runtimePreStatsEffects: listSourceRuntimeEffectsByStage(registry, baseContext.source, 'preStats'),
+    runtimePostStatsEffects: listSourceRuntimeEffectsByStage(registry, baseContext.source, 'postStats'),
+    skillEffects: listSourceEffects(registry, baseContext.source, 'skill'),
   }
-
-  return { ...sourceParticipant.slot.routing.selectedTargetsByOwnerKey }
 }
 
 // build a weapon source context for a resonator context
@@ -113,17 +121,14 @@ function buildWeaponContext(
 function buildEchoContext(
     resonatorContext: EffectRuntimeContext,
 ): EffectRuntimeContext | null {
-  const echoId = resonatorContext.sourceRuntime.build.echoes[0]?.id
-  if (!echoId) {
+  const echoSource = getMainEchoSourceRef(resonatorContext.sourceRuntime)
+  if (!echoSource) {
     return null
   }
 
   return {
     ...resonatorContext,
-    source: {
-      type: 'echo',
-      id: echoId,
-    },
+    source: echoSource,
   }
 }
 
@@ -137,70 +142,82 @@ function buildEchoSetContexts(
   }))
 }
 
-// build all effect contexts relevant to a target runtime
-function buildEffectContexts(
-    targetRuntime: ResonatorRuntimeState,
-    options: DataEffectOptions = {},
-): EffectRuntimeContext[] {
-  const resonatorDetailsById = getResonatorDetailsById()
-
-  if (isGraphOptions(options)) {
-    const targetParticipant = options.graph.participants[options.targetSlotId]
-    if (!targetParticipant) {
-      return []
-    }
-
-    const activeParticipant =
-        options.graph.participants[options.graph.activeSlotId] ?? targetParticipant
-
-    const teamMemberIds = Array.from(
-        new Set(Object.values(options.graph.participants).map((participant) => participant.resonatorId)),
-    )
-    const team = buildTeamCompositionInfo(teamMemberIds)
-
-    return Object.values(options.graph.participants).flatMap((sourceParticipant) => {
-      const resonatorContext: EffectRuntimeContext = {
-        team,
-        source: {
-          type: 'resonator',
-          id: sourceParticipant.resonatorId,
-          negativeEffectSources: resonatorDetailsById[sourceParticipant.resonatorId]?.negativeEffectSources,
-        },
-        target: {
-          type: 'resonator',
-          id: targetParticipant.resonatorId,
-          negativeEffectSources: resonatorDetailsById[targetParticipant.resonatorId]?.negativeEffectSources,
-        },
-        sourceRuntime: sourceParticipant.runtime,
-        targetRuntime: targetParticipant.runtime,
-        activeRuntime: activeParticipant.runtime,
-        targetRuntimeId: targetParticipant.resonatorId,
-        activeResonatorId: activeParticipant.resonatorId,
-        teamMemberIds,
-        echoSetCounts: computeEchoSetCounts(sourceParticipant.runtime.build.echoes),
-        baseStats: options.baseStats,
-        sourceFinalStats: options.sourceFinalStatsById?.[sourceParticipant.resonatorId],
-        finalStats: options.finalStats,
-        selectedTargetsByOwnerKey: buildSelectedTargetsByOwnerKey(
-            options.graph,
-            sourceParticipant.resonatorId,
-        ),
-        enemy: options.enemy,
-      }
-
-      const weaponContext = buildWeaponContext(resonatorContext)
-      const echoContext = buildEchoContext(resonatorContext)
-      const echoSetContexts = buildEchoSetContexts(resonatorContext)
-
-      return [
-        resonatorContext,
-        ...(weaponContext ? [weaponContext] : []),
-        ...(echoContext ? [echoContext] : []),
-        ...echoSetContexts,
-      ]
-    })
+function buildGraphEffectContextEntries(
+    graph: CombatGraph,
+    targetSlotId: SlotId,
+): EffectContextEntry[] {
+  const cachedBySlot = graphEffectContextCache.get(graph)
+  const cachedEntries = cachedBySlot?.[targetSlotId]
+  if (cachedEntries) {
+    return cachedEntries
   }
 
+  const resonatorDetailsById = getResonatorDetailsById()
+  const targetParticipant = graph.participants[targetSlotId]
+  if (!targetParticipant) {
+    return []
+  }
+
+  const activeParticipant = graph.participants[graph.activeSlotId] ?? targetParticipant
+  const teamMemberIds = Array.from(
+      new Set(Object.values(graph.participants).map((participant) => participant.resonatorId)),
+  )
+  const team = buildTeamCompositionInfo(teamMemberIds)
+
+  const entries = Object.values(graph.participants).flatMap((sourceParticipant) => {
+    const resonatorContext: EffectRuntimeContext = {
+      team,
+      source: {
+        type: 'resonator',
+        id: sourceParticipant.resonatorId,
+        negativeEffectSources: resonatorDetailsById[sourceParticipant.resonatorId]?.negativeEffectSources,
+      },
+      target: {
+        type: 'resonator',
+        id: targetParticipant.resonatorId,
+        negativeEffectSources: resonatorDetailsById[targetParticipant.resonatorId]?.negativeEffectSources,
+      },
+      sourceRuntime: sourceParticipant.runtime,
+      targetRuntime: targetParticipant.runtime,
+      activeRuntime: activeParticipant.runtime,
+      targetRuntimeId: targetParticipant.resonatorId,
+      activeResonatorId: activeParticipant.resonatorId,
+      teamMemberIds,
+      echoSetCounts: computeEchoSetCounts(sourceParticipant.runtime.build.echoes),
+      selectedTargetsByOwnerKey: {
+        ...sourceParticipant.slot.routing.selectedTargetsByOwnerKey,
+      },
+    }
+
+    const contexts: EffectRuntimeContext[] = [
+      resonatorContext,
+      ...buildEchoSetContexts(resonatorContext),
+    ]
+    const weaponContext = buildWeaponContext(resonatorContext)
+    const echoContext = buildEchoContext(resonatorContext)
+
+    if (weaponContext) {
+      contexts.push(weaponContext)
+    }
+
+    if (echoContext) {
+      contexts.push(echoContext)
+    }
+
+    return contexts.map(makeEffectContextEntry)
+  })
+
+  const nextCachedBySlot = cachedBySlot ?? {}
+  nextCachedBySlot[targetSlotId] = entries
+  graphEffectContextCache.set(graph, nextCachedBySlot)
+  return entries
+}
+
+function buildLegacyEffectContextEntries(
+    targetRuntime: ResonatorRuntimeState,
+    options: LegacyDataEffectOptions,
+): EffectContextEntry[] {
+  const resonatorDetailsById = getResonatorDetailsById()
   const teamRuntime = options.teamRuntime ?? targetRuntime
   const runtimesById = options.runtimesById ?? {}
   const activeResonatorId = options.activeResonatorId ?? targetRuntime.id
@@ -240,29 +257,54 @@ function buildEffectContexts(
       activeResonatorId,
       teamMemberIds: sourceIds,
       echoSetCounts: computeEchoSetCounts(sourceRuntime.build.echoes),
-      baseStats: options.baseStats,
-      sourceFinalStats: options.sourceFinalStatsById?.[sourceId],
-      finalStats: options.finalStats,
       selectedTargetsByOwnerKey: options.selectedTargetsByOwnerKey,
-      enemy: options.enemy,
     }
 
+    const contexts: EffectRuntimeContext[] = [resonatorContext]
     const weaponContext = buildWeaponContext(resonatorContext)
     const echoContext = buildEchoContext(resonatorContext)
 
-    return [
-      resonatorContext,
-      ...(weaponContext ? [weaponContext] : []),
-      ...(echoContext ? [echoContext] : []),
-    ]
+    if (weaponContext) {
+      contexts.push(weaponContext)
+    }
+
+    if (echoContext) {
+      contexts.push(echoContext)
+    }
+
+    return contexts.map(makeEffectContextEntry)
   })
 }
 
+// build all effect contexts relevant to a target runtime
+function buildEffectContextEntries(
+    targetRuntime: ResonatorRuntimeState,
+    options: DataEffectOptions = {},
+): EffectContextEntry[] {
+  if (isGraphOptions(options)) {
+    return buildGraphEffectContextEntries(options.graph, options.targetSlotId)
+  }
+
+  return buildLegacyEffectContextEntries(targetRuntime, options)
+}
+
+function buildDynamicContext(
+    baseContext: EffectRuntimeContext,
+    options: DataEffectOptions,
+    pool?: UnifiedBuffPool,
+): EffectRuntimeContext {
+  return {
+    ...baseContext,
+    pool,
+    baseStats: options.baseStats,
+    sourceFinalStats: options.sourceFinalStatsById?.[baseContext.sourceRuntime.id],
+    finalStats: options.finalStats,
+    enemy: options.enemy,
+  }
+}
+
 // build the evaluation scope used by formulas and conditions
-function makeEvalScope(
-    context: EffectRuntimeContext,
-    options: Pick<DataEffectOptions, 'baseStats' | 'finalStats'> = {},
-): EffectEvalScope {
+function makeEvalScope(context: EffectRuntimeContext): EffectEvalScope {
   return {
     sourceRuntime: context.sourceRuntime,
     sourceFinalStats: context.sourceFinalStats,
@@ -270,8 +312,8 @@ function makeEvalScope(
     activeRuntime: context.activeRuntime,
     context,
     pool: context.pool,
-    baseStats: options.baseStats ?? context.baseStats,
-    finalStats: options.finalStats ?? context.finalStats,
+    baseStats: context.baseStats,
+    finalStats: context.finalStats,
   }
 }
 
@@ -330,6 +372,7 @@ function skillMatchesRule(skill: SkillDefinition, operation: EffectOperation): b
       operation.type !== 'scale_skill_multiplier' &&
       operation.type !== 'add_skill_mod' &&
       operation.type !== 'add_skill_multiplier' &&
+      operation.type !== 'add_skill_hit_multiplier' &&
       operation.type !== 'add_skill_scalar'
   ) {
     return false
@@ -423,6 +466,29 @@ function applySkillOperation(
     }
   }
 
+  if (operation.type === 'add_skill_hit_multiplier') {
+    if (!skillMatchesRule(skill, operation)) {
+      return skill
+    }
+
+    const addedMultiplier = evaluateFormula(operation.value, scope)
+    if (addedMultiplier === 0 || operation.hitIndex < 0 || operation.hitIndex >= skill.hits.length) {
+      return skill
+    }
+
+    const hits = skill.hits.map((hit, index) => (
+      index === operation.hitIndex
+        ? { ...hit, multiplier: hit.multiplier + addedMultiplier }
+        : hit
+    ))
+
+    return {
+      ...skill,
+      multiplier: hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0),
+      hits,
+    }
+  }
+
   if (operation.type !== 'scale_skill_multiplier') {
     return skill
   }
@@ -452,11 +518,6 @@ function applySkillOperation(
   }
 }
 
-// list effects for a source and trigger
-function listScopedEffects(source: DataSourceRef, trigger: 'runtime' | 'skill') {
-  return listSourceEffects(getGameData(), source, trigger)
-}
-
 // apply runtime-triggered data effects to a unified buff pool
 export function applyRuntimeDataEffects(
     runtime: ResonatorRuntimeState,
@@ -466,19 +527,16 @@ export function applyRuntimeDataEffects(
 ): UnifiedBuffPool {
   const next = baseBuffs
 
-  for (const baseContext of buildEffectContexts(runtime, options)) {
-    const context = {
-      ...baseContext,
-      pool: next,
+  for (const entry of buildEffectContextEntries(runtime, options)) {
+    const effects = stage === 'postStats' ? entry.runtimePostStatsEffects : entry.runtimePreStatsEffects
+    if (effects.length === 0) {
+      continue
     }
-    const effects = listScopedEffects(context.source, 'runtime')
-    const scope = makeEvalScope(context, options)
+
+    const context = buildDynamicContext(entry.baseContext, options, next)
+    const scope = makeEvalScope(context)
 
     for (const effect of effects) {
-      if ((effect.stage ?? 'preStats') !== stage) {
-        continue
-      }
-
       if (!effectTargetsRuntime(effect, context)) {
         continue
       }
@@ -504,11 +562,15 @@ export function applySkillDataEffects(
 ): SkillDefinition {
   let next = baseSkill
 
-  for (const context of buildEffectContexts(runtime, options)) {
-    const effects = listScopedEffects(context.source, 'skill')
-    const scope = makeEvalScope(context, options)
+  for (const entry of buildEffectContextEntries(runtime, options)) {
+    if (entry.skillEffects.length === 0) {
+      continue
+    }
 
-    for (const effect of effects) {
+    const context = buildDynamicContext(entry.baseContext, options)
+    const scope = makeEvalScope(context)
+
+    for (const effect of entry.skillEffects) {
       if (!effectTargetsRuntime(effect, context)) {
         continue
       }

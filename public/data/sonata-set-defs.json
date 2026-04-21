@@ -1625,7 +1625,7 @@
     "setMax": 5,
     "desc": {
       "twoPiece": "ATK +10%",
-      "fivePiece": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 15 for 30s. Effects of the same name do not stack."
+      "fivePiece": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 20 for 30s. Effects of the same name do not stack."
     },
     "twoPiece": [
       {
@@ -1641,7 +1641,7 @@
       "reelOfSplicedMemories5pc": {
         "max": [
           {
-            "value": 15,
+            "value": 20,
             "path": [
               "tuneBreakBoost"
             ],
@@ -1658,7 +1658,7 @@
       },
       {
         "key": "reelOfSplicedMemories5pc",
-        "label": "Tune Break Boost +15",
+        "label": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 20 for 30s.",
         "trigger": "Triggered by inflicting Tune Rupture - Shifting or Tune Strain - Shifting."
       }
     ]

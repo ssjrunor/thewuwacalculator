@@ -1,5 +1,11 @@
 import type { RotationNode, RotationValue, RuntimeChange } from '@/domain/gameData/contracts'
+import type { CombatState } from '@/domain/entities/runtime'
 import type { AttributeKey } from '@/domain/entities/stats'
+import {
+  getNegativeEffectCombatKey,
+  NEGATIVE_EFFECT_ORDER,
+  type NegativeEffectKey,
+} from '@/domain/gameData/negativeEffects'
 import { formatFormulaExpression } from '@/shared/lib/formatGameData'
 import { seedResonatorsById } from '@/modules/calculator/model/seedData'
 import {
@@ -17,6 +23,8 @@ export interface RotationSequenceActionEntry {
   profile: string | null
   attribute: AttributeKey | null
   missing: boolean
+  negativeEffectStacks?: number
+  rules: RotationSequenceRule[]
 }
 
 export type RotationSequenceRule = { type: 'change'; change: RuntimeChange }
@@ -45,6 +53,7 @@ export interface RotationSequenceSpan {
 
 export interface RotationSequenceInput {
   items: RotationNode[]
+  initialCombat?: Partial<CombatState> | null
   resonatorId?: string | null
 }
 
@@ -75,13 +84,104 @@ function getFeatureActionLabel(
   return meta?.feature.label ?? meta?.skill?.label ?? node.featureId
 }
 
+const NEGATIVE_EFFECT_KEY_SET = new Set<string>(NEGATIVE_EFFECT_ORDER)
+
+function isNegativeEffectKey(value: string): value is NegativeEffectKey {
+  return NEGATIVE_EFFECT_KEY_SET.has(value)
+}
+
+function normalizeStackValue(value: string | number | boolean | undefined): number {
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0
+  }
+
+  const numericValue = typeof value === 'number' ? value : Number(value ?? 0)
+  return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0
+}
+
+function makeCombatState(initialCombat: Partial<CombatState> | null | undefined): CombatState {
+  return {
+    spectroFrazzle: normalizeStackValue(initialCombat?.spectroFrazzle),
+    aeroErosion: normalizeStackValue(initialCombat?.aeroErosion),
+    fusionBurst: normalizeStackValue(initialCombat?.fusionBurst),
+    havocBane: normalizeStackValue(initialCombat?.havocBane),
+    glacioChafe: normalizeStackValue(initialCombat?.glacioChafe),
+    electroFlare: normalizeStackValue(initialCombat?.electroFlare),
+    electroRage: normalizeStackValue(initialCombat?.electroRage),
+  }
+}
+
+function getCombatKeyForRuntimePath(path: string): NegativeEffectKey | null {
+  const prefixes = [
+    'enemy.combat.',
+    'context.enemy.combat.',
+    'runtime.state.combat.',
+    'state.combat.',
+  ]
+
+  for (const prefix of prefixes) {
+    if (!path.startsWith(prefix)) {
+      continue
+    }
+
+    const key = path.slice(prefix.length)
+    return isNegativeEffectKey(key) ? key : null
+  }
+
+  return null
+}
+
+function applyCombatChange(combatState: CombatState, change: RuntimeChange): void {
+  const key = getCombatKeyForRuntimePath(change.path)
+  if (!key) {
+    return
+  }
+
+  if (change.type === 'add') {
+    combatState[key] = normalizeStackValue((combatState[key] ?? 0) + change.value)
+    return
+  }
+
+  combatState[key] = normalizeStackValue(change.type === 'toggle' ? change.value ?? true : change.value)
+}
+
+function applyCombatChanges(combatState: CombatState, changes: RuntimeChange[] | undefined): void {
+  for (const change of changes ?? []) {
+    applyCombatChange(combatState, change)
+  }
+}
+
+function getActionNegativeEffectStacks(
+  node: Extract<RotationNode, { type: 'feature' }>,
+  meta: ReturnType<typeof resolveRotationFeatureMeta>,
+  combatState: CombatState,
+): number | undefined {
+  const key = getNegativeEffectCombatKey(meta?.skill?.archetype)
+  if (!key) {
+    return undefined
+  }
+
+  const hasAttachedStackChange = (node.changes ?? []).some((change) => getCombatKeyForRuntimePath(change.path) === key)
+  if (
+    !hasAttachedStackChange &&
+    typeof node.negativeEffectStacks === 'number' &&
+    Number.isFinite(node.negativeEffectStacks)
+  ) {
+    return normalizeStackValue(node.negativeEffectStacks)
+  }
+
+  return normalizeStackValue(combatState[key])
+}
+
 function makeActionEntry(
   node: Extract<RotationNode, { type: 'feature' }>,
   fallbackResonatorId: string | null | undefined,
+  combatState: CombatState,
 ): RotationSequenceActionEntry {
   const meta = resolveRotationFeatureMeta(node)
   const participantId = getFeatureParticipantId(node, fallbackResonatorId, meta)
   const participantSeed = participantId ? seedResonatorsById[participantId] : null
+  const negativeEffectStacks = getActionNegativeEffectStacks(node, meta, combatState)
 
   return {
     key: `${node.id}:${node.featureId}`,
@@ -92,6 +192,8 @@ function makeActionEntry(
     profile: participantSeed?.profile ?? null,
     attribute: participantSeed?.attribute ?? null,
     missing: !participantSeed && Boolean(participantId),
+    negativeEffectStacks,
+    rules: node.changes?.map((change): RotationSequenceRule => ({ type: 'change', change })) ?? [],
   }
 }
 
@@ -138,25 +240,35 @@ export function buildRotationActionSequence(input: RotationSequenceInput): Rotat
   const actions: RotationSequenceActionEntry[] = []
   const entries: RotationSequenceEntry[] = []
   const spans: RotationSequenceSpan[] = []
+  const combatState = makeCombatState(input.initialCombat)
 
   const visit = (nodes: RotationNode[], depth = 1, phase: 'setup' | 'body' = 'body') => {
     for (const node of nodes) {
       if (node.type === 'feature') {
-        const action = makeActionEntry(node, input.resonatorId)
+        if (node.enabled ?? true) {
+          applyCombatChanges(combatState, node.changes)
+        }
+
+        const action = makeActionEntry(node, input.resonatorId, combatState)
         actions.push(action)
         entries.push({ type: 'action', key: action.key, action, phase })
       }
 
       if (node.type === 'condition') {
+        const enabled = node.enabled ?? true
         entries.push({
           type: 'condition',
           key: node.id,
           label: node.label ?? 'Condition',
           depth,
-          enabled: node.enabled ?? true,
+          enabled,
           rules: getConditionRules(node),
           phase,
         })
+
+        if (enabled) {
+          applyCombatChanges(combatState, node.changes)
+        }
       }
 
       if (node.type === 'repeat' || node.type === 'uptime') {

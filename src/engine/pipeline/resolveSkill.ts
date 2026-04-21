@@ -6,6 +6,7 @@
 */
 
 import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { EffectEvalScope } from '@/domain/gameData/contracts'
 import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
 import {
   getNegativeEffectCombatKey,
@@ -16,6 +17,8 @@ import type { SkillDefinition } from '@/domain/entities/stats'
 import { evaluateCondition } from '@/engine/effects/evaluator'
 import { applyManualSkillModifiers } from '@/engine/manualBuffs'
 import { computeEchoSetCounts } from '@/engine/pipeline/buildCombatContext'
+
+const runtimeSkillEvalScopeCache = new WeakMap<ResonatorRuntimeState, EffectEvalScope>()
 
 // map the skill's declared level source to a zero-based level table index
 // if the skill does not scale from a runtime level source, fall back to index 0
@@ -44,13 +47,14 @@ function resolveTableValue(values: number[] | undefined, index: number, fallback
   return values[index] ?? values[values.length - 1] ?? fallback
 }
 
-function resolveConditionalSkillType(runtime: ResonatorRuntimeState, skill: SkillDefinition): SkillDefinition['skillType'] {
-  if (!skill.skillTypeWhen || skill.skillTypeWhen.length === 0) {
-    return skill.skillType
+function getRuntimeSkillEvalScope(runtime: ResonatorRuntimeState): EffectEvalScope {
+  const cached = runtimeSkillEvalScopeCache.get(runtime)
+  if (cached) {
+    return cached
   }
 
   const teamMemberIds = Array.from(
-    new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
+      new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
   )
   const scope = {
     context: {
@@ -70,7 +74,18 @@ function resolveConditionalSkillType(runtime: ResonatorRuntimeState, skill: Skil
     sourceRuntime: runtime,
     targetRuntime: runtime,
     activeRuntime: runtime,
+  } satisfies EffectEvalScope
+
+  runtimeSkillEvalScopeCache.set(runtime, scope)
+  return scope
+}
+
+function resolveConditionalSkillType(runtime: ResonatorRuntimeState, skill: SkillDefinition): SkillDefinition['skillType'] {
+  if (!skill.skillTypeWhen || skill.skillTypeWhen.length === 0) {
+    return skill.skillType
   }
+
+  const scope = getRuntimeSkillEvalScope(runtime)
 
   for (const entry of skill.skillTypeWhen) {
     if (evaluateCondition(entry.when, scope)) {
@@ -96,34 +111,11 @@ export function isSkillVisible(runtime: ResonatorRuntimeState, skill: SkillDefin
     return false
   }
 
-  const teamMemberIds = Array.from(
-      new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
-  )
-
   if (!skill.visibleWhen) {
     return true
   }
 
-  // build the team context expected by the condition evaluator
-  return evaluateCondition(skill.visibleWhen, {
-    context: {
-      source: {
-        type: 'resonator',
-        id: runtime.id,
-      },
-      sourceRuntime: runtime,
-      targetRuntime: runtime,
-      activeRuntime: runtime,
-      targetRuntimeId: runtime.id,
-      activeResonatorId: runtime.id,
-      teamMemberIds,
-      team: buildTeamCompositionInfo(teamMemberIds),
-      echoSetCounts: computeEchoSetCounts(runtime.build.echoes),
-    },
-    sourceRuntime: runtime,
-    targetRuntime: runtime,
-    activeRuntime: runtime,
-  })
+  return evaluateCondition(skill.visibleWhen, getRuntimeSkillEvalScope(runtime))
 }
 
 // resolve one skill into its runtime-ready form

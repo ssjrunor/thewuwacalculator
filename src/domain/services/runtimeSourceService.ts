@@ -16,6 +16,11 @@ import {
   listSkillsForSource,
   listStatesForSource,
 } from '@/domain/services/gameDataService'
+import {
+  primeCompiledFeatureExpressions,
+  primeCompiledSkillExpressions,
+  primeCompiledStateExpressions,
+} from '@/engine/effects/evaluator'
 
 export interface RuntimeSourceCatalog {
   sources: DataSourceRef[]
@@ -30,7 +35,14 @@ export type PreparedRuntimeCatalog = RuntimeSourceCatalog
 
 const sourceRefsCache = new Map<string, DataSourceRef[]>()
 const runtimeSourceCatalogCache = new Map<string, RuntimeSourceCatalog>()
+const preparedRuntimeCatalogCache = new WeakMap<ResonatorSeed, Map<string, PreparedRuntimeCatalog>>()
 const MAX_RUNTIME_SOURCE_CACHE_ENTRIES = 64
+
+function isEquippedEcho(
+    echo: ResonatorRuntimeState['build']['echoes'][number],
+): echo is NonNullable<ResonatorRuntimeState['build']['echoes'][number]> {
+  return Boolean(echo)
+}
 
 function touchCacheEntry<T>(cache: Map<string, T>, key: string, value: T): void {
   if (cache.has(key)) {
@@ -51,13 +63,34 @@ function touchCacheEntry<T>(cache: Map<string, T>, key: string, value: T): void 
 
 // build a cache signature for runtime sources
 function getRuntimeSourceSignature(runtime: ResonatorRuntimeState): string {
-  return `${runtime.id}::${runtime.build.echoes[0]?.id ?? ''}`
+  const mainEchoId =
+      runtime.build.echoes.find((echo) => echo?.mainEcho)?.id ??
+      runtime.build.echoes[0]?.id ??
+      runtime.build.echoes.find(isEquippedEcho)?.id ??
+      ''
+  return `${runtime.id}::${mainEchoId}`
 }
 
 // resolve the main echo source reference from the runtime
 export function getMainEchoSourceRef(runtime: ResonatorRuntimeState): DataSourceRef | null {
-  const echoId = runtime.build.echoes[0]?.id
+  const echoId =
+      runtime.build.echoes.find((echo) => echo?.mainEcho)?.id ??
+      runtime.build.echoes[0]?.id ??
+      runtime.build.echoes.find(isEquippedEcho)?.id
   return echoId ? { type: 'echo', id: echoId } : null
+}
+
+function getPreparedRuntimeCatalogCache(
+    seed: ResonatorSeed,
+): Map<string, PreparedRuntimeCatalog> {
+  const cached = preparedRuntimeCatalogCache.get(seed)
+  if (cached) {
+    return cached
+  }
+
+  const created = new Map<string, PreparedRuntimeCatalog>()
+  preparedRuntimeCatalogCache.set(seed, created)
+  return created
 }
 
 // list all source references relevant to the runtime
@@ -116,11 +149,23 @@ export function buildPreparedRuntimeCatalog(
     return catalog
   }
 
+  const signature = getRuntimeSourceSignature(runtime)
+  const preparedCache = getPreparedRuntimeCatalogCache(seed)
+  const cached = preparedCache.get(signature)
+  if (cached) {
+    return cached
+  }
+
+  primeCompiledSkillExpressions(seed.skills ?? [])
+  primeCompiledFeatureExpressions(seed.features ?? [])
+  primeCompiledStateExpressions(seed.states ?? [])
+
   const skills = [...catalog.skills]
   const features = [...catalog.features]
   const states = [...catalog.states]
   const skillsById = { ...catalog.skillsById }
   const featuresById = { ...catalog.featuresById }
+  const stateControlKeys = new Set(states.map((entry) => entry.controlKey))
 
   for (const skill of seed.skills ?? []) {
     if (skillsById[skill.id]) {
@@ -141,14 +186,15 @@ export function buildPreparedRuntimeCatalog(
   }
 
   for (const state of seed.states ?? []) {
-    if (states.some((entry) => entry.controlKey === state.controlKey)) {
+    if (stateControlKeys.has(state.controlKey)) {
       continue
     }
 
     states.push(state)
+    stateControlKeys.add(state.controlKey)
   }
 
-  return {
+  const prepared = {
     ...catalog,
     skills,
     features,
@@ -156,6 +202,9 @@ export function buildPreparedRuntimeCatalog(
     skillsById,
     featuresById,
   }
+
+  touchCacheEntry(preparedCache, signature, prepared)
+  return prepared
 }
 
 // list all runtime skills

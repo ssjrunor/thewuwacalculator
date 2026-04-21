@@ -1,10 +1,8 @@
 import type { RotationNode } from '@/domain/gameData/contracts'
 
 export interface NegativeEffectConfigDraft {
-  stacksInput: string
   instancesInput: string
   stableWidthInput: string
-  stacksTouched: boolean
   instancesTouched: boolean
   stableWidthTouched: boolean
 }
@@ -33,19 +31,10 @@ function parseIntegerInput(rawValue: string, minimum: number): number | null {
 
 export function createNegativeEffectConfigDraft(
   initialNode: Extract<RotationNode, { type: 'feature' }> | null,
-  defaultStacks: number,
 ): NegativeEffectConfigDraft {
-  const normalizedDefaultStacks = Math.max(0, Math.floor(defaultStacks))
-  const initialStacks =
-    initialNode?.negativeEffectStacks == null
-      ? normalizedDefaultStacks
-      : normalizeInteger(initialNode.negativeEffectStacks, 0, normalizedDefaultStacks)
-
   return {
-    stacksInput: String(initialStacks),
     instancesInput: String(normalizeInteger(initialNode?.negativeEffectInstances, 1, 1)),
     stableWidthInput: String(normalizeInteger(initialNode?.negativeEffectStableWidth, 1, 1)),
-    stacksTouched: false,
     instancesTouched: false,
     stableWidthTouched: false,
   }
@@ -54,22 +43,13 @@ export function createNegativeEffectConfigDraft(
 export function serializeNegativeEffectConfigDraft(
   draft: NegativeEffectConfigDraft,
 ): {
-  negativeEffectStacks?: number
   negativeEffectInstances?: number
   negativeEffectStableWidth?: number
 } {
   const config: {
-    negativeEffectStacks?: number
     negativeEffectInstances?: number
     negativeEffectStableWidth?: number
   } = {}
-
-  if (draft.stacksTouched) {
-    const normalizedStacks = parseIntegerInput(draft.stacksInput, 0)
-    if (normalizedStacks != null) {
-      config.negativeEffectStacks = normalizedStacks
-    }
-  }
 
   if (draft.instancesTouched) {
     const normalizedInstances = parseIntegerInput(draft.instancesInput, 1)

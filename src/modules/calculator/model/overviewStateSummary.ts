@@ -29,6 +29,7 @@ import {
   listOwnersForSource,
   listStatesForOwnerKey,
 } from '@/domain/services/gameDataService'
+import { getMainEchoSourceRef } from '@/domain/services/runtimeSourceService'
 import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
 import { getSkillTypeDisplay } from '@/modules/calculator/model/skillTypes'
 import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
@@ -415,6 +416,25 @@ function formatOperationLabels(
       })
     }
 
+    // direct multiplier addition for one hit row on matched skills
+    if (operation.type === 'add_skill_hit_multiplier') {
+      const labels = resolveMatchedSkillLabels(effect, operation)
+      const added = formatSignedValue(evaluateFormula(operation.value, scope), '')
+      const hitLabel = `Hit ${operation.hitIndex + 1} DMG Multiplier`
+
+      if (labels.length === 0) {
+        return withHighlight('', hitLabel, added)
+      }
+
+      return labels.map((label) => {
+        const cleanedLabel = /\sDMG$/i.test(label)
+            ? label.replace(/\sDMG$/i, '')
+            : label
+
+        return withHighlight(cleanedLabel, hitLabel, added)
+      })
+    }
+
     // multiplicative scaling for matched skills
     if (operation.type === 'scale_skill_multiplier') {
       const labels = resolveMatchedSkillLabels(effect, operation)
@@ -627,7 +647,7 @@ export function buildOverviewStateSummary(
         options.enemyProfile,
     )
     const weaponId = sourceRuntime.build.weapon.id
-    const mainEchoId = sourceRuntime.build.echoes[0]?.id ?? null
+    const mainEchoSource = getMainEchoSourceRef(sourceRuntime)
     const setIds = Array.from(
         new Set(
             sourceRuntime.build.echoes
@@ -640,8 +660,8 @@ export function buildOverviewStateSummary(
     const weaponContext = !isUnsetWeaponId(weaponId)
         ? { ...context, source: { type: 'weapon' as const, id: weaponId } }
         : null
-    const echoContext = mainEchoId
-        ? { ...context, source: { type: 'echo' as const, id: mainEchoId } }
+    const echoContext = mainEchoSource
+        ? { ...context, source: mainEchoSource }
         : null
     const echoSetContexts = new Map(
         setIds.map((setId) => [
@@ -654,7 +674,7 @@ export function buildOverviewStateSummary(
     const owners = [
       ...listOwnersForSource('resonator', sourceId),
       ...(!isUnsetWeaponId(weaponId) ? listOwnersForSource('weapon', weaponId) : []),
-      ...(mainEchoId ? listOwnersForSource('echo', mainEchoId) : []),
+      ...(mainEchoSource ? listOwnersForSource(mainEchoSource.type, mainEchoSource.id) : []),
       ...setIds.flatMap((setId) => listOwnersForSource('echoSet', setId)),
     ]
 

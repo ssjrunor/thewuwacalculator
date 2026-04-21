@@ -250,12 +250,14 @@ export function RotationActionSequenceList({
         const nextAction = next?.type === 'action' ? next.action : null
         const sameAsPrevious = Boolean(action.resonatorId && previousAction?.resonatorId === action.resonatorId)
         const sameAsNext = Boolean(action.resonatorId && nextAction?.resonatorId === action.resonatorId)
+        const rules = action.rules.map((rule) => formatRotationSequenceRule(rule, conditionChoices))
         const className = [
           'rss-sequence__step',
           sameAsPrevious ? 'rss-sequence__step--continued' : '',
           sameAsNext ? 'rss-sequence__step--links-next' : '',
           entry.phase === 'setup' ? 'rss-sequence__step--setup' : '',
           activeSpans.length > 0 ? 'rss-sequence__step--spanned' : '',
+          rules.length > 0 ? 'rss-sequence__step--feature-conditions' : '',
           action.missing ? 'rss-sequence__step--missing' : '',
         ].filter(Boolean).join(' ')
 
@@ -276,7 +278,28 @@ export function RotationActionSequenceList({
                 )}
               </span>
             )}
-            <span className="rss-sequence__label">{action.label}</span>
+            <span className="rss-sequence__label">
+              {action.label}
+              {typeof action.negativeEffectStacks === 'number' ? (
+                <sup
+                  className="rss-sequence__stack-count"
+                  aria-label={`${action.negativeEffectStacks} stacks`}
+                >
+                  {action.negativeEffectStacks}
+                </sup>
+              ) : null}
+            </span>
+            {rules.length > 0 ? (
+              <span className="rss-sequence__feature-conditions">
+                <span className="rss-sequence__feature-condition-pills">
+                  {rules.map((rule, ruleIndex) => (
+                    <span key={`${action.key}:feature-rule:${ruleIndex}`} className="rss-sequence__condition-kicker">
+                      {rule}
+                    </span>
+                  ))}
+                </span>
+              </span>
+            ) : null}
             {action.multiplier > 1 ? (
               <span className="rss-sequence__multiplier">x{action.multiplier}</span>
             ) : null}

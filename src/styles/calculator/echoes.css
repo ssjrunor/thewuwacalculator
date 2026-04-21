@@ -2341,6 +2341,20 @@
   width: min(52rem, calc(100dvw - 2rem));
 }
 
+.echo-parser-instructions,
+.echo-parser-preview {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.echo-parser-instructions > .app-modal-header,
+.echo-parser-preview > .app-modal-header,
+.echo-parser-preview-actions {
+  flex: 0 0 auto;
+}
+
 .echo-parser-title {
   margin: 0;
   font-size: clamp(1.3rem, 2vw, 1.65rem);
@@ -2364,6 +2378,8 @@
 
 /* Instructions view */
 .echo-parser-body {
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2476,6 +2492,8 @@
 }
 
 .echo-parser-preview-grid {
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
   padding: 0.5rem 0 0.25rem;
 }

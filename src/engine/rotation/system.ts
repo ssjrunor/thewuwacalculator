@@ -102,6 +102,7 @@ interface RotationOverlayState {
   version: number
   runtimePathsByResonatorId: Record<string, Record<string, RotationOverlayValue>>
   routingPathsByResonatorId: Record<string, Record<string, RotationOverlayValue>>
+  enemyPaths: Record<string, RotationOverlayValue>
 }
 
 export interface PreparedRotationEnvironment {
@@ -173,6 +174,7 @@ function buildScope(
     source: FeatureDefinition['source'],
     activeRuntime: ResonatorRuntimeState = runtime,
     targetRuntime: ResonatorRuntimeState = runtime,
+    enemy?: EnemyProfile,
 ): EffectEvalScope {
   const teamMemberIds = Array.from(
       new Set([activeRuntime.id, ...activeRuntime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
@@ -193,6 +195,7 @@ function buildScope(
       activeResonatorId: activeRuntime.id,
       teamMemberIds,
       echoSetCounts: computeEchoSetCounts(runtime.build.echoes),
+      enemy,
     },
   }
 }
@@ -325,6 +328,7 @@ function buildRotationState(
       version: 0,
       runtimePathsByResonatorId: {},
       routingPathsByResonatorId: {},
+      enemyPaths: {},
     },
     resolvedRuntimeCache: {},
     materializedGraphVersion: -1,
@@ -355,6 +359,53 @@ function resolveNodeResonatorId(state: RotationExecState, node: RotationNode, fa
 
 function getBaseGraph(state: RotationExecState): CombatGraph {
   return state.environment.graph
+}
+
+function readObjectPath(root: unknown, path: string): unknown {
+  const parts = path.split('.').filter(Boolean)
+  let cursor = root
+
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== 'object') {
+      return undefined
+    }
+
+    cursor = (cursor as Record<string, unknown>)[part]
+  }
+
+  return cursor
+}
+
+function getActiveEnemy(state: RotationExecState): EnemyProfile {
+  const entries = Object.entries(state.overlay.enemyPaths)
+  if (entries.length === 0) {
+    return state.environment.enemy
+  }
+
+  let nextEnemy = state.environment.enemy
+  for (const [path, value] of entries) {
+    nextEnemy = writeObjectPath(
+        nextEnemy as unknown as Record<string, unknown>,
+        path.split('.'),
+        value,
+    ) as unknown as EnemyProfile
+  }
+
+  return nextEnemy
+}
+
+function isEnemyStatusPath(path: string): boolean {
+  return path.replace(/^context\./, '').startsWith('enemy.status.')
+}
+
+function isEnemyCombatPath(path: string): boolean {
+  return path.replace(/^context\./, '').startsWith('enemy.combat.')
+}
+
+function getEnemyPath(path: string): string {
+  return path
+      .replace(/^context\./, '')
+      .replace(/^enemy\./, '')
 }
 
 function hasOverlayForResonator(state: RotationExecState, resonatorId: string): boolean {
@@ -489,7 +540,7 @@ function getParticipant(state: RotationExecState, resonatorId: string): Rotation
       : buildCombatContext({
         graph,
         targetSlotId: slotId,
-        enemy: state.environment.enemy,
+        enemy: getActiveEnemy(state),
       })
 
   if (!context) {
@@ -518,7 +569,7 @@ function listParticipants(state: RotationExecState): RotationParticipantState[] 
         : buildCombatContext({
           graph,
           targetSlotId: participant.slotId,
-          enemy: state.environment.enemy,
+          enemy: getActiveEnemy(state),
         })
 
     if (!context) {
@@ -539,6 +590,48 @@ function writeRotationOverlayPath(
     path: string,
     value: RotationOverlayValue,
 ): RotationExecState {
+  if (isEnemyStatusPath(path)) {
+    return {
+      ...state,
+      overlay: {
+        ...state.overlay,
+        version: state.overlay.version + 1,
+        enemyPaths: {
+          ...state.overlay.enemyPaths,
+          [getEnemyPath(path)]: value,
+        },
+      },
+      resolvedRuntimeCache: {},
+      materializedGraphVersion: -1,
+      materializedGraph: null,
+    }
+  }
+
+  if (isEnemyCombatPath(path)) {
+    const enemyCombatPath = getEnemyPath(path)
+    const runtimePath = `runtime.state.${enemyCombatPath}`
+    const nextRuntimePathsByResonatorId = { ...state.overlay.runtimePathsByResonatorId }
+
+    for (const participant of Object.values(getBaseGraph(state).participants)) {
+      nextRuntimePathsByResonatorId[participant.resonatorId] = {
+        ...(nextRuntimePathsByResonatorId[participant.resonatorId] ?? {}),
+        [runtimePath]: value,
+      }
+    }
+
+    return {
+      ...state,
+      overlay: {
+        ...state.overlay,
+        version: state.overlay.version + 1,
+        runtimePathsByResonatorId: nextRuntimePathsByResonatorId,
+      },
+      resolvedRuntimeCache: {},
+      materializedGraphVersion: -1,
+      materializedGraph: null,
+    }
+  }
+
   const normalizedPath = path.replace(/^runtime\./, '')
 
   if (normalizedPath.startsWith('state.controls.')) {
@@ -692,6 +785,26 @@ function applyRuntimeChange(
 ): RotationExecState {
   const targetResonatorId = change.resonatorId ?? fallbackResonatorId
 
+  if (isEnemyStatusPath(change.path) || isEnemyCombatPath(change.path)) {
+    let nextValue: string | number | boolean
+
+    if (change.type === 'set') {
+      nextValue = change.value
+    } else if (change.type === 'toggle') {
+      nextValue = change.value ?? true
+    } else {
+      const primaryRuntime = getPrimaryRuntime(state)
+      const current = isEnemyStatusPath(change.path)
+          ? Number(readObjectPath(getActiveEnemy(state), getEnemyPath(change.path)))
+          : primaryRuntime
+              ? Number(readRuntimePath(primaryRuntime, `runtime.state.${getEnemyPath(change.path)}`))
+              : 0
+      nextValue = (Number.isFinite(current) ? current : 0) + change.value
+    }
+
+    return writeRotationOverlayPath(state, targetResonatorId, change.path, nextValue)
+  }
+
   const participant = getParticipant(state, targetResonatorId)
   if (!participant) {
     return state
@@ -710,6 +823,13 @@ function applyRuntimeChange(
   return writeRotationOverlayPath(state, targetResonatorId, change.path, nextValue)
 }
 
+function changeTargetsNegativeEffectStacks(change: RuntimeChange, combatKey: string): boolean {
+  const normalizedPath = change.path.replace(/^runtime\./, '')
+
+  return normalizedPath === `state.combat.${combatKey}` ||
+      (isEnemyCombatPath(change.path) && getEnemyPath(change.path) === `combat.${combatKey}`)
+}
+
 // resolve a RotationValue into a concrete numeric value
 // override takes priority, then raw number, then formula evaluation
 function evaluateRotationValue(
@@ -719,6 +839,7 @@ function evaluateRotationValue(
     override?: number,
     activeRuntime: ResonatorRuntimeState = runtime,
     targetRuntime: ResonatorRuntimeState = runtime,
+    enemy?: EnemyProfile,
 ): number {
   if (typeof override === 'number' && Number.isFinite(override)) {
     return override
@@ -728,7 +849,7 @@ function evaluateRotationValue(
     return value
   }
 
-  return evaluateFormula(value, buildScope(runtime, source, activeRuntime, targetRuntime))
+  return evaluateFormula(value, buildScope(runtime, source, activeRuntime, targetRuntime, enemy))
 }
 
 // lookup helpers against the merged runtime/seed catalog
@@ -793,7 +914,7 @@ function runFeatureNode(
 
   const { participant, feature } = featureData
   const primaryRuntime = getPrimaryRuntime(localFeatureState) ?? participant.runtime
-  const featureScope = buildScope(participant.runtime, feature.source, primaryRuntime, participant.runtime)
+  const featureScope = buildScope(participant.runtime, feature.source, primaryRuntime, participant.runtime, getActiveEnemy(localFeatureState))
   if (!evaluateCondition(feature.condition, featureScope)) {
     return state
   }
@@ -823,7 +944,11 @@ function runFeatureNode(
 
   // special handling for negative-effect skills whose output depends on combat stack state
   const negativeEffectCombatKey = getNegativeEffectCombatKey(scaledSkill.archetype)
+  const hasAttachedNegativeEffectStackChange = negativeEffectCombatKey
+      ? (node.changes ?? []).some((change) => changeTargetsNegativeEffectStacks(change, negativeEffectCombatKey))
+      : false
   const negativeEffectStacksOverride =
+      !hasAttachedNegativeEffectStackChange &&
       typeof node.negativeEffectStacks === 'number' && Number.isFinite(node.negativeEffectStacks)
           ? Math.max(0, Math.floor(node.negativeEffectStacks))
           : null
@@ -967,6 +1092,7 @@ function runRepeatNode(
               getRepeatNodeTimes(rotationRuntime, node),
               rotationRuntime,
               participant.runtime,
+              getActiveEnemy(state),
           ),
       ),
   )
@@ -1032,6 +1158,7 @@ function runSetupItems(
                   getUptimeNodeRatio(primaryRuntime, item),
                   primaryRuntime,
                   participant.runtime,
+                  getActiveEnemy(nextState),
               ),
           ),
       )
@@ -1079,6 +1206,7 @@ function runUptimeNode(
               getUptimeNodeRatio(rotationRuntime, node),
               rotationRuntime,
               participant.runtime,
+              getActiveEnemy(state),
           ),
       ),
   )
@@ -1216,7 +1344,7 @@ export function buildDirectFeatureResults(
       .filter((feature) => feature.variant !== 'subHit')
       .map((feature) => {
         const activeRuntime = context.graph.participants[context.graph.activeSlotId]?.runtime ?? context.runtime
-        const scope = buildScope(context.runtime, feature.source, activeRuntime, context.runtime)
+        const scope = buildScope(context.runtime, feature.source, activeRuntime, context.runtime, context.enemy)
         if (!evaluateCondition(feature.condition, scope)) {
           return null
         }

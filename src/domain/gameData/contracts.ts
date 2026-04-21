@@ -23,7 +23,7 @@ import type {
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
 
-export type DataSourceType = 'resonator' | 'weapon' | 'echo' | 'echoSet'
+export type DataSourceType = 'resonator' | 'weapon' | 'echo' | 'echoSet' | 'enemy'
 
 export interface DataSourceRef {
   type: DataSourceType
@@ -260,6 +260,12 @@ export type EffectOperation =
   match?: SkillMatchRule
 }
     | {
+  type: 'add_skill_hit_multiplier'
+  hitIndex: number
+  value: FormulaExpression
+  match?: SkillMatchRule
+}
+    | {
   type: 'add_skill_scalar'
   field:
       | 'fixedDmg'
@@ -401,11 +407,20 @@ export interface SourcePackage {
   rotations?: RotationDefinition[]
 }
 
+export interface EffectSourceBuckets {
+  all: EffectDefinition[]
+  runtime: EffectDefinition[]
+  runtimePreStats: EffectDefinition[]
+  runtimePostStats: EffectDefinition[]
+  skill: EffectDefinition[]
+}
+
 export interface GameDataRegistry {
   sourcesByKey: Record<string, SourcePackage>
   ownersBySourceKey: Record<string, SourceOwnerDefinition[]>
   ownersByKey: Record<string, SourceOwnerDefinition>
   effectsBySourceKey: Record<string, EffectDefinition[]>
+  effectBucketsBySourceKey: Record<string, EffectSourceBuckets>
   effectsByOwnerKey: Record<string, EffectDefinition[]>
   statesBySourceKey: Record<string, SourceStateDefinition[]>
   statesByOwnerKey: Record<string, SourceStateDefinition[]>

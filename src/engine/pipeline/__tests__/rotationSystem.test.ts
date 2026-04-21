@@ -138,7 +138,7 @@ const seed: ResonatorSeed = {
 }
 
 const negativeEffectSeed: ResonatorSeed = {
-  id: 'negative-effect-test-resonator',
+  id: '1501',
   name: 'Negative Effect Test Resonator',
   profile: '/assets/resonators/profiles/negative-effect-test-resonator.webp',
   attribute: 'spectro',
@@ -188,7 +188,7 @@ const negativeEffectSeed: ResonatorSeed = {
       label: 'Test Frazzle',
       source: {
         type: 'resonator',
-        id: 'negative-effect-test-resonator',
+        id: '1501',
       },
       kind: 'skill',
       skillId: 'test-frazzle',
@@ -260,6 +260,105 @@ describe('rotation system', () => {
 
     expect(result.perSkill).toHaveLength(1)
     expect(result.perSkill[0]?.avg).toBeGreaterThan(0)
+  })
+
+  it('supports enemy status changes inside rotation condition steps', () => {
+    const conditionalSeed: ResonatorSeed = {
+      ...seed,
+      features: (seed.features ?? []).map((feature) =>
+        feature.id === 'damage:test-skill'
+          ? {
+              ...feature,
+              condition: {
+                type: 'gte' as const,
+                path: 'enemy.status.tuneStrain',
+                value: 4,
+              },
+            }
+          : feature,
+      ),
+    }
+
+    const blockedRuntime = createDefaultResonatorRuntime(conditionalSeed)
+    blockedRuntime.rotation.personalItems = [
+      {
+        id: 'feature-main',
+        type: 'feature',
+        featureId: 'damage:test-skill',
+        multiplier: 1,
+        enabled: true,
+      },
+    ]
+
+    const blockedResult = runResonatorSimulation(blockedRuntime, conditionalSeed, makeDefaultEnemyProfile())
+    expect(blockedResult.perSkill).toHaveLength(0)
+
+    const runtime = createDefaultResonatorRuntime(conditionalSeed)
+    runtime.rotation.personalItems = [
+      {
+        id: 'set-tune-strain',
+        type: 'condition',
+        changes: [
+          {
+            type: 'set',
+            path: 'enemy.status.tuneStrain',
+            value: 4,
+          },
+        ],
+      },
+      {
+        id: 'feature-main',
+        type: 'feature',
+        featureId: 'damage:test-skill',
+        multiplier: 1,
+        enabled: true,
+      },
+    ]
+
+    const result = runResonatorSimulation(runtime, conditionalSeed, makeDefaultEnemyProfile())
+
+    expect(result.perSkill).toHaveLength(1)
+    expect(result.perSkill[0]?.avg).toBeGreaterThan(0)
+  })
+
+  it('uses attached enemy combat status changes for negative-effect feature stacks', () => {
+    const baselineRuntime = createDefaultResonatorRuntime(negativeEffectSeed)
+    baselineRuntime.rotation.personalItems = [
+      {
+        id: 'frazzle-baseline',
+        type: 'feature',
+        featureId: 'damage:test-frazzle',
+        multiplier: 1,
+        negativeEffectStacks: 1,
+        enabled: true,
+      },
+    ]
+    const baselineResult = runResonatorSimulation(baselineRuntime, negativeEffectSeed, makeDefaultEnemyProfile())
+
+    const runtime = createDefaultResonatorRuntime(negativeEffectSeed)
+    runtime.rotation.personalItems = [
+      {
+        id: 'frazzle-feature',
+        type: 'feature',
+        featureId: 'damage:test-frazzle',
+        multiplier: 1,
+        negativeEffectStacks: 1,
+        changes: [
+          {
+            type: 'set',
+            path: 'enemy.combat.spectroFrazzle',
+            value: 3,
+          },
+        ],
+        enabled: true,
+      },
+    ]
+
+    const result = runResonatorSimulation(runtime, negativeEffectSeed, makeDefaultEnemyProfile())
+
+    expect(result.perSkill).toHaveLength(1)
+    expect(result.perSkill[0]?.avg).toBeGreaterThan(baselineResult.perSkill[0]?.avg ?? 0)
+    expect(runtime.state.combat.spectroFrazzle).toBe(0)
   })
 
   it('can execute teammate features with the teammate runtime instead of the active runtime', () => {

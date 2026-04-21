@@ -63,6 +63,7 @@ import {
   getNegativeEffectAttribute,
   getNegativeEffectCombatKey,
   getNegativeEffectEntryForRuntime,
+  resolveNegativeEffectsForRuntime,
 } from '@/domain/gameData/negativeEffects'
 import {
   createNegativeEffectConfigDraft,
@@ -176,6 +177,7 @@ interface ConditionChoice {
   description?: string
   descriptionParams?: Array<string | number>
   state: SourceStateDefinition
+  changeTarget?: 'runtime' | 'enemy'
 }
 
 interface FeatureMeta {
@@ -255,6 +257,61 @@ function listRotationMemberStates(
   }
 
   return states
+}
+
+function makeEnemyStatusState(
+  id: string,
+  label: string,
+  path: string,
+  max: number,
+  description: string,
+): SourceStateDefinition {
+  return {
+    id,
+    label,
+    source: { type: 'enemy', id: 'target' },
+    ownerKey: 'enemy:status',
+    controlKey: `enemy:${id}`,
+    path,
+    kind: 'stack',
+    min: 0,
+    max,
+    defaultValue: 0,
+    description,
+  }
+}
+
+function buildEnemyStatusConditionChoices(runtime: ResonatorRuntimeState): ConditionChoice[] {
+  const enemyMember = {
+    id: runtime.id,
+    name: 'Enemy',
+    runtime,
+  }
+  const tuneStrain = makeEnemyStatusState(
+      'tuneStrain',
+      'Tune Strain',
+      'enemy.status.tuneStrain',
+      10,
+      'Set the target enemy Tune Strain stacks for following rotation actions.',
+  )
+  const negativeEffects = resolveNegativeEffectsForRuntime(runtime)
+      .filter((effect) => effect.sliderVisible)
+      .map((effect) => makeEnemyStatusState(
+          effect.key,
+          effect.label,
+          `enemy.combat.${effect.key}`,
+          effect.max,
+          `Set the target enemy ${effect.label} stacks for following rotation actions.`,
+      ))
+
+  return [tuneStrain, ...negativeEffects].map((state) => makeConditionChoice(
+      enemyMember,
+      state,
+      {
+        id: `enemy:${state.id}`,
+        changeTarget: 'enemy',
+      },
+  ))
 }
 
 interface NodeMemberIcon {
@@ -954,9 +1011,14 @@ function getConditionChoiceForChange(
   }
 
   return choices.find(
-    (choice) =>
-      choice.resonatorId === (change.resonatorId ?? fallbackResonatorId) &&
-      choice.state.path === change.path,
+    (choice) => {
+      if (choice.changeTarget === 'enemy') {
+        return choice.state.path === change.path
+      }
+
+      return choice.resonatorId === (change.resonatorId ?? fallbackResonatorId) &&
+        choice.state.path === change.path
+    },
   ) ?? null
 }
 
@@ -1019,21 +1081,27 @@ function serializeFeatureConditionDraftRows(
     const action = normalizeFeatureConditionAction(row.action, choice)
     if (action === 'add') {
       const value = Number(row.value)
-      changes.push({
+      const change: RuntimeChange = {
         type: 'add',
         path: choice.state.path,
         value: Number.isFinite(value) ? value : 0,
-        resonatorId: choice.resonatorId,
-      })
+      }
+      if (choice.changeTarget !== 'enemy') {
+        change.resonatorId = choice.resonatorId
+      }
+      changes.push(change)
       return changes
     }
 
-    changes.push({
+    const change: RuntimeChange = {
       type: 'set',
       path: choice.state.path,
       value: row.value,
-      resonatorId: choice.resonatorId,
-    })
+    }
+    if (choice.changeTarget !== 'enemy') {
+      change.resonatorId = choice.resonatorId
+    }
+    changes.push(change)
     return changes
   }, [])
 }
@@ -1075,6 +1143,7 @@ function makeConditionChoice(
     label?: string
     description?: string
     descriptionParams?: Array<string | number>
+    changeTarget?: 'runtime' | 'enemy'
   },
 ): ConditionChoice {
   const display = getSourceStateDisplay(state)
@@ -1095,6 +1164,7 @@ function makeConditionChoice(
     description: options?.description ?? display.description,
     descriptionParams: options?.descriptionParams ?? weaponDescriptionParams,
     state,
+    changeTarget: options?.changeTarget,
   }
 }
 
@@ -1915,7 +1985,7 @@ function FeatureConditionsModal({
                           className={activeRow?.choiceId === choice.id ? 'feature-conditions-choice active' : 'feature-conditions-choice'}
                           onClick={() => selectChoiceForActiveRow(choice)}
                         >
-                          <strong>{choice.sourceName} · {choice.label}</strong>
+                          <strong>{formatConditionChoiceLabel(choice)}</strong>
                         </button>
                       ))}
                     </div>
@@ -1949,7 +2019,6 @@ function NegativeEffectConfigModal({
   closing = false,
   portalTarget,
   initialNode,
-  defaultStacks,
   featureMeta,
   onClose,
   onSave,
@@ -1959,21 +2028,16 @@ function NegativeEffectConfigModal({
   closing?: boolean
   portalTarget: HTMLElement | null
   initialNode: Extract<RotationNode, { type: 'feature' }> | null
-  defaultStacks: number
   featureMeta?: FeatureMeta
   onClose: () => void
   onSave: (config: {
-    negativeEffectStacks?: number
     negativeEffectInstances?: number
     negativeEffectStableWidth?: number
   }) => void
 }) {
-  const [draft, setDraft] = useState(() => createNegativeEffectConfigDraft(initialNode, defaultStacks))
+  const [draft, setDraft] = useState(() => createNegativeEffectConfigDraft(initialNode))
 
   const attribute = getNegativeEffectAttribute(featureMeta?.archetype)
-  const stackPreview = parseOptionalIntegerInput(draft.stacksInput, 0)
-    ?? initialNode?.negativeEffectStacks
-    ?? defaultStacks
   const instancesPreview = parseOptionalIntegerInput(draft.instancesInput, 1)
     ?? initialNode?.negativeEffectInstances
     ?? 1
@@ -2010,23 +2074,6 @@ function NegativeEffectConfigModal({
       <div className="rotation-condition-modal">
         <div className="rotation-condition-panel">
           <div className="rotation-condition-grid rotation-negative-effect-grid">
-            <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
-              <span>Stacks</span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                className="resonator-level-input"
-                value={draft.stacksInput}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    stacksInput: event.target.value,
-                    stacksTouched: true,
-                  }))
-                }
-              />
-            </div>
             <div className="rotation-inline-field rotation-inline-field--wide ui-inline-field ui-inline-field--wide">
               <span>Instances</span>
               <input
@@ -2074,8 +2121,7 @@ function NegativeEffectConfigModal({
             <div className="rotation-negative-effect-summary__copy">
               <strong>{featureMeta?.label ?? 'Negative Effect'}</strong>
               <span>
-                Starting from {stackPreview} stacks, count {instancesPreview} instance{instancesPreview === 1 ? '' : 's'} and keep each
-                stack value for {stableWidthPreview} instance{stableWidthPreview === 1 ? '' : 's'} before lowering it.
+                Count {instancesPreview} instance{instancesPreview === 1 ? '' : 's'} and keep each stack value for {stableWidthPreview} instance{stableWidthPreview === 1 ? '' : 's'} before lowering it.
               </span>
             </div>
           </div>
@@ -3699,7 +3745,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
   }, [availableMembers])
 
   const conditionChoices = useMemo<ConditionChoice[]>(() => {
-    return availableMembers.flatMap((member) => {
+    const memberChoices = availableMembers.flatMap((member) => {
       const stateChoices = member.states.map((state) => makeConditionChoice(member, state))
 
       const targetChoices = member.states.flatMap((state) => {
@@ -3748,6 +3794,8 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
 
       return [...stateChoices, ...targetChoices]
     })
+
+    return [...memberChoices, ...buildEnemyStatusConditionChoices(runtime)]
   }, [availableMembers, runtime])
 
   const savedRotationEntries = useMemo(() => {
@@ -3847,25 +3895,6 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
   const editedNegativeEffectMeta = editedNegativeEffectFeatureNode
     ? featureMetaById[editedNegativeEffectFeatureNode.featureId]
     : undefined
-  const editedNegativeEffectRuntime = useMemo(() => {
-    if (!editedNegativeEffectFeatureNode) {
-      return null
-    }
-
-    const memberId =
-      editedNegativeEffectFeatureNode.resonatorId ?? editedNegativeEffectMeta?.resonatorId ?? runtime.id
-
-    return memberId === runtime.id ? runtime : runtimesById[memberId] ?? null
-  }, [editedNegativeEffectFeatureNode, editedNegativeEffectMeta?.resonatorId, runtime, runtimesById])
-  const editedNegativeEffectDefaultStacks = useMemo(() => {
-    const combatKey = getNegativeEffectCombatKey(editedNegativeEffectMeta?.archetype)
-
-    if (!combatKey) {
-      return 0
-    }
-
-    return Math.max(0, Math.floor(editedNegativeEffectRuntime?.state.combat[combatKey] ?? 0))
-  }, [editedNegativeEffectMeta?.archetype, editedNegativeEffectRuntime])
 
   const setRotationView = (view: ResonatorRuntimeState['rotation']['view']) => {
     onRuntimeUpdate((prev) => ({
@@ -4100,6 +4129,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     return actionListModal.value
       ? buildRotationActionSequence({
           items: actionListModal.value.items,
+          initialCombat: actionListModal.value.snapshot?.runtime.local.combat,
           resonatorId: actionListModal.value.resonatorId,
         })
       : null
@@ -4800,7 +4830,6 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
         closing={negativeEffectConfigModal.closing}
         portalTarget={portalTarget}
         initialNode={editedNegativeEffectFeatureNode}
-        defaultStacks={editedNegativeEffectDefaultStacks}
         featureMeta={editedNegativeEffectMeta}
         onClose={negativeEffectConfigModal.hide}
         onSave={(config) => {
@@ -4810,10 +4839,14 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
 
           updateCurrentNode(negativeEffectConfigModal.value.nodeId, (current) =>
             current.type === 'feature'
-              ? {
-                  ...current,
-                  ...config,
-                }
+              ? (() => {
+                  const { negativeEffectStacks: _removedStacks, ...featureNode } = current
+                  void _removedStacks
+                  return {
+                    ...featureNode,
+                    ...config,
+                  }
+                })()
               : current,
           )
           negativeEffectConfigModal.hide()

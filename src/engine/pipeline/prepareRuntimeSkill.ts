@@ -6,6 +6,7 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
+import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
 import type { SkillDefinition } from '@/domain/entities/stats'
 import type { CombatContext } from '@/engine/pipeline/types'
@@ -14,6 +15,8 @@ import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
 import { listRuntimeSkills } from '@/domain/services/runtimeSourceService'
 import { applySkillDataEffects } from '@/engine/effects/dataEffects'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
+
+const preparedSkillCache = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Map<string, SkillDefinition>>>()
 
 interface RuntimeSkillContextInput {
   // active runtime whose skills are being prepared
@@ -40,6 +43,32 @@ interface RuntimeSkillContextResult {
 export interface PreparedRuntimeSkillResult extends RuntimeSkillContextResult {
   // prepared skill after runtime resolution and skill-data effects
   skill: SkillDefinition
+}
+
+function makePreparedSkillCacheKey(
+    runtimeId: string,
+    targetSlotId: CombatContext['targetSlotId'],
+    skillId: string,
+): string {
+  return `${targetSlotId}:${runtimeId}:${skillId}`
+}
+
+function getPreparedSkillCache(
+    context: CombatContext,
+): Map<string, SkillDefinition> {
+  let cacheByEnemy = preparedSkillCache.get(context.graph)
+  if (!cacheByEnemy) {
+    cacheByEnemy = new WeakMap<EnemyProfile, Map<string, SkillDefinition>>()
+    preparedSkillCache.set(context.graph, cacheByEnemy)
+  }
+
+  let cache = cacheByEnemy.get(context.enemy)
+  if (!cache) {
+    cache = new Map<string, SkillDefinition>()
+    cacheByEnemy.set(context.enemy, cache)
+  }
+
+  return cache
 }
 
 // build a transient combat graph around the active runtime and return the
@@ -76,13 +105,23 @@ export function prepareRuntimeSkill(
     skill: SkillDefinition,
     context: CombatContext,
 ): SkillDefinition {
-  return applySkillDataEffects(runtime, resolveSkill(runtime, skill), {
+  const cache = getPreparedSkillCache(context)
+  const cacheKey = makePreparedSkillCacheKey(runtime.id, context.targetSlotId, skill.id)
+  const cached = cache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  const prepared = applySkillDataEffects(runtime, resolveSkill(runtime, skill), {
     graph: context.graph,
     targetSlotId: context.targetSlotId,
     baseStats: context.baseStats,
     finalStats: context.finalStats,
     enemy: context.enemy,
   })
+
+  cache.set(cacheKey, prepared)
+  return prepared
 }
 
 // locate one runtime skill by id, prepare it, and hide it from callers if

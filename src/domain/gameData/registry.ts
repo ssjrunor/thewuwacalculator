@@ -8,6 +8,7 @@ import type {
   ConditionDefinition,
   DataSourceRef,
   EffectDefinition,
+  EffectSourceBuckets,
   FeatureDefinition,
   GameDataRegistry,
   RotationDefinition,
@@ -16,9 +17,17 @@ import type {
   SourceStateDefinition,
 } from '@/domain/gameData/contracts'
 import type { SkillDefinition } from '@/domain/entities/stats'
+import { primeCompiledSourcePackageExpressions } from '@/engine/effects/evaluator'
 
 const EMPTY_OWNERS: SourceOwnerDefinition[] = []
 const EMPTY_EFFECTS: EffectDefinition[] = []
+const EMPTY_EFFECT_BUCKETS: EffectSourceBuckets = {
+  all: EMPTY_EFFECTS,
+  runtime: EMPTY_EFFECTS,
+  runtimePreStats: EMPTY_EFFECTS,
+  runtimePostStats: EMPTY_EFFECTS,
+  skill: EMPTY_EFFECTS,
+}
 const EMPTY_STATES: SourceStateDefinition[] = []
 const EMPTY_CONDITIONS: ConditionDefinition[] = []
 const EMPTY_FEATURES: FeatureDefinition[] = []
@@ -36,6 +45,7 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
   const ownersBySourceKey: Record<string, SourceOwnerDefinition[]> = {}
   const ownersByKey: Record<string, SourceOwnerDefinition> = {}
   const effectsBySourceKey: Record<string, EffectDefinition[]> = {}
+  const effectBucketsBySourceKey: Record<string, EffectSourceBuckets> = {}
   const effectsByOwnerKey: Record<string, EffectDefinition[]> = {}
   const statesBySourceKey: Record<string, SourceStateDefinition[]> = {}
   const statesByOwnerKey: Record<string, SourceStateDefinition[]> = {}
@@ -50,6 +60,8 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
   const resonatorRotationsById: Record<string, RotationDefinition[]> = {}
 
   for (const source of sources) {
+    primeCompiledSourcePackageExpressions(source)
+
     const key = makeSourceKey(source.source)
 
     if (sourcesByKey[key]) {
@@ -58,7 +70,36 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
 
     sourcesByKey[key] = source
     ownersBySourceKey[key] = source.owners ?? EMPTY_OWNERS
-    effectsBySourceKey[key] = source.effects ?? EMPTY_EFFECTS
+    const effects = source.effects ?? EMPTY_EFFECTS
+    const runtimePreStats: EffectDefinition[] = []
+    const runtimePostStats: EffectDefinition[] = []
+    const runtime: EffectDefinition[] = []
+    const skill: EffectDefinition[] = []
+
+    for (const effect of effects) {
+      if (effect.trigger === 'skill') {
+        skill.push(effect)
+        continue
+      }
+
+      runtime.push(effect)
+
+      if ((effect.stage ?? 'preStats') === 'postStats') {
+        runtimePostStats.push(effect)
+        continue
+      }
+
+      runtimePreStats.push(effect)
+    }
+
+    effectsBySourceKey[key] = effects
+    effectBucketsBySourceKey[key] = {
+      all: effects,
+      runtime,
+      runtimePreStats,
+      runtimePostStats,
+      skill,
+    }
     statesBySourceKey[key] = source.states ?? EMPTY_STATES
     conditionsBySourceKey[key] = source.conditions ?? EMPTY_CONDITIONS
     featuresBySourceKey[key] = source.features ?? EMPTY_FEATURES
@@ -126,6 +167,7 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
     ownersBySourceKey,
     ownersByKey,
     effectsBySourceKey,
+    effectBucketsBySourceKey,
     effectsByOwnerKey,
     statesBySourceKey,
     statesByOwnerKey,
@@ -153,7 +195,18 @@ export function listSourceEffects(
     return effects
   }
 
-  return effects.filter((effect) => effect.trigger === trigger)
+  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? EMPTY_EFFECT_BUCKETS
+  return trigger === 'skill' ? buckets.skill : buckets.runtime
+}
+
+// list staged runtime effects for a source
+export function listSourceRuntimeEffectsByStage(
+    registry: GameDataRegistry,
+    source: DataSourceRef,
+    stage: 'preStats' | 'postStats',
+): EffectDefinition[] {
+  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? EMPTY_EFFECT_BUCKETS
+  return stage === 'postStats' ? buckets.runtimePostStats : buckets.runtimePreStats
 }
 
 // list states for a source

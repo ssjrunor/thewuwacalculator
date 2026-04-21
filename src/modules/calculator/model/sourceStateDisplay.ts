@@ -6,6 +6,7 @@
 
 import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
 import type { SourceStateDefinition } from '@/domain/gameData/contracts'
+import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getWeaponById } from '@/domain/services/weaponCatalogService'
 
 export interface SourceStateDisplay {
@@ -36,6 +37,23 @@ function getEchoSetPieceLabel(stateId: string, setMax: 3 | 5): string {
 // weapons expose the weapon name as the source name
 // echo sets expose the set name and a formatted piece label
 export function getSourceStateDisplay(state: SourceStateDefinition): SourceStateDisplay {
+  if (state.source.type === 'enemy') {
+    return {
+      sourceName: 'Enemy',
+      label: state.label,
+      description: state.description,
+    }
+  }
+
+  if (state.source.type === 'echo') {
+    const echo = getEchoById(state.source.id)
+    return {
+      sourceName: echo?.name ?? 'Main Echo',
+      label: echo?.name ?? state.label,
+      description: echo?.skillDesc ?? state.description,
+    }
+  }
+
   // weapon states show the owning weapon name directly
   if (state.source.type === 'weapon') {
     const weapon = getWeaponById(state.source.id)
@@ -72,6 +90,6 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
   return {
     sourceName: setDef.name,
     label: `${setDef.name} ${getEchoSetPieceLabel(state.id, setDef.setMax)}`,
-    description: state.description ?? part?.label ?? state.label,
+    description: part?.label ?? state.description ?? state.label,
   }
 }

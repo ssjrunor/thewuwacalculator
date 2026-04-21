@@ -51,6 +51,11 @@ export interface DirectSkillDamageContext {
   fixedDmg: number
 }
 
+interface HitSummary {
+  hitScale: number
+  hitCount: number
+}
+
 // convert an enemy resistance percentage into the game damage multiplier
 function resistanceMultiplier(enemyResPercent: number): number {
   if (enemyResPercent < 0) return 1 - enemyResPercent / 200
@@ -242,20 +247,63 @@ function sumHitScale(hits: SkillDefinition['hits']): number {
   return hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0)
 }
 
-// count the total number of hits
-function countHits(hits: SkillDefinition['hits']): number {
-  return hits.reduce((total, hit) => total + hit.count, 0)
+function summarizeHits(hits: SkillDefinition['hits']): HitSummary {
+  let hitScale = 0
+  let hitCount = 0
+
+  for (const hit of hits) {
+    hitScale += hit.multiplier * hit.count
+    hitCount += hit.count
+  }
+
+  return {
+    hitScale,
+    hitCount,
+  }
 }
 
-// expose a detailed direct-damage calculation context for debugging or inspection
-export function buildDirectSkillDamageContext(
+function buildDamageResultFromHits(
+    hits: SkillDefinition['hits'],
+    buildValues: (hit: SkillDefinition['hits'][number]) => {
+      normal: number
+      crit: number
+      avg: number
+    },
+): DamageResult {
+  const subHits: DamageResult['subHits'] = []
+  let normal = 0
+  let crit = 0
+  let avg = 0
+
+  for (const hit of hits) {
+    const values = buildValues(hit)
+    subHits.push({
+      ...hit,
+      normal: values.normal,
+      crit: values.crit,
+      avg: values.avg,
+    })
+
+    normal += values.normal * hit.count
+    crit += values.crit * hit.count
+    avg += values.avg * hit.count
+  }
+
+  return {
+    normal,
+    crit,
+    avg,
+    subHits,
+  }
+}
+
+function buildDirectSkillDamageContextFromShared(
     finalStats: FinalStats,
     skill: SkillDefinition,
-    enemy: EnemyProfile,
-    level: number,
+    shared: ReturnType<typeof computeSharedDamageContext>,
 ): DirectSkillDamageContext {
-  const shared = computeSharedDamageContext(finalStats, skill, enemy, level)
   const hits = resolveDamageHits(skill, skill.multiplier)
+  const hitSummary = summarizeHits(hits)
 
   return {
     baseAtk: finalStats.atk.base,
@@ -281,11 +329,22 @@ export function buildDirectSkillDamageContext(
     scalingDef: skill.scaling.def,
     scalingER: skill.scaling.energyRegen,
     multiplier: skill.multiplier,
-    hitScale: hits.length > 0 ? sumHitScale(hits) : skill.multiplier,
-    hitCount: hits.length > 0 ? countHits(hits) : 1,
+    hitScale: hits.length > 0 ? hitSummary.hitScale : skill.multiplier,
+    hitCount: hits.length > 0 ? hitSummary.hitCount : 1,
     flatDmg: finalStats.flatDmg + skill.flat,
     fixedDmg: skill.fixedDmg ?? 0,
   }
+}
+
+// expose a detailed direct-damage calculation context for debugging or inspection
+export function buildDirectSkillDamageContext(
+    finalStats: FinalStats,
+    skill: SkillDefinition,
+    enemy: EnemyProfile,
+    level: number,
+): DirectSkillDamageContext {
+  const shared = computeSharedDamageContext(finalStats, skill, enemy, level)
+  return buildDirectSkillDamageContextFromShared(finalStats, skill, shared)
 }
 
 // compute standard direct damage skills
@@ -301,26 +360,18 @@ function computeDirectDamage(
     const hits = resolveDamageHits(skill, 1)
     const totalHitScale = sumHitScale(hits)
 
-    const subHits = hits.map((hit) => {
+    return buildDamageResultFromHits(hits, (hit) => {
       const normal = totalHitScale > 0 ? (value * hit.multiplier) / totalHitScale : value
       return {
-        ...hit,
         normal,
         crit: normal,
         avg: normal,
       }
     })
-
-    return {
-      normal: subHits.reduce((total, hit) => total + hit.normal * hit.count, 0),
-      crit: subHits.reduce((total, hit) => total + hit.crit * hit.count, 0),
-      avg: subHits.reduce((total, hit) => total + hit.avg * hit.count, 0),
-      subHits,
-    }
   }
 
-  const direct = buildDirectSkillDamageContext(finalStats, skill, enemy, level)
   const shared = computeSharedDamageContext(finalStats, skill, enemy, level)
+  const direct = buildDirectSkillDamageContextFromShared(finalStats, skill, shared)
 
   // full elemental immunity produces zero damage
   if (shared.zeroed) {
@@ -338,26 +389,18 @@ function computeDirectDamage(
       direct.amplifyMultiplier *
       direct.specialMultiplier
 
-  const subHits = skill.hits.map((hit) => {
+  return buildDamageResultFromHits(skill.hits, (hit) => {
     const normal = (baseAbility * hit.multiplier + direct.flatDmg) * damageMultiplier
     const crit = normal * (direct.critDmg / 100)
     const critRate = direct.critRate / 100
     const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
 
     return {
-      ...hit,
       normal,
       crit,
       avg,
     }
   })
-
-  return {
-    normal: subHits.reduce((total, hit) => total + hit.normal * hit.count, 0),
-    crit: subHits.reduce((total, hit) => total + hit.crit * hit.count, 0),
-    avg: subHits.reduce((total, hit) => total + hit.avg * hit.count, 0),
-    subHits,
-  }
 }
 
 // compute healing and shielding style support effects
@@ -464,25 +507,17 @@ function computeTuneRupture(
   const critMultiplier = skill.tuneRuptureCritDmg ?? 1
   const critRate = skill.tuneRuptureCritRate ?? 0
 
-  const subHits = hits.map((hit) => {
+  return buildDamageResultFromHits(hits, (hit) => {
     const normal = hit.multiplier * tuneRuptureLevelScale * perHitMultiplier
     const crit = normal * critMultiplier
     const avg = critRate >= 1 ? crit : (crit * critRate) + (normal * (1 - critRate))
 
     return {
-      ...hit,
       normal,
       crit,
       avg,
     }
   })
-
-  return {
-    normal: subHits.reduce((total, hit) => total + hit.normal * hit.count, 0),
-    crit: subHits.reduce((total, hit) => total + hit.crit * hit.count, 0),
-    avg: subHits.reduce((total, hit) => total + hit.avg * hit.count, 0),
-    subHits,
-  }
 }
 
 // compute negative-effect archetype damage such as frazzle, erosion, burst and flare
@@ -592,25 +627,17 @@ function computeNegativeEffectDamage(
   const critRate = (skill.negativeEffectCritRate ?? 0) + (negativeEffectBuff.critRate / 100)
   const critMultiplier = (skill.negativeEffectCritDmg ?? 1) + (negativeEffectBuff.critDmg / 100)
 
-  const subHits = hits.map((hit) => {
+  return buildDamageResultFromHits(hits, (hit) => {
     const normal = totalHitScale > 0 ? (damage * hit.multiplier) / totalHitScale : 0
     const crit = normal * critMultiplier
     const avg = critRate >= 1 ? crit : (crit * critRate) + (normal * (1 - critRate))
 
     return {
-      ...hit,
       normal,
       crit,
       avg,
     }
   })
-
-  return {
-    normal: subHits.reduce((total, hit) => total + hit.normal * hit.count, 0),
-    crit: subHits.reduce((total, hit) => total + hit.crit * hit.count, 0),
-    avg: subHits.reduce((total, hit) => total + hit.avg * hit.count, 0),
-    subHits,
-  }
 }
 
 // route a skill to the correct computation path based on archetype
