@@ -752,7 +752,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     owners: [makeOwner(id, 'Passive', `ATK is increased by {0}.`)],
     states: [
       makeToggle(id, 'active', 'Glacio Amp + Res. Liberation DEF Ignore',
-        `When the wielder applies Glacio Chafe, Glacio DMG is Amplified by {1}, and Resonance Liberation DMG ignores {2} of the target's DEF.`),
+        `After the wielder applies Glacio Chafe, Glacio DMG is Amplified by {1}, and Resonance Liberation DMG ignores {2} of the target's DEF.`),
       makeToggle(id, 'glacio_chafe', 'Glacio Chafe DMG',
         `If the wielder is the active Resonator in the team, Glacio Chafe DMG dealt to all targets within a certain range is Amplified by {3} for {4}s.`),
     ],
@@ -1520,9 +1520,9 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
     states: [
       makeToggle(id, 'ult', 'Res. Liberation DMG',
-        `When the wielder inflicts Fusion Burst Effect or Tune Strain - Shifting on the target, it increases their Resonance Liberation DMG Bonus by {1} for {2}s.`),
+        `After the wielder inflicts Fusion Burst or Tune Strain - Shifting on the target, their Resonance Liberation DMG Bonus is increased by {1} for {2}s.`),
       makeToggle(id, 'team_atk', 'Team ATK',
-        `Under this effect, when Resonators in the team inflict Fusion Burst Effect or Tune Strain - Shifting, their ATK is increased by {3} for {4}s. Effects of the same name cannot be stacked.`),
+        `While this effect lasts, after Resonators in the team inflict Fusion Burst Effect or Tune Strain - Shifting, their ATK is increased by {3} for {4}s. Effects of the same name cannot be stacked.`),
     ],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
