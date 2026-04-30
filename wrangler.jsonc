@@ -3,6 +3,12 @@
   "name": "thewuwacalculator",
   "main": "src/cloudflare/worker.ts",
   "compatibility_date": "2026-04-09",
+  "keep_vars": true,
+  "vars": {
+    "GOOGLE_CLIENT_ID": "309991415986-jhmb0m80e3j5erkvfvbl7dsvt7na9btf.apps.googleusercontent.com",
+    "GOOGLE_REDIRECT_URI": "https://thewuwacalculator.com/",
+    "VITE_GOOGLE_CLIENT_ID": "309991415986-jhmb0m80e3j5erkvfvbl7dsvt7na9btf.apps.googleusercontent.com"
+  },
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
