@@ -5,5 +5,5 @@
 */
 
 export const APP_VERSION = '0.0.0'
-export const GAME_DATA_VERSION = '3.3.2'
+export const GAME_DATA_VERSION = '3.3.6'
 export const CURRENT_PATCH_VERSION = GAME_DATA_VERSION

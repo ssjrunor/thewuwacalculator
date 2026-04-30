@@ -16,22 +16,19 @@ const STATUS_DATA = {
     'Rotation building got a useful little upgrade: feature conditions, cleaner condition editing, add-below actions, and a bit of UI polish. Check it out when you get a chance~',
     'Remember, you can import your data from the old app if you have any data on there~',
     'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
-    'Denia and Hiyuki are yet to release in game and as such their default rotations were crafted using my intuition. If they seem weird or anything... tell me on Discord.'
+    'Hiyuki\'s default rotation has been updated, Denia\'s is still as it was.'
   ],
   coverage: [
-    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported. Some assets aren\'t available yet.' },
-    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported. Some assets aren\'t available yet.' },
-    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included. Some assets aren\'t available yet.' },
+    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
+    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
+    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
     { title: 'Enemies',    status: 'wip' as const,  desc: 'I\'m kinda tired so 3.3 enemies will come later.' },
   ],
   knownIssues: [
     'The guides system not fully implemented yet.',
   ],
   recentChanges: [
-    'Feature nodes can now carry attached condition/state changes.',
-    'Reworked the condition editor so adding and editing rotation state changes is less cramped.',
-    'Rotation lists can now add actions directly below a specific feature.',
-    'Cleaned up the rotation UI a bit.',
+    'None at the moment.',
   ],
 }
 
