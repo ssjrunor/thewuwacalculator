@@ -385,6 +385,36 @@ describe('optimizer packed cpu parity', () => {
     expect(Math.abs(actual - expected)).toBeLessThan(0.001)
   })
 
+  it('matches computeSkillDamage for fixed-mv glacio bite', () => {
+    const enemy = makeDefaultEnemyProfile()
+    const finalStats = makeFinalStats({
+      skillType: {
+        ...makeFinalStats().skillType,
+        glacioChafe: {
+          ...makeBuff(),
+          dmgBonus: 18,
+          amplify: 12,
+        },
+      },
+    })
+    const combat = { glacioChafe: 10 }
+    const skill = {
+      ...glacioChafeSkill,
+      id: 'glacio-bite',
+      label: 'Glacio Bite',
+      fixedMv: 10200,
+    }
+    const expected = computeSkillDamage(finalStats, skill, enemy, 90, combat).avg
+    const actual = evaluatePackedCpuSkill({
+      finalStats,
+      skill,
+      enemy,
+      runtimeCombat: combat,
+    })
+
+    expect(Math.abs(actual - expected)).toBeLessThan(0.001)
+  })
+
   it('matches computeSkillDamage for electro flare', () => {
     const enemy = makeDefaultEnemyProfile()
     const finalStats = makeFinalStats({

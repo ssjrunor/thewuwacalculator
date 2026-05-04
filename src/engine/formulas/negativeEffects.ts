@@ -130,10 +130,17 @@ export function getNegativeEffectBase(
     archetype: NegativeEffectArchetype,
     level: number,
     stacks: number,
+    options?: {
+      fixedMv?: number
+    },
 ): number {
   // zero stacks means no negative-effect damage
   if (stacks <= 0) {
     return 0
+  }
+
+  if (options?.fixedMv !== undefined) {
+    return options.fixedMv * getLevelValue(level) / 10000
   }
 
   // Spectro Frazzle uses a simple linear stack formula

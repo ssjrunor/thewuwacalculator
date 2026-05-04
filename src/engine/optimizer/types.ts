@@ -154,6 +154,7 @@ export interface CompiledTargetSkillContext {
   tuneRuptureCritRate: number
   tuneRuptureCritDmg: number
   negativeEffectMultiplier: number
+  negativeEffectFixedMv: number
   negativeEffectCritRate: number
   negativeEffectCritDmg: number
   combatSpectroFrazzle: number

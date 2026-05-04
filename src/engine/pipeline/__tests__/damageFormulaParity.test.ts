@@ -426,6 +426,21 @@ describe('damage formula parity', () => {
     expect(boosted.avg).toBeGreaterThan(baseline.avg)
   })
 
+  it('uses fixed mv when a glacio-chafe negative effect provides one', () => {
+    const glacioBiteSkill: SkillDefinition = {
+      ...glacioChafeSkill,
+      id: 'glacio-bite',
+      label: 'Glacio Bite',
+      fixedMv: 10200,
+    }
+
+    const fixedMvResult = computeSkillDamage(makeFinalStats(), glacioBiteSkill, enemy, 90, { glacioChafe: 10 })
+    const stackScaledResult = computeSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 10 })
+
+    expect(fixedMvResult.avg).toBeGreaterThan(0)
+    expect(fixedMvResult.avg).toBeLessThan(stackScaledResult.avg)
+  })
+
   it('lets negative effects use fixed crit scalars when present', () => {
     const critSkill: SkillDefinition = {
       ...fusionBurstSkill,

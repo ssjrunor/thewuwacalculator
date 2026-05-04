@@ -10,6 +10,7 @@ import type { EffectEvalScope } from '@/domain/gameData/contracts'
 import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
 import {
   getNegativeEffectCombatKey,
+  getNegativeEffectDefaultLabel,
   getNegativeEffectEntryForRuntime,
   isNegativeEffectVisibleForRuntime,
 } from '@/domain/gameData/negativeEffects'
@@ -127,7 +128,18 @@ export function resolveSkill(runtime: ResonatorRuntimeState, skill: SkillDefinit
   const levelIndex = resolveLevelIndex(runtime, skill)
   const negativeEffectKey = skill.tab === 'negativeEffect' ? getNegativeEffectCombatKey(skill.archetype) : null
   const label = negativeEffectKey
-    ? (getNegativeEffectEntryForRuntime(runtime, negativeEffectKey)?.label ?? skill.label)
+    ? (() => {
+      const resolvedLabel = getNegativeEffectEntryForRuntime(runtime, negativeEffectKey)?.label
+      if (!resolvedLabel) {
+        return skill.label
+      }
+
+      // Preserve authored named skills like "Fine Snow: Glacio Bite" and only
+      // relabel the generic catalog placeholder skill such as "Glacio Chafe".
+      return skill.label === getNegativeEffectDefaultLabel(negativeEffectKey)
+        ? resolvedLabel
+        : skill.label
+    })()
     : skill.label
 
   // resolve scalar values from their level tables, falling back to base values

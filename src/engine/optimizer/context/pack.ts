@@ -250,9 +250,15 @@ function buildNegativeEffectBaseScale(compiled: CompiledTargetSkillContext): num
                   : 'electroFlare',
       compiled.level,
       primaryStacks,
+      { fixedMv: compiled.negativeEffectFixedMv > 0 ? compiled.negativeEffectFixedMv : undefined },
   ) + (
         compiled.archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-          ? getNegativeEffectBase('electroFlare', compiled.level, extraElectroRageStacks)
+          ? getNegativeEffectBase(
+            'electroFlare',
+            compiled.level,
+            extraElectroRageStacks,
+            { fixedMv: compiled.negativeEffectFixedMv > 0 ? compiled.negativeEffectFixedMv : undefined },
+          )
           : 0
       )
 
@@ -412,7 +418,7 @@ export function patchTargetContextForGpuJob(options: {
   return out
 }
 
-// update the dispatch workgroup base in-place right before a gpu dispatch
+// update the dispatch workgroup base in-place results before a gpu dispatch
 export function patchTargetContextDispatchWorkgroupBase(
     context: Float32Array,
     workgroupBase: number,

@@ -100,6 +100,10 @@ export function getNegativeEffectDefaultMax(key: NegativeEffectKey): number {
   return NEGATIVE_EFFECT_CATALOG[key].defaultMax
 }
 
+export function getNegativeEffectDefaultLabel(key: NegativeEffectKey): string {
+  return NEGATIVE_EFFECT_CATALOG[key].label
+}
+
 function resolveEntryMax(entry: ResonatorNegativeEffectSourceEntry): number {
   return entry.max ?? NEGATIVE_EFFECT_CATALOG[entry.key].defaultMax
 }

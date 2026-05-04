@@ -206,6 +206,7 @@ export interface SkillDefinition {
     multiplier: number
   }>
   hitTable?: SkillHitTableEntry[]
+  fixedMv?: number
 }
 
 export interface SkillComputationResult {

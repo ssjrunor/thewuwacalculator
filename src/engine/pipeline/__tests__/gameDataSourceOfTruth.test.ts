@@ -244,9 +244,14 @@ describe('game-data source of truth', () => {
     const hiyukiStates = listStatesForSource('resonator', '1108')
     const hiyukiEffects = listEffectsForSource('resonator', '1108')
     const hiyukiSkills = listSkillsForSource('resonator', '1108')
+    const hiyukiSeed = getResonatorSeedById('1108')
 
     expect(hiyukiStates.find((state) => state.controlKey === 'sequence:1108:s4:active')?.label)
       .toBe('S4: Like Reeds on Tides')
+    expect(hiyukiStates.find((state) => state.controlKey === 'resonator:1108:snowforged_blade:stacks')).toMatchObject({
+      label: 'Snowforged Blade',
+      kind: 'select',
+    })
     expect(hiyukiEffects.find((effect) => effect.id === '1108:s4:like-reeds-on-tides')?.targetScope)
       .toBe('teamWide')
     expect(hiyukiEffects.find((effect) => effect.id === '1108:s5:vessel-of-thousand-wishes')?.operations[0]).toMatchObject({
@@ -254,11 +259,40 @@ describe('game-data source of truth', () => {
       match: { skillIds: ['1108019', '1108020', '1108021'] },
       value: { type: 'const', value: 1.8 },
     })
+    expect(hiyukiEffects.find((effect) => effect.id === '1108:snowforged-blade:blade-liberation')?.operations[0])
+      .toMatchObject({
+        type: 'add_skill_multiplier',
+        match: { skillIds: ['1108023'] },
+      })
+    expect(hiyukiSkills.find((skill) => skill.id === '1108:negative-effect:fine:snow:glacio-bite')).toMatchObject({
+      label: 'Fine Snow: Glacio Bite',
+      fixedMv: 10200,
+    })
+    expect(hiyukiSkills.find((skill) => skill.id === '1108024')).toBeUndefined()
     expect(hiyukiSkills.find((skill) => skill.id === '1108:s4:frostblight-healing')).toMatchObject({
       aggregationType: 'healing',
       multiplier: 0.18,
       scaling: { atk: 0, hp: 1, def: 0, energyRegen: 0 },
     })
+
+    const bladeLiberation = hiyukiSkills.find((skill) => skill.id === '1108023')
+    if (!hiyukiSeed || !bladeLiberation) {
+      throw new Error('missing Hiyuki Snowforged Blade test data')
+    }
+
+    const runtime = createDefaultResonatorRuntime(hiyukiSeed)
+    runtime.base.skillLevels.resonanceLiberation = 10
+    runtime.base.level = 50
+    runtime.state.controls['inherent:1108:lvl50:stacks'] = 2
+    runtime.state.controls['resonator:1108:snowforged_blade:stacks'] = 3
+
+    const resolved = resolveSkill(runtime, bladeLiberation)
+    const boosted = applySkillDataEffects(runtime, resolved)
+    const glacioBite = hiyukiSkills.find((skill) => skill.id === '1108:negative-effect:fine:snow:glacio-bite')
+
+    expect(resolved.multiplier).toBeCloseTo(9.9405)
+    expect(boosted.multiplier).toBeCloseTo(33.7977)
+    expect(resolveSkill(runtime, glacioBite!).label).toBe('Fine Snow: Glacio Bite')
   })
 
   it('hydrates Denia base mode override and skill typing', () => {
@@ -476,6 +510,23 @@ describe('game-data source of truth', () => {
     expect(resonator.states).toHaveLength(7)
     expect(listEffectsForSource('resonator', '1506', 'runtime')).not.toEqual([])
     expect(listEffectsForSource('resonator', '1506', 'skill')).not.toEqual([])
+  })
+
+  it('emits Augusta panel controls as persistable control entries', () => {
+    const resonator = getResonatorById('1306')
+    if (!resonator) {
+      throw new Error('missing resonator 1306')
+    }
+
+    const crownPanel = resonator.statePanels.find((panel) => panel.id === 'crown-of-wills')
+    const crownControl = crownPanel?.controls[0]
+
+    expect(crownControl).toMatchObject({
+      key: 'resonator:1306:crown_of_wills:stacks',
+      kind: 'select',
+      target: 'controls',
+    })
+    expect(crownControl).not.toHaveProperty('path')
   })
 
   it('emits final Lupa skill typing and team-aware state data', () => {

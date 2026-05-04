@@ -313,6 +313,7 @@ export function buildCompiledOptimizerContext(options: {
   let staticTuneBreakBoost = finalStats.tuneBreakBoost
   let staticDmgVuln = (direct.dmgVulnMultiplier - 1) * 100
   let negativeEffectMultiplier = 0
+  let negativeEffectFixedMv = 0
   let negativeEffectCritRate = skill.negativeEffectCritRate ?? 0
   let negativeEffectCritDmg = skill.negativeEffectCritDmg ?? 1
 
@@ -360,6 +361,7 @@ export function buildCompiledOptimizerContext(options: {
       staticSpecial = buckets.special
       staticDmgVuln = buckets.dmgVuln
       negativeEffectMultiplier = buckets.multiplier
+      negativeEffectFixedMv = skill.fixedMv ?? 0
       negativeEffectCritRate = buckets.critRate / 100
       negativeEffectCritDmg = buckets.critDmg / 100
       break
@@ -426,6 +428,7 @@ export function buildCompiledOptimizerContext(options: {
     tuneRuptureCritDmg: skill.tuneRuptureCritDmg ?? 1,
 
     negativeEffectMultiplier,
+    negativeEffectFixedMv,
     negativeEffectCritRate,
     negativeEffectCritDmg,
 

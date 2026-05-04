@@ -61,6 +61,7 @@ export const CTX_COMBAT_FUSION_BURST = 46
 export const CTX_COMBAT_ELECTRO_FLARE = 47
 export const CTX_COMBAT_ELECTRO_RAGE = 48
 export const CTX_COMBAT_GLACIO_CHAFE = 49
+export const CTX_NEGATIVE_EFFECT_FIXED_MV = 50
 
 // write every field from the structured compiled context into a flat float array
 export function packCompiledContext(context: CompiledTargetSkillContext): Float32Array {
@@ -125,6 +126,7 @@ export function packCompiledContext(context: CompiledTargetSkillContext): Float3
   out[CTX_COMBAT_ELECTRO_FLARE] = context.combatElectroFlare
   out[CTX_COMBAT_ELECTRO_RAGE] = context.combatElectroRage
   out[CTX_COMBAT_GLACIO_CHAFE] = context.combatGlacioChafe
+  out[CTX_NEGATIVE_EFFECT_FIXED_MV] = context.negativeEffectFixedMv
 
   return out
 }

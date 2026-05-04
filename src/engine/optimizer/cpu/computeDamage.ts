@@ -70,6 +70,7 @@ import {
   CTX_MULTIPLIER as OPT_CTX_MULTIPLIER,
   CTX_NEGATIVE_EFFECT_CRIT_DMG as OPT_CTX_NEGATIVE_EFFECT_CRIT_DMG,
   CTX_NEGATIVE_EFFECT_CRIT_RATE as OPT_CTX_NEGATIVE_EFFECT_CRIT_RATE,
+  CTX_NEGATIVE_EFFECT_FIXED_MV as OPT_CTX_NEGATIVE_EFFECT_FIXED_MV,
   CTX_SCALING_ATK as OPT_CTX_SCALING_ATK,
   CTX_SCALING_DEF as OPT_CTX_SCALING_DEF,
   CTX_SCALING_ER as OPT_CTX_SCALING_ER,
@@ -428,9 +429,23 @@ function evaluatePackedContextDamage(
                       : 'electroFlare',
           context[contextOffset + OPT_CTX_LEVEL],
           primaryStacks,
+          {
+            fixedMv: context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV] > 0
+              ? context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV]
+              : undefined,
+          },
       ) + (
             archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-                ? getNegativeEffectBase('electroFlare', context[contextOffset + OPT_CTX_LEVEL], extraElectroRageStacks)
+                ? getNegativeEffectBase(
+                  'electroFlare',
+                  context[contextOffset + OPT_CTX_LEVEL],
+                  extraElectroRageStacks,
+                  {
+                    fixedMv: context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV] > 0
+                      ? context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV]
+                      : undefined,
+                  },
+                )
                 : 0
           )
 
