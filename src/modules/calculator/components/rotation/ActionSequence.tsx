@@ -12,7 +12,7 @@ import type {
   RotationSequenceEntry,
   RotationSequenceRule,
   RotationSequenceSpan,
-} from '@/modules/calculator/model/rotationSequence'
+} from '@/modules/calculator/components/rotation/lib/sequence.ts'
 import { getSourceStateDisplay } from '@/modules/calculator/model/sourceStateDisplay'
 import { formatRuntimeChange } from '@/shared/lib/formatGameData'
 
