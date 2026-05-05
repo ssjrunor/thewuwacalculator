@@ -81,6 +81,10 @@ function getFeatureActionLabel(
   node: Extract<RotationNode, { type: 'feature' }>,
   meta: ReturnType<typeof resolveRotationFeatureMeta>,
 ): string {
+  if (meta?.skill?.tab === 'negativeEffect') {
+    return meta.skill.label
+  }
+  
   return meta?.feature.label ?? meta?.skill?.label ?? node.featureId
 }
 
