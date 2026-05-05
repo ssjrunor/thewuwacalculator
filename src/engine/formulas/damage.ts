@@ -569,11 +569,13 @@ function computeNegativeEffectDamage(
       attributeElement.resShred +
       aggregatedEffectType.resShred
 
+/*
   const defIgnore =
       finalStats.defIgnore +
       attributeAll.defIgnore +
       attributeElement.defIgnore +
       aggregatedEffectType.defIgnore
+*/
 
   const defShred =
       finalStats.defShred +
@@ -592,7 +594,7 @@ function computeNegativeEffectDamage(
 
   const enemyDefense = isUnsetEnemyProfile(enemy)
       ? 0
-      : ((8 * enemy.level) + 792) * (1 - (defIgnore + defShred) / 100)
+      : ((8 * enemy.level) + 792) * (1 - defShred / 100)
 
   const defenseMultiplier = isUnsetEnemyProfile(enemy)
       ? 1
@@ -600,8 +602,8 @@ function computeNegativeEffectDamage(
 
   // base per-stack damage is provided by the negative-effect formula helper
   const perStackBase =
-      getNegativeEffectBase(archetype, level, stacks) +
-      (archetype === 'electroFlare' ? getNegativeEffectBase(archetype, level, additionalStacks) : 0)
+      getNegativeEffectBase(archetype, level, stacks, { fixedMv: skill.fixedMv }) +
+      (archetype === 'electroFlare' ? getNegativeEffectBase(archetype, level, additionalStacks, { fixedMv: skill.fixedMv }) : 0)
 
   const hits = resolveDamageHits(skill, 1)
   const totalHitScale = sumHitScale(hits)
