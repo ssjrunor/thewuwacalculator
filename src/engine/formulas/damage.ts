@@ -615,15 +615,12 @@ function computeNegativeEffectDamage(
       (1 + finalStats.special / 100)
 
   const damage = Math.floor(
-      (
-          perStackBase *
-          (1 + negativeEffectBuff.multiplier)
-      ) *
-      totalHitScale *
-      bonusMultiplier *
-      resMult *
-      defenseMultiplier *
-      (1 + dmgVuln / 100),
+    perStackBase *
+    totalHitScale *
+    bonusMultiplier *
+    resMult *
+    defenseMultiplier * (1 + negativeEffectBuff.multiplier) *
+    (1 + dmgVuln / 100),
   )
 
   const critRate = (skill.negativeEffectCritRate ?? 0) + (negativeEffectBuff.critRate / 100)

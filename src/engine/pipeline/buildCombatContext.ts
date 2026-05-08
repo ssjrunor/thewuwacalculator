@@ -156,7 +156,7 @@ export function buildRuntimeStaticBuffPool(runtime: ResonatorRuntimeState): Unif
   pool.healingBonus += traceNodes.healingBonus
 
   // apply combat-state derived permanent-style effects stored on runtime state
-  pool.attribute.all.defIgnore += combatState.havocBane * 2
+  pool.defShred += combatState.havocBane * 2
 
   // apply weapon secondary stat if a real weapon is equipped
   const weaponId = runtime.build.weapon.id
