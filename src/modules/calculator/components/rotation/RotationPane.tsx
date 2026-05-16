@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type {
   FeatureDefinition,
+  RotationDefinition,
   RotationNode,
   RuntimeChange,
   SourceStateDefinition,
@@ -166,6 +167,22 @@ interface SkillMenuGroup {
   skill: SkillDefinition
   totalEntry: SkillMenuEntry | null
   subHitEntries: SkillMenuEntry[]
+}
+
+function listPresetRotations(resonatorId: string): RotationDefinition[] {
+  const seed = seedResonatorsById[resonatorId]
+  const rotations = new Map<string, RotationDefinition>()
+
+  // preset rotations can arrive on either the seed or the game-data registry,
+  // depending on which catalog path built the resonator object.
+  for (const rotation of seed?.rotations ?? []) {
+    rotations.set(rotation.id, rotation)
+  }
+  for (const rotation of listResonatorRotations(resonatorId)) {
+    rotations.set(rotation.id, rotation)
+  }
+
+  return Array.from(rotations.values()).filter((rotation) => rotation.items.length > 0)
 }
 
 interface ConditionChoice {
@@ -3842,6 +3859,23 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
       })
     }
 
+    // team append should not require teammates to be saved first; their
+    // authored presets are valid sources alongside live and saved rotations.
+    for (const resonatorId of currentTeamMemberIds) {
+      const memberSeed = seedResonatorsById[resonatorId]
+      if (!memberSeed) {
+        continue
+      }
+
+      for (const rotation of listPresetRotations(resonatorId)) {
+        options.push({
+          value: `preset:${resonatorId}:${rotation.id}`,
+          label: `${memberSeed.name} · ${rotation.label} · Preset`,
+          items: rotation.items,
+        })
+      }
+    }
+
     for (const entry of eligibleSavedPersonalRotations) {
       options.push({
         value: `saved:${entry.id}`,
@@ -3851,7 +3885,7 @@ export function RotationPane({ runtime, runtimesById, simulation, onRuntimeUpdat
     }
 
     return options
-  }, [eligibleSavedPersonalRotations, runtime.id, runtime.rotation.personalItems, seed.name])
+  }, [currentTeamMemberIds, eligibleSavedPersonalRotations, runtime.id, runtime.rotation.personalItems, seed.name])
 
   const resolvedAppendSourceId = useMemo(() => {
     if (appendSourceOptions.some((entry) => entry.value === selectedAppendSourceId)) {
