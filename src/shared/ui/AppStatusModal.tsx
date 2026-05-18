@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { AppDialog } from '@/shared/ui/AppDialog'
 import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
-import { CURRENT_PATCH_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
   lastUpdated: '17/04/2026',
