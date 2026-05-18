@@ -959,6 +959,26 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [makeEffect(id, 'skill', 'Res. Skill DMG', [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))])],
   }),
 
+  // Pistol (21030056): ATK% + stacks -> spectro dmg + toggle -> heavy amplify/defIgnore
+  '21030056': (id, p) => ({
+    owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
+    states: [
+      makeStack(id, 'spectro_stacks', 'Spectro DMG Stacks', 2, 0,
+        `Casting Resonance Skill increases the wielder's Spectro DMG Bonus by {1} for {3}s, up to {2} stacks. Duration resets upon gaining stacks.`),
+      makeToggle(id, 'hack', 'Heavy Amp + DEF Ignore',
+        `Applying Hack - Shifting grants {4} Heavy Attack DMG Amplification, and Heavy Attacks ignore {5} of the target's DEF for {6}s.`),
+    ],
+    effects: [
+      makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
+      makeEffect(id, 'spectro', 'Spectro DMG',
+        [addAttributeMod('spectro', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:spectro_stacks`), rankTable(p, 1)))]),
+      makeEffect(id, 'hack', 'Heavy Amp + DEF Ignore', [
+        addSkilltypeMod('heavyAtk', 'amplify', rankTable(p, 4)),
+        addSkilltypeMod('heavyAtk', 'defIgnore', rankTable(p, 5)),
+      ], truthyCondition(`weapon:${id}:passive:hack`)),
+    ],
+  }),
+
   // Pistol (21030064): stacks -> ATK%
   '21030064': (id, p) => ({
     owners: [makeOwner(id, 'Passive')],
@@ -967,6 +987,31 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))]),
+    ],
+  }),
+
+  // Pistol (21030066): ATK% + toggles -> basicAtk dmg + team ATK%
+  '21030066': (id, p) => ({
+    owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
+    states: [
+      makeToggle(id, 'intro_basic', 'Intro Basic ATK DMG',
+        `Casting Intro Skill increases the wielder's Basic Attack DMG Bonus by {1} for {2}s.`),
+      makeToggle(id, 'hack_basic', 'Hack Basic ATK DMG',
+        `Inflicting Hack - Shifting increases the wielder's Basic Attack DMG Bonus by {3} for {4}s.`),
+      makeToggle(id, 'team_atk', 'Team ATK',
+        `The ATK of all Resonators in the team is increased by {5}.`),
+    ],
+    effects: [
+      makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
+      makeEffect(id, 'intro-basic', 'Intro Basic ATK DMG',
+        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
+        truthyCondition(`weapon:${id}:passive:intro_basic`)),
+      makeEffect(id, 'hack-basic', 'Hack Basic ATK DMG',
+        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 3))],
+        truthyCondition(`weapon:${id}:passive:hack_basic`)),
+      makeEffect(id, 'team-atk', 'Team ATK',
+        [addBaseStat('atk', 'percent', rankTable(p, 5))],
+        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 
@@ -1543,6 +1588,26 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
         truthyCondition(`weapon:${id}:passive:active`)),
+    ],
+  }),
+
+  // Rectifier (21050086): ATK% + toggles -> glacio dmg + team ATK%
+  '21050086': (id, p) => ({
+    owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
+    states: [
+      makeToggle(id, 'glacio', 'Glacio DMG',
+        `After the wielder inflicts Glacio Chafe on the target, their Glacio DMG Bonus is increased by {1} for {2}s.`),
+      makeToggle(id, 'team_atk', 'Team ATK',
+        `The ATK of all Resonators in the team is increased by {3} for {4}s. Effects of the same name cannot be stacked.`),
+    ],
+    effects: [
+      makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
+      makeEffect(id, 'glacio', 'Glacio DMG',
+        [addAttributeMod('glacio', 'dmgBonus', rankTable(p, 1))],
+        truthyCondition(`weapon:${id}:passive:glacio`)),
+      makeEffect(id, 'team-atk', 'Team ATK',
+        [addBaseStat('atk', 'percent', rankTable(p, 3))],
+        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 
