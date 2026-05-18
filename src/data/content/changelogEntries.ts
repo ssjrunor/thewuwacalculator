@@ -169,6 +169,24 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `Rotation stuff~! (〜^∇^)〜`,
   },
+  {
+    date: '18/05/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.4 support</strong> is in now, so <strong>Lucilla</strong>, <strong>Lucy</strong> and <strong>Rebecca</strong> are available in the calculator along with their base kit logic and new weapons.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          That's pretty much it :P
+        `,
+      },
+    ],
+    shortDesc: `3.4 support... mostly~! (〜^∇^)〜`,
+  },
 ]
 
 export const latestCurrentChangelogEntry =

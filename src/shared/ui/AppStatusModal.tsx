@@ -6,17 +6,17 @@ import { CURRENT_PATCH_VERSION } from '@/shared/lib/appMetadata'
 const STATUS_DATA = {
   lastUpdated: '17/04/2026',
   overallState: 'stable' as const,
-  patchVersion: CURRENT_PATCH_VERSION,
+  patchVersion: "3.4.2",
   dataSources: [
     { label: 'Encore', href: 'https://encore.moe/new?lang=en' },
     { label: 'Nanoka', href: 'https://ww.nanoka.cc/' },
   ],
   notes: [
     'HIIII~!',
-    'Rotation building got a useful little upgrade: feature conditions, cleaner condition editing, add-below actions, and a bit of UI polish. Check it out when you get a chance~',
+    'I added what was available for the 3.4.2 patch. i don\'t know what HACK dmg entails so anything hack dmg isn\'t accurate at all.',
     'Remember, you can import your data from the old app if you have any data on there~',
     'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
-    'Hiyuki\'s default rotation has been updated, Denia\'s is still as it was.'
+    'Added a default rotation for Lucilla, feels-crafted of course. Denia\'s is still as it was.'
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
@@ -28,7 +28,8 @@ const STATUS_DATA = {
     'The guides system not fully implemented yet.',
   ],
   recentChanges: [
-    'None at the moment.',
+    'CYBERPUNKKKK.',
+    'Added Lucilla, Rebecca, Lucy and other available 3.4.2 stuff'
   ],
 }
 
