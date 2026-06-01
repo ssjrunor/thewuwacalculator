@@ -15,4 +15,4 @@ package-lock.json
 scripts
 .env
 
-settings
+/settings
