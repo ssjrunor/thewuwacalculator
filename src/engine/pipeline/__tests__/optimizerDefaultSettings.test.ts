@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import {
-  createDefaultResonatorRuntime,
-  makeDefaultEnemyProfile,
+  makeResRuntime,
+  makeEnemy,
 } from '@/domain/state/defaults'
-import { deriveInitialOptimizerSettings } from '@/engine/optimizer/config/defaultSettings.ts'
+import { deriveOptSets } from '@/engine/optimizer/config/defaultSettings.ts'
 
 describe('optimizer default settings', () => {
   it('initializes a target skill and main-stat co-tags for a standard damage resonator', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const settings = deriveInitialOptimizerSettings({
+    const runtime = makeResRuntime(seed)
+    const settings = deriveOptSets({
       runtime,
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(settings.targetSkillId).toBeTruthy()
@@ -31,16 +31,16 @@ describe('optimizer default settings', () => {
   it.each(['1206', '1209', '1412'])(
     'adds ER to the initial co-tags for special ER resonator %s',
     (resonatorId) => {
-      const seed = getResonatorSeedById(resonatorId)
+      const seed = getResSeedBy(resonatorId)
       expect(seed).toBeTruthy()
       if (!seed) {
         return
       }
 
-      const runtime = createDefaultResonatorRuntime(seed)
-      const settings = deriveInitialOptimizerSettings({
+      const runtime = makeResRuntime(seed)
+      const settings = deriveOptSets({
         runtime,
-        enemy: makeDefaultEnemyProfile(),
+        enemy: makeEnemy(),
       })
 
       expect(settings.targetSkillId).toBeTruthy()

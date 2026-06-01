@@ -1,14 +1,15 @@
-/**
-  Author      : Runor Ewhro
-  Description : Root component. Renders the application router.
+/*
+  Author: Runor Ewhro
+  Description: Root application component that boots cookie state, page
+               tracking, and the top-level router.
 */
 import { AppRouter } from '@/app/router/AppRouter'
-import { useCookieBootstrap } from '@/app/hooks/useCookieBootstrap'
-import { usePageTracking } from '@/app/hooks/usePageTracking'
+import { useCkBoot } from '@/app/hooks/useCookieBootstrap'
+import { usePageTrck } from '@/app/hooks/usePageTracking'
 
 export function AppRoot() {
-  useCookieBootstrap()
-  usePageTracking()
+  useCkBoot()
+  usePageTrck()
 
   return <AppRouter />
 }

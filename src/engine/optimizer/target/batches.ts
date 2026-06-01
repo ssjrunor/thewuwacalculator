@@ -6,11 +6,11 @@
 */
 
 import {
-  ECHO_OPTIMIZER_MAX_COST,
-  OPTIMIZER_ECHOS_PER_COMBO,
+  MAX_ECHO_COST,
+  ECHOES_PER_SET,
 } from '@/engine/optimizer/config/constants.ts'
 
-export interface TargetCpuComboBatch {
+export interface TgtCpuCmbBtc {
   // flat packed combo indices, stored as consecutive groups of 5
   combos: Int32Array
 
@@ -18,31 +18,31 @@ export interface TargetCpuComboBatch {
   comboCount: number
 }
 
-export function* generateTargetCpuComboBatches(options: {
+export function* gnrtTgtCpuCm(options: {
   costs: Uint8Array
   batchSize: number
-  lockedMainIndex?: number
+  lockMainIdx?: number
   borrowBuffer?: (length: number) => Int32Array
-}): Generator<TargetCpuComboBatch> {
+}): Generator<TgtCpuCmbBtc> {
   const { costs, batchSize } = options
-  const lockedMainIndex = options.lockedMainIndex ?? -1
+  const lockedMainIndex = options.lockMainIdx ?? -1
   const n = costs.length
 
   // cannot form a valid optimizer combo if fewer than 5 echoes exist
-  if (n < OPTIMIZER_ECHOS_PER_COMBO) {
+  if (n < ECHOES_PER_SET) {
     return
   }
 
   // if the locked main alone already exceeds the cost cap, no combo can work
-  if (lockedMainIndex >= 0 && ((costs[lockedMainIndex] | 0) > ECHO_OPTIMIZER_MAX_COST)) {
+  if (lockedMainIndex >= 0 && ((costs[lockedMainIndex] | 0) > MAX_ECHO_COST)) {
     return
   }
 
   // holds the currently explored 5-combo during dfs
-  const combo = new Int32Array(OPTIMIZER_ECHOS_PER_COMBO)
+  const combo = new Int32Array(ECHOES_PER_SET)
 
   // one batch stores `batchSize` combos, each combo taking 5 slots
-  const batchLength = Math.max(1, batchSize) * OPTIMIZER_ECHOS_PER_COMBO
+  const batchLength = Math.max(1, batchSize) * ECHOES_PER_SET
 
   // scratch buffer for the current outgoing batch
   let scratch = options.borrowBuffer?.(batchLength) ?? new Int32Array(batchLength)
@@ -56,7 +56,7 @@ export function* generateTargetCpuComboBatches(options: {
       return null
     }
 
-    const out: TargetCpuComboBatch = {
+    const out: TgtCpuCmbBtc = {
       combos: scratch,
       comboCount: cursor,
     }
@@ -67,8 +67,8 @@ export function* generateTargetCpuComboBatches(options: {
   }
 
   // writes the current 5-index combo into the active scratch batch
-  function* emitCombo(): Generator<TargetCpuComboBatch> {
-    scratch.set(combo, cursor * OPTIMIZER_ECHOS_PER_COMBO)
+  function* emitCombo(): Generator<TgtCpuCmbBtc> {
+    scratch.set(combo, cursor * ECHOES_PER_SET)
     cursor += 1
 
     // once the batch is full, yield it immediately
@@ -86,9 +86,9 @@ export function* generateTargetCpuComboBatches(options: {
       start: number,
       costSum: number,
       hasLocked: boolean,
-  ): Generator<TargetCpuComboBatch> {
+  ): Generator<TgtCpuCmbBtc> {
     // reached 5 picked echoes
-    if (depth === OPTIMIZER_ECHOS_PER_COMBO) {
+    if (depth === ECHOES_PER_SET) {
       // reject combos that do not include the requested locked main
       if (lockedMainIndex >= 0 && !hasLocked) {
         return
@@ -99,16 +99,16 @@ export function* generateTargetCpuComboBatches(options: {
     }
 
     // remaining slots including the current depth
-    const remainingSlots = OPTIMIZER_ECHOS_PER_COMBO - depth
+    const rmnnSlts = ECHOES_PER_SET - depth
 
     // latest valid starting point that still leaves enough items to fill the combo
-    const maxStart = n - remainingSlots
+    const maxStart = n - rmnnSlts
 
     for (let index = start; index <= maxStart; index += 1) {
       const nextCost = costSum + (costs[index] | 0)
 
       // prune branches that already exceed the total echo cost cap
-      if (nextCost > ECHO_OPTIMIZER_MAX_COST) {
+      if (nextCost > MAX_ECHO_COST) {
         continue
       }
 

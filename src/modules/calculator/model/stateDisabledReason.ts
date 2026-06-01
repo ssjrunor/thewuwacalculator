@@ -5,11 +5,11 @@
                resonator controls in the ui.
 */
 
-import type { ConditionExpression, EvalScopeRoot, SourceStateDefinition } from '@/domain/gameData/contracts'
-import { parseControlKey } from '@/domain/gameData/stateKeys'
-import { getOwnerForKey, getStateForControlKey } from '@/domain/services/gameDataService'
-import type { ResonatorStateControl } from '@/modules/calculator/model/resonator'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
+import type { CondExpr, EvalScpRoot, SourceState } from '@/domain/gameData/contracts'
+import { prsCntrKey } from '@/domain/gameData/stateKeys'
+import { getOwnForKey, getSttForCnt } from '@/domain/services/gameDataService'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import type { ResStateControl } from '@/domain/entities/resonator.ts'
 
 // friendly labels for common combat stack paths that would otherwise look too raw
 const STACK_LABELS: Partial<Record<string, string>> = {
@@ -22,39 +22,39 @@ const STACK_LABELS: Partial<Record<string, string>> = {
   'state.combat.electroRage': 'Electro Rage',
 }
 
-// try to resolve a nice display label for a control key
-// first check registered source states, then fall back to the owner label
-function getControlLabel(controlKey: string): string | null {
-  const state = getStateForControlKey(controlKey)
+// try to resolve a nice display desc for a control key
+// first check registered source states, then fall back to the owner desc
+function getCntrLbl(controlKey: string): string | null {
+  const state = getSttForCnt(controlKey)
   if (state) {
     return state.label
   }
 
   try {
-    const { ownerKey } = parseControlKey(controlKey)
-    return getOwnerForKey(ownerKey)?.label ?? null
+    const { ownerKey } = prsCntrKey(controlKey)
+    return getOwnForKey(ownerKey)?.label ?? null
   } catch {
     return null
   }
 }
 
 // strip trailing punctuation so labels can be embedded in sentences cleanly
-function normalizeLabel(label: string): string {
+function normLbl(label: string): string {
   return label.replace(/[?!.:]+$/g, '').trim()
 }
 
 // convert one runtime-path requirement into a readable sentence
 // this handles the common condition patterns that show up in the calculator ui
-function describeRuntimeRequirement(
-    root: EvalScopeRoot | undefined,
-    path: string,
-    operator: ConditionExpression['type'],
-    value?: string | number | boolean,
+function dscrRtRqrm(
+  root: EvalScpRoot | undefined,
+  path: string,
+  operator: CondExpr['type'],
+  value?: string | number | boolean,
 ): string | null {
   // control-based requirements like toggles, stacks, and selectors
   if (path.startsWith('state.controls.')) {
     const controlKey = path.replace(/^state\.controls\./, '')
-    const label = normalizeLabel(getControlLabel(controlKey) ?? controlKey)
+    const label = normLbl(getCntrLbl(controlKey) ?? controlKey)
 
     if (operator === 'truthy') {
       return `Requires ${label}.`
@@ -91,11 +91,13 @@ function describeRuntimeRequirement(
   // combat stack requirements such as frazzle or erosion
   const stackLabel = STACK_LABELS[path]
   if (stackLabel && (operator === 'truthy' || operator === 'gt' || operator === 'gte')) {
+    // "truthy" means one or more stacks, while strict-greater thresholds should
+    // read back to users as the first actually allowed stack count.
     const threshold = operator === 'truthy'
-        ? 1
-        : typeof value === 'number'
-            ? (operator === 'gt' ? value + 1 : value)
-            : 1
+      ? 1
+      : typeof value === 'number'
+        ? (operator === 'gt' ? value + 1 : value)
+        : 1
     return `Requires at least ${threshold === 1 ? 'a' : threshold} stack${threshold === 1 ? '' : 's'} of ${stackLabel}.`
   }
 
@@ -121,10 +123,10 @@ function describeRuntimeRequirement(
   // team composition requirements by specific resonator id
   if (root === 'context' && path.startsWith('team.presenceById.')) {
     const resonatorId = path.replace(/^team\.presenceById\./, '')
-    const resonatorName = getResonatorSeedById(resonatorId)?.name ?? resonatorId
+    const resName = getResSeedBy(resonatorId)?.name ?? resonatorId
 
     if (operator === 'truthy' || (operator === 'eq' && value === true)) {
-      return `Requires ${resonatorName} in the team.`
+      return `Requires ${resName} in the team.`
     }
   }
 
@@ -137,7 +139,7 @@ function describeRuntimeRequirement(
 }
 
 // recursively convert a condition tree into a readable explanation
-function formatConditionReason(condition?: ConditionExpression): string | null {
+function fmtCondRsn(condition?: CondExpr): string | null {
   if (!condition) {
     return null
   }
@@ -147,7 +149,7 @@ function formatConditionReason(condition?: ConditionExpression): string | null {
       return null
 
     case 'truthy':
-      return describeRuntimeRequirement(condition.from, condition.path, 'truthy')
+      return dscrRtRqrm(condition.from, condition.path, 'truthy')
 
     case 'eq':
     case 'neq':
@@ -155,29 +157,29 @@ function formatConditionReason(condition?: ConditionExpression): string | null {
     case 'gte':
     case 'lt':
     case 'lte':
-      return describeRuntimeRequirement(condition.from, condition.path, condition.type, condition.value)
+      return dscrRtRqrm(condition.from, condition.path, condition.type, condition.value)
 
     case 'not': {
-      const inner = formatConditionReason(condition.value)
+      const inner = fmtCondRsn(condition.value)
       return inner ? `Disabled while ${inner.replace(/\.$/, '').toLowerCase()}.` : null
     }
 
     case 'and': {
       const reasons = condition.values
-          .map((entry) => formatConditionReason(entry))
-          .filter((entry): entry is string => Boolean(entry))
+        .map((entry) => fmtCondRsn(entry))
+        .filter((entry): entry is string => Boolean(entry))
 
       return reasons.length > 0 ? reasons.join(' ') : null
     }
 
     case 'or': {
       const reasons = condition.values
-          .map((entry) => formatConditionReason(entry))
-          .filter((entry): entry is string => Boolean(entry))
+        .map((entry) => fmtCondRsn(entry))
+        .filter((entry): entry is string => Boolean(entry))
 
       return reasons.length > 0
-          ? `Requires one of: ${reasons.map((entry) => entry.replace(/\.$/, '')).join(' or ')}.`
-          : null
+        ? `Requires one of: ${reasons.map((entry) => entry.replace(/\.$/, '')).join(' or ')}.`
+        : null
     }
 
     default:
@@ -187,12 +189,12 @@ function formatConditionReason(condition?: ConditionExpression): string | null {
 
 // source states can provide an explicit disabled reason;
 // otherwise derive one from enabledWhen
-export function getSourceStateDisabledReason(state: SourceStateDefinition): string | null {
+export function getSrcSttDsb(state: SourceState): string | null {
   if (state.disabledReason) {
     return state.disabledReason
   }
 
-  return formatConditionReason(state.enabledWhen)
+  return fmtCondRsn(state.enabledWhen)
 }
 
 // build a disabled reason for normal resonator controls
@@ -200,16 +202,16 @@ export function getSourceStateDisabledReason(state: SourceStateDefinition): stri
 // 1. explicit disabledReason
 // 2. derived enabledWhen explanation
 // 3. legacy disabledWhen dependency explanation
-export function getResonatorControlDisabledReason(
-    control: ResonatorStateControl,
-    controlsByKey: Record<string, ResonatorStateControl>,
+export function getResCntrDs(
+    control: ResStateControl,
+    cntrByKey: Record<string, ResStateControl>,
 ): string | null {
   if (control.disabledReason) {
     return control.disabledReason
   }
 
   if (control.enabledWhen) {
-    const reason = formatConditionReason(control.enabledWhen)
+    const reason = fmtCondRsn(control.enabledWhen)
     if (reason) {
       return reason
     }
@@ -219,19 +221,19 @@ export function getResonatorControlDisabledReason(
     return null
   }
 
-  // try to resolve the dependency label from local controls first,
+  // try to resolve the dependency desc from local controls first,
   // then from global state/control metadata
-  const dependencyLabel = normalizeLabel(
-      controlsByKey[control.disabledWhen.key]?.label ?? getControlLabel(control.disabledWhen.key) ?? control.disabledWhen.key,
+  const dpndLbl = normLbl(
+      cntrByKey[control.disabledWhen.key]?.label ?? getCntrLbl(control.disabledWhen.key) ?? control.disabledWhen.key,
   )
 
   if (control.disabledWhen.equals === false) {
-    return `Requires ${dependencyLabel}.`
+    return `Requires ${dpndLbl}.`
   }
 
   if (control.disabledWhen.equals === true) {
-    return `Unavailable while ${dependencyLabel} is enabled.`
+    return `Unavailable while ${dpndLbl} is enabled.`
   }
 
-  return `Requires ${dependencyLabel} to be ${String(control.disabledWhen.equals)}.`
+  return `Requires ${dpndLbl} to be ${String(control.disabledWhen.equals)}.`
 }

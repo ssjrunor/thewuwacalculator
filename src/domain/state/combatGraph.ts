@@ -4,33 +4,33 @@
                state and provides helpers for participant slot resolution.
 */
 
-import type { CalculatorState } from '@/domain/entities/appState'
-import type { CombatGraph, CombatParticipant } from '@/domain/entities/combatGraph'
-import type { ResonatorRuntimeState, ResonatorSeed, TeamSlots } from '@/domain/entities/runtime'
+import type { CalcState } from '@/domain/entities/appState'
+import type { CombatGraph, CombatPart } from '@/domain/entities/combatGraph'
+import type { ResRuntime, ResSeed, TeamSlots } from '@/domain/entities/runtime'
 import type { SlotId } from '@/domain/entities/session'
-import { getResonatorSeedById, resolveResonatorBaseStats } from '@/domain/services/resonatorSeedService'
+import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService'
 import {
   SLOT_IDS,
-  cloneSlotLocalState,
+  cloneSlotLuo,
 } from '@/domain/state/runtimeMaterialization'
 import {
-  buildWorkspaceRuntimeBundle,
-  type WorkspaceRuntimeBundle,
+  mkWorkRtBndl,
+  type WorkRtBndl,
 } from '@/domain/state/runtimeAdapters'
-import { cloneSlotRoutingState } from '@/domain/state/defaults'
+import { cloneSlotRml } from '@/domain/state/defaults'
 import {
-  cloneResonatorRuntimeState,
+  cloneResRtSt,
 } from '@/domain/state/runtimeCloning'
 
-interface BuildTransientCombatGraphOptions {
-  activeRuntime: ResonatorRuntimeState
-  activeSeed?: ResonatorSeed
-  participantRuntimes?: Record<string, ResonatorRuntimeState>
-  selectedTargetsByResonatorId?: Record<string, Record<string, string | null>>
+interface MkTrnsCmbtGr {
+  actRt: ResRuntime
+  activeSeed?: ResSeed
+  partRts?: Record<string, ResRuntime>
+  targetsByRes?: Record<string, Record<string, string | null>>
 }
 
 // find the slot id for a resonator inside a combat graph
-export function findCombatParticipantSlotId(graph: CombatGraph, resonatorId: string): SlotId | null {
+export function findCombatPart(graph: CombatGraph, resonatorId: string): SlotId | null {
   for (const slotId of SLOT_IDS) {
     if (graph.participants[slotId]?.resonatorId === resonatorId) {
       return slotId
@@ -41,7 +41,7 @@ export function findCombatParticipantSlotId(graph: CombatGraph, resonatorId: str
 }
 
 // rebuild team slots from the combat graph participants
-export function buildCombatGraphTeamSlots(graph: CombatGraph): TeamSlots {
+export function mkCmbtGrphTe(graph: CombatGraph): TeamSlots {
   return [
     graph.participants.active?.resonatorId ?? null,
     graph.participants.team1?.resonatorId ?? null,
@@ -50,13 +50,13 @@ export function buildCombatGraphTeamSlots(graph: CombatGraph): TeamSlots {
 }
 
 // rebuild one combat participant after a transient graph write
-export function rebuildCombatParticipant(graph: CombatGraph, slotId: SlotId): CombatParticipant | null {
+export function rbldCmbtPart(graph: CombatGraph, slotId: SlotId): CombatPart | null {
   const participant = graph.participants[slotId]
   if (!participant) {
     return null
   }
 
-  const seed = getResonatorSeedById(participant.resonatorId)
+  const seed = getResSeedBy(participant.resonatorId)
   if (!seed) {
     return null
   }
@@ -65,36 +65,36 @@ export function rebuildCombatParticipant(graph: CombatGraph, slotId: SlotId): Co
     ...participant.runtime,
     build: {
       ...participant.runtime.build,
-      team: buildCombatGraphTeamSlots(graph),
+      team: mkCmbtGrphTe(graph),
     },
-    state: cloneSlotLocalState(participant.slot.local),
+    state: cloneSlotLuo(participant.slot.local),
   }
 
-  const nextParticipant: CombatParticipant = {
+  const nextPart: CombatPart = {
     ...participant,
     runtime,
-    baseStats: resolveResonatorBaseStats(seed, runtime.base.level),
+    baseStats: resResBaseSt(seed, runtime.base.level),
     snapshots: {},
   }
 
-  graph.participants[slotId] = nextParticipant
-  return nextParticipant
+  graph.participants[slotId] = nextPart
+  return nextPart
 }
 
 // build a combat graph from persisted calculator state
-export function buildCombatGraphFromWorkspaceBundle(
-    calculator: CalculatorState,
-    workspace: WorkspaceRuntimeBundle,
+export function mkCmbtGrphFr(
+    calculator: CalcState,
+    workspace: WorkRtBndl,
 ): CombatGraph {
-  const participants = {} as Record<SlotId, CombatParticipant>
-  const activeId = workspace.activeResonatorId
-  const activeProfile = activeId ? calculator.profiles[activeId] : null
+  const participants = {} as Record<SlotId, CombatPart>
+  const activeId = workspace.actResId
+  const actProf = activeId ? calculator.profiles[activeId] : null
 
   // active slot
-  if (activeId && activeProfile && workspace.activeRuntime) {
-    const seed = getResonatorSeedById(activeId)
+  if (activeId && actProf && workspace.actRt) {
+    const seed = getResSeedBy(activeId)
     if (seed) {
-      const runtime = workspace.activeRuntime
+      const runtime = workspace.actRt
 
       participants.active = {
         slotId: 'active',
@@ -102,28 +102,28 @@ export function buildCombatGraphFromWorkspaceBundle(
         slot: {
           slotId: 'active',
           resonatorId: activeId,
-          local: cloneSlotLocalState(activeProfile.runtime.local),
-          routing: cloneSlotRoutingState(activeProfile.runtime.routing),
+          local: cloneSlotLuo(actProf.runtime.local),
+          routing: cloneSlotRml(actProf.runtime.routing),
         },
-        runtime: cloneResonatorRuntimeState(runtime),
-        baseStats: resolveResonatorBaseStats(seed, runtime.base.level),
+        runtime: cloneResRtSt(runtime),
+        baseStats: resResBaseSt(seed, runtime.base.level),
         snapshots: {},
       }
     }
   }
 
   // team slots sourced from the active profile's compact team runtimes
-  if (activeProfile) {
+  if (actProf) {
     const slotIds: SlotId[] = ['team1', 'team2']
 
     for (let i = 0; i < 2; i += 1) {
-      const tmr = activeProfile.runtime.teamRuntimes?.[i] ?? null
+      const tmr = actProf.runtime.teamRuntimes?.[i] ?? null
       if (!tmr) continue
 
-      const seed = getResonatorSeedById(tmr.id)
+      const seed = getResSeedBy(tmr.id)
       if (!seed) continue
 
-      const runtime = workspace.participantRuntimesById[tmr.id]
+      const runtime = workspace.partRtsById[tmr.id]
       if (!runtime) {
         continue
       }
@@ -134,11 +134,11 @@ export function buildCombatGraphFromWorkspaceBundle(
         slot: {
           slotId: slotIds[i],
           resonatorId: tmr.id,
-          local: cloneSlotLocalState(runtime.state),
-          routing: cloneSlotRoutingState(activeProfile.runtime.routing),
+          local: cloneSlotLuo(runtime.state),
+          routing: cloneSlotRml(actProf.runtime.routing),
         },
-        runtime: cloneResonatorRuntimeState(runtime),
-        baseStats: resolveResonatorBaseStats(seed, runtime.base.level),
+        runtime: cloneResRtSt(runtime),
+        baseStats: resResBaseSt(seed, runtime.base.level),
         snapshots: {},
       }
     }
@@ -151,20 +151,20 @@ export function buildCombatGraphFromWorkspaceBundle(
 }
 
 // build a combat graph from persisted calculator state
-export function buildCombatGraph(calculator: CalculatorState): CombatGraph {
-  return buildCombatGraphFromWorkspaceBundle(calculator, buildWorkspaceRuntimeBundle(calculator))
+export function mkCmbtGrph(calculator: CalcState): CombatGraph {
+  return mkCmbtGrphFr(calculator, mkWorkRtBndl(calculator))
 }
 
 // build a temporary combat graph directly from runtime snapshots
-export function buildTransientCombatGraph({
-                                            activeRuntime,
+export function makeCombatGraph({
+                                            actRt: actRt,
                                             activeSeed,
-                                            participantRuntimes = {},
-                                            selectedTargetsByResonatorId = {},
-                                          }: BuildTransientCombatGraphOptions): CombatGraph {
-  const participants = {} as Record<SlotId, CombatParticipant>
-  const teamSlots = [...activeRuntime.build.team] as TeamSlots
-  const sharedSelectedTargetsByOwnerKey = selectedTargetsByResonatorId[activeRuntime.id]
+                                            partRts: partRntm = {},
+                                            targetsByRes: targetsByRes = {},
+                                          }: MkTrnsCmbtGr): CombatGraph {
+  const participants = {} as Record<SlotId, CombatPart>
+  const teamSlots = [...actRt.build.team] as TeamSlots
+  const shrdSelTrgtB = targetsByRes[actRt.id]
 
   for (const slotId of SLOT_IDS) {
     const resonatorId = teamSlots[slotId === 'active' ? 0 : slotId === 'team1' ? 1 : 2]
@@ -173,21 +173,21 @@ export function buildTransientCombatGraph({
     }
 
     const runtime =
-        resonatorId === activeRuntime.id
-            ? activeRuntime
-            : participantRuntimes[resonatorId]
+        resonatorId === actRt.id
+            ? actRt
+            : partRntm[resonatorId]
 
     const seed =
-        resonatorId === activeRuntime.id
-            ? (activeSeed ?? getResonatorSeedById(resonatorId))
-            : getResonatorSeedById(resonatorId)
+        resonatorId === actRt.id
+            ? (activeSeed ?? getResSeedBy(resonatorId))
+            : getResSeedBy(resonatorId)
 
     if (!runtime || !seed) {
       continue
     }
 
-    const selectedTargetsByOwnerKey =
-        selectedTargetsByResonatorId[resonatorId] ?? sharedSelectedTargetsByOwnerKey
+    const selTrgtByOwn =
+        targetsByRes[resonatorId] ?? shrdSelTrgtB
 
     participants[slotId] = {
       slotId,
@@ -195,15 +195,15 @@ export function buildTransientCombatGraph({
       slot: {
         slotId,
         resonatorId,
-        local: cloneSlotLocalState(runtime.state),
-        routing: cloneSlotRoutingState(
-            selectedTargetsByOwnerKey
-                ? { selectedTargetsByOwnerKey }
+        local: cloneSlotLuo(runtime.state),
+        routing: cloneSlotRml(
+            selTrgtByOwn
+                ? { selectedTargetsByOwnerKey: selTrgtByOwn }
                 : undefined,
         ),
       },
-      runtime: cloneResonatorRuntimeState(runtime),
-      baseStats: resolveResonatorBaseStats(seed, runtime.base.level),
+      runtime: cloneResRtSt(runtime),
+      baseStats: resResBaseSt(seed, runtime.base.level),
       snapshots: {},
     }
   }

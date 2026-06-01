@@ -5,33 +5,33 @@
                successful computation without re-dispatching worker jobs.
 */
 
-const MAX_SUGGESTIONS_CACHE_ENTRIES = 24
-const suggestionsSessionCache = new Map<string, unknown>()
+const SUGG_CACHE_MAX = 24
+const suggestCache = new Map<string, unknown>()
 
-export function readSuggestionsSessionCache<T>(key: string): T | null {
-  if (!suggestionsSessionCache.has(key)) {
+export function readSuggsSss<T>(key: string): T | null {
+  if (!suggestCache.has(key)) {
     return null
   }
 
-  const value = suggestionsSessionCache.get(key) as T
-  suggestionsSessionCache.delete(key)
-  suggestionsSessionCache.set(key, value)
+  const value = suggestCache.get(key) as T
+  suggestCache.delete(key)
+  suggestCache.set(key, value)
   return value
 }
 
-export function writeSuggestionsSessionCache<T>(key: string, value: T): void {
-  if (suggestionsSessionCache.has(key)) {
-    suggestionsSessionCache.delete(key)
+export function writeSuggsSs<T>(key: string, value: T): void {
+  if (suggestCache.has(key)) {
+    suggestCache.delete(key)
   }
 
-  suggestionsSessionCache.set(key, value)
+  suggestCache.set(key, value)
 
-  while (suggestionsSessionCache.size > MAX_SUGGESTIONS_CACHE_ENTRIES) {
-    const oldestKey = suggestionsSessionCache.keys().next().value
+  while (suggestCache.size > SUGG_CACHE_MAX) {
+    const oldestKey = suggestCache.keys().next().value
     if (oldestKey == null) {
       break
     }
 
-    suggestionsSessionCache.delete(oldestKey)
+    suggestCache.delete(oldestKey)
   }
 }

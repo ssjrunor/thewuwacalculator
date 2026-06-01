@@ -1,11 +1,18 @@
-import type { EchoInstance, ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
-import type { DamageResult, FinalStats, SkillDefinition } from '@/domain/entities/stats.ts'
+/*
+  Author: Runor Ewhro
+  Description: estimates marginal stat weights from live damage recomputation
+               so optimizer defaults can bias toward the current target skill.
+*/
+
+import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
+import type { DamageResult, FinalStats, SkillDef } from '@/domain/entities/stats.ts'
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
-import { computeSkillDamage } from '@/engine/formulas/damage.ts'
+import { calcSkillDamage } from '@/engine/formulas/damage.ts'
 
-export type OptimizerStatWeightMap = Partial<Record<string, number>>
+export type OptStatWeight = Partial<Record<string, number>>
 
-function cloneFinalStats(finalStats: FinalStats): FinalStats {
+// clone only the branches that marginal-weight mutations may touch
+function cloneFnlStts(finalStats: FinalStats): FinalStats {
   return {
     ...finalStats,
     atk: { ...finalStats.atk },
@@ -42,11 +49,13 @@ function cloneFinalStats(finalStats: FinalStats): FinalStats {
       healing: { ...finalStats.skillType.healing },
       shield: { ...finalStats.skillType.shield },
       tuneRupture: { ...finalStats.skillType.tuneRupture },
+      hack: { ...finalStats.skillType.hack },
     },
   }
 }
 
-function scoreResult(result: DamageResult, skill: SkillDefinition): number {
+// collapse one computed result into the scalar score used for weight comparison
+function scoreResult(result: DamageResult, skill: SkillDef): number {
   if (skill.aggregationType === 'healing' || skill.aggregationType === 'shield') {
     return result.avg
   }
@@ -54,100 +63,102 @@ function scoreResult(result: DamageResult, skill: SkillDefinition): number {
   return result.avg
 }
 
-function computeMarginalWeight(
+// measure how much one synthetic stat bump changes the current skill result
+function marginWeight(
   finalStats: FinalStats,
-  skill: SkillDefinition,
+  skill: SkillDef,
   enemy: EnemyProfile,
   level: number,
-  combat: ResonatorRuntimeState['state']['combat'],
+  combat: ResRuntime['state']['combat'],
   mutate: (next: FinalStats) => void,
 ): number {
-  const base = scoreResult(computeSkillDamage(finalStats, skill, enemy, level, combat), skill)
-  const adjusted = cloneFinalStats(finalStats)
+  const base = scoreResult(calcSkillDamage(finalStats, skill, enemy, level, combat), skill)
+  const adjusted = cloneFnlStts(finalStats)
   mutate(adjusted)
-  const boosted = scoreResult(computeSkillDamage(adjusted, skill, enemy, level, combat), skill)
+  const boosted = scoreResult(calcSkillDamage(adjusted, skill, enemy, level, combat), skill)
   return Math.max(0, boosted - base)
 }
 
-export function buildOptimizerStatWeightMap(params: {
+// build the stat weight map consumed by default-setting helpers and filters
+export function makeStatWeights(params: {
   finalStats: FinalStats
-  skill: SkillDefinition
+  skill: SkillDef
   enemy: EnemyProfile
   level: number
-  combat: ResonatorRuntimeState['state']['combat']
-}): OptimizerStatWeightMap {
+  combat: ResRuntime['state']['combat']
+}): OptStatWeight {
   const { finalStats, skill, enemy, level, combat } = params
 
   return {
-    atkPercent: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    atkPercent: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.atk.final += next.atk.base / 100
     }),
-    atkFlat: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    atkFlat: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.atk.final += 1
     }),
-    hpPercent: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    hpPercent: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.hp.final += next.hp.base / 100
     }),
-    hpFlat: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    hpFlat: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.hp.final += 1
     }),
-    defPercent: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    defPercent: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.def.final += next.def.base / 100
     }),
-    defFlat: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    defFlat: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.def.final += 1
     }),
-    critRate: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    critRate: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.critRate += 1
     }),
-    critDmg: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    critDmg: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.critDmg += 1
     }),
-    energyRegen: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    energyRegen: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.energyRegen += 1
     }),
-    healingBonus: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    healingBonus: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.healingBonus += 1
     }),
-    basicAtk: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    basicAtk: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.skillType.basicAtk.dmgBonus += 1
     }),
-    heavyAtk: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    heavyAtk: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.skillType.heavyAtk.dmgBonus += 1
     }),
-    resonanceSkill: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    resonanceSkill: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.skillType.resonanceSkill.dmgBonus += 1
     }),
-    resonanceLiberation: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    resonanceLiberation: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.skillType.resonanceLiberation.dmgBonus += 1
     }),
-    aero: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    aero: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.aero.dmgBonus += 1
     }),
-    glacio: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    glacio: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.glacio.dmgBonus += 1
     }),
-    fusion: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    fusion: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.fusion.dmgBonus += 1
     }),
-    spectro: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    spectro: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.spectro.dmgBonus += 1
     }),
-    havoc: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    havoc: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.havoc.dmgBonus += 1
     }),
-    electro: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    electro: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.electro.dmgBonus += 1
     }),
-    physical: computeMarginalWeight(finalStats, skill, enemy, level, combat, (next) => {
+    physical: marginWeight(finalStats, skill, enemy, level, combat, (next) => {
       next.attribute.physical.dmgBonus += 1
     }),
   }
 }
 
-export function scoreEchoByWeightMap(
+export function scrEchoByWgh(
   echo: EchoInstance,
-  weights: OptimizerStatWeightMap,
+  weights: OptStatWeight,
 ): number {
   let total = 0
 
@@ -165,16 +176,16 @@ export function scoreEchoByWeightMap(
   return total
 }
 
-export function applyKeepPercentFilter(
+export function applyKeepPrc(
   echoes: EchoInstance[],
   options: {
     keepPercent: number
     rotationMode: boolean
-    lockedMainEchoId: string | null
-    weights: OptimizerStatWeightMap | null
+    lockedMainId: string | null
+    weights: OptStatWeight | null
   },
 ): EchoInstance[] {
-  const { keepPercent, rotationMode, lockedMainEchoId, weights } = options
+  const { keepPercent, rotationMode, lockedMainId: lockMainEcho, weights } = options
 
   if (rotationMode || keepPercent <= 0 || !weights) {
     return echoes
@@ -184,8 +195,8 @@ export function applyKeepPercentFilter(
   const keepFraction = 1 - clampedKeep
   const keepCount = Math.max(1, Math.floor(echoes.length * keepFraction))
 
-  const lockedEchoes = lockedMainEchoId
-    ? echoes.filter((echo) => echo.id === lockedMainEchoId)
+  const lockedEchoes = lockMainEcho
+    ? echoes.filter((echo) => echo.id === lockMainEcho)
     : []
   const lockedUidSet = new Set(lockedEchoes.map((echo) => echo.uid))
 
@@ -193,14 +204,14 @@ export function applyKeepPercentFilter(
     .filter((echo) => !lockedUidSet.has(echo.uid))
     .map((echo) => ({
       echo,
-      score: scoreEchoByWeightMap(echo, weights),
+      score: scrEchoByWgh(echo, weights),
     }))
     .sort((left, right) => right.score - left.score)
 
-  const nonLockedKeepCount = Math.max(0, keepCount - lockedEchoes.length)
+  const nonLckdKeepC = Math.max(0, keepCount - lockedEchoes.length)
 
   return [
     ...lockedEchoes,
-    ...scored.slice(0, nonLockedKeepCount).map((entry) => entry.echo),
+    ...scored.slice(0, nonLckdKeepC).map((entry) => entry.echo),
   ]
 }

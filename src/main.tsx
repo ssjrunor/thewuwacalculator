@@ -1,16 +1,16 @@
-/**
+/*
   Author: Runor Ewhro
   Description: Application bootstrap. Loads game data async then mounts the
-               React component tree into the DOM root with router and global
+               react component tree into the dom root with router and global
                provider context.
 */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { initializeGameData } from '@/data/gameData/index'
+import { BrowserRouter as BrwsRtr } from 'react-router-dom'
+import { initGameData } from '@/data/gameData/index'
 import '@/index.css'
 
-initializeGameData().then(async () => {
+initGameData().then(async () => {
   const [{ AppRoot }, { AppProviders }] = await Promise.all([
     import('@/app/AppRoot'),
     import('@/app/providers/AppProviders'),
@@ -18,11 +18,11 @@ initializeGameData().then(async () => {
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <BrowserRouter>
+      <BrwsRtr>
         <AppProviders>
           <AppRoot />
         </AppProviders>
-      </BrowserRouter>
+      </BrwsRtr>
     </StrictMode>,
   )
 }).catch((error) => {

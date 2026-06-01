@@ -7,54 +7,56 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
-import { ATTRIBUTE_TO_ENEMY_RES_INDEX, isUnsetEnemyProfile } from '@/domain/entities/appState.ts'
+import { ATTR_ENEMY_RES, isNoEnemy } from '@/domain/entities/appState.ts'
 import type {
   FinalStats,
   ModBuff,
-  NegativeEffectKey,
-  SkillArchetype,
-  SkillDefinition,
+  NegEffectKey,
+  SkillArch,
+  SkillDef,
   SkillTypeKey,
 } from '@/domain/entities/stats.ts'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
-import type { CompiledTargetSkillContext } from '@/engine/optimizer/types.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
+import type { CompTargetSkill } from '@/engine/optimizer/types.ts'
 import {
-  OPTIMIZER_ARCHETYPE_AERO_EROSION,
-  OPTIMIZER_ARCHETYPE_DAMAGE,
-  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
-  OPTIMIZER_ARCHETYPE_FUSION_BURST,
-  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
-  OPTIMIZER_ARCHETYPE_HEALING,
-  OPTIMIZER_ARCHETYPE_SHIELD,
-  OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
-  OPTIMIZER_ARCHETYPE_TUNE_RUPTURE,
+  ARCH_AERO,
+  ARCH_DAMAGE,
+  ARCH_ELECTRO,
+  ARCH_FUSION,
+  ARCH_GLACIO,
+  ARCH_HACK,
+  ARCH_HEAL,
+  ARCH_SHIELD,
+  ARCH_SPECTRO,
+  ARCH_TUNE,
 } from '@/engine/optimizer/config/constants.ts'
-import { buildDirectSkillDamageContext } from '@/engine/formulas/damage.ts'
-import { aggregateSkillTypeBuffs, makeModBuff } from '@/engine/resolvers/buffPool.ts'
+import { makeSkillDamage } from '@/engine/formulas/damage.ts'
+import { isSkillImmune } from '@/engine/formulas/immunity.ts'
+import { mergeSkillType, makeModBuff } from '@/engine/resolvers/buffPool.ts'
 
 // convert enemy resistance percent into the actual damage multiplier
-function resistanceMultiplier(enemyResPercent: number): number {
-  if (enemyResPercent < 0) return 1 - enemyResPercent / 200
-  if (enemyResPercent < 75) return 1 - enemyResPercent / 100
-  return 1 / (1 + 5 * (enemyResPercent / 100))
+function resistMult(enemyResPct: number): number {
+  if (enemyResPct < 0) return 1 - enemyResPct / 200
+  if (enemyResPct < 75) return 1 - enemyResPct / 100
+  return 1 / (1 + 5 * (enemyResPct / 100))
 }
 
 // compute the defense multiplier after def ignore and def shred are applied
-function defenseMultiplier(
-    characterLevel: number,
+function defenseMult(
+    charLvl: number,
     enemyLevel: number,
     defIgnore: number,
     defShred: number,
 ): number {
   const enemyDefense = ((8 * enemyLevel) + 792) * (1 - (defIgnore + defShred) / 100)
-  return (800 + 8 * characterLevel) / (800 + 8 * characterLevel + Math.max(0, enemyDefense))
+  return (800 + 8 * charLvl) / (800 + 8 * charLvl + Math.max(0, enemyDefense))
 }
 
 // resolve a usable hit scale/count pair for optimizer math
 // this falls back to a single-hit representation when the skill has no hit list
-function resolveSkillHitScale(
-    skill: SkillDefinition,
-    fallbackMultiplier: number,
+function getSkillHits(
+    skill: SkillDef,
+    fallbackMult: number,
 ): { hitScale: number; hitCount: number } {
   if (skill.hits.length > 0) {
     return {
@@ -63,18 +65,18 @@ function resolveSkillHitScale(
     }
   }
 
-  if (fallbackMultiplier <= 0) {
+  if (fallbackMult <= 0) {
     return { hitScale: 0, hitCount: 0 }
   }
 
   return {
-    hitScale: fallbackMultiplier,
+    hitScale: fallbackMult,
     hitCount: 1,
   }
 }
 
 // normalize optional skill-local buffs into a complete mod-buff object
-function buildSkillBuffs(skill: SkillDefinition): ModBuff {
+function makeSkillBuffs(skill: SkillDef): ModBuff {
   return {
     ...makeModBuff(),
     ...(skill.skillBuffs ?? {}),
@@ -82,62 +84,65 @@ function buildSkillBuffs(skill: SkillDefinition): ModBuff {
 }
 
 // map high-level skill archetypes into compact numeric ids used by the optimizer
-export function mapSkillArchetype(archetype: SkillArchetype): number {
+export function mapSkillArch(archetype: SkillArch): number {
   switch (archetype) {
     case 'healing':
-      return OPTIMIZER_ARCHETYPE_HEALING
+      return ARCH_HEAL
     case 'shield':
-      return OPTIMIZER_ARCHETYPE_SHIELD
+      return ARCH_SHIELD
     case 'tuneRupture':
-      return OPTIMIZER_ARCHETYPE_TUNE_RUPTURE
+      return ARCH_TUNE
+    case 'hack':
+      return ARCH_HACK
     case 'spectroFrazzle':
-      return OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
+      return ARCH_SPECTRO
     case 'aeroErosion':
-      return OPTIMIZER_ARCHETYPE_AERO_EROSION
+      return ARCH_AERO
     case 'electroFlare':
-      return OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
+      return ARCH_ELECTRO
     case 'glacioChafe':
-      return OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+      return ARCH_GLACIO
     case 'fusionBurst':
-      return OPTIMIZER_ARCHETYPE_FUSION_BURST
+      return ARCH_FUSION
     case 'skillDamage':
     default:
-      return OPTIMIZER_ARCHETYPE_DAMAGE
+      return ARCH_DAMAGE
   }
 }
 
 // read the enemy's base resistance for the skill element
-function resolveEnemyResistance(
+function getEnemyRes(
     enemy: EnemyProfile,
-    element: SkillDefinition['element'],
+    element: SkillDef['element'],
 ): number {
-  if (isUnsetEnemyProfile(enemy)) {
+  if (isNoEnemy(enemy)) {
     return 0
   }
 
-  return enemy.res[ATTRIBUTE_TO_ENEMY_RES_INDEX[element]]
+  return enemy.res[ATTR_ENEMY_RES[element]]
 }
 
-// build the special multiplier buckets used by tune rupture skills
-function buildTuneRuptureBuckets(options: {
+// build the special multiplier buckets used by level-scaled special damage skills
+function makeLevelScale(options: {
   finalStats: FinalStats
-  skill: SkillDefinition
+  skill: SkillDef
   enemy: EnemyProfile
   level: number
+  kind: 'tuneRupture' | 'hack'
 }) {
-  const { finalStats, skill, enemy, level } = options
-  const ignoresEnemy = isUnsetEnemyProfile(enemy)
+  const { finalStats, skill, enemy, level, kind } = options
+  const ignoresEnemy = isNoEnemy(enemy)
   const element = skill.element
-  const baseRes = ignoresEnemy ? 0 : resolveEnemyResistance(enemy, element)
+  const baseRes = ignoresEnemy ? 0 : getEnemyRes(enemy, element)
   const attributeAll = finalStats.attribute.all
-  const attributeElement = finalStats.attribute[element]
+  const attrElement = finalStats.attribute[element]
   const skillTypeAll = finalStats.skillType.all
-  const skillTypeBuff = aggregateSkillTypeBuffs(finalStats.skillType, skill.skillType)
-  const skillBuffs = buildSkillBuffs(skill)
+  const skillTypeBuff = mergeSkillType(finalStats.skillType, skill.skillType)
+  const skillBuffs = makeSkillBuffs(skill)
 
   const resShred =
       attributeAll.resShred +
-      attributeElement.resShred +
+      attrElement.resShred +
       skillTypeAll.resShred +
       skillTypeBuff.resShred +
       skillBuffs.resShred
@@ -145,7 +150,7 @@ function buildTuneRuptureBuckets(options: {
   const defIgnore =
       finalStats.defIgnore +
       attributeAll.defIgnore +
-      attributeElement.defIgnore +
+      attrElement.defIgnore +
       skillTypeAll.defIgnore +
       skillTypeBuff.defIgnore +
       skillBuffs.defIgnore
@@ -153,7 +158,7 @@ function buildTuneRuptureBuckets(options: {
   const defShred =
       finalStats.defShred +
       attributeAll.defShred +
-      attributeElement.defShred +
+      attrElement.defShred +
       skillTypeAll.defShred +
       skillTypeBuff.defShred +
       skillBuffs.defShred
@@ -161,42 +166,42 @@ function buildTuneRuptureBuckets(options: {
   const dmgVuln =
       finalStats.dmgVuln +
       attributeAll.dmgVuln +
-      attributeElement.dmgVuln +
+      attrElement.dmgVuln +
       skillTypeAll.dmgVuln +
       skillTypeBuff.dmgVuln +
       skillBuffs.dmgVuln
 
-  const enemyResValue = ignoresEnemy ? 0 : baseRes - resShred
+  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
   const resMult = (!ignoresEnemy && baseRes === 100)
       ? 0
-      : (ignoresEnemy ? 1 : resistanceMultiplier(enemyResValue))
+      : (ignoresEnemy ? 1 : resistMult(enemyResVl))
 
   const defMult = ignoresEnemy
       ? 1
-      : defenseMultiplier(level, enemy.level, defIgnore, defShred)
+      : defenseMult(level, enemy.level, defIgnore, defShred)
 
   return {
     resMult,
     defMult,
     dmgVuln,
-    dmgBonus: finalStats.skillType.tuneRupture.dmgBonus,
+    dmgBonus: finalStats.skillType[kind].dmgBonus,
     amplify: finalStats.amplify,
-    tuneBreakBoost: finalStats.tuneBreakBoost,
+    tuneBreakBoost: kind === 'tuneRupture' ? finalStats.tbb : 0,
     critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
     critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
   }
 }
 
 // build the special multiplier buckets used by negative-effect archetypes
-function buildNegativeEffectBuckets(options: {
+function makeNegBase(options: {
   finalStats: FinalStats
-  skill: SkillDefinition
+  skill: SkillDef
   enemy: EnemyProfile
   level: number
-  archetype: Extract<SkillDefinition['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>
+  archetype: Extract<SkillDef['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>
 }) {
   const { finalStats, skill, enemy, level, archetype } = options
-  const ignoresEnemy = isUnsetEnemyProfile(enemy)
+  const ignoresEnemy = isNoEnemy(enemy)
 
   const element = archetype === 'spectroFrazzle'
       ? 'spectro'
@@ -208,134 +213,157 @@ function buildNegativeEffectBuckets(options: {
                   ? 'glacio'
               : 'electro'
 
-  const baseRes = ignoresEnemy ? 0 : resolveEnemyResistance(enemy, element)
+  const baseRes = ignoresEnemy ? 0 : getEnemyRes(enemy, element)
   const attributeAll = finalStats.attribute.all
-  const attributeElement = finalStats.attribute[element]
-  const aggregatedEffectType = aggregateSkillTypeBuffs(finalStats.skillType, skill.skillType as SkillTypeKey[])
-  const negativeEffectBuff = finalStats.negativeEffect[archetype as NegativeEffectKey]
+  const attrElement = finalStats.attribute[element]
+  const ggrgFfctType = mergeSkillType(finalStats.skillType, skill.skillType as SkillTypeKey[])
+  const negFfctBuff = finalStats.negativeEffect[archetype as NegEffectKey]
 
   const resShred =
       attributeAll.resShred +
-      attributeElement.resShred +
-      aggregatedEffectType.resShred
+      attrElement.resShred +
+      ggrgFfctType.resShred
 
   const defIgnore =
       finalStats.defIgnore +
       attributeAll.defIgnore +
-      attributeElement.defIgnore +
-      aggregatedEffectType.defIgnore
+      attrElement.defIgnore +
+      ggrgFfctType.defIgnore
 
   const defShred =
       finalStats.defShred +
       attributeAll.defShred +
-      attributeElement.defShred +
-      aggregatedEffectType.defShred
+      attrElement.defShred +
+      ggrgFfctType.defShred
 
   const dmgVuln =
       finalStats.dmgVuln +
       attributeAll.dmgVuln +
-      attributeElement.dmgVuln +
-      aggregatedEffectType.dmgVuln
+      attrElement.dmgVuln +
+      ggrgFfctType.dmgVuln
 
-  const enemyResValue = ignoresEnemy ? 0 : baseRes - resShred
+  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
   const resMult = (!ignoresEnemy && baseRes === 100)
       ? 0
-      : (ignoresEnemy ? 1 : resistanceMultiplier(enemyResValue))
+      : (ignoresEnemy ? 1 : resistMult(enemyResVl))
 
   const defMult = ignoresEnemy
       ? 1
-      : defenseMultiplier(level, enemy.level, defIgnore, defShred)
+      : defenseMult(level, enemy.level, defIgnore, defShred)
 
-  const amplifyMultiplier =
+  const amplifyMult =
       (1 + finalStats.amplify / 100) *
-      (1 + aggregatedEffectType.amplify / 100)
+      (1 + ggrgFfctType.amplify / 100)
 
   return {
     resMult,
     defMult,
     dmgVuln,
-    dmgBonus: aggregatedEffectType.dmgBonus,
-    amplify: (amplifyMultiplier - 1) * 100,
+    dmgBonus: ggrgFfctType.dmgBonus,
+    amplify: (amplifyMult - 1) * 100,
     special: finalStats.special,
-    multiplier: negativeEffectBuff.multiplier,
-    critRate: ((skill.negativeEffectCritRate ?? 0) * 100) + negativeEffectBuff.critRate,
-    critDmg: ((skill.negativeEffectCritDmg ?? 1) * 100) + negativeEffectBuff.critDmg,
+    multiplier: negFfctBuff.multiplier,
+    critRate: ((skill.negativeEffectCritRate ?? 0) * 100) + negFfctBuff.critRate,
+    critDmg: ((skill.negativeEffectCritDmg ?? 1) * 100) + negFfctBuff.critDmg,
   }
 }
 
 // build the final compiled context consumed by packed optimizer evaluation
-export function buildCompiledOptimizerContext(options: {
+export function makeOptContext(options: {
   resonatorId: string
-  runtime: ResonatorRuntimeState
-  skill: SkillDefinition
+  runtime: ResRuntime
+  skill: SkillDef
   finalStats: FinalStats
   enemy: EnemyProfile
   combatState?: {
     spectroFrazzle?: number
+    spctFrzz?: number
     aeroErosion?: number
     fusionBurst?: number
     glacioChafe?: number
     electroFlare?: number
     electroRage?: number
   }
-}): CompiledTargetSkillContext {
+}): CompTargetSkill {
   const { resonatorId, runtime, skill, finalStats, enemy, combatState } = options
 
   // start from the standard direct-damage context so common values are shared
-  const direct = buildDirectSkillDamageContext(
+  const direct = makeSkillDamage(
       finalStats,
       skill,
       enemy,
       runtime.base.level,
   )
 
-  const enemyBaseRes = resolveEnemyResistance(enemy, skill.element)
+  const enemyBaseRes = getEnemyRes(enemy, skill.element)
 
   // different archetypes need different hit-scale fallback logic
-  const hitInfo = skill.archetype === 'tuneRupture'
-      ? resolveSkillHitScale(skill, skill.tuneRuptureScale ?? 16)
+  const hitInfo = skill.archetype === 'tuneRupture' || skill.archetype === 'hack'
+      ? getSkillHits(skill, skill.tuneRuptureScale ?? 16)
       : skill.archetype === 'spectroFrazzle'
           || skill.archetype === 'aeroErosion'
           || skill.archetype === 'fusionBurst'
           || skill.archetype === 'glacioChafe'
           || skill.archetype === 'electroFlare'
-          ? resolveSkillHitScale(skill, 1)
+          ? getSkillHits(skill, 1)
           : { hitScale: direct.hitScale, hitCount: direct.hitCount }
 
   // initialize with the standard direct-damage values
   let resMult = direct.resMult
-  let defMult = direct.defenseMultiplier
-  let staticCritRate = direct.critRate
-  let staticCritDmg = direct.critDmg
-  let staticDmgBonus = direct.dmgBonus
-  let staticAmplify = direct.amplify
-  let staticSpecial = direct.special
-  let staticTuneBreakBoost = finalStats.tuneBreakBoost
-  let staticDmgVuln = (direct.dmgVulnMultiplier - 1) * 100
-  let negativeEffectMultiplier = 0
-  let negativeEffectFixedMv = 0
-  let negativeEffectCritRate = skill.negativeEffectCritRate ?? 0
-  let negativeEffectCritDmg = skill.negativeEffectCritDmg ?? 1
+  let defMult = direct.defMult
+  let sttcCritRate = direct.critRate
+  let sttcCritDmg = direct.critDmg
+  let sttcDmgBns = direct.dmgBonus
+  let sttcMplf = direct.amplify
+  let sttcSpec = direct.special
+  let sttcTuneBrkB = finalStats.tbb
+  let sttcDmgVuln = (direct.dmgVulnMult - 1) * 100
+  let negFfctMltp = 0
+  let negFfctFxdMv = 0
+  let negFfctCritR = skill.negativeEffectCritRate ?? 0
+  let negFfctCritD = skill.negativeEffectCritDmg ?? 1
 
   // override the shared defaults for archetypes with custom damage rules
   switch (skill.archetype) {
     case 'tuneRupture': {
-      const buckets = buildTuneRuptureBuckets({
+      const buckets = makeLevelScale({
         finalStats,
         skill,
         enemy,
         level: runtime.base.level,
+        kind: 'tuneRupture',
       })
 
       resMult = buckets.resMult
       defMult = buckets.defMult
-      staticCritRate = buckets.critRate
-      staticCritDmg = buckets.critDmg
-      staticDmgBonus = buckets.dmgBonus
-      staticAmplify = buckets.amplify
-      staticSpecial = 0
-      staticTuneBreakBoost = buckets.tuneBreakBoost
-      staticDmgVuln = buckets.dmgVuln
+      sttcCritRate = buckets.critRate
+      sttcCritDmg = buckets.critDmg
+      sttcDmgBns = buckets.dmgBonus
+      sttcMplf = buckets.amplify
+      sttcSpec = 0
+      sttcTuneBrkB = buckets.tuneBreakBoost
+      sttcDmgVuln = buckets.dmgVuln
+      break
+    }
+
+    case 'hack': {
+      const buckets = makeLevelScale({
+        finalStats,
+        skill,
+        enemy,
+        level: runtime.base.level,
+        kind: 'hack',
+      })
+
+      resMult = buckets.resMult
+      defMult = buckets.defMult
+      sttcCritRate = buckets.critRate
+      sttcCritDmg = buckets.critDmg
+      sttcDmgBns = buckets.dmgBonus
+      sttcMplf = buckets.amplify
+      sttcSpec = 0
+      sttcTuneBrkB = buckets.tuneBreakBoost
+      sttcDmgVuln = buckets.dmgVuln
       break
     }
 
@@ -344,7 +372,7 @@ export function buildCompiledOptimizerContext(options: {
     case 'fusionBurst':
     case 'glacioChafe':
     case 'electroFlare': {
-      const buckets = buildNegativeEffectBuckets({
+      const buckets = makeNegBase({
         finalStats,
         skill,
         enemy,
@@ -354,16 +382,16 @@ export function buildCompiledOptimizerContext(options: {
 
       resMult = buckets.resMult
       defMult = buckets.defMult
-      staticCritRate = buckets.critRate
-      staticCritDmg = buckets.critDmg
-      staticDmgBonus = buckets.dmgBonus
-      staticAmplify = buckets.amplify
-      staticSpecial = buckets.special
-      staticDmgVuln = buckets.dmgVuln
-      negativeEffectMultiplier = buckets.multiplier
-      negativeEffectFixedMv = skill.fixedMv ?? 0
-      negativeEffectCritRate = buckets.critRate / 100
-      negativeEffectCritDmg = buckets.critDmg / 100
+      sttcCritRate = buckets.critRate
+      sttcCritDmg = buckets.critDmg
+      sttcDmgBns = buckets.dmgBonus
+      sttcMplf = buckets.amplify
+      sttcSpec = buckets.special
+      sttcDmgVuln = buckets.dmgVuln
+      negFfctMltp = buckets.multiplier
+      negFfctFxdMv = skill.fixedMv ?? 0
+      negFfctCritR = buckets.critRate / 100
+      negFfctCritD = buckets.critDmg / 100
       break
     }
 
@@ -371,8 +399,18 @@ export function buildCompiledOptimizerContext(options: {
       break
   }
 
+  // immunity zeroes the result via resMult, mirroring the elemental RES=100 shortcut.
+  // healing/shield ignore enemy multipliers, so leave them untouched.
+  if (
+      skill.archetype !== 'healing'
+      && skill.archetype !== 'shield'
+      && isSkillImmune(finalStats.immunities, skill)
+  ) {
+    resMult = 0
+  }
+
   return {
-    archetype: mapSkillArchetype(skill.archetype),
+    archetype: mapSkillArch(skill.archetype),
     characterId: Number.parseInt(resonatorId, 10),
     sequence: runtime.base.sequence,
     level: runtime.base.level,
@@ -384,29 +422,29 @@ export function buildCompiledOptimizerContext(options: {
     baseHp: direct.baseHp,
     baseDef: direct.baseDef,
 
-    staticFinalAtk: direct.finalAtk,
-    staticFinalHp: direct.finalHp,
-    staticFinalDef: direct.finalDef,
-    staticFinalER: direct.finalER,
+    statFinAtk: direct.finalAtk,
+    statFinHp: direct.finalHp,
+    statFinDef: direct.finalDef,
+    statFinEr: direct.finalER,
 
-    staticCritRate,
-    staticCritDmg,
-    staticHealingBonus: finalStats.healingBonus,
-    staticShieldBonus: finalStats.shieldBonus,
-    staticDmgBonus,
-    staticAmplify,
-    staticFlatDmg: finalStats.flatDmg,
-    staticSpecial,
+    statCritRate: sttcCritRate,
+    statCritDmg: sttcCritDmg,
+    statHealBosi: finalStats.healingBonus,
+    statShieldna: finalStats.shieldBonus,
+    statDmgBonus: sttcDmgBns,
+    statAmp: sttcMplf,
+    statFlatDmg: finalStats.flatDmg,
+    statSpec: sttcSpec,
 
     resMult,
     defMult,
-    dmgReduction: 1 + (staticDmgVuln / 100),
+    dmgReduction: 1 + (sttcDmgVuln / 100),
 
-    staticTuneBreakBoost,
-    staticResShred: 0,
-    staticDefIgnore: 0,
-    staticDefShred: 0,
-    staticDmgVuln,
+    statTuneBrcq: sttcTuneBrkB,
+    statResShrd: 0,
+    statDefGnr: 0,
+    statDefShrd: 0,
+    statDmgVuln: sttcDmgVuln,
 
     scalingAtk: direct.scalingAtk,
     scalingHp: direct.scalingHp,
@@ -420,23 +458,23 @@ export function buildCompiledOptimizerContext(options: {
     flat: skill.flat,
     fixedDmg: direct.fixedDmg,
 
-    skillHealingBonus: skill.skillHealingBonus ?? 0,
-    skillShieldBonus: skill.skillShieldBonus ?? 0,
+    skillHealBonus: skill.skillHealingBonus ?? 0,
+    skillShield: skill.skillShieldBonus ?? 0,
 
-    tuneRuptureScale: skill.tuneRuptureScale ?? 0,
-    tuneRuptureCritRate: skill.tuneRuptureCritRate ?? 0,
-    tuneRuptureCritDmg: skill.tuneRuptureCritDmg ?? 1,
+    tuneRptrScl: skill.tuneRuptureScale ?? 0,
+    tuneRptrCrny: skill.tuneRuptureCritRate ?? 0,
+    tuneCritDmg: skill.tuneRuptureCritDmg ?? 1,
 
-    negativeEffectMultiplier,
-    negativeEffectFixedMv,
-    negativeEffectCritRate,
-    negativeEffectCritDmg,
+    negEfxMult: negFfctMltp,
+    negEfxFxdMv: negFfctFxdMv,
+    negEfxCritoo: negFfctCritR,
+    negEfxCritsa: negFfctCritD,
 
-    combatSpectroFrazzle: combatState?.spectroFrazzle ?? 0,
-    combatAeroErosion: combatState?.aeroErosion ?? 0,
-    combatFusionBurst: combatState?.fusionBurst ?? 0,
-    combatGlacioChafe: combatState?.glacioChafe ?? 0,
-    combatElectroFlare: combatState?.electroFlare ?? 0,
-    combatElectroRage: combatState?.electroRage ?? 0,
+    combatSpectro: combatState?.spectroFrazzle ?? combatState?.spctFrzz ?? 0,
+    combatAero: combatState?.aeroErosion ?? 0,
+    combatFusion: combatState?.fusionBurst ?? 0,
+    combatGlacio: combatState?.glacioChafe ?? 0,
+    combatElectro: combatState?.electroFlare ?? 0,
+    combatElecRage: combatState?.electroRage ?? 0,
   }
 }

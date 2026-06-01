@@ -5,12 +5,12 @@
                simple score helpers for replacement decisions.
 */
 
-import { ECHO_SUBSTAT_KEYS, getSubstatStepOptions } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import { SUBSTAT_KEYS, getSbstStepP } from '@/data/gameData/catalog/echoStats'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 
 // roll one random legal value for a substat, biased by rollQuality toward a local window
-export function randomSubValue(statKey: string, rollQuality = 0): number {
-  const options = getSubstatStepOptions(statKey)
+export function randSubVl(statKey: string, rollQuality = 0): number {
+  const options = getSbstStepP(statKey)
   if (!options.length) {
     return 0
   }
@@ -29,17 +29,17 @@ export function randomSubValue(statKey: string, rollQuality = 0): number {
 }
 
 // pick one random substat key, preferring weighted stats depending on bias
-export function getRandomSubstat(
+export function getRandSbst(
     bias = 0.5,
-    includeEnergyRegen = false,
-    statWeight?: OptimizerStatWeightMap,
+    ncldNrgyRgn = false,
+    statWeight?: OptStatWeight,
 ): string {
   const weights = statWeight ?? {}
-  const allKeys = [...ECHO_SUBSTAT_KEYS] as string[]
+  const allKeys = [...SUBSTAT_KEYS] as string[]
 
   // optionally remove Energy Regen from the candidate pool
   const filteredKeys = allKeys.filter(
-      (key) => includeEnergyRegen || key !== 'energyRegen',
+      (key) => ncldNrgyRgn || key !== 'energyRegen',
   )
 
   // separate meaningful weighted stats from unweighted ones
@@ -48,7 +48,7 @@ export function getRandomSubstat(
 
   // force Energy Regen into the preferred pool when it is explicitly allowed
   if (
-      includeEnergyRegen &&
+      ncldNrgyRgn &&
       !nonZeroKeys.includes('energyRegen') &&
       filteredKeys.includes('energyRegen')
   ) {
@@ -110,10 +110,10 @@ export function getRandomSubstat(
 }
 
 // simple weighted score used when comparing substats for replacement logic
-export function getSubstatScore(
+export function getSbstScr(
     key: string,
     value: number,
-    statWeight?: OptimizerStatWeightMap,
+    statWeight?: OptStatWeight,
 ): number {
   return Number(statWeight?.[key] ?? 0) * value
 }

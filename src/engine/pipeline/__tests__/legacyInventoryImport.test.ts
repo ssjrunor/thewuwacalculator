@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import { listEchoes } from '@/domain/services/catalogService'
 import { importLegacyInventoryEchoJson } from '@/domain/services/legacyInventoryImport'
 
@@ -16,8 +16,8 @@ describe('legacy inventory import', () => {
         name: definition.name,
         selectedSet: definition.sets[0],
         mainStats: {
-          critRate: ECHO_PRIMARY_STATS[4].critRate,
-          atkFlat: ECHO_SECONDARY_STATS[4].value,
+          critRate: ECHO_MAIN_STATS[4].critRate,
+          atkFlat: ECHO_SIDE_STATS[4].value,
         },
         subStats: {
           critRate: 6.3,
@@ -36,8 +36,8 @@ describe('legacy inventory import', () => {
       set: definition.sets[0],
       mainEcho: false,
       mainStats: {
-        primary: { key: 'critRate', value: ECHO_PRIMARY_STATS[4].critRate },
-        secondary: { key: 'atkFlat', value: ECHO_SECONDARY_STATS[4].value },
+        primary: { key: 'critRate', value: ECHO_MAIN_STATS[4].critRate },
+        secondary: { key: 'atkFlat', value: ECHO_SIDE_STATS[4].value },
       },
       substats: {
         critRate: 6.3,
@@ -57,8 +57,8 @@ describe('legacy inventory import', () => {
         name: definition.name,
         selectedSet: definition.sets[0],
         mainStats: {
-          fusion: ECHO_PRIMARY_STATS[3].fusion,
-          atkFlat: ECHO_SECONDARY_STATS[3].value,
+          fusion: ECHO_MAIN_STATS[3].fusion,
+          atkFlat: ECHO_SIDE_STATS[3].value,
         },
         subStats: {
           energyRegen: 8.6,
@@ -73,7 +73,7 @@ describe('legacy inventory import', () => {
     expect(result.echoes[0]?.id).toBe(definition.id)
     expect(result.echoes[0]?.uid).toEqual(expect.any(String))
     expect(result.echoes[0]?.mainStats.primary.key).toBe('fusion')
-    expect(result.echoes[0]?.mainStats.primary.value).toBe(ECHO_PRIMARY_STATS[3].fusion)
+    expect(result.echoes[0]?.mainStats.primary.value).toBe(ECHO_MAIN_STATS[3].fusion)
   })
 
   it('imports the titled legacy backup shape using `Echo Bag`', () => {
@@ -90,8 +90,8 @@ describe('legacy inventory import', () => {
           name: definition.name,
           selectedSet: definition.sets[0],
           mainStats: {
-            atkPercent: ECHO_PRIMARY_STATS[1].atkPercent,
-            hpFlat: ECHO_SECONDARY_STATS[1].value,
+            atkPercent: ECHO_MAIN_STATS[1].atkPercent,
+            hpFlat: ECHO_SIDE_STATS[1].value,
           },
           subStats: {
             critRate: 6.9,

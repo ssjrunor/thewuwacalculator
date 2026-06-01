@@ -5,33 +5,35 @@
                coloring for elemental and status-related terms.
 */
 
-import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
+import { ATTR_COLORS } from '@/modules/calculator/model/display'
 
-const FIXED_HIGHLIGHTS: Record<string, string> = {
-  'Spectro Frazzle': ATTRIBUTE_COLORS.spectro,
-  'Aero Erosion': ATTRIBUTE_COLORS.aero,
-  'Havoc Bane': ATTRIBUTE_COLORS.havoc,
-  'Fusion Burst': ATTRIBUTE_COLORS.fusion,
-  'Electro Flare': ATTRIBUTE_COLORS.electro,
-  'Glacio Chafe': ATTRIBUTE_COLORS.glacio,
+const FIXED_MARKS: Record<string, string> = {
+  'Spectro Frazzle': ATTR_COLORS.spectro,
+  'Aero Erosion': ATTR_COLORS.aero,
+  'Havoc Bane': ATTR_COLORS.havoc,
+  'Fusion Burst': ATTR_COLORS.fusion,
+  'Electro Flare': ATTR_COLORS.electro,
+  'Electro Rage': ATTR_COLORS.electro,
+  'Glacio Chafe': ATTR_COLORS.glacio,
+  'Glacio Bite': ATTR_COLORS.glacio
 }
 
-const ELEMENT_KEYWORDS = ['glacio', 'spectro', 'havoc', 'electro', 'aero', 'fusion'] as const
+const ELEM_WORDS = ['glacio', 'spectro', 'havoc', 'electro', 'aero', 'fusion'] as const
 
 // phrases that should be highlighted case-insensitively in formatted descriptions
-const ELEMENT_PHRASES = ELEMENT_KEYWORDS.flatMap((element) => [
+const ELEM_PHRASES = ELEM_WORDS.flatMap((element) => [
   `${element} dmg bonus`,
   `${element} damage bonus`,
   `${element} dmg`,
   `${element} damage`,
   `${element} erosion dmg`,
   `${element} frazzle dmg`,
-  `${element} erosion`,
-  `${element} frazzle`,
   `${element} bane dmg`,
-  `${element} bane`,
   `${element} flare dmg`,
-  `${element} flare`,
+  `${element} burst dmg`,
+  `${element} chafe dmg`,
+  `${element} rage dmg`,
+  `${element} bite dmg`,
   element,
 ])
 
@@ -40,33 +42,93 @@ function escapeRegex(value: string): string {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
 }
 
+function rstrPrtcSgmn(html: string, prtcSgmn: Map<string, string>): string {
+  let processed = html
+
+  for (const [token, replacement] of prtcSgmn) {
+    processed = processed.replaceAll(token, replacement)
+  }
+
+  return processed
+}
+
+function prtcFxdHghl(
+    prtcSgmn: Map<string, string>,
+    color: string,
+    match: string,
+): string {
+  const token = `__WWCALC_FIXED_${prtcSgmn.size}__`
+  prtcSgmn.set(
+      token,
+      `<strong style="color: ${color}; font-weight: bold;">${match}</strong>`,
+  )
+  return token
+}
+
+function prtcFxdHghbr(html: string): { html: string, prtcSgmn: Map<string, string> } {
+  const prtcSgmn = new Map<string, string>()
+  let processed = html
+  const hghlOpen = '(?:<span class="highlight">|<strong class="highlight">)'
+  const hghlCls = '</(?:span|strong)>'
+
+  for (const [word, color] of Object.entries(FIXED_MARKS)) {
+    const fxdPhrsPttr = `${escapeRegex(word)}(?:\\s+(?:DMG|Damage))?`
+    const wrppTermRgx = new RegExp(
+        `${hghlOpen}\\s*(${fxdPhrsPttr})\\s*${hghlCls}(?:\\s+(?:${hghlOpen}\\s*(DMG|Damage)\\s*${hghlCls}|(DMG|Damage)))?`,
+        'gi',
+    )
+    const wrppSffxRgx = new RegExp(
+        `\\b(${escapeRegex(word)})\\s+${hghlOpen}\\s*(DMG|Damage)\\s*${hghlCls}`,
+        'gi',
+    )
+    const plainRegex = new RegExp(`\\b${fxdPhrsPttr}\\b`, 'gi')
+
+    processed = processed.replace(wrppTermRgx, (_, term: string, suffixOne?: string, suffixTwo?: string) => {
+      const suffix = suffixOne ?? suffixTwo
+      return prtcFxdHghl(
+          prtcSgmn,
+          color,
+          suffix ? `${term} ${suffix}` : term,
+      )
+    })
+    processed = processed.replace(wrppSffxRgx, (_, term: string, suffix: string) => (
+      prtcFxdHghl(prtcSgmn, color, `${term} ${suffix}`)
+    ))
+    processed = processed.replace(plainRegex, (match) => (
+      prtcFxdHghl(prtcSgmn, color, match)
+    ))
+  }
+
+  return { html: processed, prtcSgmn: prtcSgmn }
+}
+
 // inject highlight markup into HTML while preserving existing formatting
-function highlightKeywordsInHtml(html: string, extraKeywords: string[] = []): string {
+function hghlKywrInHt(html: string, xtrKywr: string[] = []): string {
   if (!html) {
     return html
   }
 
   // elemental RES phrases get handled first so they are protected from later replacements
-  const resPhrases = ELEMENT_KEYWORDS.map(
+  const resPhrases = ELEM_WORDS.map(
       (element) => `${element.charAt(0).toUpperCase() + element.slice(1)} RES`,
   )
-  const escapedResPhrases = resPhrases.map(escapeRegex)
-  const resRegex = new RegExp(`(${escapedResPhrases.join('|')})`, 'g')
+  const scpdResPhrs = resPhrases.map(escapeRegex)
+  const resRegex = new RegExp(`(${scpdResPhrs.join('|')})`, 'g')
 
   // case-insensitive highlight targets plus generic percentage values
-  const escapedInsensitiveKeywords = ELEMENT_PHRASES.map(escapeRegex)
-  const percentPattern = '\\d+(\\.\\d+)?%'
-  const ciRegex = new RegExp(`(${[...escapedInsensitiveKeywords, percentPattern].join('|')})`, 'gi')
+  const scpdNsnsKywr = ELEM_PHRASES.map(escapeRegex)
+  const prcnPttr = '\\d+(\\.\\d+)?%'
+  const ciRegex = new RegExp(`(${[...scpdNsnsKywr, prcnPttr].join('|')})`, 'gi')
 
   let processed = html
-  const protectedSegments = new Map<string, string>()
+  const prtcSgmn = new Map<string, string>()
 
   // protect elemental resistance phrases with their own explicit colored markup
   processed = processed.replace(resRegex, (match) => {
-    const elementKey = match.split(' ')[0].toLowerCase() as keyof typeof ATTRIBUTE_COLORS
-    const color = ATTRIBUTE_COLORS[elementKey] ?? 'inherit'
-    const token = `__WWCALC_RES_${protectedSegments.size}__`
-    protectedSegments.set(
+    const elementKey = match.split(' ')[0].toLowerCase() as keyof typeof ATTR_COLORS
+    const color = ATTR_COLORS[elementKey] ?? 'inherit'
+    const token = `__WWCALC_RES_${prtcSgmn.size}__`
+    prtcSgmn.set(
         token,
         `<strong style="color: ${color}; font-weight: bold;">${match}</strong>`,
     )
@@ -74,11 +136,11 @@ function highlightKeywordsInHtml(html: string, extraKeywords: string[] = []): st
   })
 
   // apply exact-case keyword highlights before the broad case-insensitive pass
-  if (extraKeywords.length > 0) {
-    const escapedSensitiveKeywords = [...extraKeywords]
+  if (xtrKywr.length > 0) {
+    const scpdSnstKywr = [...xtrKywr]
         .sort((left, right) => right.length - left.length)
         .map(escapeRegex)
-    const csRegex = new RegExp(`(${escapedSensitiveKeywords.join('|')})`, 'g')
+    const csRegex = new RegExp(`(${scpdSnstKywr.join('|')})`, 'g')
 
     processed = processed.replace(
         csRegex,
@@ -95,9 +157,9 @@ function highlightKeywordsInHtml(html: string, extraKeywords: string[] = []): st
 
     // element-prefixed phrases use the element color
     const lower = match.toLowerCase()
-    const elementPrefix = ELEMENT_KEYWORDS.find((element) => lower.startsWith(element))
-    if (elementPrefix) {
-      const color = ATTRIBUTE_COLORS[elementPrefix]
+    const elemPrfx = ELEM_WORDS.find((element) => lower.startsWith(element))
+    if (elemPrfx) {
+      const color = ATTR_COLORS[elemPrfx]
       return `<strong style="color: ${color}; font-weight: bold;">${match}</strong>`
     }
 
@@ -105,31 +167,26 @@ function highlightKeywordsInHtml(html: string, extraKeywords: string[] = []): st
     return `<strong class="highlight">${match}</strong>`
   })
 
-  // restore the protected resistance phrases
-  for (const [token, replacement] of protectedSegments) {
-    processed = processed.replaceAll(token, replacement)
-  }
-
-  return processed
+  return rstrPrtcSgmn(processed, prtcSgmn)
 }
 
-export interface FormatDescriptionOptions {
-  extraKeywords?: string[]
+export interface FmtDscrPtns {
+  xtrKywr?: string[]
 }
 
 // check whether a raw HTML tag contains a font-bold class
-function hasFontBoldClass(tag: string): boolean {
-  const quotedClassMatch = tag.match(/\bclass\s*=\s*(['"])(.*?)\1/i)
-  if (quotedClassMatch && /\bfont-bold\b/i.test(quotedClassMatch[2])) {
+function hasFontBoldC(tag: string): boolean {
+  const qtdClssMtch = tag.match(/\bclass\s*=\s*(['"])(.*?)\1/i)
+  if (qtdClssMtch && /\bfont-bold\b/i.test(qtdClssMtch[2])) {
     return true
   }
 
-  const unquotedClassMatch = tag.match(/\bclass\s*=\s*([^\s>]+)/i)
-  return Boolean(unquotedClassMatch && /\bfont-bold\b/i.test(unquotedClassMatch[1]))
+  const nqtdClssMtch = tag.match(/\bclass\s*=\s*([^\s>]+)/i)
+  return Boolean(nqtdClssMtch && /\bfont-bold\b/i.test(nqtdClssMtch[1]))
 }
 
 // strip incoming bold markup and normalize it to the app's highlight spans
-function stripInjectedMarkup(text: string): string {
+function strpNjctMrkp(text: string): string {
   // first normalize line breaks to literal newlines so we can rebuild them cleanly later
   const normalized = text.replace(/(?:<br\s*\/?>\s*)+/gi, '\n')
   const tagRegex = /<\/?[^>]+>/gi
@@ -144,7 +201,7 @@ function stripInjectedMarkup(text: string): string {
 
     // preserve only meaningful bold wrappers and discard everything else
     if (/^<span\b/i.test(tag)) {
-      const isBoldSpan = hasFontBoldClass(tag)
+      const isBoldSpan = hasFontBoldC(tag)
       spanStack.push(isBoldSpan)
       if (isBoldSpan) {
         result += '<span class="highlight">'
@@ -155,9 +212,9 @@ function stripInjectedMarkup(text: string): string {
         result += '</span>'
       }
     } else if (/^<strong\b[^>]*>/i.test(tag)) {
-      result += '<span class="highlight">'
+      result += '<strong class="highlight">'
     } else if (/^<\/strong\s*>/i.test(tag)) {
-      result += '</span>'
+      result += '</strong>'
     }
 
     lastIndex = tagRegex.lastIndex
@@ -168,18 +225,18 @@ function stripInjectedMarkup(text: string): string {
 }
 
 // format description text into highlighted HTML
-export function formatDescription(
+export function fmtDscr(
     desc: string,
     param: Array<string | number> = [],
-    currentSliderColor = '#888',
-    options: FormatDescriptionOptions = {},
+    curSldrClr = '#888',
+    options: FmtDscrPtns = {},
 ): string {
   if (!desc) {
     return ''
   }
 
   // kept for call-site compatibility even though this formatter no longer uses it directly
-  void currentSliderColor
+  void curSldrClr
 
   // normalize line endings first
   let formatted = desc
@@ -187,7 +244,7 @@ export function formatDescription(
       .replace(/\r/g, '\n')
 
   // strip injected markup, trim messy whitespace around lines, then convert newlines to <br>
-  formatted = stripInjectedMarkup(formatted)
+  formatted = strpNjctMrkp(formatted)
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n[ \t]+/g, '\n')
       .replace(/\n/g, '<br>')
@@ -201,14 +258,10 @@ export function formatDescription(
       },
   )
 
-  // apply fixed-status phrase highlighting before generic placeholder substitution
-  for (const [word, color] of Object.entries(FIXED_HIGHLIGHTS)) {
-    const regex = new RegExp(`\\b${word}\\b`, 'gi')
-    formatted = formatted.replace(
-        regex,
-        `<span style="color: ${color}; font-weight: bold;">${word}</span>`,
-    )
-  }
+  // fixed status phrases can include trailing damage labels and must stay atomic
+  // through the later generic keyword pass.
+  const fxdHghl = prtcFxdHghbr(formatted)
+  formatted = fxdHghl.html
 
   // replace indexed placeholders like {0}, {1}, ...
   formatted = formatted.replace(
@@ -226,17 +279,20 @@ export function formatDescription(
   )
 
   // finally apply keyword-based highlight formatting
-  return highlightKeywordsInHtml(formatted, options.extraKeywords)
+  return rstrPrtcSgmn(
+      hghlKywrInHt(formatted, options.xtrKywr),
+      fxdHghl.prtcSgmn,
+  )
 }
 
 // format description text and return a plain-text version without HTML
-export function formatDescriptionText(
+export function fmtDscrText(
     desc: string,
     param: Array<string | number> = [],
-    currentSliderColor = '#888',
-    options: FormatDescriptionOptions = {},
+    curSldrClr = '#888',
+    options: FmtDscrPtns = {},
 ): string {
-  return formatDescription(desc, param, currentSliderColor, options)
+  return fmtDscr(desc, param, curSldrClr, options)
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')

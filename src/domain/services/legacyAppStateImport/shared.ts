@@ -1,29 +1,35 @@
-import type { PersistedAppState } from '@/domain/entities/appState'
+/*
+  Author: Runor Ewhro
+  Description: Shared legacy-import helpers for ids, names, and defensive
+               normalization of older persisted values.
+*/
 
-export interface LegacyImportIssue {
+import type { PersistedState } from '@/domain/entities/appState'
+
+export interface LegMprtSs {
   scope: 'backup' | 'ui' | 'profile' | 'inventory' | 'rotation' | 'suggestions'
   subject?: string
   reason: string
 }
 
-export interface LegacyImportReport {
+export interface LegMprtRprt {
   importedProfileIds: string[]
   skippedProfileIds: string[]
   importedInventoryEchoes: number
   importedInventoryBuilds: number
   importedInventoryRotations: number
   importedSuggestionStates: number
-  issues: LegacyImportIssue[]
+  issues: LegMprtSs[]
 }
 
-export interface LegacyAppStateImportResult {
-  snapshot: PersistedAppState
-  report: LegacyImportReport
+export interface LegAppSttMpr {
+  snapshot: PersistedState
+  report: LegMprtRprt
 }
 
 export type JsonRecord = Record<string, unknown>
 
-export interface LegacyAppBackupPayload {
+export interface LegAppBckpPa {
   charInfo: JsonRecord
   controls: JsonRecord
   stores: JsonRecord
@@ -33,7 +39,7 @@ export function isRecord(value: unknown): value is JsonRecord {
   return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function parseMaybeJson(value: unknown): unknown {
+export function prsMybJson(value: unknown): unknown {
   if (typeof value !== 'string') {
     return value
   }
@@ -69,7 +75,7 @@ export function coerceNumber(value: unknown): number | null {
   return null
 }
 
-export function coerceBoolean(value: unknown): boolean | null {
+export function crcBln(value: unknown): boolean | null {
   if (typeof value === 'boolean') {
     return value
   }
@@ -104,17 +110,17 @@ export function coerceString(value: unknown): string | null {
   return null
 }
 
-export function normalizeString(value: unknown): string {
+export function normStrn(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
-export function toStableId(prefix: string, value: unknown, fallbackIndex: number): string {
+export function toStableId(prefix: string, value: unknown, fllbNdx: number): string {
   const id = coerceString(value)
-  return id ? `${prefix}:${id}` : `${prefix}:${fallbackIndex}`
+  return id ? `${prefix}:${id}` : `${prefix}:${fllbNdx}`
 }
 
-export function extractLegacyAppBackupPayload(parsed: unknown): LegacyAppBackupPayload {
-  const maybeParsed = parseMaybeJson(parsed)
+export function xtrcLegAppBc(parsed: unknown): LegAppBckpPa {
+  const maybeParsed = prsMybJson(parsed)
   if (!isRecord(maybeParsed)) {
     throw new Error('Expected a legacy backup JSON object.')
   }
@@ -135,9 +141,9 @@ export function extractLegacyAppBackupPayload(parsed: unknown): LegacyAppBackupP
     ? (maybeParsed['All Data'] as JsonRecord)
     : maybeParsed
 
-  const charInfo = parseMaybeJson(root.__charInfo__)
-  const controls = parseMaybeJson(root.__controls__)
-  const stores = parseMaybeJson(root.__stores__)
+  const charInfo = prsMybJson(root.__charInfo__)
+  const controls = prsMybJson(root.__controls__)
+  const stores = prsMybJson(root.__stores__)
 
   return {
     charInfo: isRecord(charInfo) ? charInfo : {},
@@ -146,7 +152,7 @@ export function extractLegacyAppBackupPayload(parsed: unknown): LegacyAppBackupP
   }
 }
 
-export function parseLegacyAppBackupJson(raw: string): LegacyAppBackupPayload {
+export function prsLegAppBck(raw: string): LegAppBckpPa {
   let parsed: unknown
 
   try {
@@ -155,17 +161,17 @@ export function parseLegacyAppBackupJson(raw: string): LegacyAppBackupPayload {
     throw new Error('Legacy backup is not valid JSON.')
   }
 
-  return extractLegacyAppBackupPayload(parsed)
+  return xtrcLegAppBc(parsed)
 }
 
 export function pushIssue(
-  issues: LegacyImportIssue[],
-  issue: LegacyImportIssue,
+  issues: LegMprtSs[],
+  issue: LegMprtSs,
 ): void {
   issues.push(issue)
 }
 
-export function extractPrimitiveControls(
+export function xtrcPrmtCntr(
   value: unknown,
 ): Record<string, boolean | number | string> {
   if (!isRecord(value)) {

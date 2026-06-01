@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { ResonatorSeed } from '@/domain/entities/runtime'
-import { createDefaultResonatorRuntime, makeDefaultEnemyProfile } from '@/domain/state/defaults'
-import { runResonatorSimulation } from '@/engine/pipeline'
+import type { ResSeed } from '@/domain/entities/runtime'
+import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
+import { runResSmlt } from '@/engine/pipeline'
 
-const seed: ResonatorSeed = {
-  id: 'multi-outcome-test',
+const seed: ResSeed = {
+  id: '1501',
   name: 'Multi Outcome Test',
   profile: '/assets/resonators/profiles/multi-outcome-test.webp',
   attribute: 'spectro',
@@ -119,42 +119,42 @@ const seed: ResonatorSeed = {
     {
       id: 'feature:damage-skill',
       label: 'Damage Skill',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'damage-skill',
     },
     {
       id: 'feature:healing-skill',
       label: 'Healing Skill',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'healing-skill',
     },
     {
       id: 'feature:shield-skill',
       label: 'Shield Skill',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'shield-skill',
     },
     {
       id: 'feature:tune-rupture-skill',
       label: 'Tune Rupture',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'tune-rupture-skill',
     },
     {
       id: 'feature:frazzle-skill',
       label: 'Spectro Frazzle',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'frazzle-skill',
     },
     {
       id: 'feature:fusion-burst-skill',
       label: 'Fusion Burst',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       kind: 'skill',
       skillId: 'fusion-burst-skill',
     },
@@ -163,7 +163,7 @@ const seed: ResonatorSeed = {
     {
       id: 'default',
       label: 'Default',
-      source: { type: 'resonator', id: 'multi-outcome-test' },
+      source: { type: 'resonator', id: '1501' },
       items: [
         { id: 'damage', type: 'feature', featureId: 'feature:damage-skill', enabled: true },
         { id: 'healing', type: 'feature', featureId: 'feature:healing-skill', enabled: true },
@@ -178,10 +178,11 @@ const seed: ResonatorSeed = {
 
 describe('multi-outcome pipeline', () => {
   it('keeps damage, healing, and shield in separate aggregation buckets', () => {
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
+    runtime.build.team = [seed.id, '1210', null]
     runtime.state.combat.spectroFrazzle = 3
     runtime.state.combat.fusionBurst = 3
-    const result = runResonatorSimulation(runtime, seed, makeDefaultEnemyProfile())
+    const result = runResSmlt(runtime, seed, makeEnemy())
 
     expect(result.perSkill.map((entry) => entry.archetype)).toEqual([
       'skillDamage',
@@ -192,10 +193,10 @@ describe('multi-outcome pipeline', () => {
       'fusionBurst',
     ])
 
-    expect(result.totalsByAggregation.damage.avg).toBeGreaterThan(0)
-    expect(result.totalsByAggregation.healing.avg).toBeGreaterThan(0)
-    expect(result.totalsByAggregation.shield.avg).toBeGreaterThan(0)
-    expect(result.total.avg).toBeCloseTo(result.totalsByAggregation.damage.avg)
+    expect(result.totalsByGroup.damage.avg).toBeGreaterThan(0)
+    expect(result.totalsByGroup.healing.avg).toBeGreaterThan(0)
+    expect(result.totalsByGroup.shield.avg).toBeGreaterThan(0)
+    expect(result.total.avg).toBeCloseTo(result.totalsByGroup.damage.avg)
     expect(result.perSkill.find((entry) => entry.archetype === 'healing')?.avg).toBeGreaterThan(0)
     expect(result.perSkill.find((entry) => entry.archetype === 'shield')?.avg).toBeGreaterThan(0)
     expect(result.perSkill.find((entry) => entry.archetype === 'fusionBurst')?.avg).toBeGreaterThan(0)

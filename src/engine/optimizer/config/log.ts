@@ -5,10 +5,10 @@
                one place without touching the call sites.
 */
 
-import { OPTIMIZER_LOGGING } from '@/engine/optimizer/config/constants.ts'
+import { OPT_LOGGING } from '@/engine/optimizer/config/constants.ts'
 
 export function logOptimizer(message: string, data?: Record<string, unknown>): void {
-  if (!OPTIMIZER_LOGGING) {
+  if (!OPT_LOGGING) {
     return
   }
 
@@ -19,8 +19,8 @@ export function logOptimizer(message: string, data?: Record<string, unknown>): v
   }
 }
 
-export function warnOptimizer(message: string, data?: Record<string, unknown>): void {
-  if (!OPTIMIZER_LOGGING) {
+export function warnOpt(message: string, data?: Record<string, unknown>): void {
+  if (!OPT_LOGGING) {
     return
   }
 
@@ -31,8 +31,8 @@ export function warnOptimizer(message: string, data?: Record<string, unknown>): 
   }
 }
 
-export function errorOptimizer(message: string, data?: Record<string, unknown>): void {
-  if (!OPTIMIZER_LOGGING) {
+export function errorOpt(message: string, data?: Record<string, unknown>): void {
+  if (!OPT_LOGGING) {
     return
   }
 

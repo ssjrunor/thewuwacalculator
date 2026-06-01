@@ -6,36 +6,36 @@
 */
 
 import type {
-  MainStatSuggestionEntry,
-  MainStatSuggestionsInput,
-  PreparedMainStatSuggestionsInput,
+  MainStatSugg,
+  MainStatSuwo,
+  MainStatPrep,
 } from '@/engine/suggestions/types'
-import type { SuggestionEvaluationContext } from '@/engine/suggestions/types'
+import type { SuggestContext } from '@/engine/suggestions/types'
 import {
-  buildPreparedMainStatSuggestionsInput,
-  buildSuggestionMainEchoBuffs,
-  runSuggestionSimulation,
+  mkPrepMainSt,
+  mkSuggMainEc,
+  runSuggSmlt,
 } from '@/engine/suggestions/shared'
-import { buildMainStatPoolForSuggestor } from '@/engine/suggestions/mainStat-suggestion/ctx-builder'
-import { computeMainStatDamage, computeRotationMainStatDamage } from '@/engine/suggestions/mainStat-suggestion/compute'
+import { mkMainStatPo } from '@/engine/suggestions/mainStat-suggestion/ctx-builder'
+import { cmptMainStat, cmptRotMainS } from '@/engine/suggestions/mainStat-suggestion/compute'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
 import type { EchoInstance } from '@/domain/entities/runtime'
 
 // search through valid main-stat recipes and return the best-scoring options
-export function suggestMainStats({
+export function sggsMainStts({
                                    ctx,
                                    rotationCtx = null,
                                    charId,
                                    statWeight = {},
-                                   mainStatFilter = null,
+                                   mainStatFilter: mainStatFilter = null,
                                    maxSlots = 5,
                                    minSlots = 1,
                                    maxCost = 12,
                                    topK = 5,
-                                   equippedEchoes = [],
+                                   qppdChs: qppdChs = [],
                                  }: {
-  ctx: SuggestionEvaluationContext | null
-  rotationCtx?: SuggestionEvaluationContext | null
+  ctx: SuggestContext | null
+  rotationCtx?: SuggestContext | null
   charId?: string | null
   statWeight?: Partial<Record<string, number>>
   mainStatFilter?: Record<string, boolean> | null
@@ -43,40 +43,40 @@ export function suggestMainStats({
   minSlots?: number
   maxCost?: number
   topK?: number
-  equippedEchoes?: Array<EchoInstance | null>
-}): MainStatSuggestionEntry[] {
+  qppdChs?: Array<EchoInstance | null>
+}): MainStatSugg[] {
   // build the candidate pool of legal main stats
-  const pool = buildMainStatPoolForSuggestor({ statWeight, charId, mainStatFilter })
+  const pool = mkMainStatPo({ statWeight, charId, mainStatFilter: mainStatFilter })
 
-  const results: MainStatSuggestionEntry[] = []
+  const results: MainStatSugg[] = []
 
   // determine whether we are evaluating direct damage or rotation damage
-  const isRotationMode = rotationCtx != null
+  const isRotMode = rotationCtx != null
   const activeCtx = (ctx ?? rotationCtx)!
 
   // main echo buff rows only depend on echo identity/layout, not the recipe choices,
   // so compute them once and reuse across all evaluations
-  const mainEchoBuffs = buildSuggestionMainEchoBuffs(activeCtx, equippedEchoes)
+  const mainEchoBuffs = mkSuggMainEc(activeCtx, qppdChs)
 
   // mutable path used during dfs
-  const currentRecipes: MainStatRecipe[] = []
+  const curRcps: MainStatRecipe[] = []
 
   // evaluate the current recipe set and insert it into the ranked results
-  function maybeInsertResult(costUsed: number) {
+  function mybNsrtRslt(costUsed: number) {
     let avgDamage: number
 
-    if (isRotationMode) {
-      avgDamage = computeRotationMainStatDamage(
+    if (isRotMode) {
+      avgDamage = cmptRotMainS(
           rotationCtx!,
-          currentRecipes,
-          equippedEchoes,
+          curRcps,
+          qppdChs,
           mainEchoBuffs,
       )
     } else {
-      avgDamage = computeMainStatDamage(
+      avgDamage = cmptMainStat(
           ctx!,
-          currentRecipes,
-          equippedEchoes,
+          curRcps,
+          qppdChs,
           mainEchoBuffs,
       )
     }
@@ -84,8 +84,8 @@ export function suggestMainStats({
     results.push({
       damage: avgDamage,
       totalCost: costUsed,
-      isRotation: isRotationMode,
-      recipes: currentRecipes.map((recipe) => ({ ...recipe })),
+      isRotation: isRotMode,
+      recipes: curRcps.map((recipe) => ({ ...recipe })),
     })
 
     // keep results sorted best-first and trim to topK
@@ -99,7 +99,7 @@ export function suggestMainStats({
   function dfs(startIndex: number, slotsUsed: number, costUsed: number) {
     // once the minimum slot count is met, the current path is a valid candidate
     if (slotsUsed >= minSlots) {
-      maybeInsertResult(costUsed)
+      mybNsrtRslt(costUsed)
     }
 
     // stop when the slot cap is reached
@@ -117,14 +117,14 @@ export function suggestMainStats({
         continue
       }
 
-      currentRecipes.push({
+      curRcps.push({
         cost: option.cost,
         primaryKey: option.key,
       })
 
       dfs(i, slotsUsed + 1, newCost)
 
-      currentRecipes.pop()
+      curRcps.pop()
     }
   }
 
@@ -134,26 +134,26 @@ export function suggestMainStats({
 }
 
 // run the full main-stat suggestor pipeline from simulation to ranked outputs
-export function runMainStatSuggestor(
-    input: MainStatSuggestionsInput,
+export function runMainStats(
+    input: MainStatSuwo,
     options: {
       maxSlots?: number
       minSlots?: number
       maxCost?: number
       topK?: number
     } = {},
-): MainStatSuggestionEntry[] {
+): MainStatSugg[] {
   const rotationMode = input.rotationMode
 
   // simulate the current build first so we can derive context and stat weights
-  const simulation = runSuggestionSimulation(input)
-  const prepared = buildPreparedMainStatSuggestionsInput(input, simulation)
+  const simulation = runSuggSmlt(input)
+  const prepared = mkPrepMainSt(input, simulation)
   if (!prepared) {
     return []
   }
 
   // dispatch to the shared search routine
-  return suggestMainStats({
+  return sggsMainStts({
     ctx: rotationMode ? null : prepared.context,
     rotationCtx: rotationMode ? prepared.context : null,
     charId: prepared.charId,
@@ -162,24 +162,24 @@ export function runMainStatSuggestor(
     minSlots: options.minSlots ?? 1,
     maxCost: options.maxCost ?? 12,
     topK: options.topK ?? prepared.topK ?? 10,
-    equippedEchoes: prepared.equippedEchoes,
+    qppdChs: prepared.qppdChs,
   })
 }
 
-export function runPreparedMainStatSuggestor(
-    input: PreparedMainStatSuggestionsInput,
-): MainStatSuggestionEntry[] {
-  const nonNullCount = input.equippedEchoes.filter((echo) => echo != null).length
+export function runPrepMainS(
+    input: MainStatPrep,
+): MainStatSugg[] {
+  const nonNullCount = input.qppdChs.filter((echo) => echo != null).length
   if (nonNullCount === 0) {
     return []
   }
 
-  return suggestMainStats({
+  return sggsMainStts({
     ctx: input.rotationMode ? null : input.context,
     rotationCtx: input.rotationMode ? input.context : null,
     charId: input.charId,
     statWeight: input.statWeight,
     topK: input.topK ?? 10,
-    equippedEchoes: input.equippedEchoes,
+    qppdChs: input.qppdChs,
   })
 }

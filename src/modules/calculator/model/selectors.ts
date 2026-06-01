@@ -5,59 +5,61 @@
                falling back to a standalone resonator simulation otherwise.
 */
 
-import { runCombatGraphSimulation, runResonatorSimulation } from '@/engine/pipeline'
-import type { ResonatorSeed, ResonatorRuntimeState } from '@/domain/entities/runtime'
+import { runCmbtGrphS, runResSmlt } from '@/engine/pipeline'
+import type { ResSeed, ResRuntime } from '@/domain/entities/runtime'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
 import {
-  buildPreparedWorkspace,
-  runPreparedWorkspaceSimulation,
-  type PreparedWorkspace,
+  mkPrepWork,
+  runPrepWorkS,
+  type PrepWork,
 } from '@/engine/pipeline/preparedWorkspace'
 
-export function buildPreparedLiveComputation(
-    preparedWorkspace: PreparedWorkspace | null,
+export function mkPrepLiveCm(
+  prepWork: PrepWork | null,
 ) {
-  if (!preparedWorkspace) {
+  if (!prepWork) {
     return null
   }
 
-  return runPreparedWorkspaceSimulation(preparedWorkspace)
+  return runPrepWorkS(prepWork)
 }
 
 // build the current live computation result for the calculator
 // returns null when the active runtime or seed is missing
-export function buildLiveComputation(
-    runtime: ResonatorRuntimeState | null,
-    seed: ResonatorSeed | null,
-    enemy: EnemyProfile,
-    runtimesById: Record<string, ResonatorRuntimeState> = {},
-    graph: CombatGraph | null = null,
-    selectedTargetsByOwnerKey: Record<string, string | null> = {},
+export function mkLiveCmpt(
+  runtime: ResRuntime | null,
+  seed: ResSeed | null,
+  enemy: EnemyProfile,
+  runtimesById: Record<string, ResRuntime> = {},
+  graph: CombatGraph | null = null,
+  selTrgtByOwn: Record<string, string | null> = {},
 ) {
   if (!runtime || !seed) return null
 
-  const preparedWorkspace = buildPreparedWorkspace({
+  const prepWork = mkPrepWork({
     runtime,
     seed,
     enemy,
-    participantRuntimesById: runtimesById,
-    activeTargetSelections: selectedTargetsByOwnerKey,
+    prtcRntmById: runtimesById,
+    activeTarget: selTrgtByOwn,
     combatGraph: graph,
   })
 
-  const preparedSimulation = runPreparedWorkspaceSimulation(preparedWorkspace)
-  if (preparedSimulation) {
-    return preparedSimulation
+  const prepSmlt = runPrepWorkS(prepWork)
+  if (prepSmlt) {
+    // the prepared workspace path already knows how to simulate graph-aware and
+    // standalone cases, so prefer it whenever it can materialize a result.
+    return prepSmlt
   }
 
   // if we already have a combat graph whose active participant matches
   // this runtime, reuse the graph-based simulation path so all participant
   // interactions and graph state stay consistent
   if (graph?.participants.active?.resonatorId === runtime.id) {
-    return runCombatGraphSimulation(graph, 'active', seed, enemy)
+    return runCmbtGrphS(graph, 'active', seed, enemy)
   }
 
   // otherwise simulate directly from the runtime plus any linked teammate runtimes
-  return runResonatorSimulation(runtime, seed, enemy, runtimesById, selectedTargetsByOwnerKey)
+  return runResSmlt(runtime, seed, enemy, runtimesById, selTrgtByOwn)
 }

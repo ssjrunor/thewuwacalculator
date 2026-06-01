@@ -5,22 +5,22 @@
                random loadout generation, and Energy Regen injection.
 */
 
-import type { EchoDefinition } from '@/domain/entities/catalog'
-import type { RandomGeneratorSetPreference } from '@/domain/entities/suggestions'
+import type { EchoDef } from '@/domain/entities/catalog'
+import type { RandGnrtSetP } from '@/domain/entities/suggestions'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { createEchoUid } from '@/domain/entities/runtime'
-import { getEchoById, getEchoSets, listEchoes, listEchoesByCost } from '@/domain/services/echoCatalogService'
+import { makeEchoUid } from '@/domain/entities/runtime'
+import { getEchoById, getEchoSets, listEchoes, listChsByCos } from '@/domain/services/echoCatalogService'
 import {
-  ECHO_PRIMARY_STATS,
-  ECHO_SECONDARY_STATS,
-  ECHO_SUBSTAT_KEYS,
-  getSubstatStepOptions,
+  ECHO_MAIN_STATS,
+  ECHO_SIDE_STATS,
+  SUBSTAT_KEYS,
+  getSbstStepP,
 } from '@/data/gameData/catalog/echoStats'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 import type { SetPlanEntry } from '@/engine/suggestions/types'
-import { getRandomSubstat, randomSubValue } from '@/engine/suggestions/randomEchoes/lib/substats'
-import { MAIN_STAT_FILTER_ORDER } from '@/engine/suggestions/MAIN_STAT_FILTER_ORDER.ts'
+import { getRandSbst, randSubVl } from '@/engine/suggestions/randomEchoes/lib/substats'
+import { MAIN_STAT_IDS } from '@/engine/suggestions/MAIN_STAT_FILTER_ORDER.ts'
 
 // elemental bonus main stats are handled as a grouped "bonus" filter,
 // but we still need to know the individual keys when resolving the best one.
@@ -28,18 +28,18 @@ const ELEMENT_KEYS = new Set(['aero', 'glacio', 'fusion', 'spectro', 'havoc', 'e
 
 // 3-piece sets behave differently from normal 2/5-piece sets when checking
 // whether accidental extra set activations need to be broken up.
-const THREE_PIECE_SET_IDS = new Set(
+const THRPCSETIDS = new Set(
     ECHO_SET_DEFS.filter((entry) => entry.setMax === 3).map((entry) => entry.id),
 )
 
 // cached copy of valid substat keys used for randomized substat generation
-const RANDOM_SUBSTAT_KEYS = [...ECHO_SUBSTAT_KEYS]
+const RANDSBSTKEYS = [...SUBSTAT_KEYS]
 
-export type SuggestionMainStatFilterKey = (typeof MAIN_STAT_FILTER_ORDER)[number]
+export type SuggMainStat = (typeof MAIN_STAT_IDS)[number]
 
-export interface SuggestionMainStatConfig {
-  allowedFilters: Set<SuggestionMainStatFilterKey>
-  selectedBonus: string | null
+export interface SuggMainStsc {
+  allowedFilter: Set<SuggMainStat>
+  selBonus: string | null
 }
 
 // resolve the catalog cost for a runtime echo instance
@@ -52,9 +52,9 @@ function getEchoCost(echo: EchoInstance | null | undefined): number | null {
 }
 
 // clone an echo and assign a fresh uid so suggestion outputs remain distinct
-function cloneEchoWithUid(echo: EchoInstance, slotIndex: number): EchoInstance {
+function cloneEchoWit(echo: EchoInstance, slotIndex: number): EchoInstance {
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: echo.id,
     set: echo.set,
     mainEcho: slotIndex === 0,
@@ -68,8 +68,8 @@ function cloneEchoWithUid(echo: EchoInstance, slotIndex: number): EchoInstance {
 
 // build a brand-new echo instance from a catalog definition,
 // while allowing the caller to force set, primary stat, and substats
-function createEchoInstanceFromDefinition(
-    definition: EchoDefinition,
+function mkEchoNstnyk(
+    definition: EchoDef,
     options: {
       slotIndex: number
       setId?: number | null
@@ -77,10 +77,10 @@ function createEchoInstanceFromDefinition(
       substats?: Record<string, number>
     },
 ): EchoInstance {
-  const secondary = ECHO_SECONDARY_STATS[definition.cost]
+  const secondary = ECHO_SIDE_STATS[definition.cost]
 
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: definition.id,
     set: options.setId && definition.sets.includes(options.setId)
         ? options.setId
@@ -89,7 +89,7 @@ function createEchoInstanceFromDefinition(
     mainStats: {
       primary: {
         key: options.primaryKey,
-        value: ECHO_PRIMARY_STATS[definition.cost]?.[options.primaryKey] ?? 0,
+        value: ECHO_MAIN_STATS[definition.cost]?.[options.primaryKey] ?? 0,
       },
       secondary: {
         key: secondary?.key ?? 'atkFlat',
@@ -102,7 +102,7 @@ function createEchoInstanceFromDefinition(
 
 // generic weighted random picker with a tiny minimum floor on weights
 // so candidates with near-zero priority still remain possible.
-function weightedRandomPick<T>(
+function wghtRandPick<T>(
     items: T[],
     getWeight: (item: T) => number,
 ): T {
@@ -125,9 +125,9 @@ function weightedRandomPick<T>(
 }
 
 // convert internal stat keys into main-stat filter labels
-function mapWeightKeyToFilterKey(
+function mapWghtKeyei(
     key: string,
-): SuggestionMainStatFilterKey | null {
+): SuggMainStat | null {
   if (key === 'atkPercent') return 'atk%'
   if (key === 'hpPercent') return 'hp%'
   if (key === 'defPercent') return 'def%'
@@ -142,27 +142,27 @@ function mapWeightKeyToFilterKey(
 // derive the allowed main-stat filter set from optimizer weights.
 // elemental bonuses are collapsed into a single filter, but the strongest
 // element is still remembered so later picks can favor the correct one.
-export function deriveSuggestionMainStatConfig(
-    weights: OptimizerStatWeightMap,
+export function derSuggMainS(
+    weights: OptStatWeight,
     resonatorId: string,
-): SuggestionMainStatConfig {
-  const allowedFilters = new Set<SuggestionMainStatFilterKey>()
+): SuggMainStsc {
+  const allowedFilter = new Set<SuggMainStat>()
   let selectedBonus: string | null = null
-  let bestBonusWeight = 0
+  let bestBnsWght = 0
 
   for (const [key, value] of Object.entries(weights)) {
     if ((value ?? 0) <= 0) {
       continue
     }
 
-    const filterKey = mapWeightKeyToFilterKey(key)
+    const filterKey = mapWghtKeyei(key)
     if (filterKey) {
-      allowedFilters.add(filterKey)
+      allowedFilter.add(filterKey)
     }
 
     // among all element bonus keys, keep the one with the largest weight
-    if (ELEMENT_KEYS.has(key) && (value ?? 0) > bestBonusWeight) {
-      bestBonusWeight = value ?? 0
+    if (ELEMENT_KEYS.has(key) && (value ?? 0) > bestBnsWght) {
+      bestBnsWght = value ?? 0
       selectedBonus = key
     }
   }
@@ -170,38 +170,38 @@ export function deriveSuggestionMainStatConfig(
   // special-case characters that often want ER in the option pool
   const numericId = Number.parseInt(resonatorId, 10)
   if (numericId === 1206 || numericId === 1209 || numericId === 1412) {
-    allowedFilters.add('er')
+    allowedFilter.add('er')
   }
 
   return {
-    allowedFilters,
-    selectedBonus,
+    allowedFilter: allowedFilter,
+    selBonus: selectedBonus,
   }
 }
 
 // build the valid primary main-stat choices for a given echo cost,
 // filtered by the current suggestion config if one exists.
-export function buildMainStatOptionsForCost(
+export function mkMainStatPt(
     cost: number,
-    config: SuggestionMainStatConfig,
+    config: SuggMainStsc,
 ): Array<{ key: string; value: number }> {
-  const valid = ECHO_PRIMARY_STATS[cost] ?? {}
+  const valid = ECHO_MAIN_STATS[cost] ?? {}
   const entries = Object.entries(valid)
 
   // no filter means every valid main stat for this cost is allowed
-  if (config.allowedFilters.size === 0) {
+  if (config.allowedFilter.size === 0) {
     return entries.map(([key, value]) => ({ key, value }))
   }
 
   const filtered = entries.filter(([key]) => {
-    const filterKey = mapWeightKeyToFilterKey(key)
-    if (!filterKey || !config.allowedFilters.has(filterKey)) {
+    const filterKey = mapWghtKeyei(key)
+    if (!filterKey || !config.allowedFilter.has(filterKey)) {
       return false
     }
 
     // when bonus is selected, only keep the strongest chosen element
-    if (filterKey === 'bonus' && config.selectedBonus) {
-      return key === config.selectedBonus
+    if (filterKey === 'bonus' && config.selBonus) {
+      return key === config.selBonus
     }
 
     return true
@@ -213,35 +213,35 @@ export function buildMainStatOptionsForCost(
 
 // apply a chosen primary main-stat layout onto already-equipped echoes
 // while preserving their identities, sets, and substats where possible.
-export function applyMainStatChoicesToEchoes(
-    equippedEchoes: Array<EchoInstance | null>,
-    primaryKeysBySlot: Array<string | null>,
+export function applyMainSur(
+    qppdChs: Array<EchoInstance | null>,
+    prmrKeysBySl: Array<string | null>,
 ): Array<EchoInstance | null> {
-  return equippedEchoes.map((echo, slotIndex) => {
+  return qppdChs.map((echo, slotIndex) => {
     if (!echo) {
       return null
     }
 
-    const key = primaryKeysBySlot[slotIndex]
+    const key = prmrKeysBySl[slotIndex]
     if (!key) {
-      return cloneEchoWithUid(echo, slotIndex)
+      return cloneEchoWit(echo, slotIndex)
     }
 
     const definition = getEchoById(echo.id)
     const cost = definition?.cost ?? getEchoCost(echo)
     if (!cost) {
-      return cloneEchoWithUid(echo, slotIndex)
+      return cloneEchoWit(echo, slotIndex)
     }
 
     return {
-      ...cloneEchoWithUid(echo, slotIndex),
+      ...cloneEchoWit(echo, slotIndex),
       mainStats: {
         primary: {
           key,
-          value: ECHO_PRIMARY_STATS[cost]?.[key] ?? echo.mainStats.primary.value,
+          value: ECHO_MAIN_STATS[cost]?.[key] ?? echo.mainStats.primary.value,
         },
         secondary: {
-          ...ECHO_SECONDARY_STATS[cost],
+          ...ECHO_SIDE_STATS[cost],
         },
       },
     }
@@ -251,12 +251,12 @@ export function applyMainStatChoicesToEchoes(
 // expand a compact set plan like [{setId: 4, pieces: 2}] into a slot-aligned
 // list of target set ids, attempting to keep the main echo inside a compatible
 // planned set whenever possible.
-function expandSetPlanToSlots(
+function xpndSetPlanT(
     setPlan: SetPlanEntry[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
     mainIndex = 0,
 ): Array<number | null> {
-  const targets = new Array<number | null>(equippedEchoes.length).fill(null)
+  const targets = new Array<number | null>(qppdChs.length).fill(null)
   if (setPlan.length === 0) {
     return targets
   }
@@ -273,7 +273,7 @@ function expandSetPlanToSlots(
     return targets
   }
 
-  const nonNullSlots = equippedEchoes
+  const nonNullSlots = qppdChs
       .map((echo, index) => (echo ? index : -1))
       .filter((index) => index >= 0)
 
@@ -281,12 +281,12 @@ function expandSetPlanToSlots(
     return targets
   }
 
-  const mainEcho = equippedEchoes[mainIndex]
+  const mainEcho = qppdChs[mainIndex]
   const mainSet = mainEcho?.set ?? null
 
   // if the main echo can naturally support one of the requested sets,
   // try to reserve that set for slot 0 first.
-  const mainSupportedPlanSet = setPlan.find((entry) => (
+  const mainSpprPlan = setPlan.find((entry) => (
       mainEcho && getEchoSets(mainEcho.id).includes(entry.setId) && entry.pieces > 0
   ))?.setId ?? null
 
@@ -295,17 +295,17 @@ function expandSetPlanToSlots(
   // if the main set is already part of the plan, or the plan fills all slots,
   // the main echo must be included in the final assignment.
   const mustUseMain = mainIsInPlan || pieces.length >= nonNullSlots.length
-  const remainingPieces = [...pieces]
-  const preferredIndices: number[] = []
+  const rmnnPcs = [...pieces]
+  const prfrNdcs: number[] = []
 
   if (mustUseMain && nonNullSlots.includes(mainIndex)) {
-    preferredIndices.push(mainIndex)
+    prfrNdcs.push(mainIndex)
 
-    if (mainSupportedPlanSet != null) {
-      const removeIndex = remainingPieces.indexOf(mainSupportedPlanSet)
+    if (mainSpprPlan != null) {
+      const removeIndex = rmnnPcs.indexOf(mainSpprPlan)
       if (removeIndex >= 0) {
-        targets[mainIndex] = mainSupportedPlanSet
-        remainingPieces.splice(removeIndex, 1)
+        targets[mainIndex] = mainSpprPlan
+        rmnnPcs.splice(removeIndex, 1)
       }
     }
   }
@@ -313,20 +313,20 @@ function expandSetPlanToSlots(
   // after slot 0, fill remaining live slots in order
   for (const index of nonNullSlots) {
     if (index !== mainIndex) {
-      preferredIndices.push(index)
+      prfrNdcs.push(index)
     }
   }
 
   let pieceIndex = 0
-  for (const slotIndex of preferredIndices) {
+  for (const slotIndex of prfrNdcs) {
     if (targets[slotIndex] != null) {
       continue
     }
-    if (pieceIndex >= remainingPieces.length) {
+    if (pieceIndex >= rmnnPcs.length) {
       break
     }
 
-    targets[slotIndex] = remainingPieces[pieceIndex]
+    targets[slotIndex] = rmnnPcs[pieceIndex]
     pieceIndex += 1
   }
 
@@ -334,12 +334,12 @@ function expandSetPlanToSlots(
 }
 
 // choose a replacement echo definition that matches both set and cost if possible
-function pickTemplateDefinitionForSet(
+function pickTmplDefF(
     setId: number,
     cost: number | null,
     usedIds: Set<string>,
-): EchoDefinition | null {
-  const candidates = (cost ? listEchoesByCost(cost) : listEchoes())
+): EchoDef | null {
+  const candidates = (cost ? listChsByCos(cost) : listEchoes())
       .filter((entry) => entry.sets.includes(setId))
 
   const unused = candidates.filter((entry) => !usedIds.has(entry.id))
@@ -349,12 +349,12 @@ function pickTemplateDefinitionForSet(
 }
 
 // choose a replacement echo definition that avoids activating forbidden sets
-function pickReplacementDefinition(
+function pickRplcDef(
     cost: number | null,
     avoidSetIds: Set<number>,
     usedIds: Set<string>,
-): EchoDefinition | null {
-  const candidates = (cost ? listEchoesByCost(cost) : listEchoes())
+): EchoDef | null {
+  const candidates = (cost ? listChsByCos(cost) : listEchoes())
       .filter((entry) => entry.sets.every((setId) => !avoidSetIds.has(setId)))
 
   const unused = candidates.filter((entry) => !usedIds.has(entry.id))
@@ -364,17 +364,17 @@ function pickReplacementDefinition(
 }
 
 // after applying a plan, remove accidental over-activation of planned or unplanned sets
-function normalizeSetSelections(
+function normSetSlct(
     echoes: Array<EchoInstance | null>,
     setPlan: SetPlanEntry[],
     usedIds: Set<string>,
 ): Array<EchoInstance | null> {
   const planCounts = new Map(setPlan.map((entry) => [entry.setId, entry.pieces]))
   const result = echoes.map((echo, slotIndex) => (
-      echo ? cloneEchoWithUid(echo, slotIndex) : null
+      echo ? cloneEchoWit(echo, slotIndex) : null
   ))
 
-  const countIndicesBySet = () => {
+  const cntNdcsBySet = () => {
     const setMap = new Map<number, number[]>()
 
     result.forEach((echo, index) => {
@@ -392,28 +392,28 @@ function normalizeSetSelections(
 
   // replace one echo in a problematic set with a same-cost echo
   // that avoids all currently planned sets plus the set being broken.
-  const replaceAtIndex = (setIdToBreak: number, index: number) => {
+  const rplcAtNdx = (setIdToBreak: number, index: number) => {
     const original = result[index]
     if (!original) {
       return
     }
 
-    const replacementDef = pickReplacementDefinition(
+    const rplcDef = pickRplcDef(
         getEchoCost(original),
         new Set([...planCounts.keys(), setIdToBreak]),
         usedIds,
     )
 
-    if (!replacementDef) {
+    if (!rplcDef) {
       return
     }
 
-    usedIds.add(replacementDef.id)
+    usedIds.add(rplcDef.id)
 
     result[index] = {
-      ...createEchoInstanceFromDefinition(replacementDef, {
+      ...mkEchoNstnyk(rplcDef, {
         slotIndex: index,
-        setId: replacementDef.sets[0] ?? 0,
+        setId: rplcDef.sets[0] ?? 0,
         primaryKey: original.mainStats.primary.key,
         substats: original.substats,
       }),
@@ -424,7 +424,7 @@ function normalizeSetSelections(
     }
   }
 
-  let counts = countIndicesBySet()
+  let counts = cntNdcsBySet()
 
   // first enforce exact or capped counts for sets explicitly in the plan
   for (const [setId, desired] of planCounts.entries()) {
@@ -445,12 +445,12 @@ function normalizeSetSelections(
         continue
       }
 
-      replaceAtIndex(setId, index)
+      rplcAtNdx(setId, index)
       toRemove -= 1
     }
   }
 
-  counts = countIndicesBySet()
+  counts = cntNdcsBySet()
 
   // then break any accidental set activation for sets not in the plan
   for (const [setId, indices] of counts.entries()) {
@@ -458,7 +458,7 @@ function normalizeSetSelections(
       continue
     }
 
-    const threshold = THREE_PIECE_SET_IDS.has(setId) ? 3 : 2
+    const threshold = THRPCSETIDS.has(setId) ? 3 : 2
     const allowedMax = threshold - 1
 
     if (indices.length <= allowedMax) {
@@ -476,7 +476,7 @@ function normalizeSetSelections(
         continue
       }
 
-      replaceAtIndex(setId, index)
+      rplcAtNdx(setId, index)
       toFix -= 1
     }
   }
@@ -486,16 +486,16 @@ function normalizeSetSelections(
 
 // apply a set plan onto the current equipped echoes, preserving
 // originals when compatible and swapping in matching templates when needed.
-export function applySetPlanToEchoes(
+export function applySetPlan(
     setPlan: SetPlanEntry[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
 ): Array<EchoInstance | null> {
-  const targetSets = expandSetPlanToSlots(setPlan, equippedEchoes)
+  const targetSets = xpndSetPlanT(setPlan, qppdChs)
   const usedIds = new Set<string>()
   const result: Array<EchoInstance | null> = []
 
-  for (let slotIndex = 0; slotIndex < equippedEchoes.length; slotIndex += 1) {
-    const original = equippedEchoes[slotIndex]
+  for (let slotIndex = 0; slotIndex < qppdChs.length; slotIndex += 1) {
+    const original = qppdChs[slotIndex]
     const targetSet = targetSets[slotIndex]
 
     if (!original) {
@@ -505,7 +505,7 @@ export function applySetPlanToEchoes(
 
     // no set assignment for this slot means keep the original echo body
     if (targetSet == null) {
-      result.push(cloneEchoWithUid(original, slotIndex))
+      result.push(cloneEchoWit(original, slotIndex))
       usedIds.add(original.id)
       continue
     }
@@ -516,7 +516,7 @@ export function applySetPlanToEchoes(
     // keep it and just rewrite the active set id.
     if (originalSets.includes(targetSet) && !usedIds.has(original.id)) {
       result.push({
-        ...cloneEchoWithUid(original, slotIndex),
+        ...cloneEchoWit(original, slotIndex),
         set: targetSet,
       })
       usedIds.add(original.id)
@@ -524,19 +524,19 @@ export function applySetPlanToEchoes(
     }
 
     // otherwise swap in a compatible template of the same cost if possible
-    const replacementDef = pickTemplateDefinitionForSet(targetSet, getEchoCost(original), usedIds)
-    if (!replacementDef) {
+    const rplcDef = pickTmplDefF(targetSet, getEchoCost(original), usedIds)
+    if (!rplcDef) {
       // final fallback: keep the original echo and force the set id anyway
       result.push({
-        ...cloneEchoWithUid(original, slotIndex),
+        ...cloneEchoWit(original, slotIndex),
         set: targetSet,
       })
       continue
     }
 
-    usedIds.add(replacementDef.id)
+    usedIds.add(rplcDef.id)
     result.push({
-      ...createEchoInstanceFromDefinition(replacementDef, {
+      ...mkEchoNstnyk(rplcDef, {
         slotIndex,
         setId: targetSet,
         primaryKey: original.mainStats.primary.key,
@@ -549,20 +549,20 @@ export function applySetPlanToEchoes(
     })
   }
 
-  return normalizeSetSelections(result, setPlan, usedIds)
+  return normSetSlct(result, setPlan, usedIds)
 }
 
 // verify whether a set plan can actually be realized on the current
 // slot-count and catalog/cost constraints.
-export function isSetPlanFeasible(
+export function isSetPlanFsb(
     setPlan: SetPlanEntry[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
 ): boolean {
   if (setPlan.length === 0) {
     return false
   }
 
-  const slots = Array.isArray(equippedEchoes) ? equippedEchoes : []
+  const slots = Array.isArray(qppdChs) ? qppdChs : []
   const slotCount = slots.length
   if (slotCount === 0) {
     return false
@@ -584,9 +584,9 @@ export function isSetPlanFeasible(
   }
 
   // for each set id and cost, collect all distinct echo ids that could satisfy it
-  const availableBySetAndCost = new Map<number, Map<number, Set<string>>>()
+  const vlblBySetAnd = new Map<number, Map<number, Set<string>>>()
 
-  const addEchoSource = (entries: Array<EchoInstance | EchoDefinition | null>) => {
+  const addEchoSrc = (entries: Array<EchoInstance | EchoDef | null>) => {
     for (const entry of entries) {
       if (!entry) {
         continue
@@ -600,22 +600,22 @@ export function isSetPlanFeasible(
       const sets = 'sets' in entry ? entry.sets : getEchoSets(entry.id)
 
       for (const setId of sets) {
-        const byCost = availableBySetAndCost.get(setId) ?? new Map<number, Set<string>>()
+        const byCost = vlblBySetAnd.get(setId) ?? new Map<number, Set<string>>()
         const ids = byCost.get(cost) ?? new Set<string>()
         ids.add(entry.id)
         byCost.set(cost, ids)
-        availableBySetAndCost.set(setId, byCost)
+        vlblBySetAnd.set(setId, byCost)
       }
     }
   }
 
   // include both equipped echoes and full catalog availability
-  addEchoSource(slots)
-  addEchoSource(listEchoes())
+  addEchoSrc(slots)
+  addEchoSrc(listEchoes())
 
   // each requested set must have enough distinct capacity across matching costs
   for (const entry of setPlan) {
-    const costMap = availableBySetAndCost.get(entry.setId)
+    const costMap = vlblBySetAnd.get(entry.setId)
     if (!costMap) {
       return false
     }
@@ -634,19 +634,30 @@ export function isSetPlanFeasible(
 }
 
 // enumerate all simple set-plan candidates allowed by the current slot count
-export function buildSetPlanCandidates(slotCount: number): SetPlanEntry[][] {
-  const fivePieceSetIds = ECHO_SET_DEFS
+export function mkSetPlanCnd(slotCount: number): SetPlanEntry[][] {
+  const fivePcSetIds = ECHO_SET_DEFS
       .filter((entry) => entry.setMax === 5)
       .map((entry) => entry.id)
 
-  const threePieceSetIds = ECHO_SET_DEFS
+  const thrPcSetIds = ECHO_SET_DEFS
       .filter((entry) => entry.setMax === 3)
+      .map((entry) => entry.id)
+
+  const onePcSetIds = ECHO_SET_DEFS
+      .filter((entry) => entry.setMax === 1)
       .map((entry) => entry.id)
 
   const plans: SetPlanEntry[][] = []
 
+  // standalone 1pc plans
+  for (const setId of onePcSetIds) {
+    if (slotCount >= 1) {
+      plans.push([{ setId, pieces: 1 }])
+    }
+  }
+
   // standalone 2pc / 5pc plans
-  for (const setId of fivePieceSetIds) {
+  for (const setId of fivePcSetIds) {
     if (slotCount >= 2) {
       plans.push([{ setId, pieces: 2 }])
     }
@@ -656,27 +667,27 @@ export function buildSetPlanCandidates(slotCount: number): SetPlanEntry[][] {
   }
 
   // standalone 3pc plans
-  for (const setId of threePieceSetIds) {
+  for (const setId of thrPcSetIds) {
     if (slotCount >= 3) {
       plans.push([{ setId, pieces: 3 }])
     }
   }
 
   // two different 2pc plans
-  for (let left = 0; left < fivePieceSetIds.length; left += 1) {
-    for (let right = left + 1; right < fivePieceSetIds.length; right += 1) {
+  for (let left = 0; left < fivePcSetIds.length; left += 1) {
+    for (let right = left + 1; right < fivePcSetIds.length; right += 1) {
       if (slotCount >= 4) {
         plans.push([
-          { setId: fivePieceSetIds[left], pieces: 2 },
-          { setId: fivePieceSetIds[right], pieces: 2 },
+          { setId: fivePcSetIds[left], pieces: 2 },
+          { setId: fivePcSetIds[right], pieces: 2 },
         ])
       }
     }
   }
 
   // mixed 2pc + 3pc plans
-  for (const fiveSetId of fivePieceSetIds) {
-    for (const threeSetId of threePieceSetIds) {
+  for (const fiveSetId of fivePcSetIds) {
+    for (const threeSetId of thrPcSetIds) {
       if (slotCount >= 5) {
         plans.push([
           { setId: fiveSetId, pieces: 2 },
@@ -686,15 +697,55 @@ export function buildSetPlanCandidates(slotCount: number): SetPlanEntry[][] {
     }
   }
 
+  // mixed 1pc + other plans
+  for (const oneSetId of onePcSetIds) {
+    // 1pc + 5pc (2pc/5pc)
+    for (const fiveSetId of fivePcSetIds) {
+      if (slotCount >= 3) {
+        plans.push([
+          { setId: oneSetId, pieces: 1 },
+          { setId: fiveSetId, pieces: 2 },
+        ])
+      }
+      if (slotCount >= 6) { // not possible with 5 slots, but for completeness
+        plans.push([
+          { setId: oneSetId, pieces: 1 },
+          { setId: fiveSetId, pieces: 5 },
+        ])
+      }
+    }
+    // 1pc + 3pc
+    for (const threeSetId of thrPcSetIds) {
+      if (slotCount >= 4) {
+        plans.push([
+          { setId: oneSetId, pieces: 1 },
+          { setId: threeSetId, pieces: 3 },
+        ])
+      }
+    }
+    // 1pc + 2pc + 2pc
+    for (let left = 0; left < fivePcSetIds.length; left += 1) {
+      for (let right = left + 1; right < fivePcSetIds.length; right += 1) {
+        if (slotCount >= 5) {
+          plans.push([
+            { setId: oneSetId, pieces: 1 },
+            { setId: fivePcSetIds[left], pieces: 2 },
+            { setId: fivePcSetIds[right], pieces: 2 },
+          ])
+        }
+      }
+    }
+  }
+
   return plans
 }
 
 // expand random set preferences into a slot-aligned target set list,
 // again preferring to keep the requested main echo compatible with slot 0.
-function buildRandomSetTargets(
+function mkRandSetTrg(
     slotCount: number,
-    mainEchoDefinition: EchoDefinition | null,
-    preferences: RandomGeneratorSetPreference[],
+    mainEchoDef: EchoDef | null,
+    preferences: RandGnrtSetP[],
 ): Array<number | null> {
   const targets = new Array<number | null>(slotCount).fill(null)
 
@@ -707,11 +758,11 @@ function buildRandomSetTargets(
   }
 
   // reserve a compatible preferred set for the main echo when possible
-  if (mainEchoDefinition) {
-    const preferredMainSet = pieces.find((setId) => mainEchoDefinition.sets.includes(setId))
-    if (preferredMainSet != null) {
-      targets[0] = preferredMainSet
-      pieces.splice(pieces.indexOf(preferredMainSet), 1)
+  if (mainEchoDef) {
+    const prfrMainSet = pieces.find((setId) => mainEchoDef.sets.includes(setId))
+    if (prfrMainSet != null) {
+      targets[0] = prfrMainSet
+      pieces.splice(pieces.indexOf(prfrMainSet), 1)
     }
   }
 
@@ -733,12 +784,12 @@ function buildRandomSetTargets(
 
 // choose a primary key from allowed options using optimizer weights,
 // while heavily de-prioritizing non-selected elemental bonus stats.
-function buildWeightedPrimaryKeyPicker(
+function mkWghtPrmrKe(
     options: Array<{ key: string; value: number }>,
-    weights: OptimizerStatWeightMap,
+    weights: OptStatWeight,
     selectedBonus: string | null,
 ): string {
-  return weightedRandomPick(options, ({ key }) => {
+  return wghtRandPick(options, ({ key }) => {
     if (ELEMENT_KEYS.has(key) && selectedBonus && key !== selectedBonus) {
       return 0.01
     }
@@ -748,21 +799,21 @@ function buildWeightedPrimaryKeyPicker(
 }
 
 // build one randomized set of up to five unique substats
-function buildRandomSubstats(
-    weights: OptimizerStatWeightMap,
+function mkRandSbst(
+    weights: OptStatWeight,
     rollQuality: number,
     bias: number,
 ): Record<string, number> {
   const substats: Record<string, number> = {}
 
   while (
-      Object.keys(substats).length < RANDOM_SUBSTAT_KEYS.length &&
+      Object.keys(substats).length < RANDSBSTKEYS.length &&
       Object.keys(substats).length < 5
       ) {
-    const key = getRandomSubstat(bias, false, weights)
+    const key = getRandSbst(bias, false, weights)
 
     if (!substats[key]) {
-      substats[key] = randomSubValue(key, rollQuality)
+      substats[key] = randSubVl(key, rollQuality)
     }
   }
 
@@ -770,17 +821,17 @@ function buildRandomSubstats(
 }
 
 // simple weighted substat score used when deciding what ER should replace
-function getSubstatScore(
+function getSbstScr(
     key: string,
     value: number,
-    weights: OptimizerStatWeightMap,
+    weights: OptStatWeight,
 ): number {
   return (weights[key] ?? 0) * value
 }
 
 // choose an ER split across echoes that minimally exceeds the remaining target
-function findBestEnergyRegenSplit(target: number, rollQuality: number, maxEchoes: number): number[] {
-  const options = getSubstatStepOptions('energyRegen')
+function findBestNrgy(target: number, rollQuality: number, maxEchoes: number): number[] {
+  const options = getSbstStepP('energyRegen')
 
   if (target <= 0 || options.length === 0) {
     return new Array(maxEchoes).fill(0)
@@ -820,10 +871,10 @@ function findBestEnergyRegenSplit(target: number, rollQuality: number, maxEchoes
       continue
     }
 
-    const remainingSlots = maxEchoes - current.combo.length
+    const rmnnSlts = maxEchoes - current.combo.length
 
     // prune paths that can no longer hit the target even with max rolls
-    if (current.sum + (remainingSlots * maxValue) < target) {
+    if (current.sum + (rmnnSlts * maxValue) < target) {
       continue
     }
 
@@ -844,17 +895,17 @@ function findBestEnergyRegenSplit(target: number, rollQuality: number, maxEchoes
 
 // inject enough ER into the generated loadout to satisfy the target,
 // replacing the weakest substat when necessary.
-function injectEnergyRegen(
+function njctNrgyRgn(
     echoes: Array<EchoInstance | null>,
-    targetEnergyRegen: number,
+    tgtNrgyRgn: number,
     rollQuality: number,
-    weights: OptimizerStatWeightMap,
+    weights: OptStatWeight,
 ): Array<EchoInstance | null> {
-  if (targetEnergyRegen <= 0) {
+  if (tgtNrgyRgn <= 0) {
     return echoes
   }
 
-  const existingEnergyRegen = echoes.reduce((sum, echo) => (
+  const xstnNrgyRgn = echoes.reduce((sum, echo) => (
       echo
           ? sum
           + (echo.mainStats.primary.key === 'energyRegen' ? echo.mainStats.primary.value : 0)
@@ -862,12 +913,12 @@ function injectEnergyRegen(
           : sum
   ), 0)
 
-  const remainingTarget = Math.max(0, targetEnergyRegen - existingEnergyRegen)
-  if (remainingTarget <= 0) {
+  const rmnnTgt = Math.max(0, tgtNrgyRgn - xstnNrgyRgn)
+  if (rmnnTgt <= 0) {
     return echoes
   }
 
-  const erPlan = findBestEnergyRegenSplit(remainingTarget, rollQuality, echoes.length)
+  const erPlan = findBestNrgy(rmnnTgt, rollQuality, echoes.length)
 
   return echoes.map((echo, slotIndex) => {
     if (!echo) {
@@ -876,10 +927,10 @@ function injectEnergyRegen(
 
     const erValue = erPlan[slotIndex] ?? 0
     if (erValue <= 0) {
-      return cloneEchoWithUid(echo, slotIndex)
+      return cloneEchoWit(echo, slotIndex)
     }
 
-    const next = cloneEchoWithUid(echo, slotIndex)
+    const next = cloneEchoWit(echo, slotIndex)
 
     // overwrite existing ER if already present
     if ('energyRegen' in next.substats) {
@@ -898,7 +949,7 @@ function injectEnergyRegen(
     let worstScore = Number.POSITIVE_INFINITY
 
     for (const [key, value] of Object.entries(next.substats)) {
-      const score = getSubstatScore(key, value, weights)
+      const score = getSbstScr(key, value, weights)
       if (score < worstScore) {
         worstScore = score
         worstKey = key
@@ -917,31 +968,31 @@ function injectEnergyRegen(
 // build a fully randomized echo loadout from a fixed cost plan and weighted config.
 // the result respects preferred main echo, set preferences, main-stat filters,
 // random substats, and optional ER injection.
-export function buildRandomEchoLoadout(params: {
+export function mkRandEchoLd(params: {
   costPlan: readonly number[]
-  weights: OptimizerStatWeightMap
-  mainStatConfig: SuggestionMainStatConfig
+  weights: OptStatWeight
+  mainStatCnfg: SuggMainStsc
   bias: number
-  targetEnergyRegen: number
+  tgtNrgyRgn: number
   rollQuality: number
   mainEchoId: string | null
-  setPreferences: RandomGeneratorSetPreference[]
-  fixedPrimaryKeys?: readonly string[]
+  setPrefs: RandGnrtSetP[]
+  fxdPrmrKeys?: readonly string[]
 }): Array<EchoInstance | null> {
   const {
     costPlan,
     weights,
-    mainStatConfig,
+    mainStatCnfg: mainStatCnfg,
     bias,
-    targetEnergyRegen,
+    tgtNrgyRgn: trgtNrgyRgn,
     rollQuality,
     mainEchoId,
-    setPreferences,
-    fixedPrimaryKeys,
+    setPrefs: setPrefsList,
+    fxdPrmrKeys: fxdPrmrKeys,
   } = params
 
-  const mainEchoDefinition = mainEchoId ? getEchoById(mainEchoId) : null
-  const targetSets = buildRandomSetTargets(costPlan.length, mainEchoDefinition, setPreferences)
+  const mainEchoDef = mainEchoId ? getEchoById(mainEchoId) : null
+  const targetSets = mkRandSetTrg(costPlan.length, mainEchoDef, setPrefsList)
 
   const usedIds = new Set<string>()
   const echoes: Array<EchoInstance | null> = []
@@ -953,11 +1004,11 @@ export function buildRandomEchoLoadout(params: {
     // slot 0 can be forced to use the requested main echo if costs line up
     const candidates = (
         slotIndex === 0 &&
-        mainEchoDefinition &&
-        mainEchoDefinition.cost === cost
+        mainEchoDef &&
+        mainEchoDef.cost === cost
     )
-        ? [mainEchoDefinition]
-        : listEchoesByCost(cost).filter((entry) => !usedIds.has(entry.id))
+        ? [mainEchoDef]
+        : listChsByCos(cost).filter((entry) => !usedIds.has(entry.id))
 
     const bySet = targetSet != null
         ? candidates.filter((entry) => entry.sets.includes(targetSet))
@@ -965,41 +1016,41 @@ export function buildRandomEchoLoadout(params: {
 
     const pool = bySet.length > 0 ? bySet : candidates
 
-    const definition = weightedRandomPick(
-        pool.length > 0 ? pool : listEchoesByCost(cost),
+    const definition = wghtRandPick(
+        pool.length > 0 ? pool : listChsByCos(cost),
         (entry) => (targetSet != null && entry.sets.includes(targetSet) ? 4 : 1),
     )
 
     usedIds.add(definition.id)
 
-    const fixedPrimaryKey = fixedPrimaryKeys?.[slotIndex]
-    const mainStatOptions = buildMainStatOptionsForCost(cost, mainStatConfig)
+    const fxdPrmrKey = fxdPrmrKeys?.[slotIndex]
+    const mainStatPtns = mkMainStatPt(cost, mainStatCnfg)
 
     // fixed primary keys, when valid, override normal weighted main-stat selection
-    const primaryKey = buildWeightedPrimaryKeyPicker(
-        fixedPrimaryKey && mainStatOptions.some((option) => option.key === fixedPrimaryKey)
-            ? [{ key: fixedPrimaryKey, value: ECHO_PRIMARY_STATS[cost]?.[fixedPrimaryKey] ?? 0 }]
-            : mainStatOptions,
+    const primaryKey = mkWghtPrmrKe(
+        fxdPrmrKey && mainStatPtns.some((option) => option.key === fxdPrmrKey)
+            ? [{ key: fxdPrmrKey, value: ECHO_MAIN_STATS[cost]?.[fxdPrmrKey] ?? 0 }]
+            : mainStatPtns,
         weights,
-        mainStatConfig.selectedBonus,
+        mainStatCnfg.selBonus,
     )
 
     echoes.push(
-        createEchoInstanceFromDefinition(definition, {
+        mkEchoNstnyk(definition, {
           slotIndex,
           setId: targetSet,
           primaryKey,
-          substats: buildRandomSubstats(weights, rollQuality, bias),
+          substats: mkRandSbst(weights, rollQuality, bias),
         }),
     )
   }
 
-  return injectEnergyRegen(echoes, targetEnergyRegen, rollQuality, weights)
+  return njctNrgyRgn(echoes, trgtNrgyRgn, rollQuality, weights)
 }
 
 // build a deterministic signature for only the main-stat layout of a loadout.
 // this is useful for deduplication when only cost and main stats matter.
-export function buildEchoMainStatLayoutSignature(echoes: Array<EchoInstance | null>): string {
+export function mkEchoMainSt(echoes: Array<EchoInstance | null>): string {
   return echoes
       .filter((echo): echo is EchoInstance => echo != null)
       .map((echo) => [

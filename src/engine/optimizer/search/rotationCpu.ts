@@ -7,34 +7,34 @@
 */
 
 import type {
-  OptimizerBagResultRef,
-  OptimizerProgress,
-  PackedRotationExecutionPayload,
+  OptBagResult,
+  OptPrgr,
+  PckdRotXctnP,
 } from '@/engine/optimizer/types.ts'
-import { createCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
+import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
 import {
-  DISABLED_OPTIMIZER_CONSTRAINTS,
-  passesConstraints as passesCpuConstraints,
+  DISABLED_CONSTRAINTS,
+  psssCstrs as psssCpuCstrs,
 } from '@/engine/optimizer/constraints/statConstraints.ts'
-import { countOptimizerCombinationsForMainIndices } from '@/engine/optimizer/search/counting.ts'
-import { createOptimizerProgressTracker } from '@/engine/optimizer/search/progress.ts'
-import { OptimizerBagResultCollector } from '@/engine/optimizer/results/collector.ts'
-import { evaluateTargetCpuCombo } from '@/engine/optimizer/target/cpu.ts'
+import { countMainCombos } from '@/engine/optimizer/search/counting.ts'
+import { mkOptPrgrTrc } from '@/engine/optimizer/search/progress.ts'
+import { OptResultSet } from '@/engine/optimizer/results/collector.ts'
+import { evalTgtCpuCm } from '@/engine/optimizer/target/cpu.ts'
 import { evalTarget } from '@/engine/optimizer/target/evaluate.ts'
-import { generateTargetCpuComboBatches } from '@/engine/optimizer/target/batches.ts'
+import { gnrtTgtCpuCm } from '@/engine/optimizer/target/batches.ts'
 
-interface RotationRunHooks {
+interface RotRunHks {
   // optional cancellation signal
   isCancelled?: () => boolean
 
   // optional progress callback for the outer full search
-  onProgress?: (progress: OptimizerProgress) => void
+  onProgress?: (progress: OptPrgr) => void
 
   // optional callback with processed row deltas
-  onProcessed?: (processedDelta: number) => void
+  onProcessed?: (prcsDlt: number) => void
 }
 
-export interface RotationSearchBatchSpec {
+export interface RotSrchBtchS {
   // flattened batch of combos, 5 indices per combo
   combosBatch: Int32Array
 
@@ -42,32 +42,32 @@ export interface RotationSearchBatchSpec {
   comboCount: number
 
   // forced main echo index, or -1 when all 5 positions may be tested
-  lockedMainIndex: number
+  lockMainIdx: number
 
   // local result limit for this batch collector
-  jobResultsLimit: number
+  jobResultLimit: number
 }
 
 // evaluate one combo exactly for rotation mode by:
 // 1. trying each valid main echo position
 // 2. summing weighted damage across every rotation context
 // 3. re-evaluating the best candidate through the display context for constraints
-function evaluateRotationComboExact(
-    payload: PackedRotationExecutionPayload,
+function evalRotCmbXc(
+    payload: PckdRotXctnP,
     comboIds: Int32Array,
     lockedMainIndex: number,
-    scratch: ReturnType<typeof createCpuScratch>,
+    scratch: ReturnType<typeof makeCpuScratch>,
 ): { damage: number; mainIndex: number } | null {
   let bestMainIndex = -1
   let bestDamage = 0
 
   // if the main echo is locked, only test that one index
   // otherwise test all 5 combo positions as potential mains
-  const candidateMainIndices = lockedMainIndex >= 0
+  const candMainNdcs = lockedMainIndex >= 0
       ? [lockedMainIndex]
       : Array.from(comboIds)
 
-  for (const mainIndex of candidateMainIndices) {
+  for (const mainIndex of candMainNdcs) {
     let totalDamage = 0
 
     // exact rotation damage is the weighted sum across all contexts
@@ -77,23 +77,23 @@ function evaluateRotationComboExact(
 
       // use the target cpu evaluator with disabled constraints here
       // constraints are checked later against the display context only
-      const evaluated = evaluateTargetCpuCombo({
+      const evaluated = evalTgtCpuCm({
         context,
         stats: payload.stats,
         setConstLut: payload.setConstLut,
         mainEchoBuffs: payload.mainEchoBuffs,
         sets: payload.sets,
         kinds: payload.kinds,
-        constraints: DISABLED_OPTIMIZER_CONSTRAINTS,
+        constraints: DISABLED_CONSTRAINTS,
         comboIds,
-        lockedMainIndex: mainIndex,
+        lockMainIdx: mainIndex,
         scratch,
       })
       if (!evaluated) {
         continue
       }
 
-      totalDamage += evaluated.damage * (payload.contextWeights[contextIndex] ?? 1)
+      totalDamage += evaluated.damage * (payload.contextWeight[contextIndex] ?? 1)
     }
 
     // skip invalid or non-improving candidates early
@@ -118,7 +118,7 @@ function evaluateRotationComboExact(
     }
 
     // constraint checker expects normalized cr/cd/bonus forms here
-    if (!passesCpuConstraints(
+    if (!psssCpuCstrs(
         payload.constraints,
         display.stats.atk,
         display.stats.hp,
@@ -142,17 +142,17 @@ function evaluateRotationComboExact(
 }
 
 // evaluate one pre-generated batch of combos for rotation mode
-export async function runRotationSearchBatch(
-    payload: PackedRotationExecutionPayload,
-    job: RotationSearchBatchSpec,
-    hooks: Pick<RotationRunHooks, 'isCancelled' | 'onProcessed'> = {},
-): Promise<OptimizerBagResultRef[]> {
+export async function runRotSrchBt(
+    payload: PckdRotXctnP,
+    job: RotSrchBtchS,
+    hooks: Pick<RotRunHks, 'isCancelled' | 'onProcessed'> = {},
+): Promise<OptBagResult[]> {
   if (payload.contextCount <= 0 || job.comboCount <= 0) {
     return []
   }
 
-  const collector = new OptimizerBagResultCollector(job.jobResultsLimit)
-  const scratch = createCpuScratch()
+  const collector = new OptResultSet(job.jobResultLimit, payload.lowMmryMode)
+  const scratch = makeCpuScratch()
 
   // scratch.comboIds is reused per combo to avoid new allocations
   const comboIds = scratch.comboIds
@@ -170,70 +170,70 @@ export async function runRotationSearchBatch(
     comboIds[3] = job.combosBatch[base + 3]
     comboIds[4] = job.combosBatch[base + 4]
 
-    const evaluated = evaluateRotationComboExact(
+    const evaluated = evalRotCmbXc(
         payload,
         comboIds,
-        job.lockedMainIndex,
+        job.lockMainIdx,
         scratch,
     )
 
     if (evaluated) {
-      collector.pushOrderedCombo(evaluated.damage, comboIds, evaluated.mainIndex)
+      collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex)
     }
   }
 
   // report processed rows scaled by payload.progressFactor to stay aligned
   // with how the optimizer counts effective search work
-  hooks.onProcessed?.(job.comboCount * payload.progressFactor)
+  hooks.onProcessed?.(job.comboCount * payload.progFact)
   return collector.sorted()
 }
 
 // outer cpu rotation search loop
 // iterates over locked-main candidates, generates combo batches, evaluates them,
 // merges local batch results, and emits throttled progress updates
-export async function runRotationSearchForMainIndices(
-    payload: PackedRotationExecutionPayload,
-    mainCandidateIndices: ReadonlyArray<number> | Int32Array,
-    hooks: RotationRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
+export async function runRotSrchFo(
+    payload: PckdRotXctnP,
+    mainIndices: ReadonlyArray<number> | Int32Array,
+    hooks: RotRunHks = {},
+): Promise<OptBagResult[]> {
   if (payload.contextCount <= 0) {
     return []
   }
 
   // when main is locked, iterate those candidate indices
   // otherwise use -1 to mean "unlocked main handling"
-  const lockedMainIndices = payload.lockedMainRequested
-      ? mainCandidateIndices
+  const lckdMainNdcs = payload.lockMainReq
+      ? mainIndices
       : [-1]
 
-  const totalRows = countOptimizerCombinationsForMainIndices(
+  const totalRows = countMainCombos(
       payload.costs,
-      payload.lockedMainRequested ? lockedMainIndices : payload.lockedMainCandidateIndices,
+      payload.lockMainReq ? lckdMainNdcs : payload.lockMainCands,
   )
 
-  if (totalRows <= 0 || (payload.lockedMainRequested && lockedMainIndices.length === 0)) {
+  if (totalRows <= 0 || (payload.lockMainReq && lckdMainNdcs.length === 0)) {
     return []
   }
 
-  const collector = new OptimizerBagResultCollector(payload.resultsLimit)
-  const progress = createOptimizerProgressTracker(totalRows, {
+  const collector = new OptResultSet(payload.resultsLimit, payload.lowMmryMode)
+  const progress = mkOptPrgrTrc(totalRows, {
     onProgress: hooks.onProgress,
     onProcessed: hooks.onProcessed,
   })
 
-  for (const lockedMainIndex of lockedMainIndices) {
-    for (const batch of generateTargetCpuComboBatches({
+  for (const lockedMainIndex of lckdMainNdcs) {
+    for (const batch of gnrtTgtCpuCm({
       costs: payload.costs,
       batchSize: 75_000,
-      lockedMainIndex,
+      lockMainIdx: lockedMainIndex,
     })) {
-      const results = await runRotationSearchBatch(
+      const results = await runRotSrchBt(
           payload,
           {
             combosBatch: batch.combos,
             comboCount: batch.comboCount,
-            lockedMainIndex,
-            jobResultsLimit: payload.resultsLimit,
+            lockMainIdx: lockedMainIndex,
+            jobResultLimit: payload.resultsLimit,
           },
           {
             isCancelled: hooks.isCancelled,

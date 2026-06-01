@@ -1,13 +1,20 @@
+/*
+  Author: Runor Ewhro
+  Description: Configures vite, local google auth parity routes, test setup,
+               worker output, and chunk boundaries for the calculator app.
+*/
+
 import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig } from 'vitest/config'
 import { loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import svgr from 'vite-plugin-svgr'
 import {
-  handleExchangeCodeRequest,
-  handleRefreshTokenRequest,
-  type GoogleAuthEnv,
-  type GoogleAuthHandlerResult,
+  onExchangeCode,
+  onRefreshToken,
+  type GglAuthEnv,
+  type GoogleAuthResult,
 } from './src/infra/googleDrive/server/googleOAuthServer'
 
 const crossOriginIsolationHeaders = {
@@ -15,7 +22,9 @@ const crossOriginIsolationHeaders = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 }
 
-function buildGoogleAuthEnv(mode: string): GoogleAuthEnv {
+function buildGoogleAuthEnv(mode: string): GglAuthEnv {
+  // dev and preview use the same handler code as the server route, so load the
+  // unprefixed server env keys instead of vite's client-exposed env subset.
   const env = loadEnv(mode, process.cwd(), '')
   return {
     GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
@@ -24,7 +33,7 @@ function buildGoogleAuthEnv(mode: string): GoogleAuthEnv {
   }
 }
 
-function sendJson(res: ServerResponse, { body, status }: GoogleAuthHandlerResult): void {
+function sendJson(res: ServerResponse, { body, status }: GoogleAuthResult): void {
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
   res.end(JSON.stringify(body))
@@ -44,7 +53,7 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
   })
 }
 
-function createGoogleAuthMiddleware(env: GoogleAuthEnv) {
+function createGoogleAuthMiddleware(env: GglAuthEnv) {
   return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const requestUrl = req.url ?? ''
     const pathname = requestUrl.split('?')[0]
@@ -54,10 +63,12 @@ function createGoogleAuthMiddleware(env: GoogleAuthEnv) {
     }
 
     try {
+      // keep local /api auth behavior aligned with deployed handlers while
+      // still letting vite serve every other request normally.
       const body = await readRequestBody(req)
       const handler = pathname === '/api/exchange-code'
-        ? handleExchangeCodeRequest
-        : handleRefreshTokenRequest
+        ? onExchangeCode
+        : onRefreshToken
 
       sendJson(
         res,
@@ -77,7 +88,7 @@ function createGoogleAuthMiddleware(env: GoogleAuthEnv) {
   }
 }
 
-function googleAuthDevPlugin(env: GoogleAuthEnv): Plugin {
+function googleAuthDevPlugin(env: GglAuthEnv): Plugin {
   return {
     name: 'google-auth-dev-api',
     configureServer(server) {
@@ -90,7 +101,7 @@ function googleAuthDevPlugin(env: GoogleAuthEnv): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), googleAuthDevPlugin(buildGoogleAuthEnv(mode))],
+  plugins: [react(), svgr(), googleAuthDevPlugin(buildGoogleAuthEnv(mode))],
   test: {
     setupFiles: ['vitest.setup.ts'],
   },
@@ -102,6 +113,8 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // stable vendor groups keep high-churn calculator code from
+            // invalidating framework and icon chunks on every feature edit.
             if (
               id.includes('/react/') ||
               id.includes('/react-dom/') ||

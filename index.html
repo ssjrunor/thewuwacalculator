@@ -63,9 +63,7 @@
           body.classList.remove(...themeVariants, 'blur-off', 'dark-text', 'light-text')
           body.classList.add(activeVariant, isDark ? 'dark-text' : 'light-text')
 
-          if (ui.blurMode === 'off') {
-            body.classList.add('blur-off')
-          }
+          if (ui.blurMode) body.classList.add('blur-off')
         } catch {}
       })()
     </script>

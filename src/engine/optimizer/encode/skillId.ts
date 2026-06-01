@@ -7,7 +7,7 @@
 import type { AttributeKey, SkillTypeKey } from '@/domain/entities/stats.ts'
 
 // bit layout for the lower 15 bits of the encoded skill id
-const SKILLTYPE_FLAG_MAP: Record<string, number> = {
+const SKLLFLAGMAP: Record<string, number> = {
   basicAtk: 1 << 0,
   heavyAtk: 1 << 1,
   resonanceSkill: 1 << 2,
@@ -26,7 +26,7 @@ const SKILLTYPE_FLAG_MAP: Record<string, number> = {
 }
 
 // compact 3-bit element id map used inside the encoded skill id
-const ELEMENT_ID_MAP: Record<string, number> = {
+const ELEM_ID_MAP: Record<string, number> = {
   aero: 0,
   glacio: 1,
   fusion: 2,
@@ -39,18 +39,18 @@ const ELEMENT_ID_MAP: Record<string, number> = {
 
 // normalize text before hashing or map lookup so formatting differences
 // like spaces or capitalization do not change the encoded result
-function normalizeSkillPart(part: string | null | undefined): string {
+function normSkllPart(part: string | null | undefined): string {
   return (part ?? '').toString().trim().toLowerCase()
 }
 
 // convert one or more skill types into a packed bitmask
 // result is clamped to 15 bits because the upper bits are reserved
-export function encodeSkillTypeMask(skillType: SkillTypeKey | SkillTypeKey[]): number {
+export function encSkllTypeM(skillType: SkillTypeKey | SkillTypeKey[]): number {
   const list = Array.isArray(skillType) ? skillType : [skillType]
   let mask = 0
 
   for (const type of list) {
-    const flag = SKILLTYPE_FLAG_MAP[type]
+    const flag = SKLLFLAGMAP[type]
     if (flag) {
       mask |= flag
     }
@@ -60,30 +60,30 @@ export function encodeSkillTypeMask(skillType: SkillTypeKey | SkillTypeKey[]): n
 }
 
 // convert an element string into its compact numeric id
-export function encodeElementId(element: AttributeKey | 'physical' | 'none'): number {
-  const normalized = normalizeSkillPart(element)
-  const id = ELEMENT_ID_MAP[normalized]
+export function encElemId(element: AttributeKey | 'physical' | 'none'): number {
+  const normalized = normSkllPart(element)
+  const id = ELEM_ID_MAP[normalized]
   return (id & 0x7)
 }
 
 // build the full encoded skill id with this layout:
 // bits  0..14  -> skill type mask
 // bits 15..17  -> element id
-// bits 18..31  -> 14-bit hash of "tab|label"
+// bits 18..31  -> 14-bit hash of "tab|desc"
 //
 // the hash makes skills with the same mask/element but different names land
 // in different ids without needing to store the full strings at runtime.
-export function encodeSkillId(options: {
+export function encSkllId(options: {
   label: string
   skillType: SkillTypeKey[]
   tab: string
   element: AttributeKey | 'physical'
 }): number {
-  const mask = encodeSkillTypeMask(options.skillType)
-  const elementId = encodeElementId(options.element)
+  const mask = encSkllTypeM(options.skillType)
+  const elementId = encElemId(options.element)
 
   // normalize the identifying text so the hash is stable
-  const key = `${normalizeSkillPart(options.tab)}|${normalizeSkillPart(options.label)}`
+  const key = `${normSkllPart(options.tab)}|${normSkllPart(options.label)}`
 
   // djb2-style hash
   let hash = 5381

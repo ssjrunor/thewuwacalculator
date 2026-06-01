@@ -5,58 +5,59 @@
                for per-job gpu dispatch metadata.
 */
 
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
-import type { SkillDefinition } from '@/domain/entities/stats.ts'
-import type { CompiledTargetSkillContext } from '@/engine/optimizer/types.ts'
-import { getNegativeEffectBase } from '@/engine/formulas/negativeEffects.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
+import type { SkillDef } from '@/domain/entities/stats.ts'
+import type { CompTargetSkill } from '@/engine/optimizer/types.ts'
+import { getNegBase } from '@/engine/formulas/negativeEffects.ts'
 import {
-  ECHO_OPTIMIZER_MAX_COST,
-  OPTIMIZER_ARCHETYPE_AERO_EROSION,
-  OPTIMIZER_ARCHETYPE_DAMAGE,
-  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
-  OPTIMIZER_ARCHETYPE_FUSION_BURST,
-  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
-  OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
-  OPTIMIZER_ARCHETYPE_TUNE_RUPTURE,
-  OPTIMIZER_CONTEXT_FLOATS,
-  OPTIMIZER_CTX_ARCHETYPE,
-  OPTIMIZER_CTX_AUX0,
-  OPTIMIZER_CTX_BASE_ATK,
-  OPTIMIZER_CTX_BASE_INDEX,
-  OPTIMIZER_CTX_BASE_DEF,
-  OPTIMIZER_CTX_BASE_ER,
-  OPTIMIZER_CTX_BASE_HP,
-  OPTIMIZER_CTX_CRIT_DMG,
-  OPTIMIZER_CTX_CRIT_RATE,
-  OPTIMIZER_CTX_DISPATCH_WORKGROUP_BASE,
-  OPTIMIZER_CTX_DEF_MULT,
-  OPTIMIZER_CTX_DMG_AMPLIFY,
-  OPTIMIZER_CTX_DMG_BONUS,
-  OPTIMIZER_CTX_DMG_VULN,
-  OPTIMIZER_CTX_DMG_REDUCTION,
-  OPTIMIZER_CTX_FINAL_ATK,
-  OPTIMIZER_CTX_FINAL_DEF,
-  OPTIMIZER_CTX_FINAL_HP,
-  OPTIMIZER_CTX_FLAT_DMG,
-  OPTIMIZER_CTX_LOCKED_PACKED,
-  OPTIMIZER_CTX_META0,
-  OPTIMIZER_CTX_META1,
-  OPTIMIZER_CTX_MULTIPLIER,
-  OPTIMIZER_CTX_RES_MULT,
-  OPTIMIZER_CTX_SCALING_ATK,
-  OPTIMIZER_CTX_SCALING_DEF,
-  OPTIMIZER_CTX_SCALING_ER,
-  OPTIMIZER_CTX_SCALING_HP,
-  OPTIMIZER_CTX_SET_RUNTIME_MASK,
-  OPTIMIZER_CTX_SKILL_ID,
-  OPTIMIZER_CTX_TOGGLES,
-  OPTIMIZER_CTX_COMBO_N,
+  MAX_ECHO_COST,
+  ARCH_AERO,
+  ARCH_DAMAGE,
+  ARCH_ELECTRO,
+  ARCH_FUSION,
+  ARCH_GLACIO,
+  ARCH_HACK,
+  ARCH_SPECTRO,
+  ARCH_TUNE,
+  CTX_FLOATS,
+  ARCHETYPE,
+  AUX0,
+  BASE_ATK,
+  BASE_INDEX,
+  BASE_DEF,
+  BASE_ER,
+  BASE_HP,
+  CRIT_DMG,
+  CRIT_RATE,
+  WORKGROUP_BASE,
+  DEF_MUL,
+  DMG_AMP,
+  DMG_BNS,
+  DMG_VULN,
+  DMG_RED,
+  FINAL_ATK,
+  FINAL_DEF,
+  FINAL_HP,
+  FLAT_DMG,
+  LOCKED_PACKED,
+  META0,
+  META1,
+  MV,
+  RES_MUL,
+  SCALING_ATK,
+  SCALING_DEF,
+  SCALING_ER,
+  SCALING_HP,
+  SET_MASK,
+  SKILL_ID,
+  TOGGLES,
+  COMBO_N,
 } from '@/engine/optimizer/config/constants.ts'
-import { getTuneRuptureLevelScale } from '@/engine/formulas/tuneRupture.ts'
-import { encodeSkillId } from '@/engine/optimizer/encode/skillId.ts'
+import { getTuneLevel } from '@/engine/formulas/tuneRupture.ts'
+import { encSkllId } from '@/engine/optimizer/encode/skillId.ts'
 
 // encode a few resonator-specific runtime toggles into a bitmask
-function buildSpecialToggles(runtime: ResonatorRuntimeState, characterId: number): number {
+function mkSpecTggl(runtime: ResRuntime, characterId: number): number {
   let toggles = 0
 
   if (characterId === 1206 && runtime.state.controls['resonator:1206:my_moment:active']) {
@@ -71,12 +72,12 @@ function buildSpecialToggles(runtime: ResonatorRuntimeState, characterId: number
 }
 
 // small helper for checking whether a skill has any of a set of types
-function hasSkillType(skill: SkillDefinition, ...types: string[]): boolean {
+function hasSkillType(skill: SkillDef, ...types: string[]): boolean {
   return skill.skillType.some((type) => types.includes(type))
 }
 
 // brant-kun converts energy regen above 150 into atk, depending on toggle state
-function calc1206ErToAtk(characterId: number, finalER: number, toggle0: boolean): number {
+function calcErToAtk(characterId: number, finalER: number, toggle0: boolean): number {
   if (characterId !== 1206) {
     return 0
   }
@@ -86,7 +87,7 @@ function calc1206ErToAtk(characterId: number, finalER: number, toggle0: boolean)
 }
 
 // augusta converts crit rate overflow into crit damage at certain sequences
-function calc1306CritConversion(characterId: number, sequence: number, critRateTotal: number): number {
+function calcCritConvert(characterId: number, sequence: number, critRateTotal: number): number {
   if (characterId !== 1306 || sequence < 2) {
     return 0
   }
@@ -107,7 +108,7 @@ function calc1306CritConversion(characterId: number, sequence: number, critRateT
 }
 
 // sigrika-chan gets extra echo skill bonus from excess energy regen
-function calc1412EchoSkillBonusPoints(characterId: number, finalER: number): number {
+function calcEchoSkill(characterId: number, finalER: number): number {
   if (characterId !== 1412 || finalER <= 125) {
     return 0
   }
@@ -116,7 +117,7 @@ function calc1412EchoSkillBonusPoints(characterId: number, finalER: number): num
 }
 
 // prof. mornye gets dmg bonus from excess energy regen under the toggle state
-function calc1209DmgBonusPoints(characterId: number, finalER: number): number {
+function calcDmgBonus(characterId: number, finalER: number): number {
   if (characterId !== 1209) {
     return 0
   }
@@ -125,7 +126,7 @@ function calc1209DmgBonusPoints(characterId: number, finalER: number): number {
 }
 
 // prof. mornye gets crit rate on liberation-type skills from excess energy regen
-function calc1209CritRatePoints(characterId: number, finalER: number): number {
+function calcCritRate(characterId: number, finalER: number): number {
   if (characterId !== 1209) {
     return 0
   }
@@ -134,7 +135,7 @@ function calc1209CritRatePoints(characterId: number, finalER: number): number {
 }
 
 // even more... prof. mornye gets crit damage on liberation-type skills from excess energy regen
-function calc1209CritDmgPoints(characterId: number, finalER: number): number {
+function calcCritDmg(characterId: number, finalER: number): number {
   if (characterId !== 1209) {
     return 0
   }
@@ -143,9 +144,9 @@ function calc1209CritDmgPoints(characterId: number, finalER: number): number {
 }
 
 // remove special resonator-side conversions so packed context stores normalized base terms
-function normalizePackedContext(options: {
-  compiled: CompiledTargetSkillContext
-  skill: SkillDefinition
+function normPckdCtx(options: {
+  compiled: CompTargetSkill
+  skill: SkillDef
   toggle0: boolean
 }): {
   finalAtk: number
@@ -155,30 +156,30 @@ function normalizePackedContext(options: {
 } {
   const { compiled, skill, toggle0 } = options
 
-  let finalAtk = compiled.staticFinalAtk
-  let dmgBonus = compiled.staticDmgBonus
-  let critRate = compiled.staticCritRate
-  let critDmg = compiled.staticCritDmg
+  let finalAtk = compiled.statFinAtk
+  let dmgBonus = compiled.statDmgBonus
+  let critRate = compiled.statCritRate
+  let critDmg = compiled.statCritDmg
 
-  finalAtk -= calc1206ErToAtk(compiled.characterId, compiled.staticFinalER, toggle0)
+  finalAtk -= calcErToAtk(compiled.characterId, compiled.statFinEr, toggle0)
 
-  critDmg -= calc1306CritConversion(
+  critDmg -= calcCritConvert(
       compiled.characterId,
       compiled.sequence,
-      compiled.staticCritRate / 100,
+      compiled.statCritRate / 100,
   ) * 100
 
   if (hasSkillType(skill, 'echoSkill')) {
-    dmgBonus -= calc1412EchoSkillBonusPoints(compiled.characterId, compiled.staticFinalER)
+    dmgBonus -= calcEchoSkill(compiled.characterId, compiled.statFinEr)
   }
 
   if (toggle0) {
-    dmgBonus -= calc1209DmgBonusPoints(compiled.characterId, compiled.staticFinalER)
+    dmgBonus -= calcDmgBonus(compiled.characterId, compiled.statFinEr)
   }
 
   if (hasSkillType(skill, 'resonanceLiberation', 'ultimate')) {
-    critRate -= calc1209CritRatePoints(compiled.characterId, compiled.staticFinalER)
-    critDmg -= calc1209CritDmgPoints(compiled.characterId, compiled.staticFinalER)
+    critRate -= calcCritRate(compiled.characterId, compiled.statFinEr)
+    critDmg -= calcCritDmg(compiled.characterId, compiled.statFinEr)
   }
 
   return {
@@ -196,7 +197,7 @@ function buildMeta0(characterId: number, sequence: number, comboMode: number, co
       ((sequence & 0xf) << 12) |
       ((comboMode & 0x3) << 16) |
       ((comboK & 0x7) << 18) |
-      ((ECHO_OPTIMIZER_MAX_COST & 0x3f) << 21)
+      ((MAX_ECHO_COST & 0x3f) << 21)
   ) >>> 0
 }
 
@@ -206,7 +207,7 @@ function buildMeta1(comboCount: number): number {
 }
 
 // tune rupture uses enemy class scaling
-function classMultiplier(enemyClass: number): number {
+function classMult(enemyClass: number): number {
   if (enemyClass === 3 || enemyClass === 4) {
     return 14
   }
@@ -219,63 +220,63 @@ function classMultiplier(enemyClass: number): number {
 }
 
 // build the pre-scaled base multiplier for negative-effect archetypes
-function buildNegativeEffectBaseScale(compiled: CompiledTargetSkillContext): number {
-  const primaryStacks = compiled.archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
-      ? compiled.combatSpectroFrazzle
-      : compiled.archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
-          ? compiled.combatAeroErosion
-          : compiled.archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
-              ? compiled.combatFusionBurst
-              : compiled.archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
-                  ? compiled.combatGlacioChafe
-              : compiled.combatElectroFlare
-  const extraElectroRageStacks = compiled.archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-      ? compiled.combatElectroRage
+function mkNegFfctBas(compiled: CompTargetSkill): number {
+  const prmrStck = compiled.archetype === ARCH_SPECTRO
+      ? compiled.combatSpectro
+      : compiled.archetype === ARCH_AERO
+          ? compiled.combatAero
+          : compiled.archetype === ARCH_FUSION
+              ? compiled.combatFusion
+              : compiled.archetype === ARCH_GLACIO
+                  ? compiled.combatGlacio
+              : compiled.combatElectro
+  const xtrLctrRageS = compiled.archetype === ARCH_ELECTRO
+      ? compiled.combatElecRage
       : 0
 
-  if (primaryStacks <= 0 && extraElectroRageStacks <= 0) {
+  if (prmrStck <= 0 && xtrLctrRageS <= 0) {
     return 0
   }
 
   const base =
-      getNegativeEffectBase(
-      compiled.archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
+      getNegBase(
+      compiled.archetype === ARCH_SPECTRO
           ? 'spectroFrazzle'
-          : compiled.archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
+          : compiled.archetype === ARCH_AERO
               ? 'aeroErosion'
-              : compiled.archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+              : compiled.archetype === ARCH_FUSION
                   ? 'fusionBurst'
-                  : compiled.archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                  : compiled.archetype === ARCH_GLACIO
                       ? 'glacioChafe'
                   : 'electroFlare',
       compiled.level,
-      primaryStacks,
-      { fixedMv: compiled.negativeEffectFixedMv > 0 ? compiled.negativeEffectFixedMv : undefined },
+      prmrStck,
+      { fixedMv: compiled.negEfxFxdMv > 0 ? compiled.negEfxFxdMv : undefined },
   ) + (
-        compiled.archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-          ? getNegativeEffectBase(
+        compiled.archetype === ARCH_ELECTRO
+          ? getNegBase(
             'electroFlare',
             compiled.level,
-            extraElectroRageStacks,
-            { fixedMv: compiled.negativeEffectFixedMv > 0 ? compiled.negativeEffectFixedMv : undefined },
+            xtrLctrRageS,
+            { fixedMv: compiled.negEfxFxdMv > 0 ? compiled.negEfxFxdMv : undefined },
           )
           : 0
       )
 
-  return base * compiled.hitScale * (1 + compiled.negativeEffectMultiplier)
+  return base * compiled.hitScale * (1 + compiled.negEfxMult)
 }
 
 // pack one compiled target context into the fixed float/u32 layout used by execution
-export function packTargetContext(options: {
-  compiled: CompiledTargetSkillContext
-  skill: SkillDefinition
-  runtime: ResonatorRuntimeState
+export function packTargetCtx(options: {
+  compiled: CompTargetSkill
+  skill: SkillDef
+  runtime: ResRuntime
   comboN: number
   comboK: number
   comboCount: number
   comboBaseIndex: number
-  lockedEchoIndex: number
-  setRuntimeMask: number
+  lockEchoIdx: number
+  setRtMask: number
 }): Float32Array {
   const {
     compiled,
@@ -284,19 +285,19 @@ export function packTargetContext(options: {
     comboN,
     comboK,
     comboCount,
-    comboBaseIndex,
-    lockedEchoIndex,
-    setRuntimeMask,
+    comboBaseIndex: cmbBaseNdx,
+    lockEchoIdx: lockEchoNdx,
+    setRtMask: setRtMask,
   } = options
 
-  const out = new Float32Array(OPTIMIZER_CONTEXT_FLOATS)
+  const out = new Float32Array(CTX_FLOATS)
   const u32 = new Uint32Array(out.buffer)
 
-  const totalHitScale = compiled.hitScale > 0 ? compiled.hitScale : compiled.multiplier
-  const totalHitCount = Math.max(1, compiled.hitCount || 1)
-  const toggles = buildSpecialToggles(runtime, compiled.characterId)
+  const ttlHitScl = compiled.hitScale > 0 ? compiled.hitScale : compiled.multiplier
+  const ttlHitCnt = Math.max(1, compiled.hitCount || 1)
+  const toggles = mkSpecTggl(runtime, compiled.characterId)
 
-  const normalized = normalizePackedContext({
+  const normalized = normPckdCtx({
     compiled,
     skill,
     toggle0: (toggles & 1) !== 0,
@@ -304,124 +305,126 @@ export function packTargetContext(options: {
 
   const archetype = compiled.archetype
 
-  let packedMultiplier = totalHitScale
-  let packedFlatDmg = (compiled.staticFlatDmg + compiled.flat) * totalHitCount
-  let packedDmgBonus = 1 + (normalized.dmgBonus / 100)
-  let packedAmplify = 1 + (compiled.staticAmplify / 100)
-  let packedCritRate = normalized.critRate / 100
-  let packedCritDmg = normalized.critDmg / 100
-  let packedAux0 = 1 + (compiled.staticSpecial / 100)
+  let pckdMltp = ttlHitScl
+  let pckdFlatDmg = (compiled.statFlatDmg + compiled.flat) * ttlHitCnt
+  let pckdDmgBns = 1 + (normalized.dmgBonus / 100)
+  let pckdMplf = 1 + (compiled.statAmp / 100)
+  let pckdCritRate = normalized.critRate / 100
+  let pckdCritDmg = normalized.critDmg / 100
+  let packedAux0 = 1 + (compiled.statSpec / 100)
 
   // archetype-specific packing adjusts how the execution backend interprets multiplier terms
   switch (archetype) {
-    case OPTIMIZER_ARCHETYPE_TUNE_RUPTURE:
-      packedMultiplier =
+    case ARCH_TUNE:
+    case ARCH_HACK:
+      pckdMltp =
           compiled.hitScale *
-          getTuneRuptureLevelScale(compiled.level) *
-          classMultiplier(compiled.enemyClass)
-      packedFlatDmg = 0
-      packedDmgBonus = 1 + (compiled.staticDmgBonus / 100)
-      packedAmplify = 1 + (compiled.staticAmplify / 100)
-      packedCritRate = compiled.tuneRuptureCritRate
-      packedCritDmg = compiled.tuneRuptureCritDmg
-      packedAux0 = 1 + (compiled.staticTuneBreakBoost / 100)
+          getTuneLevel(compiled.level) *
+          classMult(compiled.enemyClass)
+      pckdFlatDmg = 0
+      pckdDmgBns = 1 + (compiled.statDmgBonus / 100)
+      pckdMplf = 1 + (compiled.statAmp / 100)
+      pckdCritRate = compiled.tuneRptrCrny
+      pckdCritDmg = compiled.tuneCritDmg
+      packedAux0 = 1 + (compiled.statTuneBrcq / 100)
       break
 
-    case OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE:
-    case OPTIMIZER_ARCHETYPE_AERO_EROSION:
-    case OPTIMIZER_ARCHETYPE_FUSION_BURST:
-    case OPTIMIZER_ARCHETYPE_GLACIO_CHAFE:
-    case OPTIMIZER_ARCHETYPE_ELECTRO_FLARE:
-      packedMultiplier = buildNegativeEffectBaseScale(compiled)
-      packedFlatDmg = 0
-      packedDmgBonus = 1 + (compiled.staticDmgBonus / 100)
-      packedAmplify = 1 + (compiled.staticAmplify / 100)
-      packedCritRate = compiled.negativeEffectCritRate
-      packedCritDmg = compiled.negativeEffectCritDmg
-      packedAux0 = 1 + (compiled.staticSpecial / 100)
+    case ARCH_SPECTRO:
+    case ARCH_AERO:
+    case ARCH_FUSION:
+    case ARCH_GLACIO:
+    case ARCH_ELECTRO:
+      pckdMltp = mkNegFfctBas(compiled)
+      pckdFlatDmg = 0
+      pckdDmgBns = 1 + (compiled.statDmgBonus / 100)
+      pckdMplf = 1 + (compiled.statAmp / 100)
+      pckdCritRate = compiled.negEfxCritoo
+      pckdCritDmg = compiled.negEfxCritsa
+      packedAux0 = 1 + (compiled.statSpec / 100)
       break
 
-    case OPTIMIZER_ARCHETYPE_DAMAGE:
+    case ARCH_DAMAGE:
     default:
       break
   }
 
-  const skillId = encodeSkillId({
+  const skillId = encSkllId({
     label: skill.label,
     skillType: skill.skillType,
     tab: skill.tab,
     element: skill.element,
   })
 
-  out[OPTIMIZER_CTX_BASE_ATK] = compiled.baseAtk
-  out[OPTIMIZER_CTX_BASE_HP] = compiled.baseHp
-  out[OPTIMIZER_CTX_BASE_DEF] = compiled.baseDef
-  out[OPTIMIZER_CTX_BASE_ER] = compiled.staticFinalER
+  out[BASE_ATK] = compiled.baseAtk
+  out[BASE_HP] = compiled.baseHp
+  out[BASE_DEF] = compiled.baseDef
+  out[BASE_ER] = compiled.statFinEr
 
-  out[OPTIMIZER_CTX_FINAL_ATK] = normalized.finalAtk
-  out[OPTIMIZER_CTX_FINAL_HP] = compiled.staticFinalHp
-  out[OPTIMIZER_CTX_FINAL_DEF] = compiled.staticFinalDef
+  out[FINAL_ATK] = normalized.finalAtk
+  out[FINAL_HP] = compiled.statFinHp
+  out[FINAL_DEF] = compiled.statFinDef
 
-  out[OPTIMIZER_CTX_SCALING_ATK] = compiled.scalingAtk
-  out[OPTIMIZER_CTX_SCALING_HP] = compiled.scalingHp
-  out[OPTIMIZER_CTX_SCALING_DEF] = compiled.scalingDef
-  out[OPTIMIZER_CTX_SCALING_ER] = compiled.scalingER
+  out[SCALING_ATK] = compiled.scalingAtk
+  out[SCALING_HP] = compiled.scalingHp
+  out[SCALING_DEF] = compiled.scalingDef
+  out[SCALING_ER] = compiled.scalingER
 
-  out[OPTIMIZER_CTX_MULTIPLIER] = packedMultiplier
-  out[OPTIMIZER_CTX_FLAT_DMG] = packedFlatDmg
-  out[OPTIMIZER_CTX_RES_MULT] = compiled.resMult
-  out[OPTIMIZER_CTX_DEF_MULT] = compiled.defMult
-  out[OPTIMIZER_CTX_DMG_REDUCTION] = compiled.dmgReduction
-  out[OPTIMIZER_CTX_DMG_BONUS] = packedDmgBonus
-  out[OPTIMIZER_CTX_DMG_AMPLIFY] = packedAmplify
-  out[OPTIMIZER_CTX_DMG_VULN] = compiled.staticDmgVuln
-  out[OPTIMIZER_CTX_CRIT_RATE] = packedCritRate
-  out[OPTIMIZER_CTX_CRIT_DMG] = packedCritDmg
-  out[OPTIMIZER_CTX_AUX0] = packedAux0
-  out[OPTIMIZER_CTX_ARCHETYPE] = archetype
+  out[MV] = pckdMltp
+  out[FLAT_DMG] = pckdFlatDmg
+  out[RES_MUL] = compiled.resMult
+  out[DEF_MUL] = compiled.defMult
+  out[DMG_RED] = compiled.dmgReduction
+  out[DMG_BNS] = pckdDmgBns
+  out[DMG_AMP] = pckdMplf
+  out[DMG_VULN] = compiled.statDmgVuln
+  out[CRIT_RATE] = pckdCritRate
+  out[CRIT_DMG] = pckdCritDmg
+  out[AUX0] = packedAux0
+  out[ARCHETYPE] = archetype
 
-  u32[OPTIMIZER_CTX_TOGGLES] = toggles
-  u32[OPTIMIZER_CTX_SKILL_ID] = skillId
-  u32[OPTIMIZER_CTX_META0] = buildMeta0(compiled.characterId, compiled.sequence, 0, comboK)
-  u32[OPTIMIZER_CTX_META1] = buildMeta1(comboCount)
-  u32[OPTIMIZER_CTX_LOCKED_PACKED] = lockedEchoIndex < 0 ? 0 : ((lockedEchoIndex + 1) >>> 0)
-  u32[OPTIMIZER_CTX_BASE_INDEX] = comboBaseIndex >>> 0
-  u32[OPTIMIZER_CTX_SET_RUNTIME_MASK] = setRuntimeMask >>> 0
-  u32[OPTIMIZER_CTX_COMBO_N] = comboN >>> 0
-  u32[OPTIMIZER_CTX_DISPATCH_WORKGROUP_BASE] = 0
+  u32[TOGGLES] = toggles
+  u32[SKILL_ID] = skillId
+  u32[META0] = buildMeta0(compiled.characterId, compiled.sequence, 0, comboK)
+  u32[META1] = buildMeta1(comboCount)
+  u32[LOCKED_PACKED] = lockEchoNdx < 0 ? 0 : ((lockEchoNdx + 1) >>> 0)
+  u32[BASE_INDEX] = cmbBaseNdx >>> 0
+  u32[SET_MASK] = setRtMask >>> 0
+  u32[COMBO_N] = comboN >>> 0
+  u32[WORKGROUP_BASE] = 0
 
   return out
 }
 
 // patch a base context into the per-gpu-job variant without rebuilding the full compiled context
-export function patchTargetContextForGpuJob(options: {
+export function ptchTgtCtxFo(options: {
   baseContext: Float32Array
   comboN: number
   comboK: number
   comboCount: number
   comboBaseIndex: number
-  lockedEchoIndex: number
+  lockEchoIdx: number
+  comboMode?: number
 }): Float32Array {
   const out = new Float32Array(options.baseContext)
   const u32 = new Uint32Array(out.buffer)
 
-  const characterId = u32[OPTIMIZER_CTX_META0] & 0xfff
-  const sequence = (u32[OPTIMIZER_CTX_META0] >>> 12) & 0xf
+  const characterId = u32[META0] & 0xfff
+  const sequence = (u32[META0] >>> 12) & 0xf
 
-  u32[OPTIMIZER_CTX_META0] = buildMeta0(characterId, sequence, 2, options.comboK)
-  u32[OPTIMIZER_CTX_META1] = buildMeta1(options.comboCount)
-  u32[OPTIMIZER_CTX_LOCKED_PACKED] = options.lockedEchoIndex < 0 ? 0 : ((options.lockedEchoIndex + 1) >>> 0)
-  u32[OPTIMIZER_CTX_BASE_INDEX] = options.comboBaseIndex >>> 0
-  u32[OPTIMIZER_CTX_COMBO_N] = options.comboN >>> 0
-  u32[OPTIMIZER_CTX_DISPATCH_WORKGROUP_BASE] = 0
+  u32[META0] = buildMeta0(characterId, sequence, options.comboMode ?? 2, options.comboK)
+  u32[META1] = buildMeta1(options.comboCount)
+  u32[LOCKED_PACKED] = options.lockEchoIdx < 0 ? 0 : ((options.lockEchoIdx + 1) >>> 0)
+  u32[BASE_INDEX] = options.comboBaseIndex >>> 0
+  u32[COMBO_N] = options.comboN >>> 0
+  u32[WORKGROUP_BASE] = 0
 
   return out
 }
 
 // update the dispatch workgroup base in-place results before a gpu dispatch
-export function patchTargetContextDispatchWorkgroupBase(
+export function ptchTgtCtxDi(
     context: Float32Array,
-    workgroupBase: number,
+    wgBase: number,
 ): void {
-  new Uint32Array(context.buffer)[OPTIMIZER_CTX_DISPATCH_WORKGROUP_BASE] = workgroupBase >>> 0
+  new Uint32Array(context.buffer)[WORKGROUP_BASE] = wgBase >>> 0
 }

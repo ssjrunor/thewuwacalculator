@@ -28,5 +28,6 @@
   { "id": 28, "name": "Chromatic Foam", "icon": "/assets/sonata-icons/chromaticFoam.webp" },
   { "id": 29, "name": "Sound of True Name", "icon": "/assets/sonata-icons/soundOfTrueName.webp" },
   { "id": 30, "name": "Wishes of Quiet Snowfall", "icon": "/assets/sonata-icons/wishesOfQuietSnowfall.webp" },
-  { "id": 31, "name": "Reel of Spliced Memories", "icon": "/assets/sonata-icons/reelOfSplicedMemories.webp" }
+  { "id": 31, "name": "Reel of Spliced Memories", "icon": "/assets/sonata-icons/reelOfSplicedMemories.webp" },
+  { "id": 32, "name": "Shadow of Shattered Dreams", "icon": "/assets/sonata-icons/shadowOfShatteredDreams.webp"}
 ]

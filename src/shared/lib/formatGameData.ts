@@ -5,9 +5,9 @@
 */
 
 import type {
-  ConditionExpression,
-  FormulaExpression,
-  RuntimeChange,
+  CondExpr,
+  FormExpr,
+  RtChng,
 } from '@/domain/gameData/contracts'
 
 // format a runtime path into readable title-cased text
@@ -33,7 +33,7 @@ function formatConst(value: number): string {
 }
 
 // format a formula expression into readable text
-export function formatFormulaExpression(expression: FormulaExpression): string {
+export function fmtFormExpr(expression: FormExpr): string {
   if (expression.type === 'const') {
     return formatConst(expression.value)
   }
@@ -47,15 +47,15 @@ export function formatFormulaExpression(expression: FormulaExpression): string {
   }
 
   if (expression.type === 'add') {
-    return expression.values.map((value) => formatFormulaExpression(value)).join(' + ')
+    return expression.values.map((value) => fmtFormExpr(value)).join(' + ')
   }
 
   if (expression.type === 'mul') {
-    return expression.values.map((value) => formatFormulaExpression(value)).join(' x ')
+    return expression.values.map((value) => fmtFormExpr(value)).join(' x ')
   }
 
   if (expression.type === 'clamp') {
-    const source = formatFormulaExpression(expression.value)
+    const source = fmtFormExpr(expression.value)
 
     if (typeof expression.min === 'number' && typeof expression.max === 'number') {
       return `Clamp(${source}, ${formatConst(expression.min)}, ${formatConst(expression.max)})`
@@ -76,13 +76,13 @@ export function formatFormulaExpression(expression: FormulaExpression): string {
 }
 
 // format a condition expression into readable text
-export function formatConditionExpression(expression?: ConditionExpression): string {
+export function fmtCondExpr(expression?: CondExpr): string {
   if (!expression || expression.type === 'always') {
     return 'Always'
   }
 
   if (expression.type === 'not') {
-    return `Not (${formatConditionExpression(expression.value)})`
+    return `Not (${fmtCondExpr(expression.value)})`
   }
 
   if (expression.type === 'truthy') {
@@ -114,18 +114,18 @@ export function formatConditionExpression(expression?: ConditionExpression): str
   }
 
   if (expression.type === 'and') {
-    return expression.values.map((value) => formatConditionExpression(value)).join(' and ')
+    return expression.values.map((value) => fmtCondExpr(value)).join(' and ')
   }
 
   if (expression.type === 'or') {
-    return expression.values.map((value) => formatConditionExpression(value)).join(' or ')
+    return expression.values.map((value) => fmtCondExpr(value)).join(' or ')
   }
 
   return 'Always'
 }
 
 // format a runtime mutation into readable text
-export function formatRuntimeChange(change: RuntimeChange): string {
+export function fmtRtChng(change: RtChng): string {
   if (change.type === 'set') {
     return `${formatPath(change.path)} = ${String(change.value)}`
   }

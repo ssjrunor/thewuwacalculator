@@ -5,26 +5,27 @@
 */
 
 import type {
-  PackedRotationExecutionPayload,
-  PreparedRotationRun,
+  PckdRotXctnP,
+  PrepRotRun,
+  PrepTheoryRot,
 } from '@/engine/optimizer/types.ts'
 
-// convert a prepared rotation run into the execution payload consumed by
-// rotation search workers. right now the prepared structure already matches
-// the packed execution shape, so this is just a passthrough.
-export function createPackedRotationExecution(
-    prepared: PreparedRotationRun,
-): PackedRotationExecutionPayload {
-  return prepared
+// convert a prepared rotation or theory-rotation run into the execution
+// payload consumed by rotation search workers.
+export function packRotation(
+    prepared: PrepRotRun | PrepTheoryRot,
+): PckdRotXctnP {
+  return {
+    ...prepared,
+    mode: 'rotation',
+  }
 }
 
 // return a share-safe rotation execution payload.
-// currently this is also a passthrough because the payload is already in the
-// final structure expected by downstream code. this function is kept so the
-// call site stays consistent with other execution modes and can later be
-// extended if explicit buffer sharing/copying becomes necessary.
-export function sharePackedRotationExecution(
-    payload: PackedRotationExecutionPayload,
-): PackedRotationExecutionPayload {
+// this is currently a passthrough because the payload is already in the final
+// structure expected by downstream code.
+export function shrPckdRotXc(
+    payload: PckdRotXctnP,
+): PckdRotXctnP {
   return payload
 }

@@ -5,42 +5,54 @@
                resonator display/max-stack overrides used by the ui.
 */
 
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import type {
-  ResonatorNegativeEffectBehaviorEntry,
-  ResonatorNegativeEffectSource,
-  ResonatorNegativeEffectSourceEntry,
+  ResNegFfctBh,
+  ResNegFfcthn,
+  ResNegFfctSr,
 } from '@/domain/entities/resonator'
-import type { CombatState, ResonatorRuntimeState } from '@/domain/entities/runtime'
-import type { SkillDefinition } from '@/domain/entities/stats'
-import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
-import { createDefaultResonatorRuntime } from '@/domain/state/defaults'
-import { materializeTeamMemberFromCompactRuntime } from '@/domain/state/runtimeMaterialization'
-import { evaluateCondition } from '@/engine/effects/evaluator'
-import { computeEchoSetCounts } from '@/engine/pipeline/buildCombatContext'
+import type { CombatState, ResRuntime } from '@/domain/entities/runtime'
+import type { AttributeKey, SkillDef } from '@/domain/entities/stats'
+import { makeTeamComp } from '@/domain/gameData/teamComposition'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { makeResRuntime } from '@/domain/state/defaults'
+import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
+import { evalCond } from '@/engine/effects/evaluator'
+import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 
-export type NegativeEffectKey = keyof CombatState
-export type NegativeEffectCombatKey = keyof Pick<
+export type NegEffectKey = keyof CombatState
+export type NegFfctCmbtK = keyof Pick<
     CombatState,
     'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'
 >
 
-export interface NegativeEffectCatalogEntry {
-  key: NegativeEffectKey
+export interface NegEffectCat {
+  key: NegEffectKey
   label: string
   defaultMax: number
   accent: string
-  linkedTo?: NegativeEffectKey
+  linkedTo?: NegEffectKey
 }
 
-export interface ResolvedNegativeEffectEntry extends NegativeEffectCatalogEntry {
+export interface RslvNegFfctE extends NegEffectCat {
   max: number
   stackMode: 'manual' | 'fixedMax'
   sliderVisible: boolean
 }
 
-export const NEGATIVE_EFFECT_ORDER: NegativeEffectKey[] = [
+// canonical element behind each negative-effect archetype. Used by the damage
+// pipeline (resistance lookup) and the enemy UI (element icon / accent).
+export const NEG_EFFECT_ELEM: Record<NegEffectKey, AttributeKey> = {
+  spectroFrazzle: 'spectro',
+  aeroErosion: 'aero',
+  fusionBurst: 'fusion',
+  havocBane: 'havoc',
+  glacioChafe: 'glacio',
+  electroFlare: 'electro',
+  electroRage: 'electro',
+}
+
+export const NEG_EFFECT_KEYS: NegEffectKey[] = [
   'spectroFrazzle',
   'aeroErosion',
   'fusionBurst',
@@ -50,7 +62,7 @@ export const NEGATIVE_EFFECT_ORDER: NegativeEffectKey[] = [
   'electroRage',
 ]
 
-export const NEGATIVE_EFFECT_CATALOG: Record<NegativeEffectKey, NegativeEffectCatalogEntry> = {
+export const NEG_EFFECT_CATS: Record<NegEffectKey, NegEffectCat> = {
   spectroFrazzle: {
     key: 'spectroFrazzle',
     label: 'Spectro Frazzle',
@@ -96,22 +108,22 @@ export const NEGATIVE_EFFECT_CATALOG: Record<NegativeEffectKey, NegativeEffectCa
   },
 }
 
-export function getNegativeEffectDefaultMax(key: NegativeEffectKey): number {
-  return NEGATIVE_EFFECT_CATALOG[key].defaultMax
+export function getNegEffectDef(key: NegEffectKey): number {
+  return NEG_EFFECT_CATS[key].defaultMax
 }
 
-export function getNegativeEffectDefaultLabel(key: NegativeEffectKey): string {
-  return NEGATIVE_EFFECT_CATALOG[key].label
+export function getNegFfctqf(key: NegEffectKey): string {
+  return NEG_EFFECT_CATS[key].label
 }
 
-function resolveEntryMax(entry: ResonatorNegativeEffectSourceEntry): number {
-  return entry.max ?? NEGATIVE_EFFECT_CATALOG[entry.key].defaultMax
+function resEntMax(entry: ResNegFfctSr): number {
+  return entry.max ?? NEG_EFFECT_CATS[entry.key].defaultMax
 }
 
-function resolveBehaviorEntry(
-    current: ResonatorNegativeEffectBehaviorEntry | undefined,
-    next: ResonatorNegativeEffectBehaviorEntry,
-): ResonatorNegativeEffectBehaviorEntry {
+function resBhvrEnt(
+    current: ResNegFfctBh | undefined,
+    next: ResNegFfctBh,
+): ResNegFfctBh {
   if (!current) {
     return next
   }
@@ -126,123 +138,123 @@ function resolveBehaviorEntry(
   }
 }
 
-function getEffectiveElectroFlareStacks(runtime: ResonatorRuntimeState, electroFlareMax: number): number {
+function getFfctLctrF(runtime: ResRuntime, lctrFlrMax: number): number {
   return Math.min(
     Math.max(0, Math.floor(runtime.state.combat.electroFlare ?? 0)),
-    electroFlareMax,
+    lctrFlrMax,
   )
 }
 
-function getNegativeEffectSourcesForResonator(resonatorId: string): ResonatorNegativeEffectSource[] {
-  return getResonatorDetailsById()[resonatorId]?.negativeEffectSources ?? []
+function getNegFfctSr(resonatorId: string): ResNegFfcthn[] {
+  return getResDtlsBy()[resonatorId]?.negativeEffectSources ?? []
 }
 
-function buildNegativeEffectSourceScope(
-    sourceRuntime: ResonatorRuntimeState,
-    activeRuntime: ResonatorRuntimeState,
+function mkNegFfctSrc(
+    srcRt: ResRuntime,
+    actRt: ResRuntime,
 ) {
-  const teamMemberIds = Array.from(
+  const teamMemIds = Array.from(
       new Set([
-        activeRuntime.id,
-        ...activeRuntime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
+        actRt.id,
+        ...actRt.build.team.filter((memberId): memberId is string => Boolean(memberId)),
       ]),
   )
 
   return {
-    sourceRuntime,
-    targetRuntime: activeRuntime,
-    activeRuntime,
+    sourceRuntime: srcRt,
+    targetRuntime: actRt,
+    activeRuntime: actRt,
     context: {
-      team: buildTeamCompositionInfo(teamMemberIds),
+      team: makeTeamComp(teamMemIds),
       source: {
         type: 'resonator' as const,
-        id: sourceRuntime.id,
-        negativeEffectSources: getNegativeEffectSourcesForResonator(sourceRuntime.id),
+        id: srcRt.id,
+        negativeEffectSources: getNegFfctSr(srcRt.id),
       },
       target: {
         type: 'resonator' as const,
-        id: activeRuntime.id,
-        negativeEffectSources: getNegativeEffectSourcesForResonator(activeRuntime.id),
+        id: actRt.id,
+        negativeEffectSources: getNegFfctSr(actRt.id),
       },
-      sourceRuntime,
-      targetRuntime: activeRuntime,
-      activeRuntime,
-      targetRuntimeId: activeRuntime.id,
-      activeResonatorId: activeRuntime.id,
-      teamMemberIds,
-      echoSetCounts: computeEchoSetCounts(sourceRuntime.build.echoes),
+      sourceRuntime: srcRt,
+      targetRuntime: actRt,
+      activeRuntime: actRt,
+      targetRuntimeId: actRt.id,
+      activeResonatorId: actRt.id,
+      teamMemberIds: teamMemIds,
+      echoSetCounts: countEchoSets(srcRt.build.echoes),
     },
   }
 }
 
-function isNegativeEffectSourceEnabled(
-    sourceRuntime: ResonatorRuntimeState,
-    activeRuntime: ResonatorRuntimeState,
-    source: ResonatorNegativeEffectSource,
+function isNegFfctSrc(
+    srcRt: ResRuntime,
+    actRt: ResRuntime,
+    source: ResNegFfcthn,
 ): boolean {
-  return evaluateCondition(source.enabledWhen, buildNegativeEffectSourceScope(sourceRuntime, activeRuntime))
+  return evalCond(source.enabledWhen, mkNegFfctSrc(srcRt, actRt))
 }
 
-function resolveTeamSourceRuntime(
-    activeRuntime: ResonatorRuntimeState,
+function resTeamSrcRt(
+    actRt: ResRuntime,
     memberId: string,
-): ResonatorRuntimeState | null {
-  if (memberId === activeRuntime.id) {
-    return activeRuntime
+): ResRuntime | null {
+  if (memberId === actRt.id) {
+    return actRt
   }
 
-  const compactTeamRuntime = activeRuntime.teamRuntimes.find((runtime) => runtime?.id === memberId)
-  const seed = getResonatorSeedById(memberId)
+  const cmpcTeamRt = actRt.teamRuntimes.find((runtime) => runtime?.id === memberId)
+  const seed = getResSeedBy(memberId)
 
   if (!seed) {
     return null
   }
 
-  if (compactTeamRuntime) {
-    return materializeTeamMemberFromCompactRuntime(
+  if (cmpcTeamRt) {
+    return matTeamMemFr(
         seed,
-        compactTeamRuntime,
-        activeRuntime.state.controls,
-        activeRuntime.state.combat,
-        activeRuntime.build.team,
+        cmpcTeamRt,
+        actRt.state.controls,
+        actRt.state.combat,
+        actRt.build.team,
     )
   }
 
-  const fallbackRuntime = createDefaultResonatorRuntime(seed)
+  const fllbRt = makeResRuntime(seed)
   return {
-    ...fallbackRuntime,
+    ...fllbRt,
     build: {
-      ...fallbackRuntime.build,
-      team: activeRuntime.build.team,
+      ...fllbRt.build,
+      team: actRt.build.team,
     },
     state: {
-      ...fallbackRuntime.state,
-      combat: { ...activeRuntime.state.combat },
+      ...fllbRt.state,
+      combat: { ...actRt.state.combat },
     },
   }
 }
 
 // resolve the visible negative effects for a team by scanning the resonator-
 // keyed catalog and merging duplicate entries by highest max override
-export function resolveNegativeEffectsForRuntime(runtime: ResonatorRuntimeState): ResolvedNegativeEffectEntry[] {
-  const resolved = new Map<NegativeEffectKey, ResolvedNegativeEffectEntry>()
-  const uniqueMemberIds = Array.from(
+export function negEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
+  const resolved = new Map<NegEffectKey, RslvNegFfctE>()
+  const nqMemIds = Array.from(
       new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
   )
   let globalMaxAdd = 0
-  const keyedMaxAdds = new Map<NegativeEffectKey, number>()
-  const behaviors = new Map<NegativeEffectKey, ResonatorNegativeEffectBehaviorEntry>()
+  const keyedMaxAdds = new Map<NegEffectKey, number>()
+  const behaviors = new Map<NegEffectKey, ResNegFfctBh>()
 
-  for (const memberId of uniqueMemberIds) {
-    const entries = getNegativeEffectSourcesForResonator(memberId)
-    const sourceRuntime = resolveTeamSourceRuntime(runtime, memberId)
+  for (const memberId of nqMemIds) {
+    const entries = getNegFfctSr(memberId)
+    const srcRt = resTeamSrcRt(runtime, memberId)
 
-    if (!sourceRuntime) {
+    if (!srcRt) {
       continue
     }
 
     for (const entry of entries) {
-      if (!isNegativeEffectSourceEnabled(sourceRuntime, runtime, entry)) {
+      if (!isNegFfctSrc(srcRt, runtime, entry)) {
         continue
       }
 
@@ -260,13 +272,13 @@ export function resolveNegativeEffectsForRuntime(runtime: ResonatorRuntimeState)
       }
 
       if ('type' in entry && entry.type === 'behavior') {
-        behaviors.set(entry.key, resolveBehaviorEntry(behaviors.get(entry.key), entry))
+        behaviors.set(entry.key, resBhvrEnt(behaviors.get(entry.key), entry))
         continue
       }
 
-      const catalogEntry = NEGATIVE_EFFECT_CATALOG[entry.key]
+      const catalogEntry = NEG_EFFECT_CATS[entry.key]
       const current = resolved.get(entry.key)
-      const nextMax = resolveEntryMax(entry)
+      const nextMax = resEntMax(entry)
 
       resolved.set(entry.key, {
         ...catalogEntry,
@@ -300,15 +312,15 @@ export function resolveNegativeEffectsForRuntime(runtime: ResonatorRuntimeState)
     }
   }
 
-  const electroFlareEntry = resolved.get('electroFlare')
-  if (electroFlareEntry) {
-    const effectiveElectroFlareStacks = getEffectiveElectroFlareStacks(runtime, electroFlareEntry.max)
-    if (effectiveElectroFlareStacks > getNegativeEffectDefaultMax('electroFlare')) {
-      const electroRageCatalogEntry = NEGATIVE_EFFECT_CATALOG.electroRage
+  const lctrFlrEnt = resolved.get('electroFlare')
+  if (lctrFlrEnt) {
+    const ffctLctrFlrS = getFfctLctrF(runtime, lctrFlrEnt.max)
+    if (ffctLctrFlrS > getNegEffectDef('electroFlare')) {
+      const electroRageCat = NEG_EFFECT_CATS.electroRage
       const current = resolved.get('electroRage')
       resolved.set('electroRage', {
-        ...electroRageCatalogEntry,
-        max: Math.max(current?.max ?? electroRageCatalogEntry.defaultMax, electroFlareEntry.max),
+        ...electroRageCat,
+        max: Math.max(current?.max ?? electroRageCat.defaultMax, lctrFlrEnt.max),
         stackMode: current?.stackMode ?? 'manual',
         sliderVisible: current?.sliderVisible ?? true,
       })
@@ -332,23 +344,23 @@ export function resolveNegativeEffectsForRuntime(runtime: ResonatorRuntimeState)
     })
   }
 
-  return NEGATIVE_EFFECT_ORDER
+  return NEG_EFFECT_KEYS
     .map((key) => resolved.get(key))
-    .filter((entry): entry is ResolvedNegativeEffectEntry => Boolean(entry))
+    .filter((entry): entry is RslvNegFfctE => Boolean(entry))
 }
 
-export function getNegativeEffectEntryForRuntime(
-    runtime: ResonatorRuntimeState,
-    key: NegativeEffectKey,
-): ResolvedNegativeEffectEntry | null {
-  return resolveNegativeEffectsForRuntime(runtime).find((entry) => entry.key === key) ?? null
+export function getNegFfctEn(
+    runtime: ResRuntime,
+    key: NegEffectKey,
+): RslvNegFfctE | null {
+  return negEffectsFor(runtime).find((entry) => entry.key === key) ?? null
 }
 
-export function getNegativeEffectEffectiveStacks(
-    runtime: ResonatorRuntimeState,
-    key: NegativeEffectKey,
+export function getNegFfctFf(
+    runtime: ResRuntime,
+    key: NegEffectKey,
 ): number {
-  const entry = getNegativeEffectEntryForRuntime(runtime, key)
+  const entry = getNegFfctEn(runtime, key)
   if (!entry) {
     return 0
   }
@@ -363,41 +375,41 @@ export function getNegativeEffectEffectiveStacks(
   )
 }
 
-export function normalizeNegativeEffectCombatState(
-    runtime: ResonatorRuntimeState,
+export function normNegFfctC(
+    runtime: ResRuntime,
 ): CombatState {
-  const resolvedEntries = resolveNegativeEffectsForRuntime(runtime)
-  const entryByKey = new Map(resolvedEntries.map((entry) => [entry.key, entry]))
-  const nextCombatState = { ...runtime.state.combat }
+  const rslvEnts = negEffectsFor(runtime)
+  const entryByKey = new Map(rslvEnts.map((entry) => [entry.key, entry]))
+  const nextCmbtStt = { ...runtime.state.combat }
 
-  for (const key of NEGATIVE_EFFECT_ORDER) {
-    const currentValue = Math.max(0, Math.floor(nextCombatState[key] ?? 0))
-    const resolvedEntry = entryByKey.get(key)
+  for (const key of NEG_EFFECT_KEYS) {
+    const currentValue = Math.max(0, Math.floor(nextCmbtStt[key] ?? 0))
+    const rslvEnt = entryByKey.get(key)
 
-    if (!resolvedEntry) {
-      nextCombatState[key] = 0
+    if (!rslvEnt) {
+      nextCmbtStt[key] = 0
       continue
     }
 
-    nextCombatState[key] = resolvedEntry.stackMode === 'fixedMax'
-      ? resolvedEntry.max
-      : Math.min(currentValue, resolvedEntry.max)
+    nextCmbtStt[key] = rslvEnt.stackMode === 'fixedMax'
+      ? rslvEnt.max
+      : Math.min(currentValue, rslvEnt.max)
   }
 
-  return nextCombatState
+  return nextCmbtStt
 }
 
-export function isNegativeEffectVisibleForRuntime(
-    runtime: ResonatorRuntimeState,
-    key: NegativeEffectKey,
+export function isNegFfctVsb(
+    runtime: ResRuntime,
+    key: NegEffectKey,
 ): boolean {
-  return resolveNegativeEffectsForRuntime(runtime).some((entry) => entry.key === key)
+  return negEffectsFor(runtime).some((entry) => entry.key === key)
 }
 
 // map a negative effect archetype to its combat state key
-export function getNegativeEffectCombatKey(
-    archetype?: SkillDefinition['archetype'],
-): NegativeEffectCombatKey | null {
+export function getNegFfctCm(
+    archetype?: SkillDef['archetype'],
+): NegFfctCmbtK | null {
   switch (archetype) {
     case 'spectroFrazzle':
     case 'aeroErosion':
@@ -411,8 +423,8 @@ export function getNegativeEffectCombatKey(
 }
 
 // map a negative effect archetype to its elemental attribute
-export function getNegativeEffectAttribute(
-    archetype?: SkillDefinition['archetype'],
+export function getNegFfctTt(
+    archetype?: SkillDef['archetype'],
 ): 'spectro' | 'aero' | 'fusion' | 'glacio' | 'electro' | null {
   switch (archetype) {
     case 'spectroFrazzle':

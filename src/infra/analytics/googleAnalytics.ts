@@ -4,7 +4,7 @@
                snippet in index.html.
 */
 
-export const GOOGLE_ANALYTICS_MEASUREMENT_ID = 'G-W502BDD62S'
+export const GA_MEASURE_ID = 'G-W502BDD62S'
 
 type GtagFn = (...args: unknown[]) => void
 
@@ -20,7 +20,7 @@ function canUseDom(): boolean {
     && typeof document !== 'undefined'
 }
 
-export function loadGoogleAnalytics(): Promise<boolean> {
+export function loadGglAnal(): Promise<boolean> {
   if (!canUseDom()) {
     return Promise.resolve(false)
   }
@@ -28,12 +28,12 @@ export function loadGoogleAnalytics(): Promise<boolean> {
   return Promise.resolve(typeof window.gtag === 'function')
 }
 
-export async function trackGoogleAnalyticsPageView(input: {
+export async function trackGooglePage(input: {
   pagePath: string
   pageLocation: string
   pageTitle: string
 }): Promise<void> {
-  const loaded = await loadGoogleAnalytics()
+  const loaded = await loadGglAnal()
   if (!loaded || typeof window.gtag !== 'function') {
     return
   }

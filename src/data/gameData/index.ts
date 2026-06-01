@@ -4,66 +4,66 @@
                and the derived registry used across the calculator.
 */
 
-import { initEchoCatalog } from '@/data/gameData/catalog/echoes'
-import { initEchoStatsCatalog, type EchoStatsCatalogData } from '@/data/gameData/catalog/echoStats'
-import { initSonataSets, type SonataSetDefinition } from '@/data/gameData/catalog/sonataSets'
-import { initEchoSetDefinitions, sonataSetSources, type SetDef } from '@/data/gameData/echoSets/effects'
-import type { GameDataRegistry, SourcePackage } from '@/domain/gameData/contracts'
-import { buildGameDataRegistry } from '@/domain/gameData/registry'
-import type { EchoDefinition } from '@/domain/entities/catalog'
-import type { ResonatorSeed } from '@/domain/entities/runtime'
-import type { ResonatorDetails } from '@/domain/entities/resonator'
-import type { GeneratedWeapon } from '@/domain/entities/weapon'
-import { buildWeaponSources } from '@/data/gameData/weapons/effects'
-import { initResonatorCatalog, initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore'
-import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
+import { initEchoCat } from '@/data/gameData/catalog/echoes'
+import { initEchoStts, type EchoSttsCatD } from '@/data/gameData/catalog/echoStats'
+import { initSntSets, type SntSetDef } from '@/data/gameData/catalog/sonataSets'
+import { initEchoSetD, sntSetSrcs, type SetDef } from '@/data/gameData/echoSets/effects'
+import type { GameDataReg, SrcPkg } from '@/domain/gameData/contracts'
+import { mkGameDataRe } from '@/domain/gameData/registry'
+import type { EchoDef } from '@/domain/entities/catalog'
+import type { ResSeed } from '@/domain/entities/runtime'
+import type { ResDtls } from '@/domain/entities/resonator'
+import type { GenWpn } from '@/domain/entities/weapon'
+import { mkWpnSrcs } from '@/data/gameData/weapons/effects'
+import { initResCat, initResDtls } from '@/data/gameData/resonators/resonatorDataStore'
+import { initWpnData } from '@/data/gameData/weapons/weaponDataStore'
 
-const GAME_DATA_GLOBAL_STATE_KEY = '__wuwaGameDataState__'
+const GAME_DATA_KEY = '__wuwaGameDataState__'
 
-type GameDataGlobalState = {
-  registry: GameDataRegistry | null
+type GameDataGlbl = {
+  registry: GameDataReg | null
   initializationPromise: Promise<void> | null
 }
 
-function getGameDataGlobalState(): GameDataGlobalState {
+function getGameDataG(): GameDataGlbl {
   const scope = globalThis as typeof globalThis & {
-    [GAME_DATA_GLOBAL_STATE_KEY]?: GameDataGlobalState
+    [GAME_DATA_KEY]?: GameDataGlbl
   }
 
-  const existing = scope[GAME_DATA_GLOBAL_STATE_KEY]
+  const existing = scope[GAME_DATA_KEY]
   if (existing) {
     return existing
   }
 
-  const created: GameDataGlobalState = {
+  const created: GameDataGlbl = {
     registry: null,
     initializationPromise: null,
   }
 
-  scope[GAME_DATA_GLOBAL_STATE_KEY] = created
+  scope[GAME_DATA_KEY] = created
   return created
 }
 
-export function hydrateGameDataRegistry(registry: GameDataRegistry): void {
-  const state = getGameDataGlobalState()
+export function hydrGameData(registry: GameDataReg): void {
+  const state = getGameDataG()
   state.registry = registry
   state.initializationPromise = Promise.resolve()
 }
 
-function normalizePublicAssetPath(path: string): string {
+function normPblcSstP(path: string): string {
   return path.startsWith('/public/') ? path.slice('/public'.length) : path
 }
 
-function normalizeEchoCatalog(catalog: EchoDefinition[]): EchoDefinition[] {
+function normEchoCat(catalog: EchoDef[]): EchoDef[] {
   return catalog.map((echo) => ({
     ...echo,
-    icon: normalizePublicAssetPath(echo.icon),
+    icon: normPblcSstP(echo.icon),
   }))
 }
 
 // load and cache all game data, then build the registry
-export async function initializeGameData(): Promise<void> {
-  const state = getGameDataGlobalState()
+export async function initGameData(): Promise<void> {
+  const state = getGameDataG()
 
   if (state.registry) {
     return
@@ -72,46 +72,49 @@ export async function initializeGameData(): Promise<void> {
   if (!state.initializationPromise) {
     state.initializationPromise = (async () => {
       const [
-        resonatorSources,
+        resSrcs,
         echoSources,
+        enemySources,
         weaponData,
-        resonatorCatalog,
-        resonatorDetails,
+        resCat,
+        resDtls,
         echoCatalog,
         echoStats,
         sonataSets,
         echoSetDefs,
       ] =
         await Promise.all([
-          fetch('/data/resonator-sources.json').then((r) => r.json() as Promise<SourcePackage[]>),
-          fetch('/data/echo-sources.json').then((r) => r.json() as Promise<SourcePackage[]>),
-          fetch('/data/weapon-data.json').then((r) => r.json() as Promise<GeneratedWeapon[]>),
-          fetch('/data/resonator-catalog.json').then((r) => r.json() as Promise<ResonatorSeed[]>),
-          fetch('/data/resonator-details.json').then((r) => r.json() as Promise<Record<string, ResonatorDetails>>),
-          fetch('/data/echo-catalog.json').then((r) => r.json() as Promise<EchoDefinition[]>),
-          fetch('/data/echo-stats.json').then((r) => r.json() as Promise<EchoStatsCatalogData>),
-          fetch('/data/sonata-sets.json').then((r) => r.json() as Promise<SonataSetDefinition[]>),
+          fetch('/data/resonator-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
+          fetch('/data/echo-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
+          fetch('/data/enemy-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
+          fetch('/data/weapon-data.json').then((r) => r.json() as Promise<GenWpn[]>),
+          fetch('/data/resonator-catalog.json').then((r) => r.json() as Promise<ResSeed[]>),
+          fetch('/data/resonator-details.json').then((r) => r.json() as Promise<Record<string, ResDtls>>),
+          fetch('/data/echo-catalog.json').then((r) => r.json() as Promise<EchoDef[]>),
+          fetch('/data/echo-stats.json').then((r) => r.json() as Promise<EchoSttsCatD>),
+          fetch('/data/sonata-sets.json').then((r) => r.json() as Promise<SntSetDef[]>),
           fetch('/data/sonata-set-defs.json').then((r) => r.json() as Promise<SetDef[]>),
         ])
 
-      initResonatorCatalog(resonatorCatalog)
-      initResonatorDetails(resonatorDetails)
-      initWeaponData(weaponData)
-      initEchoCatalog(normalizeEchoCatalog(echoCatalog))
-      initEchoStatsCatalog(echoStats)
-      initSonataSets(sonataSets)
-      initEchoSetDefinitions(echoSetDefs)
+      initResCat(resCat)
+      initResDtls(resDtls)
+      initWpnData(weaponData)
+      initEchoCat(normEchoCat(echoCatalog))
+      initEchoStts(echoStats)
+      initSntSets(sonataSets)
+      initEchoSetD(echoSetDefs)
 
-      const allSources: SourcePackage[] = [
-        ...resonatorSources,
+      const allSources: SrcPkg[] = [
+        ...resSrcs,
         ...echoSources,
-        ...buildWeaponSources(weaponData),
-        ...sonataSetSources,
+        ...enemySources,
+        ...mkWpnSrcs(weaponData),
+        ...sntSetSrcs,
       ]
 
-      getGameDataGlobalState().registry = buildGameDataRegistry(allSources)
+      getGameDataG().registry = mkGameDataRe(allSources)
     })().catch((error) => {
-      const nextState = getGameDataGlobalState()
+      const nextState = getGameDataG()
       nextState.initializationPromise = null
       throw error
     })
@@ -121,10 +124,10 @@ export async function initializeGameData(): Promise<void> {
 }
 
 // get the global game-data registry (must call initializeGameData first)
-export function getGameData(): GameDataRegistry {
-  const state = getGameDataGlobalState()
+export function getGameData(): GameDataReg {
+  const state = getGameDataG()
   if (!state.registry) {
-    throw new Error('Game data not initialized — call initializeGameData() first')
+    throw new Error('Game data not initialized, call initializeGameData() first')
   }
 
   return state.registry

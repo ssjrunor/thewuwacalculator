@@ -5,18 +5,18 @@
 */
 
 import type {
-  ConditionExpression,
-  ConditionDefinition,
-  EffectDefinition,
-  FeatureDefinition,
-  RotationDefinition,
-  SourceOwnerDefinition,
-  SourceStateDefinition,
+  CondExpr,
+  CondDef,
+  EffectDef,
+  FeatDef,
+  RotDef,
+  SrcOwnDef,
+  SourceState,
 } from '@/domain/gameData/contracts'
 import type { CombatState } from '@/domain/entities/runtime'
-import type { AttributeKey, ResonatorBaseStats, SkillDefinition } from '@/domain/entities/stats'
+import type { AttributeKey, ResBaseStats, SkillDef } from '@/domain/entities/stats'
 
-export type ResonatorSkillTabKey =
+export type SkillTabKey =
     | 'normalAttack'
     | 'resonanceSkill'
     | 'forteCircuit'
@@ -25,21 +25,24 @@ export type ResonatorSkillTabKey =
     | 'outroSkill'
     | 'tuneBreak'
 
-export interface ResonatorStateControl {
+export interface ResStateControl {
   key: string
   label: string
   kind: 'toggle' | 'number' | 'select'
   target: 'controls'
+  defaultValue?: boolean | number
   disabledReason?: string
-  visibleWhen?: ConditionExpression
-  enabledWhen?: ConditionExpression
+  visibleWhen?: CondExpr
+  enabledWhen?: CondExpr
+  controlDependencies?: string[]
+  displayScope?: 'self' | 'team'
   resets?: string[]
   min?: number
   max?: number
   step?: number
   options?: number[]
   optionsWhen?: Array<{
-    when: ConditionExpression
+    when: CondExpr
     options: number[]
   }>
   sequenceAwareOptions?: {
@@ -61,85 +64,85 @@ export interface ResonatorStateControl {
   }
 }
 
-export interface ResonatorStatePanel {
+export interface ResSttPnl {
   id: string
   title: string
   body: string
   param?: Array<string | number>
   keywords?: string[]
-  visibleWhen?: ConditionExpression
-  controls: ResonatorStateControl[]
+  visibleWhen?: CondExpr
+  controls: ResStateControl[]
 }
 
-export interface ResonatorSkillMultiplier {
+export interface ResSkllMltp {
   id: string
   label: string
   values: string[]
 }
 
-export interface ResonatorSkillPanel {
+export interface ResSkllPnl {
   id: string
   type: string
   name: string
   desc: string
   param: string[]
-  multipliers: ResonatorSkillMultiplier[]
+  multipliers: ResSkllMltp[]
   keywords?: string[]
 }
 
-export interface ResonatorNegativeEffectSourceEntry {
+export interface ResNegFfctSr {
   key: keyof CombatState
   max?: number
-  enabledWhen?: ConditionExpression
+  enabledWhen?: CondExpr
 }
 
-export interface ResonatorNegativeEffectMaxAddEntry {
+export interface ResNegFfctMa {
   type: 'maxAdd'
   key: keyof CombatState
   value: number
-  enabledWhen?: ConditionExpression
+  enabledWhen?: CondExpr
 }
 
-export interface ResonatorNegativeEffectGlobalMaxAddEntry {
+export interface ResNegFfctGl {
   type: 'globalMaxAdd'
   value: number
-  enabledWhen?: ConditionExpression
+  enabledWhen?: CondExpr
 }
 
-export interface ResonatorNegativeEffectBehaviorEntry {
+export interface ResNegFfctBh {
   type: 'behavior'
   key: keyof CombatState
   stackMode?: 'fixedMax'
   label?: string
-  enabledWhen?: ConditionExpression
+  enabledWhen?: CondExpr
 }
 
-export type ResonatorNegativeEffectSource =
-  | ResonatorNegativeEffectSourceEntry
-  | ResonatorNegativeEffectMaxAddEntry
-  | ResonatorNegativeEffectGlobalMaxAddEntry
-  | ResonatorNegativeEffectBehaviorEntry
+export type ResNegFfcthn =
+  | ResNegFfctSr
+  | ResNegFfctMa
+  | ResNegFfctGl
+  | ResNegFfctBh
 
-export interface ResonatorInherentSkill {
+export interface ResNhrnSkll {
   id: string
   ownerKey?: string
   name: string
   desc: string
   param: string[]
   unlockLevel: number
-  control?: ResonatorStateControl
+  control?: ResStateControl
   keywords?: string[]
 }
 
-export interface ResonanceChain {
+export interface RsnnChn {
   index: number
   ownerKey?: string
   name: string
   desc: string
   param: string[]
-  controls?: ResonatorStateControl[]
-  control?: ResonatorStateControl
-  toggleControl?: ResonatorStateControl
+  controls?: ResStateControl[]
+  control?: ResStateControl
+  toggleControl?: ResStateControl
   keywords?: string[]
 }
 
@@ -152,7 +155,7 @@ export interface TraceNode {
   keywords?: string[]
 }
 
-export interface ResonatorMenuEntry {
+export interface ResMenuEnt {
   id: string
   displayName: string
   profile: string
@@ -161,15 +164,15 @@ export interface ResonatorMenuEntry {
   weaponType: 1 | 2 | 3 | 4 | 5
 }
 
-export interface ResonatorDetails {
-  skillTabs: ResonatorSkillTabKey[]
-  skillsByTab: Partial<Record<ResonatorSkillTabKey, ResonatorSkillPanel>>
-  statePanels: ResonatorStatePanel[]
-  inherentSkills: ResonatorInherentSkill[]
-  resonanceChains: ResonanceChain[]
+export interface ResDtls {
+  skillTabs: SkillTabKey[]
+  skillsByTab: Partial<Record<SkillTabKey, ResSkllPnl>>
+  statePanels: ResSttPnl[]
+  inherentSkills: ResNhrnSkll[]
+  resonanceChains: RsnnChn[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]
-  negativeEffectSources?: ResonatorNegativeEffectSource[]
+  negativeEffectSources?: ResNegFfcthn[]
 }
 
 export interface Resonator {
@@ -178,23 +181,26 @@ export interface Resonator {
   rarity: 4 | 5
   profile: string
   sprite: string
+  spriteFaceX?: number
+  spriteFaceY?: number
+  spriteFaceScale?: number
   attribute: AttributeKey
   weaponType: 1 | 2 | 3 | 4 | 5
-  baseStats: ResonatorBaseStats
+  baseStats: ResBaseStats
   baseStatsByLevel?: Partial<Record<number, { hp: number; atk: number; def: number }>>
   defaultWeaponId: string | null
-  skillsByTab: Partial<Record<ResonatorSkillTabKey, ResonatorSkillPanel>>
-  statePanels: ResonatorStatePanel[]
-  inherentSkills: ResonatorInherentSkill[]
-  resonanceChains: ResonanceChain[]
+  skillsByTab: Partial<Record<SkillTabKey, ResSkllPnl>>
+  statePanels: ResSttPnl[]
+  inherentSkills: ResNhrnSkll[]
+  resonanceChains: RsnnChn[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]
-  negativeEffectSources?: ResonatorNegativeEffectSource[]
-  owners: SourceOwnerDefinition[]
-  states: SourceStateDefinition[]
-  conditions: ConditionDefinition[]
-  effects: EffectDefinition[]
-  features: FeatureDefinition[]
-  rotations: RotationDefinition[]
-  skills: SkillDefinition[]
+  negativeEffectSources?: ResNegFfcthn[]
+  owners: SrcOwnDef[]
+  states: SourceState[]
+  conditions: CondDef[]
+  effects: EffectDef[]
+  features: FeatDef[]
+  rotations: RotDef[]
+  skills: SkillDef[]
 }

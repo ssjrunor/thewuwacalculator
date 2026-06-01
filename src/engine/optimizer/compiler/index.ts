@@ -6,11 +6,12 @@
 */
 
 import type {
-  PreparedOptimizerPayload,
-  OptimizerStartPayload,
+  PrepOptPay,
+  OptStartPay,
 } from '@/engine/optimizer/types.ts'
-import { compileTargetRun } from '@/engine/optimizer/compiler/target.ts'
-import { compileRotationRun } from '@/engine/optimizer/compiler/rotation.ts'
+import { compTgtRun } from '@/engine/optimizer/compiler/target.ts'
+import { compRotRun } from '@/engine/optimizer/compiler/rotation.ts'
+import { compThryRot, compThryTgt } from '@/engine/optimizer/compiler/theory.ts'
 
 // Compile the raw optimizer start payload into the packed form that the
 // execution layer expects.
@@ -18,10 +19,16 @@ import { compileRotationRun } from '@/engine/optimizer/compiler/rotation.ts'
 // The decision is simple:
 // - rotationMode = true -> build a rotation optimizer payload
 // - rotationMode = false -> build a single-target-skill optimizer payload
-export function compileOptimizerPayload(
-    input: OptimizerStartPayload,
-): PreparedOptimizerPayload {
+export function compOptPay(
+    input: OptStartPay,
+): PrepOptPay {
+  if (input.settings.searchMode === 'theory') {
+    return input.settings.rotationMode
+        ? compThryRot(input)
+        : compThryTgt(input)
+  }
+
   return input.settings.rotationMode
-      ? compileRotationRun(input)
-      : compileTargetRun(input)
+      ? compRotRun(input)
+      : compTgtRun(input)
 }

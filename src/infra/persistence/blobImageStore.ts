@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Small indexeddb-backed blob store used for image snapshots and
+               other local binary persistence needs.
+*/
+
 const DB_NAME = 'WuWaCalculatorImageStore'
 const STORE_NAME = 'images'
 const DB_VERSION = 1
@@ -7,6 +13,8 @@ function openDatabase(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onupgradeneeded = () => {
+      // create the single object store lazily so the browser can upgrade the
+      // database the first time this feature is used.
       const database = request.result
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME)
@@ -19,7 +27,7 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 // stores an image blob under a stable key for later reuse.
-export async function saveImageBlob(key: string, blob: Blob): Promise<void> {
+export async function saveMgBlob(key: string, blob: Blob): Promise<void> {
   const database = await openDatabase()
 
   await new Promise<void>((resolve, reject) => {
@@ -32,7 +40,7 @@ export async function saveImageBlob(key: string, blob: Blob): Promise<void> {
 }
 
 // loads an image blob by key and returns null when no cached entry exists.
-export async function loadImageBlob(key: string): Promise<Blob | null> {
+export async function loadMgBlob(key: string): Promise<Blob | null> {
   const database = await openDatabase()
 
   return new Promise((resolve, reject) => {

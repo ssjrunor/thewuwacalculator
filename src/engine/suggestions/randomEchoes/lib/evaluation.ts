@@ -6,18 +6,18 @@
 */
 
 import { evalTarget } from '@/engine/optimizer/target/evaluate'
-import type { SuggestionEvaluationContext } from '@/engine/suggestions/types'
+import type { SuggestContext } from '@/engine/suggestions/types'
 import type { RandGenEcho } from './echoSetBuilder'
 
 // number of encoded stat slots stored per echo row
 const STATS_PER_ECHO = 20
 
 // number of main-echo buff fields stored per echo row
-const MAIN_BUFFS_PER_ECHO = 15
+const MAIN_BUFF_SIZE = 15
 
 // allocate an empty main-echo buff buffer for a given echo count
-export function buildZeroMainEchoBuffs(count: number): Float32Array {
-  return new Float32Array(count * MAIN_BUFFS_PER_ECHO)
+export function mkZeroMainEc(count: number): Float32Array {
+  return new Float32Array(count * MAIN_BUFF_SIZE)
 }
 
 // write one stat key into its fixed encoded slot for a single echo row
@@ -49,7 +49,7 @@ function addStat(vector: Float32Array, base: number, key: string, value: number)
 }
 
 // convert generated echoes into the compact arrays expected by evalTarget
-function encodeRandGenEchoStats(echoes: RandGenEcho[]): {
+function encRandGenEc(echoes: RandGenEcho[]): {
   stats: Float32Array
   sets: Uint8Array
   kinds: Uint16Array
@@ -64,7 +64,7 @@ function encodeRandGenEchoStats(echoes: RandGenEcho[]): {
 
     // encode the main stats first
     addStat(stats, base, echo.primaryKey, echo.primaryValue)
-    addStat(stats, base, echo.secondaryKey, echo.secondaryValue)
+    addStat(stats, base, echo.secondaryKey, echo.scndVl)
 
     // then encode every rolled substat
     for (const [key, value] of Object.entries(echo.substats)) {
@@ -83,21 +83,21 @@ function encodeRandGenEchoStats(echoes: RandGenEcho[]): {
 }
 
 // evaluate one generated echo set in either direct-target or rotation mode
-export function evaluateRandGenEchoSet(
+export function evalRandGenE(
     echoes: RandGenEcho[],
-    context: SuggestionEvaluationContext,
+    context: SuggestContext,
     comboIds: Int32Array,
     mainEchoBuffs: Float32Array,
 ): number {
-  const { stats, sets, kinds } = encodeRandGenEchoStats(echoes)
+  const { stats, sets, kinds } = encRandGenEc(echoes)
 
   // direct mode runs a single packed target context
   if (context.mode === 'target') {
     return evalTarget({
-      context: context.packedContext,
+      context: context.pckdCtx,
       stats,
       setConstLut: context.setConstLut,
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
       sets,
       kinds,
       comboIds,
@@ -118,14 +118,14 @@ export function evaluateRandGenEchoSet(
       context: slice,
       stats,
       setConstLut: context.setConstLut,
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
       sets,
       kinds,
       comboIds,
       mainIndex: 0,
     })?.damage ?? 0
 
-    total += damage * (context.contextWeights[i] ?? 1)
+    total += damage * (context.contextWeight[i] ?? 1)
   }
 
   return total

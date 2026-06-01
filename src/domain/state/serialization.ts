@@ -4,11 +4,11 @@
                and serialization.
 */
 
-import type { PersistedAppState } from '@/domain/entities/appState'
+import type { PersistedState } from '@/domain/entities/appState'
 import type { AppStore } from '@/domain/state/store'
 
 // select the persisted subset of app state
-export function selectPersistedState(state: AppStore): PersistedAppState {
+export function selectPersisted(state: AppStore): PersistedState {
   return {
     version: state.version,
     ui: state.ui,

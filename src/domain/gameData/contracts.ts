@@ -5,33 +5,33 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { TeamCompositionInfo } from '@/domain/gameData/teamComposition'
-import type { ResonatorNegativeEffectSource } from '@/domain/entities/resonator'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { TeamCmpsInfo } from '@/domain/gameData/teamComposition'
+import type { ResNegFfcthn } from '@/domain/entities/resonator'
+import type { ResRuntime } from '@/domain/entities/runtime'
 import type {
   AttributeKey,
   FinalStats,
   ModBuff,
-  NegativeEffectBuff,
-  NegativeEffectKey,
-  ResonatorBaseStats,
-  SkillAggregationType,
-  SkillArchetype,
-  SkillDefinition,
-  SkillSubHitResult,
+  NegEffectBuff,
+  NegEffectKey,
+  ResBaseStats,
+  SkillAggType,
+  SkillArch,
+  SkillDef,
+  SkillSubHit,
   SkillTypeKey,
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
 
-export type DataSourceType = 'resonator' | 'weapon' | 'echo' | 'echoSet' | 'enemy'
+export type DataSrcType = 'resonator' | 'weapon' | 'echo' | 'echoSet' | 'enemy'
 
-export interface DataSourceRef {
-  type: DataSourceType
+export interface DataSrcRef {
+  type: DataSrcType
   id: string
 }
 
-export type SourceOwnerScope = 'resonator' | 'weapon' | 'echo' | 'team' | 'sequence' | 'inherent'
-export type SourceOwnerKind =
+export type SrcOwnScp = 'resonator' | 'weapon' | 'echo' | 'team' | 'sequence' | 'inherent'
+export type SrcOwnKind =
     | 'stateGroup'
     | 'inherent'
     | 'sequence'
@@ -40,32 +40,32 @@ export type SourceOwnerKind =
     | 'weaponPassive'
     | 'echoPassive'
 
-export interface SourceOwnerDefinition {
+export interface SrcOwnDef {
   id: string
   label: string
-  source: DataSourceRef
-  scope: SourceOwnerScope
-  kind: SourceOwnerKind
+  source: DataSrcRef
+  scope: SrcOwnScp
+  kind: SrcOwnKind
   ownerKey: string
   description?: string
-  unlockWhen?: ConditionExpression
-  visibleWhen?: ConditionExpression
+  unlockWhen?: CondExpr
+  visibleWhen?: CondExpr
 }
 
-export interface SourceStateOption {
+export interface SrcSttPtn {
   id: string
   label: string
 }
 
-export interface SourceStateConditionalOptions {
-  when: ConditionExpression
-  options: SourceStateOption[]
+export interface SrcSttCondPt {
+  when: CondExpr
+  options: SrcSttPtn[]
 }
 
-export interface SourceStateDefinition {
+export interface SourceState {
   id: string
   label: string
-  source: DataSourceRef
+  source: DataSrcRef
   ownerKey: string
   controlKey: string
   path: string
@@ -76,15 +76,15 @@ export interface SourceStateDefinition {
   defaultValue?: boolean | number | string
   min?: number
   max?: number
-  options?: SourceStateOption[]
-  optionsWhen?: SourceStateConditionalOptions[]
+  options?: SrcSttPtn[]
+  optionsWhen?: SrcSttCondPt[]
   description?: string
   disabledReason?: string
-  visibleWhen?: ConditionExpression
-  enabledWhen?: ConditionExpression
+  visibleWhen?: CondExpr
+  enabledWhen?: CondExpr
 }
 
-export type EvalScopeRoot =
+export type EvalScpRoot =
     | 'sourceRuntime'
     | 'sourceFinalStats'
     | 'targetRuntime'
@@ -94,20 +94,20 @@ export type EvalScopeRoot =
     | 'finalStats'
     | 'context'
 
-export type FormulaExpression =
+export type FormExpr =
     | {
   type: 'const'
   value: number
 }
     | {
   type: 'read'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   default?: number
 }
     | {
   type: 'table'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   values: number[]
   minIndex?: number
@@ -116,94 +116,94 @@ export type FormulaExpression =
 }
     | {
   type: 'add'
-  values: FormulaExpression[]
+  values: FormExpr[]
 }
     | {
   type: 'mul'
-  values: FormulaExpression[]
+  values: FormExpr[]
 }
     | {
   type: 'clamp'
-  value: FormulaExpression
+  value: FormExpr
   min?: number
   max?: number
 }
 
-export type ConditionExpression =
+export type CondExpr =
     | {
   type: 'always'
 }
     | {
   type: 'not'
-  value: ConditionExpression
+  value: CondExpr
 }
     | {
   type: 'truthy'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
 }
     | {
   type: 'eq'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: string | number | boolean
 }
     | {
   type: 'neq'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: string | number | boolean
 }
     | {
   type: 'gt'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: number
 }
     | {
   type: 'gte'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: number
 }
     | {
   type: 'lt'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: number
 }
     | {
   type: 'lte'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: number
 }
     | {
   type: 'includes'
-  from?: EvalScopeRoot
+  from?: EvalScpRoot
   path: string
   value: string | number | boolean
   itemPath?: string
 }
     | {
   type: 'and'
-  values: ConditionExpression[]
+  values: CondExpr[]
 }
     | {
   type: 'or'
-  values: ConditionExpression[]
+  values: CondExpr[]
 }
 
-export interface SkillMatchRule {
+export interface SkllMtchRule {
   skillIds?: string[]
   tabs?: string[]
   skillTypes?: SkillTypeKey[]
 }
 
 export type BaseStatKey = 'atk' | 'hp' | 'def'
-export type BaseStatField = 'percent' | 'flat'
+export type BaseStatFld = 'percent' | 'flat'
 
-export type TopBuffStatKey =
+export type TopBuffStatK =
     | 'flatDmg'
     | 'amplify'
     | 'critRate'
@@ -218,52 +218,64 @@ export type TopBuffStatKey =
     | 'tuneBreakBoost'
     | 'special'
 
-export type EffectOperation =
+// scope for a damage immunity (see ImmunitySet). `all` zeroes every attack against the enemy;
+// the others zero attacks matching the given element(s), skill type(s), or negative-effect archetype(s).
+export type ImmunityScope =
+    | { target: 'all' }
+    | { target: 'element'; keys: AttributeKey[] }
+    | { target: 'skillType'; keys: SkillTypeKey[] }
+    | { target: 'negativeEffect'; keys: NegEffectKey[] }
+
+export type EffectOp =
     | {
   type: 'add_base_stat'
   stat: BaseStatKey
-  field: BaseStatField
-  value: FormulaExpression
+  field: BaseStatFld
+  value: FormExpr
+}
+    | {
+  type: 'add_immunity'
+  scope: ImmunityScope
 }
     | {
   type: 'add_top_stat'
-  stat: TopBuffStatKey
-  value: FormulaExpression
+  stat: TopBuffStatK
+  value: FormExpr
 }
     | {
   type: 'add_attribute_mod'
   attribute: (AttributeKey | 'all') | (AttributeKey | 'all')[]
   mod: keyof ModBuff
-  value: FormulaExpression
+  value: FormExpr
 }
     | {
   type: 'add_skilltype_mod'
   skillType: SkillTypeKey | SkillTypeKey[]
   mod: keyof ModBuff
-  value: FormulaExpression
+  value: FormExpr
 }
     | {
   type: 'add_negative_effect_mod'
-  negativeEffect: NegativeEffectKey | NegativeEffectKey[]
-  mod: keyof NegativeEffectBuff
-  value: FormulaExpression
+  negativeEffect: NegEffectKey | NegEffectKey[]
+  mod: keyof NegEffectBuff
+  value: FormExpr
 }
     | {
   type: 'add_skill_mod'
   mod: keyof ModBuff
-  value: FormulaExpression
-  match?: SkillMatchRule
+  value: FormExpr
+  match?: SkllMtchRule
 }
     | {
   type: 'add_skill_multiplier'
-  value: FormulaExpression
-  match?: SkillMatchRule
+  value: FormExpr
+  match?: SkllMtchRule
 }
     | {
   type: 'add_skill_hit_multiplier'
   hitIndex: number
-  value: FormulaExpression
-  match?: SkillMatchRule
+  value: FormExpr
+  match?: SkllMtchRule
 }
     | {
   type: 'add_skill_scalar'
@@ -275,32 +287,33 @@ export type EffectOperation =
       | 'tuneRuptureCritDmg'
       | 'negativeEffectCritRate'
       | 'negativeEffectCritDmg'
-  value: FormulaExpression
-  match?: SkillMatchRule
+  value: FormExpr
+  match?: SkllMtchRule
 }
     | {
   type: 'scale_skill_multiplier'
-  value: FormulaExpression
-  match?: SkillMatchRule
+  value: FormExpr
+  match?: SkllMtchRule
 }
 
-export interface EffectDefinition {
+export interface EffectDef {
   id: string
   label: string
-  source: DataSourceRef
+  description?: string
+  source: DataSrcRef
   ownerKey?: string
   trigger: 'runtime' | 'skill'
   stage?: 'preStats' | 'postStats'
   targetScope?: 'self' | 'active' | 'activeOther' | 'teamWide' | 'otherTeammates'
-  condition?: ConditionExpression
-  operations: EffectOperation[]
+  condition?: CondExpr
+  operations: EffectOp[]
   tags?: string[]
 }
 
-export interface ConditionDefinition {
+export interface CondDef {
   id: string
   label: string
-  source: DataSourceRef
+  source: DataSrcRef
   ownerKey?: string
   controlKey?: string
   path: string
@@ -309,13 +322,13 @@ export interface ConditionDefinition {
   defaultValue?: boolean | number | string
   min?: number
   max?: number
-  options?: SourceStateOption[]
-  visibleWhen?: ConditionExpression
+  options?: SrcSttPtn[]
+  visibleWhen?: CondExpr
 }
 
 export type RuntimeValue = string | number | boolean
 
-export type RuntimeChange =
+export type RtChng =
     | {
   type: 'set'
   path: string
@@ -336,137 +349,161 @@ export type RuntimeChange =
 }
 
 // shared base for rotation nodes
-interface RotationNodeBase {
+interface RotNodeBase {
   id: string
   resonatorId?: string
   enabled?: boolean
+  when?: RotWhenRule
 }
 
-export interface FeatureDefinition {
+export interface FeatDef {
   id: string
   label: string
-  source: DataSourceRef
+  source: DataSrcRef
   kind: 'skill'
   skillId: string
   variant?: 'skill' | 'subHit'
   hitIndex?: number
-  condition?: ConditionExpression
+  condition?: CondExpr
   tags?: string[]
   after?: RotationNode[]
 }
 
-export type RotationValue = number | FormulaExpression
+export type RotVl = number | FormExpr
+
+export interface RotWhenRule {
+  condition?: CondExpr
+  loops?: Array<{
+    loopId: string
+    runs: number[]
+  }>
+}
 
 export type RotationNode =
-    | (RotationNodeBase & {
+    | (RotNodeBase & {
   type: 'feature'
   featureId: string
   multiplier?: number
   negativeEffectStacks?: number
   negativeEffectInstances?: number
   negativeEffectStableWidth?: number
-  changes?: RuntimeChange[]
-  condition?: ConditionExpression
+  changes?: RtChng[]
+  condition?: CondExpr
 })
-    | (RotationNodeBase & {
+    | (RotNodeBase & {
   type: 'condition'
   label?: string
-  condition?: ConditionExpression
-  changes: RuntimeChange[]
+  condition?: CondExpr
+  changes: RtChng[]
 })
-    | (RotationNodeBase & {
+    | (RotNodeBase & {
   type: 'repeat'
-  condition?: ConditionExpression
-  times: RotationValue
+  condition?: CondExpr
+  times: RotVl
   items: RotationNode[]
 })
-    | (RotationNodeBase & {
+    | (RotNodeBase & {
   type: 'uptime'
-  condition?: ConditionExpression
-  ratio: RotationValue
+  condition?: CondExpr
+  ratio: RotVl
   setup?: RotationNode[]
   items: RotationNode[]
 })
+    | (RotNodeBase & {
+  type: 'loop'
+  kind: 'start'
+  loopId: string
+  label?: string
+  color?: string
+  runs?: number
+})
+    | ({
+  id: string
+  type: 'loop'
+  kind: 'end'
+  loopId: string
+  enabled?: boolean
+})
 
-export interface RotationDefinition {
+export interface RotDef {
   id: string
   label: string
   description?: string
-  source: DataSourceRef
+  source: DataSrcRef
   items: RotationNode[]
 }
 
-export interface SourcePackage {
-  source: DataSourceRef
-  owners?: SourceOwnerDefinition[]
-  states?: SourceStateDefinition[]
-  conditions?: ConditionDefinition[]
-  skills?: SkillDefinition[]
-  effects?: EffectDefinition[]
-  features?: FeatureDefinition[]
-  rotations?: RotationDefinition[]
+export interface SrcPkg {
+  source: DataSrcRef
+  owners?: SrcOwnDef[]
+  states?: SourceState[]
+  conditions?: CondDef[]
+  skills?: SkillDef[]
+  effects?: EffectDef[]
+  features?: FeatDef[]
+  rotations?: RotDef[]
 }
 
-export interface EffectSourceBuckets {
-  all: EffectDefinition[]
-  runtime: EffectDefinition[]
-  runtimePreStats: EffectDefinition[]
-  runtimePostStats: EffectDefinition[]
-  skill: EffectDefinition[]
+export interface EffectBuckets {
+  all: EffectDef[]
+  runtime: EffectDef[]
+  runtimePreStats: EffectDef[]
+  runtimePostStats: EffectDef[]
+  skill: EffectDef[]
 }
 
-export interface GameDataRegistry {
-  sourcesByKey: Record<string, SourcePackage>
-  ownersBySourceKey: Record<string, SourceOwnerDefinition[]>
-  ownersByKey: Record<string, SourceOwnerDefinition>
-  effectsBySourceKey: Record<string, EffectDefinition[]>
-  effectBucketsBySourceKey: Record<string, EffectSourceBuckets>
-  effectsByOwnerKey: Record<string, EffectDefinition[]>
-  statesBySourceKey: Record<string, SourceStateDefinition[]>
-  statesByOwnerKey: Record<string, SourceStateDefinition[]>
-  statesByControlKey: Record<string, SourceStateDefinition>
-  conditionsBySourceKey: Record<string, ConditionDefinition[]>
-  conditionsByOwnerKey: Record<string, ConditionDefinition[]>
-  featuresBySourceKey: Record<string, FeatureDefinition[]>
-  rotationsBySourceKey: Record<string, RotationDefinition[]>
-  skillsBySourceKey: Record<string, SkillDefinition[]>
-  resonatorSkillsById: Record<string, SkillDefinition[]>
-  resonatorFeaturesById: Record<string, FeatureDefinition[]>
-  resonatorRotationsById: Record<string, RotationDefinition[]>
+export interface GameDataReg {
+  sourcesByKey: Record<string, SrcPkg>
+  ownersBySourceKey: Record<string, SrcOwnDef[]>
+  ownersByKey: Record<string, SrcOwnDef>
+  effectsBySourceKey: Record<string, EffectDef[]>
+  effectBucketsBySourceKey: Record<string, EffectBuckets>
+  effectsByOwnerKey: Record<string, EffectDef[]>
+  statesBySourceKey: Record<string, SourceState[]>
+  statesByOwnerKey: Record<string, SourceState[]>
+  statesByControlKey: Record<string, SourceState>
+  conditionsBySourceKey: Record<string, CondDef[]>
+  conditionsByOwnerKey: Record<string, CondDef[]>
+  featuresBySourceKey: Record<string, FeatDef[]>
+  rotationsBySourceKey: Record<string, RotDef[]>
+  skillsBySourceKey: Record<string, SkillDef[]>
+  resonatorSkillsById: Record<string, SkillDef[]>
+  resonatorFeaturesById: Record<string, FeatDef[]>
+  resonatorRotationsById: Record<string, RotDef[]>
 }
 
-export interface EffectRuntimeContext {
+export interface EffectContext {
   slotIndex?: number
   echoSetCounts: Record<string, number>
-  team: TeamCompositionInfo
-  source: DataSourceRef & {
-    negativeEffectSources?: ResonatorNegativeEffectSource[]
+  team: TeamCmpsInfo
+  source: DataSrcRef & {
+    negativeEffectSources?: ResNegFfcthn[]
   }
-  target?: DataSourceRef & {
-    negativeEffectSources?: ResonatorNegativeEffectSource[]
+  target?: DataSrcRef & {
+    negativeEffectSources?: ResNegFfcthn[]
   }
-  sourceRuntime: ResonatorRuntimeState
-  targetRuntime: ResonatorRuntimeState
-  activeRuntime?: ResonatorRuntimeState
+  sourceRuntime: ResRuntime
+  targetRuntime: ResRuntime
+  activeRuntime?: ResRuntime
   targetRuntimeId: string
   activeResonatorId: string
   teamMemberIds: string[]
   pool?: UnifiedBuffPool
-  baseStats?: ResonatorBaseStats
+  baseStats?: ResBaseStats
   sourceFinalStats?: FinalStats
   finalStats?: FinalStats
   selectedTargetsByOwnerKey?: Record<string, string | null>
   enemy?: EnemyProfile
 }
 
-export interface EffectEvalScope {
-  sourceRuntime: ResonatorRuntimeState
+export interface EffectScope {
+  sourceRuntime: ResRuntime
   sourceFinalStats?: FinalStats
-  targetRuntime: ResonatorRuntimeState
-  activeRuntime?: ResonatorRuntimeState
-  context: EffectRuntimeContext
+  targetRuntime: ResRuntime
+  activeRuntime?: ResRuntime
+  context: EffectContext
   pool?: UnifiedBuffPool
-  baseStats?: ResonatorBaseStats
+  baseStats?: ResBaseStats
   finalStats?: FinalStats
 }
 
@@ -475,16 +512,18 @@ export interface FeatureResult {
   nodeId?: string
   resonatorId: string
   resonatorName: string
-  feature: FeatureDefinition
-  skill: SkillDefinition
-  archetype: SkillArchetype
-  aggregationType: SkillAggregationType
+  feature: FeatDef
+  skill: SkillDef
+  archetype: SkillArch
+  aggregationType: SkillAggType
   multiplier: number
   weight: number
   normal: number
   crit: number
   avg: number
-  subHits: SkillSubHitResult[]
+  subHits: SkillSubHit[]
+  loopRuns?: Record<string, number>
+  loopRunCounts?: Record<string, number>
 }
 
-export type DamageFeatureResult = FeatureResult
+export type DamageFeature = FeatureResult

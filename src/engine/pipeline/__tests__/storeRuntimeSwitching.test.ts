@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getResonatorById } from '@/domain/services/catalogService'
-import { selectActiveRuntime } from '@/domain/state/selectors'
+import { selActRt } from '@/domain/state/selectors'
 import { useAppStore } from '@/domain/state/store'
 
 describe('store resonator switching', () => {
@@ -15,14 +15,14 @@ describe('store resonator switching', () => {
       throw new Error('missing test resonators')
     }
 
-    useAppStore.getState().activateResonator(phoebe)
-    useAppStore.getState().ensureResonatorRuntime(shorekeeper)
+    useAppStore.getState().actRes(phoebe)
+    useAppStore.getState().ensResRt(shorekeeper)
 
     const savedRotationItem = phoebe.rotations[0]?.items[0]
       ? structuredClone(phoebe.rotations[0].items[0])
       : null
 
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       build: {
         ...prev.build,
@@ -44,14 +44,14 @@ describe('store resonator switching', () => {
       },
     }))
 
-    useAppStore.getState().activateResonator(shorekeeper)
+    useAppStore.getState().actRes(shorekeeper)
 
-    const runtimeAfterFirstSwitch = selectActiveRuntime(useAppStore.getState())
+    const runtimeAfterFirstSwitch = selActRt(useAppStore.getState())
     expect(runtimeAfterFirstSwitch?.id).toBe(shorekeeper.id)
     expect(runtimeAfterFirstSwitch?.state.manualBuffs.quick.critRate).toBe(0)
     expect(runtimeAfterFirstSwitch?.build.team).toEqual([shorekeeper.id, null, null])
 
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       state: {
         ...prev.state,
@@ -65,9 +65,9 @@ describe('store resonator switching', () => {
       },
     }))
 
-    useAppStore.getState().activateResonator(phoebe)
+    useAppStore.getState().actRes(phoebe)
 
-    const runtimeAfterReturn = selectActiveRuntime(useAppStore.getState())
+    const runtimeAfterReturn = selActRt(useAppStore.getState())
     expect(runtimeAfterReturn?.id).toBe(phoebe.id)
     expect(runtimeAfterReturn?.state.manualBuffs.quick.critRate).toBe(11)
     expect(runtimeAfterReturn?.build.team).toEqual([phoebe.id, shorekeeper.id, null])

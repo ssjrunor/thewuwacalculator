@@ -6,40 +6,42 @@
 */
 
 import type {
-  ConditionExpression,
-  EvalScopeRoot,
-  EffectEvalScope,
-  EffectOperation,
-  FeatureDefinition,
-  FormulaExpression,
+  CondExpr,
+  EvalScpRoot,
+  EffectScope,
+  EffectOp,
+  FeatDef,
+  FormExpr,
   RotationNode,
-  SourcePackage,
-  SourceStateDefinition,
+  SrcPkg,
+  SourceState,
 } from '@/domain/gameData/contracts'
-import type { SkillDefinition } from '@/domain/entities/stats'
-import { readRuntimePath } from '@/domain/gameData/runtimePath'
+import type { SkillDef } from '@/domain/entities/stats'
+import { readRtPath } from '@/domain/gameData/runtimePath'
 
-interface ScopedPathRef {
-  from: EvalScopeRoot
+interface ScpdPathRef {
+  from: EvalScpRoot
   path: string
 }
 
-interface CompiledPathRef {
-  from: EvalScopeRoot
+interface CompPathRef {
+  from: EvalScpRoot
   parts: string[]
   runtimePath: string
-  usesRuntimePath: boolean
+  // tracks whether the path points at a runtime root so callers can preserve
+  // runtime-path dependency metadata without reparsing the expression.
+  usesRtPath: boolean
 }
 
-const scopedPathCache = new Map<string, CompiledPathRef>()
-const objectPathCache = new Map<string, string[]>()
+const scpdPathCch = new Map<string, CompPathRef>()
+const bjctPathCch = new Map<string, string[]>()
 
-function makeScopedPathCacheKey(path: string, from?: EvalScopeRoot): string {
+function mkScpdPathCc(path: string, from?: EvalScpRoot): string {
   return `${from ?? ''}::${path}`
 }
 
 // normalize an expression path into an explicit scope root and inner path
-function normalizeScopedPath(path: string, from?: EvalScopeRoot): ScopedPathRef {
+function normScpdPath(path: string, from?: EvalScpRoot): ScpdPathRef {
   if (from) {
     return { from, path }
   }
@@ -120,41 +122,41 @@ function normalizeScopedPath(path: string, from?: EvalScopeRoot): ScopedPathRef 
   }
 }
 
-function compileScopedPath(path: string, from?: EvalScopeRoot): CompiledPathRef {
-  const cacheKey = makeScopedPathCacheKey(path, from)
-  const cached = scopedPathCache.get(cacheKey)
+function compScpdPath(path: string, from?: EvalScpRoot): CompPathRef {
+  const cacheKey = mkScpdPathCc(path, from)
+  const cached = scpdPathCch.get(cacheKey)
   if (cached) {
     return cached
   }
 
-  const normalized = normalizeScopedPath(path, from)
+  const normalized = normScpdPath(path, from)
   const compiled = {
     from: normalized.from,
     parts: normalized.path.split('.').filter(Boolean),
     runtimePath: normalized.path,
-    usesRuntimePath:
+    usesRtPath:
         normalized.from === 'sourceRuntime'
         || normalized.from === 'targetRuntime'
         || normalized.from === 'activeRuntime',
   }
 
-  scopedPathCache.set(cacheKey, compiled)
+  scpdPathCch.set(cacheKey, compiled)
   return compiled
 }
 
-function compileObjectPath(path: string): string[] {
-  const cached = objectPathCache.get(path)
+function compBjctPath(path: string): string[] {
+  const cached = bjctPathCch.get(path)
   if (cached) {
     return cached
   }
 
   const parts = path.split('.').filter(Boolean)
-  objectPathCache.set(path, parts)
+  bjctPathCch.set(path, parts)
   return parts
 }
 
 // resolve the root object for a given evaluation scope
-function resolveRoot(scope: EffectEvalScope, from: EvalScopeRoot): unknown {
+function resolveRoot(scope: EffectScope, from: EvalScpRoot): unknown {
   switch (from) {
     case 'sourceRuntime':
       return scope.sourceRuntime
@@ -177,7 +179,7 @@ function resolveRoot(scope: EffectEvalScope, from: EvalScopeRoot): unknown {
   }
 }
 
-function readObjectPathParts(root: unknown, parts: string[]): unknown {
+function readBjctPath(root: unknown, parts: string[]): unknown {
   let cursor: unknown = root
 
   for (const part of parts) {
@@ -192,18 +194,20 @@ function readObjectPathParts(root: unknown, parts: string[]): unknown {
 }
 
 // read a value from a compiled scoped path
-function readCompiledPath(scope: EffectEvalScope, compiled: CompiledPathRef): unknown {
+// runtime-backed roots use the dedicated runtime-path helper so evaluator reads
+// stay aligned with the rest of the calculator's runtime semantics
+function readCompPath(scope: EffectScope, compiled: CompPathRef): unknown {
   const root = resolveRoot(scope, compiled.from)
 
-  if (compiled.usesRuntimePath) {
+  if (compiled.usesRtPath) {
     if (!root) {
       return undefined
     }
 
-    return readRuntimePath(root as typeof scope.sourceRuntime, compiled.runtimePath)
+    return readRtPath(root as typeof scope.sourceRuntime, compiled.runtimePath)
   }
 
-  return readObjectPathParts(root, compiled.parts)
+  return readBjctPath(root, compiled.parts)
 }
 
 // coerce a value into a number with fallback handling
@@ -241,124 +245,131 @@ function clampValue(value: number, min?: number, max?: number): number {
   return next
 }
 
-function primeFormulaExpression(formula: FormulaExpression): void {
+function prmFormExpr(formula: FormExpr): void {
   if (formula.type === 'read' || formula.type === 'table') {
-    compileScopedPath(formula.path, formula.from)
+    compScpdPath(formula.path, formula.from)
     return
   }
 
   if (formula.type === 'add' || formula.type === 'mul') {
     for (const value of formula.values) {
-      primeFormulaExpression(value)
+      prmFormExpr(value)
     }
     return
   }
 
   if (formula.type === 'clamp') {
-    primeFormulaExpression(formula.value)
+    prmFormExpr(formula.value)
   }
 }
 
-function primeConditionExpression(condition: ConditionExpression | undefined): void {
+function prmCondExpr(condition: CondExpr | undefined): void {
   if (!condition || condition.type === 'always') {
     return
   }
 
   if (condition.type === 'not') {
-    primeConditionExpression(condition.value)
+    prmCondExpr(condition.value)
     return
   }
 
   if (condition.type === 'and' || condition.type === 'or') {
     for (const value of condition.values) {
-      primeConditionExpression(value)
+      prmCondExpr(value)
     }
     return
   }
 
-  compileScopedPath(condition.path, condition.from)
+  compScpdPath(condition.path, condition.from)
 
   if (condition.type === 'includes' && condition.itemPath) {
-    compileObjectPath(condition.itemPath)
+    compBjctPath(condition.itemPath)
   }
 }
 
-function primeSkill(skill: SkillDefinition): void {
-  primeConditionExpression(skill.visibleWhen)
+function primeSkill(skill: SkillDef): void {
+  prmCondExpr(skill.visibleWhen)
 
   for (const entry of skill.skillTypeWhen ?? []) {
-    primeConditionExpression(entry.when)
+    prmCondExpr(entry.when)
   }
 }
 
-function primeFeature(feature: FeatureDefinition): void {
-  primeConditionExpression(feature.condition)
+function primeFeature(feature: FeatDef): void {
+  prmCondExpr(feature.condition)
 }
 
-function primeState(state: SourceStateDefinition): void {
-  primeConditionExpression(state.visibleWhen)
-  primeConditionExpression(state.enabledWhen)
+function primeState(state: SourceState): void {
+  prmCondExpr(state.visibleWhen)
+  prmCondExpr(state.enabledWhen)
 
   for (const optionSet of state.optionsWhen ?? []) {
-    primeConditionExpression(optionSet.when)
+    prmCondExpr(optionSet.when)
   }
 }
 
-function primeOperation(operation: EffectOperation): void {
-  primeFormulaExpression(operation.value)
+function prmOp(operation: EffectOp): void {
+  if (operation.type === 'add_immunity') {
+    return
+  }
+
+  prmFormExpr(operation.value)
 }
 
-function primeRotationNode(node: RotationNode): void {
-  primeConditionExpression(node.condition)
+function prmRotNode(node: RotationNode): void {
+  if ('condition' in node) {
+    prmCondExpr(node.condition)
+  }
+  prmCondExpr('when' in node ? node.when?.condition : undefined)
 
   if (node.type === 'repeat') {
     if (typeof node.times !== 'number') {
-      primeFormulaExpression(node.times)
+      prmFormExpr(node.times)
     }
 
     for (const child of node.items) {
-      primeRotationNode(child)
+      prmRotNode(child)
     }
     return
   }
 
   if (node.type === 'uptime') {
     if (typeof node.ratio !== 'number') {
-      primeFormulaExpression(node.ratio)
+      prmFormExpr(node.ratio)
     }
 
     for (const child of node.setup ?? []) {
-      primeRotationNode(child)
+      prmRotNode(child)
     }
 
     for (const child of node.items) {
-      primeRotationNode(child)
+      prmRotNode(child)
     }
   }
 }
 
-export function primeCompiledSkillExpressions(skills: SkillDefinition[]): void {
+export function prmCompSkllE(skills: SkillDef[]): void {
   for (const skill of skills) {
     primeSkill(skill)
   }
 }
 
-export function primeCompiledFeatureExpressions(features: FeatureDefinition[]): void {
+export function prmCompFeatE(features: FeatDef[]): void {
   for (const feature of features) {
     primeFeature(feature)
   }
 }
 
-export function primeCompiledStateExpressions(states: SourceStateDefinition[]): void {
+export function prmCompSttEx(states: SourceState[]): void {
   for (const state of states) {
     primeState(state)
   }
 }
 
-export function primeCompiledSourcePackageExpressions(source: SourcePackage): void {
+export function prmCompSrcPk(source: SrcPkg): void {
   for (const owner of source.owners ?? []) {
-    primeConditionExpression(owner.unlockWhen)
-    primeConditionExpression(owner.visibleWhen)
+    prmCondExpr(owner.unlockWhen)
+    prmCondExpr(owner.visibleWhen)
   }
 
   for (const state of source.states ?? []) {
@@ -366,43 +377,43 @@ export function primeCompiledSourcePackageExpressions(source: SourcePackage): vo
   }
 
   for (const condition of source.conditions ?? []) {
-    primeConditionExpression(condition.visibleWhen)
+    prmCondExpr(condition.visibleWhen)
   }
 
   for (const effect of source.effects ?? []) {
-    primeConditionExpression(effect.condition)
+    prmCondExpr(effect.condition)
     for (const operation of effect.operations) {
-      primeOperation(operation)
+      prmOp(operation)
     }
   }
 
-  primeCompiledSkillExpressions(source.skills ?? [])
-  primeCompiledFeatureExpressions(source.features ?? [])
+  prmCompSkllE(source.skills ?? [])
+  prmCompFeatE(source.features ?? [])
 
   for (const rotation of source.rotations ?? []) {
     for (const item of rotation.items) {
-      primeRotationNode(item)
+      prmRotNode(item)
     }
   }
 }
 
 // evaluate a formula expression against the given scope
-export function evaluateFormula(formula: FormulaExpression, scope: EffectEvalScope): number {
+export function evalForm(formula: FormExpr, scope: EffectScope): number {
   if (formula.type === 'const') {
     return formula.value
   }
 
   if (formula.type === 'read') {
     const fallback = formula.default ?? 0
-    return toNumber(readCompiledPath(scope, compileScopedPath(formula.path, formula.from)), fallback)
+    return toNumber(readCompPath(scope, compScpdPath(formula.path, formula.from)), fallback)
   }
 
   if (formula.type === 'table') {
-    const fallbackIndex = formula.defaultIndex ?? 0
+    const fllbNdx = formula.defaultIndex ?? 0
     const minIndex = formula.minIndex ?? 0
     const rawIndex = toNumber(
-        readCompiledPath(scope, compileScopedPath(formula.path, formula.from)),
-        fallbackIndex,
+        readCompPath(scope, compScpdPath(formula.path, formula.from)),
+        fllbNdx,
     )
     const index = clampValue(
         Math.floor(rawIndex),
@@ -414,15 +425,15 @@ export function evaluateFormula(formula: FormulaExpression, scope: EffectEvalSco
   }
 
   if (formula.type === 'add') {
-    return formula.values.reduce((acc, item) => acc + evaluateFormula(item, scope), 0)
+    return formula.values.reduce((acc, item) => acc + evalForm(item, scope), 0)
   }
 
   if (formula.type === 'mul') {
-    return formula.values.reduce((acc, item) => acc * evaluateFormula(item, scope), 1)
+    return formula.values.reduce((acc, item) => acc * evalForm(item, scope), 1)
   }
 
   if (formula.type === 'clamp') {
-    const value = evaluateFormula(formula.value, scope)
+    const value = evalForm(formula.value, scope)
     return clampValue(value, formula.min, formula.max)
   }
 
@@ -430,66 +441,68 @@ export function evaluateFormula(formula: FormulaExpression, scope: EffectEvalSco
 }
 
 // evaluate a condition expression against the given scope
-export function evaluateCondition(
-    condition: ConditionExpression | undefined,
-    scope: EffectEvalScope,
+// evaluate one authored condition tree against the current scope
+// these semantics are reused by effect visibility, skill gating, and rotation when rules
+export function evalCond(
+    condition: CondExpr | undefined,
+    scope: EffectScope,
 ): boolean {
   if (!condition || condition.type === 'always') {
     return true
   }
 
   if (condition.type === 'not') {
-    return !evaluateCondition(condition.value, scope)
+    return !evalCond(condition.value, scope)
   }
 
   if (condition.type === 'truthy') {
-    return Boolean(readCompiledPath(scope, compileScopedPath(condition.path, condition.from)))
+    return Boolean(readCompPath(scope, compScpdPath(condition.path, condition.from)))
   }
 
   if (condition.type === 'eq') {
-    return readCompiledPath(scope, compileScopedPath(condition.path, condition.from)) === condition.value
+    return readCompPath(scope, compScpdPath(condition.path, condition.from)) === condition.value
   }
 
   if (condition.type === 'neq') {
-    return readCompiledPath(scope, compileScopedPath(condition.path, condition.from)) !== condition.value
+    return readCompPath(scope, compScpdPath(condition.path, condition.from)) !== condition.value
   }
 
   if (condition.type === 'gt') {
-    return toNumber(readCompiledPath(scope, compileScopedPath(condition.path, condition.from)), 0) > condition.value
+    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) > condition.value
   }
 
   if (condition.type === 'gte') {
-    return toNumber(readCompiledPath(scope, compileScopedPath(condition.path, condition.from)), 0) >= condition.value
+    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) >= condition.value
   }
 
   if (condition.type === 'lt') {
-    return toNumber(readCompiledPath(scope, compileScopedPath(condition.path, condition.from)), 0) < condition.value
+    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) < condition.value
   }
 
   if (condition.type === 'lte') {
-    return toNumber(readCompiledPath(scope, compileScopedPath(condition.path, condition.from)), 0) <= condition.value
+    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) <= condition.value
   }
 
   if (condition.type === 'includes') {
-    const container = readCompiledPath(scope, compileScopedPath(condition.path, condition.from))
+    const container = readCompPath(scope, compScpdPath(condition.path, condition.from))
     if (!Array.isArray(container)) {
       return false
     }
 
-    const itemParts = condition.itemPath ? compileObjectPath(condition.itemPath) : null
+    const itemParts = condition.itemPath ? compBjctPath(condition.itemPath) : null
 
     return container.some((item) => {
-      const candidate = itemParts ? readObjectPathParts(item, itemParts) : item
+      const candidate = itemParts ? readBjctPath(item, itemParts) : item
       return candidate === condition.value
     })
   }
 
   if (condition.type === 'and') {
-    return condition.values.every((item) => evaluateCondition(item, scope))
+    return condition.values.every((item) => evalCond(item, scope))
   }
 
   if (condition.type === 'or') {
-    return condition.values.some((item) => evaluateCondition(item, scope))
+    return condition.values.some((item) => evalCond(item, scope))
   }
 
   return false

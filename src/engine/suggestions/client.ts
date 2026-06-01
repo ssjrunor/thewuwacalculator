@@ -5,14 +5,16 @@
 */
 
 import type {
-  MainStatSuggestionEntry,
-  PreparedMainStatSuggestionsInput,
-  PreparedRandomSuggestionsInput,
-  PreparedSetPlanSuggestionsInput,
-  RandomSuggestionEntry,
-  SetPlanSuggestionEntry,
-  SuggestionsWorkerInMessage,
-  SuggestionsWorkerOutMessage,
+  MainStatSugg,
+  MainStatPrep,
+  RandomPrep,
+  PrepSetPlanS,
+  PrepWeaponPlan,
+  RandomEntry,
+  SetPlanSuggest,
+  SuggsWrkrInM,
+  SuggsWrkrOut,
+  WeaponEntry,
 } from '@/engine/suggestions/types'
 
 // single shared worker instance reused across all suggestion jobs
@@ -39,7 +41,7 @@ function ensureWorker(): Worker {
   )
 
   // resolve or reject the matching pending promise when the worker responds
-  worker.onmessage = (event: MessageEvent<SuggestionsWorkerOutMessage>) => {
+  worker.onmessage = (event: MessageEvent<SuggsWrkrOut>) => {
     const message = event.data
     const pending = pendingJobs.get(message.id)
 
@@ -72,67 +74,89 @@ function ensureWorker(): Worker {
 }
 
 // run a main-stat suggestion job through the worker
-export function runMainStatSuggestionsJob(
-    payload: PreparedMainStatSuggestionsInput,
-): Promise<MainStatSuggestionEntry[]> {
+export function runMainStatS(
+    payload: MainStatPrep,
+): Promise<MainStatSugg[]> {
   return new Promise((resolve, reject) => {
     const id = nextJobId++
 
     pendingJobs.set(id, {
-      resolve: (value) => resolve(value as MainStatSuggestionEntry[]),
+      resolve: (value) => resolve(value as MainStatSugg[]),
       reject,
     })
 
-    const message: SuggestionsWorkerInMessage = {
+    const message: SuggsWrkrInM = {
       id,
       type: 'mainStats',
       payload,
     }
 
     ensureWorker().postMessage(message)
-  }) as Promise<MainStatSuggestionEntry[]>
+  }) as Promise<MainStatSugg[]>
 }
 
 // run a set-plan suggestion job through the worker
-export function runSetPlanSuggestionsJob(
-    payload: PreparedSetPlanSuggestionsInput,
-): Promise<SetPlanSuggestionEntry[]> {
+export function runSetPlanSu(
+    payload: PrepSetPlanS,
+): Promise<SetPlanSuggest[]> {
   return new Promise((resolve, reject) => {
     const id = nextJobId++
 
     pendingJobs.set(id, {
-      resolve: (value) => resolve(value as SetPlanSuggestionEntry[]),
+      resolve: (value) => resolve(value as SetPlanSuggest[]),
       reject,
     })
 
-    const message: SuggestionsWorkerInMessage = {
+    const message: SuggsWrkrInM = {
       id,
       type: 'setPlans',
       payload,
     }
 
     ensureWorker().postMessage(message)
-  }) as Promise<SetPlanSuggestionEntry[]>
+  }) as Promise<SetPlanSuggest[]>
 }
 
 // run a random suggestion job through the worker
-export function runRandomSuggestionsJob(
-    payload: PreparedRandomSuggestionsInput,
-): Promise<RandomSuggestionEntry[]> {
+export function runRandSuggs(
+    payload: RandomPrep,
+): Promise<RandomEntry[]> {
   return new Promise((resolve, reject) => {
     const id = nextJobId++
 
     pendingJobs.set(id, {
-      resolve: (value) => resolve(value as RandomSuggestionEntry[]),
+      resolve: (value) => resolve(value as RandomEntry[]),
       reject,
     })
 
-    const message: SuggestionsWorkerInMessage = {
+    const message: SuggsWrkrInM = {
       id,
       type: 'random',
       payload,
     }
 
     ensureWorker().postMessage(message)
-  }) as Promise<RandomSuggestionEntry[]>
+  }) as Promise<RandomEntry[]>
+}
+
+// run a weapon suggestion job through the worker
+export function runWpnSuggs(
+    payload: PrepWeaponPlan,
+): Promise<WeaponEntry[]> {
+  return new Promise((resolve, reject) => {
+    const id = nextJobId++
+
+    pendingJobs.set(id, {
+      resolve: (value) => resolve(value as WeaponEntry[]),
+      reject,
+    })
+
+    const message: SuggsWrkrInM = {
+      id,
+      type: 'weapons',
+      payload,
+    }
+
+    ensureWorker().postMessage(message)
+  }) as Promise<WeaponEntry[]>
 }

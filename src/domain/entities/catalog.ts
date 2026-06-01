@@ -4,7 +4,7 @@
                and display information.
 */
 
-export interface EchoDefinition {
+export interface EchoDef {
   id: string
   name: string
   cost: number

@@ -4,25 +4,25 @@
                resonators, weapons, echoes, teams, and rotations.
 */
 
-import type { AttributeKey, BaseStatBuff, ModBuff, SkillDefinition } from './stats'
+import type { AttributeKey, BaseStatBuff, ModBuff, SkillDef } from './stats'
 import type { ManualBuffs } from './manualBuffs'
 import type {
-  FeatureDefinition,
-  RotationDefinition,
+  FeatDef,
+  RotDef,
   RotationNode,
-  SourceStateDefinition,
+  SourceState,
 } from '@/domain/gameData/contracts'
 
 export type ResonatorId = string
-export const UNSET_WEAPON_ID = '0'
+export const NONE_WPN_ID = '0'
 
 // check whether a weapon id is unset
-export function isUnsetWeaponId(weaponId: string | null): weaponId is null | '0' {
-  return weaponId === null || weaponId === UNSET_WEAPON_ID
+export function isNoWeaponId(weaponId: string | null): weaponId is null | '0' {
+  return weaponId === null || weaponId === NONE_WPN_ID
 }
 
 // create a unique echo uid
-export function createEchoUid(): string {
+export function makeEchoUid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
@@ -74,42 +74,42 @@ export interface EchoInstance {
 
 export type TeamSlots = [ResonatorId | null, ResonatorId | null, ResonatorId | null]
 
-export interface WeaponBuildState {
+export interface WeaponState {
   id: string | null
   level: number
   rank: number
   baseAtk: number
 }
 
-export interface TeamMemberWeaponViewState {
+export interface TeamMemWpnVi {
   id: string | null
   rank: number
   baseAtk: number
 }
 
-export interface ResonatorBaseState {
+export interface ResBaseStt {
   level: number
   sequence: number
   skillLevels: SkillLevels
   traceNodes: TraceNodeBuffs
 }
 
-export interface TeamMemberBaseViewState {
+export interface TeamMemBaseV {
   sequence: number
 }
 
-export interface ResonatorBuildState {
-  weapon: WeaponBuildState
+export interface ResMkStt {
+  weapon: WeaponState
   echoes: Array<EchoInstance | null>
   team: TeamSlots
 }
 
-export interface TeamMemberBuildViewState {
-  weapon: TeamMemberWeaponViewState
+export interface TeamMemMkVie {
+  weapon: TeamMemWpnVi
   echoes: Array<EchoInstance | null>
 }
 
-export interface ResonatorStateState {
+export interface ResSttStt {
   controls: Record<string, boolean | number | string>
   manualBuffs: ManualBuffs
   combat: CombatState
@@ -123,38 +123,41 @@ export interface RotationState {
   teamItems: RotationNode[]
 }
 
-export interface TeamMemberRuntime {
+export interface TeamMemRt {
   id: ResonatorId
-  base: TeamMemberBaseViewState
+  base: TeamMemBaseV
   build: {
-    weapon: TeamMemberWeaponViewState
+    weapon: TeamMemWpnVi
     echoes: Array<EchoInstance | null>
   }
   manualBuffs: ManualBuffs
 }
 
-export interface ResonatorRuntimeState {
+export interface ResRuntime {
   id: ResonatorId
-  base: ResonatorBaseState
-  build: ResonatorBuildState
-  state: ResonatorStateState
+  base: ResBaseStt
+  build: ResMkStt
+  state: ResSttStt
   rotation: RotationState
-  teamRuntimes: [TeamMemberRuntime | null, TeamMemberRuntime | null]
+  teamRuntimes: [TeamMemRt | null, TeamMemRt | null]
 }
 
-export interface TeamMemberRuntimeView {
+export interface TeamMemRtVie {
   id: ResonatorId
-  base: TeamMemberBaseViewState
-  build: TeamMemberBuildViewState
-  state: ResonatorStateState
+  base: TeamMemBaseV
+  build: TeamMemMkVie
+  state: ResSttStt
 }
 
-export interface ResonatorSeed {
+export interface ResSeed {
   id: ResonatorId
   name: string
   rarity?: 4 | 5
   profile?: string
   sprite?: string
+  spriteFaceX?: number
+  spriteFaceY?: number
+  spriteFaceScale?: number
   attribute: AttributeKey
   weaponType: 1 | 2 | 3 | 4 | 5
   defaultWeaponId: string | null
@@ -177,8 +180,8 @@ export interface ResonatorSeed {
     param: string[]
     keywords?: string[]
   }>
-  skills?: SkillDefinition[]
-  states?: SourceStateDefinition[]
-  features?: FeatureDefinition[]
-  rotations?: RotationDefinition[]
+  skills?: SkillDef[]
+  states?: SourceState[]
+  features?: FeatDef[]
+  rotations?: RotDef[]
 }

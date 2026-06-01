@@ -4,71 +4,73 @@
                cloning, comparing, and creating saved echoes, builds, and rotations.
 */
 
-import type { EchoInstance, ResonatorId, TeamSlots, WeaponBuildState } from './runtime'
-import type { ResonatorProfile } from './profile'
+import type { EchoInstance, ResonatorId, TeamSlots, WeaponState } from './runtime'
+import type { ResProf } from './profile'
 import type { RotationNode } from '@/domain/gameData/contracts'
-import { createEchoUid } from './runtime'
+import { makeEchoUid } from './runtime'
 
-export interface InventoryEchoEntry {
+export interface InvEchoEnt {
   id: string
   echo: EchoInstance
   createdAt: number
   updatedAt: number
 }
 
-export interface SavedBuildSnapshot {
-  weapon: WeaponBuildState
+export interface SavedBuildSnap {
+  weapon: WeaponState
   echoes: Array<EchoInstance | null>
 }
 
-export interface InventoryBuildEntry {
+export interface InventoryEntry {
   id: string
   name: string
   resonatorId: ResonatorId
   resonatorName: string
-  build: SavedBuildSnapshot
+  build: SavedBuildSnap
   createdAt: number
   updatedAt: number
 }
 
-export interface DamageTotalsSnapshot {
+export interface DmgTtlsSnap {
   normal: number
   avg: number
   crit: number
 }
 
-export interface TeamMemberContribution {
+export interface TeamMemCntr {
   id: ResonatorId
   name: string
-  contribution: DamageTotalsSnapshot
+  contribution: DmgTtlsSnap
 }
 
-export interface RotationEntrySummary {
-  total: DamageTotalsSnapshot
-  members?: TeamMemberContribution[]
+export interface RotEntSmmr {
+  total: DmgTtlsSnap
+  members?: TeamMemCntr[]
 }
 
-export interface InventoryRotationEntry {
+export interface InvRotEnt {
   id: string
   name: string
   mode: 'personal' | 'team'
   resonatorId: ResonatorId
   resonatorName: string
+  duration: number
+  note: string
   team?: TeamSlots
   items: RotationNode[]
-  snapshot?: ResonatorProfile
-  summary?: RotationEntrySummary
+  snapshot?: ResProf
+  summary?: RotEntSmmr
   createdAt: number
   updatedAt: number
 }
 
 // memoized comparison signatures
-const echoComparisonSignatureCache = new WeakMap<EchoInstance, string>()
-const echoLoadoutSignatureCache = new WeakMap<Array<EchoInstance | null>, string>()
-const buildSnapshotSignatureCache = new WeakMap<SavedBuildSnapshot, string>()
+const echoCmprSigC = new WeakMap<EchoInstance, string>()
+const echoLdtSigCc = new WeakMap<Array<EchoInstance | null>, string>()
+const buildSigCache = new WeakMap<SavedBuildSnap, string>()
 
 // create a storage-safe unique id
-function createStorageId(): string {
+function makeStoreId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
@@ -77,9 +79,9 @@ function createStorageId(): string {
 }
 
 // clone an echo instance and optionally force its main slot flag
-function cloneEchoInstance(echo: EchoInstance, slotIndex?: number): EchoInstance {
+function cloneEchoNst(echo: EchoInstance, slotIndex?: number): EchoInstance {
   return {
-    uid: echo.uid ?? createEchoUid(),
+    uid: echo.uid ?? makeEchoUid(),
     id: echo.id,
     set: echo.set,
     mainEcho: slotIndex != null ? slotIndex === 0 : echo.mainEcho,
@@ -92,7 +94,7 @@ function cloneEchoInstance(echo: EchoInstance, slotIndex?: number): EchoInstance
 }
 
 // create a unique rotation node id
-function createRotationNodeId(prefix = 'rotation'): string {
+function makeRotNodeId(prefix = 'rotation'): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefix}:${crypto.randomUUID()}`
   }
@@ -101,13 +103,29 @@ function createRotationNodeId(prefix = 'rotation'): string {
 }
 
 // deep clone rotation nodes and optionally regenerate ids
-export function cloneRotationNodes(
+export function cloneRotNds(
     items: RotationNode[],
     options?: { freshIds?: boolean },
 ): RotationNode[] {
-  return items.map((node) => {
+  const loopIdMap = new Map<string, string>()
+  const getFrshLoopI = (loopId: string): string => {
+    if (!options?.freshIds) {
+      return loopId
+    }
+
+    const existing = loopIdMap.get(loopId)
+    if (existing) {
+      return existing
+    }
+
+    const nextLoopId = makeRotNodeId('rotation:loop')
+    loopIdMap.set(loopId, nextLoopId)
+    return nextLoopId
+  }
+
+  const cloneNodes = (nodes: RotationNode[]): RotationNode[] => nodes.map((node) => {
     const clonedNode = structuredClone(node) as RotationNode
-    const nextId = options?.freshIds ? createRotationNodeId(clonedNode.type) : clonedNode.id
+    const nextId = options?.freshIds ? makeRotNodeId(clonedNode.type) : clonedNode.id
     delete (clonedNode as { condition?: unknown }).condition
 
     if (clonedNode.type === 'feature') {
@@ -128,26 +146,37 @@ export function cloneRotationNodes(
       return {
         ...clonedNode,
         id: nextId,
-        items: cloneRotationNodes(clonedNode.items, options),
+        items: cloneNodes(clonedNode.items),
+      }
+    }
+
+    if (clonedNode.type === 'loop') {
+      const loopId = getFrshLoopI(clonedNode.loopId)
+      return {
+        ...clonedNode,
+        id: nextId,
+        loopId,
       }
     }
 
     return {
       ...clonedNode,
       id: nextId,
-      setup: clonedNode.setup ? cloneRotationNodes(clonedNode.setup, options) : clonedNode.setup,
-      items: cloneRotationNodes(clonedNode.items, options),
+      setup: clonedNode.setup ? cloneNodes(clonedNode.setup) : clonedNode.setup,
+      items: cloneNodes(clonedNode.items),
     }
   })
+
+  return cloneNodes(items)
 }
 
 // clone an echo for a specific slot
-export function cloneEchoForSlot(echo: EchoInstance, slotIndex: number): EchoInstance {
-  return cloneEchoInstance(echo, slotIndex)
+export function cloneEchoFor(echo: EchoInstance, slotIndex: number): EchoInstance {
+  return cloneEchoNst(echo, slotIndex)
 }
 
 // compare echoes by uid only
-export function areSameEchoInstance(
+export function areSameEchoN(
     left: EchoInstance | null | undefined,
     right: EchoInstance | null | undefined,
 ): boolean {
@@ -163,26 +192,37 @@ export function areSameEchoInstance(
 }
 
 // clone an entire echo loadout
-export function cloneEchoLoadout(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
-  return echoes.map((echo, index) => (echo ? cloneEchoInstance(echo, index) : null))
+export function cloneEchoLdt(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
+  return echoes.map((echo, index) => (echo ? cloneEchoNst(echo, index) : null))
 }
 
 // clone a saved build snapshot
-export function cloneBuildSnapshot(build: SavedBuildSnapshot): SavedBuildSnapshot {
+export function cloneBuildSnap(build: SavedBuildSnap): SavedBuildSnap {
   return {
     weapon: { ...build.weapon },
-    echoes: cloneEchoLoadout(build.echoes),
+    echoes: cloneEchoLdt(build.echoes),
   }
 }
 
+// keep saved rotation duration numeric and treat non-positive values as unset
+export function normInvRotDu(value: unknown): number {
+  const numericValue = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0
+}
+
+// keep saved rotation notes string-backed without forcing trimmed content
+export function normInvRotNo(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
 // build a comparable signature for an echo
-function normalizeComparableEcho(echo: EchoInstance) {
-  const cached = echoComparisonSignatureCache.get(echo)
+function normCmprEcho(echo: EchoInstance) {
+  const cached = echoCmprSigC.get(echo)
   if (cached) {
     return cached
   }
 
-  const substatSignature = Object.keys(echo.substats)
+  const sbstSig = Object.keys(echo.substats)
       .sort((left, right) => left.localeCompare(right))
       .map((key) => `${key}:${echo.substats[key]}`)
       .join('|')
@@ -192,33 +232,33 @@ function normalizeComparableEcho(echo: EchoInstance) {
     echo.set,
     `${echo.mainStats.primary.key}:${echo.mainStats.primary.value}`,
     `${echo.mainStats.secondary.key}:${echo.mainStats.secondary.value}`,
-    substatSignature,
+    sbstSig,
   ].join('::')
 
-  echoComparisonSignatureCache.set(echo, signature)
+  echoCmprSigC.set(echo, signature)
   return signature
 }
 
 // build a comparable signature for an echo loadout
-function getEchoLoadoutSignature(echoes: Array<EchoInstance | null>): string {
-  const cached = echoLoadoutSignatureCache.get(echoes)
+function getEchoLdtSi(echoes: Array<EchoInstance | null>): string {
+  const cached = echoLdtSigCc.get(echoes)
   if (cached) {
     return cached
   }
 
   const signature = echoes
       .filter((echo): echo is EchoInstance => echo != null)
-      .map((echo) => normalizeComparableEcho(echo))
+      .map((echo) => normCmprEcho(echo))
       .sort()
       .join('||')
 
-  echoLoadoutSignatureCache.set(echoes, signature)
+  echoLdtSigCc.set(echoes, signature)
   return signature
 }
 
 // build a comparable signature for a saved build
-export function getBuildSnapshotSignature(build: SavedBuildSnapshot): string {
-  const cached = buildSnapshotSignatureCache.get(build)
+export function getBuildSig(build: SavedBuildSnap): string {
+  const cached = buildSigCache.get(build)
   if (cached) {
     return cached
   }
@@ -228,15 +268,15 @@ export function getBuildSnapshotSignature(build: SavedBuildSnapshot): string {
     build.weapon.level,
     build.weapon.rank,
     build.weapon.baseAtk,
-    getEchoLoadoutSignature(build.echoes),
+    getEchoLdtSi(build.echoes),
   ].join('::')
 
-  buildSnapshotSignatureCache.set(build, signature)
+  buildSigCache.set(build, signature)
   return signature
 }
 
 // compare two echo instances by their comparable fields
-export function areEchoInstancesEquivalent(
+export function areEchoNstnQ(
     left: EchoInstance | null | undefined,
     right: EchoInstance | null | undefined,
 ): boolean {
@@ -248,64 +288,68 @@ export function areEchoInstancesEquivalent(
     return false
   }
 
-  return normalizeComparableEcho(left) === normalizeComparableEcho(right)
+  return normCmprEcho(left) === normCmprEcho(right)
 }
 
 // compare two saved build snapshots
-export function areBuildSnapshotsEquivalent(
-    left: SavedBuildSnapshot,
-    right: SavedBuildSnapshot,
+export function areMkSnpsQvl(
+    left: SavedBuildSnap,
+    right: SavedBuildSnap,
 ): boolean {
-  return getBuildSnapshotSignature(left) === getBuildSnapshotSignature(right)
+  return getBuildSig(left) === getBuildSig(right)
 }
 
 // create an inventory echo entry
-export function createInventoryEchoEntry(echo: EchoInstance, now = Date.now()): InventoryEchoEntry {
+export function makeInvEcho(echo: EchoInstance, now = Date.now()): InvEchoEnt {
   return {
-    id: createStorageId(),
-    echo: cloneEchoInstance(echo),
+    id: makeStoreId(),
+    echo: cloneEchoNst(echo),
     createdAt: now,
     updatedAt: now,
   }
 }
 
 // create an inventory build entry
-export function createInventoryBuildEntry(input: {
+export function makeInvBuild(input: {
   name: string
   resonatorId: ResonatorId
   resonatorName: string
-  build: SavedBuildSnapshot
-}, now = Date.now()): InventoryBuildEntry {
+  build: SavedBuildSnap
+}, now = Date.now()): InventoryEntry {
   return {
-    id: createStorageId(),
+    id: makeStoreId(),
     name: input.name,
     resonatorId: input.resonatorId,
     resonatorName: input.resonatorName,
-    build: cloneBuildSnapshot(input.build),
+    build: cloneBuildSnap(input.build),
     createdAt: now,
     updatedAt: now,
   }
 }
 
 // create an inventory rotation entry
-export function createInventoryRotationEntry(input: {
+export function makeInvRot(input: {
   name: string
   mode: 'personal' | 'team'
   resonatorId: ResonatorId
   resonatorName: string
+  duration?: number
+  note?: string
   team?: TeamSlots
   items: RotationNode[]
-  snapshot?: ResonatorProfile
-  summary?: RotationEntrySummary
-}, now = Date.now()): InventoryRotationEntry {
+  snapshot?: ResProf
+  summary?: RotEntSmmr
+}, now = Date.now()): InvRotEnt {
   return {
-    id: createStorageId(),
+    id: makeStoreId(),
     name: input.name,
     mode: input.mode,
     resonatorId: input.resonatorId,
     resonatorName: input.resonatorName,
+    duration: normInvRotDu(input.duration),
+    note: normInvRotNo(input.note),
     ...(input.team ? { team: [...input.team] as TeamSlots } : {}),
-    items: cloneRotationNodes(input.items),
+    items: cloneRotNds(input.items),
     ...(input.snapshot ? { snapshot: structuredClone(input.snapshot) } : {}),
     ...(input.summary ? { summary: structuredClone(input.summary) } : {}),
     createdAt: now,
@@ -314,6 +358,6 @@ export function createInventoryRotationEntry(input: {
 }
 
 // check whether a build snapshot is effectively empty
-export function isEmptyBuildSnapshot(build: SavedBuildSnapshot): boolean {
+export function isEmptyBuild(build: SavedBuildSnap): boolean {
   return build.echoes.every((echo) => echo == null) && (build.weapon.id == null || build.weapon.id === '0')
 }

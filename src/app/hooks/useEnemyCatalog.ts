@@ -5,19 +5,19 @@
 */
 
 import { useEffect, useState } from 'react'
-import type { EnemyCatalogEntry } from '@/domain/entities/enemy.ts'
-import { loadEnemyCatalog } from '@/domain/services/enemyCatalogService.ts'
+import type { EnemyCatEnt } from '@/domain/entities/enemy.ts'
+import { loadEnemyCat } from '@/domain/services/enemyCatalogService.ts'
 
 // load enemy catalog data for ui consumers
-export function useEnemyCatalog() {
-  const [catalog, setCatalog] = useState<EnemyCatalogEntry[]>([])
+export function useEnemyCat() {
+  const [catalog, setCatalog] = useState<EnemyCatEnt[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    loadEnemyCatalog()
+    loadEnemyCat()
         .then((entries) => {
           if (!cancelled) {
             setCatalog(entries)

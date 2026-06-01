@@ -1,0 +1,132 @@
+.echo-stat-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem 0.65rem;
+  min-width: 13rem;
+  font-family:
+    'JetBrains Mono',
+    'Fira Code',
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 28%,
+    var(--text, #f7f1dc) 72%
+  );
+}
+
+.echo-stat-preview__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 22%,
+    transparent
+  );
+}
+
+.echo-stat-preview__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.18rem 0.42rem;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.echo-stat-preview__badge-key {
+  opacity: 0.78;
+}
+
+.echo-stat-preview__badge-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.echo-stat-preview__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.echo-stat-preview__group-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 70%,
+    var(--muted, rgba(247, 241, 220, 0.62)) 30%
+  );
+  opacity: 0.85;
+}
+
+.echo-stat-preview__substats {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-top: 1px solid color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 14%,
+    transparent
+  );
+  padding-top: 0.18rem;
+  margin-top: 0.06rem;
+}
+
+.echo-stat-preview__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.18rem 0.32rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  line-height: 1.1;
+}
+
+.echo-stat-preview__substats > .echo-stat-preview__row:nth-child(even) {
+  background: color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 5%,
+    transparent
+  );
+}
+
+.echo-stat-preview__row-label {
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 22%,
+    var(--text, #f7f1dc) 78%
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.echo-stat-preview__row-value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 80%,
+    white 14%
+  );
+  text-shadow: 0 0 0.3rem color-mix(
+    in srgb,
+    var(--resonator-accent, var(--accent, #7c8cff)) 22%,
+    transparent
+  );
+}

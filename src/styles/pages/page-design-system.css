@@ -1,22 +1,19 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Shared Page Design System
-   Fonts, hero headers, bento tiles, and common patterns shared across all
-   redesigned pages. Individual page CSS files extend these base classes.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Mono:wght@300;400;500&display=swap');
-
-/* ── Page shell ── */
 
 .page {
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 2rem 2.4rem 3rem;
+  padding: 2rem;
   position: relative;
+  overflow: auto;
 }
 
-/* Ambient background orbs */
+.page-content {
+  position: sticky;
+  top: 0;
+  flex: 1 1 auto;
+  scrollbar-gutter: stable;
+}
+
 .page::before {
   content: '';
   position: fixed;
@@ -51,14 +48,12 @@
   z-index: 0;
 }
 
-/* ── Hero header ── */
-
 .page-hero {
   position: relative;
   z-index: 1;
-  margin-bottom: 2.2rem;
-  padding-bottom: 1.6rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 50%, transparent);
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   animation: page-hero-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -113,7 +108,185 @@
   margin-top: 0.2rem;
 }
 
-/* ── Bento grid ── */
+.floating-page-hero {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 5rem);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 1099;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.95rem 0.5rem 0.85rem;
+  border-radius: 999px;
+  background: var(--floating-page-hero-bg, var(--floating-bg));
+  border: 1px solid var(--floating-page-hero-border, color-mix(in srgb, var(--text) 14%, transparent));
+
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+
+  box-shadow: var(--floating-page-hero-shadow,
+    0 1px 0 color-mix(in srgb, white 65%, transparent) inset,
+    0 -1px 0 color-mix(in srgb, var(--text) 6%, transparent) inset,
+    0 1px 1px rgba(10, 18, 40, 0.06),
+    0 4px 10px -2px rgba(10, 18, 40, 0.10),
+    0 14px 32px -10px rgba(10, 18, 40, 0.22));
+  pointer-events: auto;
+  max-width: min(calc(100vw - 1.5rem), 36rem);
+  isolation: isolate;
+  font-feature-settings: 'ss01', 'cv01', 'cv11';
+}
+
+.floating-page-hero__indicator {
+  flex: 0 0 auto;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+    0 0 6px color-mix(in srgb, var(--accent) 50%, transparent);
+  position: relative;
+}
+
+.floating-page-hero__indicator::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  animation: fph-indicator-pulse 2.4s ease-out infinite;
+}
+
+@keyframes fph-indicator-pulse {
+  0%   { transform: scale(0.6); opacity: 0.9; }
+  70%  { transform: scale(1.6); opacity: 0;   }
+  100% { transform: scale(1.6); opacity: 0;   }
+}
+
+.floating-page-hero__eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+  white-space: nowrap;
+  margin: 0;
+  position: relative;
+  padding-right: 0.7rem;
+
+  font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: 0.012em currentColor;
+}
+
+.floating-page-hero__eyebrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 1px;
+  height: 0.95em;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.floating-page-hero__title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.05;
+  color: var(--text);
+  white-space: nowrap;
+  margin: 0;
+  display: inline-flex;
+}
+
+
+.floating-page-hero__eyebrow,
+.floating-page-hero__title {
+  perspective: 600px;
+}
+
+.floating-page-hero__char {
+  display: inline-block;
+  white-space: pre;
+  transform-origin: 50% 100%;
+  backface-visibility: hidden;
+  will-change: transform, opacity, filter;
+}
+
+.floating-page-hero__char--title {
+  transform-origin: 50% 90%;
+}
+
+.floating-page-hero:hover {
+  border-color: var(--floating-page-hero-hover-border, color-mix(in srgb, var(--accent) 32%, var(--border)));
+  box-shadow: var(--floating-page-hero-hover-shadow,
+    0 1px 0 color-mix(in srgb, white 65%, transparent) inset,
+    0 -1px 0 color-mix(in srgb, var(--accent) 12%, transparent) inset,
+    0 1px 1px rgba(10, 18, 40, 0.06),
+    0 6px 14px -2px rgba(10, 18, 40, 0.14),
+    0 18px 38px -10px color-mix(in srgb, var(--accent) 22%, rgba(10, 18, 40, 0.26)));
+}
+
+.floating-page-hero:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.floating-page-hero__seal {
+  margin-left: 0.05rem;
+  padding-left: 0.55rem;
+  position: relative;
+  font-family: 'Bricolage Grotesque', serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-style: italic;
+  color: color-mix(in srgb, var(--text) 38%, transparent);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.floating-page-hero__seal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 0.95em;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+@media (max-width: 520px) {
+  .floating-page-hero {
+    padding: 0.4rem 0.85rem 0.45rem 0.75rem;
+  }
+  .floating-page-hero__eyebrow,
+  .floating-page-hero__seal {
+    display: none;
+  }
+  .floating-page-hero__title {
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-page-hero__indicator::after {
+    animation: none;
+  }
+}
 
 .page-bento {
   position: relative;
@@ -124,13 +297,11 @@
   grid-auto-rows: auto;
 }
 
-/* ── Tile base ── */
-
 .page-tile {
   border-radius: 1rem;
   padding: 1.4rem 1.5rem;
-  background: var(--surface-strong);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   position: relative;
   overflow: hidden;
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
@@ -147,7 +318,6 @@
     0 12px 32px rgba(0, 0, 0, 0.06);
 }
 
-/* Hover corner glow */
 .page-tile::after {
   content: '';
   position: absolute;
@@ -169,15 +339,12 @@
   opacity: 1;
 }
 
-/* ── Tile sizes ── */
 
-.page-tile--wide { grid-column: span 8; }
-.page-tile--narrow { grid-column: span 4; }
+.page-tile--wide { grid-column: span 7; }
+.page-tile--narrow { grid-column: span 5; }
 .page-tile--half { grid-column: span 6; }
 .page-tile--full { grid-column: span 12; }
-.page-tile--third { grid-column: span 4; }
 
-/* ── Tile header (icon + text) ── */
 
 .tile-header {
   display: flex;
@@ -192,7 +359,7 @@
   border-radius: 0.6rem;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
   color: var(--accent);
   flex-shrink: 0;
 }
@@ -203,32 +370,32 @@
 }
 
 .tile-icon--purple {
-  background: color-mix(in srgb, #9b59b6 12%, var(--surface-strong));
+  background: color-mix(in srgb, #9b59b6 12%, var(--surface-2));
   color: #9b59b6;
 }
 
 .tile-icon--amber {
-  background: color-mix(in srgb, #d4880f 12%, var(--surface-strong));
+  background: color-mix(in srgb, #d4880f 12%, var(--surface-2));
   color: #d4880f;
 }
 
 .tile-icon--rose {
-  background: color-mix(in srgb, #e84393 12%, var(--surface-strong));
+  background: color-mix(in srgb, #e84393 12%, var(--surface-2));
   color: #e84393;
 }
 
 .tile-icon--blue {
-  background: color-mix(in srgb, #3498db 12%, var(--surface-strong));
+  background: color-mix(in srgb, #3498db 12%, var(--surface-2));
   color: #3498db;
 }
 
 .tile-icon--green {
-  background: color-mix(in srgb, var(--ok, #1eab62) 12%, var(--surface-strong));
+  background: color-mix(in srgb, var(--ok, #1eab62) 12%, var(--surface-2));
   color: var(--ok, #1eab62);
 }
 
 .tile-icon--danger {
-  background: color-mix(in srgb, var(--danger, #cc3f53) 10%, var(--surface-strong));
+  background: color-mix(in srgb, var(--danger, #cc3f53) 10%, var(--surface-2));
   color: var(--danger, #cc3f53);
 }
 
@@ -247,8 +414,6 @@
   margin: 0.15rem 0 0;
   line-height: 1.4;
 }
-
-/* ── Prose content inside tiles ── */
 
 .tile-prose {
   font-size: 0.88rem;
@@ -313,10 +478,10 @@
   padding: 0.12rem 0.4rem;
   border-radius: 0.3rem;
   background: color-mix(in srgb, var(--text) 6%, transparent);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
 }
 
-/* ── Back button ── */
+
 
 .page-back-btn {
   display: inline-flex;
@@ -328,7 +493,7 @@
   font-weight: 600;
   color: var(--muted);
   background: transparent;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 0.55rem;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -337,7 +502,7 @@
 
 .page-back-btn:hover {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--panel-border));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 
@@ -345,8 +510,6 @@
   width: 0.9rem;
   height: 0.9rem;
 }
-
-/* ── Pill badge ── */
 
 .page-pill {
   display: inline-flex;
@@ -361,8 +524,6 @@
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
 }
-
-/* ── Count badge ── */
 
 .page-count-badge {
   display: inline-flex;
@@ -380,8 +541,6 @@
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/* ── Accent image ── */
-
 .page-accent-img {
   display: block;
   max-width: 90px;
@@ -395,16 +554,12 @@
   transform: scale(1.05);
 }
 
-/* ── Legal last-updated footer ── */
-
 .page-last-updated {
   margin-top: 2rem;
   opacity: 0.6;
   font-style: italic;
   font-size: 0.82rem;
 }
-
-/* ── Tile entrance animation ── */
 
 @keyframes page-tile-in {
   from {
@@ -442,8 +597,6 @@
     transform: translateY(0);
   }
 }
-
-/* ── Responsive ── */
 
 @media (max-width: 900px) {
   .page {

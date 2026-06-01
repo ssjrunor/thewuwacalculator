@@ -1,46 +1,53 @@
+/*
+  Author: Runor Ewhro
+  Description: Shared floating select control with portal-mounted options,
+               keyboard navigation, and grouped option support.
+*/
+
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { KeyboardEvent as KybrVnt, ReactNode } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {useAppStore} from "@/domain/state/store.ts";
+import {withDefIconM} from "@/shared/lib/imageFallback.ts";
 
-export type LiquidSelectValue = string | number
+export type LqdSelVl = string | number
 
-export interface LiquidSelectOption<T extends LiquidSelectValue = string> {
+export interface SelectOption<T extends LqdSelVl = string> {
   value: T
   label: string
   icon?: string
 }
 
-export interface LiquidSelectOptionGroup<T extends LiquidSelectValue = string> {
+export interface SelectGroup<T extends LqdSelVl = string> {
   label: string
-  options: LiquidSelectOption<T>[]
+  options: SelectOption<T>[]
 }
 
-interface LiquidSelectProps<T extends LiquidSelectValue> {
+interface LqdSelPrps<T extends LqdSelVl> {
   value: T
-  options: LiquidSelectOption<T>[]
-  groups?: LiquidSelectOptionGroup<T>[]
+  options: SelectOption<T>[]
+  groups?: SelectGroup<T>[]
   onChange: (value: T) => void
   disabled?: boolean
   placeholder?: string
   className?: string
   baseClass?: string
   ariaLabel?: string
-  ariaLabelledBy?: string
+  ariaLabelBy?: string
   portalTarget?: HTMLElement | null
-  renderTriggerContent?: (selectedOption: LiquidSelectOption<T> | null, placeholder: string) => ReactNode
-  triggerClassName?: string
-  preferredPlacement?: 'auto' | 'down' | 'up'
+  viewTrggCntn?: (selPtn: SelectOption<T> | null, placeholder: string) => ReactNode
+  triggerClass?: string
+  prfrPlcm?: 'auto' | 'down' | 'up'
 }
 
-const MENU_CLOSE_DURATION_MS = 180
-const MENU_MAX_HEIGHT = 320
-const MENU_MIN_HEIGHT = 96
-const VIEWPORT_PADDING = 20
+const MENUCLSDURMS = 180
+const MENUMAXHGHT = 320
+const MENUMINHGHT = 96
+const VWPR_PDDN = 20
 const MENU_OFFSET = 8
-const OVERLAY_PORTAL_SELECTOR =
-  '.app-modal-overlay, .picker-modal__overlay, .skills-modal-overlay, .skill-menu-overlay, .char-menu-overlay'
+const VRLYPRTLSLCT =
+  '.app-modal-overlay, .char-menu-overlay'
 
 interface MenuLayout {
   left: number
@@ -50,7 +57,7 @@ interface MenuLayout {
   maxHeight: number
 }
 
-export function LiquidSelect<T extends LiquidSelectValue>({
+export function LiquidSelect<T extends LqdSelVl>({
   value,
   options,
   groups,
@@ -58,37 +65,39 @@ export function LiquidSelect<T extends LiquidSelectValue>({
   disabled = false,
   placeholder = 'Select an option',
   className,
-  baseClass: baseClassProp,
+  baseClass: baseClssProp,
   ariaLabel,
-  ariaLabelledBy,
+  ariaLabelBy: ariaLabelBy,
   portalTarget,
-  renderTriggerContent,
-  triggerClassName,
-  preferredPlacement = 'auto',
-}: LiquidSelectProps<T>) {
-  const b = baseClassProp ?? 'liquid-select'
+  viewTrggCntn: rndrTrggCntn,
+  triggerClass: triggerClass,
+  prfrPlcm: prfrPlcm = 'auto',
+}: LqdSelPrps<T>) {
+  const b = baseClssProp ?? 'liquid-select'
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const closeTimerRef = useRef<number | null>(null)
+  const clsTmrRef = useRef<number | null>(null)
   const frameRef = useRef<number | null>(null)
   const listboxId = useId()
-  const [rootElement, setRootElement] = useState<HTMLDivElement | null>(null)
-  const resolvedOptions = useMemo(
+  const [rootElement, setRootLmnt] = useState<HTMLDivElement | null>(null)
+  const rslvPtns = useMemo(
     () => groups?.flatMap((group) => group.options) ?? options,
     [groups, options],
   )
-  const selectedIndex = useMemo(
-    () => resolvedOptions.findIndex((option) => Object.is(option.value, value)),
-    [resolvedOptions, value],
+  const selNdx = useMemo(
+    () => rslvPtns.findIndex((option) => Object.is(option.value, value)),
+    [rslvPtns, value],
   )
-  const [activeIndex, setActiveIndex] = useState(selectedIndex >= 0 ? selectedIndex : 0)
+  const [activeIndex, setActNdx] = useState(selNdx >= 0 ? selNdx : 0)
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [placement, setPlacement] = useState<'up' | 'down'>('down')
   const ui = useAppStore((state) => state.ui)
 
-  const activeVariant = useMemo(() => {
+  const actVar = useMemo(() => {
+    // use persisted theme state to choose the select menu's contrast class
+    // without querying computed styles from the portal-mounted menu.
     if (ui.theme === 'background') {
       return ui.backgroundVariant
     }
@@ -96,7 +105,7 @@ export function LiquidSelect<T extends LiquidSelectValue>({
     return ui.theme === 'dark' ? ui.darkVariant : ui.lightVariant
   }, [ui.backgroundVariant, ui.darkVariant, ui.lightVariant, ui.theme])
 
-  const activeTextModeClass = useMemo(() => {
+  const actTextModeC = useMemo(() => {
     if (ui.theme === 'background') {
       return `${ui.backgroundTextMode}-text`
     }
@@ -105,35 +114,35 @@ export function LiquidSelect<T extends LiquidSelectValue>({
   }, [ui.backgroundTextMode, ui.theme])
 
 
-  const [menuLayout, setMenuLayout] = useState<MenuLayout>({
+  const [menuLayout, setMenuLyt] = useState<MenuLayout>({
     left: 0,
     top: 0,
     width: 0,
-    maxHeight: MENU_MAX_HEIGHT,
+    maxHeight: MENUMAXHGHT,
   })
 
-  const selectedOption = selectedIndex >= 0 ? resolvedOptions[selectedIndex] : null
+  const selPtn = selNdx >= 0 ? rslvPtns[selNdx] : null
   const menuVisible = open || closing
 
-  const resolvedPortalTarget =
+  const rslvPrtlTgt =
     portalTarget ??
     (typeof document !== 'undefined'
-      ? ((rootElement?.closest(OVERLAY_PORTAL_SELECTOR) as HTMLElement | null) ?? document.body)
+      ? ((rootElement?.closest(VRLYPRTLSLCT) as HTMLElement | null) ?? document.body)
       : null)
 
   const setRootNode = useCallback((node: HTMLDivElement | null) => {
     rootRef.current = node
-    setRootElement(node)
+    setRootLmnt(node)
   }, [])
 
-  const clearCloseTimer = useCallback(() => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
+  const clrClsTmr = useCallback(() => {
+    if (clsTmrRef.current !== null) {
+      window.clearTimeout(clsTmrRef.current)
+      clsTmrRef.current = null
     }
   }, [])
 
-  const clearMeasureFrame = useCallback(() => {
+  const clearMeasure = useCallback(() => {
     if (frameRef.current !== null) {
       window.cancelAnimationFrame(frameRef.current)
       frameRef.current = null
@@ -144,71 +153,73 @@ export function LiquidSelect<T extends LiquidSelectValue>({
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING
-    const spaceAbove = rect.top - VIEWPORT_PADDING
+    // measure after the menu exists so placement can flip above the trigger
+    // when the lower viewport edge has less room than the upper edge.
+    const spaceBelow = window.innerHeight - rect.bottom - VWPR_PDDN
+    const spaceAbove = rect.top - VWPR_PDDN
     const openUpward =
-      preferredPlacement === 'up'
+      prfrPlcm === 'up'
         ? true
-        : preferredPlacement === 'down'
+        : prfrPlcm === 'down'
           ? false
           : spaceBelow < 220 && spaceAbove > spaceBelow
-    const availableSpace = openUpward ? spaceAbove : spaceBelow
-    const resolvedMaxHeight = Math.max(MENU_MIN_HEIGHT, Math.min(MENU_MAX_HEIGHT, availableSpace))
+    const vlblSpc = openUpward ? spaceAbove : spaceBelow
+    const rslvMaxHght = Math.max(MENUMINHGHT, Math.min(MENUMAXHGHT, vlblSpc))
 
-    const width = Math.min(rect.width, window.innerWidth - VIEWPORT_PADDING * 2)
+    const width = Math.min(rect.width, window.innerWidth - VWPR_PDDN * 2)
     const left = Math.min(
-        Math.max(VIEWPORT_PADDING, rect.left),
-        Math.max(VIEWPORT_PADDING, window.innerWidth - VIEWPORT_PADDING - width),
+        Math.max(VWPR_PDDN, rect.left),
+        Math.max(VWPR_PDDN, window.innerWidth - VWPR_PDDN - width),
     )
 
     setPlacement(openUpward ? 'up' : 'down')
-    setMenuLayout({
+    setMenuLyt({
       left,
       top: openUpward ? undefined : rect.bottom + MENU_OFFSET,
       bottom: openUpward ? window.innerHeight - rect.top + MENU_OFFSET : undefined,
       width,
-      maxHeight: resolvedMaxHeight,
+      maxHeight: rslvMaxHght,
     })
-  }, [preferredPlacement])
+  }, [prfrPlcm])
 
-  const scheduleMeasureMenu = useCallback(() => {
-    clearMeasureFrame()
+  const schdMsrMenu = useCallback(() => {
+    clearMeasure()
     frameRef.current = window.requestAnimationFrame(() => {
       frameRef.current = null
       measureMenu()
     })
-  }, [clearMeasureFrame, measureMenu])
+  }, [clearMeasure, measureMenu])
 
   const openMenu = useCallback(() => {
-    if (disabled || resolvedOptions.length === 0) {
+    if (disabled || rslvPtns.length === 0) {
       return
     }
 
-    clearCloseTimer()
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+    clrClsTmr()
+    setActNdx(selNdx >= 0 ? selNdx : 0)
     measureMenu()
     setClosing(false)
     setOpen(true)
-  }, [clearCloseTimer, disabled, measureMenu, resolvedOptions.length, selectedIndex])
+  }, [clrClsTmr, disabled, measureMenu, rslvPtns.length, selNdx])
 
   const closeMenu = useCallback(() => {
     if (!open && !closing) {
       return
     }
 
-    clearCloseTimer()
+    clrClsTmr()
     setOpen(false)
     setClosing(true)
-    closeTimerRef.current = window.setTimeout(() => {
+    clsTmrRef.current = window.setTimeout(() => {
       setClosing(false)
-      closeTimerRef.current = null
-    }, MENU_CLOSE_DURATION_MS)
-  }, [clearCloseTimer, closing, open])
+      clsTmrRef.current = null
+    }, MENUCLSDURMS)
+  }, [clrClsTmr, closing, open])
 
   useEffect(() => {
     return () => {
-      if (closeTimerRef.current !== null) {
-        window.clearTimeout(closeTimerRef.current)
+      if (clsTmrRef.current !== null) {
+        window.clearTimeout(clsTmrRef.current)
       }
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current)
@@ -240,9 +251,9 @@ export function LiquidSelect<T extends LiquidSelectValue>({
       return
     }
 
-    scheduleMeasureMenu()
+    schdMsrMenu()
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const onPntrDown = (event: PointerEvent) => {
       const target = event.target as Node
       if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
         return
@@ -257,41 +268,43 @@ export function LiquidSelect<T extends LiquidSelectValue>({
         return
       }
 
-      scheduleMeasureMenu()
+      schdMsrMenu()
     }
 
     const handleResize = () => {
-      scheduleMeasureMenu()
+      schdMsrMenu()
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('pointerdown', onPntrDown)
     window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', handleResize)
 
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('pointerdown', onPntrDown)
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
     }
-  }, [closeMenu, open, scheduleMeasureMenu])
+  }, [closeMenu, open, schdMsrMenu])
 
-  function commitSelection(option: LiquidSelectOption<T>) {
+  function cmmtSel(option: SelectOption<T>) {
+    // selection always closes through the same path so pointer and keyboard
+    // commits leave focus and closing state consistent.
     onChange(option.value)
     closeMenu()
     triggerRef.current?.focus()
   }
 
-  function moveActiveIndex(nextIndex: number) {
-    if (resolvedOptions.length === 0) {
+  function moveActNdx(nextIndex: number) {
+    if (rslvPtns.length === 0) {
       return
     }
 
-    const clampedIndex = Math.max(0, Math.min(resolvedOptions.length - 1, nextIndex))
-    setActiveIndex(clampedIndex)
+    const clampedIndex = Math.max(0, Math.min(rslvPtns.length - 1, nextIndex))
+    setActNdx(clampedIndex)
   }
 
-  function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (disabled || resolvedOptions.length === 0) {
+  function onTrggKeyDow(event: KybrVnt<HTMLButtonElement>) {
+    if (disabled || rslvPtns.length === 0) {
       return
     }
 
@@ -310,40 +323,40 @@ export function LiquidSelect<T extends LiquidSelectValue>({
     }
   }
 
-  function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!resolvedOptions.length) {
+  function onMenuKeyDow(event: KybrVnt<HTMLDivElement>) {
+    if (!rslvPtns.length) {
       return
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      moveActiveIndex(activeIndex + 1)
+      moveActNdx(activeIndex + 1)
       return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      moveActiveIndex(activeIndex - 1)
+      moveActNdx(activeIndex - 1)
       return
     }
 
     if (event.key === 'Home') {
       event.preventDefault()
-      moveActiveIndex(0)
+      moveActNdx(0)
       return
     }
 
     if (event.key === 'End') {
       event.preventDefault()
-      moveActiveIndex(resolvedOptions.length - 1)
+      moveActNdx(rslvPtns.length - 1)
       return
     }
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      const option = resolvedOptions[activeIndex]
+      const option = rslvPtns[activeIndex]
       if (option) {
-        commitSelection(option)
+        cmmtSel(option)
       }
       return
     }
@@ -360,19 +373,19 @@ export function LiquidSelect<T extends LiquidSelectValue>({
     }
   }
 
-  const rootClassName = [b, open ? 'open' : '', closing ? 'closing' : '', `${b}--${placement}`, className ?? '']
+  const rootClssName = [b, open ? 'open' : '', closing ? 'closing' : '', `${b}--${placement}`, className ?? '']
     .filter(Boolean)
     .join(' ')
 
   const menu =
-    menuVisible && resolvedPortalTarget
+    menuVisible && rslvPrtlTgt
       ? createPortal(
           <div
             ref={menuRef}
             id={listboxId}
-            className={`${b} ${b}__menu ${b}__menu--${placement} ${activeVariant} ${activeTextModeClass}${ui.blurMode === 'off' ? ' blur-off' : ''}`}
+            className={`${b} ${b}__menu ${b}__menu--${placement} ${actVar} ${actTextModeC}${ui.blurMode ? ' blur-off' : ''}`}
             role="listbox"
-            aria-activedescendant={resolvedOptions[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
+            aria-activedescendant={rslvPtns[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
             tabIndex={-1}
             data-state={open ? 'open' : 'closed'}
             style={{
@@ -381,10 +394,10 @@ export function LiquidSelect<T extends LiquidSelectValue>({
               bottom: menuLayout.bottom !== undefined ? `${menuLayout.bottom}px` : undefined,
               maxHeight: `${menuLayout.maxHeight}px`,
             }}
-            onKeyDown={handleMenuKeyDown}
+            onKeyDown={onMenuKeyDow}
           >
             {(() => {
-              const renderOption = (option: LiquidSelectOption<T>, index: number) => {
+              const renderOption = (option: SelectOption<T>, index: number) => {
                 const isSelected = Object.is(option.value, value)
                 const isActive = index === activeIndex
 
@@ -395,12 +408,12 @@ export function LiquidSelect<T extends LiquidSelectValue>({
                     role="option"
                     aria-selected={isSelected}
                     className={`${b}__option${isSelected ? ' selected' : ''}${isActive ? ' active' : ''}`}
-                    onClick={() => commitSelection(option)}
+                    onClick={() => cmmtSel(option)}
                     onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseEnter={() => setActNdx(index)}
                   >
                     <span className={`${b}__option-label`}>
-                      {option.icon ? <img src={option.icon} alt="" className={`${b}__option-icon`} /> : null}
+                      {option.icon ? <img src={option.icon} alt="" className={`${b}__option-icon`} onError={withDefIconM} /> : null}
                       {option.label}
                     </span>
                     <span className={`${b}__option-check`} aria-hidden="true">
@@ -411,7 +424,7 @@ export function LiquidSelect<T extends LiquidSelectValue>({
               }
 
               if (!groups || groups.length === 0) {
-                return resolvedOptions.map((option, index) => renderOption(option, index))
+                return rslvPtns.map((option, index) => renderOption(option, index))
               }
 
               let optionOffset = 0
@@ -434,21 +447,21 @@ export function LiquidSelect<T extends LiquidSelectValue>({
                 })
             })()}
           </div>,
-          resolvedPortalTarget,
+          rslvPrtlTgt,
         )
       : null
 
   return (
-    <div ref={setRootNode} className={rootClassName}>
+    <div ref={setRootNode} className={rootClssName}>
       <button
         ref={triggerRef}
         type="button"
-        className={[`${b}__trigger`, triggerClassName ?? ''].filter(Boolean).join(' ')}
+        className={[`${b}__trigger`, triggerClass ?? ''].filter(Boolean).join(' ')}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={menuVisible ? listboxId : undefined}
         aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
+        aria-labelledby={ariaLabelBy}
         disabled={disabled}
         onClick={() => {
           if (open) {
@@ -457,15 +470,15 @@ export function LiquidSelect<T extends LiquidSelectValue>({
             openMenu()
           }
         }}
-        onKeyDown={handleTriggerKeyDown}
+        onKeyDown={onTrggKeyDow}
       >
-        {renderTriggerContent ? (
-          renderTriggerContent(selectedOption, placeholder)
+        {rndrTrggCntn ? (
+          rndrTrggCntn(selPtn, placeholder)
         ) : (
           <>
-            <span className={selectedOption ? `${b}__value` : `${b}__value ${b}__value--placeholder`}>
-              {selectedOption?.icon ? <img src={selectedOption.icon} alt="" className={`${b}__option-icon`} /> : null}
-              {selectedOption?.label ?? placeholder}
+            <span className={selPtn ? `${b}__value` : `${b}__value ${b}__value--placeholder`}>
+              {selPtn?.icon ? <img src={selPtn.icon} alt="" className={`${b}__option-icon`} onError={withDefIconM} /> : null}
+              {selPtn?.label ?? placeholder}
             </span>
             <span className={`${b}__icon`} aria-hidden="true">
               <ChevronDown size={16} />

@@ -1,4 +1,10 @@
-const TUNE_RUPTURE_LEVEL_SCALE = [
+/*
+  Author: Runor Ewhro
+  Description: defines the level scaling table and final damage helper used
+               by the tune rupture damage path.
+*/
+
+const TUNERPTRLVLS = [
   0,
   2.233482277,
   2.373591482,
@@ -93,8 +99,9 @@ const TUNE_RUPTURE_LEVEL_SCALE = [
 ] as const
 
 // kuro makes these hard to derive :(
-export function getTuneRuptureLevelScale(level: number): number {
+// clamp levels into the authored table so callers can feed live runtime values safely
+export function getTuneLevel(level: number): number {
   const numeric = Number(level)
   const clamped = Math.max(1, Math.min(90, Number.isFinite(numeric) ? Math.round(numeric) : 1))
-  return TUNE_RUPTURE_LEVEL_SCALE[clamped] ?? TUNE_RUPTURE_LEVEL_SCALE[1]
+  return TUNERPTRLVLS[clamped] ?? TUNERPTRLVLS[1]
 }

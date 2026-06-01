@@ -6,12 +6,12 @@
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime'
-import type { SuggestionEvaluationContext } from '@/engine/suggestions/types'
-import { evaluateSuggestionEchoesWithBuffs } from '@/engine/suggestions/shared'
+import type { SuggestContext } from '@/engine/suggestions/types'
+import { evalSuggChsW } from '@/engine/suggestions/shared'
 import type { SetPlanEntry } from '@/engine/suggestions/types'
 
 // apply a set-plan onto the provided echoes in slot order for evaluation
-function applySetPlanForEvaluation(
+function applySetPlan(
     setPlan: SetPlanEntry[],
     echoes: Array<EchoInstance | null>,
 ): Array<EchoInstance | null> {
@@ -49,17 +49,17 @@ function applySetPlanForEvaluation(
 }
 
 // compute damage for one set-plan configuration
-export function computeSetPlanDamage(
-    ctx: SuggestionEvaluationContext,
+export function calcSetPlan(
+    ctx: SuggestContext,
     setPlan: SetPlanEntry[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
     mainEchoBuffs: Float32Array,
 ): { avgDamage: number; baseDamage: number } {
   // materialize the candidate set assignment first
-  const echoes = applySetPlanForEvaluation(setPlan, equippedEchoes)
+  const echoes = applySetPlan(setPlan, qppdChs)
 
   // evaluate the modified loadout using the shared fast path
-  const avgDamage = evaluateSuggestionEchoesWithBuffs(ctx, echoes, mainEchoBuffs)
+  const avgDamage = evalSuggChsW(ctx, echoes, mainEchoBuffs)
 
   // baseDamage currently mirrors avgDamage for this suggestion path
   return {
@@ -69,13 +69,13 @@ export function computeSetPlanDamage(
 }
 
 // compute set-plan damage with additional rotation metadata
-export function computeRotationSetPlanDamage(
-    ctx: SuggestionEvaluationContext,
+export function calcRotSetPlan(
+    ctx: SuggestContext,
     setPlan: SetPlanEntry[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
     mainEchoBuffs: Float32Array,
 ): { avgDamage: number; baseDamage: number; isRotation: boolean; contextCount: number } {
-  const result = computeSetPlanDamage(ctx, setPlan, equippedEchoes, mainEchoBuffs)
+  const result = calcSetPlan(ctx, setPlan, qppdChs, mainEchoBuffs)
 
   return {
     ...result,

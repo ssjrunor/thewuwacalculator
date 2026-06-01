@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Authored personalized greeting strings used by playful signed-in
+               user welcome surfaces.
+*/
+
 const cuteMessages = [
   // personalized messages for signed-in users.
   "Heeeeyyy, fabulous {userName}~! (⁄⁄>ω<⁄⁄)♡ I hope you brought your sparkle today! You’re here! You’re finally here! ＼(≧▽≦)／",
@@ -27,7 +33,7 @@ const cuteMessages = [
   "Just a little note to say hi to {userName}~ (ﾉ´ヮ`)ﾉ*: ･ﾟ You make everything brighter just by existing~ (ღ˘⌣˘ღ)",
 ]
 
-const genericCuteMessages = [
+const gnrcCuteMssg = [
   // generic messages when there is no signed-in profile name.
   "OH. MY. GOODNESS. You’re here!! ヽ(＾Д＾)ﾉ Welcome to the party~ ＼(☆o☆)／ So thrilled you stopped by~ ヽ(♡‿♡)ノ",
   "A dazzling hello from the entire team!! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧ Sending the warmest digital welcome~ ヽ(＾Д＾)ﾉ Please enjoy your stay!",
@@ -58,9 +64,9 @@ const genericCuteMessages = [
 ]
 
 // pick the same style of random cute message the old app used.
-export function getCuteMessage(userName?: string | null): string {
+export function getCuteMsg(userName?: string | null): string {
   const trimmedName = userName?.trim()
-  const pool = trimmedName ? cuteMessages : genericCuteMessages
-  const template = pool[Math.floor(Math.random() * pool.length)] ?? genericCuteMessages[0]
+  const pool = trimmedName ? cuteMessages : gnrcCuteMssg
+  const template = pool[Math.floor(Math.random() * pool.length)] ?? gnrcCuteMssg[0]
   return template.replaceAll('{userName}', trimmedName || 'Lord Arbiter')
 }

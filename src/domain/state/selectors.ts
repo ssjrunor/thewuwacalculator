@@ -4,124 +4,131 @@
                optimizer, team lookup, and calculator-derived state.
 */
 
-import type { AppStore } from '@/domain/state/store'
-import type { CalculatorState } from '@/domain/entities/appState'
+import {type AppStore} from '@/domain/state/store'
+import type { CalcState } from '@/domain/entities/appState'
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
-import type { OptimizerContextState } from '@/domain/entities/optimizer'
+import type { ResRuntime } from '@/domain/entities/runtime'
+import type { OptContext } from '@/domain/entities/optimizer'
 import {
-  buildInitializedRuntimeLookup,
-  buildWorkspaceRuntimeBundle,
-  getActiveResonatorId,
+  mkInitRtLkp,
+  mkWorkRtBndl,
+  getActResId,
 } from '@/domain/state/runtimeAdapters'
-import { buildCombatGraphFromWorkspaceBundle } from '@/domain/state/combatGraph'
-import { buildPreparedWorkspace, type PreparedWorkspace } from '@/engine/pipeline/preparedWorkspace'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
+import { mkCmbtGrphFr } from '@/domain/state/combatGraph'
+import { mkPrepWork, type PrepWork } from '@/engine/pipeline/preparedWorkspace'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { mkInvSgDrvd, type InvSgDrvd } from '@/domain/state/inventoryUsage'
 
-interface WorkspaceDerivedState {
-  preparedWorkspace: PreparedWorkspace
-  activeRuntime: ResonatorRuntimeState | null
-  participantRuntimesById: Record<string, ResonatorRuntimeState>
-  activeTargetSelections: Record<string, string | null>
-  combatGraph: ReturnType<typeof buildCombatGraphFromWorkspaceBundle>
+interface WorkDrvdStt {
+  prepWork: PrepWork
+  actRt: ResRuntime | null
+  partRtsById: Record<string, ResRuntime>
+  actTgtSels: Record<string, string | null>
+  combatGraph: ReturnType<typeof mkCmbtGrphFr>
 }
 
-interface OverviewDerivedState extends WorkspaceDerivedState {
-  initializedRuntimesById: Record<string, ResonatorRuntimeState>
+interface VrvwDrvdStt extends WorkDrvdStt {
+  initRtsById: Record<string, ResRuntime>
 }
 
-interface PreparedWorkspaceCacheEntry {
-  runtimeRevision: number
-  activeResonatorId: string | null
+interface PrepWorkCchE {
+  rtRev: number
+  actResId: string | null
   enemyProfile: EnemyProfile
-  value: WorkspaceDerivedState
+  value: WorkDrvdStt
 }
 
-interface InitializedRuntimeLookupCacheEntry {
-  runtimeRevision: number
-  value: Record<string, ResonatorRuntimeState>
+interface InitRtLkpCch {
+  rtRev: number
+  value: Record<string, ResRuntime>
 }
 
-let workspaceDerivedCache: PreparedWorkspaceCacheEntry | null = null
-let overviewDerivedCache: {
-  runtimeRevision: number
-  activeResonatorId: string | null
+let workDrvdCch: PrepWorkCchE | null = null
+let vrvwDrvdCch: {
+  rtRev: number
+  actResId: string | null
   enemyProfile: EnemyProfile
-  value: OverviewDerivedState
+  value: VrvwDrvdStt
 } | null = null
-let initializedRuntimeLookupCache: InitializedRuntimeLookupCacheEntry | null = null
+let initRtLkpCch: InitRtLkpCch | null = null
+let invSgCch: {
+  profiles: CalcState['profiles']
+  invBuilds: CalcState['inventoryBuilds']
+  seeEquipped: boolean
+  value: InvSgDrvd
+} | null = null
 
-function buildWorkspaceDerived(calculator: CalculatorState): WorkspaceDerivedState {
-  const workspace = buildWorkspaceRuntimeBundle(calculator)
-  const combatGraph = buildCombatGraphFromWorkspaceBundle(calculator, workspace)
-  const activeSeed = workspace.activeRuntime ? getResonatorSeedById(workspace.activeRuntime.id) : null
+function mkWorkDrvd(calculator: CalcState): WorkDrvdStt {
+  const workspace = mkWorkRtBndl(calculator)
+  const combatGraph = mkCmbtGrphFr(calculator, workspace)
+  const activeSeed = workspace.actRt ? getResSeedBy(workspace.actRt.id) : null
   const enemyProfile = calculator.session.enemyProfile
 
   return {
-    preparedWorkspace: buildPreparedWorkspace({
+    prepWork: mkPrepWork({
       revision: calculator.runtimeRevision,
-      runtime: workspace.activeRuntime,
+      runtime: workspace.actRt,
       seed: activeSeed,
       enemy: enemyProfile,
-      participantRuntimesById: workspace.participantRuntimesById,
-      activeTargetSelections: workspace.activeTargetSelections,
+      prtcRntmById: workspace.partRtsById,
+      activeTarget: workspace.actTgtSels,
       combatGraph,
     }),
-    activeRuntime: workspace.activeRuntime,
-    participantRuntimesById: workspace.participantRuntimesById,
-    activeTargetSelections: workspace.activeTargetSelections,
+    actRt: workspace.actRt,
+    partRtsById: workspace.partRtsById,
+    actTgtSels: workspace.actTgtSels,
     combatGraph,
   }
 }
 
-export function selectWorkspaceDerived(state: AppStore): WorkspaceDerivedState {
-  const activeResonatorId = getActiveResonatorId(state.calculator)
+export function selWorkDrvd(state: AppStore): WorkDrvdStt {
+  const actResId = getActResId(state.calculator)
   const enemyProfile = state.calculator.session.enemyProfile
-  const cached = workspaceDerivedCache
+  const cached = workDrvdCch
 
   if (
     cached
-    && cached.runtimeRevision === state.calculator.runtimeRevision
-    && cached.activeResonatorId === activeResonatorId
+    && cached.rtRev === state.calculator.runtimeRevision
+    && cached.actResId === actResId
     && cached.enemyProfile === enemyProfile
   ) {
     return cached.value
   }
 
-  const value = buildWorkspaceDerived(state.calculator)
-  workspaceDerivedCache = {
-    runtimeRevision: state.calculator.runtimeRevision,
-    activeResonatorId,
+  const value = mkWorkDrvd(state.calculator)
+  workDrvdCch = {
+    rtRev: state.calculator.runtimeRevision,
+    actResId: actResId,
     enemyProfile,
     value,
   }
   return value
 }
 
-export function selectOverviewDerived(state: AppStore): OverviewDerivedState {
-  const activeResonatorId = getActiveResonatorId(state.calculator)
+export function selVrvwDrvd(state: AppStore): VrvwDrvdStt {
+  const actResId = getActResId(state.calculator)
   const enemyProfile = state.calculator.session.enemyProfile
-  const cached = overviewDerivedCache
+  const cached = vrvwDrvdCch
 
   if (
     cached
-    && cached.runtimeRevision === state.calculator.runtimeRevision
-    && cached.activeResonatorId === activeResonatorId
+    && cached.rtRev === state.calculator.runtimeRevision
+    && cached.actResId === actResId
     && cached.enemyProfile === enemyProfile
   ) {
     return cached.value
   }
 
-  const workspace = selectWorkspaceDerived(state)
-  const initializedRuntimesById = selectInitializedRuntimeLookup(state)
+  const workspace = selWorkDrvd(state)
+  const initRntmById = selInitRtLkp(state)
   const value = {
     ...workspace,
-    initializedRuntimesById,
+    initRtsById: initRntmById,
   }
 
-  overviewDerivedCache = {
-    runtimeRevision: state.calculator.runtimeRevision,
-    activeResonatorId,
+  vrvwDrvdCch = {
+    rtRev: state.calculator.runtimeRevision,
+    actResId: actResId,
     enemyProfile,
     value,
   }
@@ -130,30 +137,30 @@ export function selectOverviewDerived(state: AppStore): OverviewDerivedState {
 }
 
 // select the active resonator id
-export function selectActiveResonatorId(state: AppStore): string | null {
-  return getActiveResonatorId(state.calculator)
+export function selActResId(state: AppStore): string | null {
+  return getActResId(state.calculator)
 }
 
 // select the current enemy profile
-export function selectEnemyProfile(state: AppStore): EnemyProfile {
+export function selEnemyProf(state: AppStore): EnemyProfile {
   return state.calculator.session.enemyProfile
 }
 
 // select the participant runtime lookup
-export function selectParticipantRuntimeLookup(state: AppStore): Record<string, ResonatorRuntimeState> {
-  return selectWorkspaceDerived(state).participantRuntimesById
+export function selPartRtLkp(state: AppStore): Record<string, ResRuntime> {
+  return selWorkDrvd(state).partRtsById
 }
 
 // select the initialized runtime lookup
-export function selectInitializedRuntimeLookup(state: AppStore): Record<string, ResonatorRuntimeState> {
-  const cached = initializedRuntimeLookupCache
-  if (cached && cached.runtimeRevision === state.calculator.runtimeRevision) {
+export function selInitRtLkp(state: AppStore): Record<string, ResRuntime> {
+  const cached = initRtLkpCch
+  if (cached && cached.rtRev === state.calculator.runtimeRevision) {
     return cached.value
   }
 
-  const value = buildInitializedRuntimeLookup(state.calculator)
-  initializedRuntimeLookupCache = {
-    runtimeRevision: state.calculator.runtimeRevision,
+  const value = mkInitRtLkp(state.calculator)
+  initRtLkpCch = {
+    rtRev: state.calculator.runtimeRevision,
     value,
   }
 
@@ -161,21 +168,44 @@ export function selectInitializedRuntimeLookup(state: AppStore): Record<string, 
 }
 
 // select the active target routing map
-export function selectActiveTargetSelections(state: AppStore): Record<string, string | null> {
-  return selectWorkspaceDerived(state).activeTargetSelections
+export function selActTgtSlc(state: AppStore): Record<string, string | null> {
+  return selWorkDrvd(state).actTgtSels
 }
 
 // select the derived combat graph
-export function selectCombatGraph(state: AppStore) {
-  return selectWorkspaceDerived(state).combatGraph
+export function selCmbtGrph(state: AppStore) {
+  return selWorkDrvd(state).combatGraph
 }
 
 // select the active runtime
-export function selectActiveRuntime(state: AppStore): ResonatorRuntimeState | null {
-  return selectWorkspaceDerived(state).activeRuntime
+export function selActRt(state: AppStore): ResRuntime | null {
+  return selWorkDrvd(state).actRt
+}
+
+// select app-level inventory ownership indexes
+export function selInvSg(state: AppStore): InvSgDrvd {
+  const cached = invSgCch
+  if (
+    cached
+    && cached.profiles === state.calculator.profiles
+    && cached.invBuilds === state.calculator.inventoryBuilds
+    && state.ui.seeEquipped === cached.seeEquipped
+  ) {
+    return cached.value
+  }
+
+  const value = mkInvSgDrvd(
+    state.calculator.profiles, state.calculator.inventoryBuilds, state.ui.seeEquipped)
+  invSgCch = {
+    profiles: state.calculator.profiles,
+    invBuilds: state.calculator.inventoryBuilds,
+    seeEquipped: state.ui.seeEquipped,
+    value,
+  }
+  return value
 }
 
 // select the optimizer context
-export function selectOptimizerContext(state: AppStore): OptimizerContextState | null {
+export function selOptCtx(state: AppStore): OptContext | null {
   return state.calculator.optimizerContext
 }

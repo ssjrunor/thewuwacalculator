@@ -1,5 +1,10 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the not found page.
+*/
+
 import { useNavigate } from 'react-router-dom'
-import { Home } from 'lucide-react'
+import {TbGoGame} from "react-icons/tb";
 
 export function NotFoundPage() {
   const navigate = useNavigate()
@@ -16,9 +21,8 @@ export function NotFoundPage() {
           className="not-found-gif"
         />
 
-        <button type="button" className="page-back-btn" onClick={() => navigate('/')}>
-          <Home size={14} />
-          Go Home
+        <button type="button" className="page-back-btn" title={'Calculator'} onClick={() => navigate('/')}>
+          <TbGoGame size={14} />
         </button>
       </div>
     </div>

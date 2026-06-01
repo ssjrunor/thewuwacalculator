@@ -4,7 +4,7 @@
                preview swatches, and shared theme-related types.
 */
 
-export const LIGHT_THEME_VARIANTS = [
+export const LIGHT_THEMES = [
   'light',
   'pastel-pink',
   'pastel-blue',
@@ -13,7 +13,7 @@ export const LIGHT_THEME_VARIANTS = [
   'sunlit-haze',
 ] as const
 
-export const DARK_THEME_VARIANTS = [
+export const DARK_THEMES = [
   'dark',
   'dark-alt',
   'cosmic-rainbow',
@@ -22,31 +22,31 @@ export const DARK_THEME_VARIANTS = [
   'graphite-pop',
 ] as const
 
-export const BACKGROUND_THEME_VARIANTS = ['frosted-aurora'] as const
+export const BG_THEMES = ['frosted-aurora'] as const
 
 // theme variants grouped by mode
-export const THEME_VARIANTS_BY_MODE = {
-  light: LIGHT_THEME_VARIANTS,
-  dark: DARK_THEME_VARIANTS,
-  background: BACKGROUND_THEME_VARIANTS,
+export const THEME_BY_MODE = {
+  light: LIGHT_THEMES,
+  dark: DARK_THEMES,
+  background: BG_THEMES,
 } as const
 
 // flat list of all theme variants
-export const ALL_THEME_VARIANTS = [
-  ...LIGHT_THEME_VARIANTS,
-  ...DARK_THEME_VARIANTS,
-  ...BACKGROUND_THEME_VARIANTS,
+export const ALL_THEMES = [
+  ...LIGHT_THEMES,
+  ...DARK_THEMES,
+  ...BG_THEMES,
 ] as const
 
-export type LightThemeVariant = (typeof LIGHT_THEME_VARIANTS)[number]
-export type DarkThemeVariant = (typeof DARK_THEME_VARIANTS)[number]
-export type BackgroundThemeVariant = (typeof BACKGROUND_THEME_VARIANTS)[number]
-export type ThemeVariant = (typeof ALL_THEME_VARIANTS)[number]
+export type LightThemeVar = (typeof LIGHT_THEMES)[number]
+export type DarkThemeVar = (typeof DARK_THEMES)[number]
+export type BgThemeVar = (typeof BG_THEMES)[number]
+export type ThemeVariant = (typeof ALL_THEMES)[number]
 
-export type BlurMode = 'on' | 'off'
+export type BlurMode = boolean
 
 // preview swatches used in theme selection ui
-export const THEME_PREVIEWS: Record<ThemeVariant, string> = {
+export const THEME_PREVIEW: Record<ThemeVariant, string> = {
   light: '#f9f9f9',
   'pastel-pink': 'linear-gradient(135deg, #ffe4e9 0%, #ffd8e0 100%)',
   'pastel-blue': 'linear-gradient(135deg, #e4f2ff 0%, #d8ebff 100%)',

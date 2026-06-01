@@ -1,24 +1,29 @@
-import type { PersistedAppState } from '@/domain/entities/appState'
-import type { ResonatorProfile } from '@/domain/entities/profile'
-import type { ResonatorSuggestionsState } from '@/domain/entities/suggestions'
-import { createDefaultResonatorSuggestionsState } from '@/domain/state/defaults'
-import type { AppStore } from '@/domain/state/store'
-import { selectPersistedState } from '@/domain/state/serialization'
-import { parsePersistedAppStateJson } from '@/infra/persistence/storage'
+/*
+  Author: Runor Ewhro
+  Description: Provides settings-page data management helpers and derived values.
+*/
 
-export type DataExportKind =
+import type { PersistedState } from '@/domain/entities/appState'
+import type { ResProf } from '@/domain/entities/profile'
+import type { SuggestState } from '@/domain/entities/suggestions'
+import { makeSuggest } from '@/domain/state/defaults'
+import type { AppStore } from '@/domain/state/store'
+import { selectPersisted } from '@/domain/state/serialization'
+import { parsePersisted } from '@/infra/persistence/storage'
+
+export type DataXprtKind =
   | 'current-resonator'
   | 'profiles'
   | 'inventory'
   | 'settings'
   | 'session'
 
-export interface DataExportAction {
-  kind: DataExportKind
+export interface DataXprtCtn {
+  kind: DataXprtKind
   label: string
 }
 
-interface DataExportBundleBase<TKind extends DataExportKind, TData> {
+interface DataXprtBndl<TKind extends DataXprtKind, TData> {
   exportFormat: 'wwcalc-data'
   version: 1
   kind: TKind
@@ -26,51 +31,51 @@ interface DataExportBundleBase<TKind extends DataExportKind, TData> {
   data: TData
 }
 
-type CurrentResonatorBundle = DataExportBundleBase<'current-resonator', {
-  profile: ResonatorProfile
-  suggestions: ResonatorSuggestionsState | null
+type CurResBndl = DataXprtBndl<'current-resonator', {
+  profile: ResProf
+  suggestions: SuggestState | null
 }>
 
-type ProfilesBundle = DataExportBundleBase<'profiles', {
-  activeResonatorId: string | null
-  profiles: PersistedAppState['calculator']['profiles']
-  suggestionsByResonatorId: PersistedAppState['calculator']['suggestionsByResonatorId']
-  optimizerContext: PersistedAppState['calculator']['optimizerContext']
+type PrflBndl = DataXprtBndl<'profiles', {
+  actResId: string | null
+  profiles: PersistedState['calculator']['profiles']
+  suggsByResId: PersistedState['calculator']['suggestionsByResonatorId']
+  optimizer: PersistedState['calculator']['optimizerContext']
 }>
 
-type InventoryBundle = DataExportBundleBase<'inventory', {
-  inventoryEchoes: PersistedAppState['calculator']['inventoryEchoes']
-  inventoryBuilds: PersistedAppState['calculator']['inventoryBuilds']
-  inventoryRotations: PersistedAppState['calculator']['inventoryRotations']
+type InvBndl = DataXprtBndl<'inventory', {
+  invChs: PersistedState['calculator']['inventoryEchoes']
+  invBlds: PersistedState['calculator']['inventoryBuilds']
+  invRttn: PersistedState['calculator']['inventoryRotations']
 }>
 
-type SettingsBundle = DataExportBundleBase<'settings', {
-  ui: PersistedAppState['ui']
+type SetsBndl = DataXprtBndl<'settings', {
+  ui: PersistedState['ui']
 }>
 
-type SessionBundle = DataExportBundleBase<'session', {
-  session: PersistedAppState['calculator']['session']
+type SssnBndl = DataXprtBndl<'session', {
+  session: PersistedState['calculator']['session']
 }>
 
-type DataExportBundle =
-  | CurrentResonatorBundle
-  | ProfilesBundle
-  | InventoryBundle
-  | SettingsBundle
-  | SessionBundle
+type DataXprtBnrc =
+  | CurResBndl
+  | PrflBndl
+  | InvBndl
+  | SetsBndl
+  | SssnBndl
 
-export interface ExportedDataFile {
+export interface XprtDataFile {
   fileName: string
   raw: string
   label: string
 }
 
-export interface ResolvedImportedData {
+export interface RslvMprtData {
   label: string
-  snapshot: PersistedAppState
+  snapshot: PersistedState
 }
 
-export const DATA_EXPORT_ACTIONS: DataExportAction[] = [
+export const DATAXPRTCTNS: DataXprtCtn[] = [
   { kind: 'current-resonator', label: 'Current Resonator' },
   { kind: 'profiles', label: 'Resonators' },
   { kind: 'inventory', label: 'Inventory' },
@@ -78,7 +83,7 @@ export const DATA_EXPORT_ACTIONS: DataExportAction[] = [
   { kind: 'session', label: 'Session' },
 ]
 
-function buildTimestamp(): string {
+function mkTmst(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 }
 
@@ -86,10 +91,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function buildBundle<TKind extends DataExportKind, TData>(
+function buildBundle<TKind extends DataXprtKind, TData>(
   kind: TKind,
   data: TData,
-): DataExportBundleBase<TKind, TData> {
+): DataXprtBndl<TKind, TData> {
+  // every partial export uses the same envelope so import can distinguish a
+  // bundle from a full persisted snapshot before merging into current state.
   return {
     exportFormat: 'wwcalc-data',
     version: 1,
@@ -99,7 +106,7 @@ function buildBundle<TKind extends DataExportKind, TData>(
   }
 }
 
-function isDataExportBundle(value: unknown): value is DataExportBundle {
+function isDataXprtBn(value: unknown): value is DataXprtBnrc {
   return (
     isRecord(value)
     && value.exportFormat === 'wwcalc-data'
@@ -109,11 +116,13 @@ function isDataExportBundle(value: unknown): value is DataExportBundle {
   )
 }
 
-function resolveActiveResonatorId(
+function resActResId(
   preferredId: string | null | undefined,
-  profiles: PersistedAppState['calculator']['profiles'],
+  profiles: PersistedState['calculator']['profiles'],
   fallbackId: string | null,
 ): string | null {
+  // restored session ids can point at profiles that are not present in the
+  // imported subset, so choose the first surviving valid profile deterministically.
   if (preferredId && profiles[preferredId]) {
     return preferredId
   }
@@ -125,7 +134,7 @@ function resolveActiveResonatorId(
   return Object.keys(profiles)[0] ?? null
 }
 
-function parseBundleJson(raw: string): DataExportBundle {
+function prsBndlJson(raw: string): DataXprtBnrc {
   let parsed: unknown
 
   try {
@@ -134,36 +143,36 @@ function parseBundleJson(raw: string): DataExportBundle {
     throw new Error('Import is not valid JSON.')
   }
 
-  if (!isDataExportBundle(parsed)) {
+  if (!isDataXprtBn(parsed)) {
     throw new Error('Import did not match a supported export format.')
   }
 
   return parsed
 }
 
-export function buildDataExportFile(state: AppStore, kind: DataExportKind): ExportedDataFile {
-  const persistedState = selectPersistedState(state)
-  const stamp = buildTimestamp()
+export function mkDataXprtFi(state: AppStore, kind: DataXprtKind): XprtDataFile {
+  const persistedState = selectPersisted(state)
+  const stamp = mkTmst()
 
   switch (kind) {
     case 'current-resonator': {
-      const activeResonatorId = state.calculator.session.activeResonatorId
-      const profile = activeResonatorId ? state.calculator.profiles[activeResonatorId] : null
-      if (!activeResonatorId || !profile) {
+      const actResId = state.calculator.session.activeResonatorId
+      const profile = actResId ? state.calculator.profiles[actResId] : null
+      if (!actResId || !profile) {
         throw new Error('No active resonator is available to export.')
       }
 
       const raw = JSON.stringify(
         buildBundle('current-resonator', {
           profile: structuredClone(profile),
-          suggestions: structuredClone(state.calculator.suggestionsByResonatorId[activeResonatorId] ?? null),
+          suggestions: structuredClone(state.calculator.suggestionsByResonatorId[actResId] ?? null),
         }),
         null,
         2,
       )
 
       return {
-        fileName: `wwcalc-current-resonator-${activeResonatorId}-${stamp}.json`,
+        fileName: `wwcalc-current-resonator-${actResId}-${stamp}.json`,
         raw,
         label: 'current resonator backup',
       }
@@ -236,15 +245,19 @@ export function buildDataExportFile(state: AppStore, kind: DataExportKind): Expo
   }
 }
 
-export function resolveImportedData(raw: string, currentState: AppStore): ResolvedImportedData {
+export function resMprtData(raw: string, currentState: AppStore): RslvMprtData {
   try {
+    // full snapshots already include all persistence domains and can be handed
+    // directly to the persistence parser.
     return {
       label: 'full snapshot',
-      snapshot: parsePersistedAppStateJson(raw),
+      snapshot: parsePersisted(raw),
     }
   } catch {
-    const bundle = parseBundleJson(raw)
-    const snapshot = structuredClone(selectPersistedState(currentState))
+    const bundle = prsBndlJson(raw)
+    // partial imports patch a cloned current snapshot so unrelated domains are
+    // preserved instead of being reset to defaults.
+    const snapshot = structuredClone(selectPersisted(currentState))
 
     switch (bundle.kind) {
       case 'current-resonator': {
@@ -255,7 +268,7 @@ export function resolveImportedData(raw: string, currentState: AppStore): Resolv
 
         snapshot.calculator.profiles[profile.resonatorId] = structuredClone(profile)
         snapshot.calculator.suggestionsByResonatorId[profile.resonatorId] = structuredClone(
-          bundle.data.suggestions ?? createDefaultResonatorSuggestionsState(),
+          bundle.data.suggestions ?? makeSuggest(),
         )
         snapshot.calculator.session.activeResonatorId = profile.resonatorId
         return {
@@ -265,10 +278,10 @@ export function resolveImportedData(raw: string, currentState: AppStore): Resolv
       }
       case 'profiles': {
         snapshot.calculator.profiles = structuredClone(bundle.data.profiles)
-        snapshot.calculator.suggestionsByResonatorId = structuredClone(bundle.data.suggestionsByResonatorId)
-        snapshot.calculator.optimizerContext = structuredClone(bundle.data.optimizerContext)
-        snapshot.calculator.session.activeResonatorId = resolveActiveResonatorId(
-          bundle.data.activeResonatorId,
+        snapshot.calculator.suggestionsByResonatorId = structuredClone(bundle.data.suggsByResId)
+        snapshot.calculator.optimizerContext = structuredClone(bundle.data.optimizer)
+        snapshot.calculator.session.activeResonatorId = resActResId(
+          bundle.data.actResId,
           snapshot.calculator.profiles,
           snapshot.calculator.session.activeResonatorId,
         )
@@ -277,6 +290,7 @@ export function resolveImportedData(raw: string, currentState: AppStore): Resolv
           snapshot.calculator.optimizerContext
           && !snapshot.calculator.profiles[snapshot.calculator.optimizerContext.resonatorId]
         ) {
+          // optimizer context is only valid while its owning profile exists.
           snapshot.calculator.optimizerContext = null
         }
 
@@ -286,9 +300,9 @@ export function resolveImportedData(raw: string, currentState: AppStore): Resolv
         }
       }
       case 'inventory': {
-        snapshot.calculator.inventoryEchoes = structuredClone(bundle.data.inventoryEchoes)
-        snapshot.calculator.inventoryBuilds = structuredClone(bundle.data.inventoryBuilds)
-        snapshot.calculator.inventoryRotations = structuredClone(bundle.data.inventoryRotations)
+        snapshot.calculator.inventoryEchoes = structuredClone(bundle.data.invChs)
+        snapshot.calculator.inventoryBuilds = structuredClone(bundle.data.invBlds)
+        snapshot.calculator.inventoryRotations = structuredClone(bundle.data.invRttn)
         return {
           label: 'inventory backup',
           snapshot,
@@ -303,7 +317,7 @@ export function resolveImportedData(raw: string, currentState: AppStore): Resolv
       }
       case 'session': {
         snapshot.calculator.session = structuredClone(bundle.data.session)
-        snapshot.calculator.session.activeResonatorId = resolveActiveResonatorId(
+        snapshot.calculator.session.activeResonatorId = resActResId(
           bundle.data.session.activeResonatorId,
           snapshot.calculator.profiles,
           currentState.calculator.session.activeResonatorId,

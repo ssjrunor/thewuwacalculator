@@ -1,8 +1,14 @@
-import type { ReactNode } from 'react'
-import { AlertTriangle, Info } from 'lucide-react'
-import { AppDialog } from '@/shared/ui/AppDialog'
+/*
+  Author: Runor Ewhro
+  Description: Shared confirmation dialog used for destructive or important
+               yes-or-no actions across the app.
+*/
 
-interface ConfirmationModalProps {
+import type { ReactNode } from 'react'
+import { AlertTriangle as AlertIcon, Info } from 'lucide-react'
+import { AppModal } from '@/shared/ui/AppModal'
+
+interface CnfrMdlPrps {
   visible: boolean
   open: boolean
   closing?: boolean
@@ -16,11 +22,10 @@ interface ConfirmationModalProps {
   onCancel: () => void
 }
 
-export function ConfirmationModal({
+export function CnfrMdl({
   visible,
   open,
   closing = false,
-  portalTarget,
   title,
   message,
   confirmLabel = 'Confirm',
@@ -28,16 +33,14 @@ export function ConfirmationModal({
   variant = 'info',
   onConfirm,
   onCancel,
-}: ConfirmationModalProps) {
-  const Icon = variant === 'danger' ? AlertTriangle : Info
+}: CnfrMdlPrps) {
+  const Icon = variant === 'danger' ? AlertIcon : Info
 
   return (
-    <AppDialog
-      visible={visible}
-      open={open}
-      closing={closing}
-      portalTarget={portalTarget}
-      contentClassName={`app-modal-panel confirmation-modal confirmation-modal--${variant}`}
+    <AppModal
+      state={{ visible, open, closing }}
+      variant="confirmation"
+      tone={variant}
       ariaLabel={title}
       onClose={onCancel}
     >
@@ -64,6 +67,6 @@ export function ConfirmationModal({
           {confirmLabel}
         </button>
       </div>
-    </AppDialog>
+    </AppModal>
   )
 }

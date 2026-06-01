@@ -14,3 +14,5 @@ node_modules
 package-lock.json
 scripts
 .env
+
+settings

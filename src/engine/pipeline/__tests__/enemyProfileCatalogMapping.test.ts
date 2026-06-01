@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyTowerOfAdversityResistances,
-  buildEnemyProfileFromCatalog,
-  getEnemyResistanceTable,
+  applyTwrOfDv,
+  makeEnemyProf,
+  getEnemyResi,
 } from '@/domain/entities/enemy'
 
 describe('enemy catalog profile mapping', () => {
@@ -28,7 +28,7 @@ describe('enemy catalog profile mapping', () => {
 
   it('maps standard 10 and 40 resistance values to TOA equivalents', () => {
     expect(
-      applyTowerOfAdversityResistances({
+      applyTwrOfDv({
         0: 10,
         1: 40,
         2: 10,
@@ -50,7 +50,7 @@ describe('enemy catalog profile mapping', () => {
 
   it('builds a selected enemy profile from catalog data and prior session state', () => {
     expect(
-      buildEnemyProfileFromCatalog(catalogEnemy, {
+      makeEnemyProf(catalogEnemy, {
         previousProfile: {
           id: 'old',
           level: 100,
@@ -93,7 +93,7 @@ describe('enemy catalog profile mapping', () => {
   })
 
   it('returns non-TOA resistance values when the target is not in tower mode', () => {
-    expect(getEnemyResistanceTable(catalogEnemy, false)).toEqual({
+    expect(getEnemyResi(catalogEnemy, false)).toEqual({
       0: 10,
       1: 40,
       2: 10,

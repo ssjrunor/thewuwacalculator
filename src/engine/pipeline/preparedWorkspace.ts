@@ -1,189 +1,195 @@
 /*
   Author: Runor Ewhro
-  Description: builds the canonical prepared workspace surface used by
+  Description: builds the canonical prepared main surface used by
                calculator stages, overview summaries, and live simulations.
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
-import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
-import { findCombatParticipantSlotId, buildTransientCombatGraph } from '@/domain/state/combatGraph'
-import { buildPreparedRuntimeCatalog, type PreparedRuntimeCatalog } from '@/domain/services/runtimeSourceService'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
-import { prepareRuntimeSkill } from '@/engine/pipeline/prepareRuntimeSkill'
-import { simulateRotation } from '@/engine/pipeline/simulateRotation'
-import type { CombatContext, SimulationResult } from '@/engine/pipeline/types'
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import { findCombatPart, makeCombatGraph } from '@/domain/state/combatGraph'
+import { makeRuntimeCat, type PrepRtCat } from '@/domain/services/runtimeSourceService'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
+import { smltRot } from '@/engine/pipeline/simulateRotation'
+import type { CombatContext, SimResult } from '@/engine/pipeline/types'
+import type { SkillDef } from '@/domain/entities/stats'
 import type { SlotId } from '@/domain/entities/session'
-import type { DamageFeatureResult } from '@/domain/gameData/contracts'
+import type { DamageFeature } from '@/domain/gameData/contracts'
 import {
-  buildDirectFeatureResults,
-  buildPreparedRotationEnvironment,
-  type PreparedRotationEnvironment,
+  mkDrctFeatRs,
+  mkPrepRotNvr,
+  type PrepRotNvrn,
 } from '@/engine/rotation/system'
 
-export interface PreparedDirectOutput {
+export interface PrepDrctTpt {
   finalStats: CombatContext['finalStats']
-  allFeatures: DamageFeatureResult[]
-  allSkills: DamageFeatureResult[]
+  allFeatures: DamageFeature[]
+  allSkills: DamageFeature[]
 }
 
-export interface PreparedWorkspace {
+export interface PrepWork {
   revision: number
   enemy: EnemyProfile
-  activeRuntime: ResonatorRuntimeState | null
-  activeSeed: ResonatorSeed | null
-  participantRuntimesById: Record<string, ResonatorRuntimeState>
-  activeTargetSelections: Record<string, string | null>
+  actRt: ResRuntime | null
+  activeSeed: ResSeed | null
+  prtcRntmById: Record<string, ResRuntime>
+  activeTarget: Record<string, string | null>
   combatGraph: CombatGraph | null
   activeSlotId: SlotId | null
   activeContext: CombatContext | null
-  contextsBySlotId: Partial<Record<SlotId, CombatContext>>
-  contextsByResonatorId: Record<string, CombatContext>
-  activeCatalog: PreparedRuntimeCatalog | null
-  visibleSkills: SkillDefinition[]
-  directOutput: PreparedDirectOutput | null
-  rotationEnvironment: PreparedRotationEnvironment | null
+  cntxBySlotId: Partial<Record<SlotId, CombatContext>>
+  cntxByResId: Record<string, CombatContext>
+  actCat: PrepRtCat | null
+  visSkll: SkillDef[]
+  directOutput: PrepDrctTpt | null
+  rotNvrn: PrepRotNvrn | null
 }
 
-interface BuildPreparedWorkspaceInput {
+interface MkPrepWorkNp {
   revision?: number
-  runtime: ResonatorRuntimeState | null
-  seed?: ResonatorSeed | null
+  runtime: ResRuntime | null
+  seed?: ResSeed | null
   enemy: EnemyProfile
-  participantRuntimesById?: Record<string, ResonatorRuntimeState>
-  activeTargetSelections?: Record<string, string | null>
+  prtcRntmById?: Record<string, ResRuntime>
+  activeTarget?: Record<string, string | null>
   combatGraph?: CombatGraph | null
 }
 
-function buildContexts(
+// build one combat context for every participant so multiple calculator surfaces
+// can reuse them without rebuilding the graph repeatedly
+function mkCntx(
     graph: CombatGraph,
     enemy: EnemyProfile,
-): Pick<PreparedWorkspace, 'contextsBySlotId' | 'contextsByResonatorId'> {
-  const contextsBySlotId: Partial<Record<SlotId, CombatContext>> = {}
-  const contextsByResonatorId: Record<string, CombatContext> = {}
+): Pick<PrepWork, 'cntxBySlotId' | 'cntxByResId'> {
+  const cntxBySlotId: Partial<Record<SlotId, CombatContext>> = {}
+  const cntxByResId: Record<string, CombatContext> = {}
 
   for (const participant of Object.values(graph.participants)) {
-    const context = buildCombatContext({
+    const context = makeCombatEnv({
       graph,
       targetSlotId: participant.slotId,
       enemy,
     })
 
-    contextsBySlotId[participant.slotId] = context
-    contextsByResonatorId[participant.resonatorId] = context
+    cntxBySlotId[participant.slotId] = context
+    cntxByResId[participant.resonatorId] = context
   }
 
   return {
-    contextsBySlotId,
-    contextsByResonatorId,
+    cntxBySlotId: cntxBySlotId,
+    cntxByResId: cntxByResId,
   }
 }
 
-function buildVisibleSkills(
-    runtime: ResonatorRuntimeState | null,
+// prepare only the skills that survive runtime visibility checks
+function mkVsblSkll(
+    runtime: ResRuntime | null,
     context: CombatContext | null,
-    catalog: PreparedRuntimeCatalog | null,
-): SkillDefinition[] {
+    catalog: PrepRtCat | null,
+): SkillDef[] {
   if (!runtime || !context || !catalog) {
     return []
   }
 
   return catalog.skills.flatMap((skill) => {
-    const prepared = prepareRuntimeSkill(runtime, skill, context)
+    const prepared = prprRtSkll(runtime, skill, context)
     return prepared.visible === false ? [] : [prepared]
   })
 }
 
-export function buildPreparedWorkspace({
+export function mkPrepWork({
   revision = 0,
   runtime,
   seed = null,
   enemy,
-  participantRuntimesById = {},
-  activeTargetSelections = {},
+  prtcRntmById: partRntmById = {},
+  activeTarget: actTrgtSlct = {},
   combatGraph = null,
-}: BuildPreparedWorkspaceInput): PreparedWorkspace {
+}: MkPrepWorkNp): PrepWork {
   if (!runtime) {
     return {
       revision,
       enemy,
-      activeRuntime: null,
+      actRt: null,
       activeSeed: seed,
-      participantRuntimesById,
-      activeTargetSelections,
+      prtcRntmById: partRntmById,
+      activeTarget: actTrgtSlct,
       combatGraph: null,
       activeSlotId: null,
       activeContext: null,
-      contextsBySlotId: {},
-      contextsByResonatorId: {},
-      activeCatalog: null,
-      visibleSkills: [],
+      cntxBySlotId: {},
+      cntxByResId: {},
+      actCat: null,
+      visSkll: [],
       directOutput: null,
-      rotationEnvironment: null,
+      rotNvrn: null,
     }
   }
 
   const graph = combatGraph?.participants
       ? combatGraph
-      : buildTransientCombatGraph({
-        activeRuntime: runtime,
+      : makeCombatGraph({
+        actRt: runtime,
         activeSeed: seed ?? undefined,
-        participantRuntimes: participantRuntimesById,
-        selectedTargetsByResonatorId: {
-          [runtime.id]: activeTargetSelections,
+        partRts: partRntmById,
+        targetsByRes: {
+          [runtime.id]: actTrgtSlct,
         },
       })
 
-  const activeSlotId = findCombatParticipantSlotId(graph, runtime.id) ?? graph.activeSlotId
-  const { contextsBySlotId, contextsByResonatorId } = buildContexts(graph, enemy)
-  const activeContext = activeSlotId ? contextsBySlotId[activeSlotId] ?? null : null
-  const activeCatalog = buildPreparedRuntimeCatalog(runtime, seed)
-  const directFeatures = activeContext && seed ? buildDirectFeatureResults(activeContext, seed) : []
+  const activeSlotId = findCombatPart(graph, runtime.id) ?? graph.activeSlotId
+  const { cntxBySlotId: cntxBySlotId, cntxByResId: cntxByResId } = mkCntx(graph, enemy)
+  const activeContext = activeSlotId ? cntxBySlotId[activeSlotId] ?? null : null
+  const actCat = makeRuntimeCat(runtime, seed)
+  // split direct feature output out here so overview, damage, and rotation
+  // surfaces can all reuse the same expensive direct computation
+  const drctFeats = activeContext && seed ? mkDrctFeatRs(activeContext, seed) : []
   const directOutput = activeContext
       ? {
         finalStats: activeContext.finalStats,
-        allFeatures: directFeatures,
-        allSkills: directFeatures.filter((entry) => entry.feature.variant !== 'subHit'),
+        allFeatures: drctFeats,
+        allSkills: drctFeats.filter((entry) => entry.feature.variant !== 'subHit'),
       }
       : null
-  const rotationEnvironment = activeContext && seed
-      ? buildPreparedRotationEnvironment(activeContext, seed)
+  const rotNvrn = activeContext && seed
+      ? mkPrepRotNvr(activeContext, seed)
       : null
 
   return {
     revision,
     enemy,
-    activeRuntime: runtime,
+    actRt: runtime,
     activeSeed: seed,
-    participantRuntimesById,
-    activeTargetSelections,
+    prtcRntmById: partRntmById,
+    activeTarget: actTrgtSlct,
     combatGraph: graph,
     activeSlotId,
-    activeContext,
-    contextsBySlotId,
-    contextsByResonatorId,
-    activeCatalog,
-    visibleSkills: buildVisibleSkills(runtime, activeContext, activeCatalog),
+    activeContext: activeContext,
+    cntxBySlotId: cntxBySlotId,
+    cntxByResId: cntxByResId,
+    actCat: actCat,
+    visSkll: mkVsblSkll(runtime, activeContext, actCat),
     directOutput,
-    rotationEnvironment,
+    rotNvrn: rotNvrn,
   }
 }
 
-export function runPreparedWorkspaceSimulation(
-    prepared: PreparedWorkspace,
-): SimulationResult | null {
-  if (!prepared.activeContext || !prepared.activeSeed || !prepared.activeRuntime) {
+// run the full simulation from a previously prepared workspace snapshot
+export function runPrepWorkS(
+    prepared: PrepWork,
+): SimResult | null {
+  if (!prepared.activeContext || !prepared.activeSeed || !prepared.actRt) {
     return null
   }
 
-  return simulateRotation(
+  return smltRot(
       prepared.activeContext,
       prepared.activeSeed,
-      prepared.participantRuntimesById,
+      prepared.prtcRntmById,
       {
         directOutput: prepared.directOutput,
-        rotationEnvironment: prepared.rotationEnvironment,
+        rotNvrn: prepared.rotNvrn,
       },
   )
 }

@@ -7,10 +7,10 @@
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
+import type { ResRuntime } from '@/domain/entities/runtime'
 import type {
-  SkillAggregationType,
-  ResonatorBaseStats,
+  SkillAggType,
+  ResBaseStats,
   FinalStats,
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
@@ -18,7 +18,7 @@ import type { FeatureResult } from '@/domain/gameData/contracts'
 import type { SlotId } from '@/domain/entities/session'
 
 // minimal input needed to resolve a combat context from a graph
-export interface GraphCombatContextInput {
+export interface GrphCmbtCtxN {
   // fully built combat graph containing all participants
   graph: CombatGraph
 
@@ -32,10 +32,10 @@ export interface GraphCombatContextInput {
 // resolved combat state for one target slot inside a graph
 export interface CombatContext {
   // runtime state of the target participant
-  runtime: ResonatorRuntimeState
+  runtime: ResRuntime
 
   // immutable base stats before buff application
-  baseStats: ResonatorBaseStats
+  baseStats: ResBaseStats
 
   // active enemy profile for this context
   enemy: EnemyProfile
@@ -61,7 +61,7 @@ export interface DamageTotals {
 }
 
 // one grouped simulation view, such as personal or team rotation output
-export interface RotationSimulationGroup {
+export interface RotSmltGrp {
   // all feature rows belonging to this rotation grouping
   entries: FeatureResult[]
 
@@ -69,11 +69,11 @@ export interface RotationSimulationGroup {
   total: DamageTotals
 
   // totals split by aggregation type such as damage/healing/shield
-  totalsByAggregation: Record<SkillAggregationType, DamageTotals>
+  totalsByGroup: Record<SkillAggType, DamageTotals>
 }
 
 // top-level simulation result returned by the pipeline
-export interface SimulationResult {
+export interface SimResult {
   // final stats for the active combat context
   finalStats: FinalStats
 
@@ -82,8 +82,8 @@ export interface SimulationResult {
 
   // grouped personal/team rotation summaries
   rotations: {
-    personal: RotationSimulationGroup
-    team: RotationSimulationGroup
+    personal: RotSmltGrp
+    team: RotSmltGrp
   }
 
   // flattened non-subhit skill rows exposed for general UI use
@@ -96,5 +96,5 @@ export interface SimulationResult {
   total: DamageTotals
 
   // default aggregation buckets, typically mapped to the personal view
-  totalsByAggregation: Record<SkillAggregationType, DamageTotals>
+  totalsByGroup: Record<SkillAggType, DamageTotals>
 }

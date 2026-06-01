@@ -1,56 +1,66 @@
+/*
+  Author: Runor Ewhro
+  Description: Portal-mounted toast renderer that animates store-driven status
+               notifications in the configured screen position.
+*/
+
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, CheckCircle2, AlertTriangle, XCircle, Info } from 'lucide-react'
-import { useToastStore, type Toast, type ToastPosition, type ToastVariant } from '@/shared/util/toastStore.ts'
+import { X, CheckCircle2, AlertTriangle as AlertIcon, XCircle, Info } from 'lucide-react'
+import { useTstStr, type Toast, type TstPstn, type ToastVariant } from '@/shared/util/toastStore.ts'
 
 const EXIT_MS = 340
 
-const POSITION_CLASSES: Record<ToastPosition, string> = {
+const PSTN_CLSS: Record<TstPstn, string> = {
   'top-left': 'toast-container--top-left',
   'top-center': 'toast-container--top-center',
-  'top-right': 'toast-container--top-right',
+  'top-right': 'toast-container--top-results',
   'bottom-left': 'toast-container--bottom-left',
   'bottom-center': 'toast-container--bottom-center',
-  'bottom-right': 'toast-container--bottom-right',
+  'bottom-right': 'toast-container--bottom-results',
 }
 
-const VARIANT_ICONS: Record<ToastVariant, typeof Info> = {
+const VAR_CNS: Record<ToastVariant, typeof Info> = {
   default: Info,
   success: CheckCircle2,
-  warning: AlertTriangle,
+  warning: AlertIcon,
   error: XCircle,
 }
 
 function ToastItem({ toast }: { toast: Toast }) {
   const [entered, setEntered] = useState(false)
-  const dismiss = useToastStore((s) => s.dismiss)
-  const remove = useToastStore((s) => s.remove)
-  const removeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const dismiss = useTstStr((s) => s.dismiss)
+  const remove = useTstStr((s) => s.remove)
+  const rmTmrRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   useEffect(() => {
+    // arm the entry transition on the next frame so css can animate from the
+    // pre-enter state instead of rendering already-open.
     const frame = requestAnimationFrame(() => setEntered(true))
     return () => cancelAnimationFrame(frame)
   }, [])
 
   useEffect(() => {
     if (!toast.exiting) return
-    removeTimerRef.current = setTimeout(() => remove(toast.id), EXIT_MS)
-    return () => clearTimeout(removeTimerRef.current ?? undefined)
+    // exiting toasts stay mounted just long enough for the close animation to
+    // finish before the store removes them entirely.
+    rmTmrRef.current = setTimeout(() => remove(toast.id), EXIT_MS)
+    return () => clearTimeout(rmTmrRef.current ?? undefined)
   }, [toast.exiting, toast.id, remove])
 
-  const handleDismiss = () => dismiss(toast.id)
+  const onDsms = () => dismiss(toast.id)
 
   const handleClick = () => {
     if (toast.onClick) {
       toast.onClick()
-      handleDismiss()
+      onDsms()
     }
   }
 
   const position = toast.position ?? 'top-center'
   const isTop = position.startsWith('top')
   const variant = toast.variant ?? 'default'
-  const Icon = VARIANT_ICONS[variant]
+  const Icon = VAR_CNS[variant]
 
   const classes = [
     'toast-item',
@@ -81,7 +91,7 @@ function ToastItem({ toast }: { toast: Toast }) {
           onClick={(e) => {
             e.stopPropagation()
             toast.action!.onClick()
-            handleDismiss()
+            onDsms()
           }}
         >
           {toast.action.label}
@@ -92,7 +102,7 @@ function ToastItem({ toast }: { toast: Toast }) {
           type="button"
           className="toast-item__dismiss"
           aria-label="Dismiss"
-          onClick={handleDismiss}
+          onClick={onDsms}
         >
           <X size={14} />
         </button>
@@ -101,10 +111,10 @@ function ToastItem({ toast }: { toast: Toast }) {
   )
 }
 
-export function NotificationToastContainer() {
-  const toasts = useToastStore((s) => s.toasts)
+export function NtfcTstCntn() {
+  const toasts = useTstStr((s) => s.toasts)
 
-  const grouped = new Map<ToastPosition, Toast[]>()
+  const grouped = new Map<TstPstn, Toast[]>()
   for (const toast of toasts) {
     const pos = toast.position ?? 'top-center'
     const list = grouped.get(pos)
@@ -119,7 +129,7 @@ export function NotificationToastContainer() {
       {Array.from(grouped.entries()).map(([position, items]) => (
         <div
           key={position}
-          className={`toast-container ${POSITION_CLASSES[position]}`}
+          className={`toast-container ${PSTN_CLSS[position]}`}
           aria-label="Notifications"
         >
           {items.map((toast) => (

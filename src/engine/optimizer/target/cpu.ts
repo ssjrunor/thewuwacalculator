@@ -6,64 +6,66 @@
 */
 
 import type { CpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
-import { passesConstraints } from '@/engine/optimizer/constraints/statConstraints.ts'
+import { psssCstrs } from '@/engine/optimizer/constraints/statConstraints.ts'
 import {
-  applySetEffectsEncoded,
-  SET_RUNTIME_TOGGLE_ALL,
-  SET_RUNTIME_TOGGLE_SET14_FIVE,
+  applySetVec,
+  SETRTTGLALL,
+  SETRTTGLST14,
 } from '@/engine/optimizer/encode/sets.ts'
 import {
-  OPTIMIZER_ARCHETYPE_AERO_EROSION,
-  OPTIMIZER_ARCHETYPE_DAMAGE,
-  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
-  OPTIMIZER_ARCHETYPE_FUSION_BURST,
-  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
-  OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
-  OPTIMIZER_ARCHETYPE_TUNE_RUPTURE,
-  OPTIMIZER_CONTEXT_FLOATS,
-  OPTIMIZER_CTX_ARCHETYPE,
-  OPTIMIZER_CTX_AUX0,
-  OPTIMIZER_CTX_BASE_ATK,
-  OPTIMIZER_CTX_BASE_DEF,
-  OPTIMIZER_CTX_BASE_ER,
-  OPTIMIZER_CTX_BASE_HP,
-  OPTIMIZER_CTX_CRIT_DMG,
-  OPTIMIZER_CTX_CRIT_RATE,
-  OPTIMIZER_CTX_DEF_MULT,
-  OPTIMIZER_CTX_DMG_AMPLIFY,
-  OPTIMIZER_CTX_DMG_BONUS,
-  OPTIMIZER_CTX_DMG_REDUCTION,
-  OPTIMIZER_CTX_FINAL_ATK,
-  OPTIMIZER_CTX_FINAL_DEF,
-  OPTIMIZER_CTX_FINAL_HP,
-  OPTIMIZER_CTX_FLAT_DMG,
-  OPTIMIZER_CTX_META0,
-  OPTIMIZER_CTX_MULTIPLIER,
-  OPTIMIZER_CTX_RES_MULT,
-  OPTIMIZER_CTX_SCALING_ATK,
-  OPTIMIZER_CTX_SCALING_DEF,
-  OPTIMIZER_CTX_SCALING_ER,
-  OPTIMIZER_CTX_SCALING_HP,
-  OPTIMIZER_CTX_SET_RUNTIME_MASK,
-  OPTIMIZER_CTX_SKILL_ID,
-  OPTIMIZER_CTX_DMG_VULN,
-  OPTIMIZER_CTX_TOGGLES,
+  ARCH_AERO,
+  ARCH_DAMAGE,
+  ARCH_ELECTRO,
+  ARCH_FUSION,
+  ARCH_GLACIO,
+  ARCH_HACK,
+  ARCH_SPECTRO,
+  ARCH_TUNE,
+  CTX_FLOATS,
+  ARCHETYPE,
+  AUX0,
+  BASE_ATK,
+  BASE_DEF,
+  BASE_ER,
+  BASE_HP,
+  CRIT_DMG,
+  CRIT_RATE,
+  DEF_MUL,
+  DMG_AMP,
+  DMG_BNS,
+  DMG_RED,
+  FINAL_ATK,
+  FINAL_DEF,
+  FINAL_HP,
+  FLAT_DMG,
+  META0,
+  MV,
+  RES_MUL,
+  SCALING_ATK,
+  SCALING_DEF,
+  SCALING_ER,
+  SCALING_HP,
+  SET_MASK,
+  SKILL_ID,
+  DMG_VULN,
+  TOGGLES,
+  MAIN_FIRST,
 } from '@/engine/optimizer/config/constants.ts'
 
 // encoded row sizes used by the optimizer buffers
 const STATS_PER_ECHO = 20
-const MAIN_BUFFS_PER_ECHO = 15
-const SET_SLOTS = 32
+const MAIN_BUFF_SIZE = 18
+const SET_SLOTS = 33
 
 // offsets for the packed per-echo stat rows
-const STAT_ATK_PERCENT = 0
-const STAT_ATK_FLAT = 1
-const STAT_HP_PERCENT = 2
+const STAT_ATK_PCT = 0
+const STATATKFLAT = 1
+const STAT_HP_PRCN = 2
 const STAT_HP_FLAT = 3
-const STAT_DEF_PERCENT = 4
-const STAT_DEF_FLAT = 5
-const STAT_CRIT_RATE = 6
-const STAT_CRIT_DMG = 7
+const STAT_DEF_PCT = 4
+const STATDEFFLAT = 5
+const STATCRITRATE = 6
+const STATCRITDMG = 7
 const STAT_ER = 8
 const STAT_BASIC = 10
 const STAT_HEAVY = 11
@@ -77,8 +79,8 @@ const STAT_HAVOC = 18
 const STAT_ELECTRO = 19
 
 // offsets for the packed main-echo bonus rows
-const MAIN_ATK_PERCENT = 0
-const MAIN_ATK_FLAT = 1
+const MAIN_ATK_PCT = 0
+const MAINATKFLAT = 1
 const MAIN_BASIC = 2
 const MAIN_HEAVY = 3
 const MAIN_SKILL = 4
@@ -92,8 +94,13 @@ const MAIN_ELECTRO = 11
 const MAIN_ER = 12
 const MAIN_ECHO_SKILL = 13
 const MAIN_COORD = 14
+// see encode/echoes.ts for the layout; these three slots cover top_stat
+// contributions (cr/cd/dmgBonus) that previously fell on the floor.
+const MAIN_CR = 15
+const MAIN_CD = 16
+const MAIN_DMG_BNS = 17
 
-interface PreparedTargetCpuContext {
+interface PrepTgtCpuCt {
   // static values unpacked once from the target context buffer
   archetype: number
   skillMask: number
@@ -101,8 +108,8 @@ interface PreparedTargetCpuContext {
   charId: number
   sequence: number
   toggle0: number
-  setRuntimeMask: number
-  set14FiveEnabled: boolean
+  setRtMask: number
+  st14FiveOn: boolean
   baseAtk: number
   baseHp: number
   baseDef: number
@@ -128,7 +135,7 @@ interface PreparedTargetCpuContext {
 }
 
 // cache parsed contexts so repeated combo checks do not keep unpacking the same buffer
-const parsedContextCache = new WeakMap<Float32Array, PreparedTargetCpuContext>()
+const prsdCtxCch = new WeakMap<Float32Array, PrepTgtCpuCt>()
 
 // fast popcount used to turn per-set bitmasks into unique-kind counts
 function countOneBits(x: number): number {
@@ -139,14 +146,14 @@ function countOneBits(x: number): number {
 }
 
 // special conversion for 1206: excess er contributes atk
-function calc1206ErToAtk(charId: number, finalER: number, toggle0: number): number {
+function calcErToAtk(charId: number, finalER: number, toggle0: number): number {
   if (charId !== 1206) return 0
   const erOver = Math.max(0, finalER - 150)
   return toggle0 ? Math.min(erOver * 20, 2600) : Math.min(erOver * 12, 1560)
 }
 
 // special conversion for 1306: excess crit rate converts into crit dmg
-function calc1306CritConversion(charId: number, sequence: number, critRateTotal: number): number {
+function calcCritConvert(charId: number, sequence: number, critRateTotal: number): number {
   if (charId !== 1306 || sequence < 2) return 0
 
   let bonusCd = 0
@@ -165,15 +172,15 @@ function calc1306CritConversion(charId: number, sequence: number, critRateTotal:
 }
 
 // special conversion for 1412: excess er grants echo skill bonus
-function calc1412Conversion(charId: number, finalER: number): number {
+function calcConvert(charId: number, finalER: number): number {
   if (charId !== 1412 || finalER <= 125) return 0
   return Math.min((finalER - 125) * 2, 50) / 100
 }
 
 // select the matching elemental bonus bucket from base stats + set bonus
-function selectSetElementBonus(
+function selSetElemBn(
     base: Float32Array,
-    setBonus: ReturnType<typeof applySetEffectsEncoded>,
+    setBonus: ReturnType<typeof applySetVec>,
     elementIdx: number,
 ): number {
   switch (elementIdx) {
@@ -187,9 +194,9 @@ function selectSetElementBonus(
 }
 
 // sum all skill-type-specific bonus buckets that match the current skill mask
-function selectSkillTypeBonus(
+function selSkllTypeB(
     base: Float32Array,
-    setBonus: ReturnType<typeof applySetEffectsEncoded>,
+    setBonus: ReturnType<typeof applySetVec>,
     skillMask: number,
 ): number {
   return (
@@ -203,7 +210,7 @@ function selectSkillTypeBonus(
 }
 
 // select the current main echo's elemental bonus bucket
-function selectMainElementBonus(
+function selMainElemB(
     mainEchoBuffs: Float32Array,
     base: number,
     elementIdx: number,
@@ -219,76 +226,76 @@ function selectMainElementBonus(
 }
 
 // parse and cache the packed target context so combo evaluation can stay lightweight
-function prepareTargetCpuContext(context: Float32Array): PreparedTargetCpuContext {
-  const cached = parsedContextCache.get(context)
+function prprTgtCpuCt(context: Float32Array): PrepTgtCpuCt {
+  const cached = prsdCtxCch.get(context)
   if (cached) {
     return cached
   }
 
-  if (context.length !== OPTIMIZER_CONTEXT_FLOATS) {
-    throw new Error(`Target optimizer context length mismatch: expected ${OPTIMIZER_CONTEXT_FLOATS}, received ${context.length}`)
+  if (context.length !== CTX_FLOATS) {
+    throw new Error(`Target optimizer context length mismatch: expected ${CTX_FLOATS}, received ${context.length}`)
   }
 
   const u32 = new Uint32Array(context.buffer, context.byteOffset, context.length)
-  const skillId = u32[OPTIMIZER_CTX_SKILL_ID] >>> 0
+  const skillId = u32[SKILL_ID] >>> 0
   const skillMask = skillId & 0x7fff
-  const meta0 = u32[OPTIMIZER_CTX_META0] >>> 0
-  const togglesBits = u32[OPTIMIZER_CTX_TOGGLES] >>> 0
-  const packedRuntimeMask = u32[OPTIMIZER_CTX_SET_RUNTIME_MASK] >>> 0
-  const setRuntimeMask = packedRuntimeMask !== 0 ? packedRuntimeMask : SET_RUNTIME_TOGGLE_ALL
+  const meta0 = u32[META0] >>> 0
+  const togglesBits = u32[TOGGLES] >>> 0
+  const pckdRtMask = u32[SET_MASK] >>> 0
+  const setRtMask = pckdRtMask !== 0 ? pckdRtMask : SETRTTGLALL
 
-  const prepared: PreparedTargetCpuContext = {
-    archetype: context[OPTIMIZER_CTX_ARCHETYPE],
+  const prepared: PrepTgtCpuCt = {
+    archetype: context[ARCHETYPE],
     skillMask,
     elementIdx: Math.max(0, Math.min(5, (skillId >>> 15) & 0x7)),
     charId: meta0 & 0xfff,
     sequence: (meta0 >>> 12) & 0xf,
     toggle0: (togglesBits & 1) ? 1 : 0,
-    setRuntimeMask,
-    set14FiveEnabled: (setRuntimeMask & SET_RUNTIME_TOGGLE_SET14_FIVE) !== 0,
-    baseAtk: context[OPTIMIZER_CTX_BASE_ATK],
-    baseHp: context[OPTIMIZER_CTX_BASE_HP],
-    baseDef: context[OPTIMIZER_CTX_BASE_DEF],
-    baseER: context[OPTIMIZER_CTX_BASE_ER],
-    finalAtk: context[OPTIMIZER_CTX_FINAL_ATK],
-    finalHp: context[OPTIMIZER_CTX_FINAL_HP],
-    finalDef: context[OPTIMIZER_CTX_FINAL_DEF],
-    critRate: context[OPTIMIZER_CTX_CRIT_RATE],
-    critDmg: context[OPTIMIZER_CTX_CRIT_DMG],
-    scalingAtk: context[OPTIMIZER_CTX_SCALING_ATK],
-    scalingHp: context[OPTIMIZER_CTX_SCALING_HP],
-    scalingDef: context[OPTIMIZER_CTX_SCALING_DEF],
-    scalingER: context[OPTIMIZER_CTX_SCALING_ER],
-    multiplier: context[OPTIMIZER_CTX_MULTIPLIER],
-    flatDmg: context[OPTIMIZER_CTX_FLAT_DMG],
-    resMult: context[OPTIMIZER_CTX_RES_MULT],
-    defMult: context[OPTIMIZER_CTX_DEF_MULT],
-    dmgReduction: context[OPTIMIZER_CTX_DMG_REDUCTION],
-    dmgBonus: context[OPTIMIZER_CTX_DMG_BONUS],
-    dmgAmplify: context[OPTIMIZER_CTX_DMG_AMPLIFY],
-    dmgVulnPct: context[OPTIMIZER_CTX_DMG_VULN],
-    aux0: context[OPTIMIZER_CTX_AUX0],
+    setRtMask: setRtMask,
+    st14FiveOn: (setRtMask & SETRTTGLST14) !== 0,
+    baseAtk: context[BASE_ATK],
+    baseHp: context[BASE_HP],
+    baseDef: context[BASE_DEF],
+    baseER: context[BASE_ER],
+    finalAtk: context[FINAL_ATK],
+    finalHp: context[FINAL_HP],
+    finalDef: context[FINAL_DEF],
+    critRate: context[CRIT_RATE],
+    critDmg: context[CRIT_DMG],
+    scalingAtk: context[SCALING_ATK],
+    scalingHp: context[SCALING_HP],
+    scalingDef: context[SCALING_DEF],
+    scalingER: context[SCALING_ER],
+    multiplier: context[MV],
+    flatDmg: context[FLAT_DMG],
+    resMult: context[RES_MUL],
+    defMult: context[DEF_MUL],
+    dmgReduction: context[DMG_RED],
+    dmgBonus: context[DMG_BNS],
+    dmgAmplify: context[DMG_AMP],
+    dmgVulnPct: context[DMG_VULN],
+    aux0: context[AUX0],
   }
 
-  parsedContextCache.set(context, prepared)
+  prsdCtxCch.set(context, prepared)
   return prepared
 }
 
 // build the raw combo stat vector and per-set unique-kind counts for one 5-echo combo
-function buildComboBaseState(
+function mkCmbBaseStt(
     scratch: CpuScratch,
     stats: Float32Array,
     sets: Uint8Array,
     kinds: Uint16Array,
     comboIds: Int32Array,
 ): number {
-  const base = scratch.baseComboVector
+  const base = scratch.baseCmbVctr
   base.fill(0)
 
   const setCounts = scratch.setCounts
   const setMasks = scratch.setMasks
-  const touchedSetIds = scratch.touchedSetIds
-  let touchedSetCount = 0
+  const tchdSetIds = scratch.tchdSetIds
+  let tchdSetCnt = 0
 
   for (let comboIndex = 0; comboIndex < comboIds.length; comboIndex += 1) {
     const echoIndex = comboIds[comboIndex]
@@ -313,32 +320,32 @@ function buildComboBaseState(
     }
 
     if (prevMask === 0) {
-      touchedSetIds[touchedSetCount] = setId
-      touchedSetCount += 1
+      tchdSetIds[tchdSetCnt] = setId
+      tchdSetCnt += 1
     }
 
     setMasks[setId] = nextMask
   }
 
   // finalize piece counts only for sets touched by this combo
-  for (let index = 0; index < touchedSetCount; index += 1) {
-    const setId = touchedSetIds[index]
+  for (let index = 0; index < tchdSetCnt; index += 1) {
+    const setId = tchdSetIds[index]
     setCounts[setId] = countOneBits(setMasks[setId])
   }
 
-  return touchedSetCount
+  return tchdSetCnt
 }
 
 // clear only the touched set slots so the scratch buffer can be reused cheaply
-function clearComboSetState(scratch: CpuScratch, touchedSetCount: number): void {
-  for (let index = 0; index < touchedSetCount; index += 1) {
-    const setId = scratch.touchedSetIds[index]
+function clrCmbSetStt(scratch: CpuScratch, tchdSetCnt: number): void {
+  for (let index = 0; index < tchdSetCnt; index += 1) {
+    const setId = scratch.tchdSetIds[index]
     scratch.setCounts[setId] = 0
     scratch.setMasks[setId] = 0
   }
 }
 
-export function evaluateTargetCpuCombo(options: {
+export function evalTgtCpuCm(options: {
   context: Float32Array
   stats: Float32Array
   setConstLut: Float32Array
@@ -347,113 +354,121 @@ export function evaluateTargetCpuCombo(options: {
   kinds: Uint16Array
   constraints: Float32Array
   comboIds: Int32Array
-  lockedMainIndex: number
+  lockMainIdx: number
   scratch: CpuScratch
 }): { damage: number; mainIndex: number } | null {
   const {
     context,
     stats,
     setConstLut,
-    mainEchoBuffs,
+    mainEchoBuffs: mainEchoBuffs,
     sets,
     kinds,
     constraints,
     comboIds,
-    lockedMainIndex,
+    lockMainIdx: lockMainNdx,
     scratch,
   } = options
 
-  const prepared = prepareTargetCpuContext(context)
-  const touchedSetCount = buildComboBaseState(scratch, stats, sets, kinds, comboIds)
-  const base = scratch.baseComboVector
+  const prepared = prprTgtCpuCt(context)
+  const tchdSetCnt = mkCmbBaseStt(scratch, stats, sets, kinds, comboIds)
+  const base = scratch.baseCmbVctr
   const setCounts = scratch.setCounts
 
   // apply encoded set bonuses once for the full combo before trying each main slot
-  const setBonus = applySetEffectsEncoded(setCounts, prepared.skillMask, setConstLut, prepared.setRuntimeMask)
+  const setBonus = applySetVec(setCounts, prepared.skillMask, setConstLut, prepared.setRtMask)
 
   const finalHpBase =
-      prepared.baseHp * ((base[STAT_HP_PERCENT] + setBonus.hpP) / 100) +
+      prepared.baseHp * ((base[STAT_HP_PRCN] + setBonus.hpP) / 100) +
       base[STAT_HP_FLAT] +
       setBonus.hpF +
       prepared.finalHp
 
   const finalDefBase =
-      prepared.baseDef * ((base[STAT_DEF_PERCENT] + setBonus.defP) / 100) +
-      base[STAT_DEF_FLAT] +
+      prepared.baseDef * ((base[STAT_DEF_PCT] + setBonus.defP) / 100) +
+      base[STATDEFFLAT] +
       setBonus.defF +
       prepared.finalDef
 
   const atkBaseTerm =
-      prepared.baseAtk * ((base[STAT_ATK_PERCENT] + setBonus.atkP) / 100) +
-      base[STAT_ATK_FLAT] +
+      prepared.baseAtk * ((base[STAT_ATK_PCT] + setBonus.atkP) / 100) +
+      base[STATATKFLAT] +
       setBonus.atkF +
       prepared.finalAtk
 
   const finalERBase = prepared.baseER + base[STAT_ER] + setBonus.erSetBonus
 
-  const critRateTotal = prepared.critRate + ((base[STAT_CRIT_RATE] + setBonus.critRate) / 100)
-  let critDmgTotal = prepared.critDmg + ((base[STAT_CRIT_DMG] + setBonus.critDmg) / 100)
+  const critRateTotal = prepared.critRate + ((base[STATCRITRATE] + setBonus.critRate) / 100)
+  let critDmgTotal = prepared.critDmg + ((base[STATCRITDMG] + setBonus.critDmg) / 100)
 
   if (prepared.charId === 1306) {
-    critDmgTotal += calc1306CritConversion(prepared.charId, prepared.sequence, critRateTotal)
+    critDmgTotal += calcCritConvert(prepared.charId, prepared.sequence, critRateTotal)
   }
 
-  const bonusBaseTotal =
+  const bnsBaseTtl =
       setBonus.bonusBase +
-      selectSetElementBonus(base, setBonus, prepared.elementIdx) +
-      selectSkillTypeBonus(base, setBonus, prepared.skillMask)
+      selSetElemBn(base, setBonus, prepared.elementIdx) +
+      selSkllTypeB(base, setBonus, prepared.skillMask)
 
   let bestDamage = 0
   let bestMainIndex = -1
+  const firstSlotMain = lockMainNdx === MAIN_FIRST
+  const fixedMain = firstSlotMain || lockMainNdx >= 0
 
   // try every combo member as the main echo unless one is explicitly locked
   for (let index = 0; index < comboIds.length; index += 1) {
-    const mainIndex = lockedMainIndex >= 0 ? lockedMainIndex : comboIds[index]
-    if (lockedMainIndex >= 0 && mainIndex !== lockedMainIndex) {
-      continue
-    }
+    const mainIndex = firstSlotMain
+        ? comboIds[0]
+        : lockMainNdx >= 0
+          ? lockMainNdx
+          : comboIds[index]
 
-    const mainBase = mainIndex * MAIN_BUFFS_PER_ECHO
+    const mainBase = mainIndex * MAIN_BUFF_SIZE
     const finalER = finalERBase + mainEchoBuffs[mainBase + MAIN_ER]
 
     // set 14 conditional er threshold bonus
-    const set14Active = prepared.set14FiveEnabled && setCounts[14] >= 5
+    const set14Active = prepared.st14FiveOn && setCounts[14] >= 5
     const s14ErBonus = set14Active && finalER >= 250 ? 30 : 0
 
     // assemble the final dmg bonus pool for this chosen main echo
-    let bonus = bonusBaseTotal + s14ErBonus + selectMainElementBonus(mainEchoBuffs, mainBase, prepared.elementIdx)
+    let bonus = bnsBaseTtl + s14ErBonus + selMainElemB(mainEchoBuffs, mainBase, prepared.elementIdx)
     bonus += mainEchoBuffs[mainBase + MAIN_BASIC] * ((prepared.skillMask >>> 0) & 1)
     bonus += mainEchoBuffs[mainBase + MAIN_HEAVY] * ((prepared.skillMask >>> 1) & 1)
     bonus += mainEchoBuffs[mainBase + MAIN_SKILL] * ((prepared.skillMask >>> 2) & 1)
     bonus += mainEchoBuffs[mainBase + MAIN_LIB] * ((prepared.skillMask >>> 3) & 1)
     bonus += mainEchoBuffs[mainBase + MAIN_ECHO_SKILL] * ((prepared.skillMask >>> 6) & 1)
     bonus += mainEchoBuffs[mainBase + MAIN_COORD] * ((prepared.skillMask >>> 7) & 1)
+    // generic top_stat dmgBonus (e.g. set effects or conditional echo passives
+    // that grant +N% damage regardless of skill type or element)
+    bonus += mainEchoBuffs[mainBase + MAIN_DMG_BNS]
 
     const dmgBonus =
         prepared.dmgBonus +
         (bonus / 100) +
-        (calc1412Conversion(prepared.charId, finalER) * ((prepared.skillMask >>> 6) & 1))
+        (calcConvert(prepared.charId, finalER) * ((prepared.skillMask >>> 6) & 1))
 
     // final atk depends on the chosen main echo's atk bonuses
     let finalAtk =
         atkBaseTerm +
-        (prepared.baseAtk * (mainEchoBuffs[mainBase + MAIN_ATK_PERCENT] / 100)) +
-        mainEchoBuffs[mainBase + MAIN_ATK_FLAT]
+        (prepared.baseAtk * (mainEchoBuffs[mainBase + MAIN_ATK_PCT] / 100)) +
+        mainEchoBuffs[mainBase + MAINATKFLAT]
 
-    finalAtk += calc1206ErToAtk(prepared.charId, finalER, prepared.toggle0)
+    finalAtk += calcErToAtk(prepared.charId, finalER, prepared.toggle0)
 
-    // 1209-specific er-derived bonuses
-    let mornyeDmgBonus = 0
-    let critRateBonus = 0
-    let critDmgBonus = 0
+    // 1209-specific er-derived bonuses + main-echo cr/cd contributions
+    // (the latter are %-typed top_stat operations, normalized to the same
+    // 0..1 scale critRateTotal/critDmgTotal use).
+    let mrnyDmgBns = 0
+    let critRateBns = mainEchoBuffs[mainBase + MAIN_CR] / 100
+    let critDmgBonus = mainEchoBuffs[mainBase + MAIN_CD] / 100
 
     if (prepared.charId === 1209 && finalER > 0) {
       const erOver = Math.max(0, finalER - 100)
-      mornyeDmgBonus = Math.min(erOver * 0.25, 40) / 100
+      mrnyDmgBns = Math.min(erOver * 0.25, 40) / 100
 
       if (((prepared.skillMask >>> 3) & 1) !== 0) {
-        critRateBonus = Math.min(erOver * 0.5, 80) / 100
-        critDmgBonus = Math.min(erOver, 160) / 100
+        critRateBns += Math.min(erOver * 0.5, 80) / 100
+        critDmgBonus += Math.min(erOver, 160) / 100
       }
     }
 
@@ -464,14 +479,14 @@ export function evaluateTargetCpuCombo(options: {
         (finalAtk * prepared.scalingAtk) +
         (finalER * prepared.scalingER)
 
-    let constraintCritRate = critRateTotal
-    let constraintCritDmg = critDmgTotal
-    let constraintDmgBonus = dmgBonus
+    let cstrCritRate = critRateTotal
+    let cstrCritDmg = critDmgTotal
+    let cstrDmgBns = dmgBonus
     let avg = 0
 
     // archetype-specific average damage evaluation
     switch (prepared.archetype) {
-      case OPTIMIZER_ARCHETYPE_TUNE_RUPTURE: {
+      case ARCH_TUNE: {
         const normal =
             prepared.multiplier *
             prepared.resMult *
@@ -486,17 +501,36 @@ export function evaluateTargetCpuCombo(options: {
         avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
 
         // tune rupture uses packed crit/bonus values directly
-        constraintCritRate = prepared.critRate
-        constraintCritDmg = prepared.critDmg
-        constraintDmgBonus = prepared.dmgBonus
+        cstrCritRate = prepared.critRate
+        cstrCritDmg = prepared.critDmg
+        cstrDmgBns = prepared.dmgBonus
         break
       }
 
-      case OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE:
-      case OPTIMIZER_ARCHETYPE_AERO_EROSION:
-      case OPTIMIZER_ARCHETYPE_FUSION_BURST:
-      case OPTIMIZER_ARCHETYPE_GLACIO_CHAFE:
-      case OPTIMIZER_ARCHETYPE_ELECTRO_FLARE: {
+      case ARCH_HACK: {
+        const normal =
+            prepared.multiplier *
+            prepared.resMult *
+            prepared.defMult *
+            prepared.dmgReduction *
+            prepared.dmgBonus *
+            prepared.dmgAmplify
+
+        const critRate = Math.max(0, Math.min(1, prepared.critRate))
+        const critDmg = prepared.critDmg
+        avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
+
+        cstrCritRate = prepared.critRate
+        cstrCritDmg = prepared.critDmg
+        cstrDmgBns = prepared.dmgBonus
+        break
+      }
+
+      case ARCH_SPECTRO:
+      case ARCH_AERO:
+      case ARCH_FUSION:
+      case ARCH_GLACIO:
+      case ARCH_ELECTRO: {
         const normal = Math.floor(
             prepared.multiplier *
             prepared.resMult *
@@ -512,13 +546,13 @@ export function evaluateTargetCpuCombo(options: {
         avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
 
         // negative-effect archetypes also use packed crit/bonus values
-        constraintCritRate = prepared.critRate
-        constraintCritDmg = prepared.critDmg
-        constraintDmgBonus = prepared.dmgBonus
+        cstrCritRate = prepared.critRate
+        cstrCritDmg = prepared.critDmg
+        cstrDmgBns = prepared.dmgBonus
         break
       }
 
-      case OPTIMIZER_ARCHETYPE_DAMAGE:
+      case ARCH_DAMAGE:
       default: {
         const baseMul =
             prepared.resMult *
@@ -530,28 +564,28 @@ export function evaluateTargetCpuCombo(options: {
         const baseDamage =
             (scaled * prepared.multiplier + prepared.flatDmg) *
             baseMul *
-            (dmgBonus + (mornyeDmgBonus * prepared.toggle0))
+            (dmgBonus + (mrnyDmgBns * prepared.toggle0))
 
-        const critRateForDamage = Math.max(0, Math.min(1, critRateTotal + critRateBonus))
-        const critDmgForDamage = critDmgTotal + critDmgBonus
-        avg = (critRateForDamage * (baseDamage * critDmgForDamage)) + ((1 - critRateForDamage) * baseDamage)
+        const critRateForD = Math.max(0, Math.min(1, critRateTotal + critRateBns))
+        const critDmgForDm = critDmgTotal + critDmgBonus
+        avg = (critRateForD * (baseDamage * critDmgForDm)) + ((1 - critRateForD) * baseDamage)
         break
       }
     }
 
     // reject this main choice if it fails any active constraint window
-    if (constraints && !passesConstraints(
+    if (constraints && !psssCstrs(
         constraints,
         finalAtk,
         finalHpBase,
         finalDefBase,
-        constraintCritRate,
-        constraintCritDmg,
+        cstrCritRate,
+        cstrCritDmg,
         finalER,
-        constraintDmgBonus,
+        cstrDmgBns,
         avg,
     )) {
-      if (lockedMainIndex >= 0) {
+      if (fixedMain) {
         break
       }
       continue
@@ -563,12 +597,12 @@ export function evaluateTargetCpuCombo(options: {
     }
 
     // when the main is locked there is only one candidate to test
-    if (lockedMainIndex >= 0) {
+    if (fixedMain) {
       break
     }
   }
 
-  clearComboSetState(scratch, touchedSetCount)
+  clrCmbSetStt(scratch, tchdSetCnt)
 
   return bestMainIndex >= 0
       ? {

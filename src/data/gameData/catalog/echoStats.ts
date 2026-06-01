@@ -4,44 +4,54 @@
                consumers import calculator modules.
 */
 
-export interface EchoSecondaryStat {
+export interface EchoSideStat {
   key: string
   value: number
 }
 
-export interface EchoSubstatRange {
+export interface SubstatRange {
   min: number
   max: number
   divisions: number
 }
 
-export interface EchoStatsCatalogData {
+export interface EchoSttsCatD {
   primaryStats: Record<string, Record<string, number>>
-  secondaryStats: Record<string, EchoSecondaryStat>
+  secondaryStats: Record<string, EchoSideStat>
   substatKeys: string[]
-  substatRanges: Record<string, EchoSubstatRange>
+  substatRanges: Record<string, SubstatRange>
 }
 
-export let ECHO_PRIMARY_STATS: Record<number, Record<string, number>> = {}
-export let ECHO_SECONDARY_STATS: Record<number, EchoSecondaryStat> = {}
-export let ECHO_SUBSTAT_KEYS: string[] = []
-export let SUBSTAT_RANGES: Record<string, EchoSubstatRange> = {}
+export let ECHO_MAIN_STATS: Record<number, Record<string, number>> = {}
+export let ECHO_SIDE_STATS: Record<number, EchoSideStat> = {}
+export let SUBSTAT_KEYS: string[] = []
+export let SUBSTAT_RANGES: Record<string, SubstatRange> = {}
 
-export function initEchoStatsCatalog(data: EchoStatsCatalogData): void {
-  ECHO_PRIMARY_STATS = Object.fromEntries(
+let echoSttsSrc: EchoSttsCatD | null = null
+
+export function initEchoStts(data: EchoSttsCatD): void {
+  echoSttsSrc = data
+
+  ECHO_MAIN_STATS = Object.fromEntries(
       Object.entries(data.primaryStats).map(([cost, stats]) => [Number(cost), stats]),
   ) as Record<number, Record<string, number>>
 
-  ECHO_SECONDARY_STATS = Object.fromEntries(
+  ECHO_SIDE_STATS = Object.fromEntries(
       Object.entries(data.secondaryStats).map(([cost, stat]) => [Number(cost), stat]),
-  ) as Record<number, EchoSecondaryStat>
+  ) as Record<number, EchoSideStat>
 
-  ECHO_SUBSTAT_KEYS = [...data.substatKeys]
+  SUBSTAT_KEYS = [...data.substatKeys]
   SUBSTAT_RANGES = { ...data.substatRanges }
 }
 
+// expose the most recent raw snapshot so worker hydration paths can rehydrate
+// the same globals without re-fetching the JSON.
+export function getEchoSttsSrc(): EchoSttsCatD | null {
+  return echoSttsSrc
+}
+
 // get all valid discrete step values for a substat key
-export function getSubstatStepOptions(key: string): number[] {
+export function getSbstStepP(key: string): number[] {
   const range = SUBSTAT_RANGES[key]
   if (!range) return []
 
@@ -73,8 +83,8 @@ export function getSubstatStepOptions(key: string): number[] {
 }
 
 // snap a value to the nearest legal substat step
-export function snapToNearestSubstatValue(key: string, value: number): number {
-  const options = getSubstatStepOptions(key)
+export function snapToNrstSb(key: string, value: number): number {
+  const options = getSbstStepP(key)
   if (!options.length) return value
 
   let closest = options[0]
@@ -92,7 +102,7 @@ export function snapToNearestSubstatValue(key: string, value: number): number {
 }
 
 // get the base step increment for a substat key
-export function getSubstatStep(key: string): number {
+export function getSbstStep(key: string): number {
   const range = SUBSTAT_RANGES[key]
   if (!range) return 0.1
 

@@ -1,22 +1,28 @@
-export interface ChangelogEntry {
+/*
+  Author: Runor Ewhro
+  Description: Authored changelog entry data rendered by the changelog page and
+               update toast surfaces.
+*/
+
+export interface ChngEnt {
   type: 'paragraph'
   content: string
 }
 
-export interface ChangelogRecord {
+export interface ChngRcrd {
   date: string
   shortDesc?: string
   patchVersion?: string
-  entries: ChangelogEntry[]
+  entries: ChngEnt[]
 }
 
-export interface ChangelogSection {
+export interface ChngSctn {
   id: 'current' | 'legacy'
   label: string
-  entries: ChangelogRecord[]
+  entries: ChngRcrd[]
 }
 
-export const currentChangelogEntries: ChangelogRecord[] = [
+export const curChngEnts: ChngRcrd[] = [
   {
     date: '30/03/2026',
     entries: [
@@ -187,12 +193,84 @@ export const currentChangelogEntries: ChangelogRecord[] = [
     ],
     shortDesc: `3.4 support... mostly~! (〜^∇^)〜`,
   },
+  {
+    date: '31/05/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Rotation loops are here now.</strong> You can finally put repeated sections inside rotations properly instead of manually duplicating the same chunk over and over like the app personally wronged you.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Saved rotations also have <strong>new metadata</strong>. You can add a <strong>note</strong> and <strong>duration</strong>, which means saved rotations can show <strong>DPS</strong> now and the saved list can sort by DPS instead of only caring about raw damage totals.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The app has its own <strong>context menus</strong> now. They are enabled by default, can be turned off in settings, and show up across heavier calculator surfaces so actions like delete, select, and batch editing are not trapped behind tiny scattered buttons anymore.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Selection / batch editing</strong> is new on a bunch of item-heavy surfaces too. Inventory items, echoes, overview profiles, live rotation nodes, and saved rotations can be handled in groups now, so managing bigger sets of stuff should be much less one-by-one.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Clipboard support is new too.</strong> You can copy, cut, and paste supported calculator items now, including echoes, overview profiles, live rotation nodes, and saved rotations, so moving setups around does not have to be a full manual rebuild every time.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Echo inventory has a new compact look</strong>, and it can be toggled from app settings. Echoes also got better paste/import handling and clearer loadout movement, so moving echoes between loadouts and inventory should feel less like balancing dishes during an earthquake.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Weapon suggestions exist now.</strong> They are still a little "yay..." in spirit, but the app can now suggest weapon options instead of leaving that whole area as a future-problem-shaped hole.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          There is also a <strong>new optimizer mode</strong>. The optimizer side has more result tooling, more reusable result rows/filters, better teammate setup pieces, and new generated-build plumbing for the newer search flow.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>Guides</strong> system was redone too. The general guides page now has searchable guide content, cleaner deep linking, a better reader flow, and updated guide copy for the newer systems.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          App settings have more actual preferences now, including toggles for some of the new behavior. Settings, persistence, imports, restore/export flows, picker history, local history, and old backup handling also got tightened up so saved data should be less dramatic about schema changes.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Overview profiles</strong> are more manageable now as well. They can be copied, pasted, overwritten, deleted in batches, and switched around more cleanly, so overview is more of an actual profile manager instead of just a nice display shelf.
+        `,
+      }
+    ],
+    shortDesc: `loops, context menus, clipboard, batch editing, guides, and other new stuff 〜⁠(⁠꒪⁠꒳⁠꒪⁠)⁠〜`,
+  },
 ]
 
-export const latestCurrentChangelogEntry =
-  currentChangelogEntries[currentChangelogEntries.length - 1] ?? null
+export const ltstCurChngE =
+  curChngEnts[curChngEnts.length - 1] ?? null
 
-export function getCurrentChangelogToastVersion(entry: ChangelogRecord | null): string {
+export function getCurChngTs(entry: ChngRcrd | null): string {
   if (!entry) {
     return 'none'
   }
@@ -200,7 +278,7 @@ export function getCurrentChangelogToastVersion(entry: ChangelogRecord | null): 
   return `${entry.date}:${entry.shortDesc ?? entry.entries[0]?.content ?? 'update'}`
 }
 
-export const legacyChangelogEntries: ChangelogRecord[] = [
+export const legChngEnts: ChngRcrd[] = [
   {
     date: '20/05/2025',
     entries: [
@@ -514,7 +592,7 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
         type: 'paragraph',
         content: `
                         Guides can be accessed from the sidebar navigation or directly through in-app prompts.
-                        They're divided into clear categories — such as <strong>Echoes</strong>, <strong>Rotations</strong>, <strong>Team Buffs</strong>, and <strong>Overview</strong> — each covering a specific part of the calculator.
+                        They're divided into clear categories such as <strong>Echoes</strong>, <strong>Rotations</strong>, <strong>Team Buffs</strong>, and <strong>Overview</strong>, each covering a specific part of the calculator.
 
                         You'll often see small <em>"See Guide"</em> buttons or links throughout the app, appearing where you'd expect them to be.
                         Clicking one of these instantly opens the relevant section or takes you to that category's page in the <strong>Guides</strong> tab, letting you learn directly in context without hunting through menus.
@@ -528,7 +606,7 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
     entries: [
       {
         type: 'paragraph',
-        content: `Added <strong>confirmation modals</strong> across key actions — including <em>Clear Rotation</em>, <em>Unequip All Echoes</em>, and <em>Delete</em> operations — to prevent accidental clicks and data loss.`,
+        content: `Added <strong>confirmation modals</strong> across key actions including <em>Clear Rotation</em>, <em>Unequip All Echoes</em>, and <em>Delete</em> operations to prevent accidental clicks and data loss.`,
       },
       {
         type: 'paragraph',
@@ -550,7 +628,7 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
         content: `
                 Updated <strong>Galbrena's Afterflame</strong> and <strong>Qiuyuan's Inherent Skill: Quietude Within</strong> to correctly function as <em>Damage Taken</em> effects instead of <em>additive Damage Bonus</em>.
                 The English text originally described these as damage bonuses, but the Chinese text specified them as damage taken modifiers.
-                With <strong>Galbrena's</strong> official release confirming the CN behavior, both effects have been adjusted to match the in-game mechanics — which also implies that <strong>Qiuyuan's Inherent Skill: Quietude Within</strong> should follow the same rule.
+                With <strong>Galbrena's</strong> official release confirming the CN behavior, both effects have been adjusted to match the in-game mechanics which also implies that <strong>Qiuyuan's Inherent Skill: Quietude Within</strong> should follow the same rule.
                 Apparently, <em>Kuro's localization team</em> decided that "translation accuracy" was just another optional buff. (￣▽￣*)ゞ
                 `,
       },
@@ -570,7 +648,7 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
       {
         type: 'paragraph',
         content: `
-                Each preset remembers your exact Echo setup — including main stats, substats, and set bonuses.
+                Each preset remembers your exact Echo setup including main stats, substats, and set bonuses.
                 You can now create build templates, compare setups, or instantly reapply your favorite configurations between characters.
                 Presets also sync automatically with your current equipped Echoes, showing when a saved build matches your runtime loadout.
             `,
@@ -591,13 +669,13 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
         type: 'paragraph',
         content: `
                 Added full <strong>Font Customization</strong>~!
-                You can now personalize the calculator's text style to match your vibe — clean, minimal, or classy.
+                You can now personalize the calculator's text style to match your vibe clean, minimal, or classy.
             `,
       },
       {
         type: 'paragraph',
         content: `
-                Pick your favorite font and watch the entire interface update instantly — no reloads, no delay.
+                Pick your favorite font and watch the entire interface update instantly, no reloads, no delay.
                 Your chosen font is saved locally and will persist across sessions, even after closing the browser.
                 All supported fonts are fully theme-aware for perfect readability in both light and dark modes.
             `,
@@ -871,15 +949,15 @@ export const legacyChangelogEntries: ChangelogRecord[] = [
   },
 ]
 
-export const changelogSections: ChangelogSection[] = [
+export const chngSctn: ChngSctn[] = [
   {
     id: 'current',
     label: 'Current',
-    entries: currentChangelogEntries,
+    entries: curChngEnts,
   },
   {
     id: 'legacy',
     label: 'Legacy',
-    entries: legacyChangelogEntries,
+    entries: legChngEnts,
   },
 ]

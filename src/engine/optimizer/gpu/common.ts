@@ -4,19 +4,19 @@
                validated pipeline creation, and candidate readback.
 */
 
-export const GPU_CANDIDATE_STRIDE_BYTES = 8
+export const GPU_CAND_STRIDE = 8
 
 // anything that can be directly uploaded into a gpu buffer
-export type UploadableBufferSource = ArrayBuffer | ArrayBufferView<ArrayBufferLike>
+export type PldbBffrSrc = ArrayBuffer | ArrayBufferView<ArrayBufferLike>
 
 // small reuse wrapper so callers can keep one gpu buffer alive and resize only when needed
-export interface ReusableGpuBuffer {
+export interface ReusableBuffer {
   buffer: GPUBuffer | null
   size: number
 }
 
 // normalize upload input into something queue.writeBuffer accepts cleanly
-export function toGpuUploadView(data: UploadableBufferSource): ArrayBuffer | ArrayBufferView<ArrayBuffer> {
+export function toGpuPldView(data: PldbBffrSrc): ArrayBuffer | ArrayBufferView<ArrayBuffer> {
   if (data instanceof ArrayBuffer) {
     return data
   }
@@ -25,8 +25,8 @@ export function toGpuUploadView(data: UploadableBufferSource): ArrayBuffer | Arr
 }
 
 // create a storage buffer and optionally upload initial contents into it
-export function createStorageBuffer(device: GPUDevice, data: UploadableBufferSource): GPUBuffer {
-  const upload = toGpuUploadView(data)
+export function makeStoreBuffer(device: GPUDevice, data: PldbBffrSrc): GPUBuffer {
+  const upload = toGpuPldView(data)
 
   // both branches expose byteLength, this just keeps intent explicit
   const byteLength = upload instanceof ArrayBuffer ? upload.byteLength : upload.byteLength
@@ -48,7 +48,7 @@ export function createStorageBuffer(device: GPUDevice, data: UploadableBufferSou
 // return an existing reusable buffer when large enough, otherwise recreate it
 export function ensureGpuBuffer(
     device: GPUDevice,
-    reuse: ReusableGpuBuffer,
+    reuse: ReusableBuffer,
     neededSize: number,
     usage: GPUBufferUsageFlags,
 ): GPUBuffer {
@@ -72,13 +72,13 @@ export function ensureGpuBuffer(
 }
 
 // ensure a reusable buffer exists, then upload fresh contents into it
-export function writeGpuBuffer(
+export function writeGpuBffr(
     device: GPUDevice,
-    reuse: ReusableGpuBuffer,
-    data: UploadableBufferSource,
+    reuse: ReusableBuffer,
+    data: PldbBffrSrc,
     usage: GPUBufferUsageFlags,
 ): GPUBuffer {
-  const upload = toGpuUploadView(data)
+  const upload = toGpuPldView(data)
   const byteLength = upload instanceof ArrayBuffer ? upload.byteLength : upload.byteLength
   const buffer = ensureGpuBuffer(device, reuse, byteLength, usage)
 
@@ -90,7 +90,7 @@ export function writeGpuBuffer(
 }
 
 // turn shader compilation errors into one readable multiline string
-function formatShaderCompilationError(label: string, info: GPUCompilationInfo): string | null {
+function fmtShdrCmplR(label: string, info: GPUCompilationInfo): string | null {
   const errors = info.messages.filter((message) => message.type === 'error')
   if (errors.length === 0) {
     return null
@@ -105,7 +105,7 @@ function formatShaderCompilationError(label: string, info: GPUCompilationInfo): 
 }
 
 // pop the current validation scope and throw if the gpu reported an error
-async function popValidationError(device: GPUDevice, label: string): Promise<void> {
+async function popValidRrr(device: GPUDevice, label: string): Promise<void> {
   const error = await device.popErrorScope()
   if (error) {
     throw new Error(`${label}: ${error.message}`)
@@ -113,7 +113,7 @@ async function popValidationError(device: GPUDevice, label: string): Promise<voi
 }
 
 // create a bind group layout under a validation scope so bad layouts fail early with context
-export async function createCheckedBindGroupLayout(
+export async function mkChckBindGr(
     device: GPUDevice,
     label: string,
     entries: GPUBindGroupLayoutEntry[],
@@ -122,12 +122,12 @@ export async function createCheckedBindGroupLayout(
 
   const layout = device.createBindGroupLayout({ label, entries })
 
-  await popValidationError(device, label)
+  await popValidRrr(device, label)
   return layout
 }
 
 // compile a compute shader, surface shader compilation errors, then create a validated pipeline
-export async function createCheckedComputePipeline(options: {
+export async function mkChckCmptPp(options: {
   device: GPUDevice
   label: string
   layout: GPUBindGroupLayout
@@ -140,7 +140,7 @@ export async function createCheckedComputePipeline(options: {
   const module = device.createShaderModule({ label: `${label}:shader`, code })
 
   const info = await module.getCompilationInfo()
-  const shaderError = formatShaderCompilationError(label, info)
+  const shaderError = fmtShdrCmplR(label, info)
   if (shaderError) {
     throw new Error(shaderError)
   }
@@ -160,20 +160,20 @@ export async function createCheckedComputePipeline(options: {
     },
   })
 
-  await popValidationError(device, label)
+  await popValidRrr(device, label)
   return pipeline
 }
 
 // copy a gpu candidate buffer into a cpu-readable staging buffer and decode results
-export async function readCandidateBuffer(
+export async function readCandBffr(
     device: GPUDevice,
     candidateBuffer: GPUBuffer,
-    candidateCount: number,
-    reuse: ReusableGpuBuffer = { buffer: null, size: 0 },
-): Promise<{ results: Array<{ damage: number; rank: number }>; reuse: ReusableGpuBuffer }> {
+    candCnt: number,
+    reuse: ReusableBuffer = { buffer: null, size: 0 },
+): Promise<{ results: Array<{ damage: number; rank: number }>; reuse: ReusableBuffer }> {
   // each candidate occupies 8 bytes:
   // float32 damage + uint32 rank/index
-  const byteLength = candidateCount * GPU_CANDIDATE_STRIDE_BYTES
+  const byteLength = candCnt * GPU_CAND_STRIDE
 
   // keep a reusable readback buffer so repeated reads avoid new allocations
   const readBuffer = ensureGpuBuffer(
@@ -199,7 +199,7 @@ export async function readCandidateBuffer(
 
   const results: Array<{ damage: number; rank: number }> = []
 
-  for (let index = 0; index < candidateCount; index += 1) {
+  for (let index = 0; index < candCnt; index += 1) {
     const base = index * 2
     const damage = floatView[base]
 

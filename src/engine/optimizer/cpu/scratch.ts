@@ -6,43 +6,43 @@
 */
 
 import {
-  OPTIMIZER_ECHOS_PER_COMBO,
-  OPTIMIZER_SET_SLOTS,
-  OPTIMIZER_STATS_PER_ECHO,
+  ECHOES_PER_SET,
+  SET_SLOT_COUNT,
+  STAT_STRIDE,
 } from '@/engine/optimizer/config/constants.ts'
 
 export interface CpuScratch {
   comboIds: Int32Array
-  comboPositions: Int32Array
-  baseComboVector: Float32Array
+  cmbPstn: Int32Array
+  baseCmbVctr: Float32Array
   comboVector: Float32Array
   setCounts: Uint8Array
-  touchedSetIds: Uint8Array
+  tchdSetIds: Uint8Array
   setMasks: Uint32Array
 }
 
 // create one reusable scratch object for cpu combo evaluation
-export function createCpuScratch(): CpuScratch {
+export function makeCpuScratch(): CpuScratch {
   return {
     // current combo echo indices
-    comboIds: new Int32Array(OPTIMIZER_ECHOS_PER_COMBO),
+    comboIds: new Int32Array(ECHOES_PER_SET),
 
     // optional positional mapping for combo processing
-    comboPositions: new Int32Array(OPTIMIZER_ECHOS_PER_COMBO),
+    cmbPstn: new Int32Array(ECHOES_PER_SET),
 
     // summed combo stats before main-echo-only buffs are applied
-    baseComboVector: new Float32Array(OPTIMIZER_STATS_PER_ECHO),
+    baseCmbVctr: new Float32Array(STAT_STRIDE),
 
     // final combo stats after main-echo-only buffs are applied
-    comboVector: new Float32Array(OPTIMIZER_STATS_PER_ECHO),
+    comboVector: new Float32Array(STAT_STRIDE),
 
     // per-set piece counts for the active combo
-    setCounts: new Uint8Array(OPTIMIZER_SET_SLOTS),
+    setCounts: new Uint8Array(SET_SLOT_COUNT),
 
     // which set ids were touched so clearing can stay cheap
-    touchedSetIds: new Uint8Array(OPTIMIZER_ECHOS_PER_COMBO),
+    tchdSetIds: new Uint8Array(ECHOES_PER_SET),
 
     // reusable set masks for encoded set logic
-    setMasks: new Uint32Array(OPTIMIZER_SET_SLOTS),
+    setMasks: new Uint32Array(SET_SLOT_COUNT),
   }
 }

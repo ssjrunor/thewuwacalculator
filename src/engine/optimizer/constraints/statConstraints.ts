@@ -1,15 +1,15 @@
 /*
   Author: Runor Ewhro
   Description: Shared optimizer stat-constraint encoding and evaluation
-               helpers used by compiler, CPU, and legacy evaluators.
+               helpers used by compiler, CPU, and evaluators.
 */
 
-import type { OptimizerSettings } from '@/domain/entities/optimizer.ts'
+import type { OptSets } from '@/domain/entities/optimizer.ts'
 
 const DISABLED_MIN = 1
 const DISABLED_MAX = 0
 
-export const DISABLED_OPTIMIZER_CONSTRAINTS = new Float32Array([
+export const DISABLED_CONSTRAINTS = new Float32Array([
   DISABLED_MIN, DISABLED_MAX,
   DISABLED_MIN, DISABLED_MAX,
   DISABLED_MIN, DISABLED_MAX,
@@ -31,7 +31,7 @@ function inRange(value: number, min: number, max: number): boolean {
 // layout:
 // [atkMin, atkMax, hpMin, hpMax, defMin, defMax, crMin, crMax,
 //  cdMin, cdMax, erMin, erMax, bonusMin, bonusMax, damageMin, damageMax]
-export function passesConstraints(
+export function psssCstrs(
     constraints: Float32Array,
     atk: number,
     hp: number,
@@ -54,10 +54,10 @@ export function passesConstraints(
   )
 }
 
-export function encodeStatConstraints(settings: OptimizerSettings): Float32Array {
-  const values = new Float32Array(DISABLED_OPTIMIZER_CONSTRAINTS)
+export function encStatCstrs(settings: OptSets): Float32Array {
+  const values = new Float32Array(DISABLED_CONSTRAINTS)
 
-  const slots: Array<[keyof OptimizerSettings['statConstraints'], number]> = [
+  const slots: Array<[keyof OptSets['statConstraints'], number]> = [
     ['atk', 0],
     ['hp', 2],
     ['def', 4],

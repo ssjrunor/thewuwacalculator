@@ -6,52 +6,52 @@
 
 import { getGameData } from '@/data/gameData'
 import {
-  getSourceOwnerByKey,
-  getStateByControlKey,
-  getResonatorFeatures,
-  getResonatorRotations,
-  getResonatorSkills,
-  listConditionsByOwnerKey,
-  listSourceConditions,
-  listSourceEffects,
-  listSourceFeatures,
-  listSourceOwners,
-  listSourceRotations,
-  listSourceSkills,
-  listSourceStates,
-  listEffectsByOwnerKey,
-  listStatesByOwnerKey,
+  getSrcOwnByK,
+  getSttByCntr,
+  getResFeats,
+  getResRttn,
+  getResSkll,
+  listCondsByO,
+  listSrcConds,
+  listEffects,
+  listSrcFeats,
+  listSrcWnrs,
+  listSrcRttn,
+  listSrcSkll,
+  listSrcStts,
+  listFfctByOw,
+  listSttsByOw,
 } from '@/domain/gameData/registry'
 import type {
-  ConditionDefinition,
-  DataSourceRef,
-  DataSourceType,
-  EffectDefinition,
-  FeatureDefinition,
-  RotationDefinition,
-  SourceOwnerDefinition,
-  SourceStateDefinition,
+  CondDef,
+  DataSrcRef,
+  DataSrcType,
+  EffectDef,
+  FeatDef,
+  RotDef,
+  SrcOwnDef,
+  SourceState,
 } from '@/domain/gameData/contracts'
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { SkillDef } from '@/domain/entities/stats'
 
 // list all skills for a given source
-export function listSkillsForSource(
-    sourceType: DataSourceType,
+export function listSkillsFor(
+    sourceType: DataSrcType,
     sourceId: string,
-): SkillDefinition[] {
-  return listSourceSkills(getGameData(), {
+): SkillDef[] {
+  return listSrcSkll(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list effects for a given source, optionally filtered by trigger
-export function listEffectsForSource(
-    sourceType: DataSourceType,
+export function listEffectsFor(
+    sourceType: DataSrcType,
     sourceId: string,
-    trigger?: EffectDefinition['trigger'],
-): EffectDefinition[] {
-  return listSourceEffects(
+    trigger?: EffectDef['trigger'],
+): EffectDef[] {
+  return listEffects(
       getGameData(),
       {
         type: sourceType,
@@ -62,102 +62,102 @@ export function listEffectsForSource(
 }
 
 // list conditions for a given source
-export function listConditionsForSource(
-    sourceType: DataSourceType,
+export function listCondsFor(
+    sourceType: DataSrcType,
     sourceId: string,
-): ConditionDefinition[] {
-  return listSourceConditions(getGameData(), {
+): CondDef[] {
+  return listSrcConds(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list states for a given source
-export function listStatesForSource(
-    sourceType: DataSourceType,
+export function listStatesFor(
+    sourceType: DataSrcType,
     sourceId: string,
-): SourceStateDefinition[] {
-  return listSourceStates(getGameData(), {
+): SourceState[] {
+  return listSrcStts(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list owners for a given source
-export function listOwnersForSource(
-    sourceType: DataSourceType,
+export function listOwnersFor(
+    sourceType: DataSrcType,
     sourceId: string,
-): SourceOwnerDefinition[] {
-  return listSourceOwners(getGameData(), {
+): SrcOwnDef[] {
+  return listSrcWnrs(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list features for a given source
-export function listFeaturesForSource(
-    sourceType: DataSourceType,
+export function listFeatsFor(
+    sourceType: DataSrcType,
     sourceId: string,
-): FeatureDefinition[] {
-  return listSourceFeatures(getGameData(), {
+): FeatDef[] {
+  return listSrcFeats(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list rotations for a given source
-export function listRotationsForSource(
-    sourceType: DataSourceType,
+export function listRttnForS(
+    sourceType: DataSrcType,
     sourceId: string,
-): RotationDefinition[] {
-  return listSourceRotations(getGameData(), {
+): RotDef[] {
+  return listSrcRttn(getGameData(), {
     type: sourceType,
     id: sourceId,
   })
 }
 
 // list all features for a resonator
-export function listResonatorFeatures(resonatorId: string): FeatureDefinition[] {
-  return getResonatorFeatures(getGameData(), resonatorId)
+export function listResFeats(resonatorId: string): FeatDef[] {
+  return getResFeats(getGameData(), resonatorId)
 }
 
 // list all skills for a resonator
-export function listResonatorSkills(resonatorId: string): SkillDefinition[] {
-  return getResonatorSkills(getGameData(), resonatorId)
+export function listResSkll(resonatorId: string): SkillDef[] {
+  return getResSkll(getGameData(), resonatorId)
 }
 
 // list all rotations for a resonator
-export function listResonatorRotations(resonatorId: string): RotationDefinition[] {
-  return getResonatorRotations(getGameData(), resonatorId)
+export function listResRttn(resonatorId: string): RotDef[] {
+  return getResRttn(getGameData(), resonatorId)
 }
 
 // get an owner definition by owner key
-export function getOwnerForKey(ownerKey: string): SourceOwnerDefinition | null {
-  return getSourceOwnerByKey(getGameData(), ownerKey)
+export function getOwnForKey(ownerKey: string): SrcOwnDef | null {
+  return getSrcOwnByK(getGameData(), ownerKey)
 }
 
 // list effects for an owner key
-export function listEffectsForOwnerKey(ownerKey: string): EffectDefinition[] {
-  return listEffectsByOwnerKey(getGameData(), ownerKey)
+export function listFfctForO(ownerKey: string): EffectDef[] {
+  return listFfctByOw(getGameData(), ownerKey)
 }
 
 // list states for an owner key
-export function listStatesForOwnerKey(ownerKey: string): SourceStateDefinition[] {
-  return listStatesByOwnerKey(getGameData(), ownerKey)
+export function listSttsForO(ownerKey: string): SourceState[] {
+  return listSttsByOw(getGameData(), ownerKey)
 }
 
 // get a state definition by control key
-export function getStateForControlKey(controlKey: string): SourceStateDefinition | null {
-  return getStateByControlKey(getGameData(), controlKey)
+export function getSttForCnt(controlKey: string): SourceState | null {
+  return getSttByCntr(getGameData(), controlKey)
 }
 
 // list conditions for an owner key
-export function listConditionsForOwnerKey(ownerKey: string): ConditionDefinition[] {
-  return listConditionsByOwnerKey(getGameData(), ownerKey)
+export function listCondsFvd(ownerKey: string): CondDef[] {
+  return listCondsByO(getGameData(), ownerKey)
 }
 
 // list all registered sources, optionally filtered by type
-export function listSources(sourceType?: DataSourceType): DataSourceRef[] {
+export function listSources(sourceType?: DataSrcType): DataSrcRef[] {
   const gameData = getGameData()
 
   return Object.values(gameData.sourcesByKey)

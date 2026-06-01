@@ -1,16 +1,22 @@
-import type { ButtonHTMLAttributes } from 'react'
+/*
+  Author: Runor Ewhro
+  Description: Standard close button used by app modals so dismissal affordances
+               stay visually and semantically consistent.
+*/
+
+import type { ButtonHTMLAttributes as BttnHtmlTtrb } from 'react'
 import { X } from 'lucide-react'
 
-type ModalCloseButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> & {
+type MdlClsBttnPr = Omit<BttnHtmlTtrb<HTMLButtonElement>, 'type'> & {
   label?: string
 }
 
-export function ModalCloseButton({
+export function MdlClsBttn({
   label = 'Close',
   className,
   'aria-label': ariaLabel,
   ...props
-}: ModalCloseButtonProps) {
+}: MdlClsBttnPr) {
   return (
     <button
       {...props}

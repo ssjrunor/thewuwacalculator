@@ -4,25 +4,45 @@
                suggestions and random generation preferences.
 */
 
-export interface SuggestionSettings {
+export interface SuggSets {
   targetFeatureId: string | null
   rotationMode: boolean
 }
 
-export interface RandomGeneratorSetPreference {
+export type SuggsViewMod = 'mainStats' | 'setPlans' | 'weapons' | 'random'
+
+export interface RandGnrtSetP {
   setId: number
   count: number
 }
 
-export interface RandomGeneratorSettings {
+export interface RandGnrtSets {
   bias: number
   rollQuality: number
   targetEnergyRegen: number
-  setPreferences: RandomGeneratorSetPreference[]
+  setPreferences: RandGnrtSetP[]
   mainEchoId: string | null
 }
 
-export interface ResonatorSuggestionsState {
-  settings: SuggestionSettings
-  random: RandomGeneratorSettings
+export type WpnSuggMode = 'default' | 'max' | 'both'
+export type WpnSuggTgt = 'default' | 'max'
+export type WpnStMax = boolean | number | string
+
+export interface WpnStCfg {
+  off?: true
+  max?: WpnStMax
+}
+
+export interface WeaponPlanSet {
+  mode: WpnSuggMode
+  target: WpnSuggTgt
+  ranks: Record<string, number>
+  stdRank: number
+  visible: Record<string, boolean>
+  states: Record<string, Record<string, WpnStCfg>>
+}
+
+export interface SuggestState {
+  settings: SuggSets
+  random: RandGnrtSets
 }

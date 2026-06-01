@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  handleExchangeCodeRequest,
-  handleRefreshTokenRequest,
+  onExchangeCode,
+  onRefreshToken,
 } from './googleOAuthServer'
 
 describe('googleOAuthServer', () => {
@@ -11,7 +11,7 @@ describe('googleOAuthServer', () => {
 
   it('rejects non-post exchange requests', async () => {
     await expect(
-      handleExchangeCodeRequest({
+      onExchangeCode({
         env: {},
         method: 'GET',
       }),
@@ -23,7 +23,7 @@ describe('googleOAuthServer', () => {
 
   it('rejects exchange requests without an authorization code', async () => {
     await expect(
-      handleExchangeCodeRequest({
+      onExchangeCode({
         body: '{}',
         env: {
           GOOGLE_CLIENT_ID: 'client-id',
@@ -39,7 +39,7 @@ describe('googleOAuthServer', () => {
 
   it('returns a configuration error when refresh credentials are missing', async () => {
     await expect(
-      handleRefreshTokenRequest({
+      onRefreshToken({
         body: JSON.stringify({ refresh_token: 'refresh-token' }),
         env: {},
         method: 'POST',
@@ -64,7 +64,7 @@ describe('googleOAuthServer', () => {
 
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await handleExchangeCodeRequest({
+    const result = await onExchangeCode({
       body: JSON.stringify({ code: 'auth-code' }),
       env: {
         GOOGLE_CLIENT_ID: 'client-id',

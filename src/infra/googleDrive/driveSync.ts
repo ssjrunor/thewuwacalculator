@@ -1,54 +1,62 @@
-import { refreshGoogleAccessTokenIfNeeded } from '@/infra/googleDrive/googleAuth'
+/*
+  Author: Runor Ewhro
+  Description: Uploads and restores persisted app snapshots through google
+               drive appdata storage, including backup pruning.
+*/
 
-const GOOGLE_DRIVE_BACKUP_PREFIX = 'thewuwacalculator-snapshot-'
-const GOOGLE_DRIVE_SPACES = 'appDataFolder'
-const MAX_DRIVE_BACKUPS = 10
+import { rfrsGglCcssT } from '@/infra/googleDrive/googleAuth'
 
-interface DriveFileEntry {
+const DRIVE_FILE_PRE = 'thewuwacalculator-snapshot-'
+const DRIVE_SPACE = 'appDataFolder'
+const MAX_DRIVE_FILES = 10
+
+interface DrvFileEnt {
   id: string
   name: string
   createdTime?: string
 }
 
-interface DriveFileListResponse {
-  files?: DriveFileEntry[]
+interface DrvFileListR {
+  files?: DrvFileEnt[]
 }
 
-interface DriveSyncResult {
+interface DrvSyncRslt {
   fileName: string
   createdTime?: string
 }
 
-interface DriveRestoreResult extends DriveSyncResult {
+interface DrvRstrRslt extends DrvSyncRslt {
   raw: string
 }
 
-async function withAccessToken(
+async function withCcssTkn(
   accessToken: string,
   action: (token: string) => Promise<Response>,
 ): Promise<Response> {
-  const resolvedToken = await refreshGoogleAccessTokenIfNeeded(accessToken) ?? accessToken
-  const response = await action(resolvedToken)
+  // try with the caller's token first, then retry once with a freshly
+  // refreshed token if the request comes back unauthorized.
+  const rslvTkn = await rfrsGglCcssT(accessToken) ?? accessToken
+  const response = await action(rslvTkn)
 
   if (response.status !== 401) {
     return response
   }
 
-  const refreshedToken = await refreshGoogleAccessTokenIfNeeded()
-  if (!refreshedToken) {
+  const rfrsTkn = await rfrsGglCcssT()
+  if (!rfrsTkn) {
     return response
   }
 
-  return action(refreshedToken)
+  return action(rfrsTkn)
 }
 
-async function listBackupFiles(accessToken: string): Promise<DriveFileEntry[]> {
-  const query = encodeURIComponent(`name contains '${GOOGLE_DRIVE_BACKUP_PREFIX}' and '${GOOGLE_DRIVE_SPACES}' in parents`)
-  const response = await withAccessToken(
+async function listBckpFls(accessToken: string): Promise<DrvFileEnt[]> {
+  const query = encodeURIComponent(`name contains '${DRIVE_FILE_PRE}' and '${DRIVE_SPACE}' in parents`)
+  const response = await withCcssTkn(
     accessToken,
     (token) =>
       fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${query}&spaces=${GOOGLE_DRIVE_SPACES}&fields=files(id,name,createdTime)&orderBy=createdTime desc`,
+        `https://www.googleapis.com/drive/v3/files?q=${query}&spaces=${DRIVE_SPACE}&fields=files(id,name,createdTime)&orderBy=createdTime desc`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -61,12 +69,12 @@ async function listBackupFiles(accessToken: string): Promise<DriveFileEntry[]> {
     throw new Error('Failed to list Google Drive backups.')
   }
 
-  const payload = await response.json() as DriveFileListResponse
+  const payload = await response.json() as DrvFileListR
   return payload.files ?? []
 }
 
-async function deleteBackupFile(fileId: string, accessToken: string): Promise<void> {
-  const response = await withAccessToken(
+async function dltBckpFile(fileId: string, accessToken: string): Promise<void> {
+  const response = await withCcssTkn(
     accessToken,
     (token) =>
       fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
@@ -82,29 +90,31 @@ async function deleteBackupFile(fileId: string, accessToken: string): Promise<vo
   }
 }
 
-async function pruneOldBackups(accessToken: string): Promise<void> {
-  const files = await listBackupFiles(accessToken)
-  const staleFiles = files.slice(MAX_DRIVE_BACKUPS)
+async function prnOldBckp(accessToken: string): Promise<void> {
+  const files = await listBckpFls(accessToken)
+  const staleFiles = files.slice(MAX_DRIVE_FILES)
 
+  // prune oldest-first after the newest keep window so appdata storage does
+  // not grow without bound.
   for (const file of staleFiles) {
-    await deleteBackupFile(file.id, accessToken)
+    await dltBckpFile(file.id, accessToken)
   }
 }
 
 // uploads the current persisted snapshot into google drive appdata storage.
-export async function uploadSnapshotToDrive(accessToken: string, rawSnapshot: string): Promise<DriveSyncResult> {
-  const fileName = `${GOOGLE_DRIVE_BACKUP_PREFIX}${new Date().toISOString()}.json`
+export async function pldSnapToDrv(accessToken: string, rawSnapshot: string): Promise<DrvSyncRslt> {
+  const fileName = `${DRIVE_FILE_PRE}${new Date().toISOString()}.json`
   const metadata = {
     name: fileName,
     mimeType: 'application/json',
-    parents: [GOOGLE_DRIVE_SPACES],
+    parents: [DRIVE_SPACE],
   }
 
   const form = new FormData()
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
   form.append('file', new Blob([rawSnapshot], { type: 'application/json' }))
 
-  const response = await withAccessToken(
+  const response = await withCcssTkn(
     accessToken,
     (token) =>
       fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
@@ -120,18 +130,18 @@ export async function uploadSnapshotToDrive(accessToken: string, rawSnapshot: st
     throw new Error('Failed to upload the snapshot to Google Drive.')
   }
 
-  await pruneOldBackups(accessToken)
+  await prnOldBckp(accessToken)
   return { fileName }
 }
 
 // downloads the latest drive snapshot so the caller can validate and hydrate it.
-export async function restoreLatestSnapshotFromDrive(accessToken: string): Promise<DriveRestoreResult | null> {
-  const [latestFile] = await listBackupFiles(accessToken)
+export async function rstrLtstSnap(accessToken: string): Promise<DrvRstrRslt | null> {
+  const [latestFile] = await listBckpFls(accessToken)
   if (!latestFile) {
     return null
   }
 
-  const response = await withAccessToken(
+  const response = await withCcssTkn(
     accessToken,
     (token) =>
       fetch(`https://www.googleapis.com/drive/v3/files/${latestFile.id}?alt=media`, {

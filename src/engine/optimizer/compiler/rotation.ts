@@ -6,31 +6,31 @@
                encoded echo/set data required by the optimizer runtime.
 */
 
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
-import type { SkillDefinition } from '@/domain/entities/stats.ts'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService.ts'
-import { buildTransientCombatGraph, findCombatParticipantSlotId } from '@/domain/state/combatGraph.ts'
-import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters.ts'
-import type { OptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
-import { selectOptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
-import type { CompiledTargetSkillContext, OptimizerStartPayload, PreparedRotationRun } from '@/engine/optimizer/types.ts'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext.ts'
-import { buildPreparedRotationEnvironment, runFeatureSimulation } from '@/engine/rotation/system.ts'
-import { encodeStatConstraints } from '@/engine/optimizer/constraints/statConstraints.ts'
-import { buildGenericMainEchoRows, encodeEchoRows } from '@/engine/optimizer/encode/echoes.ts'
-import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/encode/sets.ts'
-import { buildSharedPayload, stripEchoes } from '@/engine/optimizer/compiler/shared.ts'
-import { applyPersonalRotationItems } from '@/engine/optimizer/rotation/runtime.ts'
-import { packTargetContext } from '@/engine/optimizer/context/pack.ts'
-import { buildCompiledOptimizerContext } from '@/engine/optimizer/context/compiled.ts'
-import { isOptimizerRotationTarget } from '@/engine/optimizer/rules/eligibility.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
+import type { SkillDef } from '@/domain/entities/stats.ts'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
+import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph.ts'
+import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
+import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
+import { selOptTgtSkl } from '@/engine/optimizer/target/selectedSkill.ts'
+import type { CompTargetSkill, OptStartPay, PrepRotRun } from '@/engine/optimizer/types.ts'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext.ts'
+import { mkPrepRotNvr, runFeatSmlt } from '@/engine/rotation/system.ts'
+import { encStatCstrs } from '@/engine/optimizer/constraints/statConstraints.ts'
+import { mkGnrcMainEc, encEchoRows } from '@/engine/optimizer/encode/echoes.ts'
+import { buildSetRows, makeSetMask } from '@/engine/optimizer/encode/sets.ts'
+import { mkShrdPay, stripEchoes } from '@/engine/optimizer/compiler/shared.ts'
+import { applyPersRot } from '@/engine/optimizer/rotation/runtime.ts'
+import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
+import { makeOptContext } from '@/engine/optimizer/context/compiled.ts'
+import { isOptRotTgt } from '@/engine/optimizer/rules/eligibility.ts'
 import {
-  OPTIMIZER_CONTEXT_FLOATS,
+  CTX_FLOATS,
 } from '@/engine/optimizer/config/constants.ts'
 
 // Fallback synthetic target used only when the rotation simulation
 // produces no eligible target entries for the active resonator.
-function createFallbackTarget(seedId: string): OptimizerTargetSkill {
+function mkFllbTgt(seedId: string): OptTargetSkill {
   return {
     id: `rotation:${seedId}`,
     tab: 'rotation',
@@ -43,23 +43,23 @@ function createFallbackTarget(seedId: string): OptimizerTargetSkill {
 // Only normal skill-damage targets should drive the representative display stats.
 // Tune rupture and negative-effect entries still contribute damage, but they
 // should not become the one context shown in the optimizer UI.
-function isDisplayContextTarget(target: Pick<SkillDefinition, 'archetype'>): boolean {
+function isDsplCtxTgt(target: Pick<SkillDef, 'archetype'>): boolean {
   return target.archetype === 'skillDamage'
 }
 
 // Build the fully compiled scalar context for one rotation target.
 // This strips away most object lookups and prepares the numeric values
 // that will later be packed into the optimizer context float array.
-function buildCompiledContext(options: {
+function mkCompCtx(options: {
   resonatorId: string
-  runtime: ResonatorRuntimeState
-  skill: SkillDefinition
-  combat: ReturnType<typeof buildCombatContext>
-  enemy: OptimizerStartPayload['enemyProfile']
-}): CompiledTargetSkillContext {
+  runtime: ResRuntime
+  skill: SkillDef
+  combat: ReturnType<typeof makeCombatEnv>
+  enemy: OptStartPay['enemyProfile']
+}): CompTargetSkill {
   const { resonatorId, runtime, skill, combat, enemy } = options
 
-  return buildCompiledOptimizerContext({
+  return makeOptContext({
     resonatorId,
     runtime,
     skill,
@@ -78,8 +78,8 @@ function buildCompiledContext(options: {
 // - packed target contexts
 // - encoded inventory echo rows
 // - set LUT and main-echo buff rows
-export function compileRotationRun(input: OptimizerStartPayload): PreparedRotationRun {
-  const seed = input.resonatorSeed ?? getResonatorSeedById(input.resonatorId)
+export function compRotRun(input: OptStartPay): PrepRotRun {
+  const seed = input.resSeed ?? getResSeedBy(input.resonatorId)
   if (!seed) {
     throw new Error(`Missing resonator seed for optimizer id ${input.resonatorId}`)
   }
@@ -90,24 +90,24 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
 
   // Apply personal rotation setup items so the runtime reflects the actual
   // rotation state we want to optimize against.
-  const rotationRuntime: ResonatorRuntimeState = applyPersonalRotationItems(runtime, input.rotationItems)
+  const rotRt: ResRuntime = applyPersRot(runtime, input.rotTms, { ignoreLoops: true })
 
   // Build participant runtimes for the full active team.
-  const participants = buildRuntimeParticipantLookup(rotationRuntime)
+  const participants = makeRuntimeMap(rotRt)
 
   // Build a transient combat graph so we can evaluate all involved teammates
   // under the same combat snapshot.
-  const graph = buildTransientCombatGraph({
-    activeRuntime: rotationRuntime,
+  const graph = makeCombatGraph({
+    actRt: rotRt,
     activeSeed: seed,
-    participantRuntimes: participants,
-    selectedTargetsByResonatorId: {
-      [rotationRuntime.id]: input.selectedTargetsByOwnerKey ?? {},
+    partRts: participants,
+    targetsByRes: {
+      [rotRt.id]: input.selectedTargets ?? {},
     },
   })
 
   // Build the active resonator's combat context first. This is reused often.
-  const activeContext = buildCombatContext({
+  const activeContext = makeCombatEnv({
     graph,
     targetSlotId: 'active',
     enemy: input.enemyProfile,
@@ -115,43 +115,43 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
 
   // Run the feature simulation so we can discover which rotation entries are
   // valid optimizer targets.
-  const rotationEnvironment = buildPreparedRotationEnvironment(activeContext, seed)
-  const simulated = runFeatureSimulation(activeContext, seed, participants, rotationEnvironment)
+  const rotNvrn = mkPrepRotNvr(activeContext, seed)
+  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn)
 
   // Keep only optimizer-eligible rotation targets for the active resonator.
   const targets = simulated.rotations.personal.entries.filter((entry) =>
-      isOptimizerRotationTarget(entry, input.resonatorId),
+      isOptRotTgt(entry, input.resonatorId),
   )
 
   // Encode the optimizer constraints from UI settings such as stat floors, etc.
-  const constraints = encodeStatConstraints(input.settings)
+  const constraints = encStatCstrs(input.settings)
 
   // Use the first real target if available. Otherwise synthesize a fallback
   // target so the generic echo encoders still have a stable skill shape to use.
-  const fallbackTarget = targets[0]
-      ? selectOptimizerTargetSkill(targets[0].skill)
-      : createFallbackTarget(seed.id)
+  const fllbTgt = targets[0]
+      ? selOptTgtSkl(targets[0].skill)
+      : mkFllbTgt(seed.id)
 
   // Encode all inventory echoes once using the fallback target shape.
   // The actual per-target differences are handled later in packed contexts.
-  const encoded = encodeEchoRows(input.inventoryEchoes, fallbackTarget, 'self')
+  const encoded = encEchoRows(input.invChs, fllbTgt, 'self')
 
   // Build shared optimizer payload pieces such as costs, sets, kinds, combo maps, etc.
-  const shared = buildSharedPayload(encoded, input, constraints)
+  const shared = mkShrdPay(encoded, input, constraints)
 
   // Runtime mask describing already-active set state in the stripped runtime.
-  const setRuntimeMask = buildSetRuntimeMask(rotationRuntime, input.setConditionals)
+  const setRtMask = makeSetMask(rotRt, input.setConds)
 
   // Constant set rows used during evaluation for set logic.
-  const setConstLut = buildSetRows(rotationRuntime, input.setConditionals)
+  const setConstLut = buildSetRows(rotRt, input.setConds)
 
   // Precompute generic main-echo buff rows for all inventory echoes.
   // In rotation mode these are not tied to one single selected skill shape.
-  const mainEchoBuffs = buildGenericMainEchoRows({
-    echoes: input.inventoryEchoes,
-    runtime: rotationRuntime,
+  const mainEchoBuffs = mkGnrcMainEc({
+    echoes: input.invChs,
+    runtime: rotRt,
     sourceBaseStats: activeContext.baseStats,
-    sourceFinalStats: activeContext.finalStats,
+    sourceFinals: activeContext.finalStats,
     mode: 'self',
   })
 
@@ -160,34 +160,37 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
     return {
       mode: 'rotation',
       ...shared,
-      contextStride: OPTIMIZER_CONTEXT_FLOATS,
+      runtime: rotRt,
+      sourceBaseStats: activeContext.baseStats,
+      sourceFinals: activeContext.finalStats,
+      contextStride: CTX_FLOATS,
       contextCount: 0,
       contexts: new Float32Array(0),
-      contextWeights: new Float32Array(0),
-      displayContext: new Float32Array(OPTIMIZER_CONTEXT_FLOATS),
+      contextWeight: new Float32Array(0),
+      displayContext: new Float32Array(CTX_FLOATS),
       stats: encoded.stats,
       setConstLut,
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
     }
   }
 
   // Cache combat contexts by resonator id so each teammate's combat context
   // is only built once even if multiple rotation entries belong to them.
-  const combatByResonatorId: Record<string, ReturnType<typeof buildCombatContext>> = {
-    [rotationRuntime.id]: activeContext,
+  const cmbtByResId: Record<string, ReturnType<typeof makeCombatEnv>> = {
+    [rotRt.id]: activeContext,
   }
 
   for (const target of targets) {
-    if (combatByResonatorId[target.resonatorId]) {
+    if (cmbtByResId[target.resonatorId]) {
       continue
     }
 
-    const slotId = findCombatParticipantSlotId(graph, target.resonatorId)
+    const slotId = findCombatPart(graph, target.resonatorId)
     if (!slotId) {
       continue
     }
 
-    combatByResonatorId[target.resonatorId] = buildCombatContext({
+    cmbtByResId[target.resonatorId] = makeCombatEnv({
       graph,
       targetSlotId: slotId,
       enemy: input.enemyProfile,
@@ -197,28 +200,28 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
   const contextCount = targets.length
 
   // Flat packed buffer storing one optimizer context after another.
-  const contexts = new Float32Array(contextCount * OPTIMIZER_CONTEXT_FLOATS)
+  const contexts = new Float32Array(contextCount * CTX_FLOATS)
 
   // Weight for each rotation entry, used later when aggregating total rotation value.
-  const contextWeights = new Float32Array(contextCount)
+  const contextWeight = new Float32Array(contextCount)
 
   // One representative display context is kept for showing derived stats in the UI.
   // In rotation mode this should come from the lowest positive rotation value.
   // If no target has a positive value, fall back to a zero-value target.
-  let displayContext = new Float32Array(OPTIMIZER_CONTEXT_FLOATS)
-  let displayLowestPositiveValue = Number.POSITIVE_INFINITY
-  let displayLowestPositiveCritSum = Number.POSITIVE_INFINITY
-  let displayLowestZeroCritSum = Number.POSITIVE_INFINITY
+  let dsplCtx = new Float32Array(CTX_FLOATS)
+  let dsplLwstPstv = Number.POSITIVE_INFINITY
+  let displayLowCrit = Number.POSITIVE_INFINITY
+  let dsplLwstZero = Number.POSITIVE_INFINITY
 
   for (let index = 0; index < targets.length; index += 1) {
     const target = targets[index]
 
     // Use the owning resonator's combat context when the target belongs to a teammate.
-    const ownerCombat = combatByResonatorId[target.resonatorId] ?? activeContext
+    const ownerCombat = cmbtByResId[target.resonatorId] ?? activeContext
     const ownerRuntime = ownerCombat.runtime
 
     // Compile the numeric context for this one target.
-    const compiled = buildCompiledContext({
+    const compiled = mkCompCtx({
       resonatorId: target.resonatorId,
       runtime: ownerRuntime,
       skill: target.skill,
@@ -228,65 +231,68 @@ export function compileRotationRun(input: OptimizerStartPayload): PreparedRotati
 
     // Pack the compiled scalar context into the fixed float layout expected
     // by the optimizer backend.
-    const packedContext = packTargetContext({
+    const pckdCtx = packTargetCtx({
       compiled,
       skill: target.skill,
       runtime: ownerRuntime,
       comboN: shared.comboN,
       comboK: shared.comboK,
-      comboCount: shared.comboTotalCombos,
+      comboCount: shared.totalCombos,
       comboBaseIndex: 0,
-      lockedEchoIndex: -1,
-      setRuntimeMask,
+      lockEchoIdx: -1,
+      setRtMask: setRtMask,
     })
 
     // Store this context into its fixed slice of the big contexts buffer.
-    contexts.set(packedContext, index * OPTIMIZER_CONTEXT_FLOATS)
+    contexts.set(pckdCtx, index * CTX_FLOATS)
 
     // Preserve the target's weight for later weighted aggregation.
-    contextWeights[index] = target.weight ?? 1
+    contextWeight[index] = target.weight ?? 1
 
     // Choose a representative display context from the smallest positive
     // rotation value. If there are no positive values at all, use a zero-value one.
-    if (!isDisplayContextTarget(target.skill)) {
+    if (!isDsplCtxTgt(target.skill)) {
       continue
     }
 
-    const critSum = compiled.staticCritRate + compiled.staticCritDmg
+    const critSum = compiled.statCritRate + compiled.statCritDmg
     const displayValue = Number.isFinite(target.weight) ? target.weight : 1
     if (
       displayValue > 0 &&
       (
-        displayValue < displayLowestPositiveValue ||
-        (displayValue === displayLowestPositiveValue && critSum < displayLowestPositiveCritSum)
+        displayValue < dsplLwstPstv ||
+        (displayValue === dsplLwstPstv && critSum < displayLowCrit)
       )
     ) {
-      displayLowestPositiveValue = displayValue
-      displayLowestPositiveCritSum = critSum
-      displayContext = new Float32Array(packedContext)
+      dsplLwstPstv = displayValue
+      displayLowCrit = critSum
+      dsplCtx = new Float32Array(pckdCtx)
       continue
     }
 
     if (
-      displayLowestPositiveValue === Number.POSITIVE_INFINITY &&
+      dsplLwstPstv === Number.POSITIVE_INFINITY &&
       displayValue === 0 &&
-      critSum < displayLowestZeroCritSum
+      critSum < dsplLwstZero
     ) {
-      displayLowestZeroCritSum = critSum
-      displayContext = new Float32Array(packedContext)
+      dsplLwstZero = critSum
+      dsplCtx = new Float32Array(pckdCtx)
     }
   }
 
   return {
     mode: 'rotation',
     ...shared,
-    contextStride: OPTIMIZER_CONTEXT_FLOATS,
+    runtime: rotRt,
+    sourceBaseStats: activeContext.baseStats,
+    sourceFinals: activeContext.finalStats,
+    contextStride: CTX_FLOATS,
     contextCount,
     contexts,
-    contextWeights,
-    displayContext,
+    contextWeight: contextWeight,
+    displayContext: dsplCtx,
     stats: encoded.stats,
     setConstLut,
-    mainEchoBuffs,
+    mainEchoBuffs: mainEchoBuffs,
   }
 }

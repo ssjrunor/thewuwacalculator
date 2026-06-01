@@ -1,20 +1,26 @@
+/*
+  Author: Runor Ewhro
+  Description: Converts legacy saved rotations into the current inventory
+               rotation format used by the calculator.
+*/
+
 import type { RotationNode } from '@/domain/gameData/contracts'
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { SkillDef } from '@/domain/entities/stats'
 import {
-  listFeaturesForSource,
-  listResonatorFeatures,
-  listSkillsForSource,
+  listFeatsFor,
+  listResFeats,
+  listSkillsFor,
 } from '@/domain/services/gameDataService'
-import { convertLegacyEchoList } from './echoes'
+import { cnvrLegEchoL } from './echoes'
 import {
   coerceNumber,
   isRecord,
-  normalizeString,
+  normStrn,
   pushIssue,
-  type LegacyImportIssue,
+  type LegMprtSs,
 } from './shared'
 
-interface LegacyRotationEntry {
+interface LegRotEnt {
   id?: unknown
   label?: unknown
   tab?: unknown
@@ -24,23 +30,24 @@ interface LegacyRotationEntry {
   disabled?: unknown
 }
 
-interface RotationFeatureCandidate {
+interface RotFeatCand {
   featureId: string
   label: string
   sourceType: 'resonator' | 'echo'
-  skill?: SkillDefinition | undefined
+  skill?: SkillDef | undefined
 }
 
 function mapLegacyTab(tab: string | null): string | null {
   if (!tab) return null
 
   const normalized = tab.trim()
+  // echo attacks were renamed when echo skills joined the shared feature model.
   if (normalized === 'echoAttacks') return 'echoSkill'
   if (normalized === 'negativeEffect') return normalized
   return normalized
 }
 
-function getLegacyRotationLabel(entry: unknown): string | null {
+function getLegRotLbl(entry: unknown): string | null {
   if (!isRecord(entry) || typeof entry.label !== 'string') {
     return null
   }
@@ -49,25 +56,27 @@ function getLegacyRotationLabel(entry: unknown): string | null {
   return trimmed || null
 }
 
-function collectRotationFeatureCandidates(
+function cllcRotFeatC(
   resonatorId: string,
-  legacyEquippedEchoes: unknown[] = [],
-): RotationFeatureCandidate[] {
-  const candidates: RotationFeatureCandidate[] = []
-  const resonatorSkillsById = Object.fromEntries(
-    listSkillsForSource('resonator', resonatorId).map((skill) => [skill.id, skill]),
+  legQppdChs: unknown[] = [],
+): RotFeatCand[] {
+  const candidates: RotFeatCand[] = []
+  // collect resonator features and equipped-echo features into one candidate
+  // list because legacy rotations only stored labels and loose tab hints.
+  const resSkllById = Object.fromEntries(
+    listSkillsFor('resonator', resonatorId).map((skill) => [skill.id, skill]),
   )
 
-  for (const feature of listResonatorFeatures(resonatorId)) {
+  for (const feature of listResFeats(resonatorId)) {
     candidates.push({
       featureId: feature.id,
       label: feature.label,
       sourceType: 'resonator',
-      skill: feature.skillId ? resonatorSkillsById[feature.skillId] : undefined,
+      skill: feature.skillId ? resSkllById[feature.skillId] : undefined,
     })
   }
 
-  const echoes = convertLegacyEchoList(legacyEquippedEchoes)
+  const echoes = cnvrLegEchoL(legQppdChs)
   const seenEchoIds = new Set<string>()
 
   for (const echo of echoes) {
@@ -77,10 +86,10 @@ function collectRotationFeatureCandidates(
 
     seenEchoIds.add(echo.id)
     const skillsById = Object.fromEntries(
-      listSkillsForSource('echo', echo.id).map((skill) => [skill.id, skill]),
+      listSkillsFor('echo', echo.id).map((skill) => [skill.id, skill]),
     )
 
-    for (const feature of listFeaturesForSource('echo', echo.id)) {
+    for (const feature of listFeatsFor('echo', echo.id)) {
       candidates.push({
         featureId: feature.id,
         label: feature.label,
@@ -93,16 +102,16 @@ function collectRotationFeatureCandidates(
   return candidates
 }
 
-function matchLegacyRotationFeature(
-  candidates: RotationFeatureCandidate[],
-  entry: LegacyRotationEntry,
-): RotationFeatureCandidate | null {
+function mtchLegRotFe(
+  candidates: RotFeatCand[],
+  entry: LegRotEnt,
+): RotFeatCand | null {
   const label = typeof entry.label === 'string' ? entry.label.trim() : ''
   if (!label) {
     return null
   }
 
-  const exactMatches = candidates.filter((candidate) => normalizeString(candidate.label) === normalizeString(label))
+  const exactMatches = candidates.filter((candidate) => normStrn(candidate.label) === normStrn(label))
   if (exactMatches.length === 0) {
     return null
   }
@@ -112,6 +121,8 @@ function matchLegacyRotationFeature(
   }
 
   const legacyTab = mapLegacyTab(typeof entry.tab === 'string' ? entry.tab : null)
+  // duplicate labels are common across skill panels, so the legacy tab narrows
+  // the match before falling back to resonator-owned features.
   if (legacyTab) {
     const tabMatches = exactMatches.filter((candidate) => candidate.skill?.tab === legacyTab)
     if (tabMatches.length === 1) {
@@ -127,9 +138,9 @@ function matchLegacyRotationFeature(
   return nonEchoMatch ?? exactMatches[0]
 }
 
-export function findLegacyTargetFeatureId(
+export function findLegTgtFe(
   resonatorId: string,
-  legacyEquippedEchoes: unknown[],
+  legQppdChs: unknown[],
   target: { label?: unknown; Name?: unknown; tab?: unknown },
 ): string | null {
   const label =
@@ -141,8 +152,8 @@ export function findLegacyTargetFeatureId(
     return null
   }
 
-  const matched = matchLegacyRotationFeature(
-    collectRotationFeatureCandidates(resonatorId, legacyEquippedEchoes),
+  const matched = mtchLegRotFe(
+    cllcRotFeatC(resonatorId, legQppdChs),
     {
       label,
       tab: target.tab,
@@ -152,18 +163,20 @@ export function findLegacyTargetFeatureId(
   return matched?.featureId ?? null
 }
 
-export function convertLegacyRotationEntries(
+export function cnvrLegRotEn(
   resonatorId: string,
   entries: unknown,
-  legacyEquippedEchoes: unknown[] = [],
-  issues?: LegacyImportIssue[],
+  legQppdChs: unknown[] = [],
+  issues?: LegMprtSs[],
   subject?: string,
 ): RotationNode[] {
   if (!Array.isArray(entries)) {
     return []
   }
 
-  const candidates = collectRotationFeatureCandidates(resonatorId, legacyEquippedEchoes)
+  // build candidates once per imported rotation so every entry resolves against
+  // the same equipped-echo snapshot.
+  const candidates = cllcRotFeatC(resonatorId, legQppdChs)
   const nodes: RotationNode[] = []
 
   for (const [index, entry] of entries.entries()) {
@@ -180,6 +193,8 @@ export function convertLegacyRotationEntries(
 
     const type = typeof entry.type === 'string' ? entry.type : 'skill'
     if (type === 'block') {
+      // v1 blocks had no executable meaning, so dropping them preserves damage
+      // behavior while surfacing the lossy conversion in the import report.
       if (issues) {
         pushIssue(issues, {
           scope: 'rotation',
@@ -190,9 +205,9 @@ export function convertLegacyRotationEntries(
       continue
     }
 
-    const matched = matchLegacyRotationFeature(candidates, entry)
+    const matched = mtchLegRotFe(candidates, entry)
     if (!matched) {
-      const label = getLegacyRotationLabel(entry) ?? `#${index + 1}`
+      const label = getLegRotLbl(entry) ?? `#${index + 1}`
       if (issues) {
         pushIssue(issues, {
           scope: 'rotation',
@@ -219,4 +234,3 @@ export function convertLegacyRotationEntries(
 
   return nodes
 }
-

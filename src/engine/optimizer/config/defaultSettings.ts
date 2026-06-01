@@ -1,14 +1,20 @@
-import type { EnemyProfile } from '@/domain/entities/appState.ts'
-import type { OptimizerSettings } from '@/domain/entities/optimizer.ts'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
-import type { SkillDefinition } from '@/domain/entities/stats.ts'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService.ts'
-import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters.ts'
-import { buildOptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
-import { listOptimizerTargets } from '@/engine/optimizer/target/skills.ts'
-import { buildRuntimeSkillContext, prepareRuntimeSkillById } from '@/engine/pipeline/prepareRuntimeSkill.ts'
+/*
+  Author: Runor Ewhro
+  Description: derives default optimizer settings from the current runtime,
+               selected target skill, and marginal stat weighting heuristics.
+*/
 
-const ELEMENT_WEIGHT_KEYS = [
+import type { EnemyProfile } from '@/domain/entities/appState.ts'
+import type { OptSets } from '@/domain/entities/optimizer.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
+import type { SkillDef } from '@/domain/entities/stats.ts'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
+import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
+import { makeStatWeights } from '@/engine/optimizer/search/filtering.ts'
+import { listOptTrgt } from '@/engine/optimizer/target/skills.ts'
+import { makeSkillCtx, prepareSkill } from '@/engine/pipeline/prepareRuntimeSkill.ts'
+
+const ELEMENT_KEYS = [
   'glacio',
   'fusion',
   'electro',
@@ -17,7 +23,7 @@ const ELEMENT_WEIGHT_KEYS = [
   'havoc',
 ] as const
 
-const MAIN_STAT_FILTER_ORDER = [
+const MAIN_STAT_IDS = [
   'atk%',
   'hp%',
   'def%',
@@ -26,11 +32,12 @@ const MAIN_STAT_FILTER_ORDER = [
   'cd',
   'bonus',
   'healing',
-] as const satisfies ReadonlyArray<OptimizerSettings['mainStatFilter'][number]>
+] as const satisfies ReadonlyArray<OptSets['mainStatFilter'][number]>
 
-function mapWeightKeyToMainStatFilterKey(
+// map internal stat-weight keys back into user-facing main-stat filter ids
+function mapWeightKey(
   key: string,
-): OptimizerSettings['mainStatFilter'][number] | null {
+): OptSets['mainStatFilter'][number] | null {
   if (key === 'atkPercent') return 'atk%'
   if (key === 'hpPercent') return 'hp%'
   if (key === 'defPercent') return 'def%'
@@ -38,15 +45,16 @@ function mapWeightKeyToMainStatFilterKey(
   if (key === 'critRate') return 'cr'
   if (key === 'critDmg') return 'cd'
   if (key === 'healingBonus') return 'healing'
-  if (ELEMENT_WEIGHT_KEYS.includes(key as (typeof ELEMENT_WEIGHT_KEYS)[number])) return 'bonus'
+  if (ELEMENT_KEYS.includes(key as (typeof ELEMENT_KEYS)[number])) return 'bonus'
   return null
 }
 
+// pick the strongest elemental bonus bucket so defaults can prefer it
 function pickDefaultBonus(weights: Partial<Record<string, number>>): string | null {
   let bestKey: string | null = null
   let bestWeight = 0
 
-  for (const key of ELEMENT_WEIGHT_KEYS) {
+  for (const key of ELEMENT_KEYS) {
     const weight = weights[key] ?? 0
     if (weight > bestWeight) {
       bestWeight = weight
@@ -57,48 +65,72 @@ function pickDefaultBonus(weights: Partial<Record<string, number>>): string | nu
   return bestKey
 }
 
-function buildPreparedTargetSkill(params: {
-  runtime: ResonatorRuntimeState
+function makeTargetSkill(params: {
+  runtime: ResRuntime
   enemy: EnemyProfile
-  selectedTargetsByOwnerKey?: Record<string, string | null>
-}): SkillDefinition | null {
-  const { runtime, enemy, selectedTargetsByOwnerKey } = params
-  const targetSkill = listOptimizerTargets(runtime)[0] ?? null
+  selectedTargets?: Record<string, string | null>
+}): SkillDef | null {
+  const { runtime, enemy, selectedTargets } = params
+  const targetSkill = listOptTrgt(runtime)[0] ?? null
   if (!targetSkill) {
     return null
   }
 
-  const seed = getResonatorSeedById(runtime.id)
+  const seed = getResSeedBy(runtime.id)
   if (!seed) {
     return null
   }
 
-  const { context } = buildRuntimeSkillContext({
+  const { context } = makeSkillCtx({
     runtime,
     seed,
     enemy,
-    runtimesById: buildRuntimeParticipantLookup(runtime),
-    selectedTargetsByOwnerKey,
+    runtimesById: makeRuntimeMap(runtime),
+    selectedTargets,
   })
 
-  return prepareRuntimeSkillById(runtime, targetSkill.id, context)
+  return prepareSkill(runtime, targetSkill.id, context)
 }
 
-export function deriveInitialOptimizerSettings(params: {
-  runtime: ResonatorRuntimeState
+// optimizer settings that are machine/ui preferences rather than
+// resonator-specific build choices. these carry over when the optimizer
+// context re-derives for a newly active resonator, so switching characters
+// does not silently revert the user's compute backend, low-memory toggle,
+// inventory/theory search mode, result-window sliders, or skill/combo target
+// mode. combo mode is gated downstream; if the new resonator has no rotation
+// features the optimizer surface forces skill mode regardless of what carries
+// over here.
+export function preserveToggles(existing?: OptSets | null): Partial<OptSets> {
+  if (!existing) {
+    return {}
+  }
+
+  return {
+    searchMode: existing.searchMode,
+    enableGpu: existing.enableGpu,
+    lowMemoryMode: existing.lowMemoryMode,
+    resultsLimit: existing.resultsLimit,
+    keepPercent: existing.keepPercent,
+    targetMode: existing.targetMode,
+    rotationMode: existing.rotationMode,
+  }
+}
+
+export function deriveOptSets(params: {
+  runtime: ResRuntime
   enemy: EnemyProfile
-  selectedTargetsByOwnerKey?: Record<string, string | null>
-}): Partial<OptimizerSettings> {
-  const { runtime, enemy, selectedTargetsByOwnerKey } = params
-  const targetSkill = listOptimizerTargets(runtime)[0] ?? null
+  selectedTargets?: Record<string, string | null>
+}): Partial<OptSets> {
+  const { runtime, enemy, selectedTargets } = params
+  const targetSkill = listOptTrgt(runtime)[0] ?? null
   if (!targetSkill) {
     return {}
   }
 
-  const preparedSkill = buildPreparedTargetSkill({
+  const preparedSkill = makeTargetSkill({
     runtime,
     enemy,
-    selectedTargetsByOwnerKey,
+    selectedTargets,
   })
   if (!preparedSkill) {
     return {
@@ -106,22 +138,22 @@ export function deriveInitialOptimizerSettings(params: {
     }
   }
 
-  const seed = getResonatorSeedById(runtime.id)
+  const seed = getResSeedBy(runtime.id)
   if (!seed) {
     return {
       targetSkillId: targetSkill.id,
     }
   }
 
-  const { context } = buildRuntimeSkillContext({
+  const { context } = makeSkillCtx({
     runtime,
     seed,
     enemy,
-    runtimesById: buildRuntimeParticipantLookup(runtime),
-    selectedTargetsByOwnerKey,
+    runtimesById: makeRuntimeMap(runtime),
+    selectedTargets,
   })
 
-  const weights = buildOptimizerStatWeightMap({
+  const weights = makeStatWeights({
     finalStats: context.finalStats,
     skill: preparedSkill,
     enemy,
@@ -129,12 +161,12 @@ export function deriveInitialOptimizerSettings(params: {
     combat: runtime.state.combat,
   })
 
-  const filterSet = new Set<OptimizerSettings['mainStatFilter'][number]>()
+  const filterSet = new Set<OptSets['mainStatFilter'][number]>()
   for (const [key, value] of Object.entries(weights)) {
     if ((value ?? 0) <= 0) {
       continue
     }
-    const filterKey = mapWeightKeyToMainStatFilterKey(key)
+    const filterKey = mapWeightKey(key)
     if (filterKey) {
       filterSet.add(filterKey)
     }
@@ -154,7 +186,7 @@ export function deriveInitialOptimizerSettings(params: {
     targetSkillId: targetSkill.id,
     targetMode: 'skill',
     targetComboSourceId: `live:${runtime.id}`,
-    mainStatFilter: MAIN_STAT_FILTER_ORDER.filter((key) => filterSet.has(key)),
+    mainStatFilter: MAIN_STAT_IDS.filter((key) => filterSet.has(key)),
     selectedBonus,
   }
 }

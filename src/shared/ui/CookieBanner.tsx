@@ -1,14 +1,20 @@
+/*
+  Author: Runor Ewhro
+  Description: Displays the cookie-consent banner and links users to the
+               privacy policy when they want more detail.
+*/
+
 import { useNavigate } from 'react-router-dom'
 import { Cookie } from 'lucide-react'
 
-interface CookieBannerProps {
+interface CkBnnrPrps {
   visible: boolean
   open: boolean
   closing: boolean
   onAccept: () => void
 }
 
-export function CookieBanner({ visible, open, closing, onAccept }: CookieBannerProps) {
+export function CookieBanner({ visible, open, closing, onAccept }: CkBnnrPrps) {
   const navigate = useNavigate()
 
   if (!visible) return null

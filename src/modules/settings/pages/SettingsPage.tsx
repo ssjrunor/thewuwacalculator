@@ -1,43 +1,49 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the settings page.
+*/
+
 import { useEffect, useState } from 'react'
-import type { ChangeEvent, CSSProperties } from 'react'
+import type { ChangeEvent, CSSProperties as CssProps } from 'react'
 import { useAppStore } from '@/domain/state/store'
-import { ConfirmationModal } from '@/shared/ui/ConfirmationModal'
-import { useConfirmation } from '@/app/hooks/useConfirmation.ts'
-import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
-import { clearPersistedAppState, parsePersistedAppStateJson, savePersistedAppState, APP_STORAGE_KEY } from '@/infra/persistence/storage'
-import { restoreLatestSnapshotFromDrive, uploadSnapshotToDrive } from '@/infra/googleDrive/driveSync'
-import { importLegacyAppStateJson } from '@/domain/services/legacyAppStateImport'
-import { selectPersistedState } from '@/domain/state/serialization'
+import { CnfrMdl } from '@/shared/ui/ConfirmationModal'
+import { useCnfr } from '@/app/hooks/useConfirmation.ts'
+import { mainPortal } from '@/shared/lib/portalTarget'
+import { clrPrssAppSt, parsePersisted, saveAppState, APP_STORAGE_KEY } from '@/infra/persistence/storage'
+import { rstrLtstSnap, pldSnapToDrv } from '@/infra/googleDrive/driveSync'
+import { importLegacyApp } from '@/domain/services/legacyAppStateImport'
+import { selectPersisted } from '@/domain/state/serialization'
 import {
-  applyBackgroundMainColorToDocument,
-  BACKGROUND_WALLPAPER_PRESETS,
-  detectBackgroundMainColor,
-  detectBackgroundTextMode,
-  getBackgroundWallpaperPreset,
-  isUploadedBackgroundKey,
-  resolveBackgroundWallpaper,
-  saveUploadedBackgroundImage,
-  switchBackgroundWallpaper,
-  writeStoredBackgroundMainColor,
+  applyBgColor,
+  BG_PRESETS,
+  dtctBgClr,
+  dtctBgTxtMod,
+  getBgPreset,
+  isPlddBgKey,
+  resolveBg,
+  savePlddBgIm,
+  switchBg,
+  writeStrdBgC,
 } from '@/modules/settings/model/backgroundTheme'
 import {
-  BODY_FONT_PRESETS,
-  applyBodyFontSelection,
-  applyPreviewBodyFontSelection,
-  extractGoogleFontFamily,
-  getPresetBodyFontLink,
-  SYSTEM_UI_FONT_NAME,
+  BODYFONTPRST,
+  applyBodyFon,
+  applyPrvwBod,
+  xtrcGglFontF,
+  getPrstBodyF,
+  SYSTUIFONTNA,
 } from '@/modules/settings/model/typography'
-import { useGoogleDriveAuth } from '@/app/hooks/useGoogleDriveAuth'
-import { DATA_EXPORT_ACTIONS, buildDataExportFile, resolveImportedData } from '@/modules/settings/model/dataManagement'
-import { useToastStore } from '@/shared/util/toastStore.ts'
+import { useGglDrvAut } from '@/app/hooks/useGoogleDriveAuth'
+import { DATAXPRTCTNS, mkDataXprtFi, resMprtData } from '@/modules/settings/model/dataManagement'
+import { useTstStr } from '@/shared/util/toastStore.ts'
 import { toTitle } from '@/shared/lib/format'
+import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 import {
-  THEME_PREVIEWS,
-  THEME_VARIANTS_BY_MODE,
-  type BackgroundThemeVariant,
-  type DarkThemeVariant,
-  type LightThemeVariant,
+  THEME_PREVIEW,
+  THEME_BY_MODE,
+  type BgThemeVar,
+  type DarkThemeVar,
+  type LightThemeVar,
   type ThemeVariant,
 } from '@/domain/entities/themes'
 import {
@@ -52,8 +58,13 @@ import {
   Trash2,
   Archive,
 } from 'lucide-react'
+import {
+  mkPrefGrps,
+  PrefSelBrnc,
+  ToggleSwitch,
+} from '@/modules/settings/model/preferences'
 
-function waitForNextPaint(): Promise<void> {
+function waitForNextP(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
       setTimeout(resolve, 0)
@@ -64,141 +75,140 @@ function waitForNextPaint(): Promise<void> {
   })
 }
 
-function ToggleSwitch({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string
-  description?: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      className="settings-toggle"
-      onClick={() => onChange(!checked)}
-    >
-      <div>
-        <div className="settings-toggle-label">{label}</div>
-        {description && <div className="settings-toggle-desc">{description}</div>}
-      </div>
-      <div className={`settings-switch ${checked ? 'settings-switch--on' : ''}`} />
-    </button>
-  )
-}
-
 export function SettingsPage() {
   const ui = useAppStore((state) => state.ui)
   const setTheme = useAppStore((state) => state.setTheme)
-  const setThemePreference = useAppStore((state) => state.setThemePreference)
-  const setLightVariant = useAppStore((state) => state.setLightVariant)
-  const setDarkVariant = useAppStore((state) => state.setDarkVariant)
-  const setBackgroundVariant = useAppStore((state) => state.setBackgroundVariant)
-  const setBackgroundImageKey = useAppStore((state) => state.setBackgroundImageKey)
-  const setBackgroundTextMode = useAppStore((state) => state.setBackgroundTextMode)
-  const setBodyFontSelection = useAppStore((state) => state.setBodyFontSelection)
+  const setThemePref = useAppStore((state) => state.setThemePref)
+  const setLghtVar = useAppStore((state) => state.setLightVar)
+  const setDarkVar = useAppStore((state) => state.setDarkVar)
+  const setBgVar = useAppStore((state) => state.setBgVar)
+  const setBgMgKey = useAppStore((state) => state.setBgImgKey)
+  const setBgTextMod = useAppStore((state) => state.setBgTxtMode)
+  const setBodyFontS = useAppStore((state) => state.setBodyFont)
   const setBlurMode = useAppStore((state) => state.setBlurMode)
-  const setEntranceAnimations = useAppStore((state) => state.setEntranceAnimations)
+  const setNtrnNmtn = useAppStore((state) => state.setEntrAnim)
+  const setCtxMenu = useAppStore((state) => state.setCtxMenu)
+  const setUpdTst = useAppStore((state) => state.setUpdToast)
+  const setRcmmMenuT = useAppStore((state) => state.setRecMenus)
+  const setShowNqntV = useAppStore((state) => state.setUnqOvr)
+  const setCmpcInv = useAppStore((state) => state.setCmpInv)
+  const setSeeQppd = useAppStore((state) => state.setSeeEqp)
+  const setHaveHist = useAppStore((state) => state.setHistOn)
+  const setHistMax = useAppStore((state) => state.setHistMax)
+
   const hydrate = useAppStore((state) => state.hydrate)
   const resetState = useAppStore((state) => state.resetState)
-  const ensureInventoryHydrated = useAppStore((state) => state.ensureInventoryHydrated)
-  const showToast = useToastStore((state) => state.show)
+  const ensInvHydr = useAppStore((state) => state.ensInvHydr)
+  const showToast = useTstStr((state) => state.show)
 
-  const confirmation = useConfirmation()
-  const portalTarget = getMainContentPortalTarget()
+  const confirmation = useCnfr()
+  const portalTarget = mainPortal()
   const {
-    accessToken: googleDriveAccessToken,
-    connect: connectGoogleDrive,
-    disconnect: disconnectGoogleDrive,
-    error: googleDriveAuthError,
-    isConfigured: isGoogleDriveConfigured,
-    isConnected: isGoogleDriveConnected,
-    refresh: refreshGoogleDriveAccessToken,
-    user: googleDriveUser,
-  } = useGoogleDriveAuth()
+    accessToken: gglDrvCcssTk,
+    connect: cnncGglDrv,
+    disconnect: dscnGglDrv,
+    error: gglDrvAuthRr,
+    isConfigured: isGglDrvCnfg,
+    isConnected: isGglDrvCnnc,
+    refresh: rfrsGglDrvCc,
+    user: gglDrvUser,
+  } = useGglDrvAut()
 
-  const [autoSnapshotEnabled, setAutoSnapshotEnabled] = useState(true)
-  const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(null)
-  const [snapshotJson, setSnapshotJson] = useState('')
-  const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null)
-  const [snapshotError, setSnapshotError] = useState<string | null>(null)
-  const [draftBodyFontName, setDraftBodyFontName] = useState(ui.bodyFontName)
-  const [draftBodyFontUrl, setDraftBodyFontUrl] = useState(ui.bodyFontUrl)
-  const [fontPreviewLoading, setFontPreviewLoading] = useState(false)
-  const [fontLinkValid, setFontLinkValid] = useState(true)
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<string | null>(null)
-  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null)
-  const [cloudSyncBusyAction, setCloudSyncBusyAction] = useState<'sync' | 'restore' | null>(null)
-  const [legacyImportJson, setLegacyImportJson] = useState('')
-  const [legacyImportStatus, setLegacyImportStatus] = useState<string | null>(null)
-  const [legacyImportError, setLegacyImportError] = useState<string | null>(null)
+  const [bckgPrvwUrl, setBckgPrvwU] = useState<string | null>(null)
+  const [snapshotJson, setSnpsJson] = useState('')
+  const [snpsStts, setSnpsStts] = useState<string | null>(null)
+  const [snpsRrr, setSnpsRrr] = useState<string | null>(null)
+  const [drftFontName, setDrftFNam] = useState(ui.bodyFontName)
+  const [drftFontUrl, setDrftFUrl] = useState(ui.bodyFontUrl)
+  const [fontPrvwLdng, setFontPrvwL] = useState(false)
+  const [fontLinkVld, setFontLinkV] = useState(true)
+  const [cldSyncStts, setCldSyncSt] = useState<string | null>(null)
+  const [cldSyncRrr, setCldSyncRr] = useState<string | null>(null)
+  const [cldSyncBusyC, setCldSyncBu] = useState<'sync' | 'restore' | null>(null)
+  const [lgcyMprtJson, setLgcyMprtJ] = useState('')
+  const [lgcyMprtStts, setLgcyMprtS] = useState<string | null>(null)
+  const [lgcyMprtRrr, setLgcyMprtR] = useState<string | null>(null)
   const fontChanged =
-    draftBodyFontName !== ui.bodyFontName
-    || draftBodyFontUrl.trim() !== ui.bodyFontUrl.trim()
-  const canApplyFont = draftBodyFontName === SYSTEM_UI_FONT_NAME || fontLinkValid
-  const selectedFontIsPreset = BODY_FONT_PRESETS.includes(draftBodyFontName as typeof BODY_FONT_PRESETS[number])
+    drftFontName !== ui.bodyFontName
+    || drftFontUrl.trim() !== ui.bodyFontUrl.trim()
+  const canApplyFont = drftFontName === SYSTUIFONTNA || fontLinkVld
+  const selFontIsPrs = BODYFONTPRST.includes(drftFontName as typeof BODYFONTPRST[number])
+  const prefGrps = mkPrefGrps({
+    ui,
+    setBlurMode,
+    setNtrnAnim: setNtrnNmtn,
+    setCtxMenu,
+    setPdtTst: setUpdTst,
+    setRcmmMenyu: setRcmmMenuT,
+    setShowNqng6: setShowNqntV,
+    setHaveHist: setHaveHist,
+    setHistMax: setHistMax,
+    setCmpcInv: setCmpcInv,
+    setSeeQppd: setSeeQppd,
+  })
 
-  const buildCurrentSnapshotJson = () => {
-    useAppStore.getState().ensureInventoryHydrated()
-    const snapshot = selectPersistedState(useAppStore.getState())
+  const mkCurSnapJso = () => {
+    // hydrate inventory first so exports always capture the fully realized
+    // persisted snapshot instead of a lazily trimmed view.
+    useAppStore.getState().ensInvHydr()
+    const snapshot = selectPersisted(useAppStore.getState())
     return JSON.stringify(snapshot, null, 2)
   }
 
   useEffect(() => {
     let cancelled = false
-    let releasePreview: (() => void) | null = null
+    let rlsPrvw: (() => void) | null = null
 
-    const loadBackgroundPreview = async () => {
-      const resolved = await resolveBackgroundWallpaper(ui.backgroundImageKey)
+    const loadBgPrvw = async () => {
+      const resolved = await resolveBg(ui.backgroundImageKey)
       if (cancelled) {
         resolved.revoke?.()
         return
       }
 
-      releasePreview?.()
-      releasePreview = resolved.revoke ?? null
-      setBackgroundPreviewUrl(resolved.url)
+      rlsPrvw?.()
+      rlsPrvw = resolved.revoke ?? null
+      setBckgPrvwU(resolved.url)
     }
 
-    void loadBackgroundPreview()
+    void loadBgPrvw()
 
     return () => {
       cancelled = true
-      releasePreview?.()
+      rlsPrvw?.()
     }
   }, [ui.backgroundImageKey])
 
   useEffect(() => {
-    setDraftBodyFontName(ui.bodyFontName)
-    setDraftBodyFontUrl(ui.bodyFontUrl)
+    setDrftFNam(ui.bodyFontName)
+    setDrftFUrl(ui.bodyFontUrl)
   }, [ui.bodyFontName, ui.bodyFontUrl])
 
   useEffect(() => {
     let cancelled = false
 
     const loadPreview = async () => {
-      setFontPreviewLoading(true)
-      const resolved = await applyPreviewBodyFontSelection(draftBodyFontName, draftBodyFontUrl)
+      setFontPrvwL(true)
+      // preview font loading is intentionally decoupled from persisted apply so
+      // users can experiment with links before committing the selection.
+      const resolved = await applyPrvwBod(drftFontName, drftFontUrl)
       if (cancelled) {
         return
       }
 
-      setFontLinkValid(resolved.validLink)
-      setFontPreviewLoading(false)
+      setFontLinkV(resolved.validLink)
+      setFontPrvwL(false)
     }
 
     void loadPreview()
 
     return () => {
       cancelled = true
-      void applyPreviewBodyFontSelection(ui.bodyFontName, ui.bodyFontUrl)
+      void applyPrvwBod(ui.bodyFontName, ui.bodyFontUrl)
     }
-  }, [draftBodyFontName, draftBodyFontUrl, ui.bodyFontName, ui.bodyFontUrl])
+  }, [drftFontName, drftFontUrl, ui.bodyFontName, ui.bodyFontUrl])
 
-  const downloadJsonFile = (raw: string, filename: string) => {
+  const dwnlJsonFile = (raw: string, filename: string) => {
     const blob = new Blob([raw], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -209,85 +219,87 @@ export function SettingsPage() {
   }
 
   const clearAllData = () => {
-    clearPersistedAppState()
+    clrPrssAppSt()
     resetState()
     window.location.href = '/'
   }
 
-  const handleExportSnapshot = () => {
-    ensureInventoryHydrated()
-    const raw = buildCurrentSnapshotJson()
+  const onXprtSnap = () => {
+    ensInvHydr()
+    const raw = mkCurSnapJso()
     const filename = `wwcalc-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`
-    downloadJsonFile(raw, filename)
+    dwnlJsonFile(raw, filename)
 
-    setSnapshotJson(raw)
-    setSnapshotError(null)
-    setSnapshotStatus(`Exported current snapshot to ${filename}.`)
+    setSnpsJson(raw)
+    setSnpsRrr(null)
+    setSnpsStts(`Exported current snapshot to ${filename}.`)
   }
 
-  const handleExportDataBundle = (kind: typeof DATA_EXPORT_ACTIONS[number]['kind']) => {
+  const onXprtDataBn = (kind: typeof DATAXPRTCTNS[number]['kind']) => {
     try {
-      ensureInventoryHydrated()
-      const result = buildDataExportFile(useAppStore.getState(), kind)
-      downloadJsonFile(result.raw, result.fileName)
-      setSnapshotJson(result.raw)
-      setSnapshotError(null)
-      setSnapshotStatus(`Exported ${result.label} to ${result.fileName}.`)
+      ensInvHydr()
+      const result = mkDataXprtFi(useAppStore.getState(), kind)
+      dwnlJsonFile(result.raw, result.fileName)
+      setSnpsJson(result.raw)
+      setSnpsRrr(null)
+      setSnpsStts(`Exported ${result.label} to ${result.fileName}.`)
     } catch (error) {
-      setSnapshotStatus(null)
-      setSnapshotError(error instanceof Error ? error.message : 'Data export failed.')
+      setSnpsStts(null)
+      setSnpsRrr(error instanceof Error ? error.message : 'Data export failed.')
     }
   }
 
-  const handleCloudSyncToggle = (checked: boolean) => {
-    setCloudSyncStatus(null)
-    setCloudSyncError(null)
+  const onCldSyncTgl = (checked: boolean) => {
+    setCldSyncSt(null)
+    setCldSyncRr(null)
 
     if (checked) {
-      if (!isGoogleDriveConfigured) {
-        setCloudSyncError('Set VITE_GOOGLE_CLIENT_ID before enabling Google Drive sync.')
+      if (!isGglDrvCnfg) {
+        setCldSyncRr('Set VITE_GOOGLE_CLIENT_ID before enabling Google Drive sync.')
         return
       }
 
-      connectGoogleDrive()
+      cnncGglDrv()
       return
     }
 
-    disconnectGoogleDrive()
-    setCloudSyncStatus('Disconnected Google Drive sync for this browser.')
+    dscnGglDrv()
+    setCldSyncSt('Disconnected Google Drive sync for this browser.')
   }
 
-  const applyBackgroundSelection = async (backgroundKey: string, source: Blob | string) => {
+  const applyBgSel = async (bgKey: string, source: Blob | string) => {
     setTheme('background')
-    setBackgroundImageKey(backgroundKey)
+    setBgMgKey(bgKey)
 
-    await switchBackgroundWallpaper(source, backgroundKey)
+    // apply the wallpaper first, then recompute text mode and accent color from
+    // the resolved image so the theme stays readable after each switch.
+    await switchBg(source, bgKey)
 
-    const nextTextMode = await detectBackgroundTextMode(backgroundKey)
-    setBackgroundTextMode(nextTextMode)
-    const nextMainColor = await detectBackgroundMainColor(backgroundKey, nextTextMode)
-    writeStoredBackgroundMainColor(nextMainColor)
-    applyBackgroundMainColorToDocument(nextMainColor)
+    const nextTextMode = await dtctBgTxtMod(bgKey)
+    setBgTextMod(nextTextMode)
+    const nextMainClr = await dtctBgClr(bgKey, nextTextMode)
+    writeStrdBgC(nextMainClr)
+    applyBgColor(nextMainClr)
   }
 
-  const handleBuiltinBackgroundSelect = async (backgroundKey: string) => {
-    const preset = getBackgroundWallpaperPreset(backgroundKey)
+  const onBltnBgSel = async (bgKey: string) => {
+    const preset = getBgPreset(bgKey)
     if (!preset) {
       return
     }
 
-    await applyBackgroundSelection(backgroundKey, preset.src)
+    await applyBgSel(bgKey, preset.src)
   }
 
-  const handleBackgroundUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onBgPld = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) {
       return
     }
 
     try {
-      const backgroundKey = await saveUploadedBackgroundImage(file)
-      await applyBackgroundSelection(backgroundKey, file)
+      const bgKey = await savePlddBgIm(file)
+      await applyBgSel(bgKey, file)
       showToast({
         content: `Applied ${file.name} as the background wallpaper.`,
         variant: 'success',
@@ -302,159 +314,161 @@ export function SettingsPage() {
     }
   }
 
-  const handleFontPresetChange = (fontName: string) => {
-    setDraftBodyFontName(fontName)
-    setDraftBodyFontUrl(getPresetBodyFontLink(fontName))
+  const onFontPrstCh = (fontName: string) => {
+    setDrftFNam(fontName)
+    setDrftFUrl(getPrstBodyF(fontName))
   }
 
-  const handleFontUrlChange = (value: string) => {
-    setDraftBodyFontUrl(value)
+  const onFontUrlChn = (value: string) => {
+    setDrftFUrl(value)
 
-    const extractedFamily = extractGoogleFontFamily(value)
-    if (extractedFamily) {
-      setDraftBodyFontName(extractedFamily)
+    const xtrcFmly = xtrcGglFontF(value)
+    if (xtrcFmly) {
+      setDrftFNam(xtrcFmly)
       return
     }
 
-    if (!value.trim() && !selectedFontIsPreset) {
-      setDraftBodyFontName(ui.bodyFontName)
+    if (!value.trim() && !selFontIsPrs) {
+      setDrftFNam(ui.bodyFontName)
     }
   }
 
-  const handleApplyTypography = async () => {
+  const onApplyTypg = async () => {
     try {
-      setFontPreviewLoading(true)
-      const resolved = await applyBodyFontSelection(draftBodyFontName, draftBodyFontUrl)
-      const nextFontUrl = draftBodyFontName === SYSTEM_UI_FONT_NAME
+      setFontPrvwL(true)
+      const resolved = await applyBodyFon(drftFontName, drftFontUrl)
+      const nextFontUrl = drftFontName === SYSTUIFONTNA
         ? ''
-        : draftBodyFontUrl.trim()
+        : drftFontUrl.trim()
 
-      setBodyFontSelection(resolved.fontName, nextFontUrl)
+      setBodyFontS(resolved.fontName, nextFontUrl)
       showToast({
         content: `Applied ${resolved.fontName} as the body font.`,
         variant: 'success',
       })
     } finally {
-      setFontPreviewLoading(false)
+      setFontPrvwL(false)
     }
   }
 
-  const handleSyncToDrive = async () => {
-    if (!googleDriveAccessToken) {
-      setCloudSyncError('Sign in to Google Drive before uploading a backup.')
+  const onSyncToDrv = async () => {
+    if (!gglDrvCcssTk) {
+      setCldSyncRr('Sign in to Google Drive before uploading a backup.')
       return
     }
 
     try {
-      setCloudSyncBusyAction('sync')
-      setCloudSyncError(null)
-      setCloudSyncStatus(null)
+      setCldSyncBu('sync')
+      setCldSyncRr(null)
+      setCldSyncSt(null)
 
-      const accessToken = await refreshGoogleDriveAccessToken()
+      const accessToken = await rfrsGglDrvCc()
       if (!accessToken) {
         throw new Error('Google Drive session expired. Sign in again to continue.')
       }
 
       // Let React paint the busy state before snapshot serialization runs.
-      await waitForNextPaint()
-      const raw = buildCurrentSnapshotJson()
-      const result = await uploadSnapshotToDrive(accessToken, raw)
-      setCloudSyncStatus(`Uploaded ${result.fileName} to Google Drive app data.`)
+      await waitForNextP()
+      const raw = mkCurSnapJso()
+      const result = await pldSnapToDrv(accessToken, raw)
+      setCldSyncSt(`Uploaded ${result.fileName} to Google Drive app data.`)
       showToast({
         content: 'Snapshot uploaded to Google Drive.',
         variant: 'success',
       })
     } catch (error) {
-      setCloudSyncStatus(null)
-      setCloudSyncError(error instanceof Error ? error.message : 'Google Drive backup failed.')
+      setCldSyncSt(null)
+      setCldSyncRr(error instanceof Error ? error.message : 'Google Drive backup failed.')
     } finally {
-      setCloudSyncBusyAction(null)
+      setCldSyncBu(null)
     }
   }
 
-  const handleRestoreFromDrive = async () => {
-    if (!googleDriveAccessToken) {
-      setCloudSyncError('Sign in to Google Drive before restoring a backup.')
+  const onRstrFromDr = async () => {
+    if (!gglDrvCcssTk) {
+      setCldSyncRr('Sign in to Google Drive before restoring a backup.')
       return
     }
 
     try {
-      setCloudSyncBusyAction('restore')
-      setCloudSyncError(null)
-      setCloudSyncStatus(null)
+      setCldSyncBu('restore')
+      setCldSyncRr(null)
+      setCldSyncSt(null)
 
-      const accessToken = await refreshGoogleDriveAccessToken()
+      const accessToken = await rfrsGglDrvCc()
       if (!accessToken) {
         throw new Error('Google Drive session expired. Sign in again to continue.')
       }
 
-      const result = await restoreLatestSnapshotFromDrive(accessToken)
+      const result = await rstrLtstSnap(accessToken)
       if (!result) {
-        setCloudSyncStatus('No Google Drive snapshots were found for this app.')
+        setCldSyncSt('No Google Drive snapshots were found for this app.')
         return
       }
 
-      const snapshot = parsePersistedAppStateJson(result.raw)
+      // validate and persist the restored snapshot before reporting success so
+      // the drive restore message always reflects the actual live app state.
+      const snapshot = parsePersisted(result.raw)
       hydrate(snapshot)
-      savePersistedAppState(snapshot)
-      setSnapshotJson(result.raw)
-      setSnapshotError(null)
-      setSnapshotStatus(`Imported snapshot from ${result.fileName}.`)
-      setCloudSyncStatus(`Restored the latest Drive backup from ${result.fileName}.`)
+      saveAppState(snapshot)
+      setSnpsJson(result.raw)
+      setSnpsRrr(null)
+      setSnpsStts(`Imported snapshot from ${result.fileName}.`)
+      setCldSyncSt(`Restored the latest Drive backup from ${result.fileName}.`)
       showToast({
         content: 'Restored the latest Google Drive snapshot.',
         variant: 'success',
       })
     } catch (error) {
-      setCloudSyncStatus(null)
-      setCloudSyncError(error instanceof Error ? error.message : 'Google Drive restore failed.')
+      setCldSyncSt(null)
+      setCldSyncRr(error instanceof Error ? error.message : 'Google Drive restore failed.')
     } finally {
-      setCloudSyncBusyAction(null)
+      setCldSyncBu(null)
     }
   }
 
-  const runSnapshotImport = (raw: string) => {
+  const runSnapMprt = (raw: string) => {
     try {
-      const result = resolveImportedData(raw, useAppStore.getState())
+      const result = resMprtData(raw, useAppStore.getState())
       hydrate(result.snapshot)
-      savePersistedAppState(result.snapshot)
-      setSnapshotError(null)
-      setSnapshotStatus(`Imported ${result.label} into the current app state.`)
+      saveAppState(result.snapshot)
+      setSnpsRrr(null)
+      setSnpsStts(`Imported ${result.label} into the current app state.`)
     } catch (error) {
-      setSnapshotStatus(null)
-      setSnapshotError(error instanceof Error ? error.message : 'Data import failed.')
+      setSnpsStts(null)
+      setSnpsRrr(error instanceof Error ? error.message : 'Data import failed.')
     }
   }
 
-  const handleSnapshotFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onSnapFileCh = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const raw = await file.text()
-    setSnapshotJson(raw)
-    setSnapshotStatus(null)
-    setSnapshotError(null)
+    setSnpsJson(raw)
+    setSnpsStts(null)
+    setSnpsRrr(null)
     event.target.value = ''
   }
 
-  const runLegacyAppImport = (raw: string) => {
+  const runLegAppMpr = (raw: string) => {
     try {
-      const result = importLegacyAppStateJson(raw)
-      const hasImportedData =
+      const result = importLegacyApp(raw)
+      const hasMprtData =
         result.report.importedProfileIds.length > 0
         || result.report.importedInventoryEchoes > 0
         || result.report.importedInventoryBuilds > 0
 
-      if (!hasImportedData) {
-        setLegacyImportStatus(null)
-        setLegacyImportError('No valid legacy app-state data was found. Current state was left unchanged.')
+      if (!hasMprtData) {
+        setLgcyMprtS(null)
+        setLgcyMprtR('No valid legacy app-state data was found. Current state was left unchanged.')
         return
       }
 
       hydrate(result.snapshot)
-      savePersistedAppState(result.snapshot)
-      setLegacyImportError(null)
-      setLegacyImportStatus([
+      saveAppState(result.snapshot)
+      setLgcyMprtR(null)
+      setLgcyMprtS([
         `Imported ${result.report.importedProfileIds.length} profiles, ${result.report.importedInventoryEchoes} bag echoes, and ${result.report.importedInventoryBuilds} saved builds.`,
         result.report.skippedProfileIds.length > 0
           ? `Skipped ${result.report.skippedProfileIds.length} missing or unsupported profile${result.report.skippedProfileIds.length === 1 ? '' : 's'}.`
@@ -468,19 +482,19 @@ export function SettingsPage() {
         variant: 'success',
       })
     } catch (error) {
-      setLegacyImportStatus(null)
-      setLegacyImportError(error instanceof Error ? error.message : 'Legacy app-state import failed.')
+      setLgcyMprtS(null)
+      setLgcyMprtR(error instanceof Error ? error.message : 'Legacy app-state import failed.')
     }
   }
 
-  const handleLegacyFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onLegFileChn = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     const raw = await file.text()
-    setLegacyImportJson(raw)
-    setLegacyImportStatus(null)
-    setLegacyImportError(null)
+    setLgcyMprtJ(raw)
+    setLgcyMprtS(null)
+    setLgcyMprtR(null)
     event.target.value = ''
   }
 
@@ -489,7 +503,7 @@ export function SettingsPage() {
     selected: boolean,
     onSelect: () => void,
   ) => {
-    const preview = THEME_PREVIEWS[variant]
+    const preview = THEME_PREVIEW[variant]
 
     return (
       <button
@@ -502,7 +516,7 @@ export function SettingsPage() {
         <div
           aria-hidden="true"
           className="settings-background-card-preview settings-background-card-preview--theme"
-          style={{ '--background-preview': preview } as CSSProperties}
+          style={{ '--background-preview': preview } as CssProps}
         />
         <span className="settings-background-card-label">{toTitle(variant)}</span>
       </button>
@@ -510,492 +524,476 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="page">
+    <div className="settings page">
       {/* ── Hero header ── */}
-      <header className="page-hero">
-        <div className="page-hero-eyebrow">Configuration</div>
-        <h1>Settings</h1>
-        <p className="page-hero-sub">
-          Personalize your workspace, manage themes, and control your data.
-        </p>
-      </header>
+      <CllpPageHeyf
+        eyebrow="Configuration"
+        title="Settings"
+        subtitle="Personalize your workspace, manage themes, and control your data."
+        layoutKey="settings-hero"
+      />
 
-      {/* ── Bento grid ── */}
-      <div className="page-bento">
-
-        {/* ── Theme Mode — wide tile ── */}
-        <section className="page-tile page-tile--wide">
-          <div className="tile-header">
-            <div className="tile-icon"><Palette /></div>
-            <div className="tile-header-text">
-              <h3>Appearance</h3>
-              <p>Choose your theme mode and visual style</p>
-            </div>
-          </div>
-
-          <div className="mode-switch">
-            {(['system', 'light', 'dark', 'background'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={`mode-switch-btn ${ui.themePreference === option ? 'active' : ''}`}
-                onClick={() => {
-                  if (option === 'system') {
-                    setThemePreference('system')
-                    return
-                  }
-
-                  setTheme(option)
-                }}
-              >
-                {toTitle(option)}
-              </button>
-            ))}
-          </div>
-
-          {ui.themePreference === 'system' && (
-            <div className="settings-data-note">
-              Following your device theme right now: <strong>{toTitle(ui.theme)}</strong>.
-            </div>
-          )}
-
-          {/* Light variants */}
-          <div className="settings-swatch-section">
-            <div className="settings-swatch-label">Light</div>
-            <div className="settings-swatch-grid">
-              {THEME_VARIANTS_BY_MODE.light.map((variant) =>
-                renderSwatch(
-                  variant,
-                  ui.lightVariant === variant,
-                  () => setLightVariant(variant as LightThemeVariant),
-                ),
-              )}
-            </div>
-          </div>
-
-          {/* Dark variants */}
-          <div className="settings-swatch-section">
-            <div className="settings-swatch-label">Dark</div>
-            <div className="settings-swatch-grid">
-              {THEME_VARIANTS_BY_MODE.dark.map((variant) =>
-                renderSwatch(
-                  variant,
-                  ui.darkVariant === variant,
-                  () => setDarkVariant(variant as DarkThemeVariant),
-                ),
-              )}
-            </div>
-          </div>
-
-          {/* Background variants */}
-          <div className="settings-swatch-section">
-            <div className="settings-swatch-label">Background</div>
-            <div className="settings-swatch-grid">
-              {THEME_VARIANTS_BY_MODE.background.map((variant) =>
-                renderSwatch(
-                  variant,
-                  ui.backgroundVariant === variant,
-                  () => setBackgroundVariant(variant as BackgroundThemeVariant),
-                ),
-              )}
-            </div>
-          </div>
-
-          {ui.theme === 'background' ? (
-            <div className="settings-background-panel">
-              <div className="settings-swatch-label">Wallpapers</div>
-              <div className="settings-background-grid">
-                {BACKGROUND_WALLPAPER_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={`settings-background-card ${ui.backgroundImageKey === preset.id ? 'settings-background-card--active' : ''}`}
-                    onClick={() => {
-                      void handleBuiltinBackgroundSelect(preset.id)
-                    }}
-                  >
-                    <div
-                      aria-hidden="true"
-                      className="settings-background-card-preview"
-                      style={{ '--background-preview': preset.preview } as CSSProperties}
-                    />
-                    <span className="settings-background-card-label">{preset.label}</span>
-                  </button>
-                ))}
-                {isUploadedBackgroundKey(ui.backgroundImageKey) && backgroundPreviewUrl ? (
-                  <button
-                    type="button"
-                    className="settings-background-card settings-background-card--active"
-                    onClick={() => setTheme('background')}
-                  >
-                    <img
-                      src={backgroundPreviewUrl}
-                      alt="custom wallpaper"
-                      className="settings-background-card-image"
-                    />
-                    <span className="settings-background-card-label">custom upload</span>
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="settings-dropzone settings-dropzone--compact">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleBackgroundUpload}
-                />
-                <div className="settings-dropzone-text">
-                  <strong>Choose an image</strong> to replace the active wallpaper
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
-
-        {/* ── Preferences — narrow tile ── */}
-        <section className="page-tile page-tile--narrow">
+      <div className="page-content">
+        <section className="settings-prefs-panel">
           <div className="tile-header">
             <div className="tile-icon"><Sparkles /></div>
             <div className="tile-header-text">
               <h3>Preferences</h3>
-              <p>Fine-tune your experience</p>
+              <p>You know what to do.</p>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gap: '0.55rem' }}>
-            <ToggleSwitch
-              label="Glass Blur"
-              description="Frosted-glass backdrop effects"
-              checked={ui.blurMode === 'on'}
-              onChange={(checked) => setBlurMode(checked ? 'on' : 'off')}
-            />
-            <ToggleSwitch
-              label="SOME Animations"
-              description="Fade-in effects and some other animations"
-              checked={ui.entranceAnimations === 'on'}
-              onChange={(checked) => setEntranceAnimations(checked ? 'on' : 'off')}
-            />
-            <ToggleSwitch
-              label="Auto Snapshot"
-              description="Automatic state backups"
-              checked={autoSnapshotEnabled}
-              onChange={setAutoSnapshotEnabled}
-            />
-          </div>
-        </section>
-
-        {/* ── Cloud Sync — half tile ── */}
-        <section className="page-tile page-tile--half">
-          <div className="tile-header">
-            <div className="tile-icon"><Cloud /></div>
-            <div className="tile-header-text">
-              <h3>Cloud Sync</h3>
-              <p>Back up to Google Drive for cross-device access</p>
-            </div>
-          </div>
-
-          <ToggleSwitch
-            label="Google Drive Sync"
-            description="Sync your builds and inventory"
-            checked={isGoogleDriveConnected}
-            onChange={handleCloudSyncToggle}
-          />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
-            <span className={`settings-sync-status ${isGoogleDriveConnected ? 'settings-sync-status--on' : 'settings-sync-status--off'}`}>
-              <span className="settings-sync-dot" />
-              {isGoogleDriveConnected ? `Connected${googleDriveUser?.email ? ` as ${googleDriveUser.email}` : ''}` : 'Not connected'}
-            </span>
-            <button
-              type="button"
-              className="settings-action-btn"
-              disabled={!isGoogleDriveConnected || cloudSyncBusyAction !== null}
-              onClick={() => {
-                void handleSyncToDrive()
-              }}
-            >
-              {cloudSyncBusyAction === 'sync' ? 'Syncing...' : 'Sync Now'}
-            </button>
-            <button
-              type="button"
-              className="settings-action-btn"
-              disabled={!isGoogleDriveConnected || cloudSyncBusyAction !== null}
-              onClick={() => confirmation.confirm({
-                title: 'Restore the latest Google Drive backup?',
-                message: 'This will overwrite the current local state with the latest snapshot stored in Google Drive.',
-                confirmLabel: 'Restore backup',
-                cancelLabel: 'Keep local state',
-                variant: 'danger',
-                onConfirm: () => {
-                  void handleRestoreFromDrive()
-                },
-              })}
-            >
-              {cloudSyncBusyAction === 'restore' ? 'Restoring...' : 'Restore Latest'}
-            </button>
-          </div>
-
-          {!isGoogleDriveConfigured ? (
-            <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
-              Google Drive sync needs `VITE_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
-            </div>
-          ) : null}
-          {googleDriveAuthError && (
-            <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
-              {googleDriveAuthError}
-            </div>
-          )}
-          {cloudSyncStatus && (
-            <div className="settings-status settings-status--success" style={{ marginTop: '0.8rem' }}>
-              {cloudSyncStatus}
-            </div>
-          )}
-          {cloudSyncError && (
-            <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
-              {cloudSyncError}
-            </div>
-          )}
-        </section>
-
-        {/* ── Font — half tile ── */}
-        <section className="page-tile page-tile--half">
-          <div className="tile-header">
-            <div className="tile-icon"><Type /></div>
-            <div className="tile-header-text">
-              <h3>Typography</h3>
-              <p>Customize the body font with presets or a Google Fonts link</p>
-            </div>
-          </div>
-
-          <div className="settings-font-stack">
-            <select
-              className="settings-font-select"
-              value={draftBodyFontName}
-              onChange={(event) => handleFontPresetChange(event.target.value)}
-            >
-              {!selectedFontIsPreset ? (
-                <option value={draftBodyFontName}>{draftBodyFontName}</option>
-              ) : null}
-              {BODY_FONT_PRESETS.map((fontName) => (
-                <option key={fontName} value={fontName}>
-                  {fontName}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="url"
-              className="settings-font-input"
-              value={draftBodyFontUrl}
-              placeholder="https://fonts.googleapis.com/css2?family=Caveat"
-              onChange={(event) => handleFontUrlChange(event.target.value)}
-            />
-
-            <div className="settings-font-preview">
-              {fontPreviewLoading ? (
-                <span className="settings-font-preview-copy">Loading font preview...</span>
-              ) : canApplyFont ? (
-                <span
-                  className="settings-font-preview-copy"
-                  style={{ fontFamily: 'var(--preview-font)' }}
-                >
-                  ₊✩‧₊˚౨ৎ˚₊✩‧₊ you (yes you) are amazinggg~! ₊✩‧₊˚౨ৎ˚₊✩‧₊
-                </span>
-              ) : (
-                <span className="settings-font-preview-copy settings-font-preview-copy--invalid">
-                  not a valid google fonts link dude/dudette~!
-                </span>
-              )}
-            </div>
-
-            <div className="settings-font-meta">
-              <a
-                href="https://fonts.google.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="settings-font-link"
-              >
-                Browse Google Fonts
-              </a>
-              <span className="settings-font-helper">
-                Current body font: {ui.bodyFontName}. Paste a `fonts.googleapis.com` URL to use a custom one.
-              </span>
-            </div>
-
-            <button
-              type="button"
-              className="settings-action-btn"
-              disabled={!fontChanged || !canApplyFont || fontPreviewLoading}
-              onClick={() => {
-                void handleApplyTypography()
-              }}
-            >
-              Apply Typography
-            </button>
-          </div>
-        </section>
-
-        {/* ── Data Management — wide tile ── */}
-        <section className="page-tile page-tile--wide">
-          <div className="tile-header">
-            <div className="tile-icon"><Database /></div>
-            <div className="tile-header-text">
-              <h3>Data Management</h3>
-              <p>Export, import, and manage your workspace data</p>
-            </div>
-          </div>
-
-          <div className="settings-storage-badge">
-            <Layers size={12} />
-            Storage key: {APP_STORAGE_KEY}
-          </div>
-
-          <div className="settings-data-actions">
-            <button type="button" className="settings-action-btn" onClick={handleExportSnapshot}>
-              <Download /> Export Snapshot
-            </button>
-            <button
-              type="button"
-              className="settings-action-btn"
-              disabled={!snapshotJson.trim()}
-              onClick={() => runSnapshotImport(snapshotJson)}
-            >
-              <Upload /> Import Data
-            </button>
-          </div>
-
-          <div className="settings-data-note">
-            Need something smaller than a full snapshot? Export just the slice you want and import it through the same file box below.
-          </div>
-
-          <div className="settings-data-actions settings-data-actions--subtle">
-            {DATA_EXPORT_ACTIONS.map((action) => (
-              <button
-                key={action.kind}
-                type="button"
-                className="settings-action-btn settings-action-btn--quiet"
-                onClick={() => handleExportDataBundle(action.kind)}
-              >
-                {action.label}
-              </button>
+          <div className="settings-prefs-categories">
+            {prefGrps.map((group) => (
+              <div key={group.title} className="settings-prefs-category">
+                <div className="settings-prefs-category-header">
+                  <span className="settings-prefs-category-label">{group.title}</span>
+                  <span className="settings-prefs-category-desc">{group.description}</span>
+                </div>
+                <div className="settings-prefs-category-items">
+                  {group.items.map((item) => (
+                    <div key={item.label} className="settings-pref-item">
+                      <ToggleSwitch
+                        label={item.label}
+                        description={item.description}
+                        checked={item.checked}
+                        onChange={item.onChange}
+                        disabled={item.disabled}
+                      />
+                      {item.child ? (
+                        <PrefSelBrnc item={item.child} open={item.checked} />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-
-          <div className="settings-dropzone">
-            <input
-              type="file"
-              accept=".json,application/json"
-              onChange={handleSnapshotFileChange}
-            />
-            <div className="settings-dropzone-text">
-              <strong>Choose a file</strong> or drag and drop snapshot, resonator, inventory, settings, or session JSON
-            </div>
-          </div>
-
-          <textarea
-            className="settings-textarea"
-            rows={8}
-            value={snapshotJson}
-            onChange={(event) => {
-              setSnapshotJson(event.target.value)
-              setSnapshotStatus(null)
-              setSnapshotError(null)
-            }}
-            placeholder="Paste a full snapshot or one of the smaller export JSON files here..."
-          />
-
-          {snapshotStatus && (
-            <div className="settings-status settings-status--success">{snapshotStatus}</div>
-          )}
-          {snapshotError && (
-            <div className="settings-status settings-status--error">{snapshotError}</div>
-          )}
         </section>
+        <div className="page-bento">
 
-        {/* ── Danger Zone — narrow tile ── */}
-        <section className="page-tile page-tile--narrow">
-          <div className="tile-header">
-            <div className="tile-icon tile-icon--danger"><Trash2 /></div>
-            <div className="tile-header-text">
-              <h3>Danger Zone</h3>
-              <p>Irreversible actions</p>
+          <section className="page-tile page-tile--full">
+            <div className="tile-header">
+              <div className="tile-icon"><Palette /></div>
+              <div className="tile-header-text">
+                <h3>Appearance</h3>
+                <p>Choose your theme mode and visual style</p>
+              </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            className="settings-action-btn settings-action-btn--danger"
-            onClick={() => confirmation.confirm({
-              title: 'Delete all local data? (\u00B0\u2313 \u00B0;)',
-              message: 'This will permanently erase all your saved builds, echoes, rotations, and settings. This cannot be undone. Like for real...',
-              confirmLabel: 'YESSS EVERYTHING!!',
-              cancelLabel: 'I\'ll pass...',
-              variant: 'danger',
-              onConfirm: clearAllData,
-            })}
-          >
-            <Trash2 /> Delete All Local Data
-          </button>
-        </section>
+            <div className="mode-switch">
+              {(['system', 'light', 'dark', 'background'] as const).map((option) => (
+                  <button
+                      key={option}
+                      type="button"
+                      className={`mode-switch-btn ${ui.themePreference === option ? 'active' : ''}`}
+                      onClick={() => {
+                        if (option === 'system') {
+                          setThemePref('system')
+                          return
+                        }
 
-        {/* ── Legacy Import — full tile ── */}
-        <section className="page-tile page-tile--full">
-          <div className="tile-header">
-            <div className="tile-icon"><Archive /></div>
-            <div className="tile-header-text">
-              <h3>Legacy App Import</h3>
-              <p>Import a full v1 backup and convert it into the current persisted app state</p>
+                        setTheme(option)
+                      }}
+                  >
+                    {toTitle(option)}
+                  </button>
+              ))}
             </div>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'start' }}>
-            <div style={{ display: 'grid', gap: '0.6rem' }}>
-              <div className="settings-dropzone">
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={handleLegacyFileChange}
-                />
-                <div className="settings-dropzone-text">
-                  <strong>Choose a file</strong> or drag a legacy v1 backup JSON
+            {ui.themePreference === 'system' && (
+                <div className="settings-data-note">
+                  Following your device theme right now: <strong>{toTitle(ui.theme)}</strong>.
+                </div>
+            )}
+
+            {/* Light variants */}
+            <div className="settings-swatch-section">
+              <div className="settings-swatch-label">Light</div>
+              <div className="settings-swatch-grid">
+                {THEME_BY_MODE.light.map((variant) =>
+                    renderSwatch(
+                        variant,
+                        ui.lightVariant === variant,
+                        () => setLghtVar(variant as LightThemeVar),
+                    ),
+                )}
+              </div>
+            </div>
+
+            {/* Dark variants */}
+            <div className="settings-swatch-section">
+              <div className="settings-swatch-label">Dark</div>
+              <div className="settings-swatch-grid">
+                {THEME_BY_MODE.dark.map((variant) =>
+                    renderSwatch(
+                        variant,
+                        ui.darkVariant === variant,
+                        () => setDarkVar(variant as DarkThemeVar),
+                    ),
+                )}
+              </div>
+            </div>
+
+            {/* Background variants */}
+            <div className="settings-swatch-section">
+              <div className="settings-swatch-label">Background</div>
+              <div className="settings-swatch-grid">
+                {THEME_BY_MODE.background.map((variant) =>
+                    renderSwatch(
+                        variant,
+                        ui.backgroundVariant === variant,
+                        () => setBgVar(variant as BgThemeVar),
+                    ),
+                )}
+              </div>
+            </div>
+
+            {ui.theme === 'background' ? (
+                <div className="settings-background-panel">
+                  <div className="settings-swatch-label">Wallpapers</div>
+                  <div className="settings-background-grid">
+                    {BG_PRESETS.map((preset) => (
+                        <button
+                            key={preset.id}
+                            type="button"
+                            className={`settings-background-card ${ui.backgroundImageKey === preset.id ? 'settings-background-card--active' : ''}`}
+                            onClick={() => {
+                              void onBltnBgSel(preset.id)
+                            }}
+                        >
+                          <div
+                              aria-hidden="true"
+                              className="settings-background-card-preview"
+                              style={{ '--background-preview': preset.preview } as CssProps}
+                          />
+                          <span className="settings-background-card-label">{preset.label}</span>
+                        </button>
+                    ))}
+                    {isPlddBgKey(ui.backgroundImageKey) && bckgPrvwUrl ? (
+                        <button
+                            type="button"
+                            className="settings-background-card settings-background-card--active"
+                            onClick={() => setTheme('background')}
+                        >
+                          <img
+                              src={bckgPrvwUrl}
+                              alt="custom wallpaper"
+                              className="settings-background-card-image"
+                          />
+                          <span className="settings-background-card-label">custom upload</span>
+                        </button>
+                    ) : null}
+                  </div>
+
+                  <div className="settings-dropzone settings-dropzone--compact">
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={onBgPld}
+                    />
+                    <div className="settings-dropzone-text">
+                      <strong>Choose an image</strong> to replace the active wallpaper
+                    </div>
+                  </div>
+                </div>
+            ) : null}
+          </section>
+           <section className="page-tile page-tile--wide">
+              <div className="tile-header">
+                <div className="tile-icon"><Type /></div>
+                <div className="tile-header-text">
+                  <h3>Typography</h3>
+                  <p>Customize the body font with presets or a Google Fonts link</p>
                 </div>
               </div>
 
-              <div className="settings-data-actions">
-                <button
-                  type="button"
-                  className="settings-action-btn"
-                  disabled={!legacyImportJson.trim()}
-                  onClick={() => runLegacyAppImport(legacyImportJson)}
+              <div className="settings-font-stack">
+                <select
+                    className="settings-font-select"
+                    value={drftFontName}
+                    onChange={(event) => onFontPrstCh(event.target.value)}
                 >
-                  <Upload /> Import Legacy Backup
+                  {!selFontIsPrs ? (
+                      <option value={drftFontName}>{drftFontName}</option>
+                  ) : null}
+                  {BODYFONTPRST.map((fontName) => (
+                      <option key={fontName} value={fontName}>
+                        {fontName}
+                      </option>
+                  ))}
+                </select>
+
+                <input
+                    type="url"
+                    className="settings-font-input"
+                    value={drftFontUrl}
+                    placeholder="https://fonts.googleapis.com/css2?family=Caveat"
+                    onChange={(event) => onFontUrlChn(event.target.value)}
+                />
+
+                <div className="settings-font-preview">
+                  {fontPrvwLdng ? (
+                      <span className="settings-font-preview-copy">Loading font preview...</span>
+                  ) : canApplyFont ? (
+                      <span
+                          className="settings-font-preview-copy"
+                          style={{ fontFamily: 'var(--preview-font)' }}
+                      >
+                  ₊✩‧₊˚౨ৎ˚₊✩‧₊ you (yes you) are amazinggg~! ₊✩‧₊˚౨ৎ˚₊✩‧₊
+                </span>
+                  ) : (
+                      <span className="settings-font-preview-copy settings-font-preview-copy--invalid">
+                  not a valid google fonts link dude/dudette~!
+                </span>
+                  )}
+                </div>
+
+                <div className="settings-font-meta">
+                  <a
+                      href="https://fonts.google.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="settings-font-link"
+                  >
+                    Browse Google Fonts
+                  </a>
+                  <span className="settings-font-helper">
+                Current body font: {ui.bodyFontName}. Paste a `fonts.googleapis.com` URL to use a custom one.
+              </span>
+                </div>
+
+                <button
+                    type="button"
+                    className="settings-action-btn"
+                    disabled={!fontChanged || !canApplyFont || fontPrvwLdng}
+                    onClick={() => {
+                      void onApplyTypg()
+                    }}
+                >
+                  Apply Typography
+                </button>
+              </div>
+            </section>
+
+            <section className="page-tile page-tile--narrow">
+              <div className="tile-header">
+                <div className="tile-icon"><Cloud /></div>
+                <div className="tile-header-text">
+                  <h3>Cloud Sync</h3>
+                  <p>Back up to Google Drive for cross-device access</p>
+                </div>
+              </div>
+
+              <ToggleSwitch
+                  label="Google Drive Sync"
+                  description="Sync your builds and inventory"
+                  checked={isGglDrvCnnc}
+                  onChange={onCldSyncTgl}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+            <span className={`settings-sync-status ${isGglDrvCnnc ? 'settings-sync-status--on' : 'settings-sync-status--off'}`}>
+              <span className="settings-sync-dot" />
+              {isGglDrvCnnc ? `Connected${gglDrvUser?.email ? ` as ${gglDrvUser.email}` : ''}` : 'Not connected'}
+            </span>
+                <button
+                    type="button"
+                    className="settings-action-btn"
+                    disabled={!isGglDrvCnnc || cldSyncBusyC !== null}
+                    onClick={() => {
+                      void onSyncToDrv()
+                    }}
+                >
+                  {cldSyncBusyC === 'sync' ? 'Syncing...' : 'Sync Now'}
+                </button>
+                <button
+                    type="button"
+                    className="settings-action-btn"
+                    disabled={!isGglDrvCnnc || cldSyncBusyC !== null}
+                    onClick={() => confirmation.confirm({
+                      title: 'Restore the latest Google Drive backup?',
+                      message: 'This will overwrite the current local state with the latest snapshot stored in Google Drive.',
+                      confirmLabel: 'Restore backup',
+                      cancelLabel: 'Keep local state',
+                      variant: 'danger',
+                      onConfirm: () => {
+                        void onRstrFromDr()
+                      },
+                    })}
+                >
+                  {cldSyncBusyC === 'restore' ? 'Restoring...' : 'Restore Latest'}
                 </button>
               </div>
 
-              {legacyImportStatus && (
-                <div className="settings-status settings-status--success">{legacyImportStatus}</div>
+              {!isGglDrvCnfg ? (
+                  <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
+                    Google Drive sync needs `VITE_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET`.
+                  </div>
+              ) : null}
+              {gglDrvAuthRr && (
+                  <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
+                    {gglDrvAuthRr}
+                  </div>
               )}
-              {legacyImportError && (
-                <div className="settings-status settings-status--error">{legacyImportError}</div>
+              {cldSyncStts && (
+                  <div className="settings-status settings-status--success" style={{ marginTop: '0.8rem' }}>
+                    {cldSyncStts}
+                  </div>
               )}
-            </div>
+              {cldSyncRrr && (
+                  <div className="settings-status settings-status--error" style={{ marginTop: '0.8rem' }}>
+                    {cldSyncRrr}
+                  </div>
+              )}
+            </section>
 
-            <textarea
-              className="settings-textarea"
-              rows={6}
-              value={legacyImportJson}
-              onChange={(event) => {
-                setLegacyImportJson(event.target.value)
-                setLegacyImportStatus(null)
-                setLegacyImportError(null)
-              }}
-              placeholder='Paste the v1 "All Data" backup JSON here. The importer will recover profile, inventory, build, and settings data while letting the current app fill in default-only state.'
-            />
-          </div>
-        </section>
+            <section className="page-tile page-tile--full">
+              <div className="tile-header">
+                <div className="tile-icon"><Database /></div>
+                <div className="tile-header-text">
+                  <h3>Data Management</h3>
+                  <p>Export, import, and manage your workspace data</p>
+                </div>
+              </div>
+
+              <div className="settings-storage-badge">
+                <Layers size={12} />
+                Storage key: {APP_STORAGE_KEY}
+              </div>
+
+              <div className="settings-data-actions">
+                <button type="button" className="settings-action-btn" onClick={onXprtSnap}>
+                  <Download /> Export Snapshot
+                </button>
+                <button
+                    type="button"
+                    className="settings-action-btn"
+                    disabled={!snapshotJson.trim()}
+                    onClick={() => runSnapMprt(snapshotJson)}
+                >
+                  <Upload /> Import Data
+                </button>
+                <button
+                    type="button"
+                    className="settings-action-btn settings-action-btn--danger"
+                    onClick={() => confirmation.confirm({
+                      title: 'Delete all local data? (\u00B0\u2313 \u00B0;)',
+                      message: 'This will permanently erase all your saved builds, echoes, rotations, and settings. This cannot be undone. Like for real...',
+                      confirmLabel: 'YESSS EVERYTHING!!',
+                      cancelLabel: 'I\'ll pass...',
+                      variant: 'danger',
+                      onConfirm: clearAllData,
+                    })}
+                >
+                  <Trash2 /> Delete All Local Data
+                </button>
+              </div>
+
+              <div className="settings-data-note">
+                Need something smaller than a full snapshot? Export just the slice you want and import it through the same file box below.
+              </div>
+
+              <div className="settings-data-actions settings-data-actions--subtle">
+                {DATAXPRTCTNS.map((action) => (
+                    <button
+                        key={action.kind}
+                        type="button"
+                        className="settings-action-btn settings-action-btn--quiet"
+                        onClick={() => onXprtDataBn(action.kind)}
+                    >
+                      {action.label}
+                    </button>
+                ))}
+              </div>
+
+              <div className="settings-dropzone">
+                <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={onSnapFileCh}
+                />
+                <div className="settings-dropzone-text">
+                  <strong>Choose a file</strong> or drag and drop snapshot, resonator, inventory, settings, or session JSON
+                </div>
+              </div>
+
+              <textarea
+                  className="settings-textarea"
+                  rows={8}
+                  value={snapshotJson}
+                  onChange={(event) => {
+                    setSnpsJson(event.target.value)
+                    setSnpsStts(null)
+                    setSnpsRrr(null)
+                  }}
+                  placeholder="Paste a full snapshot or one of the smaller export JSON files here..."
+              />
+
+              {snpsStts && (
+                  <div className="settings-status settings-status--success">{snpsStts}</div>
+              )}
+              {snpsRrr && (
+                  <div className="settings-status settings-status--error">{snpsRrr}</div>
+              )}
+            </section>
+
+            <section className="page-tile page-tile--full">
+              <div className="tile-header">
+                <div className="tile-icon"><Archive /></div>
+                <div className="tile-header-text">
+                  <h3>Legacy App Import</h3>
+                  <p>Import a full v1 backup and convert it into the current persisted app state</p>
+                </div>
+              </div>
+
+              <div className="settings-legacy-import-stack">
+                <div className="settings-dropzone">
+                  <input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={onLegFileChn}
+                  />
+                  <div className="settings-dropzone-text">
+                    <strong>Choose a file</strong> or drag a legacy v1 backup JSON
+                  </div>
+                </div>
+
+                <div className="settings-data-actions">
+                  <button
+                      type="button"
+                      className="settings-action-btn"
+                      disabled={!lgcyMprtJson.trim()}
+                      onClick={() => runLegAppMpr(lgcyMprtJson)}
+                  >
+                    <Upload /> Import Legacy Backup
+                  </button>
+                </div>
+
+                {lgcyMprtStts && (
+                    <div className="settings-status settings-status--success">{lgcyMprtStts}</div>
+                )}
+                {lgcyMprtRrr && (
+                    <div className="settings-status settings-status--error">{lgcyMprtRrr}</div>
+                )}
+
+                <textarea
+                    className="settings-textarea"
+                    rows={6}
+                    value={lgcyMprtJson}
+                    onChange={(event) => {
+                      setLgcyMprtJ(event.target.value)
+                      setLgcyMprtS(null)
+                      setLgcyMprtR(null)
+                    }}
+                    placeholder='Paste the v1 "All Data" backup JSON here. The importer will recover profile, inventory, build, and settings data while letting the current app fill in default-only state.'
+                />
+              </div>
+            </section>
+        </div>
       </div>
 
-      <ConfirmationModal
+      <CnfrMdl
         visible={confirmation.visible}
         open={confirmation.open}
         closing={confirmation.closing}

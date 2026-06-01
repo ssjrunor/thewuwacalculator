@@ -8,7 +8,7 @@ import type { RandGenEcho } from './echoSetBuilder'
 
 // turn a stat object into a stable, sorted string so order differences
 // do not change the final signature
-function formatStatEntries(stats: Record<string, number>): string {
+function fmtStatEnts(stats: Record<string, number>): string {
   return Object.keys(stats)
       .sort()
       .map((key) => `${key}:${stats[key]}`)
@@ -17,11 +17,11 @@ function formatStatEntries(stats: Record<string, number>): string {
 
 // build a full signature for one generated loadout using each echo's
 // cost, main stat, and sorted substat entries
-function buildLoadoutSignature(echoes: RandGenEcho[]): string {
+function mkLdtSig(echoes: RandGenEcho[]): string {
   return echoes
       .map((echo) => {
         const main = `${echo.primaryKey}:${echo.primaryValue}`
-        const sub = formatStatEntries(echo.substats)
+        const sub = fmtStatEnts(echo.substats)
         return `${echo.cost}|${main}|${sub}`
       })
       .join(';')
@@ -29,7 +29,7 @@ function buildLoadoutSignature(echoes: RandGenEcho[]): string {
 
 // walk the result list in order and keep only the first occurrence
 // of each unique loadout signature until the requested target is met
-export function pickUniqueLoadoutResults(
+export function pickNqLdtRsl(
     results: Array<{ value: number; echoes: RandGenEcho[] }>,
     uniqueTarget: number,
 ): Array<{ value: number; echoes: RandGenEcho[] }> {
@@ -44,7 +44,7 @@ export function pickUniqueLoadoutResults(
       continue
     }
 
-    const key = buildLoadoutSignature(echoes)
+    const key = mkLdtSig(echoes)
 
     // keep only the first copy of any matching signature
     if (seen.has(key)) {

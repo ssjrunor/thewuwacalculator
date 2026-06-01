@@ -1,15 +1,22 @@
-import type { OptimizerProgress } from '@/engine/optimizer/types.ts'
+/*
+  Author: Runor Ewhro
+  Description: builds throttled optimizer progress snapshots so long-running
+               search jobs can report elapsed time, speed, and remaining work.
+*/
 
-const PROGRESS_UPDATE_INTERVAL_MS = 80
+import type { OptPrgr } from '@/engine/optimizer/types.ts'
 
-export function buildOptimizerProgress(
+const PRGRUPDNTRVM = 80
+
+// compute one progress snapshot from current counters and elapsed time
+export function mkOptPrgr(
     total: number,
     processed: number,
     startedAt: number,
-): OptimizerProgress {
+): OptPrgr {
   const now = performance.now()
   const elapsedMs = now - startedAt
-  const progress = total > 0 ? processed / total : 0
+  const progress = total > 0 ? Math.min(1, processed / total) : 0
   const speed = elapsedMs > 0 ? (processed / elapsedMs) * 1000 : 0
   const remainingMs =
       speed > 0 && processed < total
@@ -20,24 +27,26 @@ export function buildOptimizerProgress(
     progress,
     elapsedMs,
     remainingMs,
-    processed,
+    processed: total > 0 ? Math.min(processed, total) : processed,
     speed,
+    total,
   }
 }
 
-export function createOptimizerProgressTracker(
+// create a mutable tracker that batch loops can feed as work completes
+export function mkOptPrgrTrc(
     total: number,
     hooks: {
-      onProgress?: (progress: OptimizerProgress) => void
-      onProcessed?: (processedDelta: number) => void
+      onProgress?: (progress: OptPrgr) => void
+      onProcessed?: (prcsDlt: number) => void
     } = {},
 ): {
-  onProcessed: (processedDelta: number) => void
+  onProcessed: (prcsDlt: number) => void
   emit: (force?: boolean) => void
 } {
   const startedAt = performance.now()
   let processed = 0
-  let lastProgressAt = startedAt
+  let lastPrgrAt = startedAt
 
   const emit = (force = false) => {
     if (!hooks.onProgress) {
@@ -45,18 +54,18 @@ export function createOptimizerProgressTracker(
     }
 
     const now = performance.now()
-    if (!force && now - lastProgressAt < PROGRESS_UPDATE_INTERVAL_MS) {
+    if (!force && now - lastPrgrAt < PRGRUPDNTRVM) {
       return
     }
 
-    lastProgressAt = now
-    hooks.onProgress(buildOptimizerProgress(total, processed, startedAt))
+    lastPrgrAt = now
+    hooks.onProgress(mkOptPrgr(total, processed, startedAt))
   }
 
   return {
-    onProcessed(processedDelta: number) {
-      processed += processedDelta
-      hooks.onProcessed?.(processedDelta)
+    onProcessed(prcsDlt: number) {
+      processed += prcsDlt
+      hooks.onProcessed?.(prcsDlt)
       emit()
     },
     emit,

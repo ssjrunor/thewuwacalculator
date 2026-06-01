@@ -4,19 +4,19 @@
                passive state controls, and runtime effect definitions.
 */
 
-import type { GeneratedWeapon } from '@/domain/entities/weapon.ts'
+import type { GenWpn } from '@/domain/entities/weapon.ts'
 import type {
-  SourcePackage,
-  DataSourceRef,
-  SourceOwnerDefinition,
-  SourceStateDefinition,
-  EffectDefinition,
-  EffectOperation,
-  FormulaExpression,
-  ConditionExpression,
+  SrcPkg,
+  DataSrcRef,
+  SrcOwnDef,
+  SourceState,
+  EffectDef,
+  EffectOp,
+  FormExpr,
+  CondExpr,
   BaseStatKey,
-  BaseStatField,
-  TopBuffStatKey,
+  BaseStatFld,
+  TopBuffStatK,
 } from '@/domain/gameData/contracts.ts'
 import type { AttributeKey, SkillTypeKey } from '@/domain/entities/stats.ts'
 
@@ -33,7 +33,7 @@ function parseParams(params: string[][]): number[][] {
 }
 
 // build a rank-scaled lookup table formula for a given passive param index
-function rankTable(parsed: number[][], paramIndex: number): FormulaExpression {
+function rankTable(parsed: number[][], paramIndex: number): FormExpr {
   const values = parsed[paramIndex]
   if (!values || values.length === 0) {
     return { type: 'const', value: 0 }
@@ -49,12 +49,12 @@ function rankTable(parsed: number[][], paramIndex: number): FormulaExpression {
 }
 
 // multiply two formula expressions
-function mulFormula(a: FormulaExpression, b: FormulaExpression): FormulaExpression {
+function mulFormula(a: FormExpr, b: FormExpr): FormExpr {
   return { type: 'mul', values: [a, b] }
 }
 
 // read a weapon passive control from source runtime controls
-function readControl(controlKey: string): FormulaExpression {
+function readControl(controlKey: string): FormExpr {
   return {
     type: 'read',
     from: 'sourceRuntime',
@@ -64,7 +64,7 @@ function readControl(controlKey: string): FormulaExpression {
 }
 
 // require a weapon passive control to be truthy
-function truthyCondition(controlKey: string): ConditionExpression {
+function trthCond(controlKey: string): CondExpr {
   return {
     type: 'truthy',
     from: 'sourceRuntime',
@@ -73,7 +73,7 @@ function truthyCondition(controlKey: string): ConditionExpression {
 }
 
 // combine multiple conditions with logical and
-function andCondition(...values: ConditionExpression[]): ConditionExpression {
+function andCondition(...values: CondExpr[]): CondExpr {
   return { type: 'and', values }
 }
 
@@ -82,50 +82,50 @@ function andCondition(...values: ConditionExpression[]): ConditionExpression {
 // create a base stat add operation
 function addBaseStat(
     stat: BaseStatKey,
-    field: BaseStatField,
-    value: FormulaExpression,
-): EffectOperation {
+    field: BaseStatFld,
+    value: FormExpr,
+): EffectOp {
   return { type: 'add_base_stat', stat, field, value }
 }
 
 // create a top-level stat add operation
-function addTopStat(stat: TopBuffStatKey, value: FormulaExpression): EffectOperation {
+function addTopStat(stat: TopBuffStatK, value: FormExpr): EffectOp {
   return { type: 'add_top_stat', stat, value }
 }
 
 // create an attribute modifier add operation
-function addAttributeMod(
+function addAttrMod(
     attribute: (AttributeKey | 'all') | (AttributeKey | 'all')[],
     mod: string,
-    value: FormulaExpression,
-): EffectOperation {
-  return { type: 'add_attribute_mod', attribute, mod, value } as EffectOperation
+    value: FormExpr,
+): EffectOp {
+  return { type: 'add_attribute_mod', attribute, mod, value } as EffectOp
 }
 
 // create a skill-type modifier add operation
-function addSkilltypeMod(
+function addSkillMod(
     skillType: SkillTypeKey | SkillTypeKey[],
     mod: string,
-    value: FormulaExpression,
-): EffectOperation {
-  return { type: 'add_skilltype_mod', skillType, mod, value } as EffectOperation
+    value: FormExpr,
+): EffectOp {
+  return { type: 'add_skilltype_mod', skillType, mod, value } as EffectOp
 }
 
 // source builders
 
-interface WeaponEffectBuilder {
-  owners: SourceOwnerDefinition[]
-  states: SourceStateDefinition[]
-  effects: EffectDefinition[]
+interface WpnFfctBldr {
+  owners: SrcOwnDef[]
+  states: SourceState[]
+  effects: EffectDef[]
 }
 
 // build a weapon source reference
-function makeSource(id: string): DataSourceRef {
+function makeSource(id: string): DataSrcRef {
   return { type: 'weapon', id }
 }
 
 // build the shared weapon passive owner definition
-function makeOwner(id: string, name: string, desc?: string): SourceOwnerDefinition {
+function makeOwner(id: string, name: string, desc?: string): SrcOwnDef {
   const ownerKey = `weapon:${id}:passive`
 
   return {
@@ -145,7 +145,7 @@ function makeToggle(
     stateId: string,
     label: string,
     description?: string,
-): SourceStateDefinition {
+): SourceState {
   const ownerKey = `weapon:${id}:passive`
   const controlKey = `${ownerKey}:${stateId}`
 
@@ -170,7 +170,7 @@ function makeStack(
     max: number,
     min = 0,
     description?: string,
-): SourceStateDefinition {
+): SourceState {
   const ownerKey = `weapon:${id}:passive`
   const controlKey = `${ownerKey}:${stateId}`
 
@@ -197,7 +197,7 @@ function makeNumber(
     max: number,
     min = 0,
     description?: string,
-): SourceStateDefinition {
+): SourceState {
   const ownerKey = `weapon:${id}:passive`
   const controlKey = `${ownerKey}:${stateId}`
 
@@ -221,10 +221,10 @@ function makeEffect(
     id: string,
     effectId: string,
     label: string,
-    operations: EffectOperation[],
-    condition?: ConditionExpression,
-    targetScope: EffectDefinition['targetScope'] = 'self',
-): EffectDefinition {
+    operations: EffectOp[],
+    condition?: CondExpr,
+    targetScope: EffectDef['targetScope'] = 'self',
+): EffectDef {
   return {
     id: `weapon:${id}:${effectId}`,
     label,
@@ -238,10 +238,10 @@ function makeEffect(
 }
 
 // weapon definition builder signature
-type WeaponDefiner = (id: string, p: number[][]) => WeaponEffectBuilder
+type WpnDfnr = (id: string, p: number[][]) => WpnFfctBldr
 
 // actual effects
-const weaponDefiners: Record<string, WeaponDefiner> = {
+const wpnDfnr: Record<string, WpnDfnr> = {
   // --- Broadblades ---
 
   // Broadblade#41 (21010011): ATK% unconditional
@@ -265,7 +265,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -277,7 +277,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'energy', 'Energy Regen', [addTopStat('energyRegen', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -287,9 +287,9 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     states: [makeStack(id, 'stacks', 'Stacks', 2, 0,
       `Every time Intro Skill or Resonance Liberation is cast, increases Heavy Attack DMG Bonus by {1}, stacking up to {2} time(s). This effect lasts for {3}s.`)],
     effects: [
-      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttributeMod('all', 'dmgBonus', rankTable(p, 0))]),
+      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttrMod('all', 'dmgBonus', rankTable(p, 0))]),
       makeEffect(id, 'heavy', 'Heavy ATK DMG',
-        [addSkilltypeMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -303,13 +303,13 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
         `Casting Resonance Skill gives the equipper Ethereal Endowment, which grants {1} Resonance Skill DMG Bonus for {4}s.`),
     ],
     effects: [
-      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttributeMod('all', 'dmgBonus', rankTable(p, 0))]),
+      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttrMod('all', 'dmgBonus', rankTable(p, 0))]),
       makeEffect(id, 'skill_ageless', 'Res. Skill DMG (Ageless)',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:ageless`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:ageless`)),
       makeEffect(id, 'skill_ethereal', 'Res. Skill DMG (Ethereal)',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:ethereal`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:ethereal`)),
     ],
   }),
 
@@ -320,7 +320,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When the Resonator's HP is above {0}, increases ATK by {1}.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -336,11 +336,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:ult_buff`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:ult_buff`)),
       makeEffect(id, 'fusion', 'Fusion DMG',
-        [addAttributeMod('fusion', 'dmgBonus', rankTable(p, 5))],
-        truthyCondition(`weapon:${id}:passive:fusion_buff`), 'teamWide'),
+        [addAttrMod('fusion', 'dmgBonus', rankTable(p, 5))],
+        trthCond(`weapon:${id}:passive:fusion_buff`), 'teamWide'),
     ],
   }),
 
@@ -351,7 +351,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0} and DEF by {1}, lasting for {2}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -363,8 +363,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -380,10 +380,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'heavy', 'Heavy ATK DMG',
-        [addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
       makeEffect(id, 'defignore', 'Heavy ATK DEF Ignore',
-        [addSkilltypeMod('heavyAtk', 'defIgnore', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 3)))]),
+        [addSkillMod('heavyAtk', 'defIgnore', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 3)))]),
     ],
   }),
 
@@ -393,8 +393,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     states: [],
     effects: [
       makeEffect(id, 'dmg', 'Basic/Heavy ATK DMG', [
-        addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
-        addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 0)),
+        addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
+        addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 0)),
       ]),
     ],
   }),
@@ -411,10 +411,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'dmg', 'All DMG Bonus',
-        [addAttributeMod('all', 'dmgBonus', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`), 'teamWide'),
+        [addAttrMod('all', 'dmgBonus', rankTable(p, 4))],
+        trthCond(`weapon:${id}:passive:active`), 'teamWide'),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -438,7 +438,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       makeEffect(id, 'def', 'DEF%', [addBaseStat('def', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'critdmg', 'Crit. DMG',
         [addTopStat('critDmg', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:active`), 'teamWide'),
     ],
   }),
 
@@ -460,7 +460,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting the Resonance Skill grants {0} Resonance Energy and increases ATK by {1}, lasting for {2}s. This effect can be triggered once every {3}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -476,7 +476,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -488,8 +488,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK% + Heavy DMG', [
         addBaseStat('atk', 'percent', rankTable(p, 0)),
-        addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 1)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 1)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -516,7 +516,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -540,7 +540,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('resonanceSkill', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -570,10 +570,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'basic_stacks', 'Basic ATK DMG (Stacks)',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), { type: 'const', value: 10 }))]),
+        [addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), { type: 'const', value: 10 }))]),
       makeEffect(id, 'basic_toggle', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 4))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -584,8 +584,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When the Resonator's HP drops below {0}, increases Heavy Attack DMG Bonus by {1} and gives {2} healing when dealing Heavy Attack DMG. This effect can be triggered {3} time(s) every {4}s.`)],
     effects: [
       makeEffect(id, 'heavy', 'Heavy ATK DMG',
-        [addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -601,11 +601,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'crit', 'Crit. Rate', [addTopStat('critRate', rankTable(p, 0))]),
       makeEffect(id, 'basic1', 'Basic ATK DMG (1)',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:first`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:first`)),
       makeEffect(id, 'basic2', 'Basic ATK DMG (2)',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:second`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 3))],
+        trthCond(`weapon:${id}:passive:second`)),
     ],
   }),
 
@@ -616,7 +616,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -628,8 +628,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -644,11 +644,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     ],
     effects: [
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:skill`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))],
+        trthCond(`weapon:${id}:passive:skill`)),
       makeEffect(id, 'aero', 'Aero Amplify',
-        [addAttributeMod('aero', 'amplify', rankTable(p, 2))],
-        truthyCondition(`weapon:${id}:passive:amplify`), 'teamWide'),
+        [addAttrMod('aero', 'amplify', rankTable(p, 2))],
+        trthCond(`weapon:${id}:passive:amplify`), 'teamWide'),
     ],
   }),
 
@@ -656,7 +656,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
   '21020053': (id, p) => ({
     owners: [makeOwner(id, 'Passive', `Resonance Skill DMG Bonus is increased by {0}.`)],
     states: [],
-    effects: [makeEffect(id, 'skill', 'Res. Skill DMG', [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))])],
+    effects: [makeEffect(id, 'skill', 'Res. Skill DMG', [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))])],
   }),
 
   // Sword (21020056): HP% + toggle -> all defIgnore + toggle -> all amplify
@@ -671,11 +671,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'hp', 'HP%', [addBaseStat('hp', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'defignore', 'DEF Ignore',
-        [addAttributeMod('all', 'defIgnore', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:defignore`)),
+        [addAttrMod('all', 'defIgnore', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:defignore`)),
       makeEffect(id, 'amplify', 'Amplify',
-        [addAttributeMod('all', 'amplify', rankTable(p, 2))],
-        truthyCondition(`weapon:${id}:passive:amplify`)),
+        [addAttrMod('all', 'amplify', rankTable(p, 2))],
+        trthCond(`weapon:${id}:passive:amplify`)),
     ],
   }),
 
@@ -702,10 +702,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'heavy', 'Heavy ATK DMG',
-        [addSkilltypeMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 2)))]),
+        [addSkillMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 2)))]),
       makeEffect(id, 'echo', 'Echo Skill DMG',
-        [addSkilltypeMod('echoSkill', 'dmgBonus', rankTable(p, 5))],
-        truthyCondition(`weapon:${id}:passive:active`),
+        [addSkillMod('echoSkill', 'dmgBonus', rankTable(p, 5))],
+        trthCond(`weapon:${id}:passive:active`),
         'teamWide'),
     ],
   }),
@@ -717,8 +717,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Resonance Skill is cast, increases Basic Attack DMG Bonus and Heavy Attack DMG Bonus by {0}, stacking up to {1} time(s). This effect lasts for {2}s and can be triggered {3} time(s) every {4}s.`)],
     effects: [
       makeEffect(id, 'dmg', 'Heavy/Basic ATK DMG', [
-        addSkilltypeMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
-        addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
+        addSkillMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
+        addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
       ]),
     ],
   }),
@@ -729,10 +729,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     states: [makeToggle(id, 'active', 'Res. Liberation DEF Ignore',
       `When inflicting Tune Rupture - Shifting or Fusion Burst, the wielder's Resonance Liberation DMG ignores {1} DEF and {2} Fusion RES on targets for {3}s.`)],
     effects: [
-      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttributeMod('all', 'dmgBonus', rankTable(p, 0))]),
+      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttrMod('all', 'dmgBonus', rankTable(p, 0))]),
       makeEffect(id, 'defignore', 'Res. Liberation DEF Ignore',
-        [addSkilltypeMod('resonanceLiberation', 'defIgnore', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'defIgnore', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -743,7 +743,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting the Resonance Skill grants {0} Resonance Energy and increases ATK by {1}, lasting for {2}s. This effect can be triggered once every {3}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -759,12 +759,12 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'active', 'Glacio Amp + Res. Liberation DEF Ignore', [
-        addAttributeMod('glacio', 'amplify', rankTable(p, 1)),
-        addSkilltypeMod('resonanceLiberation', 'defIgnore', rankTable(p, 2)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addAttrMod('glacio', 'amplify', rankTable(p, 1)),
+        addSkillMod('resonanceLiberation', 'defIgnore', rankTable(p, 2)),
+      ], trthCond(`weapon:${id}:passive:active`)),
       makeEffect(id, 'glacio-chafe', 'Glacio Chafe DMG',
-        [addSkilltypeMod('glacioChafe', 'amplify', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:glacio_chafe`)),
+        [addSkillMod('glacioChafe', 'amplify', rankTable(p, 3))],
+        trthCond(`weapon:${id}:passive:glacio_chafe`)),
     ],
   }),
 
@@ -780,7 +780,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -792,8 +792,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'buffs', 'ATK% + Res. Liberation DMG', [
         addBaseStat('atk', 'percent', rankTable(p, 0)),
-        addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -820,7 +820,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -832,7 +832,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'energy', 'Energy Regen', [addTopStat('energyRegen', rankTable(p, 0))]),
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-          truthyCondition(`weapon:${id}:passive:active`), 'activeOther'),
+          trthCond(`weapon:${id}:passive:active`), 'activeOther'),
     ],
   }),
 
@@ -844,8 +844,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -861,12 +861,12 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'aero', 'Aero DMG',
-        [addAttributeMod('aero', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:aero_dmg`)),
+        [addAttrMod('aero', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:aero_dmg`)),
       makeEffect(id, 'shred', 'Aero RES Shred',
-        [addAttributeMod('aero', 'resShred', rankTable(p, 3))],
+        [addAttrMod('aero', 'resShred', rankTable(p, 3))],
         // todo: needs aero erosion check
-        truthyCondition(`weapon:${id}:passive:aero_shred`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:aero_shred`), 'teamWide'),
     ],
   }),
 
@@ -893,16 +893,16 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'heavy', 'Heavy ATK Amplify',
-        [addSkilltypeMod('heavyAtk', 'amplify', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:heavy`)),
+        [addSkillMod('heavyAtk', 'amplify', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:heavy`)),
       makeEffect(id, 'echo', 'Echo Skill Amplify',
-        [addSkilltypeMod('echoSkill', 'amplify', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:echo`)),
+        [addSkillMod('echoSkill', 'amplify', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:echo`)),
       makeEffect(id, 'defignore', 'DEF Ignore',
         [addTopStat('defIgnore', rankTable(p, 6))],
         andCondition(
-          truthyCondition(`weapon:${id}:passive:heavy`),
-          truthyCondition(`weapon:${id}:passive:echo`),
+          trthCond(`weapon:${id}:passive:heavy`),
+          trthCond(`weapon:${id}:passive:echo`),
         )),
     ],
   }),
@@ -914,8 +914,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases Resonance Skill DMG Bonus by {0} for {1}s.`)],
     effects: [
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -927,8 +927,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'dmg', 'All DMG Bonus',
-        [addAttributeMod('all', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addAttrMod('all', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -944,8 +944,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'basic', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
       makeEffect(id, 'dmg', 'DMG Bonus',
         [addTopStat('dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 3)))],
           undefined, 'teamWide')
@@ -956,7 +956,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
   '21030053': (id, p) => ({
     owners: [makeOwner(id, 'Passive', `Resonance Skill DMG Bonus is increased by {0}.`)],
     states: [],
-    effects: [makeEffect(id, 'skill', 'Res. Skill DMG', [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))])],
+    effects: [makeEffect(id, 'skill', 'Res. Skill DMG', [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 0))])],
   }),
 
   // Pistol (21030056): ATK% + stacks -> spectro dmg + toggle -> heavy amplify/defIgnore
@@ -971,11 +971,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'spectro', 'Spectro DMG',
-        [addAttributeMod('spectro', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:spectro_stacks`), rankTable(p, 1)))]),
-      makeEffect(id, 'hack', 'Heavy Amp + DEF Ignore', [
-        addSkilltypeMod('heavyAtk', 'amplify', rankTable(p, 4)),
-        addSkilltypeMod('heavyAtk', 'defIgnore', rankTable(p, 5)),
-      ], truthyCondition(`weapon:${id}:passive:hack`)),
+        [addAttrMod('spectro', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:spectro_stacks`), rankTable(p, 1)))]),
+      makeEffect(id, 'heavy', 'Heavy Amp + DEF Ignore', [
+        addSkillMod('heavyAtk', 'amplify', rankTable(p, 4)),
+        addSkillMod('heavyAtk', 'defIgnore', rankTable(p, 5)),
+      ], trthCond(`weapon:${id}:passive:hack`)),
     ],
   }),
 
@@ -999,19 +999,19 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       makeToggle(id, 'hack_basic', 'Hack Basic ATK DMG',
         `Inflicting Hack - Shifting increases the wielder's Basic Attack DMG Bonus by {3} for {4}s.`),
       makeToggle(id, 'team_atk', 'Team ATK',
-        `The ATK of all Resonators in the team is increased by {5}.`),
+        `The ATK of all Resonators in the team is increased by {5} for {6}s.`),
     ],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'intro-basic', 'Intro Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:intro_basic`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:intro_basic`)),
       makeEffect(id, 'hack-basic', 'Hack Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:hack_basic`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 3))],
+        trthCond(`weapon:${id}:passive:hack_basic`)),
       makeEffect(id, 'team-atk', 'Team ATK',
         [addBaseStat('atk', 'percent', rankTable(p, 5))],
-        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 
@@ -1022,7 +1022,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When hitting a target with Basic Attacks or Heavy Attacks, increases Resonance Skill DMG Bonus by {0}, stacking up to {1} time(s). This effect lasts for {2}s and can be triggered {3} time(s) every {4}s.`)],
     effects: [
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))]),
+        [addSkillMod('resonanceSkill', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))]),
     ],
   }),
 
@@ -1033,7 +1033,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting the Resonance Skill grants {0} Resonance Energy and increases ATK by {1}, lasting for {2}s. This effect can be triggered once every {3}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1049,7 +1049,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1060,7 +1060,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Dealing Basic Attack or Heavy Attack DMG increases ATK by {0} and grants {1} Heavy Attack DMG Bonus for {2}s, stacking up to {3} times. This effect can be triggered {4} time(s) every {5}s.`)],
     effects: [
       makeEffect(id, 'buffs', 'Heavy ATK DMG + ATK%', [
-        addSkilltypeMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
+        addSkillMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
         addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0))),
       ]),
     ],
@@ -1089,7 +1089,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1105,11 +1105,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'energy', 'Energy Regen', [addTopStat('energyRegen', rankTable(p, 0))]),
       makeEffect(id, 'basic', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:basic`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:basic`)),
       makeEffect(id, 'skill', 'Res. Skill DMG',
-        [addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:skill`)),
+        [addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 3))],
+        trthCond(`weapon:${id}:passive:skill`)),
     ],
   }),
 
@@ -1119,10 +1119,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     states: [makeToggle(id, 'active', 'Res. Liberation DMG',
       `When using Resonance Liberation, the wielder gains {1} Resonance Liberation DMG Bonus for {2}s. This effect can be extended by {3}s each time Resonance Skills are cast, up to {4} times.`)],
     effects: [
-      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttributeMod('all', 'dmgBonus', rankTable(p, 0))]),
+      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttrMod('all', 'dmgBonus', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1134,8 +1134,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'heavy', 'Heavy ATK DMG',
-        [addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1146,11 +1146,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When the Resonator dashes or dodges, increases ATK by {0}. Increases Dodge Counter DMG by {1}, lasting for {2}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
-  // Gauntlet (21040036): Blazing Justice — ATK% + toggle -> DEF ignore + spectroFrazzle amplify
+  // Gauntlet (21040036): Blazing Justice ATK% + toggle -> DEF ignore + spectroFrazzle amplify
   '21040036': (id, p) => ({
     owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
     states: [makeToggle(id, 'active', 'Darkness Breaker',
@@ -1158,9 +1158,9 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'frazzle', 'Spectro Frazzle Amplify',
-        [addSkilltypeMod('spectroFrazzle', 'amplify', rankTable(p, 2)),
+        [addSkillMod('spectroFrazzle', 'amplify', rankTable(p, 2)),
           addTopStat('defIgnore', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1171,8 +1171,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases Resonance Liberation DMG Bonus by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1184,7 +1184,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'basic', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -1200,10 +1200,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:active`)),
       makeEffect(id, 'defignore', 'Res. Liberation DEF Ignore',
-        [addSkilltypeMod('resonanceLiberation', 'defIgnore', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 3)))]),
+        [addSkillMod('resonanceLiberation', 'defIgnore', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 3)))]),
     ],
   }),
 
@@ -1211,7 +1211,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
   '21040053': (id, p) => ({
     owners: [makeOwner(id, 'Passive', `Increases Resonance Liberation DMG Bonus by {0}.`)],
     states: [],
-    effects: [makeEffect(id, 'ult', 'Res. Liberation DMG', [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))])],
+    effects: [makeEffect(id, 'ult', 'Res. Liberation DMG', [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))])],
   }),
 
   // Gauntlet (21040056): ATK% + toggle -> basicAtk amplify + toggle -> spectro dmg + all defIgnore
@@ -1226,12 +1226,12 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'spectro', 'Spectro DMG Bonus',
-        [addAttributeMod('spectro', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:spectro`)),
+        [addAttrMod('spectro', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:spectro`)),
       makeEffect(id, 'basicAtk', 'Basic Attack Amp + DEF Ignore', [
-        addSkilltypeMod('basicAtk', 'amplify', rankTable(p, 3)),
+        addSkillMod('basicAtk', 'amplify', rankTable(p, 3)),
         addTopStat('defIgnore', rankTable(p, 4)),
-      ], truthyCondition(`weapon:${id}:passive:basic`)),
+      ], trthCond(`weapon:${id}:passive:basic`)),
     ],
   }),
 
@@ -1260,11 +1260,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'echo', 'Echo Skill Amplify',
-        [addSkilltypeMod('echoSkill', 'amplify', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:echo`)),
+        [addSkillMod('echoSkill', 'amplify', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:echo`)),
       makeEffect(id, 'aero', 'Aero DEF Ignore',
-        [addAttributeMod('aero', 'defIgnore', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:aero`)),
+        [addAttrMod('aero', 'defIgnore', rankTable(p, 3))],
+        trthCond(`weapon:${id}:passive:aero`)),
     ],
   }),
 
@@ -1275,8 +1275,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting Resonance Skill increases the wielder's Resonance Liberation DMG Bonus by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 0))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1287,7 +1287,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting the Resonance Skill grants {0} Resonance Energy and increases ATK by {1}, lasting for {2}s. This effect can be triggered once every {3}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1303,7 +1303,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1315,8 +1315,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'buffs', 'ATK% + Res. Liberation DMG', [
         addBaseStat('atk', 'percent', rankTable(p, 0)),
-        addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1343,7 +1343,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `When Intro Skill is cast, increases ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1355,7 +1355,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'energy', 'Energy Regen', [addTopStat('energyRegen', rankTable(p, 0))]),
       makeEffect(id, 'basic', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
     ],
   }),
 
@@ -1369,12 +1369,12 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
         `When the wielder is not on the field, increases their ATK by an additional {4}.`),
     ],
     effects: [
-      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttributeMod('all', 'dmgBonus', rankTable(p, 0))]),
+      makeEffect(id, 'dmg', 'All DMG Bonus', [addAttrMod('all', 'dmgBonus', rankTable(p, 0))]),
       makeEffect(id, 'atk_stacks', 'ATK% (Stacks)',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
       makeEffect(id, 'atk_toggle', 'ATK%',
         [addBaseStat('atk', 'percent', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1386,7 +1386,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'heal', 'Healing Bonus',
         [addTopStat('healingBonus', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1402,10 +1402,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'basic_stacks', 'Basic ATK DMG (Stacks)',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
+        [addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1)))]),
       makeEffect(id, 'basic_toggle', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 5))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 5))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1419,8 +1419,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     ],
     effects: [
       makeEffect(id, 'spectro', 'Spectro DMG',
-        [addAttributeMod('spectro', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        [addAttrMod('spectro', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1431,7 +1431,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `If the Resonator's HP is above {4}, increases ATK by {5}, lasting for {6}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 5))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1444,7 +1444,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       makeEffect(id, 'hp', 'HP%', [addBaseStat('hp', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:active`), 'teamWide'),
     ],
   }),
 
@@ -1457,7 +1457,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       makeEffect(id, 'buffs', 'ATK% + HP%', [
         addBaseStat('atk', 'percent', rankTable(p, 0)),
         addBaseStat('hp', 'percent', rankTable(p, 1)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1470,8 +1470,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'buffs', 'ATK% + Basic ATK DMG', [
         addBaseStat('atk', 'percent', rankTable(p, 1)),
-        addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 2)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 2)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1486,12 +1486,12 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'frazzle', 'Spectro Frazzle Amplify',
-        [addSkilltypeMod('spectroFrazzle', 'amplify', rankTable(p, 4))],
-        truthyCondition(`weapon:${id}:passive:active`), 'active'),
+        [addSkillMod('spectroFrazzle', 'amplify', rankTable(p, 4))],
+        trthCond(`weapon:${id}:passive:active`), 'active'),
       makeEffect(id, 'dmg', 'Basic/Heavy ATK DMG', [
-        addSkilltypeMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1))),
-        addSkilltypeMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1))),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('basicAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1))),
+        addSkillMod('heavyAtk', 'dmgBonus', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 1))),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1501,8 +1501,8 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     states: [],
     effects: [
       makeEffect(id, 'dmg', 'Basic/Heavy ATK DMG', [
-        addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
-        addSkilltypeMod('heavyAtk', 'dmgBonus', rankTable(p, 0)),
+        addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
+        addSkillMod('heavyAtk', 'dmgBonus', rankTable(p, 0)),
       ]),
     ],
   }),
@@ -1515,10 +1515,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'basic', 'Basic ATK DMG',
-        [addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 6))],
+        [addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 6))],
         { type: 'gte', from: 'sourceRuntime', path: `state.controls.weapon:${id}:passive:stacks`, value: 1 }),
       makeEffect(id, 'shred', 'Havoc RES Shred',
-        [addAttributeMod('havoc', 'resShred', rankTable(p, 8))],
+        [addAttrMod('havoc', 'resShred', rankTable(p, 8))],
         { type: 'gte', from: 'sourceRuntime', path: `state.controls.weapon:${id}:passive:stacks`, value: 2 }),
     ],
   }),
@@ -1542,10 +1542,10 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'buffs', 'Res. Skill DMG + Echo Amplify + DEF Ignore', [
-        addSkilltypeMod('resonanceSkill', 'dmgBonus', rankTable(p, 2)),
-        addSkilltypeMod('echoSkill', 'amplify', rankTable(p, 2)),
-        addSkilltypeMod('all', 'defIgnore', rankTable(p, 4)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('resonanceSkill', 'dmgBonus', rankTable(p, 2)),
+        addSkillMod('echoSkill', 'amplify', rankTable(p, 2)),
+        addSkillMod('all', 'defIgnore', rankTable(p, 4)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1556,7 +1556,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting Resonance Liberation increases the wielder's ATK by {0}, lasting for {1}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1572,11 +1572,11 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'ult', 'Res. Liberation DMG',
-        [addSkilltypeMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:ult`)),
+        [addSkillMod('resonanceLiberation', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:ult`)),
       makeEffect(id, 'team-atk', 'Team ATK',
         [addBaseStat('atk', 'percent', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 
@@ -1587,7 +1587,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
       `Casting the Resonance Skill grants {0} Resonance Energy and increases ATK by {1}, lasting for {2}s. This effect can be triggered once every {3}s.`)],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1596,18 +1596,18 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     owners: [makeOwner(id, 'Passive', `Increases ATK by {0}.`)],
     states: [
       makeToggle(id, 'glacio', 'Glacio DMG',
-        `After the wielder inflicts Glacio Chafe on the target, their Glacio DMG Bonus is increased by {1} for {2}s.`),
+        `Inflicting Glacio Chafe on the target grants the wielder {1} Glacio DMG Bonus for {2}s.`),
       makeToggle(id, 'team_atk', 'Team ATK',
         `The ATK of all Resonators in the team is increased by {3} for {4}s. Effects of the same name cannot be stacked.`),
     ],
     effects: [
       makeEffect(id, 'atk', 'ATK%', [addBaseStat('atk', 'percent', rankTable(p, 0))]),
       makeEffect(id, 'glacio', 'Glacio DMG',
-        [addAttributeMod('glacio', 'dmgBonus', rankTable(p, 1))],
-        truthyCondition(`weapon:${id}:passive:glacio`)),
+        [addAttrMod('glacio', 'dmgBonus', rankTable(p, 1))],
+        trthCond(`weapon:${id}:passive:glacio`)),
       makeEffect(id, 'team-atk', 'Team ATK',
         [addBaseStat('atk', 'percent', rankTable(p, 3))],
-        truthyCondition(`weapon:${id}:passive:team_atk`), 'teamWide'),
+        trthCond(`weapon:${id}:passive:team_atk`), 'teamWide'),
     ],
   }),
 
@@ -1623,7 +1623,7 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'atk', 'ATK%',
         [addBaseStat('atk', 'percent', mulFormula(readControl(`weapon:${id}:passive:stacks`), rankTable(p, 0)))],
-        truthyCondition(`weapon:${id}:passive:active`)),
+        trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 
@@ -1635,16 +1635,16 @@ const weaponDefiners: Record<string, WeaponDefiner> = {
     effects: [
       makeEffect(id, 'buffs', 'ATK% + Basic ATK DMG', [
         addBaseStat('atk', 'percent', rankTable(p, 0)),
-        addSkilltypeMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
-      ], truthyCondition(`weapon:${id}:passive:active`)),
+        addSkillMod('basicAtk', 'dmgBonus', rankTable(p, 0)),
+      ], trthCond(`weapon:${id}:passive:active`)),
     ],
   }),
 }
 
 // build weapon source packages from provided weapon data
-export function buildWeaponSources(weapons: GeneratedWeapon[]): SourcePackage[] {
+export function mkWpnSrcs(weapons: GenWpn[]): SrcPkg[] {
   const weaponsById = Object.fromEntries(weapons.map((w) => [w.id, w]))
-  return Object.entries(weaponDefiners).reduce<SourcePackage[]>((acc, [id, definer]) => {
+  return Object.entries(wpnDfnr).reduce<SrcPkg[]>((acc, [id, definer]) => {
     const weapon = weaponsById[id]
     if (!weapon) return acc
     const parsed = parseParams(weapon.passive.params)

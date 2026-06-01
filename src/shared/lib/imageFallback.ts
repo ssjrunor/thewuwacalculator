@@ -1,16 +1,17 @@
 /*
   Author: Runor Ewhro
   Description: shared image fallback handlers for calculator and content ui
-               so repeated onerror helpers do not live inside components.
+               so repeated onerror helpers do not live inside features.
 */
 
-import type { SyntheticEvent } from 'react'
+import type { SyntheticEvent as SyntVnt } from 'react'
 
-const DEFAULT_ICON_SRC = '/assets/default-icon.webp'
+export const DEF_ICON_SRC = '/assets/default.webp'
+export const DEF_ENEMY_SRC = '/assets/enemies/default.webp'
 
 // swap a broken image to a stable fallback asset
-export function swapImageToFallback(
-  event: SyntheticEvent<HTMLImageElement>,
+export function swapMgToFllb(
+  event: SyntVnt<HTMLImageElement>,
   fallbackSrc: string,
 ) {
   const image = event.currentTarget
@@ -22,11 +23,31 @@ export function swapImageToFallback(
 }
 
 // use the shared default icon for generic entity images
-export function withDefaultIconImage(event: SyntheticEvent<HTMLImageElement>) {
-  swapImageToFallback(event, DEFAULT_ICON_SRC)
+export function withDefIconM(event: SyntVnt<HTMLImageElement>) {
+  swapMgToFllb(event, DEF_ICON_SRC)
+}
+
+// img onerror handler that swaps broken weapon icons to the shared default image
+export function withDefWpnMg(event: SyntVnt<HTMLImageElement>) {
+  swapMgToFllb(event, DEF_ICON_SRC)
+}
+
+// img onerror handler for echo icons
+export function withDefEchoMg(event: SyntVnt<HTMLImageElement>) {
+  swapMgToFllb(event, DEF_ICON_SRC)
+}
+
+// img onerror handler for resonator profiles
+export function withDefResMg(event: SyntVnt<HTMLImageElement>) {
+  swapMgToFllb(event, DEF_ICON_SRC)
+}
+
+// img onerror handler for enemy icons
+export function withDefEnmyMg(event: SyntVnt<HTMLImageElement>) {
+  swapMgToFllb(event, DEF_ENEMY_SRC)
 }
 
 // hide images entirely when the ui should collapse to text-only fallback
-export function hideBrokenImage(event: SyntheticEvent<HTMLImageElement>) {
+export function hideBrknMg(event: SyntVnt<HTMLImageElement>) {
   event.currentTarget.style.display = 'none'
 }

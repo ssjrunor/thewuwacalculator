@@ -5,19 +5,19 @@
 */
 
 import type {
-  ResonatorBaseStats,
+  ResBaseStats,
   UnifiedBuffPool,
   FinalStats,
 } from '@/domain/entities/stats'
 
 // combine base stats, weapon attack, and pooled buffs into final stats
-export function computeFinalStatsFromPool(
-    baseStats: ResonatorBaseStats,
+export function calcFinalStats(
+    baseStats: ResBaseStats,
     pool: UnifiedBuffPool,
-    weaponBaseAtk: number,
+    wpnBaseAtk: number,
 ): FinalStats {
   // compute base stat totals before percentage and flat bonuses
-  const atkBase = baseStats.atk + weaponBaseAtk
+  const atkBase = baseStats.atk + wpnBaseAtk
   const hpBase = baseStats.hp
   const defBase = baseStats.def
 
@@ -45,7 +45,8 @@ export function computeFinalStatsFromPool(
     defIgnore: pool.defIgnore,
     defShred: pool.defShred,
     dmgVuln: pool.dmgVuln,
-    tuneBreakBoost: baseStats.tuneBreakBoost + pool.tuneBreakBoost,
+    tbb: baseStats.tuneBreakBoost + pool.tuneBreakBoost,
     special: pool.special,
+    immunities: pool.immunities,
   }
 }

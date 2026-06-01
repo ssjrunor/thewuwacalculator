@@ -1,4 +1,4 @@
-/* ── Sonata Set Conditionals Modal ── */
+
 
 .app-modal-panel.ssc-modal {
   padding: 0;
@@ -20,7 +20,7 @@
   z-index: 2;
 }
 
-/* ── Root ── */
+
 
 .ssc-root {
   display: flex;
@@ -29,7 +29,7 @@
   overflow: hidden;
 }
 
-/* ── Header ── */
+
 
 .ssc-header {
   padding: 1.1rem 1.25rem 0.95rem;
@@ -124,7 +124,7 @@
   outline-offset: 2px;
 }
 
-/* ── Toolbar ── */
+
 
 .ssc-toolbar {
   padding: 0.78rem 1.25rem;
@@ -180,7 +180,7 @@
   outline-offset: 2px;
 }
 
-/* LiquidSelect override for the sort selector */
+
 
 .ssc-sort {
   flex-shrink: 0;
@@ -199,7 +199,7 @@
   min-width: 9rem;
 }
 
-/* ── Scrollable Body ── */
+
 
 .ssc-body {
   flex: 1 1 auto;
@@ -221,8 +221,6 @@
   background: color-mix(in srgb, var(--picker-modal-accent) 52%, var(--picker-modal-border));
 }
 
-/* ── Global toggle row ── */
-
 .ssc-global-row {
   display: flex;
   align-items: center;
@@ -242,10 +240,8 @@
   background: color-mix(in srgb, var(--picker-modal-accent) 9%, transparent);
 }
 
-/* ── Custom checkboxes ── */
-
 .ssc-native-checkbox {
-  position: absolute;
+  position: absolute !important;
   opacity: 0;
   width: 0;
   height: 0;
@@ -287,7 +283,7 @@ label:has(.ssc-native-checkbox:checked)      .ssc-checkmark-icon { display: bloc
 label:has(.ssc-native-checkbox:indeterminate) .ssc-dash-icon      { display: block; }
 label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: none; }
 
-/* smaller variant used inside part rows */
+
 .ssc-part-row .ssc-checkmark {
   width: 1rem;
   height: 1rem;
@@ -305,6 +301,7 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
 .ssc-count-display {
   font-size: 0.74rem;
   font-weight: 800;
+  margin-left: auto;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--picker-modal-accent) 76%, var(--picker-modal-text));
   flex-shrink: 0;
@@ -329,7 +326,7 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ── Empty state ── */
+
 
 .ssc-empty {
   display: grid;
@@ -343,16 +340,14 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   text-align: center;
 }
 
-/* ── Set cards ── */
+
 
 .ssc-card {
   border-radius: 0.95rem;
   border: 1px solid color-mix(in srgb, var(--picker-modal-accent) 12%, var(--picker-modal-item-border));
   background: color-mix(in srgb, var(--picker-modal-accent) 2%, var(--picker-modal-inner, transparent));
-  /*
-  overflow: hidden;
-  */
-  animation: ssc-card-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  animation: ssc-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
@@ -360,16 +355,6 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   border-color: color-mix(in srgb, var(--picker-modal-accent) 34%, var(--picker-modal-item-border));
   box-shadow: 0 2px 16px color-mix(in srgb, var(--picker-modal-accent) 9%, transparent);
 }
-
-.ssc-card:nth-child(1)   { animation-delay:   0ms; }
-.ssc-card:nth-child(2)   { animation-delay:  40ms; }
-.ssc-card:nth-child(3)   { animation-delay:  80ms; }
-.ssc-card:nth-child(4)   { animation-delay: 120ms; }
-.ssc-card:nth-child(5)   { animation-delay: 160ms; }
-.ssc-card:nth-child(6)   { animation-delay: 200ms; }
-.ssc-card:nth-child(7)   { animation-delay: 240ms; }
-.ssc-card:nth-child(8)   { animation-delay: 280ms; }
-.ssc-card:nth-child(n+9) { animation-delay: 300ms; }
 
 @keyframes ssc-card-in {
   from { opacity: 0; transform: translateY(8px) scale(0.985); }
@@ -464,7 +449,7 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   color: color-mix(in srgb, var(--picker-modal-accent) 88%, var(--picker-modal-text));
 }
 
-/* ── Part rows ── */
+
 
 .ssc-parts {
   display: flex;
@@ -539,14 +524,19 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   font-style: italic;
 }
 
-/* ── Reduced motion ── */
+
+
+
+:is(.no-entrance-anim, .reduce-animation) .ssc-card {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .ssc-card { animation: none; }
-  .ssc-tab,
-  .ssc-close-btn,
-  .ssc-checkmark,
-  .ssc-part-row,
-  .ssc-global-row,
-  .ssc-progress-fill { transition: none; }
+  .ssc-card {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

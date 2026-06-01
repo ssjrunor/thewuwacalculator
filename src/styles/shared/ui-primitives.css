@@ -1,14 +1,15 @@
-/* Shared UI tokens and reusable surface/control primitives */
+
 
 :root {
-  --ui-modal-radius: 1rem;
+  --resonator-accent: var(--accent, #6b7cff);
+  --ui-modal-radius: 0 1.5rem 0 1.5rem;
   --ui-modal-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 10%,
-    var(--calc-box-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 10%,
+    var(--box-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-modal-border: 1px solid var(--ui-modal-border-color);
-  --ui-modal-bg: var(--panel, var(--surface, var(--surface-strong, var(--calc-box-bg, rgba(255, 255, 255, 0.94)))));
+  --ui-modal-bg: var(--panel, var(--surface, var(--surface-2, var(--box-bg, rgba(255, 255, 255, 0.94)))));
   --ui-modal-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.14);
   --ui-modal-padding: 1rem;
   --ui-modal-header-padding: 0 0 0.9rem;
@@ -17,85 +18,59 @@
   --ui-surface-radius: 1.15rem;
   --ui-surface-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 8%,
-    var(--calc-box-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 8%,
+    var(--box-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-surface-border: 1px solid var(--ui-surface-border-color);
-  --ui-surface-bg: var(--panel, var(--surface, var(--surface-strong, var(--calc-box-bg, rgba(255, 255, 255, 0.94)))));
-  --ui-surface-shadow: var(--calc-box-shadow, none);
+  --ui-surface-shadow: var(--box-shadow, none);
   --ui-surface-padding: 1rem;
 
   --ui-inner-radius: 1.15rem;
-  --ui-inner-border-color: color-mix(in srgb, var(--resonator-accent) 8%, var(--calc-inner-border));
+  --ui-inner-border-color: color-mix(in srgb, var(--resonator-accent) 8%, var(--inner-border));
   --ui-inner-border: 1px solid var(--ui-inner-border-color);
-  --ui-inner-bg: color-mix(in srgb, var(--calc-item-bg) 74%, var(--calc-inner-bg));
-  --ui-inner-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.1);
+  --ui-inner-bg: color-mix(in srgb, var(--item-border) 50%, var(--inner-bg));
+  --inner-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.1);
   --ui-inner-padding: 0.95rem 1rem;
 
   --ui-pill-radius: 999px;
-  --ui-pill-border-color: color-mix(
-    in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 8%,
-    var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
-  );
+  --ui-pill-border-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border));
   --ui-pill-border: 1px solid var(--ui-pill-border-color);
-  --ui-pill-bg: var(--calc-item-bg, var(--panel, var(--surface, var(--surface-strong, rgba(255, 255, 255, 0.94)))));
-  --ui-pill-color: var(--calc-text, var(--text, #1b2435));
-  --ui-pill-active-border-color: color-mix(
-    in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 28%,
-    var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
-  );
-  --ui-pill-active-bg: color-mix(
-    in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 16%,
-    var(--calc-item-bg, var(--panel, var(--surface, var(--surface-strong, rgba(255, 255, 255, 0.94)))))
-  );
-  --ui-pill-active-color: color-mix(
-    in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 78%,
-    var(--calc-text, var(--text, #1b2435))
-  );
-  --ui-pill-active-shadow: none;
-  --ui-pill-shadow: none;
+  --ui-pill-bg: color-mix(in srgb, var(--surface-2) 90%, var(--text) 10%);
+  --ui-pill-color: var(--text, #1b2435);
+  --ui-pill-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0.1rem 1.2rem color-mix(in srgb, var(--resonator-accent) 9%, transparent);
   --ui-pill-min-height: 2rem;
   --ui-pill-gap: 0.4rem;
-  --ui-pill-padding-y: 0.35rem;
-  --ui-pill-padding-x: 0.7rem;
-  --ui-pill-font-size: 0.8rem;
-  --ui-pill-font-weight: 700;
   --ui-trace-active-border-color: var(
     --slider-color,
     color-mix(
       in srgb,
-      var(--resonator-accent, var(--accent, #6b7cff)) 28%,
-      var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+      var(--resonator-accent) 28%,
+      var(--item-border, var(--border, rgba(27, 36, 53, 0.14)))
     )
   );
   --ui-trace-active-bg: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 10%,
-    var(--calc-item-bg, var(--surface-strong, rgba(255, 255, 255, 0.94)))
+    var(--resonator-accent) 10%,
+    var(--item-bg, var(--surface-2, rgba(255, 255, 255, 0.94)))
   );
 
-  --ui-control-radius: var(--calc-control-radius, 0.95rem);
-  --ui-control-height: var(--calc-control-height, 2.75rem);
+  --ui-control-radius: 0.95rem;
   --ui-control-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 8%,
-    var(--calc-input-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 8%,
+    var(--input-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-control-border: 1px solid var(--ui-control-border-color);
-  --ui-control-bg: var(--calc-input-bg, var(--panel, var(--surface, var(--surface-strong, rgba(255, 255, 255, 0.94)))));
-  --ui-control-color: var(--calc-input-color, var(--text, #1b2435));
+  --ui-control-bg: var(--input-bg, var(--panel, var(--surface, var(--surface-2, rgba(255, 255, 255, 0.94)))));
+  --ui-control-color: var(--input-color, var(--text, #1b2435));
   --ui-control-shadow: none;
-  --ui-control-padding-y: 0.4rem;
-  --ui-control-padding-x: 0.65rem;
-  --ui-focus-ring: var(--calc-focus-ring, color-mix(in srgb, var(--accent, #6b7cff) 18%, transparent));
+  --ui-focus-ring: var(--focus-ring, color-mix(in srgb, var(--accent, #6b7cff) 18%, transparent));
 
   --ui-slider-height: 6px;
   --ui-slider-radius: 4px;
-  --ui-slider-empty: white;
+  --ui-slider-empty: color-mix(in srgb, var(--text) 12%, var(--bg));
   --ui-slider-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
   --ui-slider-thumb-size: 18px;
   --ui-slider-thumb-size-firefox: 16px;
@@ -103,10 +78,7 @@
   --ui-slider-thumb-shadow: 0 0 4px #555;
   --ui-slider-thumb-hover-bg: #555;
 
-  --ui-inline-field-gap: 0.35rem;
-  --ui-inline-field-min: 4.5rem;
-  --ui-inline-field-wide-min: 11rem;
-  --ui-field-label-color: color-mix(in srgb, var(--calc-text) 78%, var(--resonator-accent));
+  --ui-field-label-color: color-mix(in srgb, var(--text) 78%, var(--resonator-accent));
   --ui-field-label-size: 0.72rem;
   --ui-field-label-weight: 700;
   --ui-field-label-spacing: 0.05em;
@@ -116,20 +88,15 @@
   --ui-panel-section-title-weight: 800;
   --ui-panel-section-title-spacing: -0.025em;
 
-  --ui-panel-card-gap: 0.85rem;
+  --ui-panel-card-gap: 0.5rem;
   --ui-panel-card-radius: 1.15rem;
   --ui-panel-card-padding: 0.95rem 1rem;
   --ui-panel-card-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 14%,
-    var(--calc-inner-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 14%,
+    var(--inner-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-panel-card-border: 1px solid var(--ui-panel-card-border-color);
-  --ui-panel-card-bg: color-mix(
-    in srgb,
-    var(--calc-item-bg, var(--panel, var(--surface, var(--surface-strong, rgba(255, 255, 255, 0.94))))) 74%,
-    var(--calc-inner-bg, transparent)
-  );
   --ui-panel-card-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 0.85rem 1.6rem rgba(15, 23, 42, 0.06);
@@ -138,10 +105,10 @@
   --ui-panel-card-title-spacing: -0.02em;
   --ui-panel-card-copy-size: 0.875rem;
   --ui-panel-card-copy-line: 1.55;
-  --ui-panel-card-copy-color: var(--calc-muted, var(--muted, rgba(27, 36, 53, 0.7)));
+  --ui-panel-card-copy-color: var(--muted, rgba(27, 36, 53, 0.7));
   --ui-panel-card-divider-color: color-mix(
     in srgb,
-    var(--calc-inner-border, var(--panel-border, rgba(27, 36, 53, 0.14))) 84%,
+    var(--inner-border, var(--border, rgba(27, 36, 53, 0.14))) 84%,
     transparent
   );
 
@@ -150,48 +117,44 @@
   --ui-panel-pill-padding-x: 0.58rem;
   --ui-panel-pill-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 8%,
-    var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 8%,
+    var(--item-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-panel-pill-bg: color-mix(
     in srgb,
-    var(--calc-item-bg, var(--panel, var(--surface, var(--surface-strong, rgba(255, 255, 255, 0.94))))) 92%,
+    var(--item-bg, var(--panel, var(--surface, var(--surface-2, rgba(255, 255, 255, 0.94))))) 92%,
     transparent
   );
-  --ui-panel-pill-color: var(--calc-muted, var(--muted, rgba(27, 36, 53, 0.7)));
   --ui-panel-pill-strong-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 58%,
-    var(--calc-text, var(--text, #1b2435))
+    var(--resonator-accent) 58%,
+    var(--text, #1b2435)
   );
   --ui-panel-pill-active-border-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 22%,
-    var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)))
+    var(--resonator-accent) 22%,
+    var(--item-border, var(--border, rgba(27, 36, 53, 0.14)))
   );
   --ui-panel-pill-active-bg: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 10%,
-    var(--panel, var(--surface, var(--surface-strong, var(--calc-box-bg, rgba(255, 255, 255, 0.94)))))
+    var(--resonator-accent) 10%,
+    var(--panel, var(--surface, var(--surface-2, var(--box-bg, rgba(255, 255, 255, 0.94)))))
   );
   --ui-panel-pill-active-color: color-mix(
     in srgb,
-    var(--resonator-accent, var(--accent, #6b7cff)) 82%,
-    var(--calc-text, var(--text, #1b2435))
+    var(--resonator-accent) 82%,
+    var(--text, #1b2435)
   );
-  --ui-panel-control-max-width: 14rem;
   --calc-support-healing-color: limegreen;
   --calc-support-shield-color: #838383;
 }
 
 :where(.ui-surface-card, .pane-section) {
   position: relative;
-  color: var(--calc-text, var(--text, #1b2435));
+  color: var(--text, #1b2435);
   border: var(--ui-surface-border);
   border-radius: var(--ui-surface-radius);
-  /*
-  background: var(--ui-surface-bg);
-  */
+
   box-shadow: var(--ui-surface-shadow);
 }
 
@@ -203,7 +166,7 @@
   border: transparent;
   border-radius: var(--ui-inner-radius);
   background: var(--ui-inner-bg);
-  box-shadow: var(--ui-inner-shadow);
+  box-shadow: var(--inner-shadow);
   padding: var(--ui-inner-padding);
 }
 
@@ -219,7 +182,7 @@
   min-height: var(--ui-pill-min-height);
   border: var(--ui-pill-border);
   border-radius: var(--ui-pill-radius);
-  background: var(--ui-pill-bg);
+  background: var(--ctrl-bg-1);
   color: var(--ui-pill-color);
   box-shadow: var(--ui-pill-shadow);
   line-height: 1.15;
@@ -231,6 +194,22 @@
     background 220ms ease,
     box-shadow 220ms ease,
     color 180ms ease;
+}
+
+.chip {
+  border-color: var(--chip-border, var(--ui-pill-border-color));
+  background: var(--chip-bg);
+  color: var(--chip-color, var(--ui-pill-color));
+  box-shadow: var(--chip-shadow, var(--ui-pill-shadow));
+}
+
+.chip:is(:hover, :focus-visible) {
+  transform: translateY(-2px);
+  border-color: var(--chip-hv-border, var(--chip-border, var(--ui-pill-border-color)));
+  background: var(--chip-hv-bg, var(--chip-bg));
+  color: var(--chip-hv-color, var(--chip-color, var(--ui-pill-color)));
+  box-shadow: var(--chip-hv-shadow, var(--chip-shadow, var(--ui-pill-shadow)));
+  text-shadow: var(--chip-hv-text-shadow, none);
 }
 
 :where(.ui-pill-button, .chip, .danger-btn, .view-toggle-button, .rarity-chip):disabled {
@@ -251,9 +230,6 @@
 
 .expandable__content[data-state='closed'] {
   animation: expandable-slide-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.expandable__content-inner {
 }
 
 @keyframes expandable-slide-down {
@@ -292,516 +268,40 @@
   width: 100%;
 }
 
-
-/* Calculator tokens and shared calculator primitives */
-body, .app-shell {
-  --calc-shell-bg: #f9f9f9;
-  --calc-partition-bg: #f5f5f5;
-  --calc-toolbar-bg: #f9f9f9;
-  --calc-toolbar-border: transparent;
-  --calc-toolbar-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
-  --calc-toolbar-backdrop: none;
-  --calc-sidebar-bg: #f9f9f9;
-  --calc-sidebar-border: transparent;
-  --calc-sidebar-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
-  --calc-sidebar-backdrop: none;
-  --calc-text: #222222;
-  --calc-muted: #666666;
-  --calc-side-icon: #222222;
-  --calc-side-icon-hover: #00bcd4;
-  --calc-hover-bg: rgba(0, 0, 0, 0.05);
-  --calc-box-bg: #f9f9f9;
-  --calc-box-border: transparent;
-  --calc-box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.08);
-  --calc-box-backdrop: none;
-  --calc-grid-border: #dddddd;
-  --calc-row-even: #f9f9f9;
-  --calc-row-odd: #ffffff;
-  --calc-inner-bg: rgba(115, 115, 115, 0.02);
-  --calc-inner-border: #dddddd;
-  --calc-item-bg: rgba(255, 255, 255, 0.86);
-  --calc-item-border: rgba(0, 0, 0, 0.12);
-  --calc-item-hover-bg: rgba(0, 0, 0, 0.04);
-  --calc-item-hover-border: rgba(0, 0, 0, 0.18);
-  --calc-input-bg: #f5f5f5;
-  --calc-input-border: #cccccc;
-  --calc-input-color: #222222;
-  --calc-slider-empty: #ffffff;
-  --calc-slider-thumb-bg: var(--slider-color, #888888);
-  --calc-slider-thumb-border: transparent;
-  --calc-header-icon-bg: transparent;
-  --calc-header-icon-border: #e0e0e0;
-  --calc-control-height: 2.75rem;
-  --calc-control-radius: 0.95rem;
-  --calc-focus-ring: color-mix(in srgb, var(--resonator-accent) 18%, transparent);
-}
-
-body.pastel-pink,
-.pastel-pink {
-  --calc-shell-bg: #ffd8e0;
-  --calc-partition-bg: #ffd8e0;
-  --calc-toolbar-bg: #ffe4e9;
-  --calc-toolbar-border: rgba(177, 0, 90, 0.25);
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #ffe4e9;
-  --calc-sidebar-border: rgba(177, 0, 90, 0.25);
-  --calc-sidebar-shadow: none;
-  --calc-box-bg: #ffe4e9;
-  --calc-box-border: rgba(177, 0, 90, 0.25);
-  --calc-box-shadow: none;
-  --calc-grid-border: rgba(177, 0, 90, 0.15);
-  --calc-row-even: rgba(255, 108, 130, 0.06);
-  --calc-row-odd: rgba(255, 235, 239, 0.49);
-  --calc-inner-bg: rgba(255, 108, 130, 0.06);
-  --calc-inner-border: rgba(177, 0, 90, 0.15);
-  --calc-item-bg: rgba(255, 228, 233, 0.7);
-  --calc-item-border: rgba(177, 0, 90, 0.15);
-  --calc-item-hover-bg: rgba(255, 210, 216, 0.7);
-  --calc-item-hover-border: rgba(177, 0, 90, 0.25);
-  --calc-input-bg: rgb(255, 235, 237);
-  --calc-input-border: rgba(177, 0, 90, 0.42);
-  --calc-slider-empty: #ffffff;
-  --calc-header-icon-bg: #fff0f4;
-  --calc-header-icon-border: rgba(177, 0, 90, 0.25);
-}
-
-body.pastel-blue,
-.pastel-blue {
-  --calc-shell-bg: #d8ebff;
-  --calc-partition-bg: #d8ebff;
-  --calc-toolbar-bg: #e4f2ff;
-  --calc-toolbar-border: rgba(0, 80, 177, 0.25);
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #e4f2ff;
-  --calc-sidebar-border: rgba(0, 80, 177, 0.25);
-  --calc-sidebar-shadow: none;
-  --calc-box-bg: #e4f2ff;
-  --calc-box-border: rgba(0, 80, 177, 0.25);
-  --calc-box-shadow: none;
-  --calc-grid-border: rgba(0, 80, 177, 0.15);
-  --calc-row-even: rgba(108, 174, 255, 0.06);
-  --calc-row-odd: #ebf6ff;
-  --calc-inner-bg: rgba(108, 174, 255, 0.06);
-  --calc-inner-border: rgba(0, 80, 177, 0.15);
-  --calc-item-bg: rgba(228, 241, 255, 0.7);
-  --calc-item-border: rgba(0, 80, 177, 0.15);
-  --calc-item-hover-bg: rgba(210, 230, 255, 0.7);
-  --calc-item-hover-border: rgba(0, 80, 177, 0.25);
-  --calc-input-bg: rgb(235, 245, 255);
-  --calc-input-border: saddlebrown;
-  --calc-slider-empty: #ffffff;
-  --calc-header-icon-bg: #f0f7ff;
-  --calc-header-icon-border: rgba(0, 80, 177, 0.25);
-}
-
-body.vibrant-citrus,
-.vibrant-citrus {
-  --calc-shell-bg: #fff2d7;
-  --calc-partition-bg: #fff2d7;
-  --calc-toolbar-bg: #fff2de;
-  --calc-toolbar-border: rgba(255, 133, 0, 0.4);
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #fff2de;
-  --calc-sidebar-border: rgba(255, 133, 0, 0.4);
-  --calc-sidebar-shadow: none;
-  --calc-box-bg: #fff2de;
-  --calc-box-border: rgba(255, 133, 0, 0.4);
-  --calc-box-shadow: none;
-  --calc-grid-border: rgba(255, 133, 0, 0.2);
-  --calc-row-even: rgba(0, 255, 205, 0.06);
-  --calc-row-odd: rgba(255, 241, 222, 0.29);
-  --calc-inner-bg: rgba(0, 255, 205, 0.06);
-  --calc-inner-border: rgba(255, 133, 0, 0.25);
-  --calc-item-bg: rgba(255, 242, 222, 0.7);
-  --calc-item-border: rgba(255, 133, 0, 0.2);
-  --calc-item-hover-bg: rgba(255, 230, 180, 0.8);
-  --calc-item-hover-border: rgba(255, 133, 0, 0.4);
-  --calc-input-bg: #fff6ea;
-  --calc-input-border: #ff8400;
-  --calc-slider-empty: rgba(0, 255, 205, 0.06);
-  --calc-header-icon-bg: #fffdf7;
-  --calc-header-icon-border: rgba(255, 133, 0, 0.3);
-}
-
-body.glassy-rainbow,
-.glassy-rainbow {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: transparent;
-  --calc-toolbar-border: rgba(255, 255, 255, 0.2);
-  --calc-toolbar-shadow: none;
-  --calc-toolbar-backdrop: blur(20px) saturate(160%);
-  --calc-sidebar-bg: transparent;
-  --calc-sidebar-border: rgba(255, 255, 255, 0.2);
-  --calc-sidebar-shadow: none;
-  --calc-sidebar-backdrop: blur(20px) saturate(160%);
-  --calc-text: #222222;
-  --calc-muted: #333333;
-  --calc-side-icon: #666666;
-  --calc-side-icon-hover: #ff00c8;
-  --calc-hover-bg: linear-gradient(145deg, rgba(255, 198, 255, 0.7), rgba(196, 255, 255, 0.75));
-  --calc-box-bg: transparent;
-  --calc-box-border: rgba(150, 100, 255, 0.25);
-  --calc-box-shadow:
-    inset 0 0 8px rgba(255, 255, 255, 0.2),
-    0 0 15px rgba(120, 160, 255, 0.1);
-  --calc-box-backdrop: blur(10px) saturate(160%);
-  --calc-grid-border: rgba(180, 180, 255, 0.25);
-  --calc-row-even: linear-gradient(90deg, rgba(255, 250, 240, 0.45), rgba(240, 255, 255, 0.45));
-  --calc-row-odd: linear-gradient(90deg, rgba(255, 245, 255, 0.45), rgba(240, 255, 250, 0.45));
-  --calc-inner-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(240, 250, 255, 0.7));
-  --calc-inner-border: rgba(100, 160, 255, 0.25);
-  --calc-item-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(240, 250, 255, 0.7));
-  --calc-item-border: rgba(120, 180, 255, 0.25);
-  --calc-item-hover-bg: linear-gradient(135deg, rgba(255, 250, 255, 0.8), rgba(230, 255, 250, 0.85));
-  --calc-item-hover-border: rgba(150, 120, 255, 0.3);
-  --calc-input-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.75), rgba(235, 245, 255, 0.9));
-  --calc-input-border: rgba(100, 160, 255, 0.3);
-  --calc-input-color: #003350;
-  --calc-slider-empty: rgba(0, 212, 255, 0.13);
-  --calc-header-icon-bg: rgba(255, 255, 255, 0.35);
-  --calc-header-icon-border: rgba(150, 100, 255, 0.25);
-}
-
-body.sunlit-haze,
-.sunlit-haze {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: transparent;
-  --calc-toolbar-border: rgba(200, 170, 80, 0.15);
-  --calc-toolbar-shadow: none;
-  --calc-toolbar-backdrop: blur(16px) saturate(140%);
-  --calc-sidebar-bg: transparent;
-  --calc-sidebar-border: rgba(200, 170, 80, 0.15);
-  --calc-sidebar-shadow: none;
-  --calc-sidebar-backdrop: blur(16px) saturate(140%);
-  --calc-text: #2c3e50;
-  --calc-muted: #5a7080;
-  --calc-side-icon: #7a8a9a;
-  --calc-side-icon-hover: #c8960c;
-  --calc-hover-bg: linear-gradient(145deg, rgba(255, 248, 220, 0.6), rgba(220, 240, 255, 0.5));
-  --calc-box-bg: transparent;
-  --calc-box-border: rgba(200, 170, 80, 0.18);
-  --calc-box-shadow:
-    inset 0 0 8px rgba(255, 255, 255, 0.15),
-    0 0 12px rgba(180, 150, 60, 0.06);
-  --calc-box-backdrop: blur(10px) saturate(140%);
-  --calc-grid-border: rgba(200, 170, 80, 0.15);
-  --calc-row-even: linear-gradient(90deg, rgba(255, 252, 240, 0.4), rgba(240, 248, 255, 0.4));
-  --calc-row-odd: linear-gradient(90deg, rgba(245, 250, 255, 0.4), rgba(255, 248, 230, 0.4));
-  --calc-inner-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 250, 235, 0.6));
-  --calc-inner-border: rgba(200, 170, 80, 0.2);
-  --calc-item-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.6), rgba(255, 250, 235, 0.65));
-  --calc-item-border: rgba(200, 170, 80, 0.18);
-  --calc-item-hover-bg: linear-gradient(135deg, rgba(255, 252, 240, 0.75), rgba(240, 248, 255, 0.8));
-  --calc-item-hover-border: rgba(200, 150, 12, 0.3);
-  --calc-input-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(250, 248, 235, 0.85));
-  --calc-input-border: rgba(200, 170, 80, 0.25);
-  --calc-input-color: #2c3e50;
-  --calc-slider-empty: rgba(200, 170, 80, 0.12);
-  --calc-header-icon-bg: rgba(255, 255, 255, 0.3);
-  --calc-header-icon-border: rgba(200, 170, 80, 0.2);
-}
-
-body.dark,
-.dark {
-  --calc-shell-bg: #131922;
-  --calc-partition-bg: #1a1a1a;
-  --calc-toolbar-bg: #1f2937;
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #1f2937;
-  --calc-sidebar-shadow: none;
-  --calc-text: #dddddd;
-  --calc-muted: #b7bfca;
-  --calc-side-icon: #dddddd;
-  --calc-side-icon-hover: #00bcd4;
-  --calc-hover-bg: rgba(255, 255, 255, 0.05);
-  --calc-box-bg: rgba(31, 41, 55, 0.44);
-  --calc-box-border: transparent;
-  --calc-box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.19);
-  --calc-grid-border: #444444;
-  --calc-row-even: rgba(2, 3, 4, 0.31);
-  --calc-row-odd: rgba(26, 26, 28, 0.16);
-  --calc-inner-bg: rgba(2, 3, 4, 0.31);
-  --calc-inner-border: transparent;
-  --calc-item-bg: rgba(255, 255, 255, 0.03);
-  --calc-item-border: rgba(255, 255, 255, 0.1);
-  --calc-item-hover-bg: rgba(255, 255, 255, 0.06);
-  --calc-item-hover-border: rgba(255, 255, 255, 0.16);
-  --calc-input-bg: rgba(0, 0, 0, 0.34);
-  --calc-input-border: #333333;
-  --calc-input-color: #dddddd;
-  --calc-slider-empty: #333333;
-  --calc-header-icon-bg: rgba(0, 0, 0, 0.2);
-  --calc-header-icon-border: rgba(255, 255, 255, 0.1);
-}
-
-body.dark-alt,
-.dark-alt {
-  --calc-shell-bg: #000000;
-  --calc-partition-bg: #1a1a1a;
-  --calc-toolbar-bg: #000000;
-  --calc-toolbar-border: rgba(255, 255, 255, 0.1);
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #000000;
-  --calc-sidebar-border: rgba(255, 255, 255, 0.1);
-  --calc-sidebar-shadow: none;
-  --calc-text: #dddddd;
-  --calc-muted: #bbbbbb;
-  --calc-side-icon: #dddddd;
-  --calc-side-icon-hover: lightseagreen;
-  --calc-hover-bg: rgba(255, 255, 255, 0.05);
-  --calc-box-bg: #000000;
-  --calc-box-border: rgba(255, 255, 255, 0.1);
-  --calc-box-shadow: none;
-  --calc-grid-border: rgba(255, 255, 255, 0.1);
-  --calc-row-even: rgba(2, 3, 4, 0.31);
-  --calc-row-odd: rgba(255, 255, 255, 0.04);
-  --calc-inner-bg: rgba(255, 255, 255, 0.03);
-  --calc-inner-border: rgba(255, 255, 255, 0.1);
-  --calc-item-bg: rgba(19, 20, 23, 0.38);
-  --calc-item-border: rgba(255, 255, 255, 0.1);
-  --calc-item-hover-bg: rgba(19, 20, 23, 0.62);
-  --calc-item-hover-border: rgba(255, 255, 255, 0.16);
-  --calc-input-bg: rgba(0, 0, 0, 0.34);
-  --calc-input-border: rgba(85, 85, 85, 0.3);
-  --calc-input-color: #dddddd;
-  --calc-slider-empty: #333333;
-  --calc-header-icon-bg: rgba(0, 0, 0, 0.2);
-  --calc-header-icon-border: rgba(255, 255, 255, 0.12);
-}
-
-body.cosmic-rainbow,
-.cosmic-rainbow {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: linear-gradient(180deg, rgba(10, 10, 25, 0.9), rgba(25, 25, 45, 0.95));
-  --calc-toolbar-border: rgba(160, 200, 255, 0.2);
-  --calc-toolbar-shadow: 0 0 20px rgba(90, 80, 255, 0.08);
-  --calc-sidebar-bg: linear-gradient(180deg, rgba(10, 10, 25, 0.9), rgba(25, 25, 45, 0.95));
-  --calc-sidebar-border: rgba(160, 200, 255, 0.2);
-  --calc-sidebar-shadow: none;
-  --calc-text: #e3e6ff;
-  --calc-muted: #d8dcff;
-  --calc-side-icon: #cccccc;
-  --calc-side-icon-hover: #8bdfff;
-  --calc-hover-bg: linear-gradient(135deg, rgba(70, 50, 110, 0.4), rgba(0, 120, 255, 0.3));
-  --calc-box-bg: linear-gradient(200deg, rgb(10, 10, 25), rgb(20, 20, 45));
-  --calc-box-border: rgb(49, 49, 108);
-  --calc-box-shadow: none;
-  --calc-grid-border: rgba(200, 200, 255, 0.1);
-  --calc-row-even: rgba(255, 255, 255, 0.02);
-  --calc-row-odd: rgba(255, 255, 255, 0.04);
-  --calc-inner-bg: linear-gradient(145deg, rgba(25, 20, 45, 0.5), rgba(55, 30, 70, 0.6));
-  --calc-inner-border: rgba(150, 180, 255, 0.15);
-  --calc-item-bg: linear-gradient(145deg, rgba(20, 25, 50, 0.65), rgba(35, 40, 70, 0.75));
-  --calc-item-border: rgba(150, 200, 255, 0.15);
-  --calc-item-hover-bg: linear-gradient(145deg, rgba(50, 30, 80, 0.75), rgba(25, 50, 90, 0.85));
-  --calc-item-hover-border: rgba(190, 150, 255, 0.25);
-  --calc-input-bg: rgba(15, 20, 35, 0.6);
-  --calc-input-border: rgba(140, 180, 255, 0.25);
-  --calc-input-color: #e2e5ff;
-  --calc-slider-empty: rgba(40, 60, 100, 0.4);
-  --calc-header-icon-bg: rgba(10, 15, 30, 0.6);
-  --calc-header-icon-border: rgba(120, 150, 255, 0.25);
-}
-
-body.scarlet-nebula,
-.scarlet-nebula {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: linear-gradient(180deg, rgba(15, 0, 0, 0.9), rgba(30, 5, 5, 0.95));
-  --calc-toolbar-border: rgba(200, 100, 90, 0.12);
-  --calc-toolbar-shadow: 0 0 20px rgba(90, 80, 255, 0.08);
-  --calc-sidebar-bg: linear-gradient(180deg, rgba(15, 0, 0, 0.9), rgba(30, 5, 5, 0.95));
-  --calc-sidebar-border: rgba(200, 100, 90, 0.12);
-  --calc-sidebar-shadow: 0 0 15px rgba(100, 80, 255, 0.05);
-  --calc-text: #ffeaea;
-  --calc-muted: #ffdede;
-  --calc-side-icon: #bbaaaa;
-  --calc-side-icon-hover: #8bdfff;
-  --calc-hover-bg: linear-gradient(135deg, rgba(160, 0, 40, 0.16), rgba(255, 90, 40, 0.11));
-  --calc-box-bg: linear-gradient(200deg, rgb(28, 0, 0), rgb(14, 0, 0));
-  --calc-box-border: rgba(200, 100, 90, 0.12);
-  --calc-box-shadow:
-    inset 0 0 10px rgba(255, 100, 80, 0.05),
-    0 0 15px rgba(255, 160, 255, 0.09);
-  --calc-grid-border: rgba(220, 130, 100, 0.1);
-  --calc-row-even: rgba(255, 255, 255, 0.02);
-  --calc-row-odd: rgba(255, 255, 255, 0.04);
-  --calc-inner-bg: rgba(42, 0, 0, 0.08);
-  --calc-inner-border: rgba(150, 180, 255, 0.15);
-  --calc-item-bg: rgba(37, 1, 1, 0.95);
-  --calc-item-border: rgba(200, 100, 80, 0.15);
-  --calc-item-hover-bg: rgba(53, 2, 2, 0.95);
-  --calc-item-hover-border: rgba(255, 160, 255, 0.2);
-  --calc-input-bg: rgba(58, 33, 58, 0.18);
-  --calc-input-border: rgba(180, 80, 60, 0.25);
-  --calc-input-color: #ffeaea;
-  --calc-slider-empty: rgba(60, 0, 0, 0.29);
-  --calc-header-icon-bg: rgba(58, 33, 58, 0.18);
-  --calc-header-icon-border: rgba(200, 100, 90, 0.12);
-}
-
-body.emerald-forest,
-.emerald-forest {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: linear-gradient(180deg, rgba(2, 12, 8, 0.9), rgba(8, 25, 18, 0.95));
-  --calc-toolbar-border: rgba(80, 180, 120, 0.12);
-  --calc-toolbar-shadow: 0 0 20px rgba(40, 160, 90, 0.06);
-  --calc-sidebar-bg: linear-gradient(180deg, rgba(2, 12, 8, 0.9), rgba(8, 25, 18, 0.95));
-  --calc-sidebar-border: rgba(80, 180, 120, 0.12);
-  --calc-sidebar-shadow: none;
-  --calc-text: #e0f0e8;
-  --calc-muted: #a0c4b0;
-  --calc-side-icon: #8aaa98;
-  --calc-side-icon-hover: #5eeaaa;
-  --calc-hover-bg: linear-gradient(135deg, rgba(20, 80, 50, 0.3), rgba(20, 60, 80, 0.25));
-  --calc-box-bg: linear-gradient(200deg, rgb(4, 18, 12), rgb(2, 12, 8));
-  --calc-box-border: rgba(80, 180, 120, 0.12);
-  --calc-box-shadow:
-    inset 0 0 10px rgba(40, 160, 90, 0.04),
-    0 0 15px rgba(60, 200, 130, 0.06);
-  --calc-grid-border: rgba(80, 180, 120, 0.1);
-  --calc-row-even: rgba(255, 255, 255, 0.02);
-  --calc-row-odd: rgba(255, 255, 255, 0.04);
-  --calc-inner-bg: rgba(5, 30, 18, 0.4);
-  --calc-inner-border: rgba(80, 180, 120, 0.15);
-  --calc-item-bg: rgba(4, 22, 14, 0.9);
-  --calc-item-border: rgba(80, 180, 120, 0.15);
-  --calc-item-hover-bg: rgba(10, 35, 22, 0.95);
-  --calc-item-hover-border: rgba(94, 234, 170, 0.25);
-  --calc-input-bg: rgba(5, 25, 15, 0.6);
-  --calc-input-border: rgba(80, 180, 120, 0.25);
-  --calc-input-color: #e0f0e8;
-  --calc-slider-empty: rgba(15, 55, 35, 0.4);
-  --calc-header-icon-bg: rgba(5, 25, 15, 0.6);
-  --calc-header-icon-border: rgba(80, 180, 120, 0.2);
-}
-
-body.graphite-pop,
-.graphite-pop {
-  --calc-shell-bg: #1a1a1a;
-  --calc-partition-bg: #1a1a1a;
-  --calc-toolbar-bg: #222222;
-  --calc-toolbar-border: rgba(0, 229, 255, 0.08);
-  --calc-toolbar-shadow: none;
-  --calc-sidebar-bg: #222222;
-  --calc-sidebar-border: rgba(0, 229, 255, 0.08);
-  --calc-sidebar-shadow: none;
-  --calc-text: #e8e8e8;
-  --calc-muted: #999999;
-  --calc-side-icon: #888888;
-  --calc-side-icon-hover: #00e5ff;
-  --calc-hover-bg: rgba(0, 229, 255, 0.06);
-  --calc-box-bg: #252525;
-  --calc-box-border: rgba(0, 229, 255, 0.1);
-  --calc-box-shadow: 0 0 12px rgba(0, 229, 255, 0.04);
-  --calc-grid-border: rgba(255, 255, 255, 0.06);
-  --calc-row-even: rgba(255, 255, 255, 0.02);
-  --calc-row-odd: rgba(255, 255, 255, 0.04);
-  --calc-inner-bg: #2a2a2a;
-  --calc-inner-border: rgba(0, 229, 255, 0.1);
-  --calc-item-bg: rgba(46, 46, 46, 0.51);
-  --calc-item-border: rgba(0, 229, 255, 0.1);
-  --calc-item-hover-bg: #363636;
-  --calc-item-hover-border: rgba(255, 64, 129, 0.2);
-  --calc-input-bg: #1f1f1f;
-  --calc-input-border: rgba(0, 229, 255, 0.2);
-  --calc-input-color: #e8e8e8;
-  --calc-slider-empty: #3a3a3a;
-  --calc-header-icon-bg: rgba(42, 42, 42, 0.49);
-  --calc-header-icon-border: rgba(0, 229, 255, 0.12);
-}
-
-body.frosted-aurora,
-.frosted-aurora {
-  --calc-shell-bg: transparent;
-  --calc-partition-bg: transparent;
-  --calc-toolbar-bg: rgba(255, 255, 255, 0.16);
-  --calc-toolbar-border: rgba(255, 255, 255, 0.18);
-  --calc-toolbar-shadow: none;
-  --calc-toolbar-backdrop: blur(20px) saturate(160%);
-  --calc-sidebar-bg: rgba(255, 255, 255, 0.16);
-  --calc-sidebar-border: rgba(255, 255, 255, 0.18);
-  --calc-sidebar-shadow: none;
-  --calc-sidebar-backdrop: blur(20px) saturate(160%);
-  --calc-text: #001f37;
-  --calc-muted: #274c6b;
-  --calc-side-icon: #001f37;
-  --calc-side-icon-hover: #001f37;
-  --calc-hover-bg: rgba(0, 0, 0, 0.13);
-  --calc-box-bg: rgba(255, 255, 255, 0.12);
-  --calc-box-border: rgba(255, 255, 255, 0.25);
-  --calc-box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.08),
-    0 0 15px rgba(120, 160, 255, 0.1);
-  --calc-box-backdrop: blur(10px) saturate(160%);
-  --calc-grid-border: rgba(255, 255, 255, 0.49);
-  --calc-row-even: rgba(255, 255, 255, 0.1);
-  --calc-row-odd: rgba(255, 255, 255, 0.19);
-  --calc-inner-bg: rgba(255, 255, 255, 0.16);
-  --calc-inner-border: rgba(255, 255, 255, 0.25);
-  --calc-item-bg: rgba(255, 255, 255, 0.12);
-  --calc-item-border: rgba(255, 255, 255, 0.25);
-  --calc-item-hover-bg: linear-gradient(135deg, rgba(255, 250, 255, 0.45), rgba(230, 255, 250, 0.47));
-  --calc-item-hover-border: rgba(255, 255, 255, 0.34);
-  --calc-input-bg: rgba(255, 255, 255, 0.1);
-  --calc-input-border: rgba(255, 255, 255, 0.21);
-  --calc-input-color: #001f37;
-  --calc-slider-empty: rgba(255, 255, 255, 0.25);
-  --calc-header-icon-bg: rgba(255, 255, 255, 0.2);
-  --calc-header-icon-border: rgba(255, 255, 255, 0.25);
-}
-
-body.blur-off,
-.blur-off {
-  --calc-toolbar-backdrop: none;
-  --calc-sidebar-backdrop: none;
-  --calc-box-backdrop: none;
-}
-
-
-.blur-off .frosted-aurora * {
-  backdrop-filter: none !important;
-}
-
-body.blur-off.frosted-aurora,
-.blur-off.frosted-aurora {
-  --calc-toolbar-bg: rgba(255, 255, 255, 0.26);
-  --calc-sidebar-bg: rgba(255, 255, 255, 0.26);
-  --calc-box-bg: rgba(255, 255, 255, 0.25);
-  --calc-inner-bg: rgba(255, 255, 255, 0.2);
+:is(.highlight:not(.effect-label-value, h1, h2, h3, h4), .echo-slot-title, .echo-name, .rich-description strong) {
+  text-decoration: underline;
 }
 
 .hamburger-button span {
-  background-color: var(--calc-side-icon);
+  background-color: var(--text);
 }
 
 .sidebar-button,
 .sidebar-sub-button,
 .icon-slot,
-.sidebar-button .icon-slot svg,
-.sidebar-sub-button .icon-slot svg,
+.sidebar-button .icon-slot svg:not(.icon-sun, .icon-moon),
+.sidebar-sub-button .icon-slot svg:not(.icon-sun, .icon-moon),
 .sidebar-button .label-text,
 .sidebar-sub-button .label-text {
-  color: var(--calc-side-icon);
+  color: var(--text);
+  opacity: 0.8;
 }
 
 .sidebar-button:hover,
 .sidebar-sub-button:hover {
-  background: var(--calc-hover-bg);
+  background: var(--hover, color-mix(in srgb, var(--accent) 8%, transparent));
+  opacity: 1;
 }
 
-.sidebar-button:hover .icon-slot svg,
-.sidebar-sub-button:hover .icon-slot svg {
-  color: var(--calc-side-icon-hover);
+.sidebar-button:hover .icon-slot svg:not(.icon-sun, .icon-moon),
+.sidebar-sub-button:hover .icon-slot svg:not(.icon-sun, .icon-moon) {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .resonator-avatar {
-  background: var(--calc-header-icon-bg);
-  border-color: var(--calc-header-icon-border);
+  background: var(--hdr-bg);
+  border-color: var(--hdr-border);
 }
 
 .resonator-heading h3,
@@ -816,7 +316,7 @@ body.blur-off.frosted-aurora,
 .stat-value,
 .stat-total,
 .damage-grid div {
-  color: var(--calc-text);
+  color: var(--text);
 }
 
 .pane-hint,
@@ -825,67 +325,134 @@ body.blur-off.frosted-aurora,
 .multiplier-value,
 .inherent-skill p,
 .inherent-lock {
-  color: var(--calc-muted);
+  color: var(--muted);
 }
 
 .stats-grid {
-  border-color: var(--calc-grid-border);
+  border-color: var(--grid-border);
 }
 
 .stat-row:nth-child(even) {
-  background: var(--calc-row-even);
+  background: var(--row-even);
 }
 
 .stat-row:nth-child(odd) {
-  background: var(--calc-row-odd);
+  background: var(--row-odd);
 }
 
-.char-menu-item,
-.ui-pill-button,
-.rarity-chip,
-.view-toggle-button,
-.trace-icon,
-.chip,
-.danger-btn {
-  background: var(--calc-item-bg);
-  border: 1px solid var(--calc-item-border);
+.trace-icon {
+  background: var(--item-bg);
+  border: 1px solid var(--item-border);
+}
+
+.char-menu-item {
+  background: var(--ctrl-bg-1);
+  border: var(--ui-pill-border);
+  color: var(--ui-pill-color);
+  box-shadow: var(--ui-pill-shadow);
 }
 
 .char-menu-header {
-  border-bottom-color: var(--calc-inner-border);
+  border-bottom-color: var(--inner-border);
 }
 
-.char-menu-item,
-.ui-pill-button,
-.rarity-chip,
-.view-toggle-button,
-.skill-info-button,
-.chip,
-.danger-btn {
-  color: var(--calc-text);
+.skill-info-button {
+  color: var(--text);
 }
 
-.char-menu-item:hover,
 .char-menu-item.selected,
-.ui-pill-button.active,
-.rarity-chip.active,
-.view-toggle-button.active,
+.rarity-chip.active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 56%, var(--calc-item-border, var(--item-border)));
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.28), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+  box-shadow:
+    inset 0 1px #ffffff38,
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.ui-pill-button.active {
+  transform: translateY(-1px);
+  border-color: var(--ctrl-on-border);
+  background: var(--ctrl-on-bg);
+  color: var(--ctrl-on-color, var(--ui-pill-color));
+  box-shadow: var(--ctrl-on-shadow);
+  font-weight: var(--ctrl-on-fw, 700) !important;
+  text-shadow: var(--ctrl-on-text-shadow, none);
+}
+
+.view-toggle-button.active {
+  transform: none;
+  border-color: color-mix(in srgb, var(--resonator-accent) 1%, var(--item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 9%, transparent);
+  color: color-mix(in srgb, var(--resonator-accent) 62%, var(--ui-pill-color));
+  box-shadow: none;
+  font-weight: var(--ctrl-on-fw, 700) !important;
+  text-shadow: var(--ctrl-on-text-shadow, none);
+}
+
+.view-toggle-button {
+  overflow: hidden;
+}
+
+.view-toggle-button::before {
+  display: none;
+}
+
+.view-toggle-button::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--resonator-accent);
+  opacity: 0;
+  transform: scaleX(0.3);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+.view-toggle-button:is(:hover, :focus-visible) {
+  transform: none;
+  border-color: color-mix(in srgb, var(--resonator-accent) 1%, var(--item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 9%, transparent);
+  color: color-mix(in srgb, var(--resonator-accent) 62%, var(--ui-pill-color));
+  box-shadow: none;
+}
+
+.view-toggle-button:is(:hover, :focus-visible)::after,
+.view-toggle-button.active::after {
+  opacity: 0.65;
+  transform: scaleX(1);
+}
+
+.rotation-view-toggle .view-toggle-button.active {
+  box-shadow: none;
+}
+
 .chip.active {
-  border-color: var(--ui-pill-active-border-color);
-  background: var(--ui-pill-active-bg);
-  color: var(--ui-pill-active-color);
-  box-shadow: var(--ui-pill-active-shadow);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 56%, var(--calc-item-border, var(--item-border)));
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.28), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+  box-shadow:
+    inset 0 1px #ffffff38,
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+  text-shadow: none;
 }
 
 .overview-badge-button.ui-pill-button-danger,
 .ui-pill-button.ui-pill-button-danger,
 .danger-btn {
-  color: color-mix(in srgb, var(--danger, #cc3f53) 88%, var(--calc-text)) !important;
-  border-color: color-mix(in srgb, var(--danger, #cc3f53) 46%, var(--calc-item-border)) !important;
-  background:
-    radial-gradient(circle at 22% 18%, color-mix(in srgb, white 14%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, white 8%, transparent), transparent 78%),
-    color-mix(in srgb, var(--danger, #cc3f53) 16%, var(--calc-item-bg)) !important;
+  color: color-mix(in srgb, var(--danger, #cc3f53) 88%, var(--text)) !important;
+  border-color: color-mix(in srgb, var(--danger, #cc3f53) 46%, var(--item-border)) !important;
+  background: color-mix(in srgb, var(--danger, #cc3f53) 16%, var(--item-bg)) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 0.7rem 1.2rem color-mix(in srgb, var(--danger, #cc3f53) 12%, transparent);
@@ -894,27 +461,18 @@ body.blur-off.frosted-aurora,
 .overview-badge-button.ui-pill-button-danger:is(:hover, :focus-visible),
 .ui-pill-button.ui-pill-button-danger:is(:hover, :focus-visible),
 .danger-btn:is(:hover, :focus-visible) {
-  color: color-mix(in srgb, var(--danger, #cc3f53) 94%, var(--calc-text)) !important;
-  border-color: color-mix(in srgb, var(--danger, #cc3f53) 62%, var(--calc-item-border)) !important;
-  background:
-    radial-gradient(circle at 22% 18%, color-mix(in srgb, white 18%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 78%),
-    color-mix(in srgb, var(--danger, #cc3f53) 22%, var(--calc-item-bg)) !important;
+  color: color-mix(in srgb, var(--danger, #cc3f53) 94%, var(--text)) !important;
+  border-color: color-mix(in srgb, var(--danger, #cc3f53) 62%, var(--item-border)) !important;
+  background: color-mix(in srgb, var(--danger, #cc3f53) 22%, var(--item-bg)) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 1rem 1.7rem color-mix(in srgb, var(--danger, #cc3f53) 18%, transparent);
 }
 
-.trace-icon.active {
-  border-color: var(--ui-trace-active-border-color);
-  background: var(--ui-trace-active-bg);
-  color: var(--ui-pill-active-color);
-}
-
 .calc-pane label:not(.toggle-row, .team-state-target),
 .calc-pane > label {
   gap: 0.48rem;
-  color: var(--calc-text);
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -923,9 +481,9 @@ input[type='number'],
 input[type='text'],
 textarea,
 select {
-  background: var(--calc-input-bg);
-  border: 1px solid var(--calc-input-border);
-  color: var(--calc-input-color);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--input-color);
   box-shadow: none;
   transition: ease all 0.3s;
   width: 80px;
@@ -937,8 +495,12 @@ select {
 input[type='number']:hover,
 input[type='text']:hover,
 textarea:hover,
-select:hover {
-  border-color: color-mix(in srgb, var(--resonator-accent) 28%, var(--calc-input-border));
+select:hover,
+input[type='number']:focus,
+input[type='text']:focus,
+textarea:focus,
+select:focus {
+  border-color: color-mix(in srgb, var(--resonator-accent) 28%, var(--input-border));
 }
 
 input[type='number']:focus,
@@ -946,7 +508,6 @@ input[type='text']:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: #888;
   box-shadow: none;
 }
 
@@ -972,9 +533,10 @@ input[type='checkbox'] {
   height: 20px;
   flex: 0 0 auto;
   margin: 0;
-  border: 2px solid #888;
+  border: 2px solid var(--cb-border, #888);
   border-radius: 6px;
-  background-color: #fff;
+  background: var(--cb-bg, #fff);
+  box-shadow: var(--cb-shadow, none);
   position: relative;
   cursor: pointer;
   transition: all 0.4s ease;
@@ -996,8 +558,9 @@ input[type='checkbox']::after {
 }
 
 input[type='checkbox']:checked {
-  background-color: var(--resonator-accent);
-  border-color: var(--resonator-accent);
+  background: var(--cb-on-bg, var(--resonator-accent));
+  border-color: var(--cb-on-border, var(--resonator-accent));
+  box-shadow: var(--cb-on-shadow, none);
   animation: pulseCheck 0.3s ease;
 }
 
@@ -1128,28 +691,8 @@ input[type='range']::-moz-range-thumb:hover {
   background: var(--ui-slider-thumb-hover-bg);
 }
 
-.dark,
-.dark-alt,
-.cosmic-rainbow,
-.scarlet-nebula,
-.emerald-forest,
-.graphite-pop {
-  --ui-slider-empty: #333;
-  --ui-slider-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.05);
-}
-
-.dark input[type='checkbox'],
-.dark-alt input[type='checkbox'],
-.cosmic-rainbow input[type='checkbox'],
-.scarlet-nebula input[type='checkbox'],
-.emerald-forest input[type='checkbox'],
-.graphite-pop input[type='checkbox'] {
-  background-color: #1f1f1f;
-  border-color: #777;
-}
-
 .toggle-row span {
-  color: var(--calc-text);
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -1166,6 +709,7 @@ input[type='range']::-moz-range-thumb:hover {
 .state-control-field {
   display: grid;
   gap: 0.42rem;
+  width: 100%;
 }
 
 .state-control-field.is-disabled {
@@ -1192,17 +736,54 @@ input[type='range']::-moz-range-thumb:hover {
   font-size: 0.82rem;
 }
 
-.toggle-row {
+.toggle-row,
+.state-control-label,
+.stack label:not(.team-state-target),
+.state-control-field > label:not(.team-state-target),
+.team-state-control label:not(.toggle-row, .team-state-target, .state-control-label) {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.72rem;
-  border: unset !important;
-  border-radius: 10px;
+  gap: 0.8rem;
+  border-radius: 0.95rem;
+  justify-content: space-between;
   padding: 0.5rem 0.6rem;
-  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
-  color: var(--muted);
-  font-size: 0.83rem;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--item-bg) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cb-bg) 28%, var(--item-border));
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+
+/* {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--item-bg) 96%, transparent);
+  align-items: center;
+}*/
+
+.toggle-row:has(input[type='checkbox']:checked),
+.toggle-row.is-active,
+.state-control-label.is-active,
+.stack label.is-active:not(.team-state-target),
+.state-control-field > label.is-active:not(.team-state-target),
+.team-state-control label.is-active:not(.toggle-row, .team-state-target, .state-control-label) {
+  border-color: color-mix(in srgb, var(--cb-on-border) 28%, var(--item-border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cb-on-border, var(--resonator-accent)) 70%, var(--item-border));
+}
+
+.toggle-row:has(input[type='checkbox']:focus-visible)::after {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cb-on-border, var(--resonator-accent)) 55%, transparent);
 }
 
 .toggle-row.is-disabled,
@@ -1210,27 +791,20 @@ label.is-disabled {
   opacity: 0.5;
 }
 
-.toggle-row.is-disabled {
+.toggle-row.is-disabled::after {
   border-style: dashed;
 }
 
 .state-control-reason {
   margin-top: -0.08rem;
-  color: color-mix(in srgb, #c96d1a 82%, var(--calc-text));
+  color: color-mix(in srgb, #c96d1a 82%, var(--text));
   font-size: 0.75rem;
   line-height: 1.35;
   font-weight: 600;
 }
 
-.chip {
-  opacity: 0.5;
-}
-
 .rarity-chip {
   --ui-pill-min-height: auto;
-  --ui-pill-padding-y: 0.15rem;
-  --ui-pill-padding-x: 0.46rem;
-  --ui-pill-font-size: 0.78rem;
 }
 
 .resonator-grid {
@@ -1241,8 +815,8 @@ label.is-disabled {
 
 .resonator-card {
   text-align: left;
-  border: 1px solid var(--panel-border);
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   color: var(--text);
   border-radius: 10px;
   padding: 0.58rem;
@@ -1251,8 +825,8 @@ label.is-disabled {
 
 .resonator-card:hover,
 .resonator-card.active {
-  border-color: color-mix(in srgb, var(--accent) 58%, var(--panel-border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
 }
 
 .resonator-name {
@@ -1285,8 +859,8 @@ label.is-disabled {
   height: 92px;
   object-fit: cover;
   border-radius: 50%;
-  border: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
   cursor: pointer;
   transition: transform 0.2s ease;
@@ -1340,8 +914,8 @@ label.is-disabled {
   width: min(900px, 90vw);
   max-height: 70vh;
   border-radius: 12px;
-  border: 1px solid var(--panel-border);
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   box-shadow: var(--shadow);
   overflow: hidden;
   display: flex;
@@ -1362,7 +936,7 @@ label.is-disabled {
 }
 
 .char-menu-header {
-  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   padding: 0.62rem 0.72rem;
   display: grid;
   gap: 0.6rem;
@@ -1429,9 +1003,9 @@ label.is-disabled {
 }
 
 .char-menu-item {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
   color: var(--text);
   padding: 0.56rem;
   text-align: left;
@@ -1442,10 +1016,9 @@ label.is-disabled {
   cursor: pointer;
 }
 
-.char-menu-item:hover,
-.char-menu-item.selected {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--panel-border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-strong));
+.char-menu-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
 }
 
 .char-menu-main {
@@ -1509,6 +1082,8 @@ label.is-disabled {
 }
 
 .skills-settings {
+  display: grid;
+  gap: 0.72rem;
   position: relative;
 }
 
@@ -1519,14 +1094,10 @@ label.is-disabled {
   width: 1.22rem;
   height: 1.22rem;
   border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   color: var(--muted);
   font-size: 0.8rem;
-}
-
-.skills-modal-overlay {
-  z-index: 1200;
 }
 
 .skills-modal-content {
@@ -1538,6 +1109,10 @@ label.is-disabled {
   gap: 0.72rem;
 }
 
+.skills-modal-overlay {
+  z-index: 1200;
+}
+
 .rotation-view-toggle {
   display: flex;
   flex-wrap: wrap;
@@ -1547,8 +1122,8 @@ label.is-disabled {
 
 .skills-modal-content-area {
   border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
   padding: 0.72rem;
   overflow-y: auto;
   max-height: 52vh;
@@ -1559,12 +1134,11 @@ label.is-disabled {
 }
 
 .rich-description.main-echo-description.guides {
-  margin: 0 0 0.5rem;
   padding: 0.5rem;
   border: none;
   border-radius: 0;
   background: transparent;
-  color: var(--calc-text);
+  color: var(--text);
   line-height: 1.4;
   font-size: 0.9rem;
   white-space: unset;
@@ -1598,7 +1172,7 @@ label.is-disabled {
 }
 
 .multipliers-table td {
-  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 84%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   padding: 0.42rem 0.36rem;
   vertical-align: top;
 }
@@ -1618,7 +1192,7 @@ label.is-disabled {
 
 .inherent-skills {
   display: grid;
-  gap: var(--ui-panel-card-gap);
+  gap: var(--ui-panel-section-gap);
 }
 
 .inherent-skill + .inherent-skill {
@@ -1665,10 +1239,10 @@ label.is-disabled {
 }
 
 .trace-icon {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.3rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1685,15 +1259,12 @@ label.is-disabled {
   margin-top: 0;
   position: relative;
   display: grid;
-  gap: var(--ui-panel-card-gap);
-  /*
-  border: var(--ui-panel-card-border);
-  */
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
   border-radius: var(--ui-panel-card-radius);
   padding: var(--ui-panel-card-padding);
   box-shadow: var(--ui-panel-card-shadow);
   overflow: hidden;
-  color: var(--calc-text);
+  color: var(--text);
 }
 
 .control-panel-box h4 {
@@ -1743,7 +1314,7 @@ label.is-disabled {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--calc-text);
+  color: var(--text);
 }
 
 .sequence-card-badge {
@@ -1768,7 +1339,7 @@ label.is-disabled {
   font-size: var(--ui-panel-card-title-size);
   font-weight: var(--ui-panel-card-title-weight);
   letter-spacing: var(--ui-panel-card-title-spacing);
-  color: var(--calc-text);
+  color: var(--text);
 }
 
 .sequence-card-body {
@@ -1790,7 +1361,7 @@ label.is-disabled {
 }
 
 .echo-row {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.58rem;
   display: grid;
@@ -1806,10 +1377,10 @@ label.is-disabled {
   display: flex;
   justify-content: space-between;
   gap: 0.6rem;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.44rem 0.55rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
   font-size: 0.82rem;
 }
 
@@ -1825,10 +1396,10 @@ label.is-disabled {
 }
 
 .chain-row {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.52rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
 }
 
 .chain-head {
@@ -1840,7 +1411,7 @@ label.is-disabled {
 }
 
 .chain-badge {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.14rem 0.42rem;
   font-size: 0.7rem;
@@ -1849,8 +1420,8 @@ label.is-disabled {
 
 .chain-badge.active {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--panel-border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
 }
 
 .chain-summary {
@@ -1866,10 +1437,10 @@ label.is-disabled {
 }
 
 .trace-pill {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.42rem 0.5rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
   display: flex;
   justify-content: space-between;
   gap: 0.4rem;
@@ -1877,7 +1448,7 @@ label.is-disabled {
 }
 
 .soft-empty {
-  border: 1px dashed var(--panel-border);
+  border: 1px dashed var(--border);
   border-radius: 10px;
   padding: 0.56rem;
   color: var(--muted);
@@ -1885,14 +1456,14 @@ label.is-disabled {
 }
 
 .rotation-row {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.55rem;
   display: grid;
   grid-template-columns: 1fr 90px;
   gap: 0.56rem;
   align-items: center;
-  background: var(--surface-strong);
+  background: var(--surface-2);
 }
 
 .rotation-entry-title {
@@ -1923,7 +1494,7 @@ label.is-disabled {
 }
 
 .results-meta span {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
   font-size: 0.73rem;
@@ -1938,10 +1509,10 @@ label.is-disabled {
 }
 
 .kpi-card {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.58rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
 }
 
 .kpi-label {
@@ -1995,8 +1566,8 @@ label.is-disabled {
   position: relative;
   height: 0.52rem;
   border-radius: 999px;
-  border: 1px solid var(--panel-border);
-  background: color-mix(in srgb, var(--surface-strong) 75%, transparent);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
   overflow: hidden;
 }
 
@@ -2005,7 +1576,7 @@ label.is-disabled {
   inset: 0 auto 0 0;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
 .timeline-value {
@@ -2021,7 +1592,7 @@ label.is-disabled {
 
 .dmg-table th,
 .dmg-table td {
-  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   text-align: left;
   padding: 0.36rem 0.21rem;
 }
@@ -2079,10 +1650,10 @@ label.is-disabled {
 }
 
 .card {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.75rem;
-  background: var(--surface-strong);
+  background: var(--surface-2);
   display: grid;
   gap: 0.55rem;
 }

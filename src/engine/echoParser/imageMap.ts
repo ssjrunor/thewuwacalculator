@@ -7,11 +7,11 @@
 import { listEchoes } from '@/domain/services/echoCatalogService'
 import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
 
-let echoImageMapCache: Record<string, string> | null = null
-let setNameImageMapCache: Record<string, string> | null = null
-let setNameToIdCache: Record<string, number> | null = null
+let echoMgMapCch: Record<string, string> | null = null
+let setNameMgMap: Record<string, string> | null = null
+let setNameToIdC: Record<string, number> | null = null
 
-function buildEchoImageMap(): Record<string, string> {
+function mkEchoMgMap(): Record<string, string> {
   const map: Record<string, string> = {}
   for (const echo of listEchoes()) {
     if (echo.name && echo.icon) {
@@ -30,20 +30,20 @@ function buildSetMaps(): void {
       idMap[set.name] = set.id
     }
   }
-  setNameImageMapCache = imageMap
-  setNameToIdCache = idMap
+  setNameMgMap = imageMap
+  setNameToIdC = idMap
 }
 
-export function getEchoImageMap(): Record<string, string> {
-  return (echoImageMapCache ??= buildEchoImageMap())
+export function getEchoMgMap(): Record<string, string> {
+  return (echoMgMapCch ??= mkEchoMgMap())
 }
 
-export function getSetNameImageMap(): Record<string, string> {
-  if (!setNameImageMapCache) buildSetMaps()
-  return setNameImageMapCache!
+export function getSetNameMg(): Record<string, string> {
+  if (!setNameMgMap) buildSetMaps()
+  return setNameMgMap!
 }
 
-export function getSetNameToId(): Record<string, number> {
-  if (!setNameToIdCache) buildSetMaps()
-  return setNameToIdCache!
+export function getSetNameTo(): Record<string, number> {
+  if (!setNameToIdC) buildSetMaps()
+  return setNameToIdC!
 }

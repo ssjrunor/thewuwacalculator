@@ -4,10 +4,10 @@
                and control-path keys used by runtime state controls.
 */
 
-import type { SourceOwnerScope } from '@/domain/gameData/contracts'
+import type { SrcOwnScp } from '@/domain/gameData/contracts'
 
 // validate and normalize one owner/control key segment
-function assertValidKeyPart(value: string, field: string): string {
+function ssrtVldKeyPa(value: string, field: string): string {
   const trimmed = value.trim()
 
   if (!trimmed) {
@@ -26,17 +26,17 @@ function assertValidKeyPart(value: string, field: string): string {
 }
 
 // create a stable owner key
-export function makeOwnerKey(scope: SourceOwnerScope, sourceId: string, ownerId: string): string {
+export function makeOwnerKey(scope: SrcOwnScp, sourceId: string, ownerId: string): string {
   return [
-    assertValidKeyPart(scope, 'scope'),
-    assertValidKeyPart(sourceId, 'sourceId'),
-    assertValidKeyPart(ownerId, 'ownerId'),
+    ssrtVldKeyPa(scope, 'scope'),
+    ssrtVldKeyPa(sourceId, 'sourceId'),
+    ssrtVldKeyPa(ownerId, 'ownerId'),
   ].join(':')
 }
 
 // parse an owner key into its parts
-export function parseOwnerKey(ownerKey: string): {
-  scope: SourceOwnerScope
+export function prsOwnKey(ownerKey: string): {
+  scope: SrcOwnScp
   sourceId: string
   ownerId: string
 } {
@@ -47,19 +47,19 @@ export function parseOwnerKey(ownerKey: string): {
   }
 
   return {
-    scope: scope as SourceOwnerScope,
+    scope: scope as SrcOwnScp,
     sourceId,
     ownerId,
   }
 }
 
 // create a stable control key from an owner key and state id
-export function makeControlKey(ownerKey: string, stateId: string): string {
-  return `${ownerKey}:${assertValidKeyPart(stateId, 'stateId')}`
+export function mkCntrKey(ownerKey: string, stateId: string): string {
+  return `${ownerKey}:${ssrtVldKeyPa(stateId, 'stateId')}`
 }
 
 // parse a control key into owner key and state id
-export function parseControlKey(controlKey: string): {
+export function prsCntrKey(controlKey: string): {
   ownerKey: string
   stateId: string
 } {
@@ -76,6 +76,6 @@ export function parseControlKey(controlKey: string): {
 }
 
 // map a control key to its runtime controls path
-export function makeControlPath(controlKey: string): string {
+export function mkCntrPath(controlKey: string): string {
   return `runtime.state.controls.${controlKey}`
 }

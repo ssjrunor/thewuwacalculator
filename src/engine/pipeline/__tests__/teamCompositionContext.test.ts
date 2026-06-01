@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
-import type { SkillDefinition } from '@/domain/entities/stats'
-import type { SourceStateDefinition } from '@/domain/gameData/contracts'
-import { getNegativeEffectEffectiveStacks, resolveNegativeEffectsForRuntime } from '@/domain/gameData/negativeEffects'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
+import type { SkillDef } from '@/domain/entities/stats'
+import type { SourceState } from '@/domain/gameData/contracts'
+import { getNegFfctFf, negEffectsFor } from '@/domain/gameData/negativeEffects'
 import { getResonatorById } from '@/domain/services/catalogService'
-import { createDefaultResonatorRuntime, makeDefaultTeamMemberRuntime } from '@/domain/state/defaults'
-import { isSkillVisible, resolveSkill } from '@/engine/pipeline/resolveSkill'
-import { evaluateSourceStateEnabled } from '@/modules/calculator/model/sourceStateEvaluation'
+import { makeResRuntime, makeTeamMember } from '@/domain/state/defaults'
+import { isSkllVsbl, resolveSkill } from '@/engine/pipeline/resolveSkill'
+import { evalSrcSttOn } from '@/modules/calculator/model/sourceEval.ts'
 
 const CHISA_UNRAVELING_CONTROL_KEY = 'team:1508:team:1508:unraveling_law_zero:active'
 
@@ -19,11 +19,11 @@ function withTeam(
     throw new Error(`missing active resonator ${activeId}`)
   }
 
-  const runtime = createDefaultResonatorRuntime(active)
+  const runtime = makeResRuntime(active)
   runtime.build.team = [activeId, teammateIds[0] ?? null, teammateIds[1] ?? null]
   runtime.teamRuntimes = [
-    teammateIds[0] ? makeDefaultTeamMemberRuntime(getResonatorById(teammateIds[0])!) : null,
-    teammateIds[1] ? makeDefaultTeamMemberRuntime(getResonatorById(teammateIds[1])!) : null,
+    teammateIds[0] ? makeTeamMember(getResonatorById(teammateIds[0])!) : null,
+    teammateIds[1] ? makeTeamMember(getResonatorById(teammateIds[1])!) : null,
   ]
 
   return runtime
@@ -36,10 +36,10 @@ describe('team composition context', () => {
       throw new Error('missing resonator 1207')
     }
 
-    const runtime = createDefaultResonatorRuntime(lupa)
+    const runtime = makeResRuntime(lupa)
     runtime.build.team = [lupa.id, '1510', '1506']
 
-    const skill: SkillDefinition = {
+    const skill: SkillDef = {
       id: 'team-aware-skill',
       label: 'Team Aware Skill',
       tab: 'resonanceSkill',
@@ -62,10 +62,11 @@ describe('team composition context', () => {
       hits: [{ count: 1, multiplier: 1 }],
     }
 
-    expect(isSkillVisible(runtime, skill)).toBe(true)
+    expect(isSkllVsbl(runtime, skill)).toBe(true)
 
-    runtime.build.team = [lupa.id, '1506', null]
-    expect(isSkillVisible(runtime, skill)).toBe(false)
+    const runtimeWithoutRequiredMember = makeResRuntime(lupa)
+    runtimeWithoutRequiredMember.build.team = [lupa.id, '1506', null]
+    expect(isSkllVsbl(runtimeWithoutRequiredMember, skill)).toBe(false)
   })
 
   it('exposes team attribute counts to source-state conditions', () => {
@@ -74,13 +75,13 @@ describe('team composition context', () => {
       throw new Error('missing resonator 1207')
     }
 
-    const fusionTeamRuntime = createDefaultResonatorRuntime(lupa)
+    const fusionTeamRuntime = makeResRuntime(lupa)
     fusionTeamRuntime.build.team = [lupa.id, '1208', '1209']
 
-    const mixedTeamRuntime = createDefaultResonatorRuntime(lupa)
+    const mixedTeamRuntime = makeResRuntime(lupa)
     mixedTeamRuntime.build.team = [lupa.id, '1510', '1506']
 
-    const state: SourceStateDefinition = {
+    const state: SourceState = {
       id: 'fusion-team-state',
       label: 'Fusion Team State',
       source: { type: 'resonator', id: lupa.id },
@@ -96,14 +97,14 @@ describe('team composition context', () => {
       },
     }
 
-    expect(evaluateSourceStateEnabled(fusionTeamRuntime, fusionTeamRuntime, state, fusionTeamRuntime)).toBe(true)
-    expect(evaluateSourceStateEnabled(mixedTeamRuntime, mixedTeamRuntime, state, mixedTeamRuntime)).toBe(false)
+    expect(evalSrcSttOn(fusionTeamRuntime, fusionTeamRuntime, state, fusionTeamRuntime)).toBe(true)
+    expect(evalSrcSttOn(mixedTeamRuntime, mixedTeamRuntime, state, mixedTeamRuntime)).toBe(false)
   })
 
   it('resolves visible team negative effects from the resonator catalog, keeps the highest max override, and applies global max increases', () => {
     const runtime = withTeam('1207', ['1507', '1508'])
     runtime.state.controls[CHISA_UNRAVELING_CONTROL_KEY] = true
-    const entries = resolveNegativeEffectsForRuntime(runtime)
+    const entries = negEffectsFor(runtime)
 
     expect(entries.map((entry) => entry.key)).toEqual(['spectroFrazzle', 'havocBane'])
     expect(entries.find((entry) => entry.key === 'spectroFrazzle')?.max).toBe(63)
@@ -113,13 +114,13 @@ describe('team composition context', () => {
   it('shows electro rage only when electro flare overflows past its default cap', () => {
     const runtime = withTeam('1207', ['1307', '1508'])
     runtime.state.controls[CHISA_UNRAVELING_CONTROL_KEY] = true
-    const hiddenEntries = resolveNegativeEffectsForRuntime(runtime)
+    const hiddenEntries = negEffectsFor(runtime)
 
     expect(hiddenEntries.map((entry) => entry.key)).toEqual(['havocBane', 'electroFlare'])
     expect(hiddenEntries.find((entry) => entry.key === 'electroRage')).toBeUndefined()
 
     runtime.state.combat.electroFlare = 11
-    const visibleEntries = resolveNegativeEffectsForRuntime(runtime)
+    const visibleEntries = negEffectsFor(runtime)
 
     expect(visibleEntries.map((entry) => entry.key)).toEqual(['havocBane', 'electroFlare', 'electroRage'])
     expect(visibleEntries.find((entry) => entry.key === 'electroFlare')?.max).toBe(13)
@@ -127,7 +128,7 @@ describe('team composition context', () => {
   })
 
   it('supports keyed max additions and conditional max rules for specific negative effects', () => {
-    const detailsById = getResonatorDetailsById()
+    const detailsById = getResDtlsBy()
     const originalSources = detailsById['1508']?.negativeEffectSources
 
     if (!detailsById['1508']) {
@@ -151,19 +152,19 @@ describe('team composition context', () => {
     try {
       const runtime = withTeam('1207', ['1307', '1508'])
       runtime.state.controls[CHISA_UNRAVELING_CONTROL_KEY] = true
-      const baseEntries = resolveNegativeEffectsForRuntime(runtime)
+      const baseEntries = negEffectsFor(runtime)
 
       expect(baseEntries.find((entry) => entry.key === 'electroFlare')?.max).toBe(15)
       expect(baseEntries.find((entry) => entry.key === 'electroRage')).toBeUndefined()
       expect(baseEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(6)
 
       runtime.state.combat.electroFlare = 11
-      const overflowEntries = resolveNegativeEffectsForRuntime(runtime)
+      const overflowEntries = negEffectsFor(runtime)
 
       expect(overflowEntries.find((entry) => entry.key === 'electroRage')?.max).toBe(15)
 
       runtime.state.controls['team:1508:sequence:1508:s6:active'] = true
-      const gatedEntries = resolveNegativeEffectsForRuntime(runtime)
+      const gatedEntries = negEffectsFor(runtime)
 
       expect(gatedEntries.find((entry) => entry.key === 'electroFlare')?.max).toBe(20)
       expect(gatedEntries.find((entry) => entry.key === 'electroRage')?.max).toBe(20)
@@ -174,7 +175,7 @@ describe('team composition context', () => {
   })
 
   it('supports includes conditions against source negative-effect metadata', () => {
-    const detailsById = getResonatorDetailsById()
+    const detailsById = getResDtlsBy()
     const originalSources = detailsById['1508']?.negativeEffectSources
 
     if (!detailsById['1508']) {
@@ -198,7 +199,7 @@ describe('team composition context', () => {
 
     try {
       const withoutFusionBurst = withTeam('1207', ['1508', null])
-      const baseEntries = resolveNegativeEffectsForRuntime(withoutFusionBurst)
+      const baseEntries = negEffectsFor(withoutFusionBurst)
 
       expect(baseEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(3)
       expect(baseEntries.find((entry) => entry.key === 'fusionBurst')).toBeUndefined()
@@ -220,7 +221,7 @@ describe('team composition context', () => {
       ]
 
       const withFusionBurst = withTeam('1207', ['1508', null])
-      const boostedEntries = resolveNegativeEffectsForRuntime(withFusionBurst)
+      const boostedEntries = negEffectsFor(withFusionBurst)
 
       expect(boostedEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(8)
       expect(boostedEntries.find((entry) => entry.key === 'fusionBurst')?.max).toBe(15)
@@ -230,7 +231,7 @@ describe('team composition context', () => {
   })
 
   it('supports includes conditions against target negative-effect metadata', () => {
-    const detailsById = getResonatorDetailsById()
+    const detailsById = getResDtlsBy()
     const originalSources = detailsById['1508']?.negativeEffectSources
 
     if (!detailsById['1508']) {
@@ -254,12 +255,12 @@ describe('team composition context', () => {
 
     try {
       const nonFusionTarget = withTeam('1207', ['1508', null])
-      const baseEntries = resolveNegativeEffectsForRuntime(nonFusionTarget)
+      const baseEntries = negEffectsFor(nonFusionTarget)
 
       expect(baseEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(3)
 
       const fusionTarget = withTeam('1211', ['1508', null])
-      const boostedEntries = resolveNegativeEffectsForRuntime(fusionTarget)
+      const boostedEntries = negEffectsFor(fusionTarget)
 
       expect(boostedEntries.find((entry) => entry.key === 'havocBane')?.max).toBe(8)
       expect(boostedEntries.find((entry) => entry.key === 'fusionBurst')?.max).toBe(15)
@@ -271,7 +272,7 @@ describe('team composition context', () => {
   it('resolves Hiyuki glacio chafe behavior as fixed-max Glacio Bite', () => {
     const runtime = withTeam('1207', ['1108', null])
     runtime.state.combat.glacioChafe = 2
-    const entries = resolveNegativeEffectsForRuntime(runtime)
+    const entries = negEffectsFor(runtime)
     const glacioEntry = entries.find((entry) => entry.key === 'glacioChafe')
 
     expect(glacioEntry).toMatchObject({
@@ -281,7 +282,7 @@ describe('team composition context', () => {
       stackMode: 'fixedMax',
       sliderVisible: false,
     })
-    expect(getNegativeEffectEffectiveStacks(runtime, 'glacioChafe')).toBe(10)
+    expect(getNegFfctFf(runtime, 'glacioChafe')).toBe(10)
 
     const resolvedSkill = resolveSkill(runtime, {
       id: 'team-aware-glacio-chafe',
@@ -307,8 +308,8 @@ describe('team composition context', () => {
       throw new Error('missing resonator 1207')
     }
 
-    const runtime = createDefaultResonatorRuntime(lupa)
-    const skill: SkillDefinition = {
+    const runtime = makeResRuntime(lupa)
+    const skill: SkillDef = {
       id: 'team-aware-negative-effect',
       label: 'Spectro Frazzle',
       tab: 'negativeEffect',
@@ -324,11 +325,11 @@ describe('team composition context', () => {
     }
 
     runtime.build.team = [runtime.id, '1506', null]
-    runtime.teamRuntimes = [makeDefaultTeamMemberRuntime(getResonatorById('1506')!), null]
-    expect(isSkillVisible(runtime, skill)).toBe(true)
+    runtime.teamRuntimes = [makeTeamMember(getResonatorById('1506')!), null]
+    expect(isSkllVsbl(runtime, skill)).toBe(true)
 
     runtime.build.team = [runtime.id, '1508', null]
-    runtime.teamRuntimes = [makeDefaultTeamMemberRuntime(getResonatorById('1508')!), null]
-    expect(isSkillVisible(runtime, skill)).toBe(false)
+    runtime.teamRuntimes = [makeTeamMember(getResonatorById('1508')!), null]
+    expect(isSkllVsbl(runtime, skill)).toBe(false)
   })
 })

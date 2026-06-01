@@ -3,10 +3,10 @@
   Description: utility helpers.
 */
 
-import type { EchoDefinition } from '@/domain/entities/catalog'
-import { createEchoUid, type EchoInstance } from '@/domain/entities/runtime'
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
-import { getEchoById, listEchoes, listEchoesByCost } from '@/domain/services/echoCatalogService'
+import type { EchoDef } from '@/domain/entities/catalog'
+import { makeEchoUid, type EchoInstance } from '@/domain/entities/runtime'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
+import { getEchoById, listEchoes, listChsByCos } from '@/domain/services/echoCatalogService'
 
 export interface MainStatRecipe {
   cost: number
@@ -14,9 +14,9 @@ export interface MainStatRecipe {
 }
 
 // clone an equipped echo into a fresh slot instance with a new uid
-function cloneEchoForSlot(echo: EchoInstance, slotIndex: number): EchoInstance {
+function cloneEchoFor(echo: EchoInstance, slotIndex: number): EchoInstance {
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: echo.id,
     set: echo.set,
     mainEcho: slotIndex === 0,
@@ -30,32 +30,32 @@ function cloneEchoForSlot(echo: EchoInstance, slotIndex: number): EchoInstance {
 
 // build a new echo instance from catalog data while optionally preserving
 // substats and preferred set information from a source echo
-function buildEchoFromDefinition(
-    definition: EchoDefinition,
+function mkEchoFromDe(
+    definition: EchoDef,
     slotIndex: number,
     primaryKey: string,
     sourceEcho?: EchoInstance | null,
-    preferredSetId?: number | null,
+    prfrSetId?: number | null,
 ): EchoInstance {
   const cost = definition.cost
 
-  const setId = preferredSetId && definition.sets.includes(preferredSetId)
-      ? preferredSetId
+  const setId = prfrSetId && definition.sets.includes(prfrSetId)
+      ? prfrSetId
       : (definition.sets[0] ?? 0)
 
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: definition.id,
     set: setId,
     mainEcho: slotIndex === 0,
     mainStats: {
       primary: {
         key: primaryKey,
-        value: ECHO_PRIMARY_STATS[cost]?.[primaryKey] ?? 0,
+        value: ECHO_MAIN_STATS[cost]?.[primaryKey] ?? 0,
       },
       secondary: {
-        key: ECHO_SECONDARY_STATS[cost]?.key ?? 'atkFlat',
-        value: ECHO_SECONDARY_STATS[cost]?.value ?? 0,
+        key: ECHO_SIDE_STATS[cost]?.key ?? 'atkFlat',
+        value: ECHO_SIDE_STATS[cost]?.value ?? 0,
       },
     },
     substats: { ...(sourceEcho?.substats ?? {}) },
@@ -63,20 +63,20 @@ function buildEchoFromDefinition(
 }
 
 // reorder recipes so they line up with the original slot costs as closely as possible
-function alignRecipesToOriginalSlots(
+function lgnRcpsToRgn(
     recipes: MainStatRecipe[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
 ): Array<MainStatRecipe | null> {
-  const originalCosts = equippedEchoes.map((echo) => (
+  const rgnlCsts = qppdChs.map((echo) => (
       echo ? (getEchoById(echo.id)?.cost ?? null) : null
   ))
 
   const remaining = recipes.map((recipe, index) => ({ ...recipe, _index: index }))
   const used = new Set<number>()
-  const aligned: Array<MainStatRecipe | null> = new Array(originalCosts.length).fill(null)
+  const aligned: Array<MainStatRecipe | null> = new Array(rgnlCsts.length).fill(null)
 
   // prefer taking a recipe with the exact target cost
-  const takeRecipeWithCost = (cost: number | null, preferredIndex: number) => {
+  const takeRcpWithC = (cost: number | null, preferredIndex: number) => {
     if (cost == null) {
       return null
     }
@@ -105,7 +105,7 @@ function alignRecipesToOriginalSlots(
   }
 
   // if no same-cost recipe exists, take the next unused one
-  const takeAnyRemaining = () => {
+  const takeAnyRmnn = () => {
     const index = remaining.findIndex((recipe, recipeIndex) => (
         recipe && !used.has(recipeIndex)
     ))
@@ -119,10 +119,10 @@ function alignRecipesToOriginalSlots(
   }
 
   // walk slot by slot and assign the best matching available recipe
-  for (let slotIndex = 0; slotIndex < originalCosts.length; slotIndex += 1) {
+  for (let slotIndex = 0; slotIndex < rgnlCsts.length; slotIndex += 1) {
     const matched =
-        takeRecipeWithCost(originalCosts[slotIndex], slotIndex)
-        ?? takeAnyRemaining()
+        takeRcpWithC(rgnlCsts[slotIndex], slotIndex)
+        ?? takeAnyRmnn()
 
     aligned[slotIndex] = matched
         ? { cost: matched.cost, primaryKey: matched.primaryKey }
@@ -133,43 +133,43 @@ function alignRecipesToOriginalSlots(
 }
 
 // apply an unordered list of recipe choices onto the current equipped echoes
-export function applyMainStatRecipesToEchoes(
-    unorderedRecipes: MainStatRecipe[],
-    equippedEchoes: Array<EchoInstance | null>,
+export function applyMainSta(
+    nrdrRcps: MainStatRecipe[],
+    qppdChs: Array<EchoInstance | null>,
 ): Array<EchoInstance | null> {
-  const recipes = alignRecipesToOriginalSlots(unorderedRecipes, equippedEchoes)
+  const recipes = lgnRcpsToRgn(nrdrRcps, qppdChs)
 
-  const usedEquippedIndices = new Set<number>()
+  const usedQppdNdcs = new Set<number>()
   const usedIds = new Set<string>()
   const templates = listEchoes()
 
-  const getEquippedEchoCost = (echo: EchoInstance | null | undefined) =>
+  const getQppdEchoC = (echo: EchoInstance | null | undefined) =>
       echo ? (getEchoById(echo.id)?.cost ?? null) : null
 
   // try to reuse an equipped echo of the required cost, preferring the same slot
-  const takeEquippedEcho = (cost: number, preferredIndex: number | null) => {
+  const takeQppdEcho = (cost: number, preferredIndex: number | null) => {
     if (preferredIndex != null) {
-      const preferredEcho = equippedEchoes[preferredIndex]
+      const prfrEcho = qppdChs[preferredIndex]
       if (
-          preferredEcho &&
-          !usedEquippedIndices.has(preferredIndex) &&
-          getEquippedEchoCost(preferredEcho) === cost &&
-          !usedIds.has(preferredEcho.id)
+          prfrEcho &&
+          !usedQppdNdcs.has(preferredIndex) &&
+          getQppdEchoC(prfrEcho) === cost &&
+          !usedIds.has(prfrEcho.id)
       ) {
-        usedEquippedIndices.add(preferredIndex)
-        usedIds.add(preferredEcho.id)
-        return cloneEchoForSlot(preferredEcho, preferredIndex)
+        usedQppdNdcs.add(preferredIndex)
+        usedIds.add(prfrEcho.id)
+        return cloneEchoFor(prfrEcho, preferredIndex)
       }
     }
 
-    for (let index = 0; index < equippedEchoes.length; index += 1) {
-      const echo = equippedEchoes[index]
+    for (let index = 0; index < qppdChs.length; index += 1) {
+      const echo = qppdChs[index]
 
-      if (!echo || usedEquippedIndices.has(index)) {
+      if (!echo || usedQppdNdcs.has(index)) {
         continue
       }
 
-      if (getEquippedEchoCost(echo) !== cost) {
+      if (getQppdEchoC(echo) !== cost) {
         continue
       }
 
@@ -177,9 +177,9 @@ export function applyMainStatRecipesToEchoes(
         continue
       }
 
-      usedEquippedIndices.add(index)
+      usedQppdNdcs.add(index)
       usedIds.add(echo.id)
-      return cloneEchoForSlot(echo, index)
+      return cloneEchoFor(echo, index)
     }
 
     return null
@@ -188,12 +188,12 @@ export function applyMainStatRecipesToEchoes(
   // if no equipped echo can be reused, pick a matching catalog template
   const takeTemplate = (
       cost: number,
-      preferredSetId: number | null,
+      prfrSetId: number | null,
   ) => {
-    const byCost = listEchoesByCost(cost)
+    const byCost = listChsByCos(cost)
 
-    const preferred = preferredSetId != null
-        ? byCost.filter((entry) => entry.sets.includes(preferredSetId))
+    const preferred = prfrSetId != null
+        ? byCost.filter((entry) => entry.sets.includes(prfrSetId))
         : byCost
 
     const pool = preferred.length > 0 ? preferred : byCost
@@ -210,37 +210,37 @@ export function applyMainStatRecipesToEchoes(
       return null
     }
 
-    const baseAtSlot = equippedEchoes[slotIndex] ?? null
-    const preferredSetId = baseAtSlot?.set ?? null
+    const baseAtSlot = qppdChs[slotIndex] ?? null
+    const prfrSetId = baseAtSlot?.set ?? null
 
     // first try to preserve an equipped echo body and just swap main stats
-    const pickedEquipped = takeEquippedEcho(recipe.cost, slotIndex)
-    const sourceEcho = pickedEquipped ?? baseAtSlot
+    const pckdQppd = takeQppdEcho(recipe.cost, slotIndex)
+    const sourceEcho = pckdQppd ?? baseAtSlot
 
-    if (pickedEquipped) {
-      pickedEquipped.mainStats = {
+    if (pckdQppd) {
+      pckdQppd.mainStats = {
         primary: {
           key: recipe.primaryKey,
-          value: ECHO_PRIMARY_STATS[recipe.cost]?.[recipe.primaryKey]
-              ?? pickedEquipped.mainStats.primary.value,
+          value: ECHO_MAIN_STATS[recipe.cost]?.[recipe.primaryKey]
+              ?? pckdQppd.mainStats.primary.value,
         },
         secondary: {
-          key: ECHO_SECONDARY_STATS[recipe.cost]?.key
-              ?? pickedEquipped.mainStats.secondary.key,
-          value: ECHO_SECONDARY_STATS[recipe.cost]?.value
-              ?? pickedEquipped.mainStats.secondary.value,
+          key: ECHO_SIDE_STATS[recipe.cost]?.key
+              ?? pckdQppd.mainStats.secondary.key,
+          value: ECHO_SIDE_STATS[recipe.cost]?.value
+              ?? pckdQppd.mainStats.secondary.value,
         },
       }
 
-      pickedEquipped.mainEcho = slotIndex === 0
-      return pickedEquipped
+      pckdQppd.mainEcho = slotIndex === 0
+      return pckdQppd
     }
 
     // otherwise fall back to a catalog echo template of the correct cost
-    const template = takeTemplate(recipe.cost, preferredSetId)
+    const template = takeTemplate(recipe.cost, prfrSetId)
     if (!template) {
       // final fallback -> clone the source echo if one exists and patch its main stats
-      const fallback = sourceEcho ? cloneEchoForSlot(sourceEcho, slotIndex) : null
+      const fallback = sourceEcho ? cloneEchoFor(sourceEcho, slotIndex) : null
       if (!fallback) {
         return null
       }
@@ -248,13 +248,13 @@ export function applyMainStatRecipesToEchoes(
       fallback.mainStats = {
         primary: {
           key: recipe.primaryKey,
-          value: ECHO_PRIMARY_STATS[recipe.cost]?.[recipe.primaryKey]
+          value: ECHO_MAIN_STATS[recipe.cost]?.[recipe.primaryKey]
               ?? fallback.mainStats.primary.value,
         },
         secondary: {
-          key: ECHO_SECONDARY_STATS[recipe.cost]?.key
+          key: ECHO_SIDE_STATS[recipe.cost]?.key
               ?? fallback.mainStats.secondary.key,
-          value: ECHO_SECONDARY_STATS[recipe.cost]?.value
+          value: ECHO_SIDE_STATS[recipe.cost]?.value
               ?? fallback.mainStats.secondary.value,
         },
       }
@@ -265,12 +265,12 @@ export function applyMainStatRecipesToEchoes(
 
     usedIds.add(template.id)
 
-    return buildEchoFromDefinition(
+    return mkEchoFromDe(
         template,
         slotIndex,
         recipe.primaryKey,
         sourceEcho,
-        preferredSetId,
+        prfrSetId,
     )
   })
 }

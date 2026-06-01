@@ -1,48 +1,41 @@
 /*
   Author: Runor Ewhro
-  Description: Handles persisted app-state loading, migration, validation,
-               granular domain writes, and recovery cleanup.
+  Description: Handles persisted app-state loading, validation, granular
+               domain writes, and recovery cleanup.
 */
 
-import type { PersistedAppState } from '@/domain/entities/appState'
-import type { PersistedAppStateInput } from '@/domain/state/defaults'
-import { createDefaultAppState, initializePersistedAppState } from '@/domain/state/defaults'
+import type { PersistedState } from '@/domain/entities/appState'
+import type { PersistedUnknown } from '@/domain/state/defaults'
+import { makeAppState, initAppState } from '@/domain/state/defaults'
 import {
-  LEGACY_PERSISTED_APP_STATE_VERSION,
-  PERSISTED_APP_STATE_VERSION,
-  legacyPersistedAppStateSchema,
-  persistedAppStateSchema,
-  persistedInventoryBuildsSliceSchema,
-  persistedInventoryEchoesSliceSchema,
-  persistedInventoryRotationsSliceSchema,
-  persistedOptimizerContextSliceSchema,
-  persistedProfilesSliceSchema,
-  persistedSessionSliceSchema,
-  persistedSuggestionsSliceSchema,
-  persistedUiAppearanceSliceSchema,
-  persistedUiLayoutSliceSchema,
-  persistedUiSavedRotationPreferencesSliceSchema,
+  APP_STATE_VER,
+  persistedSchema,
+  prssInvBldsS,
+  prssInvChsSl,
+  prssInvRttnS,
+  prssOptCtxSl,
+  prssPrflSlcS,
+  prssSssnSlcS,
+  prssSuggsSlc,
+  prssUiPprnSl,
+  prssUiLytSlc,
+  prssUiSvdRoh,
 } from '@/domain/state/schema'
 
-export const APP_STORAGE_KEY = `wwcalc.app.v${PERSISTED_APP_STATE_VERSION}`
-export const APP_STORAGE_UI_APPEARANCE_KEY = `${APP_STORAGE_KEY}.ui.appearance`
-export const APP_STORAGE_UI_LAYOUT_KEY = `${APP_STORAGE_KEY}.ui.layout`
-export const APP_STORAGE_UI_SAVED_ROTATION_PREFERENCES_KEY = `${APP_STORAGE_KEY}.ui.saved-rotation-preferences`
-export const APP_STORAGE_SESSION_KEY = `${APP_STORAGE_KEY}.session`
-export const APP_STORAGE_PROFILES_KEY = `${APP_STORAGE_KEY}.profiles`
-export const APP_STORAGE_OPTIMIZER_CONTEXT_KEY = `${APP_STORAGE_KEY}.optimizer-context`
-export const APP_STORAGE_SUGGESTIONS_KEY = `${APP_STORAGE_KEY}.suggestions`
-export const APP_STORAGE_INVENTORY_ECHOES_KEY = `${APP_STORAGE_KEY}.inventory.echoes`
-export const APP_STORAGE_INVENTORY_BUILDS_KEY = `${APP_STORAGE_KEY}.inventory.builds`
-export const APP_STORAGE_INVENTORY_ROTATIONS_KEY = `${APP_STORAGE_KEY}.inventory.rotations`
-export const APP_STORAGE_RECOVERY_PREFIX = `${APP_STORAGE_KEY}.recovery`
+export const APP_STORAGE_KEY = `wwcalc.app.v${APP_STATE_VER}`
+export const APPSTOREUIPP = `${APP_STORAGE_KEY}.ui.appearance`
+export const APPSTOREUILY = `${APP_STORAGE_KEY}.ui.layout`
+export const APPSTOREUISV = `${APP_STORAGE_KEY}.ui.saved-rotation-preferences`
+export const APPSTORESSSN = `${APP_STORAGE_KEY}.session`
+export const APPSTOREPRFL = `${APP_STORAGE_KEY}.profiles`
+export const APPSTOREOPTC = `${APP_STORAGE_KEY}.optimizer-context`
+export const SUGG_STORE_KEY = `${APP_STORAGE_KEY}.suggestions`
+export const APPSTOREINVC = `${APP_STORAGE_KEY}.inventory.echoes`
+export const APPSTOREINVB = `${APP_STORAGE_KEY}.inventory.builds`
+export const APPSTOREINVR = `${APP_STORAGE_KEY}.inventory.rotations`
+export const APPSTORERCVR = `${APP_STORAGE_KEY}.recovery`
 
-export const APP_STORAGE_BACKUP_KEY = `wwcalc.app.v${LEGACY_PERSISTED_APP_STATE_VERSION}.backup`
-
-export const LEGACY_APP_STORAGE_KEY = `wwcalc.app.v${LEGACY_PERSISTED_APP_STATE_VERSION}`
-export const LEGACY_APP_STORAGE_RECOVERY_PREFIX = `${LEGACY_APP_STORAGE_KEY}.recovery`
-
-export type PersistedDomainKey =
+export type PersistKey =
   | 'ui.appearance'
   | 'ui.layout'
   | 'ui.savedRotationPreferences'
@@ -54,7 +47,7 @@ export type PersistedDomainKey =
   | 'calculator.inventory.builds'
   | 'calculator.inventory.rotations'
 
-const NON_INVENTORY_DOMAIN_KEYS: PersistedDomainKey[] = [
+const NONINVDMNKEY: PersistKey[] = [
   'ui.appearance',
   'ui.layout',
   'ui.savedRotationPreferences',
@@ -64,34 +57,36 @@ const NON_INVENTORY_DOMAIN_KEYS: PersistedDomainKey[] = [
   'calculator.suggestions',
 ]
 
-const INVENTORY_DOMAIN_KEYS: PersistedDomainKey[] = [
+const INV_DOMAIN_KEYS: PersistKey[] = [
   'calculator.inventory.echoes',
   'calculator.inventory.builds',
   'calculator.inventory.rotations',
 ]
 
-const ALL_PERSISTED_DOMAIN_KEYS: PersistedDomainKey[] = [
-  ...NON_INVENTORY_DOMAIN_KEYS,
-  ...INVENTORY_DOMAIN_KEYS,
+export const ALL_DOMAIN_KEYS: PersistKey[] = [
+  ...NONINVDMNKEY,
+  ...INV_DOMAIN_KEYS,
 ]
 
-type PersistedStateDraft = PersistedAppStateInput
-type PersistedDomainSchema = {
-  safeParse: (value: unknown) => { success: boolean; data?: unknown }
+type PersistDraft = PersistedUnknown
+type PrssDmnSchm = {
+  safeParse: (value: unknown) =>
+    | { success: true; data: unknown }
+    | { success: false; error?: unknown }
 }
 
-interface PersistedDomainSpec<TSlice> {
+interface PersistSpec<TSlice> {
   label: string
   storageKey: string
-  schema: PersistedDomainSchema
-  build: (state: PersistedAppState) => TSlice
-  apply: (state: PersistedStateDraft, slice: TSlice) => void
+  schema: PrssDmnSchm
+  build: (state: PersistedState) => TSlice
+  apply: (state: PersistDraft, slice: TSlice) => void
 }
 
-const pendingPersistedDomains = new Set<PersistedDomainKey>()
-const pendingPersistedDomainListeners = new Set<() => void>()
+const pndnPrssDmns = new Set<PersistKey>()
+const pndnPrssDmnL = new Set<() => void>()
 
-function buildUiAppearanceSlice(state: PersistedAppState) {
+function makeAppearance(state: PersistedState) {
   return {
     version: state.version,
     ui: {
@@ -110,19 +105,25 @@ function buildUiAppearanceSlice(state: PersistedAppState) {
   }
 }
 
-function buildUiLayoutSlice(state: PersistedAppState) {
+function makeLayout(state: PersistedState) {
   return {
     version: state.version,
     ui: {
+      preferences: state.ui.preferences,
       leftPaneView: state.ui.leftPaneView,
       mainMode: state.ui.mainMode,
       showSubHits: state.ui.showSubHits,
+      compactInv: state.ui.compactInv,
+      seeEquipped: state.ui.seeEquipped,
+      haveHistory: state.ui.haveHistory,
+      historyMax: state.ui.historyMax,
+      itemFreq: state.ui.itemFreq,
       optimizerCpuHintSeen: state.ui.optimizerCpuHintSeen,
     },
   }
 }
 
-function buildUiSavedRotationPreferencesSlice(state: PersistedAppState) {
+function makeRotPrefs(state: PersistedState) {
   return {
     version: state.version,
     ui: {
@@ -131,7 +132,7 @@ function buildUiSavedRotationPreferencesSlice(state: PersistedAppState) {
   }
 }
 
-function buildSessionSlice(state: PersistedAppState) {
+function makeSessionSlice(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -140,7 +141,7 @@ function buildSessionSlice(state: PersistedAppState) {
   }
 }
 
-function buildProfilesSlice(state: PersistedAppState) {
+function makeProfiles(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -150,7 +151,7 @@ function buildProfilesSlice(state: PersistedAppState) {
   }
 }
 
-function buildOptimizerContextSlice(state: PersistedAppState) {
+function makeOptCtxSlice(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -159,16 +160,17 @@ function buildOptimizerContextSlice(state: PersistedAppState) {
   }
 }
 
-function buildSuggestionsSlice(state: PersistedAppState) {
+function makeSuggestSlice(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
+      weaponSuggests: state.calculator.weaponSuggests,
       suggestionsByResonatorId: state.calculator.suggestionsByResonatorId,
     },
   }
 }
 
-function buildInventoryEchoesSlice(state: PersistedAppState) {
+function makeInvEchoes(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -177,7 +179,7 @@ function buildInventoryEchoesSlice(state: PersistedAppState) {
   }
 }
 
-function buildInventoryBuildsSlice(state: PersistedAppState) {
+function makeInvBuilds(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -186,7 +188,7 @@ function buildInventoryBuildsSlice(state: PersistedAppState) {
   }
 }
 
-function buildInventoryRotationsSlice(state: PersistedAppState) {
+function makeInvRotSlice(state: PersistedState) {
   return {
     version: state.version,
     calculator: {
@@ -195,28 +197,28 @@ function buildInventoryRotationsSlice(state: PersistedAppState) {
   }
 }
 
-type PersistedDomainSpecMap = {
-  'ui.appearance': PersistedDomainSpec<ReturnType<typeof buildUiAppearanceSlice>>
-  'ui.layout': PersistedDomainSpec<ReturnType<typeof buildUiLayoutSlice>>
-  'ui.savedRotationPreferences': PersistedDomainSpec<ReturnType<typeof buildUiSavedRotationPreferencesSlice>>
-  'calculator.session': PersistedDomainSpec<ReturnType<typeof buildSessionSlice>>
-  'calculator.profiles': PersistedDomainSpec<ReturnType<typeof buildProfilesSlice>>
-  'calculator.optimizerContext': PersistedDomainSpec<ReturnType<typeof buildOptimizerContextSlice>>
-  'calculator.suggestions': PersistedDomainSpec<ReturnType<typeof buildSuggestionsSlice>>
-  'calculator.inventory.echoes': PersistedDomainSpec<ReturnType<typeof buildInventoryEchoesSlice>>
-  'calculator.inventory.builds': PersistedDomainSpec<ReturnType<typeof buildInventoryBuildsSlice>>
-  'calculator.inventory.rotations': PersistedDomainSpec<ReturnType<typeof buildInventoryRotationsSlice>>
+type PersistSpecMap = {
+  'ui.appearance': PersistSpec<ReturnType<typeof makeAppearance>>
+  'ui.layout': PersistSpec<ReturnType<typeof makeLayout>>
+  'ui.savedRotationPreferences': PersistSpec<ReturnType<typeof makeRotPrefs>>
+  'calculator.session': PersistSpec<ReturnType<typeof makeSessionSlice>>
+  'calculator.profiles': PersistSpec<ReturnType<typeof makeProfiles>>
+  'calculator.optimizerContext': PersistSpec<ReturnType<typeof makeOptCtxSlice>>
+  'calculator.suggestions': PersistSpec<ReturnType<typeof makeSuggestSlice>>
+  'calculator.inventory.echoes': PersistSpec<ReturnType<typeof makeInvEchoes>>
+  'calculator.inventory.builds': PersistSpec<ReturnType<typeof makeInvBuilds>>
+  'calculator.inventory.rotations': PersistSpec<ReturnType<typeof makeInvRotSlice>>
 }
 
-type PersistedDomainSlice<K extends PersistedDomainKey> =
-  PersistedDomainSpecMap[K] extends PersistedDomainSpec<infer TSlice> ? TSlice : never
+type PrssDmnSlc<K extends PersistKey> =
+  PersistSpecMap[K] extends PersistSpec<infer TSlice> ? TSlice : never
 
-const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
+const DOMAIN_SPECS: PersistSpecMap = {
   'ui.appearance': {
     label: 'ui appearance',
-    storageKey: APP_STORAGE_UI_APPEARANCE_KEY,
-    schema: persistedUiAppearanceSliceSchema,
-    build: buildUiAppearanceSlice,
+    storageKey: APPSTOREUIPP,
+    schema: prssUiPprnSl,
+    build: makeAppearance,
     apply: (state, slice) => {
       state.ui = {
         ...state.ui,
@@ -226,9 +228,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'ui.layout': {
     label: 'ui layout',
-    storageKey: APP_STORAGE_UI_LAYOUT_KEY,
-    schema: persistedUiLayoutSliceSchema,
-    build: buildUiLayoutSlice,
+    storageKey: APPSTOREUILY,
+    schema: prssUiLytSlc,
+    build: makeLayout,
     apply: (state, slice) => {
       state.ui = {
         ...state.ui,
@@ -238,9 +240,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'ui.savedRotationPreferences': {
     label: 'ui saved rotation preferences',
-    storageKey: APP_STORAGE_UI_SAVED_ROTATION_PREFERENCES_KEY,
-    schema: persistedUiSavedRotationPreferencesSliceSchema,
-    build: buildUiSavedRotationPreferencesSlice,
+    storageKey: APPSTOREUISV,
+    schema: prssUiSvdRoh,
+    build: makeRotPrefs,
     apply: (state, slice) => {
       state.ui = {
         ...state.ui,
@@ -250,9 +252,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.session': {
     label: 'session',
-    storageKey: APP_STORAGE_SESSION_KEY,
-    schema: persistedSessionSliceSchema,
-    build: buildSessionSlice,
+    storageKey: APPSTORESSSN,
+    schema: prssSssnSlcS,
+    build: makeSessionSlice,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -262,9 +264,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.profiles': {
     label: 'profiles',
-    storageKey: APP_STORAGE_PROFILES_KEY,
-    schema: persistedProfilesSliceSchema,
-    build: buildProfilesSlice,
+    storageKey: APPSTOREPRFL,
+    schema: prssPrflSlcS,
+    build: makeProfiles,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -275,9 +277,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.optimizerContext': {
     label: 'optimizer context',
-    storageKey: APP_STORAGE_OPTIMIZER_CONTEXT_KEY,
-    schema: persistedOptimizerContextSliceSchema,
-    build: buildOptimizerContextSlice,
+    storageKey: APPSTOREOPTC,
+    schema: prssOptCtxSl,
+    build: makeOptCtxSlice,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -287,21 +289,22 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.suggestions': {
     label: 'suggestions',
-    storageKey: APP_STORAGE_SUGGESTIONS_KEY,
-    schema: persistedSuggestionsSliceSchema,
-    build: buildSuggestionsSlice,
+    storageKey: SUGG_STORE_KEY,
+    schema: prssSuggsSlc,
+    build: makeSuggestSlice,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
+        weaponSuggests: slice.calculator.weaponSuggests,
         suggestionsByResonatorId: slice.calculator.suggestionsByResonatorId,
       }
     },
   },
   'calculator.inventory.echoes': {
     label: 'inventory echoes',
-    storageKey: APP_STORAGE_INVENTORY_ECHOES_KEY,
-    schema: persistedInventoryEchoesSliceSchema,
-    build: buildInventoryEchoesSlice,
+    storageKey: APPSTOREINVC,
+    schema: prssInvChsSl,
+    build: makeInvEchoes,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -311,9 +314,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.inventory.builds': {
     label: 'inventory builds',
-    storageKey: APP_STORAGE_INVENTORY_BUILDS_KEY,
-    schema: persistedInventoryBuildsSliceSchema,
-    build: buildInventoryBuildsSlice,
+    storageKey: APPSTOREINVB,
+    schema: prssInvBldsS,
+    build: makeInvBuilds,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -323,9 +326,9 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
   'calculator.inventory.rotations': {
     label: 'inventory rotations',
-    storageKey: APP_STORAGE_INVENTORY_ROTATIONS_KEY,
-    schema: persistedInventoryRotationsSliceSchema,
-    build: buildInventoryRotationsSlice,
+    storageKey: APPSTOREINVR,
+    schema: prssInvRttnS,
+    build: makeInvRotSlice,
     apply: (state, slice) => {
       state.calculator = {
         ...state.calculator,
@@ -335,24 +338,46 @@ const PERSISTED_DOMAIN_SPECS: PersistedDomainSpecMap = {
   },
 }
 
-function getPersistedDomainKeys(includeInventory: boolean): PersistedDomainKey[] {
+function getPrssDmnKe(includeInventory: boolean): PersistKey[] {
   return includeInventory
-    ? ALL_PERSISTED_DOMAIN_KEYS
-    : NON_INVENTORY_DOMAIN_KEYS
+    ? ALL_DOMAIN_KEYS
+    : NONINVDMNKEY
 }
 
-function hasCurrentStorageEntries(): boolean {
-  return ALL_PERSISTED_DOMAIN_KEYS.some((key) => localStorage.getItem(PERSISTED_DOMAIN_SPECS[key].storageKey) != null)
+function hasCurStoreE(): boolean {
+  return ALL_DOMAIN_KEYS.some((key) => localStorage.getItem(DOMAIN_SPECS[key].storageKey) != null)
 }
 
-function quarantineStorageKey(key: string, raw: string): void {
-  localStorage.setItem(`${APP_STORAGE_RECOVERY_PREFIX}.${Date.now()}.${key}`, raw)
+function readMnlthPrssS(): PersistedState | null {
+  const raw = localStorage.getItem(APP_STORAGE_KEY)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const snapshot = parsePersisted(raw)
+    saveAppState(snapshot)
+    localStorage.removeItem(APP_STORAGE_KEY)
+    return snapshot
+  } catch (error) {
+    console.warn('[storage] failed to migrate monolithic app snapshot', error)
+    try {
+      qrntStoreKey(APP_STORAGE_KEY, raw)
+    } catch (rcvrRrr) {
+      console.warn('[storage] failed to quarantine invalid monolithic app snapshot', rcvrRrr)
+    }
+    return null
+  }
+}
+
+function qrntStoreKey(key: string, raw: string): void {
+  localStorage.setItem(`${APPSTORERCVR}.${Date.now()}.${key}`, raw)
   localStorage.removeItem(key)
 }
 
-function readValidatedStorageValue<T>(
+function readVldtStor<T>(
   raw: string,
-  schema: PersistedDomainSchema,
+  schema: PrssDmnSchm,
   label: string,
 ): T {
   let parsed: unknown
@@ -371,33 +396,33 @@ function readValidatedStorageValue<T>(
   return result.data as T
 }
 
-function readPersistedDomain<K extends PersistedDomainKey>(
+function readPrssDmn<K extends PersistKey>(
   key: K,
-): PersistedDomainSlice<K> | null {
-  const spec = PERSISTED_DOMAIN_SPECS[key]
+): PrssDmnSlc<K> | null {
+  const spec = DOMAIN_SPECS[key]
   const raw = localStorage.getItem(spec.storageKey)
   if (!raw) {
     return null
   }
 
   try {
-    return readValidatedStorageValue(raw, spec.schema, spec.label)
+    return readVldtStor(raw, spec.schema, spec.label)
   } catch (error) {
     console.warn(`[storage] failed to parse ${spec.label}`, error)
     try {
-      quarantineStorageKey(spec.storageKey, raw)
-    } catch (recoveryError) {
-      console.warn(`[storage] failed to quarantine invalid ${spec.label}`, recoveryError)
+      qrntStoreKey(spec.storageKey, raw)
+    } catch (rcvrRrr) {
+      console.warn(`[storage] failed to quarantine invalid ${spec.label}`, rcvrRrr)
     }
     return null
   }
 }
 
-function createPersistedStateDraft(includeInventory: boolean): PersistedStateDraft {
-  const defaults = createDefaultAppState()
+function makePersistDraft(includeInventory: boolean): PersistDraft {
+  const defaults = makeAppState()
 
   return {
-    version: PERSISTED_APP_STATE_VERSION,
+    version: APP_STATE_VER,
     ui: {
       ...defaults.ui,
     },
@@ -410,129 +435,52 @@ function createPersistedStateDraft(includeInventory: boolean): PersistedStateDra
   }
 }
 
-function normalizePersistedAppStatePayload(parsed: unknown): PersistedAppState {
+function normPrssAppS(parsed: unknown): PersistedState {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Snapshot must be a JSON object.')
   }
 
-  const current = persistedAppStateSchema.safeParse(parsed)
+  const current = persistedSchema.safeParse(parsed)
   if (current.success) {
-    return initializePersistedAppState(current.data as unknown as PersistedAppState)
-  }
-
-  const legacy = legacyPersistedAppStateSchema.safeParse(parsed)
-  if (legacy.success) {
-    return initializePersistedAppState(legacy.data as unknown as PersistedAppState)
+    return initAppState(current.data as unknown as PersistedState)
   }
 
   throw new Error('Snapshot validation failed.')
 }
 
-function normalizePersistedAppState(
-  state: PersistedAppStateInput,
-): PersistedAppState {
-  return initializePersistedAppState(state)
+function normalizeAppState(
+  state: PersistedUnknown,
+): PersistedState {
+  return initAppState(state)
 }
 
-function buildStateWithoutInventory(state: PersistedAppState): PersistedAppState {
-  return initializePersistedAppState({
-    ...state,
-    calculator: {
-      ...state.calculator,
-      inventoryEchoes: [],
-      inventoryBuilds: [],
-      inventoryRotations: [],
-    },
-  })
-}
+function ssmbPrssAppS(includeInventory: boolean): PersistedState | null {
+  const state = makePersistDraft(includeInventory)
+  const loadedDomains: PersistKey[] = []
+  let hasLddDmn = false
 
-function clearLegacyPersistedAppState(): void {
-  localStorage.removeItem(LEGACY_APP_STORAGE_KEY)
-  localStorage.removeItem(APP_STORAGE_BACKUP_KEY)
-
-  if (typeof localStorage.key !== 'function') {
-    return
-  }
-
-  const keysToDelete: string[] = []
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index)
-    if (key?.startsWith(`${LEGACY_APP_STORAGE_RECOVERY_PREFIX}.`)) {
-      keysToDelete.push(key)
-    }
-  }
-
-  for (const key of keysToDelete) {
-    localStorage.removeItem(key)
-  }
-}
-
-function loadLegacyPersistedAppState(): PersistedAppState | null {
-  try {
-    const raw = localStorage.getItem(LEGACY_APP_STORAGE_KEY)
-    if (!raw) {
-      const backupRaw = localStorage.getItem(APP_STORAGE_BACKUP_KEY)
-      return backupRaw ? normalizePersistedAppStatePayload(JSON.parse(backupRaw)) : null
-    }
-
-    return normalizePersistedAppStatePayload(JSON.parse(raw))
-  } catch (error) {
-    console.warn('[storage] failed to parse legacy persisted app state', error)
-
-    try {
-      const invalidRaw = localStorage.getItem(LEGACY_APP_STORAGE_KEY)
-      if (invalidRaw) {
-        localStorage.setItem(`${LEGACY_APP_STORAGE_RECOVERY_PREFIX}.${Date.now()}`, invalidRaw)
-        localStorage.removeItem(LEGACY_APP_STORAGE_KEY)
-      }
-
-      const backupRaw = localStorage.getItem(APP_STORAGE_BACKUP_KEY)
-      return backupRaw ? normalizePersistedAppStatePayload(JSON.parse(backupRaw)) : null
-    } catch (recoveryError) {
-      console.warn('[storage] failed to recover invalid legacy persisted app state', recoveryError)
-      return null
-    }
-  }
-}
-
-function migrateLegacyState(includeInventory: boolean): PersistedAppState | null {
-  const legacy = loadLegacyPersistedAppState()
-  if (!legacy) {
-    return null
-  }
-
-  savePersistedAppState(legacy)
-  clearLegacyPersistedAppState()
-  return includeInventory ? legacy : buildStateWithoutInventory(legacy)
-}
-
-function assemblePersistedAppState(includeInventory: boolean): PersistedAppState | null {
-  const state = createPersistedStateDraft(includeInventory)
-  const loadedDomains: PersistedDomainKey[] = []
-  let hasLoadedDomain = false
-
-  for (const key of getPersistedDomainKeys(includeInventory)) {
-    const domain = readPersistedDomain(key)
+  for (const key of getPrssDmnKe(includeInventory)) {
+    const domain = readPrssDmn(key)
     if (!domain) {
       continue
     }
 
-    PERSISTED_DOMAIN_SPECS[key].apply(state, domain)
+    DOMAIN_SPECS[key].apply(state, domain)
     loadedDomains.push(key)
-    hasLoadedDomain = true
+    hasLddDmn = true
   }
 
-  if (!hasLoadedDomain) {
-    return null
+  if (!hasLddDmn) {
+    return readMnlthPrssS()
   }
 
-  const normalizedState = normalizePersistedAppState(state)
-  savePersistedAppState(normalizedState, { domains: loadedDomains })
-  return normalizedState
+  const normalState = normalizeAppState(state)
+  saveAppState(normalState, { domains: loadedDomains })
+  return normalState
 }
 
 // parse persisted app state from raw json text
-export function parsePersistedAppStateJson(raw: string): PersistedAppState {
+export function parsePersisted(raw: string): PersistedState {
   let parsed: unknown
 
   try {
@@ -541,50 +489,50 @@ export function parsePersistedAppStateJson(raw: string): PersistedAppState {
     throw new Error('Snapshot is not valid JSON.')
   }
 
-  return normalizePersistedAppStatePayload(parsed)
+  return normPrssAppS(parsed)
 }
 
 // load persisted app state from storage, optionally omitting the inventory slice
-export function loadPersistedAppState(
+export function loadPrssAppS(
   options: { includeInventory?: boolean } = {},
-): PersistedAppState | null {
+): PersistedState | null {
   const includeInventory = options.includeInventory ?? true
 
-  if (!hasCurrentStorageEntries()) {
-    return migrateLegacyState(includeInventory)
+  if (!hasCurStoreE()) {
+    return readMnlthPrssS()
   }
 
-  return assemblePersistedAppState(includeInventory)
+  return ssmbPrssAppS(includeInventory)
 }
 
-export function loadPersistedInventoryState(): {
-  inventoryEchoes: PersistedAppState['calculator']['inventoryEchoes']
-  inventoryBuilds: PersistedAppState['calculator']['inventoryBuilds']
-  inventoryRotations: PersistedAppState['calculator']['inventoryRotations']
+export function loadPrssInvS(): {
+  inventoryEchoes: PersistedState['calculator']['inventoryEchoes']
+  inventoryBuilds: PersistedState['calculator']['inventoryBuilds']
+  inventoryRotations: PersistedState['calculator']['inventoryRotations']
 } {
-  const legacy = !hasCurrentStorageEntries() ? migrateLegacyState(true) : null
-  if (legacy) {
-    return {
-      inventoryEchoes: legacy.calculator.inventoryEchoes,
-      inventoryBuilds: legacy.calculator.inventoryBuilds,
-      inventoryRotations: legacy.calculator.inventoryRotations,
-    }
-  }
+  const state = makePersistDraft(true)
+  let hasLddInv = false
 
-  const state = createPersistedStateDraft(true)
-  let hasLoadedInventory = false
-
-  for (const key of INVENTORY_DOMAIN_KEYS) {
-    const domain = readPersistedDomain(key)
+  for (const key of INV_DOMAIN_KEYS) {
+    const domain = readPrssDmn(key)
     if (!domain) {
       continue
     }
 
-    PERSISTED_DOMAIN_SPECS[key].apply(state, domain)
-    hasLoadedInventory = true
+    DOMAIN_SPECS[key].apply(state, domain)
+    hasLddInv = true
   }
 
-  if (!hasLoadedInventory) {
+  if (!hasLddInv) {
+    const migrated = readMnlthPrssS()
+    if (migrated) {
+      return {
+        inventoryEchoes: migrated.calculator.inventoryEchoes,
+        inventoryBuilds: migrated.calculator.inventoryBuilds,
+        inventoryRotations: migrated.calculator.inventoryRotations,
+      }
+    }
+
     return {
       inventoryEchoes: [],
       inventoryBuilds: [],
@@ -592,49 +540,50 @@ export function loadPersistedInventoryState(): {
     }
   }
 
-  const normalizedState = normalizePersistedAppState(state)
-  savePersistedAppState(normalizedState, { domains: INVENTORY_DOMAIN_KEYS })
+  const normalState = normalizeAppState(state)
+  saveAppState(normalState, { domains: INV_DOMAIN_KEYS })
 
   return {
-    inventoryEchoes: normalizedState.calculator.inventoryEchoes,
-    inventoryBuilds: normalizedState.calculator.inventoryBuilds,
-    inventoryRotations: normalizedState.calculator.inventoryRotations,
+    inventoryEchoes: normalState.calculator.inventoryEchoes,
+    inventoryBuilds: normalState.calculator.inventoryBuilds,
+    inventoryRotations: normalState.calculator.inventoryRotations,
   }
 }
 
 // validate and save persisted app state domains
-export function savePersistedAppState(
-  state: PersistedAppState,
-  options: { domains?: PersistedDomainKey[] } = {},
+export function saveAppState(
+  state: PersistedState,
+  options: { domains?: PersistKey[] } = {},
 ): void {
   try {
-    const result = persistedAppStateSchema.safeParse(state)
-    if (!result.success) {
-      console.error('[storage] refusing to save invalid state')
-      return
-    }
+    const normalState = normalizeAppState(state as unknown as PersistedUnknown)
 
-    const normalizedState = normalizePersistedAppState(result.data as unknown as PersistedAppStateInput)
-
-    const domains = new Set(options.domains ?? ALL_PERSISTED_DOMAIN_KEYS)
+    const domains = new Set(options.domains ?? ALL_DOMAIN_KEYS)
     for (const key of domains) {
-      const spec = PERSISTED_DOMAIN_SPECS[key]
-      localStorage.setItem(spec.storageKey, JSON.stringify(spec.build(normalizedState)))
+      const spec = DOMAIN_SPECS[key]
+      const slice = spec.build(normalState)
+      const result = spec.schema.safeParse(slice)
+      if (!result.success) {
+        console.error(`[storage] refusing to save invalid ${spec.label}`, result.error)
+        continue
+      }
+
+      localStorage.setItem(spec.storageKey, JSON.stringify(result.data))
     }
   } catch (error) {
     console.warn('[storage] failed to persist app state', error)
   }
 }
 
-export function markPersistedDomainsDirty(keys: PersistedDomainKey[]): void {
+export function markPrssDmns(keys: PersistKey[]): void {
   let changed = false
 
   for (const key of keys) {
-    if (pendingPersistedDomains.has(key)) {
+    if (pndnPrssDmns.has(key)) {
       continue
     }
 
-    pendingPersistedDomains.add(key)
+    pndnPrssDmns.add(key)
     changed = true
   }
 
@@ -642,33 +591,32 @@ export function markPersistedDomainsDirty(keys: PersistedDomainKey[]): void {
     return
   }
 
-  for (const listener of pendingPersistedDomainListeners) {
+  for (const listener of pndnPrssDmnL) {
     listener()
   }
 }
 
-export function consumeDirtyPersistedDomains(): PersistedDomainKey[] {
-  const keys = [...pendingPersistedDomains]
-  pendingPersistedDomains.clear()
+export function consumePersist(): PersistKey[] {
+  const keys = [...pndnPrssDmns]
+  pndnPrssDmns.clear()
   return keys
 }
 
-export function subscribeToDirtyPersistedDomains(listener: () => void): () => void {
-  pendingPersistedDomainListeners.add(listener)
+export function sbscToDrtyPr(listener: () => void): () => void {
+  pndnPrssDmnL.add(listener)
   return () => {
-    pendingPersistedDomainListeners.delete(listener)
+    pndnPrssDmnL.delete(listener)
   }
 }
 
-// clear persisted app state entries across current and legacy formats
-export function clearPersistedAppState(): void {
-  pendingPersistedDomains.clear()
+// clear persisted app state entries
+export function clrPrssAppSt(): void {
+  pndnPrssDmns.clear()
+  localStorage.removeItem(APP_STORAGE_KEY)
 
-  for (const key of ALL_PERSISTED_DOMAIN_KEYS) {
-    localStorage.removeItem(PERSISTED_DOMAIN_SPECS[key].storageKey)
+  for (const key of ALL_DOMAIN_KEYS) {
+    localStorage.removeItem(DOMAIN_SPECS[key].storageKey)
   }
-
-  clearLegacyPersistedAppState()
 
   if (typeof localStorage.key !== 'function') {
     return
@@ -678,7 +626,7 @@ export function clearPersistedAppState(): void {
 
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index)
-    if (key?.startsWith(`${APP_STORAGE_RECOVERY_PREFIX}.`)) {
+    if (key?.startsWith(`${APPSTORERCVR}.`)) {
       recoveryKeys.push(key)
     }
   }

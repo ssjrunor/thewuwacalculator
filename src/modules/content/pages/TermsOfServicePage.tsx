@@ -1,22 +1,30 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the terms of service page.
+*/
+
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, FileText } from 'lucide-react'
+import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
-export function TermsOfServicePage() {
+export function TrmsOfSrvcPa() {
   const navigate = useNavigate()
 
   return (
     <div className="page">
-      <header className="page-hero page-hero--split">
-        <div>
-          <div className="page-hero-eyebrow">Legal</div>
-          <h1>Terms of Service</h1>
-          <p className="page-hero-meta">Effective Date: 13 October 2025</p>
-        </div>
-        <button type="button" className="page-back-btn" onClick={() => navigate(-1)}>
-          <ChevronLeft size={14} />
-          Back
-        </button>
-      </header>
+      <CllpPageHeyf
+        variant="split"
+        eyebrow="Legal"
+        title="Terms of Service"
+        meta="Effective Date: 13 October 2025"
+        layoutKey="terms-hero"
+        trailing={
+          <button type="button" className="page-back-btn" onClick={() => navigate(-1)}>
+            <ChevronLeft size={14} />
+            Back
+          </button>
+        }
+      />
 
       <div className="page-bento">
         <section className="page-tile page-tile--full">

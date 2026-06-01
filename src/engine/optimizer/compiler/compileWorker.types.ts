@@ -6,58 +6,58 @@
 */
 
 import type {
-  OptimizerBagResultRef,
-  OptimizerResultEntry,
-  OptimizerStartPayload,
-  PreparedOptimizerPayload,
+  OptFinalResult,
+  OptRawResult,
+  OptStartPay,
+  PrepOptPay,
 } from '@/engine/optimizer/types.ts'
 
 // message sent to the compile worker to begin compiling a raw optimizer payload
-export interface OptimizerCompileStartMessage {
+export interface OptCompStart {
   type: 'start'
   runId: number
-  payload: OptimizerStartPayload
+  payload: OptStartPay
 }
 
 // response sent back when compilation succeeds
-export interface OptimizerCompileDoneMessage {
+export interface OptCompDoneM {
   type: 'done'
   runId: number
-  payload: PreparedOptimizerPayload
+  payload: PrepOptPay
 }
 
 // message sent to the worker when we already have a prepared payload
 // and only need to materialize compact bag results into user-facing entries
-export interface OptimizerMaterializeStartMessage {
+export interface OptMatStartM {
   type: 'materialize'
   runId: number
-  payload: PreparedOptimizerPayload
-  results: OptimizerBagResultRef[]
+  payload: PrepOptPay
+  results: OptRawResult[]
   uidByIndex: string[]
   limit?: number
 }
 
 // response sent back after materialization completes
-export interface OptimizerMaterializeDoneMessage {
+export interface OptMatDoneMs {
   type: 'materialized'
   runId: number
-  results: OptimizerResultEntry[]
+  results: OptFinalResult[]
 }
 
 // generic worker error response used for either compile or materialize failures
-export interface OptimizerCompileErrorMessage {
+export interface OptCompRrrMs {
   type: 'error'
   runId: number
   message: string
 }
 
 // all valid inbound messages accepted by the compile worker
-export type OptimizerCompileInMessage =
-    | OptimizerCompileStartMessage
-    | OptimizerMaterializeStartMessage
+export type OptCompInMsg =
+    | OptCompStart
+    | OptMatStartM
 
 // all valid outbound messages produced by the compile worker
-export type OptimizerCompileOutMessage =
-    | OptimizerCompileDoneMessage
-    | OptimizerMaterializeDoneMessage
-    | OptimizerCompileErrorMessage
+export type OptCompOutMs =
+    | OptCompDoneM
+    | OptMatDoneMs
+    | OptCompRrrMs

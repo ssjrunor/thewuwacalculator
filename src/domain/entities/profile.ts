@@ -10,51 +10,51 @@ import type {
   ResonatorId,
   SkillLevels,
   RotationState,
-  TeamMemberRuntime,
+  TeamMemRt,
   TeamSlots,
   TraceNodeBuffs,
-  WeaponBuildState,
+  WeaponState,
 } from './runtime'
 import type { ManualBuffs } from './manualBuffs'
-import type { SonataSetConditionals } from './sonataSetConditionals'
+import type { SntSetConds } from './sonataSetConditionals'
 
-export interface ResonatorProfileProgression {
+export interface ResProfPrgr {
   level: number
   sequence: number
   skillLevels: SkillLevels
   traceNodes: TraceNodeBuffs
 }
 
-export interface ResonatorProfileBuild {
-  weapon: WeaponBuildState
+export interface ResProfMk {
+  weapon: WeaponState
   echoes: Array<EchoInstance | null>
 }
 
-export interface ResonatorProfile {
+export interface ResProf {
   resonatorId: ResonatorId
-  runtime: ResonatorPersistedRuntimeState
+  runtime: ResPrssRtStt
 }
 
 export interface SlotLocalState {
   controls: Record<string, boolean | number | string>
   manualBuffs: ManualBuffs
   combat: CombatState
-  setConditionals: SonataSetConditionals
+  setConditionals: SntSetConds
 }
 
-export interface SlotRoutingState {
+export interface SlotRatingState {
   selectedTargetsByOwnerKey: Record<string, ResonatorId | null>
 }
 
-export interface ResonatorProfileRuntimeState {
+export interface ResProfRtStt {
   local: SlotLocalState
-  routing: SlotRoutingState
+  routing: SlotRatingState
   team: TeamSlots
   rotation: RotationState
-  teamRuntimes: [TeamMemberRuntime | null, TeamMemberRuntime | null]
+  teamRuntimes: [TeamMemRt | null, TeamMemRt | null]
 }
 
-export interface ResonatorPersistedRuntimeState extends ResonatorProfileRuntimeState {
-  progression: ResonatorProfileProgression
-  build: ResonatorProfileBuild
+export interface ResPrssRtStt extends ResProfRtStt {
+  progression: ResProfPrgr
+  build: ResProfMk
 }

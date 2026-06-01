@@ -6,75 +6,113 @@
 */
 
 import type { CombatGraph } from '@/domain/entities/combatGraph'
-import type { ResonatorSeed } from '@/domain/entities/runtime'
+import type { ResSeed } from '@/domain/entities/runtime'
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
-import { buildTransientCombatGraph } from '@/domain/state/combatGraph'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
-import { simulateRotation } from '@/engine/pipeline/simulateRotation'
-import type { SimulationResult } from '@/engine/pipeline/types'
+import type { ResRuntime } from '@/domain/entities/runtime'
+import { makeCombatGraph } from '@/domain/state/combatGraph'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { smltRot } from '@/engine/pipeline/simulateRotation'
+import { runRotNspc, type RotNspcEnt } from '@/engine/rotation/system'
+import type { SimResult } from '@/engine/pipeline/types'
 import type { SlotId } from '@/domain/entities/session'
 
 // run a simulation starting from one active resonator runtime
 // this path is used when the caller has a runtime + seed and wants the helper
 // to create the transient graph around that active character
-export function runResonatorSimulation(
-    runtime: ResonatorRuntimeState,
-    seed: ResonatorSeed,
+export function runResSmlt(
+    runtime: ResRuntime,
+    seed: ResSeed,
     enemy: EnemyProfile,
-    runtimesById: Record<string, ResonatorRuntimeState> = {},
-    selectedTargetsByOwnerKey: Record<string, string | null> = {},
-): SimulationResult {
+    runtimesById: Record<string, ResRuntime> = {},
+    selTrgtByOwn: Record<string, string | null> = {},
+): SimResult {
   // build a temporary combat graph with this resonator in the active slot
   // and any extra participant runtimes supplied by the caller
-  const graph = buildTransientCombatGraph({
-    activeRuntime: runtime,
+  const graph = makeCombatGraph({
+    actRt: runtime,
     activeSeed: seed,
-    participantRuntimes: runtimesById,
-    selectedTargetsByResonatorId: {
-      [runtime.id]: selectedTargetsByOwnerKey,
+    partRts: runtimesById,
+    targetsByRes: {
+      [runtime.id]: selTrgtByOwn,
     },
   })
 
   // compute the combat context for the active slot so all buffs, stats,
   // and graph-linked runtime effects are resolved before simulation
-  const context = buildCombatContext({
+  const context = makeCombatEnv({
     graph,
     targetSlotId: 'active',
     enemy,
   })
 
   // simulate the full rotation/damage pipeline from the resolved context
-  return simulateRotation(context, seed, runtimesById)
+  return smltRot(context, seed, runtimesById)
 }
 
 // run a simulation when the caller already has a fully built combat graph
 // this avoids rebuilding the graph and lets the caller choose which slot is the target
-export function runCombatGraphSimulation(
+export function runCmbtGrphS(
     graph: CombatGraph,
     targetSlotId: SlotId,
-    seed: ResonatorSeed,
+    seed: ResSeed,
     enemy: EnemyProfile,
-): SimulationResult {
-  const targetParticipant = graph.participants[targetSlotId]
+): SimResult {
+  const tgtPart = graph.participants[targetSlotId]
 
   // build a resonator-id lookup from the graph participants because downstream
   // simulation helpers expect a runtime map keyed by resonator id
-  const runtimeLookup = Object.fromEntries(
+  const rtLkp = Object.fromEntries(
       Object.values(graph.participants).map((participant) => [participant.resonatorId, participant.runtime]),
   )
 
-  if (!targetParticipant) {
+  if (!tgtPart) {
     throw new Error(`Missing combat graph participant for slot ${targetSlotId}`)
   }
 
   // resolve the combat context for the chosen slot within the provided graph
-  const context = buildCombatContext({
+  const context = makeCombatEnv({
     graph,
     targetSlotId,
     enemy,
   })
 
   // simulate from the selected participant's perspective using the shared graph data
-  return simulateRotation(context, seed, runtimeLookup)
+  return smltRot(context, seed, rtLkp)
+}
+
+export function nspcResRot(
+    runtime: ResRuntime,
+    seed: ResSeed,
+    enemy: EnemyProfile,
+    runtimesById: Record<string, ResRuntime> = {},
+    selTrgtByOwn: Record<string, string | null> = {},
+): {
+  rotations: {
+    personal: {
+      entries: RotNspcEnt[]
+    }
+    team: {
+      entries: RotNspcEnt[]
+    }
+  }
+} {
+  // build the same transient graph/context surface as normal live simulation
+  // so the inspector sees the exact same team, routing, and enemy state
+  const graph = makeCombatGraph({
+    actRt: runtime,
+    activeSeed: seed,
+    partRts: runtimesById,
+    targetsByRes: {
+      [runtime.id]: selTrgtByOwn,
+    },
+  })
+
+  const context = makeCombatEnv({
+    graph,
+    targetSlotId: 'active',
+    enemy,
+  })
+
+  // the inspector only needs node-level execution trace rows, not full totals
+  return runRotNspc(context, seed, runtimesById)
 }

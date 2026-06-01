@@ -5,82 +5,102 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { RandomGeneratorSettings } from '@/domain/entities/suggestions'
-import type { ResonatorRuntimeState, ResonatorSeed, EchoInstance } from '@/domain/entities/runtime'
-import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
-import type { FinalStats, ResonatorBaseStats } from '@/domain/entities/stats'
+import type { RandGnrtSets, WeaponPlanSet } from '@/domain/entities/suggestions'
+import type { ResRuntime, ResSeed, EchoInstance, WeaponState } from '@/domain/entities/runtime'
+import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
+import type { FinalStats, UnifiedBuffPool, ResBaseStats, SkillDef } from '@/domain/entities/stats'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
-import type { OptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 
 // common evaluation input shared by all suggestion pipelines
-export interface SuggestionsEvaluationInput {
-  runtime: ResonatorRuntimeState
-  seed: ResonatorSeed
+export interface SuggestInput {
+  runtime: ResRuntime
+  seed: ResSeed
   enemy: EnemyProfile
-  runtimesById: Record<string, ResonatorRuntimeState>
-  selectedTargetsByOwnerKey: Record<string, string | null>
-  setConditionals?: SonataSetConditionals
-  targetFeatureId: string | null
+  runtimesById: Record<string, ResRuntime>
+  selectedTargets: Record<string, string | null>
+  setConds?: SntSetConds
+  tgtFeatId: string | null
   rotationMode: boolean
 }
 
-export interface DirectSuggestionContext {
+export interface DrctSuggCtx {
   mode: 'target'
-  runtime: ResonatorRuntimeState
-  selectedSkill: OptimizerTargetSkill
-  sourceBaseStats: ResonatorBaseStats
-  sourceFinalStats: FinalStats
-  packedContext: Float32Array
+  runtime: ResRuntime
+  selectedSkill: OptTargetSkill
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
+  pool: UnifiedBuffPool
+  skll: SkillDef
+  enemy: EnemyProfile
+  setRtMask: number
+  pckdCtx: Float32Array
   setConstLut: Float32Array
 }
 
-export interface RotationSuggestionContext {
+export interface RotSuggCtx {
   mode: 'rotation'
-  runtime: ResonatorRuntimeState
-  selectedSkill: OptimizerTargetSkill
-  sourceBaseStats: ResonatorBaseStats
-  sourceFinalStats: FinalStats
+  runtime: ResRuntime
+  selectedSkill: OptTargetSkill
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
+  pool: UnifiedBuffPool
+  sklls: SkillDef[]
+  resIds: string[]
+  enemy: EnemyProfile
+  setRtMask: number
   contexts: Float32Array
   contextStride: number
-  contextWeights: Float32Array
+  contextWeight: Float32Array
   contextCount: number
   setConstLut: Float32Array
 }
 
-export type SuggestionEvaluationContext =
-    | DirectSuggestionContext
-    | RotationSuggestionContext
+export type SuggestContext =
+    | DrctSuggCtx
+    | RotSuggCtx
 
-export interface PreparedMainStatSuggestionsInput {
-  context: SuggestionEvaluationContext
+export interface MainStatPrep {
+  context: SuggestContext
   rotationMode: boolean
-  equippedEchoes: Array<EchoInstance | null>
+  qppdChs: Array<EchoInstance | null>
   charId: string
-  statWeight: OptimizerStatWeightMap
+  statWeight: OptStatWeight
   topK?: number
 }
 
-export interface PreparedSetPlanSuggestionsInput {
-  context: SuggestionEvaluationContext
+export interface PrepSetPlanS {
+  context: SuggestContext
   rotationMode: boolean
-  equippedEchoes: Array<EchoInstance | null>
+  qppdChs: Array<EchoInstance | null>
   topK?: number
 }
 
-export interface PreparedRandomSuggestionsInput {
-  context: SuggestionEvaluationContext
-  equippedEchoes: Array<EchoInstance | null>
+export interface RandomPrep {
+  context: SuggestContext
+  qppdChs: Array<EchoInstance | null>
   runtimeId: string
-  rawWeightMap: OptimizerStatWeightMap
-  statWeight: OptimizerStatWeightMap
-  settings: RandomGeneratorSettings
+  rawWeightMap: OptStatWeight
+  statWeight: OptStatWeight
+  settings: RandGnrtSets
   resultsLimit?: number
-  candidateCount?: number
+  candCnt?: number
+}
+
+export interface PrepWeaponPlan {
+  context: SuggestContext
+  qppdChs: Array<EchoInstance | null>
+  weaponType: number
+  level: number
+  rank: number
+  curWpn: WeaponState
+  settings: WeaponPlanSet
+  topK?: number
 }
 
 // one main-stat suggestion result entry
-export interface MainStatSuggestionEntry {
+export interface MainStatSugg {
   damage: number
   recipes: MainStatRecipe[]
   totalCost?: number
@@ -94,84 +114,109 @@ export interface SetPlanEntry {
 }
 
 // one set-plan suggestion result entry
-export interface SetPlanSuggestionEntry {
+export interface SetPlanSuggest {
   avgDamage: number
   setPlan: SetPlanEntry[]
   echoes: Array<EchoInstance | null>
 }
 
 // one random suggestion result entry
-export interface RandomSuggestionEntry {
+export interface RandomEntry {
   damage: number
   echoes: Array<EchoInstance | null>
 }
 
+export interface WeaponEntry {
+  damage: number
+  weaponId: string
+  name: string
+  rarity: number
+  icon: string
+  level: number
+  rank: number
+  baseAtk: number
+  statKey: string
+  statValue: number
+  mode: 'default' | 'max'
+  controls: Record<string, boolean | number | string>
+  pssvName: string
+  pssvDesc: string
+  params: string[]
+}
+
 // input for random echo generation suggestions
-export interface RandomSuggestionsInput extends SuggestionsEvaluationInput {
-  settings: RandomGeneratorSettings
+export interface RandSuggsNpt extends SuggestInput {
+  settings: RandGnrtSets
   resultsLimit?: number
-  candidateCount?: number
+  candCnt?: number
 }
 
 // input for main-stat suggestions
-export interface MainStatSuggestionsInput extends SuggestionsEvaluationInput {
+export interface MainStatSuwo extends SuggestInput {
   topK?: number
 }
 
 // input for set-plan suggestions
-export interface SetPlanSuggestionsInput extends SuggestionsEvaluationInput {
+export interface SetPlanSuggs extends SuggestInput {
   topK?: number
 }
 
 // full set-plan suggestion result container
-export interface SetPlanSuggestionsResult {
+export interface SetPlanSugoi {
   baseAvg: number
-  results: SetPlanSuggestionEntry[]
+  results: SetPlanSuggest[]
   isRotation: boolean
 }
 
 // worker start message for main-stat suggestions
-export interface SuggestionsWorkerMainStatStartMessage {
+export interface SuggsWrkrMai {
   id: number
   type: 'mainStats'
-  payload: PreparedMainStatSuggestionsInput
+  payload: MainStatPrep
 }
 
 // worker start message for set-plan suggestions
-export interface SuggestionsWorkerSetPlanStartMessage {
+export interface SuggsWrkrSet {
   id: number
   type: 'setPlans'
-  payload: PreparedSetPlanSuggestionsInput
+  payload: PrepSetPlanS
 }
 
 // worker start message for random echo suggestions
-export interface SuggestionsWorkerRandomStartMessage {
+export interface SuggsWrkrRan {
   id: number
   type: 'random'
-  payload: PreparedRandomSuggestionsInput
+  payload: RandomPrep
+}
+
+export interface SuggsWrkrWpn {
+  id: number
+  type: 'weapons'
+  payload: PrepWeaponPlan
 }
 
 // successful worker response message
-export interface SuggestionsWorkerDoneMessage {
+export interface SuggsWrkrDon {
   id: number
   ok: true
-  result: MainStatSuggestionEntry[] | SetPlanSuggestionEntry[] | RandomSuggestionEntry[]
+  result: MainStatSugg[] | SetPlanSuggest[] | RandomEntry[] | WeaponEntry[]
 }
 
 // failed worker response message
-export interface SuggestionsWorkerErrorMessage {
+export interface SuggsWrkrRrr {
   id: number
   ok: false
   error: string
 }
 
 // all valid inbound worker message shapes
-export type SuggestionsWorkerInMessage =
-    | SuggestionsWorkerMainStatStartMessage
-    | SuggestionsWorkerSetPlanStartMessage
-    | SuggestionsWorkerRandomStartMessage
+export type SuggsWrkrInM =
+    | SuggsWrkrMai
+    | SuggsWrkrSet
+    | SuggsWrkrRan
+    | SuggsWrkrWpn
 
 // all valid outbound worker message shapes
-export type SuggestionsWorkerOutMessage =
-    | SuggestionsWorkerDoneMessage
-    | SuggestionsWorkerErrorMessage
+export type SuggsWrkrOut =
+    | SuggsWrkrDon
+    | SuggsWrkrRrr

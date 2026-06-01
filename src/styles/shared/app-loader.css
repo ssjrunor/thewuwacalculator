@@ -1,19 +1,11 @@
 .app-loader-host {
     position: relative;
     isolation: isolate;
-    --app-loader-dim-opacity: 0.58;
-    /*
-    --app-loader-scrim: rgba(9, 12, 20, 0.3);
-    */
-    --app-loader-card-border: rgba(220, 230, 255, 0.18);
-    --app-loader-text: #f2f5ff;
-    --app-loader-spinner-track: rgba(255, 255, 255, 0.22);
-    --app-loader-spinner-accent: var(--slider-color, rgba(32, 191, 185, 0.89));
 }
 
 .app-loader-host.running > :not(.app-loader-overlay) {
     pointer-events: none;
-    opacity: var(--app-loader-dim-opacity);
+    opacity: var(--loader-dim-opacity, 0.58);
 }
 
 .app-loader-overlay {
@@ -35,17 +27,17 @@
     gap: 0.5rem;
     padding: 0.45rem 0.82rem;
     border-radius: 999px;
-    background: var(--app-loader-card-bg);
-    border: 1px solid var(--app-loader-card-border);
-    box-shadow: var(--app-loader-card-shadow);
+    background: var(--loader-bg, var(--surface-2, rgba(255, 255, 255, 0.94)));
+    border: 1px solid var(--loader-border, rgba(220, 230, 255, 0.18));
+    box-shadow: var(--loader-shadow, 0 8px 20px rgba(15, 23, 42, 0.12));
 }
 
 .app-loader-spinner {
     width: 0.9rem;
     height: 0.9rem;
     border-radius: 50%;
-    border: 2px solid var(--app-loader-spinner-track);
-    border-top-color: var(--app-loader-spinner-accent);
+    border: 2px solid var(--loader-spin-track, rgba(255, 255, 255, 0.22));
+    border-top-color: var(--loader-spin-accent, var(--slider-color, rgba(32, 191, 185, 0.89)));
     animation: app-loader-spin 0.8s linear infinite;
 }
 
@@ -53,173 +45,10 @@
     font-size: 0.76rem;
     font-weight: 600;
     letter-spacing: 0.01em;
-    color: var(--app-loader-text);
+    color: var(--loader-text, var(--text, #f2f5ff));
 }
 
-.light-text .app-loader-host {
-    --app-loader-card-bg: rgba(255, 255, 255, 0.9);
-    --app-loader-card-border: rgba(0, 0, 0, 0.14);
-    --app-loader-card-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-    --app-loader-text: #111;
-    --app-loader-spinner-track: rgba(0, 0, 0, 0.2);
-    --app-loader-spinner-accent: var(--slider-color, #4f9ed6);
-}
 
-.pastel-blue .app-loader-host {
-    --app-loader-dim-opacity: 0.52;
-    --app-loader-card-bg: rgba(235, 245, 255, 0.94);
-    --app-loader-card-border: rgba(0, 80, 177, 0.25);
-    --app-loader-text: saddlebrown;
-    --app-loader-spinner-track: rgba(0, 80, 177, 0.25);
-    --app-loader-spinner-accent: var(--slider-color, #68a4ff);
-}
-
-.pastel-pink .app-loader-host {
-    --app-loader-dim-opacity: 0.52;
-    --app-loader-card-bg: rgba(255, 235, 237, 0.94);
-    --app-loader-card-border: rgba(177, 0, 90, 0.3);
-    --app-loader-text: #8a2150;
-    --app-loader-spinner-track: rgba(177, 0, 90, 0.23);
-    --app-loader-spinner-accent: var(--slider-color, #ff6884);
-}
-
-.vibrant-citrus .app-loader-host {
-    --app-loader-dim-opacity: 0.52;
-    --app-loader-card-bg: rgba(255, 246, 234, 0.95);
-    --app-loader-card-border: rgba(255, 133, 0, 0.33);
-    --app-loader-text: #7a4a00;
-    --app-loader-spinner-track: rgba(255, 133, 0, 0.26);
-    --app-loader-spinner-accent: var(--slider-color, #ff8400);
-}
-
-.dark .app-loader-host {
-    --app-loader-scrim: linear-gradient(
-            180deg,
-            rgba(16, 20, 28, 0.3),
-            rgba(16, 20, 28, 0.46)
-    );
-    --app-loader-card-bg: rgba(22, 26, 36, 0.82);
-    --app-loader-card-border: rgba(151, 151, 151, 0.25);
-    --app-loader-card-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
-    --app-loader-text: #e5e7eb;
-    --app-loader-spinner-track: rgba(255, 255, 255, 0.2);
-}
-
-.dark-alt .app-loader-host {
-    --app-loader-scrim: linear-gradient(
-            180deg,
-            rgba(0, 0, 0, 0.4),
-            rgba(0, 0, 0, 0.58)
-    );
-    --app-loader-card-bg: rgba(0, 0, 0, 0.74);
-    --app-loader-card-border: rgba(85, 85, 85, 0.35);
-    --app-loader-text: #ddd;
-    --app-loader-spinner-track: rgba(96, 255, 250, 0.25);
-    --app-loader-spinner-accent: var(--slider-color, rgba(96, 255, 250, 0.9));
-}
-
-.cosmic-rainbow .app-loader-host {
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(15, 15, 35, 0.9),
-            rgba(30, 30, 55, 0.95)
-    );
-    --app-loader-card-border: rgba(140, 180, 255, 0.25);
-    --app-loader-text: #f3f5ff;
-    --app-loader-spinner-track: rgba(150, 200, 255, 0.24);
-    --app-loader-spinner-accent: var(--slider-color, #8bc1ff);
-}
-
-.scarlet-nebula .app-loader-host {
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(20, 5, 5, 0.9),
-            rgba(64, 0, 0, 0.66)
-    );
-    --app-loader-card-border: rgba(200, 110, 90, 0.24);
-    --app-loader-text: #ffe7e4;
-    --app-loader-spinner-track: rgba(220, 130, 100, 0.23);
-    --app-loader-spinner-accent: var(--slider-color, #ff7f66);
-}
-
-.emerald-forest .app-loader-host {
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(4, 18, 12, 0.9),
-            rgba(10, 40, 28, 0.8)
-    );
-    --app-loader-card-border: rgba(80, 180, 120, 0.24);
-    --app-loader-text: #e0f0e8;
-    --app-loader-spinner-track: rgba(94, 234, 170, 0.2);
-    --app-loader-spinner-accent: var(--slider-color, #5eeaaa);
-}
-
-.graphite-pop .app-loader-host {
-    --app-loader-card-bg: #2a2a2a;
-    --app-loader-card-border: rgba(0, 229, 255, 0.15);
-    --app-loader-text: #e8e8e8;
-    --app-loader-spinner-track: rgba(0, 229, 255, 0.15);
-    --app-loader-spinner-accent: var(--slider-color, #00e5ff);
-}
-
-.glassy-rainbow .app-loader-host {
-    --app-loader-dim-opacity: 0.5;
-    --app-loader-card-bg: rgba(235, 245, 255, 0.95);
-    --app-loader-card-border: rgba(150, 120, 255, 0.25);
-    --app-loader-text: #003350;
-    --app-loader-spinner-track: rgba(0, 51, 80, 0.16);
-    --app-loader-spinner-accent: var(--slider-color, #00d4ff);
-}
-
-.sunlit-haze .app-loader-host {
-    --app-loader-dim-opacity: 0.5;
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(255, 255, 255, 0.9),
-            rgba(255, 250, 235, 0.92)
-    );
-    --app-loader-card-border: rgba(200, 170, 80, 0.2);
-    --app-loader-text: #2c3e50;
-    --app-loader-spinner-track: rgba(200, 150, 12, 0.15);
-    --app-loader-spinner-accent: var(--slider-color, #c8960c);
-}
-
-.frosted-aurora .app-loader-host {
-    --app-loader-dim-opacity: 0.5;
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(255, 255, 255, 0.76),
-            rgba(240, 250, 255, 0.86)
-    );
-    --app-loader-card-border: rgba(255, 255, 255, 0.3);
-    --app-loader-text: #003350;
-    --app-loader-spinner-track: rgba(0, 51, 80, 0.14);
-    --app-loader-spinner-accent: var(--slider-color, #61e8ff);
-}
-
-.frosted-aurora .dark-text .app-loader-host,
-.frosted-aurora .dark-text.app-loader-host {
-    --app-loader-scrim: transparent;
-    --app-loader-card-bg: linear-gradient(
-            145deg,
-            rgba(0, 0, 0, 0.55),
-            rgba(0, 0, 0, 0.58)
-    );
-    --app-loader-card-border: rgba(255, 255, 255, 0.11);
-    --app-loader-text: #e8eefc;
-    --app-loader-spinner-track: rgba(255, 255, 255, 0.24);
-}
-
-.frosted-aurora.blur-off .app-loader-host {
-    --app-loader-backdrop: unset;
-}
-
-.frosted-aurora.blur-off .app-loader-overlay {
-    -webkit-backdrop-filter: unset;
-    backdrop-filter: unset;
-}
-
-/* ── Centered fallback (Suspense / route transitions) ── */
 
 .app-loader-fallback {
     display: flex;
@@ -234,7 +63,7 @@
     animation-delay: 150ms;
 }
 
-/* ── Scrim fallback (lazy modal / panel chunks) ── */
+
 
 .app-loader-scrim {
     position: fixed;
@@ -245,7 +74,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.8rem;
-    background: color-mix(in srgb, var(--calc-shell-bg, rgba(6, 10, 26, 0.92)) 18%, rgba(6, 10, 26, 0.66));
+    background: color-mix(in srgb, var(--bg-alt, rgba(6, 10, 26, 0.92)) 18%, rgba(6, 10, 26, 0.66));
     backdrop-filter: blur(10px);
     animation: app-loader-scrim-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -317,7 +146,7 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     opacity: 0.22;
-    color: var(--text, var(--calc-text, currentColor));
+    color: var(--text, currentColor);
 }
 
 @keyframes app-loader-fade-in {

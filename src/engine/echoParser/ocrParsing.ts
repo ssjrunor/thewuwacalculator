@@ -6,18 +6,18 @@
 
 import Tesseract from 'tesseract.js'
 import { listEchoes } from '@/domain/services/echoCatalogService'
-import { getEchoImageMap, getSetNameImageMap, getSetNameToId } from '@/engine/echoParser/imageMap'
+import { getEchoMgMap, getSetNameMg, getSetNameTo } from '@/engine/echoParser/imageMap'
 import {
-  preloadEchoImages,
-  preloadSetImages,
-  matchSetFirst,
-  matchEchoFromFiltered,
+  prldEchoMgs,
+  prldSetMgs,
+  mtchSetFrst,
+  mtchEchoFrom,
 } from '@/engine/echoParser/imageMatching'
 import type { ImageRegion } from '@/engine/echoParser/imageMatching'
 
-export interface RawParsedEcho {
+export interface RawPrsdEcho {
   cost: string
-  mainStatLabel: string
+  mainStatLbl: string
   substats: string[]
   echoName: string | null
   setName: string | null
@@ -49,7 +49,7 @@ function getCoords() {
   })
 }
 
-function clearCanvasCache(cache: Record<string, CanvasRenderingContext2D>): void {
+function clrCnvsCch(cache: Record<string, CanvasRenderingContext2D>): void {
   for (const [key, context] of Object.entries(cache)) {
     context.canvas.width = 0
     context.canvas.height = 0
@@ -92,7 +92,7 @@ async function extractText(
 }
 
 // parse all five echoes from a screenshot
-export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]> {
+export async function prsChsFromMg(file: File): Promise<RawPrsdEcho[]> {
   const img = new Image()
   const objectUrl = URL.createObjectURL(file)
 
@@ -112,8 +112,8 @@ export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]>
     canvas.height = 1080
     canvas.getContext('2d')!.drawImage(loadedImg, 0, 0)
 
-    await preloadEchoImages(getEchoImageMap(), echoCache)
-    await preloadSetImages(getSetNameImageMap(), setCache)
+    await prldEchoMgs(getEchoMgMap(), echoCache)
+    await prldSetMgs(getSetNameMg(), setCache)
 
     const echoCatalog = listEchoes()
 
@@ -126,7 +126,7 @@ export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]>
     })
 
     const coords = getCoords()
-    const results: RawParsedEcho[] = []
+    const results: RawPrsdEcho[] = []
 
     try {
       for (let index = 0; index < coords.length; index += 1) {
@@ -142,13 +142,13 @@ export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]>
         cost = cost.replace(/[^0-9]/g, '')
         if (!['1', '3', '4'].includes(cost)) cost = '4'
 
-        // read main stat label and substats
+        // read main stat desc and substats
         await worker.setParameters({
           tessedit_char_whitelist: whitelist,
           tessedit_pageseg_mode: '6' as Tesseract.PSM,
         })
 
-        const mainStatLabel = await extractText(canvas, worker, slot.mainStatLabel)
+        const mainStatLbl = await extractText(canvas, worker, slot.mainStatLabel)
 
         const substats: string[] = []
         for (const sub of slot.substats) {
@@ -157,35 +157,35 @@ export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]>
         }
 
         // match set first
-        const setName = matchSetFirst(canvas, slot.set, setCache)
+        const setName = mtchSetFrst(canvas, slot.set, setCache)
 
         // filter echo candidates by set and cost
-        let filteredNames: string[] = []
+        let fltrNms: string[] = []
         if (setName !== null) {
-          const setId = getSetNameToId()[setName]
-          filteredNames = echoCatalog
+          const setId = getSetNameTo()[setName]
+          fltrNms = echoCatalog
               .filter((echo) => echo.sets.includes(setId) && String(echo.cost) === cost)
               .map((echo) => echo.name)
 
           // if cost filtering removes everything, fall back to set-only filtering
-          if (filteredNames.length === 0) {
-            filteredNames = echoCatalog
+          if (fltrNms.length === 0) {
+            fltrNms = echoCatalog
                 .filter((echo) => echo.sets.includes(setId))
                 .map((echo) => echo.name)
           }
         }
 
         // if set match failed, search across all echoes
-        if (filteredNames.length === 0) {
-          filteredNames = Object.keys(getEchoImageMap())
+        if (fltrNms.length === 0) {
+          fltrNms = Object.keys(getEchoMgMap())
         }
 
         // match echo icon from remaining candidates
-        const echoName = matchEchoFromFiltered(canvas, slot.echoImage, filteredNames, echoCache)
+        const echoName = mtchEchoFrom(canvas, slot.echoImage, fltrNms, echoCache)
 
         results.push({
           cost,
-          mainStatLabel,
+          mainStatLbl: mainStatLbl,
           substats,
           echoName,
           setName,
@@ -195,8 +195,8 @@ export async function parseEchoesFromImage(file: File): Promise<RawParsedEcho[]>
       return results
     } finally {
       await worker.terminate()
-      clearCanvasCache(echoCache)
-      clearCanvasCache(setCache)
+      clrCnvsCch(echoCache)
+      clrCnvsCch(setCache)
       canvas.width = 0
       canvas.height = 0
     }

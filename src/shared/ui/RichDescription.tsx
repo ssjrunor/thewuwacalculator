@@ -1,26 +1,32 @@
-import { useMemo } from 'react'
-import { formatDescription } from '@/shared/lib/formatDescription'
+/*
+  Author: Runor Ewhro
+  Description: Formats authored description text into highlighted rich content
+               using the shared description parser.
+*/
 
-interface RichDescriptionProps {
+import { useMemo } from 'react'
+import { fmtDscr } from '@/shared/lib/formatDescription'
+
+interface RichDscrPrps {
   description: string
   params?: Array<string | number>
   accentColor?: string
   className?: string
-  extraKeywords?: string[]
+  xtrKywr?: string[]
   unstyled?: boolean
 }
 
-export function RichDescription({
+export function RichDscr({
   description,
   params = [],
   accentColor,
   className,
-  extraKeywords = [],
+  xtrKywr: xtrKywr = [],
   unstyled = false,
-}: RichDescriptionProps) {
+}: RichDscrPrps) {
   const html = useMemo(
-    () => formatDescription(description, params, accentColor, { extraKeywords }),
-    [accentColor, description, extraKeywords, params],
+    () => fmtDscr(description, params, accentColor, { xtrKywr: xtrKywr }),
+    [accentColor, description, xtrKywr, params],
   )
 
   return (

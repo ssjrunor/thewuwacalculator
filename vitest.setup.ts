@@ -1,8 +1,14 @@
+/*
+  Author: Runor Ewhro
+  Description: Prepares Vitest fetch handling and hydrates calculator game data
+               before test modules run.
+*/
+
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { vi } from 'vitest'
 
-function resolveRequestUrl(input: RequestInfo | URL): string {
+function resReqUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') {
     return input
   }
@@ -14,10 +20,10 @@ function resolveRequestUrl(input: RequestInfo | URL): string {
   return input.url
 }
 
-const originalFetch = globalThis.fetch
+const origFetch = globalThis.fetch
 
 vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = resolveRequestUrl(input)
+  const url = resReqUrl(input)
 
   if (url.startsWith('/data/')) {
     const filePath = path.join(process.cwd(), 'public', url.slice(1))
@@ -29,12 +35,12 @@ vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
     } as Response
   }
 
-  if (originalFetch) {
-    return originalFetch(input as RequestInfo, init)
+  if (origFetch) {
+    return origFetch(input as RequestInfo, init)
   }
 
   throw new Error(`Unhandled test fetch request: ${url}`)
 })
 
-const { initializeGameData } = await import('@/data/gameData')
-await initializeGameData()
+const { initGameData } = await import('@/data/gameData')
+await initGameData()

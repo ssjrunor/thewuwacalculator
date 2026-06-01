@@ -5,28 +5,28 @@
 */
 
 import {
-  getEchoCatalog,
-  getEchoCatalogByCost,
-  getEchoCatalogById,
+  getEchoCat,
+  getEchoByCost,
+  getEchoCatBy,
 } from '@/data/gameData/catalog/echoes'
-import type { EchoDefinition } from '@/domain/entities/catalog'
+import type { EchoDef } from '@/domain/entities/catalog'
 
 // list all echo definitions
-export function listEchoes(): EchoDefinition[] {
-  return getEchoCatalog()
+export function listEchoes(): EchoDef[] {
+  return getEchoCat()
 }
 
 // get one echo definition by id
-export function getEchoById(echoId: string): EchoDefinition | null {
-  return getEchoCatalogById()[echoId] ?? null
+export function getEchoById(echoId: string): EchoDef | null {
+  return getEchoCatBy()[echoId] ?? null
 }
 
 // list echoes filtered by cost
-export function listEchoesByCost(cost: number): EchoDefinition[] {
-  return getEchoCatalogByCost()[cost] ?? []
+export function listChsByCos(cost: number): EchoDef[] {
+  return getEchoByCost()[cost] ?? []
 }
 
 // get the set ids associated with an echo
 export function getEchoSets(echoId: string): number[] {
-  return getEchoCatalogById()[echoId]?.sets ?? []
+  return getEchoCatBy()[echoId]?.sets ?? []
 }

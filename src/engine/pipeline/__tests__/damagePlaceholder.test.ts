@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { runResonatorSimulation } from '@/engine/pipeline'
-import { createDefaultResonatorRuntime, makeDefaultEnemyProfile } from '@/domain/state/defaults'
+import { runResSmlt } from '@/engine/pipeline'
+import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
 import { getResonatorById } from '@/domain/services/catalogService'
 
 describe('placeholder enemy handling', () => {
@@ -10,10 +10,13 @@ describe('placeholder enemy handling', () => {
       throw new Error('missing seed resonator 1412')
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const baselineEnemy = makeDefaultEnemyProfile()
+    const runtime = makeResRuntime(seed)
+    const baselineEnemy = {
+      ...makeEnemy(),
+      id: '0',
+    }
     const inflatedIgnoredEnemy = {
-      ...makeDefaultEnemyProfile(),
+      ...makeEnemy(),
       id: '0',
       level: 120,
       class: 6,
@@ -29,8 +32,8 @@ describe('placeholder enemy handling', () => {
       },
     }
 
-    const baseline = runResonatorSimulation(runtime, seed, baselineEnemy)
-    const ignored = runResonatorSimulation(runtime, seed, inflatedIgnoredEnemy)
+    const baseline = runResSmlt(runtime, seed, baselineEnemy)
+    const ignored = runResSmlt(runtime, seed, inflatedIgnoredEnemy)
 
     expect(ignored.total.normal).toBeCloseTo(baseline.total.normal)
     expect(ignored.total.crit).toBeCloseTo(baseline.total.crit)

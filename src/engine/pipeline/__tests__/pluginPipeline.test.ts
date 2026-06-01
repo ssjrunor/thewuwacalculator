@@ -1,25 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
-import { runCombatGraphSimulation, runResonatorSimulation } from '@/engine/pipeline'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { runCmbtGrphS, runResSmlt } from '@/engine/pipeline'
 import {
-  createDefaultResonatorRuntime,
-  createDefaultTeamMemberRuntimeView,
-  materializeTeamMemberRuntimeView,
-  makeDefaultEnemyProfile,
-  makeDefaultWeaponBuildState,
+  makeResRuntime,
+  mkDefTeamMem,
+  matTeamMemRt,
+  makeEnemy,
+  mkDefWpnMkSt,
 } from '@/domain/state/defaults'
-import { createEchoUid } from '@/domain/entities/runtime'
-import { buildTransientCombatGraph, findCombatParticipantSlotId } from '@/domain/state/combatGraph'
+import { makeEchoUid } from '@/domain/entities/runtime'
+import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph'
 import { getResonatorById } from '@/domain/services/catalogService'
 
-function withoutWeapon(runtime: ReturnType<typeof createDefaultResonatorRuntime>) {
-  runtime.build.weapon = makeDefaultWeaponBuildState()
+function withoutWeapon(runtime: ReturnType<typeof makeResRuntime>) {
+  runtime.build.weapon = mkDefWpnMkSt()
   return runtime
 }
 
 function makeMainEcho(id: string, set = 4) {
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id,
     set,
     mainEcho: true,
@@ -49,25 +49,25 @@ function makeSetLoadout(set: number) {
 }
 
 function buildContextFromRuntimes(options: {
-  activeRuntime: ReturnType<typeof createDefaultResonatorRuntime>
-  targetRuntime?: ReturnType<typeof createDefaultResonatorRuntime>
-  participantRuntimes?: Record<string, ReturnType<typeof createDefaultResonatorRuntime>>
-  enemy: ReturnType<typeof makeDefaultEnemyProfile>
+  activeRuntime: ReturnType<typeof makeResRuntime>
+  targetRuntime?: ReturnType<typeof makeResRuntime>
+  participantRuntimes?: Record<string, ReturnType<typeof makeResRuntime>>
+  enemy: ReturnType<typeof makeEnemy>
   selectedTargetsByResonatorId?: Record<string, Record<string, string | null>>
 }) {
-  const graph = buildTransientCombatGraph({
-    activeRuntime: options.activeRuntime,
-    participantRuntimes: options.participantRuntimes,
-    selectedTargetsByResonatorId: options.selectedTargetsByResonatorId,
+  const graph = makeCombatGraph({
+    actRt: options.activeRuntime,
+    partRts: options.participantRuntimes,
+    targetsByRes: options.selectedTargetsByResonatorId,
   })
   const targetRuntime = options.targetRuntime ?? options.activeRuntime
-  const targetSlotId = findCombatParticipantSlotId(graph, targetRuntime.id)
+  const targetSlotId = findCombatPart(graph, targetRuntime.id)
 
   if (!targetSlotId) {
     throw new Error(`missing graph participant for ${targetRuntime.id}`)
   }
 
-  return buildCombatContext({
+  return makeCombatEnv({
     graph,
     targetSlotId,
     enemy: options.enemy,
@@ -81,14 +81,14 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1412')
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.build.weapon.id = 'sunward'
     runtime.build.weapon.rank = 1
     runtime.build.echoes[0] = makeMainEcho('6000038')
 
     const context = buildContextFromRuntimes({
       activeRuntime: runtime,
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(context.buffs.atk.percent).toBe(0)
@@ -104,10 +104,10 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1506')
     }
 
-    const runtime = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const runtime = withoutWeapon(makeResRuntime(seed))
     runtime.build.echoes[0] = makeMainEcho('6000090')
 
-    const result = runResonatorSimulation(runtime, seed, makeDefaultEnemyProfile())
+    const result = runResSmlt(runtime, seed, makeEnemy())
     const echoSkill = result.allSkills.find((entry) => entry.skill.id === 'echo:6000090:skill:1')
 
     expect(echoSkill?.feature.source).toEqual({ type: 'echo', id: '6000090' })
@@ -122,15 +122,15 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1506')
     }
 
-    const disabledRuntime = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const disabledRuntime = withoutWeapon(makeResRuntime(seed))
     disabledRuntime.build.echoes[0] = makeMainEcho('6000053')
 
-    const enabledRuntime = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const enabledRuntime = withoutWeapon(makeResRuntime(seed))
     enabledRuntime.build.echoes[0] = makeMainEcho('6000053')
     enabledRuntime.state.controls['echo:6000053:main:active'] = true
 
-    const disabledResult = runResonatorSimulation(disabledRuntime, seed, makeDefaultEnemyProfile())
-    const enabledResult = runResonatorSimulation(enabledRuntime, seed, makeDefaultEnemyProfile())
+    const disabledResult = runResSmlt(disabledRuntime, seed, makeEnemy())
+    const enabledResult = runResSmlt(enabledRuntime, seed, makeEnemy())
 
     const disabledEchoSkill = disabledResult.allSkills.find((entry) => entry.skill.id === 'echo:6000053:skill:1')
     const enabledEchoSkill = enabledResult.allSkills.find((entry) => entry.skill.id === 'echo:6000053:skill:1')
@@ -146,24 +146,24 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonators 1506 or 1208')
     }
 
-    const sourceRuntime = withoutWeapon(createDefaultResonatorRuntime(sourceSeed))
+    const sourceRuntime = withoutWeapon(makeResRuntime(sourceSeed))
     sourceRuntime.build.echoes[0] = makeMainEcho('6000060')
     sourceRuntime.state.controls['echo:6000060:main:active'] = true
     sourceRuntime.build.team[1] = '1208'
 
-    const teammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const teammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
 
     const sourceContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const teammateContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(sourceContext.buffs.energyRegen).toBe(10)
@@ -180,24 +180,24 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonators 1506 or 1208')
     }
 
-    const sourceRuntime = withoutWeapon(createDefaultResonatorRuntime(sourceSeed))
+    const sourceRuntime = withoutWeapon(makeResRuntime(sourceSeed))
     sourceRuntime.build.echoes[0] = makeMainEcho('390080005')
     sourceRuntime.state.controls['echo:390080005:main:active'] = true
     sourceRuntime.build.team[1] = '1208'
 
-    const teammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const teammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
 
     const sourceContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const teammateContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(sourceContext.buffs.dmgBonus).toBe(10)
@@ -211,24 +211,24 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonators 1506 or 1208')
     }
 
-    const runtime = withoutWeapon(createDefaultResonatorRuntime(sourceSeed))
+    const runtime = withoutWeapon(makeResRuntime(sourceSeed))
     runtime.build.team[1] = '1208'
     runtime.build.echoes = makeSetLoadout(8)
     runtime.state.controls['echoSet:8:bonus:moonlit5'] = true
 
-    const teammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const teammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
 
     const sourceContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const teammateContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(sourceContext.buffs.atk.percent).toBe(0)
@@ -240,14 +240,14 @@ describe('simulation pipeline', () => {
     const gustsSourceContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const gustsTeammateContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(gustsSourceContext.buffs.attribute.aero.dmgBonus).toBe(40)
@@ -259,14 +259,14 @@ describe('simulation pipeline', () => {
     const harmonySourceContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const harmonyTeammateContext = buildContextFromRuntimes({
       activeRuntime: runtime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(harmonySourceContext.buffs.skillType.heavyAtk.dmgBonus).toBe(30)
@@ -282,24 +282,24 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonators 1506 or 1208')
     }
 
-    const sourceRuntime = withoutWeapon(createDefaultResonatorRuntime(sourceSeed))
+    const sourceRuntime = withoutWeapon(makeResRuntime(sourceSeed))
     sourceRuntime.build.team[1] = '1208'
     sourceRuntime.build.echoes[0] = makeMainEcho('6000052')
     sourceRuntime.state.controls['echo:6000052:main:active'] = true
 
-    const teammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const teammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
 
     const sourceContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const teammateContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(sourceContext.buffs.dmgBonus).toBe(0)
@@ -311,19 +311,38 @@ describe('simulation pipeline', () => {
     const hyvatiaSourceContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const hyvatiaTeammateContext = buildContextFromRuntimes({
       activeRuntime: sourceRuntime,
       targetRuntime: teammateRuntime,
       participantRuntimes: { '1208': teammateRuntime },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(hyvatiaSourceContext.buffs.attribute.spectro.dmgBonus).toBe(0)
     expect(hyvatiaTeammateContext.buffs.attribute.spectro.dmgBonus).toBe(10)
     expect(hyvatiaTeammateContext.buffs.attribute.fusion.dmgBonus).toBe(10)
+
+    sourceRuntime.build.echoes[0] = makeMainEcho('6000195')
+    sourceRuntime.state.controls = { 'echo:6000195:main:active': true }
+
+    const glommothSourceContext = buildContextFromRuntimes({
+      activeRuntime: sourceRuntime,
+      participantRuntimes: { '1208': teammateRuntime },
+      enemy: makeEnemy(),
+    })
+
+    const glommothTeammateContext = buildContextFromRuntimes({
+      activeRuntime: sourceRuntime,
+      targetRuntime: teammateRuntime,
+      participantRuntimes: { '1208': teammateRuntime },
+      enemy: makeEnemy(),
+    })
+
+    expect(glommothSourceContext.buffs.attribute.glacio.dmgBonus).toBe(0)
+    expect(glommothTeammateContext.buffs.attribute.glacio.dmgBonus).toBe(12)
   })
 
   it("applies Flamewing's Shadow 3pc Fusion synergy only when both triggers are active", () => {
@@ -332,7 +351,7 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1208')
     }
 
-    const runtime = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const runtime = withoutWeapon(makeResRuntime(seed))
     runtime.build.echoes[0] = makeMainEcho('6000038', 22)
     runtime.build.echoes[1] = {
       ...makeMainEcho('6000039', 22),
@@ -345,7 +364,7 @@ describe('simulation pipeline', () => {
 
     const baseContext = buildContextFromRuntimes({
       activeRuntime: runtime,
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const oneTriggerRuntime = {
@@ -360,7 +379,7 @@ describe('simulation pipeline', () => {
     }
     const oneTriggerContext = buildContextFromRuntimes({
       activeRuntime: oneTriggerRuntime,
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     const bothTriggersRuntime = {
@@ -376,7 +395,7 @@ describe('simulation pipeline', () => {
     }
     const bothTriggersContext = buildContextFromRuntimes({
       activeRuntime: bothTriggersRuntime,
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(baseContext.buffs.skillType.heavyAtk.critRate).toBe(0)
@@ -398,8 +417,8 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1506')
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const result = runResonatorSimulation(runtime, seed, makeDefaultEnemyProfile())
+    const runtime = makeResRuntime(seed)
+    const result = runResSmlt(runtime, seed, makeEnemy())
     const summed = result.perSkill.reduce(
       (total, entry) => {
         total.normal += entry.subHits.reduce((sum, hit) => sum + hit.normal * hit.count, 0)
@@ -422,7 +441,7 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1412')
     }
 
-    const baseRuntime = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const baseRuntime = withoutWeapon(makeResRuntime(seed))
     const sequence4Runtime = {
       ...baseRuntime,
       base: {
@@ -461,12 +480,12 @@ describe('simulation pipeline', () => {
       },
     }
 
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const baseline = runResonatorSimulation(baseRuntime, seed, enemy)
-    const sequence4 = runResonatorSimulation(sequence4Runtime, seed, enemy)
-    const sequence5 = runResonatorSimulation(sequence5Runtime, seed, enemy)
-    const sequence6 = runResonatorSimulation(sequence6Runtime, seed, enemy)
+    const baseline = runResSmlt(baseRuntime, seed, enemy)
+    const sequence4 = runResSmlt(sequence4Runtime, seed, enemy)
+    const sequence5 = runResSmlt(sequence5Runtime, seed, enemy)
+    const sequence6 = runResSmlt(sequence6Runtime, seed, enemy)
 
     const sequence4Context = buildContextFromRuntimes({
       activeRuntime: sequence4Runtime,
@@ -515,17 +534,17 @@ describe('simulation pipeline', () => {
       },
     }
 
-    const baseline = withoutWeapon(createDefaultResonatorRuntime(seed))
-    const absolution = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const baseline = withoutWeapon(makeResRuntime(seed))
+    const absolution = withoutWeapon(makeResRuntime(seed))
     absolution.base.level = 70
     absolution.state.controls['resonator:1506:absolution:active'] = true
     absolution.state.combat.spectroFrazzle = 1
 
-    const confession = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const confession = withoutWeapon(makeResRuntime(seed))
     confession.state.controls['resonator:1506:confession:active'] = true
     confession.state.controls['resonator:1506:attentive_heart:active'] = true
 
-    const sequence = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const sequence = withoutWeapon(makeResRuntime(seed))
     sequence.base.sequence = 6
     sequence.state.controls['sequence:1506:s4:active'] = true
     sequence.state.controls['sequence:1506:s5:active'] = true
@@ -544,9 +563,9 @@ describe('simulation pipeline', () => {
       enemy,
     })
 
-    const baselineResult = runResonatorSimulation(baseline, seed, enemy)
-    const absolutionResult = runResonatorSimulation(absolution, seed, enemy)
-    const confessionResult = runResonatorSimulation(confession, seed, enemy)
+    const baselineResult = runResSmlt(baseline, seed, enemy)
+    const absolutionResult = runResSmlt(absolution, seed, enemy)
+    const confessionResult = runResSmlt(confession, seed, enemy)
 
     const findSkill = (result: typeof baselineResult, skillId: string) =>
       result.allSkills.find((entry) => entry.skill.id === skillId)
@@ -576,27 +595,27 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1207')
     }
 
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const fusionParticipants = {
-      [fusionMate1.id]: withoutWeapon(createDefaultResonatorRuntime(fusionMate1)),
-      [fusionMate2.id]: withoutWeapon(createDefaultResonatorRuntime(fusionMate2)),
+      [fusionMate1.id]: withoutWeapon(makeResRuntime(fusionMate1)),
+      [fusionMate2.id]: withoutWeapon(makeResRuntime(fusionMate2)),
     }
     const mixedParticipants = {
-      [mixedMate1.id]: withoutWeapon(createDefaultResonatorRuntime(mixedMate1)),
-      [mixedMate2.id]: withoutWeapon(createDefaultResonatorRuntime(mixedMate2)),
+      [mixedMate1.id]: withoutWeapon(makeResRuntime(mixedMate1)),
+      [mixedMate2.id]: withoutWeapon(makeResRuntime(mixedMate2)),
     }
 
-    const fusionTeam = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const fusionTeam = withoutWeapon(makeResRuntime(seed))
     fusionTeam.build.team = [seed.id, '1208', '1209']
     fusionTeam.state.controls['team:1207:pack_hunt:active'] = true
     fusionTeam.state.controls['team:1207:glory:stacks'] = 1
 
-    const mixedTeam = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const mixedTeam = withoutWeapon(makeResRuntime(seed))
     mixedTeam.build.team = [seed.id, '1510', '1506']
     mixedTeam.state.controls['team:1207:pack_hunt:active'] = true
     mixedTeam.state.controls['team:1207:glory:stacks'] = 1
 
-    const wolflameTeam = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const wolflameTeam = withoutWeapon(makeResRuntime(seed))
     wolflameTeam.base.sequence = 3
     wolflameTeam.build.team = [seed.id, '1510', '1506']
     wolflameTeam.state.controls['team:1207:pack_hunt:active'] = true
@@ -624,9 +643,9 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds for 1207 teammate validation')
     }
 
-    const enemy = makeDefaultEnemyProfile()
-    const activeRuntime = withoutWeapon(createDefaultResonatorRuntime(activeSeed))
-    const teammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const enemy = makeEnemy()
+    const activeRuntime = withoutWeapon(makeResRuntime(activeSeed))
+    const teammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
 
     activeRuntime.build.team = [activeSeed.id, teammateSeed.id, null]
 
@@ -672,31 +691,31 @@ describe('simulation pipeline', () => {
     expect(teammateContext.buffs.critRate).toBe(20)
     expect(teammateContext.buffs.skillType.resonanceLiberation.dmgBonus).toBe(15)
 
-    const baselineActiveRuntime = withoutWeapon(createDefaultResonatorRuntime(activeSeed))
-    const baselineTeammateRuntime = withoutWeapon(createDefaultResonatorRuntime(teammateSeed))
+    const baselineActiveRuntime = withoutWeapon(makeResRuntime(activeSeed))
+    const baselineTeammateRuntime = withoutWeapon(makeResRuntime(teammateSeed))
     baselineActiveRuntime.build.team = [activeSeed.id, teammateSeed.id, null]
     baselineTeammateRuntime.base.level = 70
     baselineTeammateRuntime.build.team = [activeSeed.id, teammateSeed.id, null]
 
-    const baselineGraph = buildTransientCombatGraph({
-      activeRuntime: baselineActiveRuntime,
-      participantRuntimes: {
+    const baselineGraph = makeCombatGraph({
+      actRt: baselineActiveRuntime,
+      partRts: {
         [teammateSeed.id]: baselineTeammateRuntime,
       },
     })
-    const buffedGraph = buildTransientCombatGraph({
-      activeRuntime,
-      participantRuntimes,
+    const buffedGraph = makeCombatGraph({
+      actRt: activeRuntime,
+      partRts: participantRuntimes,
     })
-    const baselineTargetSlotId = findCombatParticipantSlotId(baselineGraph, teammateSeed.id)
-    const buffedTargetSlotId = findCombatParticipantSlotId(buffedGraph, teammateSeed.id)
+    const baselineTargetSlotId = findCombatPart(baselineGraph, teammateSeed.id)
+    const buffedTargetSlotId = findCombatPart(buffedGraph, teammateSeed.id)
 
     if (!baselineTargetSlotId || !buffedTargetSlotId) {
       throw new Error('missing combat graph slot for 1207 teammate simulation')
     }
 
-    const baselineResult = runCombatGraphSimulation(baselineGraph, baselineTargetSlotId, teammateSeed, enemy)
-    const buffedResult = runCombatGraphSimulation(buffedGraph, buffedTargetSlotId, teammateSeed, enemy)
+    const baselineResult = runCmbtGrphS(baselineGraph, baselineTargetSlotId, teammateSeed, enemy)
+    const buffedResult = runCmbtGrphS(buffedGraph, buffedTargetSlotId, teammateSeed, enemy)
     const findSkill = (result: typeof baselineResult, skillId: string) =>
       result.allSkills.find((entry) => entry.skill.id === skillId)
 
@@ -714,10 +733,10 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds for 1207 full-fusion teammate validation')
     }
 
-    const enemy = makeDefaultEnemyProfile()
-    const activeRuntime = withoutWeapon(createDefaultResonatorRuntime(activeSeed))
-    const lupaRuntime = withoutWeapon(createDefaultResonatorRuntime(lupaSeed))
-    const extraTeammateRuntime = withoutWeapon(createDefaultResonatorRuntime(extraTeammateSeed))
+    const enemy = makeEnemy()
+    const activeRuntime = withoutWeapon(makeResRuntime(activeSeed))
+    const lupaRuntime = withoutWeapon(makeResRuntime(lupaSeed))
+    const extraTeammateRuntime = withoutWeapon(makeResRuntime(extraTeammateSeed))
 
     activeRuntime.build.team = [activeSeed.id, lupaSeed.id, extraTeammateSeed.id]
 
@@ -782,9 +801,9 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds')
     }
 
-    const activeRuntime = createDefaultResonatorRuntime(activeSeed)
-    const phoebeRuntime = createDefaultResonatorRuntime(phoebeSeed)
-    const targetRuntime = createDefaultResonatorRuntime(targetSeed)
+    const activeRuntime = makeResRuntime(activeSeed)
+    const phoebeRuntime = makeResRuntime(phoebeSeed)
+    const targetRuntime = makeResRuntime(targetSeed)
 
     activeRuntime.build.team = [activeSeed.id, phoebeSeed.id, targetSeed.id]
     phoebeRuntime.state.controls['resonator:1506:confession:active'] = true
@@ -794,7 +813,7 @@ describe('simulation pipeline', () => {
       [phoebeSeed.id]: phoebeRuntime,
       [targetSeed.id]: targetRuntime,
     }
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const activeContext = buildContextFromRuntimes({
       activeRuntime,
@@ -847,9 +866,9 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds')
     }
 
-    const activeRuntime = createDefaultResonatorRuntime(activeSeed)
-    const shorekeeperRuntime = createDefaultResonatorRuntime(shorekeeperSeed)
-    const targetRuntime = createDefaultResonatorRuntime(targetSeed)
+    const activeRuntime = makeResRuntime(activeSeed)
+    const shorekeeperRuntime = makeResRuntime(shorekeeperSeed)
+    const targetRuntime = makeResRuntime(targetSeed)
 
     activeRuntime.build.team = [activeSeed.id, shorekeeperSeed.id, targetSeed.id]
     shorekeeperRuntime.state.controls['resonator:1505:inner_stellarealm:active'] = true
@@ -861,7 +880,7 @@ describe('simulation pipeline', () => {
       [targetSeed.id]: targetRuntime,
     }
 
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const targetContext = buildContextFromRuntimes({
       activeRuntime,
       targetRuntime,
@@ -880,9 +899,9 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds')
     }
 
-    const phoebeRuntime = createDefaultResonatorRuntime(phoebeSeed)
-    const secondPhoebeRuntime = createDefaultResonatorRuntime(phoebeSeed)
-    const shorekeeperRuntime = createDefaultResonatorRuntime(shorekeeperSeed)
+    const phoebeRuntime = makeResRuntime(phoebeSeed)
+    const secondPhoebeRuntime = makeResRuntime(phoebeSeed)
+    const shorekeeperRuntime = makeResRuntime(shorekeeperSeed)
 
     phoebeRuntime.state.controls['resonator:1506:confession:active'] = true
     phoebeRuntime.state.controls['resonator:1506:attentive_heart:active'] = true
@@ -901,14 +920,14 @@ describe('simulation pipeline', () => {
       throw new Error('missing required teammate runtime seeds')
     }
 
-    const activeRuntime = createDefaultResonatorRuntime(activeSeed)
+    const activeRuntime = makeResRuntime(activeSeed)
     activeRuntime.build.team = [activeSeed.id, teammateSeed.id, null]
 
-    const teamMemberRuntimeView = createDefaultTeamMemberRuntimeView(teammateSeed)
+    const teamMemberRuntimeView = mkDefTeamMem(teammateSeed)
     teamMemberRuntimeView.base.sequence = 2
     teamMemberRuntimeView.state.controls['resonator:1506:confession:active'] = true
 
-    const teammateRuntime = materializeTeamMemberRuntimeView(
+    const teammateRuntime = matTeamMemRt(
       teammateSeed,
       teamMemberRuntimeView,
       activeRuntime.build.team,
@@ -927,11 +946,11 @@ describe('simulation pipeline', () => {
       throw new Error('missing seed resonator 1505')
     }
 
-    const enemy = makeDefaultEnemyProfile()
-    const innerOnly = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const enemy = makeEnemy()
+    const innerOnly = withoutWeapon(makeResRuntime(seed))
     innerOnly.state.controls['resonator:1505:inner_stellarealm:active'] = true
 
-    const gravitation = withoutWeapon(createDefaultResonatorRuntime(seed))
+    const gravitation = withoutWeapon(makeResRuntime(seed))
     gravitation.base.level = 70
     gravitation.state.controls['resonator:1505:inner_stellarealm:active'] = true
     gravitation.state.controls['inherent:1505:lvl70:active'] = true
@@ -959,23 +978,23 @@ describe('simulation pipeline', () => {
       throw new Error('missing required resonator seeds')
     }
 
-    const activeRuntime = withoutWeapon(createDefaultResonatorRuntime(activeSeed))
+    const activeRuntime = withoutWeapon(makeResRuntime(activeSeed))
     activeRuntime.build.team = [activeSeed.id, shorekeeperSeed.id, null]
 
-    const lowErTeamMember = createDefaultTeamMemberRuntimeView(shorekeeperSeed)
+    const lowErTeamMember = mkDefTeamMem(shorekeeperSeed)
     lowErTeamMember.build.weapon = { id: null, rank: 1, baseAtk: 0 }
-    const highErTeamMember = createDefaultTeamMemberRuntimeView(shorekeeperSeed)
+    const highErTeamMember = mkDefTeamMem(shorekeeperSeed)
     highErTeamMember.build.weapon = { id: null, rank: 1, baseAtk: 0 }
     lowErTeamMember.state.controls['resonator:1505:inner_stellarealm:active'] = true
     highErTeamMember.state.controls['resonator:1505:inner_stellarealm:active'] = true
     highErTeamMember.state.manualBuffs.quick.energyRegen = 100
 
-    const lowParticipantRuntime = materializeTeamMemberRuntimeView(
+    const lowParticipantRuntime = matTeamMemRt(
       shorekeeperSeed,
       lowErTeamMember,
       activeRuntime.build.team,
     )
-    const highParticipantRuntime = materializeTeamMemberRuntimeView(
+    const highParticipantRuntime = matTeamMemRt(
       shorekeeperSeed,
       highErTeamMember,
       activeRuntime.build.team,
@@ -986,14 +1005,14 @@ describe('simulation pipeline', () => {
       participantRuntimes: {
         [shorekeeperSeed.id]: lowParticipantRuntime,
       },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
     const highContext = buildContextFromRuntimes({
       activeRuntime,
       participantRuntimes: {
         [shorekeeperSeed.id]: highParticipantRuntime,
       },
-      enemy: makeDefaultEnemyProfile(),
+      enemy: makeEnemy(),
     })
 
     expect(lowContext.finalStats.critRate).toBeCloseTo(10)

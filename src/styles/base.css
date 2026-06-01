@@ -1,13 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Sen:wght@400..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap');
 
 :root {
   --body-font: 'Sen', sans-serif;
-  --preview-font: var(--body-font);
+  --display-font: 'Chakra Petch', 'Sen', sans-serif;
   font-family: var(--body-font);
 }
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #888 transparent;
 }
 
 *:focus {
@@ -15,8 +18,12 @@
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -26,8 +33,10 @@
 *::-webkit-scrollbar-thumb {
   border-radius: 999px;
   cursor: pointer;
+  background-color: color-mix(in srgb, currentColor 35%, transparent);
+  border: 0.2rem solid transparent;
+  background-clip: content-box;
 }
-
 
 html,
 body,
@@ -36,6 +45,7 @@ body,
   padding: 0;
   width: 100%;
   height: auto;
+  font-size: clamp(12px, 1vw, 16px);
   min-height: 100%;
   overflow: hidden;
 }
@@ -50,7 +60,20 @@ body {
   min-width: 320px;
   font-family: var(--body-font);
   color: var(--text, #1b2435);
-  background: var(--app-bg, #eef2f9);
+  background: var(--bg, #eef2f9);
+}
+
+body.context-menu-touch-hold-active,
+body.context-menu-touch-hold-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+[data-selection-mode-active="true"],
+[data-selection-mode-active="true"] * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 button {
@@ -66,9 +89,9 @@ input,
 select,
 textarea {
   width: 100%;
-  border: var(--ui-control-border, 1px solid var(--panel-border));
+  border: var(--ui-control-border, 1px solid var(--border));
   border-radius: var(--ui-control-radius, 10px);
-  background: var(--ui-control-bg, var(--surface-strong));
+  background: var(--ui-control-bg, var(--surface-2));
   color: var(--ui-control-color, var(--text));
   box-shadow: var(--ui-control-shadow, none);
 }
@@ -76,7 +99,6 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--ui-focus-ring, color-mix(in srgb, var(--accent) 18%, transparent));
 }

@@ -5,9 +5,9 @@
 */
 
 import type { AttributeKey } from '@/domain/entities/stats'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 
-const ATTRIBUTE_KEYS: AttributeKey[] = [
+const ATTR_KEYS: AttributeKey[] = [
   'aero',
   'glacio',
   'spectro',
@@ -17,61 +17,61 @@ const ATTRIBUTE_KEYS: AttributeKey[] = [
   'physical',
 ]
 
-export interface TeamCompositionMemberInfo {
+export interface TeamCmpsMemI {
   id: string
   attribute: AttributeKey
   weaponType: number
 }
 
-export interface TeamCompositionInfo {
+export interface TeamCmpsInfo {
   ids: string[]
   size: number
   presenceById: Record<string, boolean>
-  membersById: Record<string, TeamCompositionMemberInfo>
+  membersById: Record<string, TeamCmpsMemI>
   attributeCounts: Record<AttributeKey, number>
   weaponTypeCounts: Record<string, number>
 }
 
 // cache computed team composition summaries by team signature
-const teamCompositionCache = new Map<string, TeamCompositionInfo>()
-const MAX_TEAM_COMPOSITION_CACHE_ENTRIES = 64
+const teamCmpsCch = new Map<string, TeamCmpsInfo>()
+const MAX_TEAM_COMPS = 64
 
-function touchTeamCompositionCache(signature: string, info: TeamCompositionInfo): void {
-  if (teamCompositionCache.has(signature)) {
-    teamCompositionCache.delete(signature)
+function tchTeamCmpsC(signature: string, info: TeamCmpsInfo): void {
+  if (teamCmpsCch.has(signature)) {
+    teamCmpsCch.delete(signature)
   }
 
-  teamCompositionCache.set(signature, info)
+  teamCmpsCch.set(signature, info)
 
-  while (teamCompositionCache.size > MAX_TEAM_COMPOSITION_CACHE_ENTRIES) {
-    const oldestKey = teamCompositionCache.keys().next().value
+  while (teamCmpsCch.size > MAX_TEAM_COMPS) {
+    const oldestKey = teamCmpsCch.keys().next().value
     if (oldestKey == null) {
       break
     }
 
-    teamCompositionCache.delete(oldestKey)
+    teamCmpsCch.delete(oldestKey)
   }
 }
 
 // build a normalized team composition summary from member ids
-export function buildTeamCompositionInfo(memberIds: string[]): TeamCompositionInfo {
+export function makeTeamComp(memberIds: string[]): TeamCmpsInfo {
   const ids = Array.from(new Set(memberIds.filter(Boolean)))
   const signature = ids.join('|')
-  const cached = teamCompositionCache.get(signature)
+  const cached = teamCmpsCch.get(signature)
 
   if (cached) {
     return cached
   }
 
   const presenceById = Object.fromEntries(ids.map((id) => [id, true])) as Record<string, boolean>
-  const membersById: Record<string, TeamCompositionMemberInfo> = {}
-  const attributeCounts = Object.fromEntries(
-      ATTRIBUTE_KEYS.map((attribute) => [attribute, 0]),
+  const membersById: Record<string, TeamCmpsMemI> = {}
+  const ttrbCnts = Object.fromEntries(
+      ATTR_KEYS.map((attribute) => [attribute, 0]),
   ) as Record<AttributeKey, number>
-  const weaponTypeCounts: Record<string, number> = {}
+  const wpnTypeCnts: Record<string, number> = {}
 
   for (const id of ids) {
-    const resonator = getResonatorSeedById(id)
+    const resonator = getResSeedBy(id)
     if (!resonator) {
       continue
     }
@@ -81,8 +81,8 @@ export function buildTeamCompositionInfo(memberIds: string[]): TeamCompositionIn
       attribute: resonator.attribute,
       weaponType: resonator.weaponType,
     }
-    attributeCounts[resonator.attribute] += 1
-    weaponTypeCounts[String(resonator.weaponType)] = (weaponTypeCounts[String(resonator.weaponType)] ?? 0) + 1
+    ttrbCnts[resonator.attribute] += 1
+    wpnTypeCnts[String(resonator.weaponType)] = (wpnTypeCnts[String(resonator.weaponType)] ?? 0) + 1
   }
 
   const info = {
@@ -90,10 +90,10 @@ export function buildTeamCompositionInfo(memberIds: string[]): TeamCompositionIn
     size: ids.length,
     presenceById,
     membersById,
-    attributeCounts,
-    weaponTypeCounts,
+    attributeCounts: ttrbCnts,
+    weaponTypeCounts: wpnTypeCnts,
   }
 
-  touchTeamCompositionCache(signature, info)
+  tchTeamCmpsC(signature, info)
   return info
 }

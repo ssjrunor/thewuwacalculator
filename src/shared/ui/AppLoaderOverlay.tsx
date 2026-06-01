@@ -4,15 +4,13 @@
                and scrim display modes for lazy content fallbacks.
 */
 
-interface AppLoaderOverlayProps {
+interface AppLdrVrlyPr {
   text?: string
   className?: string
-  contentClassName?: string
-  // 'overlay' positions absolutely over parent; 'centered' fills available space; 'scrim' shows a fixed modal-like overlay
+  contentClass?: string
   mode?: 'overlay' | 'centered' | 'scrim'
 }
 
-// shared centered kaomoji fallback content
 const kaomoji = (
     <div className="app-loader-fallback-inner">
       <div className="app-loader-kaomoji">
@@ -25,13 +23,12 @@ const kaomoji = (
     </div>
 )
 
-export default function AppLoaderOverlay({
+export default function AppLdrVrly({
                                            text = 'Loading...',
                                            className = '',
-                                           contentClassName = '',
+                                           contentClass: contentClass = '',
                                            mode = 'overlay',
-                                         }: AppLoaderOverlayProps) {
-  // fixed scrim-style fallback
+                                         }: AppLdrVrlyPr) {
   if (mode === 'scrim') {
     return (
         <div className={`app-loader-scrim ${className}`.trim()} aria-live="polite" aria-busy="true">
@@ -41,7 +38,6 @@ export default function AppLoaderOverlay({
     )
   }
 
-  // full-area centered fallback
   if (mode === 'centered') {
     return (
         <div className={`app-loader-fallback ${className}`.trim()} aria-live="polite" aria-busy="true">
@@ -51,10 +47,9 @@ export default function AppLoaderOverlay({
     )
   }
 
-  // default inline overlay fallback
   return (
       <div className={`app-loader-overlay ${className}`.trim()} aria-live="polite" aria-busy="true">
-        <div className={`app-loader-content ${contentClassName}`.trim()}>
+        <div className={`app-loader-content ${contentClass}`.trim()}>
           <div className="app-loader-spinner" />
           <span className="app-loader-text">{text}</span>
         </div>

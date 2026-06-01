@@ -1,23 +1,28 @@
-import { loadImageBlob, saveImageBlob } from '@/infra/persistence/blobImageStore'
+/*
+  Author: Runor Ewhro
+  Description: Provides settings-page background theme helpers and derived values.
+*/
 
-const ACTIVE_BACKGROUND_STORAGE_KEY = 'activeBgKey'
-const BACKGROUND_MAIN_COLOR_STORAGE_KEY = 'user-bg-main-color'
+import { loadMgBlob, saveMgBlob } from '@/infra/persistence/blobImageStore'
 
-export interface BackgroundWallpaperPreset {
+const ACTBGSTOREKE = 'activeBgKey'
+const BGCLRSTOREKE = 'user-bg-main-color'
+
+export interface BgPreset {
   id: string
   label: string
   src: string
   preview: string
 }
 
-export interface ResolvedBackgroundWallpaper {
+export interface ResolvedBg {
   url: string
   revoke?: () => void
 }
 
-const LEGACY_BACKGROUND_CACHE_PREFIX = 'user-upload-bg:'
+const LEGBGCCHPRFX = 'user-upload-bg:'
 
-export const BACKGROUND_WALLPAPER_PRESETS: BackgroundWallpaperPreset[] = [
+export const BG_PRESETS: BgPreset[] = [
   {
     id: 'builtin:wallpaperflare1.jpg',
     label: 'wallpaper 1',
@@ -92,14 +97,14 @@ export const BACKGROUND_WALLPAPER_PRESETS: BackgroundWallpaperPreset[] = [
   },
 ]
 
-export const DEFAULT_BACKGROUND_WALLPAPER_KEY = BACKGROUND_WALLPAPER_PRESETS[0]?.id ?? 'builtin:wallpaperflare1.jpg'
+export const DEF_BG_KEY = BG_PRESETS[0]?.id ?? 'builtin:wallpaperflare1.jpg'
 
-export function readActiveBackgroundKey(fallback: string = DEFAULT_BACKGROUND_WALLPAPER_KEY): string {
+export function readActBgKey(fallback: string = DEF_BG_KEY): string {
   if (typeof window === 'undefined') {
     return fallback
   }
 
-  const raw = window.localStorage.getItem(ACTIVE_BACKGROUND_STORAGE_KEY)
+  const raw = window.localStorage.getItem(ACTBGSTOREKE)
   if (!raw) {
     return fallback
   }
@@ -112,20 +117,20 @@ export function readActiveBackgroundKey(fallback: string = DEFAULT_BACKGROUND_WA
   }
 }
 
-export function writeActiveBackgroundKey(key: string) {
+export function writeActBgKe(key: string) {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(ACTIVE_BACKGROUND_STORAGE_KEY, JSON.stringify(key))
+  window.localStorage.setItem(ACTBGSTOREKE, JSON.stringify(key))
 }
 
-export function readStoredBackgroundMainColor(): string | null {
+export function readStoredBg(): string | null {
   if (typeof window === 'undefined') {
     return null
   }
 
-  const raw = window.localStorage.getItem(BACKGROUND_MAIN_COLOR_STORAGE_KEY)
+  const raw = window.localStorage.getItem(BGCLRSTOREKE)
   if (!raw) {
     return null
   }
@@ -138,15 +143,15 @@ export function readStoredBackgroundMainColor(): string | null {
   }
 }
 
-export function writeStoredBackgroundMainColor(color: string) {
+export function writeStrdBgC(color: string) {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(BACKGROUND_MAIN_COLOR_STORAGE_KEY, JSON.stringify(color))
+  window.localStorage.setItem(BGCLRSTOREKE, JSON.stringify(color))
 }
 
-function sanitizeFileName(name: string): string {
+function sntzFileName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
@@ -154,7 +159,7 @@ function sanitizeFileName(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
-function readImageBrightness(url: string): Promise<number> {
+function readMgBrgh(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.crossOrigin = 'anonymous'
@@ -185,7 +190,7 @@ function readImageBrightness(url: string): Promise<number> {
   })
 }
 
-function readImageMainColor(url: string, isDark: boolean): Promise<string> {
+function readImgColor(url: string, isDark: boolean): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.crossOrigin = 'anonymous'
@@ -236,34 +241,34 @@ function readImageMainColor(url: string, isDark: boolean): Promise<string> {
   })
 }
 
-export function getBackgroundWallpaperPreset(key: string): BackgroundWallpaperPreset | null {
-  return BACKGROUND_WALLPAPER_PRESETS.find((preset) => preset.id === key) ?? null
+export function getBgPreset(key: string): BgPreset | null {
+  return BG_PRESETS.find((preset) => preset.id === key) ?? null
 }
 
-export function getImmediateBackgroundWallpaperUrl(key: string): string | null {
-  return getBackgroundWallpaperPreset(key)?.src ?? null
+export function getImmBgUrl(key: string): string | null {
+  return getBgPreset(key)?.src ?? null
 }
 
-export function isUploadedBackgroundKey(key: string): boolean {
+export function isPlddBgKey(key: string): boolean {
   return key.startsWith('upload:')
 }
 
 // stores an uploaded wallpaper and returns the persisted key used by the app.
-export async function saveUploadedBackgroundImage(file: File): Promise<string> {
-  const key = `upload:${Date.now()}-${sanitizeFileName(file.name || 'custom-background')}`
-  await saveImageBlob(key, file)
+export async function savePlddBgIm(file: File): Promise<string> {
+  const key = `upload:${Date.now()}-${sntzFileName(file.name || 'custom-background')}`
+  await saveMgBlob(key, file)
   return key
 }
 
 // resolves a wallpaper key to either a bundled asset path or an object url.
-export async function resolveBackgroundWallpaper(key: string): Promise<ResolvedBackgroundWallpaper> {
-  const preset = getBackgroundWallpaperPreset(key)
+export async function resolveBg(key: string): Promise<ResolvedBg> {
+  const preset = getBgPreset(key)
   if (preset) {
     return { url: preset.src }
   }
 
-  if (isUploadedBackgroundKey(key)) {
-    const blob = await loadImageBlob(key)
+  if (isPlddBgKey(key)) {
+    const blob = await loadMgBlob(key)
     if (blob) {
       const url = URL.createObjectURL(blob)
       return {
@@ -273,18 +278,18 @@ export async function resolveBackgroundWallpaper(key: string): Promise<ResolvedB
     }
   }
 
-  return { url: BACKGROUND_WALLPAPER_PRESETS[0]?.src ?? '/assets/backgrounds/wallpaperflare1.jpg' }
+  return { url: BG_PRESETS[0]?.src ?? '/assets/backgrounds/wallpaperflare1.jpg' }
 }
 
-function buildLegacyBackgroundCacheKey(source: Blob | string): string {
+function mkLegBgCchKe(source: Blob | string): string {
   if (source instanceof File) {
-    return `${LEGACY_BACKGROUND_CACHE_PREFIX}${source.name || 'custom'}`
+    return `${LEGBGCCHPRFX}${source.name || 'custom'}`
   }
 
-  return `${LEGACY_BACKGROUND_CACHE_PREFIX}custom`
+  return `${LEGBGCCHPRFX}custom`
 }
 
-export function applyBackgroundWallpaperToDocument(url: string) {
+export function applyBgToDoc(url: string) {
   if (typeof document === 'undefined') {
     return
   }
@@ -298,7 +303,7 @@ export function applyBackgroundWallpaperToDocument(url: string) {
   root.style.backgroundRepeat = 'no-repeat'
 }
 
-export function applyBackgroundMainColorToDocument(color: string) {
+export function applyBgColor(color: string) {
   if (typeof document === 'undefined') {
     return
   }
@@ -306,21 +311,21 @@ export function applyBackgroundMainColorToDocument(color: string) {
   document.documentElement.style.setProperty('--bg-main-color', color)
 }
 
-export async function switchBackgroundWallpaper(source: Blob | string, activeKey?: string): Promise<void> {
+export async function switchBg(source: Blob | string, activeKey?: string): Promise<void> {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
     return
   }
 
-  const nextActiveKey = activeKey ?? buildLegacyBackgroundCacheKey(source)
-  writeActiveBackgroundKey(nextActiveKey)
+  const nextActKey = activeKey ?? mkLegBgCchKe(source)
+  writeActBgKe(nextActKey)
 
   let url: string
-  if (typeof source === 'string' && getBackgroundWallpaperPreset(nextActiveKey)) {
+  if (typeof source === 'string' && getBgPreset(nextActKey)) {
     url = source
   } else {
     const blob = source instanceof Blob ? source : await (await fetch(source)).blob()
-    if (!(activeKey && isUploadedBackgroundKey(activeKey))) {
-      await saveImageBlob(nextActiveKey, blob)
+    if (!(activeKey && isPlddBgKey(activeKey))) {
+      await saveMgBlob(nextActKey, blob)
     }
     url = URL.createObjectURL(blob)
   }
@@ -356,37 +361,18 @@ export async function switchBackgroundWallpaper(source: Blob | string, activeKey
     })
 
     window.setTimeout(() => {
-      applyBackgroundWallpaperToDocument(url)
+      applyBgToDoc(url)
       fade.remove()
       resolve()
     }, 800)
   })
 }
 
-export async function resolveStoredActiveBackgroundWallpaper(): Promise<ResolvedBackgroundWallpaper> {
-  const activeKey = readActiveBackgroundKey('')
-
-  if (activeKey) {
-    const blob = await loadImageBlob(activeKey)
-    if (blob) {
-      const url = URL.createObjectURL(blob)
-      return {
-        url,
-        revoke: () => URL.revokeObjectURL(url),
-      }
-    }
-
-    return resolveBackgroundWallpaper(activeKey)
-  }
-
-  return { url: BACKGROUND_WALLPAPER_PRESETS[0]?.src ?? '/assets/backgrounds/wallpaperflare1.jpg' }
-}
-
 // picks whether frosted background mode should render dark or light text over the wallpaper.
-export async function detectBackgroundTextMode(key: string): Promise<'light' | 'dark'> {
+export async function dtctBgTxtMod(key: string): Promise<'light' | 'dark'> {
   try {
-    const resolved = await resolveBackgroundWallpaper(key)
-    const brightness = await readImageBrightness(resolved.url)
+    const resolved = await resolveBg(key)
+    const brightness = await readMgBrgh(resolved.url)
     resolved.revoke?.()
     return brightness < 130 ? 'dark' : 'light'
   } catch {
@@ -394,10 +380,10 @@ export async function detectBackgroundTextMode(key: string): Promise<'light' | '
   }
 }
 
-export async function detectBackgroundMainColor(key: string, textMode: 'light' | 'dark'): Promise<string> {
-  const resolved = await resolveBackgroundWallpaper(key)
+export async function dtctBgClr(key: string, textMode: 'light' | 'dark'): Promise<string> {
+  const resolved = await resolveBg(key)
   try {
-    return await readImageMainColor(resolved.url, textMode === 'dark')
+    return await readImgColor(resolved.url, textMode === 'dark')
   } finally {
     resolved.revoke?.()
   }

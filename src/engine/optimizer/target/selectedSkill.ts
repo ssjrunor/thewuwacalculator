@@ -5,10 +5,10 @@
                extracts that shape from a full skill definition.
 */
 
-import type { AttributeKey, SkillArchetype, SkillDefinition, SkillTypeKey } from '@/domain/entities/stats.ts'
+import type { AttributeKey, SkillArch, SkillDef, SkillTypeKey } from '@/domain/entities/stats.ts'
 
 // reduced skill model used by optimizer systems that do not need the full runtime skill object
-export interface OptimizerTargetSkill {
+export interface OptTargetSkill {
   // stable skill id used for exact effect matching
   id: string
 
@@ -22,11 +22,11 @@ export interface OptimizerTargetSkill {
   skillType: SkillTypeKey[]
 
   // high-level damage/support archetype used by packed evaluators
-  archetype: SkillArchetype
+  archetype: SkillArch
 }
 
 // project a full skill definition down to the compact optimizer-facing shape
-export function selectOptimizerTargetSkill(skill: SkillDefinition): OptimizerTargetSkill {
+export function selOptTgtSkl(skill: SkillDef): OptTargetSkill {
   return {
     id: skill.id,
     tab: skill.tab,

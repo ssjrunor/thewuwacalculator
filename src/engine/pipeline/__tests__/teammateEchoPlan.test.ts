@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import {
-  deriveTeammateEchoPlan,
-  resolveTeammateEchoPlan,
-  type TeammateEchoPlan,
-} from '@/modules/calculator/components/optimizer/teammateEchoPlan'
+  derEchoPlan,
+  resEchoPlan,
+  type EchoPlan,
+} from '@/modules/calculator/features/optimizer/lib/teammateEchoPlan.ts'
 
 function makeEcho(id: string, set: number, uid: string, mainEcho = false): EchoInstance {
   return {
@@ -30,16 +30,16 @@ describe('teammate echo plan', () => {
       makeEcho('6000196', 30, 'four'),
     ]
 
-    const resolved = resolveTeammateEchoPlan(baseEchoes, null)
+    const resolved = resEchoPlan(baseEchoes, null)
 
-    expect(deriveTeammateEchoPlan(baseEchoes)).toEqual({
+    expect(derEchoPlan(baseEchoes)).toEqual({
       mainEchoMode: 'inherit',
       mainEchoId: '6000199',
       setMode: 'inherit',
-      setPreferences: [{ setId: 30, count: 5 }],
+      setPrefs: [{ setId: 30, count: 5 }],
     })
-    expect(resolved.invalidMainEchoId).toBeNull()
-    expect(resolved.effectiveEchoes[0]?.id).toBe('6000199')
+    expect(resolved.invalidMainId).toBeNull()
+    expect(resolved.effectEchoes[0]?.id).toBe('6000199')
   })
 
   it('uses a valid selected main echo for a selected 5pc set plan', () => {
@@ -50,18 +50,18 @@ describe('teammate echo plan', () => {
       makeEcho('6000188', 30, 'three'),
       makeEcho('6000196', 30, 'four'),
     ]
-    const plan: TeammateEchoPlan = {
+    const plan: EchoPlan = {
       mainEchoMode: 'selected',
       mainEchoId: '6000192',
       setMode: 'selected',
-      setPreferences: [{ setId: 31, count: 5 }],
+      setPrefs: [{ setId: 31, count: 5 }],
     }
 
-    const resolved = resolveTeammateEchoPlan(baseEchoes, plan)
+    const resolved = resEchoPlan(baseEchoes, plan)
 
-    expect(resolved.invalidMainEchoId).toBeNull()
-    expect(resolved.effectiveEchoes[0]?.id).toBe('6000192')
-    expect(resolved.effectiveEchoes[1]?.id).toBe('optimizer-set:31:1')
+    expect(resolved.invalidMainId).toBeNull()
+    expect(resolved.effectEchoes[0]?.id).toBe('6000192')
+    expect(resolved.effectEchoes[1]?.id).toBe('optimizer-set:31:1')
   })
 
   it('keeps an invalid selected main echo visible-only by excluding it from the effective loadout', () => {
@@ -72,16 +72,16 @@ describe('teammate echo plan', () => {
       makeEcho('6000188', 30, 'three'),
       makeEcho('6000196', 30, 'four'),
     ]
-    const plan: TeammateEchoPlan = {
+    const plan: EchoPlan = {
       mainEchoMode: 'selected',
       mainEchoId: '6000199',
       setMode: 'selected',
-      setPreferences: [{ setId: 31, count: 5 }],
+      setPrefs: [{ setId: 31, count: 5 }],
     }
 
-    const resolved = resolveTeammateEchoPlan(baseEchoes, plan)
+    const resolved = resEchoPlan(baseEchoes, plan)
 
-    expect(resolved.invalidMainEchoId).toBe('6000199')
-    expect(resolved.effectiveEchoes[0]?.id).toBe('optimizer-set:31:0')
+    expect(resolved.invalidMainId).toBe('6000199')
+    expect(resolved.effectEchoes[0]?.id).toBe('optimizer-set:31:0')
   })
 })

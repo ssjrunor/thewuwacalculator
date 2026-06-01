@@ -1,26 +1,30 @@
-import type { OptimizerBagResultRef } from '@/engine/optimizer/types.ts'
+/*
+  Author: Runor Ewhro
+  Description: collects optimizer bag results into a deduped lookup keyed by
+               equipped echo ids, with a compact bigint fast path for the
+               common fixed-width five-echo result layout.
+*/
 
-type OptimizerBagResultSetKey = bigint | string
+import type { OptBagResult } from '@/engine/optimizer/types.ts'
 
-function compareBagResults(left: OptimizerBagResultRef, right: OptimizerBagResultRef): number {
-  return left.damage - right.damage
-}
+type OptBagRsltSe = bigint | string
 
-export function buildOptimizerBagResultSetKey(ids: readonly number[]): OptimizerBagResultSetKey {
+export function mkOptBagRslt(ids: readonly number[]): OptBagRsltSe {
   if (ids.length !== 5) {
     return [...ids].sort((left, right) => left - right).join('|')
   }
 
-  return buildOptimizerBagResultSetKey5(ids[0], ids[1], ids[2], ids[3], ids[4])
+  return mkOptBagRssr(ids[0], ids[1], ids[2], ids[3], ids[4])
 }
 
-export function buildOptimizerBagResultSetKey5(
+// sort the five ids into canonical order before packing them into one key
+export function mkOptBagRssr(
   i0: number,
   i1: number,
   i2: number,
   i3: number,
   i4: number,
-): OptimizerBagResultSetKey {
+): OptBagRsltSe {
   let a = i0
   let b = i1
   let c = i2
@@ -35,20 +39,20 @@ export function buildOptimizerBagResultSetKey5(
 
   if (e < b) {
     if (e < a) {
-      return packResultKey(e, a, b, c, d)
+      return packRsltKey(e, a, b, c, d)
     }
-    return packResultKey(a, e, b, c, d)
+    return packRsltKey(a, e, b, c, d)
   }
   if (e < d) {
     if (e < c) {
-      return packResultKey(a, b, e, c, d)
+      return packRsltKey(a, b, e, c, d)
     }
-    return packResultKey(a, b, c, e, d)
+    return packRsltKey(a, b, c, e, d)
   }
-  return packResultKey(a, b, c, d, e)
+  return packRsltKey(a, b, c, d, e)
 }
 
-function packResultKey(a: number, b: number, c: number, d: number, e: number): bigint {
+function packRsltKey(a: number, b: number, c: number, d: number, e: number): bigint {
   const A = BigInt(a >>> 0)
   const B = BigInt(b >>> 0)
   const C = BigInt(c >>> 0)
@@ -57,7 +61,7 @@ function packResultKey(a: number, b: number, c: number, d: number, e: number): b
   return (((((A << 32n) | B) << 32n | C) << 32n | D) << 32n) | E
 }
 
-function nextPowerOfTwo(value: number): number {
+function nextPwrOfTwo(value: number): number {
   let out = 1
   while (out < value) {
     out <<= 1
@@ -65,7 +69,7 @@ function nextPowerOfTwo(value: number): number {
   return out
 }
 
-class OptimizerBagResultLookup {
+class OptBagRsltLk {
   private capacity: number
   private mask: number
   private count = 0
@@ -75,11 +79,16 @@ class OptimizerBagResultLookup {
   private keys2: Int32Array
   private keys3: Int32Array
   private keys4: Int32Array
-  private damages: Float64Array
+  private damages: Float64Array | Float32Array
+  // low-memory mode stores damage at f32 precision. it MUST match the heap's
+  // damage precision in OptResultSet, because sorted() relies on exact
+  // equality between a heap entry's damage and this table's recorded best.
+  private readonly useF32: boolean
   private readonly scratch = new Int32Array(5)
 
-  constructor(minCapacity = 256) {
-    this.capacity = nextPowerOfTwo(Math.max(16, minCapacity))
+  constructor(minCapacity = 256, lowMem = false) {
+    this.useF32 = lowMem
+    this.capacity = nextPwrOfTwo(Math.max(16, minCapacity))
     this.mask = this.capacity - 1
     this.used = new Uint8Array(this.capacity)
     this.keys0 = new Int32Array(this.capacity)
@@ -87,7 +96,7 @@ class OptimizerBagResultLookup {
     this.keys2 = new Int32Array(this.capacity)
     this.keys3 = new Int32Array(this.capacity)
     this.keys4 = new Int32Array(this.capacity)
-    this.damages = new Float64Array(this.capacity)
+    this.damages = lowMem ? new Float32Array(this.capacity) : new Float64Array(this.capacity)
   }
 
   get size(): number {
@@ -100,7 +109,7 @@ class OptimizerBagResultLookup {
   }
 
   getDamage(i0: number, i1: number, i2: number, i3: number, i4: number): number | null {
-    const normalized = this.normalizeIntoScratch(i0, i1, i2, i3, i4)
+    const normalized = this.normIntoScrt(i0, i1, i2, i3, i4)
     const slot = this.findSlot(
       normalized[0],
       normalized[1],
@@ -112,8 +121,8 @@ class OptimizerBagResultLookup {
   }
 
   recordDamage(i0: number, i1: number, i2: number, i3: number, i4: number, damage: number): number | null {
-    const normalized = this.normalizeIntoScratch(i0, i1, i2, i3, i4)
-    this.ensureCapacity()
+    const normalized = this.normIntoScrt(i0, i1, i2, i3, i4)
+    this.ensCpct()
     const slot = this.findSlot(
       normalized[0],
       normalized[1],
@@ -132,7 +141,7 @@ class OptimizerBagResultLookup {
     return previous
   }
 
-  rebuildFromResults(results: readonly OptimizerBagResultRef[]): void {
+  rbldFromRslt(results: readonly OptBagResult[]): void {
     this.clear()
     for (const entry of results) {
       const previous = this.getDamage(entry.i0, entry.i1, entry.i2, entry.i3, entry.i4)
@@ -142,7 +151,28 @@ class OptimizerBagResultLookup {
     }
   }
 
-  private normalizeIntoScratch(i0: number, i1: number, i2: number, i3: number, i4: number): Int32Array {
+  // rebuild the best-per-set table straight from the columnar heap without
+  // materializing intermediate result objects.
+  rbldFromHeap(
+    dmg: Float64Array | Float32Array,
+    i0: Int32Array,
+    i1: Int32Array,
+    i2: Int32Array,
+    i3: Int32Array,
+    i4: Int32Array,
+    len: number,
+  ): void {
+    this.clear()
+    for (let index = 0; index < len; index += 1) {
+      const damage = dmg[index]
+      const previous = this.getDamage(i0[index], i1[index], i2[index], i3[index], i4[index])
+      if (previous == null || damage > previous) {
+        this.recordDamage(i0[index], i1[index], i2[index], i3[index], i4[index], damage)
+      }
+    }
+  }
+
+  private normIntoScrt(i0: number, i1: number, i2: number, i3: number, i4: number): Int32Array {
     let a = i0
     let b = i1
     let c = i2
@@ -223,7 +253,7 @@ class OptimizerBagResultLookup {
     return slot
   }
 
-  private ensureCapacity(): void {
+  private ensCpct(): void {
     if ((this.count + 1) * 4 < this.capacity * 3) {
       return
     }
@@ -244,8 +274,10 @@ class OptimizerBagResultLookup {
     this.keys2 = new Int32Array(this.capacity)
     this.keys3 = new Int32Array(this.capacity)
     this.keys4 = new Int32Array(this.capacity)
-    this.damages = new Float64Array(this.capacity)
-    const previousCount = this.count
+    this.damages = this.useF32
+        ? new Float32Array(this.capacity)
+        : new Float64Array(this.capacity)
+    const prvsCnt = this.count
     this.count = 0
 
     for (let index = 0; index < oldUsed.length; index += 1) {
@@ -262,7 +294,7 @@ class OptimizerBagResultLookup {
       )
     }
 
-    this.count = previousCount
+    this.count = prvsCnt
   }
 
   private writeSlot(
@@ -284,11 +316,11 @@ class OptimizerBagResultLookup {
   }
 }
 
-export function buildOptimizerBagResultRef(
+export function mkOptBagRsmi(
   damage: number,
   comboIds: Int32Array,
   mainIndex: number,
-): OptimizerBagResultRef | null {
+): OptBagResult | null {
   if (mainIndex < 0) {
     return null
   }
@@ -342,9 +374,9 @@ export function buildOptimizerBagResultRef(
   }
 }
 
-export function fillOptimizerBagResultComboIds(
+export function fillOptBagRs(
   target: Int32Array,
-  result: OptimizerBagResultRef,
+  result: OptBagResult,
 ): Int32Array {
   if (target.length < 5) {
     throw new Error('Optimizer combo id target must have room for 5 ids')
@@ -358,22 +390,40 @@ export function fillOptimizerBagResultComboIds(
   return target
 }
 
-export class OptimizerBagResultCollector {
+export class OptResultSet {
   private readonly k: number
-  private bestDamageBySet: OptimizerBagResultLookup
-  private readonly heap: OptimizerBagResultRef[] = []
+  private bestDamageBySet: OptBagRsltLk
+  // columnar min-heap on damage. parallel typed arrays replace the previous
+  // array of OptBagResult objects, removing per-result allocation + GC
+  // tracking that became significant at high result limits (up to 65536).
+  private readonly heapDmg: Float64Array | Float32Array
+  private readonly heapI0: Int32Array
+  private readonly heapI1: Int32Array
+  private readonly heapI2: Int32Array
+  private readonly heapI3: Int32Array
+  private readonly heapI4: Int32Array
+  private heapLen = 0
   private static readonly PRUNE_TRIGGER_MULTIPLIER = 8
 
-  constructor(k: number) {
+  constructor(k: number, lowMem = false) {
     this.k = Math.max(1, Math.floor(k))
-    this.bestDamageBySet = new OptimizerBagResultLookup(Math.max(this.k * 4, 256))
+    this.bestDamageBySet = new OptBagRsltLk(Math.max(this.k * 4, 256), lowMem)
+    // heap is bounded by k, so pre-allocate to k once. f32 in low-memory
+    // mode, kept in lockstep with the lookup's damage precision so the
+    // exact-equality dedupe in sorted() stays valid.
+    this.heapDmg = lowMem ? new Float32Array(this.k) : new Float64Array(this.k)
+    this.heapI0 = new Int32Array(this.k)
+    this.heapI1 = new Int32Array(this.k)
+    this.heapI2 = new Int32Array(this.k)
+    this.heapI3 = new Int32Array(this.k)
+    this.heapI4 = new Int32Array(this.k)
   }
 
   get size(): number {
     return this.bestDamageBySet.size
   }
 
-  push(entry: OptimizerBagResultRef): void {
+  push(entry: OptBagResult): void {
     this.push5(entry.damage, entry.i0, entry.i1, entry.i2, entry.i3, entry.i4)
   }
 
@@ -395,18 +445,11 @@ export class OptimizerBagResultCollector {
     }
 
     this.bestDamageBySet.recordDamage(i0, i1, i2, i3, i4, damage)
-    this.pushHeap({
-      damage,
-      i0,
-      i1,
-      i2,
-      i3,
-      i4,
-    })
-    this.maybePruneBestDamageMap()
+    this.pushHeap(damage, i0, i1, i2, i3, i4)
+    this.mybPrnBestDm()
   }
 
-  pushOrderedCombo(damage: number, comboIds: Int32Array, mainIndex: number): void {
+  pushRdrdCmb(damage: number, comboIds: Int32Array, mainIndex: number): void {
     if (mainIndex < 0) {
       return
     }
@@ -454,33 +497,94 @@ export class OptimizerBagResultCollector {
     this.push5(damage, mainIndex, i1, i2, i3, i4)
   }
 
-  private pushHeap(candidate: OptimizerBagResultRef): void {
-    if (this.heap.length < this.k) {
-      this.heap.push(candidate)
-      this.siftHeapUp(this.heap.length - 1)
+  pushMainFrst(damage: number, comboIds: Int32Array): void {
+    this.push5(
+        damage,
+        comboIds[0],
+        comboIds[1],
+        comboIds[2],
+        comboIds[3],
+        comboIds[4],
+    )
+  }
+
+  // write one result into a heap slot across all parallel arrays.
+  private setHeapSlot(
+    slot: number,
+    damage: number,
+    i0: number,
+    i1: number,
+    i2: number,
+    i3: number,
+    i4: number,
+  ): void {
+    this.heapDmg[slot] = damage
+    this.heapI0[slot] = i0
+    this.heapI1[slot] = i1
+    this.heapI2[slot] = i2
+    this.heapI3[slot] = i3
+    this.heapI4[slot] = i4
+  }
+
+  // swap two heap slots across all parallel arrays.
+  private swapHeap(a: number, b: number): void {
+    const dmg = this.heapDmg[a]; this.heapDmg[a] = this.heapDmg[b]; this.heapDmg[b] = dmg
+    const x0 = this.heapI0[a]; this.heapI0[a] = this.heapI0[b]; this.heapI0[b] = x0
+    const x1 = this.heapI1[a]; this.heapI1[a] = this.heapI1[b]; this.heapI1[b] = x1
+    const x2 = this.heapI2[a]; this.heapI2[a] = this.heapI2[b]; this.heapI2[b] = x2
+    const x3 = this.heapI3[a]; this.heapI3[a] = this.heapI3[b]; this.heapI3[b] = x3
+    const x4 = this.heapI4[a]; this.heapI4[a] = this.heapI4[b]; this.heapI4[b] = x4
+  }
+
+  private pushHeap(
+    damage: number,
+    i0: number,
+    i1: number,
+    i2: number,
+    i3: number,
+    i4: number,
+  ): void {
+    if (this.heapLen < this.k) {
+      const slot = this.heapLen
+      this.setHeapSlot(slot, damage, i0, i1, i2, i3, i4)
+      this.heapLen += 1
+      this.siftHeapUp(slot)
       return
     }
 
-    if (compareBagResults(candidate, this.heap[0]) <= 0) {
+    // heap full: root holds the current minimum. only displace it when the
+    // candidate beats it.
+    if (damage <= this.heapDmg[0]) {
       return
     }
 
-    this.heap[0] = candidate
+    this.setHeapSlot(0, damage, i0, i1, i2, i3, i4)
     this.siftHeapDown(0)
   }
 
-  private maybePruneBestDamageMap(): void {
-    if (this.heap.length < this.k) {
+  private mybPrnBestDm(): void {
+    if (this.heapLen < this.k) {
       return
     }
 
-    const pruneThreshold = Math.max(this.k * OptimizerBagResultCollector.PRUNE_TRIGGER_MULTIPLIER, 256)
-    if (this.bestDamageBySet.size <= pruneThreshold) {
+    const prnThrs = Math.max(this.k * OptResultSet.PRUNE_TRIGGER_MULTIPLIER, 256)
+    if (this.bestDamageBySet.size <= prnThrs) {
       return
     }
 
-    this.bestDamageBySet = new OptimizerBagResultLookup(Math.max(this.k * 4, 256))
-    this.bestDamageBySet.rebuildFromResults(this.heap)
+    this.bestDamageBySet = new OptBagRsltLk(
+      Math.max(this.k * 4, 256),
+      this.heapDmg instanceof Float32Array,
+    )
+    this.bestDamageBySet.rbldFromHeap(
+      this.heapDmg,
+      this.heapI0,
+      this.heapI1,
+      this.heapI2,
+      this.heapI3,
+      this.heapI4,
+      this.heapLen,
+    )
   }
 
   private siftHeapUp(index: number): void {
@@ -488,11 +592,11 @@ export class OptimizerBagResultCollector {
 
     while (current > 0) {
       const parent = (current - 1) >> 1
-      if (compareBagResults(this.heap[current], this.heap[parent]) >= 0) {
+      if (this.heapDmg[current] >= this.heapDmg[parent]) {
         break
       }
 
-      ;[this.heap[current], this.heap[parent]] = [this.heap[parent], this.heap[current]]
+      this.swapHeap(current, parent)
       current = parent
     }
   }
@@ -505,11 +609,11 @@ export class OptimizerBagResultCollector {
       const left = current * 2 + 1
       const right = current * 2 + 2
 
-      if (left < this.heap.length && compareBagResults(this.heap[left], this.heap[smallest]) < 0) {
+      if (left < this.heapLen && this.heapDmg[left] < this.heapDmg[smallest]) {
         smallest = left
       }
 
-      if (right < this.heap.length && compareBagResults(this.heap[right], this.heap[smallest]) < 0) {
+      if (right < this.heapLen && this.heapDmg[right] < this.heapDmg[smallest]) {
         smallest = right
       }
 
@@ -517,27 +621,36 @@ export class OptimizerBagResultCollector {
         break
       }
 
-      ;[this.heap[current], this.heap[smallest]] = [this.heap[smallest], this.heap[current]]
+      this.swapHeap(current, smallest)
       current = smallest
     }
   }
 
-  sorted(limit = this.k): OptimizerBagResultRef[] {
+  sorted(limit = this.k): OptBagResult[] {
     const maxItems = Math.max(1, Math.floor(limit))
-    const seen = new OptimizerBagResultLookup(Math.max(maxItems * 2, 16))
-    const out: OptimizerBagResultRef[] = []
+    const seen = new OptBagRsltLk(Math.max(maxItems * 2, 16))
+    const out: OptBagResult[] = []
 
-    const sortedHeap = [...this.heap]
-      .sort((left, right) => compareBagResults(right, left))
+    // order heap slot indices by descending damage without copying the
+    // payload; only the final survivors are materialized into objects.
+    const order = Array.from({ length: this.heapLen }, (_, index) => index)
+    order.sort((left, right) => this.heapDmg[right] - this.heapDmg[left])
 
-    for (const entry of sortedHeap) {
-      const currentDamage = this.bestDamageBySet.getDamage(entry.i0, entry.i1, entry.i2, entry.i3, entry.i4)
-      if (currentDamage == null || currentDamage !== entry.damage || seen.getDamage(entry.i0, entry.i1, entry.i2, entry.i3, entry.i4) != null) {
+    for (const slot of order) {
+      const i0 = this.heapI0[slot]
+      const i1 = this.heapI1[slot]
+      const i2 = this.heapI2[slot]
+      const i3 = this.heapI3[slot]
+      const i4 = this.heapI4[slot]
+      const damage = this.heapDmg[slot]
+
+      const curDmg = this.bestDamageBySet.getDamage(i0, i1, i2, i3, i4)
+      if (curDmg == null || curDmg !== damage || seen.getDamage(i0, i1, i2, i3, i4) != null) {
         continue
       }
 
-      seen.recordDamage(entry.i0, entry.i1, entry.i2, entry.i3, entry.i4, entry.damage)
-      out.push(entry)
+      seen.recordDamage(i0, i1, i2, i3, i4, damage)
+      out.push({ damage, i0, i1, i2, i3, i4 })
 
       if (out.length >= maxItems) {
         break

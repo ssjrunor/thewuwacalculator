@@ -16,7 +16,7 @@ export interface ImageRegion {
   height: number
 }
 
-interface ColorHistograms {
+interface ClrHstg {
   r: number[]
   g: number[]
   b: number[]
@@ -52,7 +52,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 // extract a region from the source canvas and mask dark background pixels
-function extractImageRegion(
+function xtrcMgRgn(
     srcCanvas: HTMLCanvasElement,
     region: ImageRegion,
 ): CanvasRenderingContext2D {
@@ -70,7 +70,7 @@ function extractImageRegion(
 
 // preprocessing
 
-function normalizeBrightness(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+function normBrgh(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   const imgData = ctx.getImageData(0, 0, width, height)
   const d = imgData.data
   let sum = 0
@@ -95,7 +95,7 @@ function normalizeBrightness(ctx: CanvasRenderingContext2D, width: number, heigh
   ctx.putImageData(imgData, 0, 0)
 }
 
-function increaseContrast(ctx: CanvasRenderingContext2D, width: number, height: number, factor = 2.5): void {
+function ncrsCntr(ctx: CanvasRenderingContext2D, width: number, height: number, factor = 2.5): void {
   const imgData = ctx.getImageData(0, 0, width, height)
   const d = imgData.data
 
@@ -205,7 +205,7 @@ function compareShape(
   return shape * shape
 }
 
-function comparePixels(
+function cmprPxls(
     ctxA: CanvasRenderingContext2D,
     ctxB: CanvasRenderingContext2D,
     width: number,
@@ -252,13 +252,13 @@ function comparePixels(
 }
 
 // combine structural comparison using shape and pixel differences
-function compareImages(
+function cmprMgs(
     ctxA: CanvasRenderingContext2D,
     ctxB: CanvasRenderingContext2D,
     width: number,
     height: number,
 ): number {
-  const pixelDiff = comparePixels(ctxA, ctxB, width, height) / 10000
+  const pixelDiff = cmprPxls(ctxA, ctxB, width, height) / 10000
   const shapeDiff = compareShape(ctxA, ctxB, width, height)
 
   if (shapeDiff > 0.3) return 50000 + shapeDiff * 100000
@@ -266,7 +266,7 @@ function compareImages(
   return pixelDiff * 10000 * 0.3 + shapeDiff * 20000 * 0.7
 }
 
-function calculateColorHistograms(ctx: CanvasRenderingContext2D, width: number, height: number): ColorHistograms {
+function clclClrHstg(ctx: CanvasRenderingContext2D, width: number, height: number): ClrHstg {
   const d = ctx.getImageData(0, 0, width, height).data
   const r = new Array(256).fill(0)
   const g = new Array(256).fill(0)
@@ -291,7 +291,7 @@ function calculateColorHistograms(ctx: CanvasRenderingContext2D, width: number, 
   }
 }
 
-function compareColorHistograms(histA: ColorHistograms, histB: ColorHistograms): number {
+function cmprClrHstg(histA: ClrHstg, histB: ClrHstg): number {
   let diff = 0
 
   for (let i = 0; i < 256; i += 1) {
@@ -309,7 +309,7 @@ function compareColorHistograms(histA: ColorHistograms, histB: ColorHistograms):
 
 // set comparison
 
-function compareSetIcons(
+function cmprSetCns(
     ctxA: CanvasRenderingContext2D,
     ctxB: CanvasRenderingContext2D,
     width: number,
@@ -382,7 +382,7 @@ function compareSetIcons(
   return (diff / validPixels) * 0.6 + histDiff * 1000 * 0.4
 }
 
-function getDominantColors(ctx: CanvasRenderingContext2D, width: number, height: number, topN = 3) {
+function getDmnnClrs(ctx: CanvasRenderingContext2D, width: number, height: number, topN = 3) {
   const d = ctx.getImageData(0, 0, width, height).data
   const map = new Map<string, number>()
 
@@ -408,7 +408,7 @@ function getDominantColors(ctx: CanvasRenderingContext2D, width: number, height:
       .slice(0, topN)
 }
 
-function classifyColorFamily(r: number, g: number, b: number): string | null {
+function clssClrFmly(r: number, g: number, b: number): string | null {
   if (g > r + 30 && g > b + 30 && g > 100) return 'green'
   if (r > 150 && g > 150 && b < r - 50 && b < g - 50) return 'yellow'
   if (b > r + 30 && b > g + 30 && b > 100) return 'blue'
@@ -526,7 +526,7 @@ const SET_W = 32
 const SET_H = 32
 
 // preload echo images into processed canvas contexts
-export async function preloadEchoImages(
+export async function prldEchoMgs(
     echoMap: Record<string, string>,
     echoCache: Record<string, CanvasRenderingContext2D>,
 ): Promise<void> {
@@ -549,8 +549,8 @@ export async function preloadEchoImages(
       ctx.putImageData(imgData, 0, 0)
 
       // preprocess the same way as source regions during matching
-      normalizeBrightness(ctx, ECHO_W, ECHO_H)
-      increaseContrast(ctx, ECHO_W, ECHO_H, 2.5)
+      normBrgh(ctx, ECHO_W, ECHO_H)
+      ncrsCntr(ctx, ECHO_W, ECHO_H, 2.5)
       echoCache[name] = ctx
     } catch {
       // skip failed image loads
@@ -559,7 +559,7 @@ export async function preloadEchoImages(
 }
 
 // preload set images into canvas contexts
-export async function preloadSetImages(
+export async function prldSetMgs(
     setMap: Record<string, string>,
     setCache: Record<string, CanvasRenderingContext2D>,
 ): Promise<void> {
@@ -582,13 +582,13 @@ export async function preloadSetImages(
 // set matching
 
 // match a set icon from the source canvas using the first-pass set matcher
-export function matchSetFirst(
+export function mtchSetFrst(
     srcCanvas: HTMLCanvasElement,
     setRegion: ImageRegion,
     setCache: Record<string, CanvasRenderingContext2D>,
 ): string | null {
   // extract the larger source region and scale it down
-  const regionCtx = extractImageRegion(srcCanvas, setRegion)
+  const regionCtx = xtrcMgRgn(srcCanvas, setRegion)
   const resizedCtx = makeCanvas(SET_W, SET_H)
   resizedCtx.clearRect(0, 0, SET_W, SET_H)
   resizedCtx.drawImage(regionCtx.canvas, 0, 0, SET_W, SET_H)
@@ -614,9 +614,9 @@ export function matchSetFirst(
   }
   resizedCtx.putImageData(imgData, 0, 0)
 
-  const srcColors = getDominantColors(resizedCtx, SET_W, SET_H, 2)
+  const srcColors = getDmnnClrs(resizedCtx, SET_W, SET_H, 2)
   const srcFamilies = new Set(
-      srcColors.map((c) => classifyColorFamily(c.r, c.g, c.b)).filter(Boolean) as string[],
+      srcColors.map((c) => clssClrFmly(c.r, c.g, c.b)).filter(Boolean) as string[],
   )
   const srcShapes = detectShapes(resizedCtx, SET_W, SET_H)
 
@@ -633,9 +633,9 @@ export function matchSetFirst(
   ]
 
   for (const [setName, refCtx] of Object.entries(setCache)) {
-    const refColors = getDominantColors(refCtx, SET_W, SET_H, 2)
+    const refColors = getDmnnClrs(refCtx, SET_W, SET_H, 2)
     const refFamilies = new Set(
-        refColors.map((c) => classifyColorFamily(c.r, c.g, c.b)).filter(Boolean) as string[],
+        refColors.map((c) => clssClrFmly(c.r, c.g, c.b)).filter(Boolean) as string[],
     )
 
     const colorMatch =
@@ -653,7 +653,7 @@ export function matchSetFirst(
     }
 
     const shapeDiff = 1 - Math.max(0, (shapeMatch + 7) / 14)
-    const pixelDiff = compareSetIcons(resizedCtx, refCtx, SET_W, SET_H)
+    const pixelDiff = cmprSetCns(resizedCtx, refCtx, SET_W, SET_H)
     const combined = colorPenalty + shapeDiff * 5000 + pixelDiff * 0.1
 
     if (combined < lowestDiff) {
@@ -668,28 +668,28 @@ export function matchSetFirst(
 // echo matching
 
 // match an echo icon against a filtered set of candidate names
-export function matchEchoFromFiltered(
+export function mtchEchoFrom(
     srcCanvas: HTMLCanvasElement,
     echoRegion: ImageRegion,
-    filteredEchoNames: string[],
+    fltrEchoNms: string[],
     echoCache: Record<string, CanvasRenderingContext2D>,
 ): string | null {
   // extract, mask, and preprocess the source region
-  const srcCtx = extractImageRegion(srcCanvas, echoRegion)
-  normalizeBrightness(srcCtx, ECHO_W, ECHO_H)
-  increaseContrast(srcCtx, ECHO_W, ECHO_H, 2.5)
-  const srcHist = calculateColorHistograms(srcCtx, ECHO_W, ECHO_H)
+  const srcCtx = xtrcMgRgn(srcCanvas, echoRegion)
+  normBrgh(srcCtx, ECHO_W, ECHO_H)
+  ncrsCntr(srcCtx, ECHO_W, ECHO_H, 2.5)
+  const srcHist = clclClrHstg(srcCtx, ECHO_W, ECHO_H)
 
   let bestMatch: string | null = null
   let lowestDiff = Infinity
 
-  for (const name of filteredEchoNames) {
+  for (const name of fltrEchoNms) {
     const refCtx = echoCache[name]
     if (!refCtx) continue
 
-    const refHist = calculateColorHistograms(refCtx, ECHO_W, ECHO_H)
-    const structural = compareImages(srcCtx, refCtx, ECHO_W, ECHO_H)
-    const hist = compareColorHistograms(srcHist, refHist)
+    const refHist = clclClrHstg(refCtx, ECHO_W, ECHO_H)
+    const structural = cmprMgs(srcCtx, refCtx, ECHO_W, ECHO_H)
+    const hist = cmprClrHstg(srcHist, refHist)
     const combined = structural * 0.5 + hist * 1000 * 0.5
 
     if (combined < lowestDiff) {

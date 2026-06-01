@@ -5,56 +5,56 @@
                in sync for future server-side or UI integrations.
 */
 
-export const COOKIE_CONSENT_STORAGE_KEY = 'wwcalc.cookie-consent.v1'
-export const COOKIE_CONSENT_COOKIE_NAME = 'wwa_cookie_consent'
-export const COOKIE_CONSENT_EVENT_NAME = 'wwcalc:cookie-consent-changed'
-const COOKIE_CONSENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+export const CONSENT_STORE = 'wwcalc.cookie-consent.v1'
+export const CONSENT_COOKIE = 'wwa_cookie_consent'
+export const CONSENT_EVENT = 'wwcalc:cookie-consent-changed'
+const CONSENT_MAX_AGE = 60 * 60 * 24 * 365
 
-export type CookieConsentState = 'unknown' | 'acknowledged'
+export type ConsentState = 'unknown' | 'acknowledged'
 
-type CookieConsentDetail = {
-  state: CookieConsentState
+type ConsentDetail = {
+  state: ConsentState
 }
 
 declare global {
-  interface WindowEventMap {
-    [COOKIE_CONSENT_EVENT_NAME]: CustomEvent<CookieConsentDetail>
+  interface WndwVntMap {
+    [CONSENT_EVENT]: CustomEvent<ConsentDetail>
   }
 }
 
-function isBrowserEnvironment(): boolean {
+function isBrwsNvrn(): boolean {
   return typeof window !== 'undefined'
     && typeof window.localStorage !== 'undefined'
 }
 
-function normalizeBooleanLike(value: unknown): boolean {
+function normBlnLike(value: unknown): boolean {
   return value === true
     || value === 'true'
     || value === 'acknowledged'
     || value === 'granted'
 }
 
-function writeConsentCookie(value: string, maxAgeSeconds: number): void {
+function writeConsent(value: string, maxAgeScnd: number): void {
   if (typeof document === 'undefined') {
     return
   }
 
-  document.cookie = `${COOKIE_CONSENT_COOKIE_NAME}=${value}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Lax`
+  document.cookie = `${CONSENT_COOKIE}=${value}; Max-Age=${maxAgeScnd}; Path=/; SameSite=Lax`
 }
 
-function removeLegacyDismissalFlag(): void {
+function rmLegDsmsFla(): void {
   const directRaw = window.localStorage.getItem('cookieNoticeDismissed')
   if (directRaw != null) {
     window.localStorage.removeItem('cookieNoticeDismissed')
   }
 
-  const namespacedRaw = window.localStorage.getItem('__misc__')
-  if (!namespacedRaw) {
+  const nmspRaw = window.localStorage.getItem('__misc__')
+  if (!nmspRaw) {
     return
   }
 
   try {
-    const parsed = JSON.parse(namespacedRaw)
+    const parsed = JSON.parse(nmspRaw)
     if (!parsed || typeof parsed !== 'object' || !('cookieNoticeDismissed' in parsed)) {
       return
     }
@@ -66,17 +66,17 @@ function removeLegacyDismissalFlag(): void {
   }
 }
 
-function readLegacyDismissalFlag(): boolean {
+function readLegDsmsF(): boolean {
   const directRaw = window.localStorage.getItem('cookieNoticeDismissed')
-  if (normalizeBooleanLike(directRaw)) {
+  if (normBlnLike(directRaw)) {
     return true
   }
 
-  const namespacedRaw = window.localStorage.getItem('__misc__')
-  if (namespacedRaw) {
+  const nmspRaw = window.localStorage.getItem('__misc__')
+  if (nmspRaw) {
     try {
-      const parsed = JSON.parse(namespacedRaw)
-      if (parsed && typeof parsed === 'object' && normalizeBooleanLike(parsed.cookieNoticeDismissed)) {
+      const parsed = JSON.parse(nmspRaw)
+      if (parsed && typeof parsed === 'object' && normBlnLike(parsed.cookieNoticeDismissed)) {
         return true
       }
     } catch {
@@ -85,13 +85,13 @@ function readLegacyDismissalFlag(): boolean {
   }
 
   if (typeof document !== 'undefined') {
-    const consentCookie = document.cookie
+    const cnsnCk = document.cookie
       .split('; ')
-      .find((entry) => entry.startsWith(`${COOKIE_CONSENT_COOKIE_NAME}=`))
+      .find((entry) => entry.startsWith(`${CONSENT_COOKIE}=`))
 
-    if (consentCookie) {
-      const value = consentCookie.split('=').slice(1).join('=')
-      if (normalizeBooleanLike(value)) {
+    if (cnsnCk) {
+      const value = cnsnCk.split('=').slice(1).join('=')
+      if (normBlnLike(value)) {
         return true
       }
     }
@@ -100,66 +100,66 @@ function readLegacyDismissalFlag(): boolean {
   return false
 }
 
-function emitCookieConsentChanged(state: CookieConsentState): void {
+function emitCkCnsnCh(state: ConsentState): void {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_EVENT_NAME, {
+  window.dispatchEvent(new CustomEvent(CONSENT_EVENT, {
     detail: { state },
   }))
 }
 
-export function readCookieConsentState(): CookieConsentState {
-  if (!isBrowserEnvironment()) {
+export function readCkCnsnSt(): ConsentState {
+  if (!isBrwsNvrn()) {
     return 'unknown'
   }
 
-  const stored = window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY)
-  return normalizeBooleanLike(stored) ? 'acknowledged' : 'unknown'
+  const stored = window.localStorage.getItem(CONSENT_STORE)
+  return normBlnLike(stored) ? 'acknowledged' : 'unknown'
 }
 
-export function hasAcknowledgedCookieConsent(): boolean {
-  return readCookieConsentState() === 'acknowledged'
+export function hasAckdCkCns(): boolean {
+  return readCkCnsnSt() === 'acknowledged'
 }
 
-export function acknowledgeCookieConsent(): void {
-  if (!isBrowserEnvironment()) {
+export function ackCkCnsn(): void {
+  if (!isBrwsNvrn()) {
     return
   }
 
-  window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, 'acknowledged')
-  writeConsentCookie('acknowledged', COOKIE_CONSENT_COOKIE_MAX_AGE_SECONDS)
-  emitCookieConsentChanged('acknowledged')
+  window.localStorage.setItem(CONSENT_STORE, 'acknowledged')
+  writeConsent('acknowledged', CONSENT_MAX_AGE)
+  emitCkCnsnCh('acknowledged')
 }
 
-export function clearCookieConsent(): void {
-  if (!isBrowserEnvironment()) {
+export function clearConsent(): void {
+  if (!isBrwsNvrn()) {
     return
   }
 
-  window.localStorage.removeItem(COOKIE_CONSENT_STORAGE_KEY)
-  writeConsentCookie('', 0)
-  emitCookieConsentChanged('unknown')
+  window.localStorage.removeItem(CONSENT_STORE)
+  writeConsent('', 0)
+  emitCkCnsnCh('unknown')
 }
 
-export function migrateLegacyCookieConsent(): CookieConsentState {
-  if (!isBrowserEnvironment()) {
+export function mgrtLegCkCns(): ConsentState {
+  if (!isBrwsNvrn()) {
     return 'unknown'
   }
 
-  const current = readCookieConsentState()
+  const current = readCkCnsnSt()
   if (current === 'acknowledged') {
-    writeConsentCookie('acknowledged', COOKIE_CONSENT_COOKIE_MAX_AGE_SECONDS)
+    writeConsent('acknowledged', CONSENT_MAX_AGE)
     return current
   }
 
-  if (!readLegacyDismissalFlag()) {
+  if (!readLegDsmsF()) {
     return 'unknown'
   }
 
-  acknowledgeCookieConsent()
-  removeLegacyDismissalFlag()
+  ackCkCnsn()
+  rmLegDsmsFla()
   return 'acknowledged'
 }
 

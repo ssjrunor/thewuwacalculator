@@ -1,6 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Info Page
-   ═══════════════════════════════════════════════════════════════════════════ */
+
 
 .info-legal-links {
   display: flex;
@@ -18,7 +16,7 @@
   font-weight: 600;
   color: var(--muted);
   background: transparent;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 0.55rem;
   text-decoration: none;
   transition: all 0.25s ease;
@@ -26,6 +24,6 @@
 
 .info-legal-links a:hover {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--panel-border));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }

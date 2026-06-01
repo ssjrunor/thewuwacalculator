@@ -5,38 +5,38 @@
                optimizer evaluation.
 */
 
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { CombatContext } from '@/engine/pipeline/types.ts'
-import type { SkillDefinition } from '@/domain/entities/stats.ts'
-import { listRuntimeSkills } from '@/domain/services/runtimeSourceService.ts'
+import type { SkillDef } from '@/domain/entities/stats.ts'
+import { listRtSkills } from '@/domain/services/runtimeSourceService.ts'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill.ts'
-import { prepareRuntimeSkillById } from '@/engine/pipeline/prepareRuntimeSkill.ts'
-import { isOptimizerDamageSkill } from '@/engine/optimizer/rules/eligibility.ts'
+import { prepareSkill } from '@/engine/pipeline/prepareRuntimeSkill.ts'
+import { isOptDmgSkll } from '@/engine/optimizer/rules/eligibility.ts'
 
 // local helper that defines which prepared skills can be selected
 // as direct optimizer targets
-function isDirectTarget(skill: SkillDefinition): boolean {
-  return isOptimizerDamageSkill(skill)
+function isDrctTgt(skill: SkillDef): boolean {
+  return isOptDmgSkll(skill)
 }
 
 // enumerate all runtime-visible skills, fully resolve each one against the
 // current runtime state, then keep only those that qualify as optimizer targets
-export function listOptimizerTargets(runtime: ResonatorRuntimeState): SkillDefinition[] {
-  return listRuntimeSkills(runtime)
+export function listOptTrgt(runtime: ResRuntime): SkillDef[] {
+  return listRtSkills(runtime)
       .map((skill) => resolveSkill(runtime, skill))
-      .filter(isDirectTarget)
+      .filter(isDrctTgt)
 }
 
 // prepare one specific skill id inside a known combat context and return it
 // only if the prepared skill still exists and is optimizer-eligible
-export function prepareOptimizerTarget(
-    runtime: ResonatorRuntimeState,
+export function prprOptTgt(
+    runtime: ResRuntime,
     skillId: string,
     combat: CombatContext,
-): SkillDefinition | null {
-  const prepared = prepareRuntimeSkillById(runtime, skillId, combat)
+): SkillDef | null {
+  const prepared = prepareSkill(runtime, skillId, combat)
 
-  if (!prepared || !isDirectTarget(prepared)) {
+  if (!prepared || !isDrctTgt(prepared)) {
     return null
   }
 

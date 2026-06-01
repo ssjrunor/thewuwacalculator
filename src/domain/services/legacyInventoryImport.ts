@@ -5,8 +5,8 @@
 */
 
 export type {
-  LegacyInventoryEchoImportResult,
+  LegInvEchoMp as LegacyInventoryEchoImportResult,
 } from '@/domain/services/legacyAppStateImport/echoes'
 export {
-  importLegacyInventoryEchoJson,
+  mprtLegInvEc as importLegacyInventoryEchoJson,
 } from '@/domain/services/legacyAppStateImport/echoes'

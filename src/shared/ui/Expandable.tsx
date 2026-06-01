@@ -1,28 +1,34 @@
+/*
+  Author: Runor Ewhro
+  Description: Shared collapsible primitive with a styled header row and
+               optional controlled-open state.
+*/
+
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
-import type { CSSProperties, ElementType, ReactNode } from 'react'
+import type { CSSProperties as CssProps, ElementType, HTMLAttributes as HtmlAttrs, ReactNode } from 'react'
 
-interface ExpandableProps {
+interface ExpandProps extends Omit<HtmlAttrs<HTMLElement>, 'children' | 'className'> {
   as?: ElementType
   children: ReactNode
   className?: string
-  chevronContainerClassName?: string
-  contentClassName?: string
-  contentInnerClassName?: string
+  chevWrapClass?: string
+  contentClass?: string
+  innerClass?: string
   defaultOpen?: boolean
   disabled?: boolean
   header: ReactNode | ((args: { open: boolean }) => ReactNode)
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  chevronClassName?: string
+  chevronClass?: string
   chevronSize?: number
   hideChevron?: boolean
-  triggerClassName?: string
-  triggerStyle?: CSSProperties
-  ignoreDefaultTriggerStyle?: boolean
+  triggerClass?: string
+  triggerStyle?: CssProps
+  plainTrigger?: boolean
   TriggerTag?: ElementType
-  noHeaderWrapper?: boolean
+  noHeaderWrap?: boolean
   contentAsChild?: boolean
 }
 
@@ -30,50 +36,51 @@ export function Expandable({
   as = 'div',
   children,
   className,
-  chevronContainerClassName,
-  contentClassName,
-  contentInnerClassName,
+  chevWrapClass: chevWrapClass,
+  contentClass: contentClass,
+  innerClass: innerClassName,
   defaultOpen = false,
   disabled = false,
   header,
   open: openProp,
   onOpenChange,
-  chevronClassName,
+  chevronClass: chevronClass,
   chevronSize = 16,
   hideChevron = false,
-  triggerClassName,
-  triggerStyle: triggerStyleProp,
-  ignoreDefaultTriggerStyle = false,
+  triggerClass: triggerClass,
+  triggerStyle: triggerStyle,
+  plainTrigger: plainTrigger = false,
   TriggerTag = 'div',
-  noHeaderWrapper = false,
-  contentAsChild = false,
-}: ExpandableProps) {
+  noHeaderWrap: noHeaderWrap = false,
+  contentAsChild: contentAsChild = false,
+  ...rootProps
+}: ExpandProps) {
   const isControlled = openProp != null
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
-  const open = openProp ?? uncontrolledOpen
+  const [innerOpen, setNcntOpen] = useState(defaultOpen)
+  const open = openProp ?? innerOpen
   const RootTag = as
-  const TTag = TriggerTag
+  const TriggerElem = TriggerTag
 
-  const handleOpenChange = (nextOpen: boolean) => {
+  const changeOpen = (nextOpen: boolean) => {
     if (disabled) {
       return
     }
 
     if (!isControlled) {
-      setUncontrolledOpen(nextOpen)
+      setNcntOpen(nextOpen)
     }
     onOpenChange?.(nextOpen)
   }
 
-  const renderedHeader = typeof header === 'function' ? header({ open }) : header
-  const chevronStyle: CSSProperties = {
+  const renderHeader = typeof header === 'function' ? header({ open }) : header
+  const chevronStyle: CssProps = {
     flexShrink: 0,
     transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
     transformOrigin: '50% 50%',
     transition: 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
     display: hideChevron ? 'none' : 'block',
   }
-  const defaultTriggerStyle: CSSProperties = ignoreDefaultTriggerStyle
+  const triggerBase: CssProps = plainTrigger
     ? {}
     : {
         display: 'grid',
@@ -90,43 +97,43 @@ export function Expandable({
         cursor: disabled ? 'default' : 'pointer',
       }
 
-  const mergedTriggerStyle: CSSProperties = {
-    ...defaultTriggerStyle,
-    ...triggerStyleProp,
+  const mergedStyle: CssProps = {
+    ...triggerBase,
+    ...triggerStyle,
   }
 
   return (
-    <Collapsible.Root asChild open={open} onOpenChange={handleOpenChange} disabled={disabled}>
-      <RootTag className={className}>
+    <Collapsible.Root asChild open={open} onOpenChange={changeOpen} disabled={disabled}>
+      <RootTag {...rootProps} className={className}>
         <Collapsible.Trigger asChild>
-          <TTag
-            className={triggerClassName}
+          <TriggerElem
+            className={triggerClass}
             aria-expanded={open}
             aria-disabled={disabled}
-            style={mergedTriggerStyle}
+            style={mergedStyle}
           >
-            {noHeaderWrapper ? renderedHeader : (
-              <div>{renderedHeader}</div>
+            {noHeaderWrap ? renderHeader : (
+              <div>{renderHeader}</div>
             )}
             {!hideChevron && (
-              <span aria-hidden="true" className={chevronContainerClassName}>
+              <span aria-hidden="true" className={chevWrapClass}>
                 <ChevronDown
                   size={chevronSize}
-                  className={chevronClassName}
+                  className={chevronClass}
                   aria-hidden="true"
                   style={chevronStyle}
                 />
               </span>
             )}
-          </TTag>
+          </TriggerElem>
         </Collapsible.Trigger>
 
         <Collapsible.Content
           asChild={contentAsChild}
-          className={contentAsChild ? undefined : ['expandable__content', contentClassName].filter(Boolean).join(' ')}
+          className={contentAsChild ? undefined : ['expandable__content', contentClass].filter(Boolean).join(' ')}
         >
           {contentAsChild ? children : (
-            <div className={['expandable__content-inner', contentInnerClassName].filter(Boolean).join(' ')}>
+            <div className={['expandable__content-inner', innerClassName].filter(Boolean).join(' ')}>
               {children}
             </div>
           )}

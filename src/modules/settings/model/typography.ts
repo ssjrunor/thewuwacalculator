@@ -1,9 +1,14 @@
-export const SYSTEM_UI_FONT_NAME = 'System UI'
-export const SYSTEM_UI_FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif'
-export const DEFAULT_BODY_FONT_NAME = 'Sen'
-export const DEFAULT_BODY_FONT_STACK = `'${DEFAULT_BODY_FONT_NAME}', sans-serif`
+/*
+  Author: Runor Ewhro
+  Description: Provides settings-page typography helpers and derived values.
+*/
 
-export const BODY_FONT_LINKS = {
+export const SYSTUIFONTNA = 'System UI'
+export const SYSTUIFONTST = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif'
+export const DEF_BODY_FONT = 'Sen'
+export const DEFBODYFONTS = `'${DEF_BODY_FONT}', sans-serif`
+
+export const BODYFONTLNKS = {
   Onest: 'https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap',
   Fredoka: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap',
   Quicksand: 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600&display=swap',
@@ -11,36 +16,36 @@ export const BODY_FONT_LINKS = {
   Caveat: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap',
 } as const
 
-export const BODY_FONT_PRESETS = [
-  SYSTEM_UI_FONT_NAME,
-  ...Object.keys(BODY_FONT_LINKS),
+export const BODYFONTPRST = [
+  SYSTUIFONTNA,
+  ...Object.keys(BODYFONTLNKS),
 ] as const
 
-export interface ResolvedBodyFontSelection {
+export interface RslvBodyFont {
   fontName: string
   fontStack: string
   validLink: boolean
 }
 
-function getRootElement(): HTMLElement {
+function getRootElem(): HTMLElement {
   return document.documentElement
 }
 
-function buildFontStack(fontName: string): string {
-  return fontName === SYSTEM_UI_FONT_NAME
-    ? SYSTEM_UI_FONT_STACK
+function mkFontStck(fontName: string): string {
+  return fontName === SYSTUIFONTNA
+    ? SYSTUIFONTST
     : `'${fontName}', sans-serif`
 }
 
-export function getPresetBodyFontLink(fontName: string): string {
-  if (fontName === SYSTEM_UI_FONT_NAME) {
+export function getPrstBodyF(fontName: string): string {
+  if (fontName === SYSTUIFONTNA) {
     return ''
   }
 
-  return BODY_FONT_LINKS[fontName as keyof typeof BODY_FONT_LINKS] ?? ''
+  return BODYFONTLNKS[fontName as keyof typeof BODYFONTLNKS] ?? ''
 }
 
-export function isValidGoogleFontLink(url: string): boolean {
+export function isVldGglFont(url: string): boolean {
   const trimmed = url.trim()
   if (!trimmed) {
     return true
@@ -49,7 +54,7 @@ export function isValidGoogleFontLink(url: string): boolean {
   return /^https:\/\/fonts\.googleapis\.com\/css2\?family=/.test(trimmed)
 }
 
-export function extractGoogleFontFamily(url: string): string | null {
+export function xtrcGglFontF(url: string): string | null {
   const match = url.match(/family=([^:&]+)/)
   if (!match?.[1]) {
     return null
@@ -58,7 +63,7 @@ export function extractGoogleFontFamily(url: string): string | null {
   return decodeURIComponent(match[1]).replace(/\+/g, ' ').trim() || null
 }
 
-async function ensureGoogleFontStylesheet(url: string): Promise<void> {
+async function ensGglFontSt(url: string): Promise<void> {
   if (!url.trim() || typeof document === 'undefined') {
     return
   }
@@ -71,7 +76,7 @@ async function ensureGoogleFontStylesheet(url: string): Promise<void> {
     document.head.appendChild(link)
   }
 
-  const family = extractGoogleFontFamily(url)
+  const family = xtrcGglFontF(url)
   if (family && 'fonts' in document) {
     try {
       await document.fonts.load(`1rem "${family}"`)
@@ -81,72 +86,72 @@ async function ensureGoogleFontStylesheet(url: string): Promise<void> {
   }
 }
 
-export function resolveBodyFontSelection(fontName: string, fontUrl: string): ResolvedBodyFontSelection {
+export function resBodyFontS(fontName: string, fontUrl: string): RslvBodyFont {
   const trimmedName = fontName.trim()
   const trimmedUrl = fontUrl.trim()
 
-  if (trimmedName === SYSTEM_UI_FONT_NAME) {
+  if (trimmedName === SYSTUIFONTNA) {
     return {
-      fontName: SYSTEM_UI_FONT_NAME,
-      fontStack: SYSTEM_UI_FONT_STACK,
+      fontName: SYSTUIFONTNA,
+      fontStack: SYSTUIFONTST,
       validLink: true,
     }
   }
 
   if (trimmedUrl) {
-    const extractedFamily = (extractGoogleFontFamily(trimmedUrl) ?? trimmedName) || DEFAULT_BODY_FONT_NAME
+    const xtrcFmly = (xtrcGglFontF(trimmedUrl) ?? trimmedName) || DEF_BODY_FONT
 
     return {
-      fontName: extractedFamily,
-      fontStack: buildFontStack(extractedFamily),
-      validLink: isValidGoogleFontLink(trimmedUrl),
+      fontName: xtrcFmly,
+      fontStack: mkFontStck(xtrcFmly),
+      validLink: isVldGglFont(trimmedUrl),
     }
   }
 
-  const resolvedName = trimmedName || DEFAULT_BODY_FONT_NAME
+  const resolvedName = trimmedName || DEF_BODY_FONT
   return {
     fontName: resolvedName,
-    fontStack: buildFontStack(resolvedName),
+    fontStack: mkFontStck(resolvedName),
     validLink: true,
   }
 }
 
-export async function applyPreviewBodyFontSelection(
+export async function applyPrvwBod(
   fontName: string,
   fontUrl: string,
-): Promise<ResolvedBodyFontSelection> {
-  const resolved = resolveBodyFontSelection(fontName, fontUrl)
+): Promise<RslvBodyFont> {
+  const resolved = resBodyFontS(fontName, fontUrl)
   if (resolved.validLink && fontUrl.trim()) {
-    await ensureGoogleFontStylesheet(fontUrl)
+    await ensGglFontSt(fontUrl)
   }
 
-  getRootElement().style.setProperty(
+  getRootElem().style.setProperty(
     '--preview-font',
-    resolved.validLink ? resolved.fontStack : getCurrentBodyFontStack(),
+    resolved.validLink ? resolved.fontStack : getCurBodyFo(),
   )
 
   return resolved
 }
 
-export async function applyBodyFontSelection(
+export async function applyBodyFon(
   fontName: string,
   fontUrl: string,
-): Promise<ResolvedBodyFontSelection> {
-  const resolved = resolveBodyFontSelection(fontName, fontUrl)
+): Promise<RslvBodyFont> {
+  const resolved = resBodyFontS(fontName, fontUrl)
   if (resolved.validLink && fontUrl.trim()) {
-    await ensureGoogleFontStylesheet(fontUrl)
+    await ensGglFontSt(fontUrl)
   }
 
-  getRootElement().style.setProperty('--body-font', resolved.fontStack)
-  getRootElement().style.setProperty('--preview-font', resolved.fontStack)
+  getRootElem().style.setProperty('--body-font', resolved.fontStack)
+  getRootElem().style.setProperty('--preview-font', resolved.fontStack)
   return resolved
 }
 
-export function getCurrentBodyFontStack(): string {
+export function getCurBodyFo(): string {
   if (typeof window === 'undefined') {
-    return DEFAULT_BODY_FONT_STACK
+    return DEFBODYFONTS
   }
 
-  const raw = getComputedStyle(getRootElement()).getPropertyValue('--body-font').trim()
-  return raw || DEFAULT_BODY_FONT_STACK
+  const raw = getComputedStyle(getRootElem()).getPropertyValue('--body-font').trim()
+  return raw || DEFBODYFONTS
 }

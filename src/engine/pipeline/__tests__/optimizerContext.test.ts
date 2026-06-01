@@ -13,8 +13,8 @@ describe('optimizer context', () => {
       throw new Error('missing test resonator 1506')
     }
 
-    useAppStore.getState().activateResonator(phoebe)
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().actRes(phoebe)
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       state: {
         ...prev.state,
@@ -28,7 +28,7 @@ describe('optimizer context', () => {
       },
     }))
 
-    useAppStore.getState().ensureOptimizerContext()
+    useAppStore.getState().ensureOptimizer()
 
     const state = useAppStore.getState()
     expect(state.calculator.optimizerContext?.resonatorId).toBe('1506')
@@ -38,7 +38,7 @@ describe('optimizer context', () => {
     expect(state.calculator.optimizerContext?.settings.targetComboSourceId).toBe('live:1506')
     expect((state.calculator.optimizerContext?.settings.mainStatFilter.length ?? 0) > 0).toBe(true)
 
-    useAppStore.getState().updateOptimizerRuntime((runtime) => ({
+    useAppStore.getState().updOptRt((runtime) => ({
       ...runtime,
       state: {
         ...runtime.state,
@@ -64,9 +64,9 @@ describe('optimizer context', () => {
       throw new Error('missing test resonators')
     }
 
-    useAppStore.getState().activateResonator(phoebe)
-    useAppStore.getState().ensureOptimizerContext()
-    useAppStore.getState().updateOptimizerRuntime((runtime) => ({
+    useAppStore.getState().actRes(phoebe)
+    useAppStore.getState().ensureOptimizer()
+    useAppStore.getState().updOptRt((runtime) => ({
       ...runtime,
       state: {
         ...runtime.state,
@@ -80,11 +80,11 @@ describe('optimizer context', () => {
       },
     }))
 
-    useAppStore.getState().ensureOptimizerContext()
+    useAppStore.getState().ensureOptimizer()
     expect(useAppStore.getState().calculator.optimizerContext?.runtime.state.manualBuffs.quick.critRate).toBe(21)
 
-    useAppStore.getState().activateResonator(shorekeeper)
-    useAppStore.getState().ensureOptimizerContext()
+    useAppStore.getState().actRes(shorekeeper)
+    useAppStore.getState().ensureOptimizer()
 
     const nextContext = useAppStore.getState().calculator.optimizerContext
     expect(nextContext?.resonatorId).toBe('1505')
@@ -97,8 +97,8 @@ describe('optimizer context', () => {
       throw new Error('missing test resonator 1506')
     }
 
-    useAppStore.getState().activateResonator(phoebe)
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().actRes(phoebe)
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       state: {
         ...prev.state,
@@ -111,11 +111,11 @@ describe('optimizer context', () => {
         },
       },
     }))
-    useAppStore.getState().ensureOptimizerContext()
+    useAppStore.getState().ensureOptimizer()
 
     const initialSkillId = useAppStore.getState().calculator.optimizerContext?.settings.targetSkillId ?? null
 
-    useAppStore.getState().updateOptimizerRuntime((runtime) => ({
+    useAppStore.getState().updOptRt((runtime) => ({
       ...runtime,
       state: {
         ...runtime.state,
@@ -128,7 +128,7 @@ describe('optimizer context', () => {
         },
       },
     }))
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       state: {
         ...prev.state,
@@ -142,7 +142,7 @@ describe('optimizer context', () => {
       },
     }))
 
-    useAppStore.getState().syncOptimizerContextToLiveRuntime()
+    useAppStore.getState().syncOptRt()
 
     const nextContext = useAppStore.getState().calculator.optimizerContext
     expect(nextContext?.runtime.state.manualBuffs.quick.critRate).toBe(28)

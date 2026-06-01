@@ -1,22 +1,30 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the privacy policy page.
+*/
+
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Shield } from 'lucide-react'
+import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
-export function PrivacyPolicyPage() {
+export function PrvcPlcyPage() {
   const navigate = useNavigate()
 
   return (
     <div className="page">
-      <header className="page-hero page-hero--split">
-        <div>
-          <div className="page-hero-eyebrow">Legal</div>
-          <h1>Privacy Policy</h1>
-          <p className="page-hero-meta">Effective Date: 13 October 2025</p>
-        </div>
-        <button type="button" className="page-back-btn" onClick={() => navigate(-1)}>
-          <ChevronLeft size={14} />
-          Back
-        </button>
-      </header>
+      <CllpPageHeyf
+        variant="split"
+        eyebrow="Legal"
+        title="Privacy Policy"
+        meta="Effective Date: 13 October 2025"
+        layoutKey="privacy-hero"
+        trailing={
+          <button type="button" className="page-back-btn" onClick={() => navigate(-1)}>
+            <ChevronLeft size={14} />
+            Back
+          </button>
+        }
+      />
 
       <div className="page-bento">
         <section className="page-tile page-tile--full">

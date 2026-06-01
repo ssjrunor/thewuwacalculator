@@ -1,4 +1,4 @@
-/* ── EchoGrid & EchoCard ─────────────────────────────────────────────────── */
+
 
 .echo-grid {
   display: grid;
@@ -7,7 +7,7 @@
   gap: 0.6rem;
 }
 
-/* ── Card shell ── */
+
 
 .echo-card {
   position: relative;
@@ -16,33 +16,37 @@
   gap: 0.55rem;
   padding: 0.65rem;
   border-radius: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 14%, var(--calc-item-border, var(--panel-border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 14%, var(--item-border, var(--border)));
   background:
     radial-gradient(
       ellipse at 12% 18%,
       color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 3%, transparent) 0%,
       transparent 52%
     ),
-    color-mix(in srgb, var(--calc-box-bg, var(--surface-strong)) 82%, transparent);
+    color-mix(in srgb, var(--box-bg, var(--surface-2)) 82%, transparent);
   transition:
     border-color 220ms ease,
     box-shadow 220ms ease,
     transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* ── Hover ── */
+
 
 .echo-card--interactive {
   cursor: pointer;
 }
 
 .echo-card--interactive:hover {
-  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 32%, var(--calc-item-border, var(--panel-border)));
+  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 32%, var(--item-border, var(--border)));
   box-shadow:
     0 4px 14px color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 10%, rgba(0, 0, 0, 0.08));
   transform: translateY(-2px);
 }
 
-/* ── Empty slot ── */
+.echo-card.selection-mode {
+  cursor: pointer;
+}
+
+
 
 .echo-card--empty {
   align-items: center;
@@ -58,11 +62,11 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--calc-muted, var(--muted));
+  color: var(--muted);
 }
 
-/* ── Top row: icon + identity ── */
-/* Mirrors echo-slot-left (grid: icon | identity) */
+
+
 
 .echo-card__top {
   display: grid;
@@ -71,7 +75,7 @@
   align-items: start;
 }
 
-/* ── Echo icon — matches echo-slot-icon exactly ── */
+
 
 .echo-card__icon {
   width: 2.5rem;
@@ -79,9 +83,9 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 18%, var(--calc-item-border, var(--panel-border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 18%, var(--item-border, var(--border)));
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--calc-box-bg, var(--surface-strong)));
+  background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--box-bg, var(--surface-2)));
   overflow: hidden;
 }
 
@@ -92,7 +96,7 @@
   display: block;
 }
 
-/* ── Identity: name + meta row ── */
+
 
 .echo-card__identity {
   display: flex;
@@ -101,7 +105,7 @@
   padding-top: 0.1rem;
 }
 
-/* Echo name — matches echo-slot-name */
+
 .echo-card__name {
   display: block;
   font-weight: 800;
@@ -111,10 +115,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--calc-text, var(--text));
+  color: var(--text);
 }
 
-/* Meta row — matches echo-slot-meta */
+
 .echo-card__meta {
   display: flex;
   align-items: center;
@@ -122,7 +126,7 @@
   flex-wrap: nowrap;
 }
 
-/* Set icon — matches echo-slot-set-icon */
+
 .echo-card__set-icon {
   width: 1.1rem;
   height: 1.1rem;
@@ -131,7 +135,7 @@
   flex-shrink: 0;
 }
 
-/* Cost badge — matches echo-score-badge (same as echo-slot-cost) */
+
 .echo-card__cost-badge {
   display: inline-flex;
   align-items: center;
@@ -140,12 +144,12 @@
   font-weight: 700;
   line-height: 1;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 50%, transparent);
-  background: color-mix(in srgb, var(--calc-text, var(--text)) 3%, transparent);
-  color: var(--calc-muted, var(--muted));
+  border: 1px solid color-mix(in srgb, var(--item-border, var(--border)) 50%, transparent);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--muted);
 }
 
-/* Main echo badge — matches echo-slot-badge--main */
+
 .echo-card__main-badge {
   display: inline-flex;
   align-items: center;
@@ -154,17 +158,17 @@
   font-weight: 700;
   line-height: 1;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 38%, var(--calc-item-border, var(--panel-border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 38%, var(--item-border, var(--border)));
   background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 10%, transparent);
-  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 78%, var(--calc-text, var(--text)));
+  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 78%, var(--text));
 }
 
-/* ── Stat card — mirrors echo-stat-card ── */
+
 
 .echo-card__stat-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 12%, var(--calc-item-border, var(--panel-border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 12%, var(--item-border, var(--border)));
   border-radius: 0.72rem;
   background:
     radial-gradient(
@@ -172,11 +176,11 @@
       color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 3%, transparent) 0%,
       transparent 65%
     ),
-    color-mix(in srgb, var(--calc-text, var(--text)) 1.5%, transparent);
+    color-mix(in srgb, var(--text) 1.5%, transparent);
   overflow: hidden;
 }
 
-/* 2px accent strip — mirrors echo-stat-card-accent */
+
 .echo-card__stat-accent {
   height: 2px;
   flex-shrink: 0;
@@ -196,7 +200,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 35%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--item-border, var(--border)) 35%, transparent);
 }
 
 .echo-card__stat-section--subs {
@@ -205,7 +209,7 @@
   gap: 0.06rem;
 }
 
-/* ── Individual stat rows ── */
+
 
 .echo-card__stat {
   display: flex;
@@ -216,16 +220,16 @@
   line-height: 1.35;
 }
 
-/* Secondary stat — matches echo-stat-secondary */
+
 .echo-card__stat--secondary {
   padding: 0.1rem 0.28rem;
   border-radius: 0.3rem;
-  background: color-mix(in srgb, var(--calc-text, var(--text)) 2.5%, transparent);
-  border-left: 2px solid color-mix(in srgb, var(--calc-muted, var(--muted)) 18%, transparent);
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--muted) 18%, transparent);
   font-size: 0.65rem;
 }
 
-/* Substat rows */
+
 .echo-card__stat--sub {
   font-size: 0.63rem;
   padding: 0.1rem 0.1rem;
@@ -234,7 +238,7 @@
 }
 
 .echo-card__stat-label {
-  color: var(--calc-muted, var(--muted));
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -244,30 +248,30 @@
 .echo-card__stat-value {
   font-weight: 700;
   flex-shrink: 0;
-  color: var(--calc-text, var(--text));
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
-/* Primary value — accent-tinted like echo-stat-primary-value */
+
 .echo-card__stat-value--primary {
-  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 58%, var(--calc-text, var(--text)));
+  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 58%, var(--text));
   font-size: 0.76rem;
   font-weight: 800;
 }
 
-/* Substat value — accent-tinted */
+
 .echo-card__stat-value--sub {
-  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 55%, var(--calc-text, var(--text)));
+  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 55%, var(--text));
   font-size: 0.62rem;
 }
 
-/* ── Substats header ── */
+
 
 .echo-card__subs-header {
   padding-bottom: 0.1rem;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid color-mix(in srgb, var(--calc-item-border, var(--panel-border)) 22%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--item-border, var(--border)) 22%, transparent);
   margin-bottom: 0.06rem;
 }
 
@@ -276,11 +280,11 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--calc-muted, var(--muted));
+  color: var(--muted);
   opacity: 0.42;
 }
 
-/* ── Compact overrides ── */
+
 
 .echo-card--compact .echo-card__icon {
   width: 2.4rem;
@@ -293,4 +297,38 @@
 
 .echo-card--compact .echo-card__stat {
   font-size: 0.63rem;
+}
+
+.echo-equip-preview {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.echo-equip-preview__label {
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.echo-equip-preview__label {
+  color: var(--muted);
+}
+
+.echo-equip-preview__lane {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 1fr) auto minmax(10.5rem, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.echo-equip-preview__card {
+  width: 10.5rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.echo-equip-preview__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 72%, var(--text));
 }

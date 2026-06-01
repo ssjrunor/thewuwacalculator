@@ -1,32 +1,38 @@
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
-import type { EchoDefinition } from '@/domain/entities/catalog'
+/*
+  Author: Runor Ewhro
+  Description: Converts legacy echo inventory data into the current persisted
+               calculator inventory shape.
+*/
+
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
+import type { EchoDef } from '@/domain/entities/catalog'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { createEchoUid } from '@/domain/entities/runtime'
+import { makeEchoUid } from '@/domain/entities/runtime'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
 import {
   coerceNumber,
-  extractLegacyAppBackupPayload,
+  xtrcLegAppBc,
   isRecord,
-  parseMaybeJson,
+  prsMybJson,
   pushIssue,
   type JsonRecord,
-  type LegacyImportIssue,
+  type LegMprtSs,
 } from './shared'
 
-interface LegacyEchoIssue {
+interface LegEchoSs {
   index: number
   reason: string
 }
 
-export interface LegacyInventoryEchoImportResult {
+export interface LegInvEchoMp {
   echoes: EchoInstance[]
   importedCount: number
   skippedCount: number
-  issues: LegacyEchoIssue[]
+  issues: LegEchoSs[]
 }
 
-function extractLegacyEchoArray(parsed: unknown): unknown[] {
-  const maybeParsed = parseMaybeJson(parsed)
+function xtrcLegEchoR(parsed: unknown): unknown[] {
+  const maybeParsed = prsMybJson(parsed)
 
   if (Array.isArray(maybeParsed)) {
     return maybeParsed
@@ -36,26 +42,30 @@ function extractLegacyEchoArray(parsed: unknown): unknown[] {
     throw new Error('Expected a legacy echo bag JSON array or object.')
   }
 
-  const root = extractLegacyAppBackupPayload(maybeParsed)
-  const backupEchoBag = parseMaybeJson(root.stores.echoBag)
-  if (Array.isArray(backupEchoBag)) {
-    return backupEchoBag
+  // importer accepts both standalone echo-bag exports and full app backups, so
+  // check each legacy container shape before failing the payload.
+  const root = xtrcLegAppBc(maybeParsed)
+  const bckpEchoBag = prsMybJson(root.stores.echoBag)
+  if (Array.isArray(bckpEchoBag)) {
+    return bckpEchoBag
   }
 
-  const echoBag = parseMaybeJson(maybeParsed.echoBag)
+  const echoBag = prsMybJson(maybeParsed.echoBag)
   if (Array.isArray(echoBag)) {
     return echoBag
   }
 
-  const titledEchoBag = parseMaybeJson(maybeParsed['Echo Bag'])
-  if (Array.isArray(titledEchoBag)) {
-    return titledEchoBag
+  const ttldEchoBag = prsMybJson(maybeParsed['Echo Bag'])
+  if (Array.isArray(ttldEchoBag)) {
+    return ttldEchoBag
   }
 
   throw new Error('Expected a legacy echo bag JSON array or an object containing `echoBag`.')
 }
 
-function resolveEchoDefinition(raw: JsonRecord): EchoDefinition | null {
+function resEchoDef(raw: JsonRecord): EchoDef | null {
+  // ids are the strongest match, but name fallback keeps very old exports
+  // usable after catalog ids were added to the saved echo shape.
   const idCandidates = [raw.id, raw.echoId]
     .map((value) => (value == null ? null : String(value)))
     .filter((value): value is string => Boolean(value))
@@ -67,38 +77,39 @@ function resolveEchoDefinition(raw: JsonRecord): EchoDefinition | null {
     }
   }
 
-  const nameCandidates = [raw.name, raw.echo]
+  const nameCndd = [raw.name, raw.echo]
     .map((value) => (typeof value === 'string' ? value.trim() : ''))
     .filter(Boolean)
 
-  if (nameCandidates.length === 0) {
+  if (nameCndd.length === 0) {
     return null
   }
 
   const echoes = listEchoes()
-  for (const name of nameCandidates) {
+  for (const name of nameCndd) {
     const exact = echoes.find((echo) => echo.name === name)
     if (exact) {
       return exact
     }
 
     const lower = name.toLowerCase()
-    const caseInsensitive = echoes.find((echo) => echo.name.toLowerCase() === lower)
-    if (caseInsensitive) {
-      return caseInsensitive
+    const caseNsns = echoes.find((echo) => echo.name.toLowerCase() === lower)
+    if (caseNsns) {
+      return caseNsns
     }
   }
 
   return null
 }
 
-function resolveSetId(definition: EchoDefinition, raw: JsonRecord): number {
+function resolveSetId(definition: EchoDef, raw: JsonRecord): number {
   const requestedSet = coerceNumber(raw.selectedSet ?? raw.set ?? raw.setId)
 
   if (requestedSet != null && definition.sets.includes(requestedSet)) {
     return requestedSet
   }
 
+  // early exports used set 18 for a sonata id that now maps to 6.
   if (requestedSet === 18 && definition.sets.includes(6)) {
     return 6
   }
@@ -106,7 +117,7 @@ function resolveSetId(definition: EchoDefinition, raw: JsonRecord): number {
   return definition.sets[0] ?? 0
 }
 
-function normalizeNumberRecord(value: unknown): Record<string, number> {
+function normNmbrRcrd(value: unknown): Record<string, number> {
   if (!isRecord(value)) {
     return {}
   }
@@ -122,8 +133,8 @@ function normalizeNumberRecord(value: unknown): Record<string, number> {
   return result
 }
 
-function resolveMainStats(
-  definition: EchoDefinition,
+function resMainStts(
+  definition: EchoDef,
   raw: JsonRecord,
 ): EchoInstance['mainStats'] | null {
   const rawMainStats = raw.mainStats
@@ -132,79 +143,83 @@ function resolveMainStats(
   }
 
   const cost = definition.cost
-  const primaryOptions = ECHO_PRIMARY_STATS[cost]
-  const secondaryOption = ECHO_SECONDARY_STATS[cost]
+  const primaryOptions = ECHO_MAIN_STATS[cost]
+  const secondaryOption = ECHO_SIDE_STATS[cost]
 
   if (!primaryOptions || !secondaryOption) {
     return null
   }
 
-  const directPrimary = isRecord(rawMainStats.primary) ? rawMainStats.primary : null
-  const directSecondary = isRecord(rawMainStats.secondary) ? rawMainStats.secondary : null
+  const drctPrmr = isRecord(rawMainStats.primary) ? rawMainStats.primary : null
+  const drctScnd = isRecord(rawMainStats.secondary) ? rawMainStats.secondary : null
 
-  if (directPrimary && directSecondary) {
+  // current exports store explicit primary/secondary objects; older exports
+  // flattened both values into one stat record, handled below.
+  if (drctPrmr && drctScnd) {
     const primaryKey =
-      typeof directPrimary.key === 'string' ? directPrimary.key : Object.keys(primaryOptions)[0]
+      typeof drctPrmr.key === 'string' ? drctPrmr.key : Object.keys(primaryOptions)[0]
     const secondaryKey =
-      typeof directSecondary.key === 'string' ? directSecondary.key : secondaryOption.key
+      typeof drctScnd.key === 'string' ? drctScnd.key : secondaryOption.key
 
     return {
       primary: {
         key: primaryKey in primaryOptions ? primaryKey : Object.keys(primaryOptions)[0],
         value:
-          coerceNumber(directPrimary.value)
+          coerceNumber(drctPrmr.value)
           ?? primaryOptions[primaryKey]
           ?? primaryOptions[Object.keys(primaryOptions)[0]],
       },
       secondary: {
         key: secondaryKey,
-        value: coerceNumber(directSecondary.value) ?? secondaryOption.value,
+        value: coerceNumber(drctScnd.value) ?? secondaryOption.value,
       },
     }
   }
 
-  const flatMainStats = normalizeNumberRecord(rawMainStats)
-  const primaryEntries = Object.entries(flatMainStats).filter(([key]) => key in primaryOptions)
+  const flatMainStts = normNmbrRcrd(rawMainStats)
+  const prmrEnts = Object.entries(flatMainStts).filter(([key]) => key in primaryOptions)
   const primaryKey =
-    primaryEntries.find(([key]) => key !== secondaryOption.key)?.[0]
-    ?? primaryEntries[0]?.[0]
+    prmrEnts.find(([key]) => key !== secondaryOption.key)?.[0]
+    ?? prmrEnts[0]?.[0]
     ?? Object.keys(primaryOptions)[0]
 
   return {
     primary: {
       key: primaryKey,
-      value: flatMainStats[primaryKey] ?? primaryOptions[primaryKey],
+      value: flatMainStts[primaryKey] ?? primaryOptions[primaryKey],
     },
     secondary: {
       key: secondaryOption.key,
-      value: flatMainStats[secondaryOption.key] ?? secondaryOption.value,
+      value: flatMainStts[secondaryOption.key] ?? secondaryOption.value,
     },
   }
 }
 
-export function convertLegacyEcho(
+export function cnvrLegEcho(
   raw: unknown,
   index: number,
   options?: { slotIndex?: number | null },
-): EchoInstance | LegacyEchoIssue {
+): EchoInstance | LegEchoSs {
   if (!isRecord(raw)) {
     return { index, reason: 'Entry is not an object.' }
   }
 
-  const definition = resolveEchoDefinition(raw)
+  const definition = resEchoDef(raw)
   if (!definition) {
     return { index, reason: 'Echo could not be matched to the current catalog.' }
   }
 
-  const mainStats = resolveMainStats(definition, raw)
+  const mainStats = resMainStts(definition, raw)
   if (!mainStats) {
     return { index, reason: `Echo ${definition.name} is missing valid main stat data.` }
   }
 
-  const substats = normalizeNumberRecord(raw.substats ?? raw.subStats)
+  // accept both spellings because the legacy app changed casing during export
+  // refactors while keeping the same numeric stat payload.
+  const substats = normNmbrRcrd(raw.substats ?? raw.subStats)
 
   return {
-    uid: typeof raw.uid === 'string' && raw.uid.trim() ? raw.uid : createEchoUid(),
+    uid: typeof raw.uid === 'string' && raw.uid.trim() ? raw.uid : makeEchoUid(),
     id: definition.id,
     set: resolveSetId(definition, raw),
     mainEcho: options?.slotIndex != null ? options.slotIndex === 0 : false,
@@ -213,23 +228,25 @@ export function convertLegacyEcho(
   }
 }
 
-export function convertLegacyEchoList(
+export function cnvrLegEchoL(
   entries: unknown[],
   options?: {
     slotAware?: boolean
-    issues?: LegacyImportIssue[]
-    issueScope?: LegacyImportIssue['scope']
+    issues?: LegMprtSs[]
+    issueScope?: LegMprtSs['scope']
     subject?: string
   },
 ): EchoInstance[] {
   const echoes: EchoInstance[] = []
 
   entries.forEach((entry, index) => {
-    const converted = convertLegacyEcho(entry, index, {
+    const converted = cnvrLegEcho(entry, index, {
       slotIndex: options?.slotAware ? index : null,
     })
 
     if ('reason' in converted) {
+      // batch imports collect issues instead of throwing so one invalid echo
+      // does not prevent the rest of the bag or loadout from importing.
       if (options?.issues) {
         pushIssue(options.issues, {
           scope: options.issueScope ?? 'inventory',
@@ -246,15 +263,15 @@ export function convertLegacyEchoList(
   return echoes
 }
 
-export function importLegacyInventoryEchoJson(raw: string): LegacyInventoryEchoImportResult {
+export function mprtLegInvEc(raw: string): LegInvEchoMp {
   const parsed = JSON.parse(raw)
-  const legacyEntries = extractLegacyEchoArray(parsed)
+  const legEnts = xtrcLegEchoR(parsed)
 
   const echoes: EchoInstance[] = []
-  const issues: LegacyEchoIssue[] = []
+  const issues: LegEchoSs[] = []
 
-  legacyEntries.forEach((entry, index) => {
-    const converted = convertLegacyEcho(entry, index)
+  legEnts.forEach((entry, index) => {
+    const converted = cnvrLegEcho(entry, index)
     if ('reason' in converted) {
       issues.push(converted)
       return

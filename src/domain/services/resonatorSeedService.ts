@@ -4,35 +4,35 @@
                stats by level using exact values or interpolation.
 */
 
-import { getResonatorCatalog, getResonatorCatalogById } from '@/data/gameData/resonators/resonatorDataStore'
-import type { ResonatorSeed } from '@/domain/entities/runtime'
-import type { ResonatorBaseStats } from '@/domain/entities/stats'
+import { getResCat, getResCatByI } from '@/data/gameData/resonators/resonatorDataStore'
+import type { ResSeed } from '@/domain/entities/runtime'
+import type { ResBaseStats } from '@/domain/entities/stats'
 
 // proxy so existing callers doing resonatorSeedsById[id] still work
-export const resonatorSeedsById: Record<string, ResonatorSeed> = new Proxy(
-  {} as Record<string, ResonatorSeed>,
+export const resSdsById: Record<string, ResSeed> = new Proxy(
+  {} as Record<string, ResSeed>,
   {
     get(_, key: string) {
-      return getResonatorCatalogById()[key]
+      return getResCatByI()[key]
     },
   },
 )
 
 // list all resonator seeds
-export function listResonatorSeeds(): ResonatorSeed[] {
-  return getResonatorCatalog()
+export function listResSds(): ResSeed[] {
+  return getResCat()
 }
 
 // get one resonator seed by id
-export function getResonatorSeedById(resonatorId: string): ResonatorSeed | null {
-  return getResonatorCatalogById()[resonatorId] ?? null
+export function getResSeedBy(resonatorId: string): ResSeed | null {
+  return getResCatByI()[resonatorId] ?? null
 }
 
 // resolve base stats at a given level using exact values or interpolation
-export function resolveResonatorBaseStats(
-    resonator: Pick<ResonatorSeed, 'baseStats' | 'baseStatsByLevel'>,
+export function resResBaseSt(
+    resonator: Pick<ResSeed, 'baseStats' | 'baseStatsByLevel'>,
     level: number,
-): ResonatorBaseStats {
+): ResBaseStats {
   const resolvedLevel = Math.max(1, Math.min(90, Math.round(level)))
   const exact = resonator.baseStatsByLevel?.[resolvedLevel]
 
@@ -43,19 +43,19 @@ export function resolveResonatorBaseStats(
     }
   }
 
-  const availableLevels = Object.keys(resonator.baseStatsByLevel ?? {})
+  const vlblLvls = Object.keys(resonator.baseStatsByLevel ?? {})
       .map(Number)
       .filter((value) => Number.isFinite(value))
       .sort((a, b) => a - b)
 
-  if (availableLevels.length === 0) {
+  if (vlblLvls.length === 0) {
     return resonator.baseStats
   }
 
   const lowerLevel =
-      [...availableLevels].reverse().find((value) => value <= resolvedLevel) ?? availableLevels[0]
+      [...vlblLvls].reverse().find((value) => value <= resolvedLevel) ?? vlblLvls[0]
   const upperLevel =
-      availableLevels.find((value) => value >= resolvedLevel) ?? availableLevels[availableLevels.length - 1]
+      vlblLvls.find((value) => value >= resolvedLevel) ?? vlblLvls[vlblLvls.length - 1]
 
   const lowerStats = resonator.baseStatsByLevel?.[lowerLevel]
   const upperStats = resonator.baseStatsByLevel?.[upperLevel]

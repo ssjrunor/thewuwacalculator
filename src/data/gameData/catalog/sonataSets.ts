@@ -4,29 +4,29 @@
                calculator bootstrap.
 */
 
-export interface SonataSetDefinition {
+export interface SntSetDef {
   id: number
   name: string
   icon: string
 }
 
-export let SONATA_SETS: SonataSetDefinition[] = []
+export let SONATA_SETS: SntSetDef[] = []
 
-let sonataSetsById: Record<number, SonataSetDefinition> = {}
+let sntSetsById: Record<number, SntSetDef> = {}
 
-export function initSonataSets(sets: SonataSetDefinition[]): void {
+export function initSntSets(sets: SntSetDef[]): void {
   SONATA_SETS = sets
-  sonataSetsById = Object.fromEntries(
+  sntSetsById = Object.fromEntries(
       sets.map((set) => [set.id, set]),
-  ) as Record<number, SonataSetDefinition>
+  ) as Record<number, SntSetDef>
 }
 
 // get the display name for a Sonata set id
-export function getSonataSetName(id: number): string {
-  return sonataSetsById[id]?.name ?? `Set ${id}`
+export function getSntSetNam(id: number): string {
+  return sntSetsById[id]?.name ?? `Set ${id}`
 }
 
 // get the icon path for a Sonata set id
-export function getSonataSetIcon(id: number): string | null {
-  return sonataSetsById[id]?.icon ?? null
+export function getSntSetIco(id: number): string | null {
+  return sntSetsById[id]?.icon ?? null
 }

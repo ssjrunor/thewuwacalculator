@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildTailComboIndexing,
-  unrankCombinadic,
+  mkTailCmbNdx,
+  nrnkCmbn,
 } from '@/engine/optimizer/combos/combinadic.ts'
 
 describe('optimizer combinadic', () => {
   it('builds tail combinations excluding the selected main index', () => {
-    const indexing = buildTailComboIndexing(6, 2)
+    const indexing = mkTailCmbNdx(6, 2)
 
     expect(indexing.comboN).toBe(5)
     expect(indexing.comboK).toBe(4)
     expect(indexing.totalCombos).toBe(5)
 
     const combos = Array.from({ length: indexing.totalCombos }, (_, rank) =>
-      Array.from(unrankCombinadic(rank, indexing)),
+      Array.from(nrnkCmbn(rank, indexing)),
     )
 
     expect(combos).toEqual([

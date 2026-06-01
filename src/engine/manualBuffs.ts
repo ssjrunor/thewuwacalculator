@@ -4,20 +4,25 @@
                unified buff pools and individual skill definitions.
 */
 
-import type { ManualBuffs, ManualModifier } from '@/domain/entities/manualBuffs'
-import type { SkillDefinition, UnifiedBuffPool } from '@/domain/entities/stats'
+import type { ManualBuffs, MnlMod, MnlSkllMod } from '@/domain/entities/manualBuffs'
+import type { SkillDef, UnifiedBuffPool } from '@/domain/entities/stats'
 import { makeModBuff } from '@/engine/resolvers/buffPool'
 
-// check whether a manual modifier should be applied
-function isEnabled(modifier: ManualModifier): boolean {
+// ignore disabled, non-finite, and zero-value rows before they reach the hot
+// switch paths. a zero modifier is treated as absent so saved placeholder rows
+// do not perturb buff pools or skill definitions.
+function isEnabled(modifier: MnlMod): boolean {
   return modifier.enabled && Number.isFinite(modifier.value) && modifier.value !== 0
 }
 
-// apply manual quick buffs and non-skill manual modifiers to the shared buff pool
-export function applyManualBuffsToPool(pool: UnifiedBuffPool, manualBuffs: ManualBuffs): void {
+// apply quick buffs and every non-skill manual modifier directly to the shared
+// buff pool. skill-scoped modifiers are skipped here because they must be
+// evaluated against each skill definition after source/runtime effects resolve.
+export function applyMnlBffs(pool: UnifiedBuffPool, manualBuffs: ManualBuffs): void {
   const { quick, modifiers } = manualBuffs
 
-  // apply quick stat buffs
+  // quick buffs are unscoped editor fields, so they map straight into the
+  // shared top-level pool before custom modifier rows are considered.
   pool.atk.flat += quick.atk.flat
   pool.atk.percent += quick.atk.percent
   pool.hp.flat += quick.hp.flat
@@ -29,7 +34,8 @@ export function applyManualBuffsToPool(pool: UnifiedBuffPool, manualBuffs: Manua
   pool.energyRegen += quick.energyRegen
   pool.healingBonus += quick.healingBonus
 
-  // apply scoped manual modifiers
+  // custom rows carry their own scope discriminator; each branch mutates only
+  // the relevant pool lane and leaves unknown or skill-only rows untouched.
   for (const modifier of modifiers) {
     if (!isEnabled(modifier)) {
       continue
@@ -52,6 +58,10 @@ export function applyManualBuffsToPool(pool: UnifiedBuffPool, manualBuffs: Manua
         pool.skillType[modifier.skillType][modifier.mod] += modifier.value
         break
 
+      case 'negativeEffect':
+        pool.negativeEffect[modifier.negativeEffect][modifier.mod] += modifier.value
+        break
+
         // skill-scoped modifiers are handled separately per skill
       case 'skill':
         break
@@ -62,44 +72,157 @@ export function applyManualBuffsToPool(pool: UnifiedBuffPool, manualBuffs: Manua
   }
 }
 
-// check whether a skill matches a manual skill modifier
-function matchesSkillModifier(
-    skill: SkillDefinition,
-    modifier: Extract<ManualModifier, { scope: 'skill' }>,
+// check whether a skill-scoped row targets this skill. id mode is exact and is
+// used for one concrete skill; tab mode fans out across all skills in the tab.
+function mtchSkllMod(
+    skill: SkillDef,
+    modifier: MnlSkllMod,
 ): boolean {
   if (modifier.matchMode === 'skillId') {
     return Boolean(modifier.skillId) && skill.id === modifier.skillId
   }
 
+  if (modifier.matchMode === 'skillType') {
+    return modifier.skillType === 'all' || Boolean(modifier.skillType && skill.skillType.includes(modifier.skillType))
+  }
+
+  if (modifier.matchMode === 'archetype') {
+    return Boolean(modifier.archetype) && skill.archetype === modifier.archetype
+  }
+
   return Boolean(modifier.tab) && skill.tab === modifier.tab
 }
 
-// sum the effective multiplier across all hits in a skill
-function sumHits(skill: Pick<SkillDefinition, 'hits'>): number {
+
+// collapse hit rows back into the aggregate multiplier used by old single-row
+// skills. hit count matters here because repeated sub-hits contribute multiple
+// copies of the row multiplier.
+function sumHits(skill: Pick<SkillDef, 'hits'>): number {
   return skill.hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0)
 }
 
-// apply skill-scoped manual modifiers directly to a skill definition
-export function applyManualSkillModifiers(skill: SkillDefinition, manualBuffs: ManualBuffs): SkillDefinition {
+// add a flat multiplier value while preserving the hit table's relative shape.
+// if a skill has detailed hits, the aggregate delta is converted into a scale
+// factor and applied to each hit so downstream breakdowns still match totals.
+function applyDddMltp(skill: SkillDef, dddMltp: number): SkillDef {
+  const curMltp = skill.multiplier
+
+  if (curMltp <= 0 || dddMltp === 0) {
+    return skill
+  }
+
+  if (skill.hits.length === 0) {
+    return {
+      ...skill,
+      multiplier: curMltp + dddMltp,
+    }
+  }
+
+  const mltpScl = (curMltp + dddMltp) / curMltp
+  const hits = skill.hits.map((hit) => ({
+    ...hit,
+    multiplier: hit.multiplier * mltpScl,
+  }))
+
+  return {
+    ...skill,
+    multiplier: sumHits({ hits }),
+    hits,
+  }
+}
+
+// multiply the whole skill by a percentage scale. detailed hit tables are
+// scaled row-by-row, then the aggregate multiplier is recomputed from those
+// rows so the summary and per-hit data cannot drift apart.
+function applyMltpScl(skill: SkillDef, mltpScl: number): SkillDef {
+  if (mltpScl === 1) {
+    return skill
+  }
+
+  if (skill.hits.length === 0) {
+    return {
+      ...skill,
+      multiplier: skill.multiplier * mltpScl,
+    }
+  }
+
+  const hits = skill.hits.map((hit) => ({
+    ...hit,
+    multiplier: hit.multiplier * mltpScl,
+  }))
+
+  return {
+    ...skill,
+    multiplier: sumHits({ hits }),
+    hits,
+  }
+}
+
+function applyHitMltp(skill: SkillDef, hitIndex: number, dddMltp: number): SkillDef {
+  if (dddMltp === 0 || hitIndex < 0 || hitIndex >= skill.hits.length) {
+    return skill
+  }
+
+  const hits = skill.hits.map((hit, index) => (
+    index === hitIndex
+      ? { ...hit, multiplier: hit.multiplier + dddMltp }
+      : hit
+  ))
+
+  return {
+    ...skill,
+    multiplier: sumHits({ hits }),
+    hits,
+  }
+}
+
+// apply one enabled skill modifier after target matching. stat-style modifiers
+// become skill-local buffs, while multiplier rows rewrite the skill definition
+// itself so later damage evaluation sees the adjusted scaling.
+function applySkllMod(skill: SkillDef, modifier: MnlSkllMod): SkillDef {
+  if (modifier.effect === 'mod') {
+    return {
+      ...skill,
+      skillBuffs: {
+        ...(skill.skillBuffs ?? makeModBuff()),
+        [modifier.mod]: (skill.skillBuffs?.[modifier.mod] ?? 0) + modifier.value,
+      },
+    }
+  }
+
+  if (modifier.effect === 'addMultiplier') {
+    return applyDddMltp(skill, modifier.value / 100)
+  }
+
+  if (modifier.effect === 'scaleMultiplier') {
+    return applyMltpScl(skill, 1 + modifier.value / 100)
+  }
+
+  if (modifier.effect === 'addHitMultiplier') {
+    return applyHitMltp(skill, modifier.hitIndex, modifier.value / 100)
+  }
+
+  return {
+    ...skill,
+    [modifier.field]: ((skill[modifier.field] as number | undefined) ?? 0) + modifier.value,
+  }
+}
+
+// apply every matching skill-scoped row to one skill definition in order. the
+// multiplier is normalized from hits before each row, so chained manual edits
+// work the same for old aggregate-only skills and newer multi-hit skills.
+export function applyMnlSkll(skill: SkillDef, manualBuffs: ManualBuffs): SkillDef {
   let next = skill
 
   for (const modifier of manualBuffs.modifiers) {
-    if (modifier.scope !== 'skill' || !isEnabled(modifier) || !matchesSkillModifier(next, modifier)) {
+    if (modifier.scope !== 'skill' || !isEnabled(modifier) || !mtchSkllMod(next, modifier)) {
       continue
     }
 
-    next = {
+    next = applySkllMod({
       ...next,
-
-      // keep multiplier in sync with hit data when the skill uses explicit hits
       multiplier: next.hits.length > 0 ? sumHits(next) : next.multiplier,
-
-      // merge manual modifier into the skill's custom skill buff bucket
-      skillBuffs: {
-        ...(next.skillBuffs ?? makeModBuff()),
-        [modifier.mod]: (next.skillBuffs?.[modifier.mod] ?? 0) + modifier.value,
-      },
-    }
+    }, modifier)
   }
 
   return next

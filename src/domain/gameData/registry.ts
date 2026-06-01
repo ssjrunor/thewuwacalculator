@@ -5,62 +5,62 @@
 */
 
 import type {
-  ConditionDefinition,
-  DataSourceRef,
-  EffectDefinition,
-  EffectSourceBuckets,
-  FeatureDefinition,
-  GameDataRegistry,
-  RotationDefinition,
-  SourceOwnerDefinition,
-  SourcePackage,
-  SourceStateDefinition,
+  CondDef,
+  DataSrcRef,
+  EffectDef,
+  EffectBuckets,
+  FeatDef,
+  GameDataReg,
+  RotDef,
+  SrcOwnDef,
+  SrcPkg,
+  SourceState,
 } from '@/domain/gameData/contracts'
-import type { SkillDefinition } from '@/domain/entities/stats'
-import { primeCompiledSourcePackageExpressions } from '@/engine/effects/evaluator'
+import type { SkillDef } from '@/domain/entities/stats'
+import { prmCompSrcPk } from '@/engine/effects/evaluator'
 
-const EMPTY_OWNERS: SourceOwnerDefinition[] = []
-const EMPTY_EFFECTS: EffectDefinition[] = []
-const EMPTY_EFFECT_BUCKETS: EffectSourceBuckets = {
-  all: EMPTY_EFFECTS,
-  runtime: EMPTY_EFFECTS,
-  runtimePreStats: EMPTY_EFFECTS,
-  runtimePostStats: EMPTY_EFFECTS,
-  skill: EMPTY_EFFECTS,
+const NO_OWNERS: SrcOwnDef[] = []
+const NO_EFFECTS: EffectDef[] = []
+const NO_EFFECT_SETS: EffectBuckets = {
+  all: NO_EFFECTS,
+  runtime: NO_EFFECTS,
+  runtimePreStats: NO_EFFECTS,
+  runtimePostStats: NO_EFFECTS,
+  skill: NO_EFFECTS,
 }
-const EMPTY_STATES: SourceStateDefinition[] = []
-const EMPTY_CONDITIONS: ConditionDefinition[] = []
-const EMPTY_FEATURES: FeatureDefinition[] = []
-const EMPTY_ROTATIONS: RotationDefinition[] = []
-const EMPTY_SKILLS: SkillDefinition[] = []
+const NO_STATES: SourceState[] = []
+const NO_CONDS: CondDef[] = []
+const NO_FEATS: FeatDef[] = []
+const NO_ROTS: RotDef[] = []
+const NO_SKILLS: SkillDef[] = []
 
 // create a stable registry key for a source
-export function makeSourceKey(source: DataSourceRef): string {
+export function makeSourceKey(source: DataSrcRef): string {
   return `${source.type}:${source.id}`
 }
 
 // build the full game data registry from source packages
-export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistry {
-  const sourcesByKey: Record<string, SourcePackage> = {}
-  const ownersBySourceKey: Record<string, SourceOwnerDefinition[]> = {}
-  const ownersByKey: Record<string, SourceOwnerDefinition> = {}
-  const effectsBySourceKey: Record<string, EffectDefinition[]> = {}
-  const effectBucketsBySourceKey: Record<string, EffectSourceBuckets> = {}
-  const effectsByOwnerKey: Record<string, EffectDefinition[]> = {}
-  const statesBySourceKey: Record<string, SourceStateDefinition[]> = {}
-  const statesByOwnerKey: Record<string, SourceStateDefinition[]> = {}
-  const statesByControlKey: Record<string, SourceStateDefinition> = {}
-  const conditionsBySourceKey: Record<string, ConditionDefinition[]> = {}
-  const conditionsByOwnerKey: Record<string, ConditionDefinition[]> = {}
-  const featuresBySourceKey: Record<string, FeatureDefinition[]> = {}
-  const rotationsBySourceKey: Record<string, RotationDefinition[]> = {}
-  const skillsBySourceKey: Record<string, SkillDefinition[]> = {}
-  const resonatorSkillsById: Record<string, SkillDefinition[]> = {}
-  const resonatorFeaturesById: Record<string, FeatureDefinition[]> = {}
-  const resonatorRotationsById: Record<string, RotationDefinition[]> = {}
+export function mkGameDataRe(sources: SrcPkg[]): GameDataReg {
+  const sourcesByKey: Record<string, SrcPkg> = {}
+  const wnrsBySrcKey: Record<string, SrcOwnDef[]> = {}
+  const ownersByKey: Record<string, SrcOwnDef> = {}
+  const ffctBySrcKey: Record<string, EffectDef[]> = {}
+  const ffctBktsBySr: Record<string, EffectBuckets> = {}
+  const ffctByOwnKey: Record<string, EffectDef[]> = {}
+  const sttsBySrcKey: Record<string, SourceState[]> = {}
+  const sttsByOwnKey: Record<string, SourceState[]> = {}
+  const sttsByCntrKe: Record<string, SourceState> = {}
+  const condsBySrcKe: Record<string, CondDef[]> = {}
+  const condsByOwnKe: Record<string, CondDef[]> = {}
+  const featsBySrcKe: Record<string, FeatDef[]> = {}
+  const rttnBySrcKey: Record<string, RotDef[]> = {}
+  const skllBySrcKey: Record<string, SkillDef[]> = {}
+  const resSkllById: Record<string, SkillDef[]> = {}
+  const resFeatsById: Record<string, FeatDef[]> = {}
+  const resRttnById: Record<string, RotDef[]> = {}
 
   for (const source of sources) {
-    primeCompiledSourcePackageExpressions(source)
+    prmCompSrcPk(source)
 
     const key = makeSourceKey(source.source)
 
@@ -69,47 +69,55 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
     }
 
     sourcesByKey[key] = source
-    ownersBySourceKey[key] = source.owners ?? EMPTY_OWNERS
-    const effects = source.effects ?? EMPTY_EFFECTS
-    const runtimePreStats: EffectDefinition[] = []
-    const runtimePostStats: EffectDefinition[] = []
-    const runtime: EffectDefinition[] = []
-    const skill: EffectDefinition[] = []
+    wnrsBySrcKey[key] = source.owners ?? NO_OWNERS
+    const effects = source.effects ?? NO_EFFECTS
+    const rtPreStts: EffectDef[] = []
+    const rtPostStts: EffectDef[] = []
+    const runtime: EffectDef[] = []
+    const skill: EffectDef[] = []
 
     for (const effect of effects) {
-      if (effect.trigger === 'skill') {
+      const hasSkillOp = effect.operations.some((op) =>
+          op.type === 'add_skill_mod' ||
+          op.type === 'add_skill_multiplier' ||
+          op.type === 'add_skill_hit_multiplier' ||
+          op.type === 'add_skill_scalar' ||
+          op.type === 'scale_skill_multiplier',
+      )
+
+      if (effect.trigger === 'skill' || hasSkillOp) {
         skill.push(effect)
-        continue
       }
 
-      runtime.push(effect)
+      if (effect.trigger === 'runtime') {
+        runtime.push(effect)
 
-      if ((effect.stage ?? 'preStats') === 'postStats') {
-        runtimePostStats.push(effect)
-        continue
+        if ((effect.stage ?? 'preStats') === 'postStats') {
+          rtPostStts.push(effect)
+        } else {
+          rtPreStts.push(effect)
+        }
       }
-
-      runtimePreStats.push(effect)
     }
 
-    effectsBySourceKey[key] = effects
-    effectBucketsBySourceKey[key] = {
+    ffctBySrcKey[key] = effects
+    ffctBktsBySr[key] = {
       all: effects,
       runtime,
-      runtimePreStats,
-      runtimePostStats,
+      runtimePreStats: rtPreStts,
+      runtimePostStats: rtPostStts,
       skill,
     }
-    statesBySourceKey[key] = source.states ?? EMPTY_STATES
-    conditionsBySourceKey[key] = source.conditions ?? EMPTY_CONDITIONS
-    featuresBySourceKey[key] = source.features ?? EMPTY_FEATURES
-    rotationsBySourceKey[key] = source.rotations ?? EMPTY_ROTATIONS
-    skillsBySourceKey[key] = source.skills ?? EMPTY_SKILLS
+    sttsBySrcKey[key] = source.states ?? NO_STATES
+    condsBySrcKe[key] = source.conditions ?? NO_CONDS
+    featsBySrcKe[key] = source.features ?? NO_FEATS
+    rttnBySrcKey[key] = source.rotations ?? NO_ROTS
+    skllBySrcKey[key] = source.skills ?? NO_SKILLS
 
     if (source.source.type === 'resonator') {
-      resonatorSkillsById[source.source.id] = source.skills ?? EMPTY_SKILLS
-      resonatorFeaturesById[source.source.id] = source.features ?? EMPTY_FEATURES
-      resonatorRotationsById[source.source.id] = source.rotations ?? EMPTY_ROTATIONS
+      resSkllById[source.source.id] = source.skills ?? NO_SKILLS
+      resFeatsById[source.source.id] = source.features ?? NO_FEATS
+      resRttnById[source.source.id] = source.rotations ?? NO_ROTS
     }
   }
 
@@ -129,12 +137,12 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
         throw new Error(`unknown state owner key: ${state.ownerKey}`)
       }
 
-      if (statesByControlKey[state.controlKey]) {
+      if (sttsByCntrKe[state.controlKey]) {
         throw new Error(`duplicate state control key: ${state.controlKey}`)
       }
 
-      statesByControlKey[state.controlKey] = state
-      ;(statesByOwnerKey[state.ownerKey] ??= []).push(state)
+      sttsByCntrKe[state.controlKey] = state
+      ;(sttsByOwnKey[state.ownerKey] ??= []).push(state)
     }
 
     for (const condition of source.conditions ?? []) {
@@ -146,7 +154,7 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
         throw new Error(`unknown condition owner key: ${condition.ownerKey}`)
       }
 
-      ;(conditionsByOwnerKey[condition.ownerKey] ??= []).push(condition)
+      ;(condsByOwnKe[condition.ownerKey] ??= []).push(condition)
     }
 
     for (const effect of source.effects ?? []) {
@@ -158,165 +166,165 @@ export function buildGameDataRegistry(sources: SourcePackage[]): GameDataRegistr
         throw new Error(`unknown effect owner key: ${effect.ownerKey}`)
       }
 
-      ;(effectsByOwnerKey[effect.ownerKey] ??= []).push(effect)
+      ;(ffctByOwnKey[effect.ownerKey] ??= []).push(effect)
     }
   }
 
   return {
     sourcesByKey,
-    ownersBySourceKey,
+    ownersBySourceKey: wnrsBySrcKey,
     ownersByKey,
-    effectsBySourceKey,
-    effectBucketsBySourceKey,
-    effectsByOwnerKey,
-    statesBySourceKey,
-    statesByOwnerKey,
-    statesByControlKey,
-    conditionsBySourceKey,
-    conditionsByOwnerKey,
-    featuresBySourceKey,
-    rotationsBySourceKey,
-    skillsBySourceKey,
-    resonatorSkillsById,
-    resonatorFeaturesById,
-    resonatorRotationsById,
+    effectsBySourceKey: ffctBySrcKey,
+    effectBucketsBySourceKey: ffctBktsBySr,
+    effectsByOwnerKey: ffctByOwnKey,
+    statesBySourceKey: sttsBySrcKey,
+    statesByOwnerKey: sttsByOwnKey,
+    statesByControlKey: sttsByCntrKe,
+    conditionsBySourceKey: condsBySrcKe,
+    conditionsByOwnerKey: condsByOwnKe,
+    featuresBySourceKey: featsBySrcKe,
+    rotationsBySourceKey: rttnBySrcKey,
+    skillsBySourceKey: skllBySrcKey,
+    resonatorSkillsById: resSkllById,
+    resonatorFeaturesById: resFeatsById,
+    resonatorRotationsById: resRttnById,
   }
 }
 
 // list effects for a source, optionally filtered by trigger
-export function listSourceEffects(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-    trigger?: EffectDefinition['trigger'],
-): EffectDefinition[] {
-  const effects = registry.effectsBySourceKey[makeSourceKey(source)] ?? EMPTY_EFFECTS
+export function listEffects(
+    registry: GameDataReg,
+    source: DataSrcRef,
+    trigger?: EffectDef['trigger'],
+): EffectDef[] {
+  const effects = registry.effectsBySourceKey[makeSourceKey(source)] ?? NO_EFFECTS
 
   if (!trigger) {
     return effects
   }
 
-  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? EMPTY_EFFECT_BUCKETS
+  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? NO_EFFECT_SETS
   return trigger === 'skill' ? buckets.skill : buckets.runtime
 }
 
 // list staged runtime effects for a source
-export function listSourceRuntimeEffectsByStage(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
+export function listSrcRtFfc(
+    registry: GameDataReg,
+    source: DataSrcRef,
     stage: 'preStats' | 'postStats',
-): EffectDefinition[] {
-  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? EMPTY_EFFECT_BUCKETS
+): EffectDef[] {
+  const buckets = registry.effectBucketsBySourceKey[makeSourceKey(source)] ?? NO_EFFECT_SETS
   return stage === 'postStats' ? buckets.runtimePostStats : buckets.runtimePreStats
 }
 
 // list states for a source
-export function listSourceStates(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): SourceStateDefinition[] {
-  return registry.statesBySourceKey[makeSourceKey(source)] ?? EMPTY_STATES
+export function listSrcStts(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): SourceState[] {
+  return registry.statesBySourceKey[makeSourceKey(source)] ?? NO_STATES
 }
 
 // list owners for a source
-export function listSourceOwners(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): SourceOwnerDefinition[] {
-  return registry.ownersBySourceKey[makeSourceKey(source)] ?? EMPTY_OWNERS
+export function listSrcWnrs(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): SrcOwnDef[] {
+  return registry.ownersBySourceKey[makeSourceKey(source)] ?? NO_OWNERS
 }
 
 // list conditions for a source
-export function listSourceConditions(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): ConditionDefinition[] {
-  return registry.conditionsBySourceKey[makeSourceKey(source)] ?? EMPTY_CONDITIONS
+export function listSrcConds(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): CondDef[] {
+  return registry.conditionsBySourceKey[makeSourceKey(source)] ?? NO_CONDS
 }
 
 // get a source owner by owner key
-export function getSourceOwnerByKey(
-    registry: GameDataRegistry,
+export function getSrcOwnByK(
+    registry: GameDataReg,
     ownerKey: string,
-): SourceOwnerDefinition | null {
+): SrcOwnDef | null {
   return registry.ownersByKey[ownerKey] ?? null
 }
 
 // list effects attached to an owner key
-export function listEffectsByOwnerKey(
-    registry: GameDataRegistry,
+export function listFfctByOw(
+    registry: GameDataReg,
     ownerKey: string,
-): EffectDefinition[] {
-  return registry.effectsByOwnerKey[ownerKey] ?? EMPTY_EFFECTS
+): EffectDef[] {
+  return registry.effectsByOwnerKey[ownerKey] ?? NO_EFFECTS
 }
 
 // list states attached to an owner key
-export function listStatesByOwnerKey(
-    registry: GameDataRegistry,
+export function listSttsByOw(
+    registry: GameDataReg,
     ownerKey: string,
-): SourceStateDefinition[] {
-  return registry.statesByOwnerKey[ownerKey] ?? EMPTY_STATES
+): SourceState[] {
+  return registry.statesByOwnerKey[ownerKey] ?? NO_STATES
 }
 
 // get a state definition by its control key
-export function getStateByControlKey(
-    registry: GameDataRegistry,
+export function getSttByCntr(
+    registry: GameDataReg,
     controlKey: string,
-): SourceStateDefinition | null {
+): SourceState | null {
   return registry.statesByControlKey[controlKey] ?? null
 }
 
 // list conditions attached to an owner key
-export function listConditionsByOwnerKey(
-    registry: GameDataRegistry,
+export function listCondsByO(
+    registry: GameDataReg,
     ownerKey: string,
-): ConditionDefinition[] {
-  return registry.conditionsByOwnerKey[ownerKey] ?? EMPTY_CONDITIONS
+): CondDef[] {
+  return registry.conditionsByOwnerKey[ownerKey] ?? NO_CONDS
 }
 
 // get all resonator skills by resonator id
-export function getResonatorSkills(
-    registry: GameDataRegistry,
+export function getResSkll(
+    registry: GameDataReg,
     resonatorId: string,
-): SkillDefinition[] {
-  return registry.resonatorSkillsById[resonatorId] ?? EMPTY_SKILLS
+): SkillDef[] {
+  return registry.resonatorSkillsById[resonatorId] ?? NO_SKILLS
 }
 
 // list all skills for a source
-export function listSourceSkills(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): SkillDefinition[] {
-  return registry.skillsBySourceKey[makeSourceKey(source)] ?? EMPTY_SKILLS
+export function listSrcSkll(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): SkillDef[] {
+  return registry.skillsBySourceKey[makeSourceKey(source)] ?? NO_SKILLS
 }
 
 // list all features for a source
-export function listSourceFeatures(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): FeatureDefinition[] {
-  return registry.featuresBySourceKey[makeSourceKey(source)] ?? EMPTY_FEATURES
+export function listSrcFeats(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): FeatDef[] {
+  return registry.featuresBySourceKey[makeSourceKey(source)] ?? NO_FEATS
 }
 
 // list all rotations for a source
-export function listSourceRotations(
-    registry: GameDataRegistry,
-    source: DataSourceRef,
-): RotationDefinition[] {
-  return registry.rotationsBySourceKey[makeSourceKey(source)] ?? EMPTY_ROTATIONS
+export function listSrcRttn(
+    registry: GameDataReg,
+    source: DataSrcRef,
+): RotDef[] {
+  return registry.rotationsBySourceKey[makeSourceKey(source)] ?? NO_ROTS
 }
 
 // get all resonator features by resonator id
-export function getResonatorFeatures(
-    registry: GameDataRegistry,
+export function getResFeats(
+    registry: GameDataReg,
     resonatorId: string,
-): FeatureDefinition[] {
-  return registry.resonatorFeaturesById[resonatorId] ?? EMPTY_FEATURES
+): FeatDef[] {
+  return registry.resonatorFeaturesById[resonatorId] ?? NO_FEATS
 }
 
 // get all resonator rotations by resonator id
-export function getResonatorRotations(
-    registry: GameDataRegistry,
+export function getResRttn(
+    registry: GameDataReg,
     resonatorId: string,
-): RotationDefinition[] {
-  return registry.resonatorRotationsById[resonatorId] ?? EMPTY_ROTATIONS
+): RotDef[] {
+  return registry.resonatorRotationsById[resonatorId] ?? NO_ROTS
 }

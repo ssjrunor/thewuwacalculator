@@ -7,45 +7,45 @@
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
-import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import type { SkillDef } from '@/domain/entities/stats'
 import type { CombatContext } from '@/engine/pipeline/types'
-import { buildTransientCombatGraph } from '@/domain/state/combatGraph'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
-import { listRuntimeSkills } from '@/domain/services/runtimeSourceService'
-import { applySkillDataEffects } from '@/engine/effects/dataEffects'
+import { makeCombatGraph } from '@/domain/state/combatGraph'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { listRtSkills } from '@/domain/services/runtimeSourceService'
+import { applySkllDat } from '@/engine/effects/dataEffects'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 
-const preparedSkillCache = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Map<string, SkillDefinition>>>()
+const prepSkllCch = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Map<string, SkillDef>>>()
 
-interface RuntimeSkillContextInput {
+interface RtSkllCtxNpt {
   // active runtime whose skills are being prepared
-  runtime: ResonatorRuntimeState
+  runtime: ResRuntime
 
   // resonator seed used to build the transient combat graph
-  seed: ResonatorSeed
+  seed: ResSeed
 
   // enemy profile used for stat and damage context resolution
   enemy: EnemyProfile
 
   // optional additional participant runtimes keyed by resonator id
-  runtimesById?: Record<string, ResonatorRuntimeState>
+  runtimesById?: Record<string, ResRuntime>
 
   // optional selected-target mapping for the active resonator
-  selectedTargetsByOwnerKey?: Record<string, string | null>
+  selectedTargets?: Record<string, string | null>
 }
 
-interface RuntimeSkillContextResult {
+interface RtSkllCtxRsl {
   // fully resolved combat context for the active runtime
   context: CombatContext
 }
 
-export interface PreparedRuntimeSkillResult extends RuntimeSkillContextResult {
+export interface PrepRtSkllRs extends RtSkllCtxRsl {
   // prepared skill after runtime resolution and skill-data effects
-  skill: SkillDefinition
+  skill: SkillDef
 }
 
-function makePreparedSkillCacheKey(
+function mkPrepSkllCc(
     runtimeId: string,
     targetSlotId: CombatContext['targetSlotId'],
     skillId: string,
@@ -53,18 +53,18 @@ function makePreparedSkillCacheKey(
   return `${targetSlotId}:${runtimeId}:${skillId}`
 }
 
-function getPreparedSkillCache(
+function getPrepSkllC(
     context: CombatContext,
-): Map<string, SkillDefinition> {
-  let cacheByEnemy = preparedSkillCache.get(context.graph)
+): Map<string, SkillDef> {
+  let cacheByEnemy = prepSkllCch.get(context.graph)
   if (!cacheByEnemy) {
-    cacheByEnemy = new WeakMap<EnemyProfile, Map<string, SkillDefinition>>()
-    preparedSkillCache.set(context.graph, cacheByEnemy)
+    cacheByEnemy = new WeakMap<EnemyProfile, Map<string, SkillDef>>()
+    prepSkllCch.set(context.graph, cacheByEnemy)
   }
 
   let cache = cacheByEnemy.get(context.enemy)
   if (!cache) {
-    cache = new Map<string, SkillDefinition>()
+    cache = new Map<string, SkillDef>()
     cacheByEnemy.set(context.enemy, cache)
   }
 
@@ -73,24 +73,24 @@ function getPreparedSkillCache(
 
 // build a transient combat graph around the active runtime and return the
 // resolved combat context for the active slot
-export function buildRuntimeSkillContext({
+export function makeSkillCtx({
                                            runtime,
                                            seed,
                                            enemy,
                                            runtimesById = {},
-                                           selectedTargetsByOwnerKey = {},
-                                         }: RuntimeSkillContextInput): RuntimeSkillContextResult {
-  const graph = buildTransientCombatGraph({
-    activeRuntime: runtime,
+                                           selectedTargets = {},
+                                         }: RtSkllCtxNpt): RtSkllCtxRsl {
+  const graph = makeCombatGraph({
+    actRt: runtime,
     activeSeed: seed,
-    participantRuntimes: runtimesById,
-    selectedTargetsByResonatorId: {
-      [runtime.id]: selectedTargetsByOwnerKey,
+    partRts: runtimesById,
+    targetsByRes: {
+      [runtime.id]: selectedTargets,
     },
   })
 
   return {
-    context: buildCombatContext({
+    context: makeCombatEnv({
       graph,
       targetSlotId: 'active',
       enemy,
@@ -100,19 +100,19 @@ export function buildRuntimeSkillContext({
 
 // resolve a skill against the runtime first, then apply skill-specific
 // data effects using the already-built combat context
-export function prepareRuntimeSkill(
-    runtime: ResonatorRuntimeState,
-    skill: SkillDefinition,
+export function prprRtSkll(
+    runtime: ResRuntime,
+    skill: SkillDef,
     context: CombatContext,
-): SkillDefinition {
-  const cache = getPreparedSkillCache(context)
-  const cacheKey = makePreparedSkillCacheKey(runtime.id, context.targetSlotId, skill.id)
+): SkillDef {
+  const cache = getPrepSkllC(context)
+  const cacheKey = mkPrepSkllCc(runtime.id, context.targetSlotId, skill.id)
   const cached = cache.get(cacheKey)
   if (cached) {
     return cached
   }
 
-  const prepared = applySkillDataEffects(runtime, resolveSkill(runtime, skill), {
+  const prepared = applySkllDat(runtime, resolveSkill(runtime, skill), {
     graph: context.graph,
     targetSlotId: context.targetSlotId,
     baseStats: context.baseStats,
@@ -126,28 +126,28 @@ export function prepareRuntimeSkill(
 
 // locate one runtime skill by id, prepare it, and hide it from callers if
 // the prepared result is explicitly marked invisible
-export function prepareRuntimeSkillById(
-    runtime: ResonatorRuntimeState,
+export function prepareSkill(
+    runtime: ResRuntime,
     skillId: string,
     context: CombatContext,
-): SkillDefinition | null {
-  const skill = listRuntimeSkills(runtime).find((entry) => entry.id === skillId)
+): SkillDef | null {
+  const skill = listRtSkills(runtime).find((entry) => entry.id === skillId)
   if (!skill) {
     return null
   }
 
-  const prepared = prepareRuntimeSkill(runtime, skill, context)
+  const prepared = prprRtSkll(runtime, skill, context)
   return prepared.visible === false ? null : prepared
 }
 
 // convenience helper that builds the combat context and prepares one skill id
 // in a single call
-export function buildPreparedRuntimeSkill(
-    params: RuntimeSkillContextInput & { skillId: string },
-): PreparedRuntimeSkillResult | null {
+export function prepSkill(
+    params: RtSkllCtxNpt & { skillId: string },
+): PrepRtSkllRs | null {
   const { runtime, skillId } = params
-  const { context } = buildRuntimeSkillContext(params)
-  const skill = prepareRuntimeSkillById(runtime, skillId, context)
+  const { context } = makeSkillCtx(params)
+  const skill = prepareSkill(runtime, skillId, context)
 
   if (!skill) {
     return null

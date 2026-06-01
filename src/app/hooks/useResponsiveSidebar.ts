@@ -6,14 +6,14 @@
 
 import { useEffect, useState } from 'react'
 
-interface ResponsiveSidebarOptions {
-  mobileBreakpoint?: number
+interface RspnSdbrPtns {
+  mblBp?: number
   defaultWidth?: number
   closeDelayMs?: number
 }
 
 // compute the initial mobile state safely for client and server rendering
-function getInitialMobileState(defaultWidth: number): boolean {
+function getNtlMblStt(defaultWidth: number): boolean {
   if (typeof window === 'undefined') {
     return false
   }
@@ -21,15 +21,15 @@ function getInitialMobileState(defaultWidth: number): boolean {
   return window.innerWidth < defaultWidth
 }
 
-export function useResponsiveSidebar({
-                                       mobileBreakpoint = 1070,
+export function useRspnSdbr({
+                                       mblBp: mblBp = 1070,
                                        defaultWidth = 700,
                                        closeDelayMs = 400,
-                                     }: ResponsiveSidebarOptions = {}) {
-  const [hamburgerOpen, setHamburgerOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(() => getInitialMobileState(defaultWidth))
-  const [isOverlayVisible, setIsOverlayVisible] = useState(false)
-  const [isOverlayClosing, setIsOverlayClosing] = useState(false)
+                                     }: RspnSdbrPtns = {}) {
+  const [hambOpen, setHambOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => getNtlMblStt(defaultWidth))
+  const [isOvrVis, setIsOvrVis] = useState(false)
+  const [isOvrCls, setIsOvrCls] = useState(false)
 
   // watch window size and keep the mobile state in sync with the breakpoint
   useEffect(() => {
@@ -38,12 +38,12 @@ export function useResponsiveSidebar({
     }
 
     const handleResize = () => {
-      const nextIsMobile = window.innerWidth < mobileBreakpoint
+      const nextIsMobile = window.innerWidth < mblBp
       setIsMobile(nextIsMobile)
 
       // when entering mobile layout, force the sidebar closed
       if (nextIsMobile) {
-        setHamburgerOpen(false)
+        setHambOpen(false)
       }
     }
 
@@ -54,28 +54,28 @@ export function useResponsiveSidebar({
       window.cancelAnimationFrame(frameId)
       window.removeEventListener('resize', handleResize)
     }
-  }, [mobileBreakpoint])
+  }, [mblBp])
 
   // manage overlay visibility and its exit animation timing
   useEffect(() => {
     let timeoutId: number | undefined
     let frameId: number | undefined
 
-    if (hamburgerOpen) {
+    if (hambOpen) {
       // open overlay on the next frame so transitions can apply cleanly
       frameId = window.requestAnimationFrame(() => {
-        setIsOverlayVisible(true)
-        setIsOverlayClosing(false)
+        setIsOvrVis(true)
+        setIsOvrCls(false)
       })
     } else {
       // mark overlay as closing, then fully hide it after the exit delay
       frameId = window.requestAnimationFrame(() => {
-        setIsOverlayClosing(true)
+        setIsOvrCls(true)
       })
 
       timeoutId = window.setTimeout(() => {
-        setIsOverlayVisible(false)
-        setIsOverlayClosing(false)
+        setIsOvrVis(false)
+        setIsOvrCls(false)
       }, closeDelayMs)
     }
 
@@ -88,13 +88,13 @@ export function useResponsiveSidebar({
         window.clearTimeout(timeoutId)
       }
     }
-  }, [closeDelayMs, hamburgerOpen])
+  }, [closeDelayMs, hambOpen])
 
   return {
-    hamburgerOpen,
-    setHamburgerOpen,
+    hamburgerOpen: hambOpen,
+    setHamburgerOpen: setHambOpen,
     isMobile,
-    isOverlayVisible,
-    isOverlayClosing,
+    isOverlayVisible: isOvrVis,
+    isOverlayClosing: isOvrCls,
   }
 }

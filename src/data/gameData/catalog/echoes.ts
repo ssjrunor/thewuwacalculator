@@ -4,29 +4,29 @@
                public JSON before calculator consumers are imported.
 */
 
-import type { EchoDefinition } from '@/domain/entities/catalog'
+import type { EchoDef } from '@/domain/entities/catalog'
 
-let echoCatalogCache: EchoDefinition[] = []
-let echoCatalogByIdCache: Record<string, EchoDefinition> = {}
-let echoCatalogByCostCache: Record<number, EchoDefinition[]> = {}
+let echoCatCch: EchoDef[] = []
+let echoCatByIdC: Record<string, EchoDef> = {}
+let echoCatByCos: Record<number, EchoDef[]> = {}
 
-export function initEchoCatalog(catalog: EchoDefinition[]): void {
-  echoCatalogCache = catalog
-  echoCatalogByIdCache = Object.fromEntries(catalog.map((echo) => [echo.id, echo]))
-  echoCatalogByCostCache = catalog.reduce<Record<number, EchoDefinition[]>>((acc, echo) => {
+export function initEchoCat(catalog: EchoDef[]): void {
+  echoCatCch = catalog
+  echoCatByIdC = Object.fromEntries(catalog.map((echo) => [echo.id, echo]))
+  echoCatByCos = catalog.reduce<Record<number, EchoDef[]>>((acc, echo) => {
     ;(acc[echo.cost] ??= []).push(echo)
     return acc
   }, {})
 }
 
-export function getEchoCatalog(): EchoDefinition[] {
-  return echoCatalogCache
+export function getEchoCat(): EchoDef[] {
+  return echoCatCch
 }
 
-export function getEchoCatalogById(): Record<string, EchoDefinition> {
-  return echoCatalogByIdCache
+export function getEchoCatBy(): Record<string, EchoDef> {
+  return echoCatByIdC
 }
 
-export function getEchoCatalogByCost(): Record<number, EchoDefinition[]> {
-  return echoCatalogByCostCache
+export function getEchoByCost(): Record<number, EchoDef[]> {
+  return echoCatByCos
 }

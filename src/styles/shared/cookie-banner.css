@@ -1,6 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Cookie Consent Banner
-   ═══════════════════════════════════════════════════════════════════════════ */
+
 
 @keyframes cookie-banner-enter {
   0%   { opacity: 0; transform: translateY(1.5rem) scale(0.95); filter: blur(3px); }
@@ -27,8 +25,8 @@
   width: calc(100vw - 3rem);
   padding: 0.85rem 0.9rem 0.85rem 1rem;
 
-  background: var(--surface-strong);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 1.15rem;
   box-shadow:
     0 8px 28px rgba(15, 23, 42, 0.13),
@@ -51,7 +49,7 @@
   pointer-events: none;
 }
 
-/* ── Icon ── */
+
 
 .cookie-banner__icon-wrap {
   display: flex;
@@ -66,7 +64,7 @@
   color: var(--accent);
 }
 
-/* ── Body ── */
+
 
 .cookie-banner__body {
   flex: 1;
@@ -98,7 +96,7 @@
   opacity: 0.75;
 }
 
-/* ── Accept button ── */
+
 
 .cookie-banner__accept {
   flex-shrink: 0;
@@ -128,7 +126,7 @@
   transition-duration: 80ms;
 }
 
-/* ── Mobile ── */
+
 
 @media (max-width: 480px) {
   .cookie-banner {
@@ -139,7 +137,7 @@
   }
 }
 
-/* ── Reduced motion ── */
+
 
 @media (prefers-reduced-motion: reduce) {
   .cookie-banner.open {

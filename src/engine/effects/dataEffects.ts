@@ -6,79 +6,94 @@
 */
 
 import { getGameData } from '@/data/gameData'
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import {
-  listSourceEffects,
-  listSourceRuntimeEffectsByStage,
+  listEffects,
+  listSrcRtFfc,
 } from '@/domain/gameData/registry'
-import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
+import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import type {
-  EffectDefinition,
-  EffectEvalScope,
-  EffectOperation,
-  EffectRuntimeContext,
+  DataSrcRef,
+  EffectDef,
+  EffectScope,
+  EffectOp,
+  EffectContext,
 } from '@/domain/gameData/contracts'
 import type { EnemyProfile } from '@/domain/entities/appState'
+import { isNoEnemy } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
-import { isUnsetWeaponId, type ResonatorRuntimeState } from '@/domain/entities/runtime'
-import { computeEchoSetCounts } from '@/engine/pipeline/buildCombatContext'
+import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime'
+import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 import type { SlotId } from '@/domain/entities/session'
 import type {
   FinalStats,
-  ResonatorBaseStats,
-  SkillDefinition,
+  ResBaseStats,
+  SkillDef,
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
-import { evaluateCondition, evaluateFormula } from '@/engine/effects/evaluator'
-import { effectTargetsRuntime } from '@/engine/effects/targetScope'
+import { evalCond, evalForm } from '@/engine/effects/evaluator'
+import { ffctTrgtRt } from '@/engine/effects/targetScope'
 import { makeModBuff } from '@/engine/resolvers/buffPool'
-import { getMainEchoSourceRef } from '@/domain/services/runtimeSourceService'
+import { getMainEchoS } from '@/domain/services/runtimeSourceService'
 
-interface LegacyDataEffectOptions {
-  teamRuntime?: ResonatorRuntimeState
-  runtimesById?: Record<string, ResonatorRuntimeState>
-  activeResonatorId?: string
-  baseStats?: ResonatorBaseStats
+interface LegDataFfctP {
+  teamRuntime?: ResRuntime
+  runtimesById?: Record<string, ResRuntime>
+  actResId?: string
+  baseStats?: ResBaseStats
   finalStats?: FinalStats
-  sourceFinalStatsById?: Record<string, FinalStats>
-  selectedTargetsByOwnerKey?: Record<string, string | null>
+  sourceStats?: Record<string, FinalStats>
+  selectedTargets?: Record<string, string | null>
   enemy?: EnemyProfile
 }
 
-interface GraphDataEffectOptions {
+interface GrphDataFfct {
   graph: CombatGraph
   targetSlotId: SlotId
-  baseStats?: ResonatorBaseStats
+  baseStats?: ResBaseStats
   finalStats?: FinalStats
-  sourceFinalStatsById?: Record<string, FinalStats>
+  sourceStats?: Record<string, FinalStats>
   enemy?: EnemyProfile
 }
 
-type DataEffectOptions = LegacyDataEffectOptions | GraphDataEffectOptions
+type DataFfctPtns = LegDataFfctP | GrphDataFfct
 
-interface EffectContextEntry {
-  baseContext: EffectRuntimeContext
-  runtimePreStatsEffects: EffectDefinition[]
-  runtimePostStatsEffects: EffectDefinition[]
-  skillEffects: EffectDefinition[]
+export interface CandFxNpt {
+  baseCtx: EffectContext
+  source: DataSrcRef
+  srcRt: ResRuntime
+  tgtRt?: ResRuntime
+  baseStats?: ResBaseStats
+  finalStats?: FinalStats
+  srcFinal?: FinalStats
+  enemy?: EnemyProfile
 }
 
-const graphEffectContextCache = new WeakMap<CombatGraph, Partial<Record<SlotId, EffectContextEntry[]>>>()
+interface FfctCtxEnt {
+  baseContext: EffectContext
+  // effects are bucketed by when they mutate runtime or skill data so graph
+  // contexts can reuse the same source expansion without re-querying registries.
+  rtPreSttsExe: EffectDef[]
+  postStatEffects: EffectDef[]
+  skillEffects: EffectDef[]
+}
+
+const grphFfctCtxC = new WeakMap<CombatGraph, Partial<Record<SlotId, FfctCtxEnt[]>>>()
 
 // check whether effect options use combat graph mode
-function isGraphOptions(options: DataEffectOptions): options is GraphDataEffectOptions {
+function isGrphPtns(options: DataFfctPtns): options is GrphDataFfct {
   return 'graph' in options
 }
 
 // resolve the source runtime for a given source id
-function resolveSourceRuntime(
+function resSrcRt(
     sourceId: string,
-    targetRuntime: ResonatorRuntimeState,
-    teamRuntime: ResonatorRuntimeState,
-    runtimesById: Record<string, ResonatorRuntimeState>,
-): ResonatorRuntimeState | null {
-  if (sourceId === targetRuntime.id) {
-    return targetRuntime
+    tgtRt: ResRuntime,
+    teamRuntime: ResRuntime,
+    runtimesById: Record<string, ResRuntime>,
+): ResRuntime | null {
+  if (sourceId === tgtRt.id) {
+    return tgtRt
   }
 
   if (sourceId === teamRuntime.id) {
@@ -88,28 +103,28 @@ function resolveSourceRuntime(
   return runtimesById[sourceId] ?? null
 }
 
-function makeEffectContextEntry(baseContext: EffectRuntimeContext): EffectContextEntry {
+function mkFfctCtxEnt(baseContext: EffectContext): FfctCtxEnt {
   const registry = getGameData()
 
   return {
     baseContext,
-    runtimePreStatsEffects: listSourceRuntimeEffectsByStage(registry, baseContext.source, 'preStats'),
-    runtimePostStatsEffects: listSourceRuntimeEffectsByStage(registry, baseContext.source, 'postStats'),
-    skillEffects: listSourceEffects(registry, baseContext.source, 'skill'),
+    rtPreSttsExe: listSrcRtFfc(registry, baseContext.source, 'preStats'),
+    postStatEffects: listSrcRtFfc(registry, baseContext.source, 'postStats'),
+    skillEffects: listEffects(registry, baseContext.source, 'skill'),
   }
 }
 
 // build a weapon source context for a resonator context
-function buildWeaponContext(
-    resonatorContext: EffectRuntimeContext,
-): EffectRuntimeContext | null {
-  const weaponId = resonatorContext.sourceRuntime.build.weapon.id
-  if (isUnsetWeaponId(weaponId)) {
+function mkWpnCtx(
+    resContext: EffectContext,
+): EffectContext | null {
+  const weaponId = resContext.sourceRuntime.build.weapon.id
+  if (isNoWeaponId(weaponId)) {
     return null
   }
 
   return {
-    ...resonatorContext,
+    ...resContext,
     source: {
       type: 'weapon',
       id: weaponId,
@@ -118,111 +133,111 @@ function buildWeaponContext(
 }
 
 // build a main echo source context for a resonator context
-function buildEchoContext(
-    resonatorContext: EffectRuntimeContext,
-): EffectRuntimeContext | null {
-  const echoSource = getMainEchoSourceRef(resonatorContext.sourceRuntime)
+function mkEchoCtx(
+    resContext: EffectContext,
+): EffectContext | null {
+  const echoSource = getMainEchoS(resContext.sourceRuntime)
   if (!echoSource) {
     return null
   }
 
   return {
-    ...resonatorContext,
+    ...resContext,
     source: echoSource,
   }
 }
 
 // build echo set source contexts for a resonator context
-function buildEchoSetContexts(
-    resonatorContext: EffectRuntimeContext,
-): EffectRuntimeContext[] {
-  return Object.keys(resonatorContext.echoSetCounts).map((setId) => ({
-    ...resonatorContext,
+function mkEchoSetCnt(
+    resContext: EffectContext,
+): EffectContext[] {
+  return Object.keys(resContext.echoSetCounts).map((setId) => ({
+    ...resContext,
     source: { type: 'echoSet' as const, id: setId },
   }))
 }
 
-function buildGraphEffectContextEntries(
+function mkGrphFfctCt(
     graph: CombatGraph,
     targetSlotId: SlotId,
-): EffectContextEntry[] {
-  const cachedBySlot = graphEffectContextCache.get(graph)
-  const cachedEntries = cachedBySlot?.[targetSlotId]
-  if (cachedEntries) {
-    return cachedEntries
+): FfctCtxEnt[] {
+  const cachedBySlot = grphFfctCtxC.get(graph)
+  const cchdEnts = cachedBySlot?.[targetSlotId]
+  if (cchdEnts) {
+    return cchdEnts
   }
 
-  const resonatorDetailsById = getResonatorDetailsById()
-  const targetParticipant = graph.participants[targetSlotId]
-  if (!targetParticipant) {
+  const resDtlsById = getResDtlsBy()
+  const tgtPart = graph.participants[targetSlotId]
+  if (!tgtPart) {
     return []
   }
 
-  const activeParticipant = graph.participants[graph.activeSlotId] ?? targetParticipant
-  const teamMemberIds = Array.from(
+  const actPart = graph.participants[graph.activeSlotId] ?? tgtPart
+  const teamMemIds = Array.from(
       new Set(Object.values(graph.participants).map((participant) => participant.resonatorId)),
   )
-  const team = buildTeamCompositionInfo(teamMemberIds)
+  const team = makeTeamComp(teamMemIds)
 
-  const entries = Object.values(graph.participants).flatMap((sourceParticipant) => {
-    const resonatorContext: EffectRuntimeContext = {
+  const entries = Object.values(graph.participants).flatMap((srcPart) => {
+    const resContext: EffectContext = {
       team,
       source: {
         type: 'resonator',
-        id: sourceParticipant.resonatorId,
-        negativeEffectSources: resonatorDetailsById[sourceParticipant.resonatorId]?.negativeEffectSources,
+        id: srcPart.resonatorId,
+        negativeEffectSources: resDtlsById[srcPart.resonatorId]?.negativeEffectSources,
       },
       target: {
         type: 'resonator',
-        id: targetParticipant.resonatorId,
-        negativeEffectSources: resonatorDetailsById[targetParticipant.resonatorId]?.negativeEffectSources,
+        id: tgtPart.resonatorId,
+        negativeEffectSources: resDtlsById[tgtPart.resonatorId]?.negativeEffectSources,
       },
-      sourceRuntime: sourceParticipant.runtime,
-      targetRuntime: targetParticipant.runtime,
-      activeRuntime: activeParticipant.runtime,
-      targetRuntimeId: targetParticipant.resonatorId,
-      activeResonatorId: activeParticipant.resonatorId,
-      teamMemberIds,
-      echoSetCounts: computeEchoSetCounts(sourceParticipant.runtime.build.echoes),
+      sourceRuntime: srcPart.runtime,
+      targetRuntime: tgtPart.runtime,
+      activeRuntime: actPart.runtime,
+      targetRuntimeId: tgtPart.resonatorId,
+      activeResonatorId: actPart.resonatorId,
+      teamMemberIds: teamMemIds,
+      echoSetCounts: countEchoSets(srcPart.runtime.build.echoes),
       selectedTargetsByOwnerKey: {
-        ...sourceParticipant.slot.routing.selectedTargetsByOwnerKey,
+        ...srcPart.slot.routing.selectedTargetsByOwnerKey,
       },
     }
 
-    const contexts: EffectRuntimeContext[] = [
-      resonatorContext,
-      ...buildEchoSetContexts(resonatorContext),
+    const contexts: EffectContext[] = [
+      resContext,
+      ...mkEchoSetCnt(resContext),
     ]
-    const weaponContext = buildWeaponContext(resonatorContext)
-    const echoContext = buildEchoContext(resonatorContext)
+    const wpnCtx = mkWpnCtx(resContext)
+    const echoContext = mkEchoCtx(resContext)
 
-    if (weaponContext) {
-      contexts.push(weaponContext)
+    if (wpnCtx) {
+      contexts.push(wpnCtx)
     }
 
     if (echoContext) {
       contexts.push(echoContext)
     }
 
-    return contexts.map(makeEffectContextEntry)
+    return contexts.map(mkFfctCtxEnt)
   })
 
-  const nextCachedBySlot = cachedBySlot ?? {}
-  nextCachedBySlot[targetSlotId] = entries
-  graphEffectContextCache.set(graph, nextCachedBySlot)
+  const nextCchdBySl = cachedBySlot ?? {}
+  nextCchdBySl[targetSlotId] = entries
+  grphFfctCtxC.set(graph, nextCchdBySl)
   return entries
 }
 
-function buildLegacyEffectContextEntries(
-    targetRuntime: ResonatorRuntimeState,
-    options: LegacyDataEffectOptions,
-): EffectContextEntry[] {
-  const resonatorDetailsById = getResonatorDetailsById()
-  const teamRuntime = options.teamRuntime ?? targetRuntime
+function mkLegFfctCtx(
+    tgtRt: ResRuntime,
+    options: LegDataFfctP,
+): FfctCtxEnt[] {
+  const resDtlsById = getResDtlsBy()
+  const teamRuntime = options.teamRuntime ?? tgtRt
   const runtimesById = options.runtimesById ?? {}
-  const activeResonatorId = options.activeResonatorId ?? targetRuntime.id
-  const activeRuntime =
-      resolveSourceRuntime(activeResonatorId, targetRuntime, teamRuntime, runtimesById) ?? targetRuntime
+  const actResId = options.actResId ?? tgtRt.id
+  const actRt =
+      resSrcRt(actResId, tgtRt, teamRuntime, runtimesById) ?? tgtRt
 
   const sourceIds = Array.from(
       new Set([
@@ -230,81 +245,81 @@ function buildLegacyEffectContextEntries(
         ...teamRuntime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
       ]),
   )
-  const team = buildTeamCompositionInfo(sourceIds)
+  const team = makeTeamComp(sourceIds)
 
   return sourceIds.flatMap((sourceId) => {
-    const sourceRuntime = resolveSourceRuntime(sourceId, targetRuntime, teamRuntime, runtimesById)
-    if (!sourceRuntime) {
+    const srcRt = resSrcRt(sourceId, tgtRt, teamRuntime, runtimesById)
+    if (!srcRt) {
       return []
     }
 
-    const resonatorContext: EffectRuntimeContext = {
+    const resContext: EffectContext = {
       team,
       source: {
         type: 'resonator',
         id: sourceId,
-        negativeEffectSources: resonatorDetailsById[sourceId]?.negativeEffectSources,
+        negativeEffectSources: resDtlsById[sourceId]?.negativeEffectSources,
       },
       target: {
         type: 'resonator',
-        id: targetRuntime.id,
-        negativeEffectSources: resonatorDetailsById[targetRuntime.id]?.negativeEffectSources,
+        id: tgtRt.id,
+        negativeEffectSources: resDtlsById[tgtRt.id]?.negativeEffectSources,
       },
-      sourceRuntime,
-      targetRuntime,
-      activeRuntime,
-      targetRuntimeId: targetRuntime.id,
-      activeResonatorId,
+      sourceRuntime: srcRt,
+      targetRuntime: tgtRt,
+      activeRuntime: actRt,
+      targetRuntimeId: tgtRt.id,
+      activeResonatorId: actResId,
       teamMemberIds: sourceIds,
-      echoSetCounts: computeEchoSetCounts(sourceRuntime.build.echoes),
-      selectedTargetsByOwnerKey: options.selectedTargetsByOwnerKey,
+      echoSetCounts: countEchoSets(srcRt.build.echoes),
+      selectedTargetsByOwnerKey: options.selectedTargets,
     }
 
-    const contexts: EffectRuntimeContext[] = [resonatorContext]
-    const weaponContext = buildWeaponContext(resonatorContext)
-    const echoContext = buildEchoContext(resonatorContext)
+    const contexts: EffectContext[] = [resContext]
+    const wpnCtx = mkWpnCtx(resContext)
+    const echoContext = mkEchoCtx(resContext)
 
-    if (weaponContext) {
-      contexts.push(weaponContext)
+    if (wpnCtx) {
+      contexts.push(wpnCtx)
     }
 
     if (echoContext) {
       contexts.push(echoContext)
     }
 
-    return contexts.map(makeEffectContextEntry)
+    return contexts.map(mkFfctCtxEnt)
   })
 }
 
 // build all effect contexts relevant to a target runtime
-function buildEffectContextEntries(
-    targetRuntime: ResonatorRuntimeState,
-    options: DataEffectOptions = {},
-): EffectContextEntry[] {
-  if (isGraphOptions(options)) {
-    return buildGraphEffectContextEntries(options.graph, options.targetSlotId)
+function makeEffectRows(
+    tgtRt: ResRuntime,
+    options: DataFfctPtns = {},
+): FfctCtxEnt[] {
+  if (isGrphPtns(options)) {
+    return mkGrphFfctCt(options.graph, options.targetSlotId)
   }
 
-  return buildLegacyEffectContextEntries(targetRuntime, options)
+  return mkLegFfctCtx(tgtRt, options)
 }
 
-function buildDynamicContext(
-    baseContext: EffectRuntimeContext,
-    options: DataEffectOptions,
+function mkDynmCtx(
+    baseContext: EffectContext,
+    options: DataFfctPtns,
     pool?: UnifiedBuffPool,
-): EffectRuntimeContext {
+): EffectContext {
   return {
     ...baseContext,
     pool,
     baseStats: options.baseStats,
-    sourceFinalStats: options.sourceFinalStatsById?.[baseContext.sourceRuntime.id],
+    sourceFinalStats: options.sourceStats?.[baseContext.sourceRuntime.id],
     finalStats: options.finalStats,
     enemy: options.enemy,
   }
 }
 
 // build the evaluation scope used by formulas and conditions
-function makeEvalScope(context: EffectRuntimeContext): EffectEvalScope {
+function mkEvalScp(context: EffectContext): EffectScope {
   return {
     sourceRuntime: context.sourceRuntime,
     sourceFinalStats: context.sourceFinalStats,
@@ -317,17 +332,55 @@ function makeEvalScope(context: EffectRuntimeContext): EffectEvalScope {
   }
 }
 
+// build one explicit source context for candidate evaluation
+// suggestion candidates can score a source that is not actually equipped yet.
+function mkCandCtx(input: CandFxNpt, pool?: UnifiedBuffPool): EffectContext {
+  return {
+    ...input.baseCtx,
+    source: input.source,
+    sourceRuntime: input.srcRt,
+    targetRuntime: input.tgtRt ?? input.baseCtx.targetRuntime,
+    activeRuntime: input.baseCtx.activeRuntime,
+    pool,
+    baseStats: input.baseStats,
+    sourceFinalStats: input.srcFinal,
+    finalStats: input.finalStats,
+    enemy: input.enemy,
+  }
+}
+
 // apply one runtime operation to the shared buff pool
-function applyRuntimeOperation(
+function applyRtOp(
     pool: UnifiedBuffPool,
-    operation: EffectOperation,
-    scope: EffectEvalScope,
+    operation: EffectOp,
+    scope: EffectScope,
 ): void {
-  if (operation.type === 'scale_skill_multiplier') {
+  if (
+      operation.type === 'add_skill_mod' ||
+      operation.type === 'add_skill_multiplier' ||
+      operation.type === 'add_skill_hit_multiplier' ||
+      operation.type === 'add_skill_scalar' ||
+      operation.type === 'scale_skill_multiplier'
+  ) {
     return
   }
 
-  const value = evaluateFormula(operation.value, scope)
+  // immunity ops carry a scope instead of a numeric value; merge into the pool's immunity set
+  if (operation.type === 'add_immunity') {
+    const { scope: immScope } = operation
+    if (immScope.target === 'all') {
+      pool.immunities.all = true
+    } else if (immScope.target === 'element') {
+      pool.immunities.elements.push(...immScope.keys)
+    } else if (immScope.target === 'skillType') {
+      pool.immunities.skillTypes.push(...immScope.keys)
+    } else {
+      pool.immunities.negativeEffects.push(...immScope.keys)
+    }
+    return
+  }
+
+  const value = evalForm(operation.value, scope)
 
   if (operation.type === 'add_base_stat') {
     pool[operation.stat][operation.field] += value
@@ -356,18 +409,51 @@ function applyRuntimeOperation(
   }
 
   if (operation.type === 'add_negative_effect_mod') {
-    const negativeEffects = Array.isArray(operation.negativeEffect)
+    const negFfct = Array.isArray(operation.negativeEffect)
         ? operation.negativeEffect
         : [operation.negativeEffect]
 
-    for (const key of negativeEffects) {
+    for (const key of negFfct) {
       pool.negativeEffect[key][operation.mod] += value
     }
   }
 }
 
+// apply runtime effects for one explicit candidate source
+// this keeps suggestion overlays out of the normal runtime-owned source lookup.
+export function applyCandRt(
+    pool: UnifiedBuffPool,
+    input: CandFxNpt,
+    stage: 'preStats' | 'postStats' = 'preStats',
+): UnifiedBuffPool {
+  const ent = mkFfctCtxEnt(mkCandCtx(input, pool))
+  const effects = stage === 'postStats' ? ent.postStatEffects : ent.rtPreSttsExe
+  if (effects.length === 0) {
+    return pool
+  }
+
+  const context = mkCandCtx(input, pool)
+  const scope = mkEvalScp(context)
+
+  for (const effect of effects) {
+    if (!ffctTrgtRt(effect, context)) {
+      continue
+    }
+
+    if (!evalCond(effect.condition, scope)) {
+      continue
+    }
+
+    for (const operation of effect.operations) {
+      applyRtOp(pool, operation, scope)
+    }
+  }
+
+  return pool
+}
+
 // check whether a skill matches an operation's skill match rule
-function skillMatchesRule(skill: SkillDefinition, operation: EffectOperation): boolean {
+function skllMtchRule(skill: SkillDef, operation: EffectOp): boolean {
   if (
       operation.type !== 'scale_skill_multiplier' &&
       operation.type !== 'add_skill_mod' &&
@@ -401,17 +487,27 @@ function skillMatchesRule(skill: SkillDefinition, operation: EffectOperation): b
 }
 
 // apply one skill operation to a skill definition
-function applySkillOperation(
-    skill: SkillDefinition,
-    operation: EffectOperation,
-    scope: EffectEvalScope,
-): SkillDefinition {
+export function applySkllOp(
+    skill: SkillDef,
+    operation: EffectOp,
+    scope: EffectScope,
+): SkillDef {
+  if (
+      operation.type === 'add_base_stat' ||
+      operation.type === 'add_top_stat' ||
+      operation.type === 'add_attribute_mod' ||
+      operation.type === 'add_skilltype_mod' ||
+      operation.type === 'add_negative_effect_mod'
+  ) {
+    return skill
+  }
+
   if (operation.type === 'add_skill_mod') {
-    if (!skillMatchesRule(skill, operation)) {
+    if (!skllMtchRule(skill, operation)) {
       return skill
     }
 
-    const value = evaluateFormula(operation.value, scope)
+    const value = evalForm(operation.value, scope)
 
     return {
       ...skill,
@@ -423,11 +519,11 @@ function applySkillOperation(
   }
 
   if (operation.type === 'add_skill_scalar') {
-    if (!skillMatchesRule(skill, operation)) {
+    if (!skllMtchRule(skill, operation)) {
       return skill
     }
 
-    const value = evaluateFormula(operation.value, scope)
+    const value = evalForm(operation.value, scope)
     return {
       ...skill,
       [operation.field]: (skill[operation.field] ?? 0) + value,
@@ -435,28 +531,28 @@ function applySkillOperation(
   }
 
   if (operation.type === 'add_skill_multiplier') {
-    if (!skillMatchesRule(skill, operation)) {
+    if (!skllMtchRule(skill, operation)) {
       return skill
     }
 
-    const addedMultiplier = evaluateFormula(operation.value, scope)
-    const currentMultiplier = skill.multiplier
+    const dddMltp = evalForm(operation.value, scope)
+    const curMltp = skill.multiplier
 
-    if (currentMultiplier <= 0 || addedMultiplier === 0) {
+    if (curMltp <= 0 || dddMltp === 0) {
       return skill
     }
 
     if (skill.hits.length === 0) {
       return {
         ...skill,
-        multiplier: currentMultiplier + addedMultiplier,
+        multiplier: curMltp + dddMltp,
       }
     }
 
-    const multiplierScale = (currentMultiplier + addedMultiplier) / currentMultiplier
+    const mltpScl = (curMltp + dddMltp) / curMltp
     const hits = skill.hits.map((hit) => ({
       ...hit,
-      multiplier: hit.multiplier * multiplierScale,
+      multiplier: hit.multiplier * mltpScl,
     }))
 
     return {
@@ -467,18 +563,18 @@ function applySkillOperation(
   }
 
   if (operation.type === 'add_skill_hit_multiplier') {
-    if (!skillMatchesRule(skill, operation)) {
+    if (!skllMtchRule(skill, operation)) {
       return skill
     }
 
-    const addedMultiplier = evaluateFormula(operation.value, scope)
-    if (addedMultiplier === 0 || operation.hitIndex < 0 || operation.hitIndex >= skill.hits.length) {
+    const dddMltp = evalForm(operation.value, scope)
+    if (dddMltp === 0 || operation.hitIndex < 0 || operation.hitIndex >= skill.hits.length) {
       return skill
     }
 
     const hits = skill.hits.map((hit, index) => (
       index === operation.hitIndex
-        ? { ...hit, multiplier: hit.multiplier + addedMultiplier }
+        ? { ...hit, multiplier: hit.multiplier + dddMltp }
         : hit
     ))
 
@@ -493,22 +589,22 @@ function applySkillOperation(
     return skill
   }
 
-  if (!skillMatchesRule(skill, operation)) {
+  if (!skllMtchRule(skill, operation)) {
     return skill
   }
 
-  const multiplierScale = evaluateFormula(operation.value, scope)
+  const mltpScl = evalForm(operation.value, scope)
 
   if (skill.hits.length === 0) {
     return {
       ...skill,
-      multiplier: skill.multiplier * multiplierScale,
+      multiplier: skill.multiplier * mltpScl,
     }
   }
 
   const hits = skill.hits.map((hit) => ({
     ...hit,
-    multiplier: hit.multiplier * multiplierScale,
+    multiplier: hit.multiplier * mltpScl,
   }))
 
   return {
@@ -519,34 +615,34 @@ function applySkillOperation(
 }
 
 // apply runtime-triggered data effects to a unified buff pool
-export function applyRuntimeDataEffects(
-    runtime: ResonatorRuntimeState,
+export function applyRtDataF(
+    runtime: ResRuntime,
     baseBuffs: UnifiedBuffPool,
-    options: DataEffectOptions = {},
+    options: DataFfctPtns = {},
     stage: 'preStats' | 'postStats' = 'preStats',
 ): UnifiedBuffPool {
   const next = baseBuffs
 
-  for (const entry of buildEffectContextEntries(runtime, options)) {
-    const effects = stage === 'postStats' ? entry.runtimePostStatsEffects : entry.runtimePreStatsEffects
+  for (const entry of makeEffectRows(runtime, options)) {
+    const effects = stage === 'postStats' ? entry.postStatEffects : entry.rtPreSttsExe
     if (effects.length === 0) {
       continue
     }
 
-    const context = buildDynamicContext(entry.baseContext, options, next)
-    const scope = makeEvalScope(context)
+    const context = mkDynmCtx(entry.baseContext, options, next)
+    const scope = mkEvalScp(context)
 
     for (const effect of effects) {
-      if (!effectTargetsRuntime(effect, context)) {
+      if (!ffctTrgtRt(effect, context)) {
         continue
       }
 
-      if (!evaluateCondition(effect.condition, scope)) {
+      if (!evalCond(effect.condition, scope)) {
         continue
       }
 
       for (const operation of effect.operations) {
-        applyRuntimeOperation(next, operation, scope)
+        applyRtOp(next, operation, scope)
       }
     }
   }
@@ -554,34 +650,115 @@ export function applyRuntimeDataEffects(
   return next
 }
 
+// apply enemy-sourced runtime effects (debuff vulnerability + immunities) into the pool.
+// enemy effects are applied once per target, never per source participant, and read their
+// conditions from the persisted enemy state via `context.enemy.status.<field>`.
+export function applyEnemyRtDataF(
+    runtime: ResRuntime,
+    baseBuffs: UnifiedBuffPool,
+    options: DataFfctPtns = {},
+    stage: 'preStats' | 'postStats' = 'preStats',
+): UnifiedBuffPool {
+  const next = baseBuffs
+  const enemy = options.enemy
+
+  if (!enemy || isNoEnemy(enemy)) {
+    return next
+  }
+
+  const enemyEffects = listSrcRtFfc(getGameData(), { type: 'enemy', id: enemy.id }, stage)
+  if (enemyEffects.length === 0) {
+    return next
+  }
+
+  // borrow any resolved context as scaffolding, then point the source at the enemy.
+  // enemy effects only read context.enemy, so the borrowed source/target runtimes are unused.
+  const baseEntry = makeEffectRows(runtime, options)[0]
+  if (!baseEntry) {
+    return next
+  }
+
+  const context = mkDynmCtx(
+      { ...baseEntry.baseContext, source: { type: 'enemy', id: enemy.id } },
+      options,
+      next,
+  )
+  const scope = mkEvalScp(context)
+
+  for (const effect of enemyEffects) {
+    if (!evalCond(effect.condition, scope)) {
+      continue
+    }
+
+    for (const operation of effect.operations) {
+      applyRtOp(next, operation, scope)
+    }
+  }
+
+  return next
+}
+
 // apply skill-triggered data effects to a skill definition
-export function applySkillDataEffects(
-    runtime: ResonatorRuntimeState,
-    baseSkill: SkillDefinition,
-    options: DataEffectOptions = {},
-): SkillDefinition {
+export function applySkllDat(
+    runtime: ResRuntime,
+    baseSkill: SkillDef,
+    options: DataFfctPtns = {},
+): SkillDef {
   let next = baseSkill
 
-  for (const entry of buildEffectContextEntries(runtime, options)) {
+  for (const entry of makeEffectRows(runtime, options)) {
     if (entry.skillEffects.length === 0) {
       continue
     }
 
-    const context = buildDynamicContext(entry.baseContext, options)
-    const scope = makeEvalScope(context)
+    const context = mkDynmCtx(entry.baseContext, options)
+    const scope = mkEvalScp(context)
 
     for (const effect of entry.skillEffects) {
-      if (!effectTargetsRuntime(effect, context)) {
+      if (!ffctTrgtRt(effect, context)) {
         continue
       }
 
-      if (!evaluateCondition(effect.condition, scope)) {
+      if (!evalCond(effect.condition, scope)) {
         continue
       }
 
       for (const operation of effect.operations) {
-        next = applySkillOperation(next, operation, scope)
+        next = applySkllOp(next, operation, scope)
       }
+    }
+  }
+
+  return next
+}
+
+// apply skill effects for one explicit candidate source
+// weapon suggestions use this to score passive variants before they are equipped.
+export function applyCandSk(
+    baseSkill: SkillDef,
+    input: CandFxNpt,
+): SkillDef {
+  let next = baseSkill
+  const ent = mkFfctCtxEnt(mkCandCtx(input))
+
+  if (ent.skillEffects.length === 0) {
+    return next
+  }
+
+  const context = mkCandCtx(input)
+  const scope = mkEvalScp(context)
+
+  for (const effect of ent.skillEffects) {
+    if (!ffctTrgtRt(effect, context)) {
+      continue
+    }
+
+    if (!evalCond(effect.condition, scope)) {
+      continue
+    }
+
+    for (const operation of effect.operations) {
+      next = applySkllOp(next, operation, scope)
     }
   }
 

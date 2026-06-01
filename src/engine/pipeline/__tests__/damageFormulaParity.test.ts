@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { FinalStats, SkillDefinition } from '@/domain/entities/stats'
-import { computeSkillDamage } from '@/engine/formulas/damage'
+import type { FeatureResult } from '@/domain/gameData/contracts'
+import type { FinalStats, SkillDef } from '@/domain/entities/stats'
+import { makeCombatState } from '@/domain/state/defaults'
+import { calcSkillDamage } from '@/engine/formulas/damage'
+import {
+  formBrkd,
+  fmtBreakdown,
+} from '@/modules/calculator/features/results/lib/damageFormula'
 
 function makeBuff() {
   return {
@@ -58,6 +64,7 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
       healing: makeBuff(),
       shield: makeBuff(),
       tuneRupture: makeBuff(),
+      hack: makeBuff(),
     },
     negativeEffect: {
       spectroFrazzle: makeNegativeEffectBuff(),
@@ -78,7 +85,7 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
     defIgnore: 0,
     defShred: 0,
     dmgVuln: 0,
-    tuneBreakBoost: 0,
+    tbb: 0,
     special: 0,
     ...overrides,
   }
@@ -100,7 +107,7 @@ const enemy: EnemyProfile = {
   },
 }
 
-const skill: SkillDefinition = {
+const skill: SkillDef = {
   id: 'skill',
   label: 'Skill',
   tab: 'resonanceSkill',
@@ -114,7 +121,7 @@ const skill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const healingSkill: SkillDefinition = {
+const healingSkill: SkillDef = {
   id: 'healing-skill',
   label: 'Healing Skill',
   tab: 'resonanceSkill',
@@ -128,7 +135,7 @@ const healingSkill: SkillDefinition = {
   hits: [],
 }
 
-const shieldSkill: SkillDefinition = {
+const shieldSkill: SkillDef = {
   id: 'shield-skill',
   label: 'Shield Skill',
   tab: 'forteCircuit',
@@ -142,7 +149,7 @@ const shieldSkill: SkillDefinition = {
   hits: [],
 }
 
-const tuneRuptureSkill: SkillDefinition = {
+const tuneRuptureSkill: SkillDef = {
   id: 'tune-rupture',
   label: 'Tune Rupture',
   tab: 'tuneBreak',
@@ -161,7 +168,21 @@ const tuneRuptureSkill: SkillDefinition = {
   ],
 }
 
-const spectroFrazzleSkill: SkillDefinition = {
+const hackSkill: SkillDef = {
+  id: 'hack-damage',
+  label: 'Hack Damage',
+  tab: 'forteCircuit',
+  element: 'spectro',
+  skillType: ['hack'],
+  archetype: 'hack',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 2,
+  flat: 0,
+  hits: [{ count: 1, multiplier: 2 }],
+}
+
+const spectroFrazzleSkill: SkillDef = {
   id: 'spectro-frazzle',
   label: 'Spectro Frazzle',
   tab: 'negativeEffect',
@@ -175,7 +196,7 @@ const spectroFrazzleSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const fusionBurstSkill: SkillDefinition = {
+const fusionBurstSkill: SkillDef = {
   id: 'fusion-burst',
   label: 'Fusion Burst',
   tab: 'negativeEffect',
@@ -189,7 +210,7 @@ const fusionBurstSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const glacioChafeSkill: SkillDefinition = {
+const glacioChafeSkill: SkillDef = {
   id: 'glacio-chafe',
   label: 'Glacio Chafe',
   tab: 'negativeEffect',
@@ -203,7 +224,7 @@ const glacioChafeSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const electroFlareSkill: SkillDefinition = {
+const electroFlareSkill: SkillDef = {
   id: 'electro-flare',
   label: 'Electro Flare',
   tab: 'negativeEffect',
@@ -217,7 +238,7 @@ const electroFlareSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const fixedDamageSkill: SkillDefinition = {
+const fixedDamageSkill: SkillDef = {
   id: 'fixed-damage-skill',
   label: 'Fixed Damage Skill',
   tab: 'forteCircuit',
@@ -232,10 +253,37 @@ const fixedDamageSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
+function makeFeatureResult(
+  skillDefinition: SkillDef,
+  result = calcSkillDamage(makeFinalStats(), skillDefinition, enemy, 90),
+): FeatureResult {
+  return {
+    id: skillDefinition.id,
+    resonatorId: 'resonator',
+    resonatorName: 'Resonator',
+    feature: {
+      id: skillDefinition.id,
+      label: skillDefinition.label,
+      source: { type: 'resonator', id: 'resonator' },
+      kind: 'skill',
+      skillId: skillDefinition.id,
+    },
+    skill: skillDefinition,
+    archetype: skillDefinition.archetype,
+    aggregationType: skillDefinition.aggregationType,
+    multiplier: skillDefinition.multiplier,
+    weight: 1,
+    normal: result.normal,
+    crit: result.crit,
+    avg: result.avg,
+    subHits: result.subHits,
+  }
+}
+
 describe('damage formula parity', () => {
   it('applies skillType.all modifiers', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), skill, enemy, 90)
-    const withGlobalSkillType = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
+    const withGlobalSkillType = calcSkillDamage(
       makeFinalStats({
         skillType: {
           ...makeFinalStats().skillType,
@@ -254,8 +302,8 @@ describe('damage formula parity', () => {
   })
 
   it('applies flat damage before multipliers', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), skill, enemy, 90)
-    const withFlatDamage = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
+    const withFlatDamage = calcSkillDamage(
       makeFinalStats({
         flatDmg: 500,
       }),
@@ -268,8 +316,8 @@ describe('damage formula parity', () => {
   })
 
   it('applies top-level amplify as a global damage multiplier', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), skill, enemy, 90)
-    const withTopAmplify = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
+    const withTopAmplify = calcSkillDamage(
       makeFinalStats({
         amplify: 25,
       }),
@@ -282,8 +330,8 @@ describe('damage formula parity', () => {
   })
 
   it('applies def shred in defense reduction', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), skill, enemy, 90)
-    const withDefShred = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
+    const withDefShred = calcSkillDamage(
       makeFinalStats({
         skillType: {
           ...makeFinalStats().skillType,
@@ -302,8 +350,8 @@ describe('damage formula parity', () => {
   })
 
   it('keeps fixed damage isolated from ordinary damage buffs', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), fixedDamageSkill, enemy, 90)
-    const withBuffs = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), fixedDamageSkill, enemy, 90)
+    const withBuffs = calcSkillDamage(
       makeFinalStats({
         flatDmg: 500,
         amplify: 25,
@@ -341,14 +389,14 @@ describe('damage formula parity', () => {
       },
     }
 
-    const result = computeSkillDamage(makeFinalStats(), skill, immuneEnemy, 90)
+    const result = calcSkillDamage(makeFinalStats(), skill, immuneEnemy, 90)
     expect(result.normal).toBe(0)
     expect(result.crit).toBe(0)
     expect(result.avg).toBe(0)
   })
 
   it('computes healing as a separate support outcome', () => {
-    const result = computeSkillDamage(makeFinalStats(), healingSkill, enemy, 90)
+    const result = calcSkillDamage(makeFinalStats(), healingSkill, enemy, 90)
 
     expect(result.normal).toBe(0)
     expect(result.crit).toBe(0)
@@ -356,7 +404,7 @@ describe('damage formula parity', () => {
   })
 
   it('computes shield as a separate support outcome', () => {
-    const result = computeSkillDamage(makeFinalStats(), shieldSkill, enemy, 90)
+    const result = calcSkillDamage(makeFinalStats(), shieldSkill, enemy, 90)
 
     expect(result.normal).toBe(0)
     expect(result.crit).toBe(0)
@@ -364,14 +412,44 @@ describe('damage formula parity', () => {
   })
 
   it('computes tune rupture through the dedicated formula branch', () => {
-    const result = computeSkillDamage(makeFinalStats(), tuneRuptureSkill, enemy, 90)
+    const result = calcSkillDamage(makeFinalStats(), tuneRuptureSkill, enemy, 90)
 
     expect(result.avg).toBeGreaterThan(0)
     expect(result.subHits).toHaveLength(2)
   })
 
+  it('computes hack damage through the level-scaled branch without tune rupture buffs', () => {
+    const baseStats = makeFinalStats({
+      skillType: {
+        ...makeFinalStats().skillType,
+        hack: { ...makeBuff(), dmgBonus: 25 },
+      },
+    })
+    const tuneBuffedStats = makeFinalStats({
+      tbb: 999,
+      skillType: {
+        ...makeFinalStats().skillType,
+        hack: { ...makeBuff(), dmgBonus: 25 },
+        tuneRupture: { ...makeBuff(), dmgBonus: 999 },
+      },
+    })
+    const scaledHackSkill = {
+      ...hackSkill,
+      multiplier: hackSkill.multiplier * 1.5,
+      hits: hackSkill.hits.map((hit) => ({ ...hit, multiplier: hit.multiplier * 1.5 })),
+    }
+
+    const base = calcSkillDamage(baseStats, hackSkill, enemy, 90)
+    const tuneBuffed = calcSkillDamage(tuneBuffedStats, hackSkill, enemy, 90)
+    const scaled = calcSkillDamage(baseStats, scaledHackSkill, enemy, 90)
+
+    expect(base.avg).toBeGreaterThan(0)
+    expect(tuneBuffed.avg).toBeCloseTo(base.avg, 6)
+    expect(scaled.avg).toBeCloseTo(base.avg * 1.5, 6)
+  })
+
   it('computes spectro frazzle from combat-state stacks', () => {
-    const result = computeSkillDamage(makeFinalStats(), spectroFrazzleSkill, enemy, 90, { spectroFrazzle: 3 })
+    const result = calcSkillDamage(makeFinalStats(), spectroFrazzleSkill, enemy, 90, { spctFrzz: 3 })
 
     expect(result.normal).toBeGreaterThan(0)
     expect(result.crit).toBe(result.normal)
@@ -380,8 +458,8 @@ describe('damage formula parity', () => {
   })
 
   it('computes fusion burst from its base formula and dedicated multiplier', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), fusionBurstSkill, enemy, 90, { fusionBurst: 3 })
-    const boosted = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), fusionBurstSkill, enemy, 90, { fusionBurst: 3 })
+    const boosted = calcSkillDamage(
       makeFinalStats({
         negativeEffect: {
           ...makeFinalStats().negativeEffect,
@@ -405,8 +483,8 @@ describe('damage formula parity', () => {
   })
 
   it('computes glacio chafe from its level-and-stack base formula', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 3 })
-    const boosted = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 3 })
+    const boosted = calcSkillDamage(
       makeFinalStats({
         skillType: {
           ...makeFinalStats().skillType,
@@ -427,36 +505,36 @@ describe('damage formula parity', () => {
   })
 
   it('uses fixed mv when a glacio-chafe negative effect provides one', () => {
-    const glacioBiteSkill: SkillDefinition = {
+    const glacioBiteSkill: SkillDef = {
       ...glacioChafeSkill,
       id: 'glacio-bite',
       label: 'Glacio Bite',
       fixedMv: 10200,
     }
 
-    const fixedMvResult = computeSkillDamage(makeFinalStats(), glacioBiteSkill, enemy, 90, { glacioChafe: 10 })
-    const stackScaledResult = computeSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 10 })
+    const fixedMvResult = calcSkillDamage(makeFinalStats(), glacioBiteSkill, enemy, 90, { glacioChafe: 10 })
+    const stackScaledResult = calcSkillDamage(makeFinalStats(), glacioChafeSkill, enemy, 90, { glacioChafe: 10 })
 
     expect(fixedMvResult.avg).toBeGreaterThan(0)
     expect(fixedMvResult.avg).toBeLessThan(stackScaledResult.avg)
   })
 
   it('lets negative effects use fixed crit scalars when present', () => {
-    const critSkill: SkillDefinition = {
+    const critSkill: SkillDef = {
       ...fusionBurstSkill,
       negativeEffectCritRate: 0.8,
       negativeEffectCritDmg: 2.75,
     }
 
-    const result = computeSkillDamage(makeFinalStats(), critSkill, enemy, 90, { fusionBurst: 3 })
+    const result = calcSkillDamage(makeFinalStats(), critSkill, enemy, 90, { fusionBurst: 3 })
 
     expect(result.crit).toBeGreaterThan(result.normal)
     expect(result.avg).toBeGreaterThan(result.normal)
   })
 
   it('computes electro flare damage from electro flare stacks', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 3 })
-    const buffed = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 3 })
+    const buffed = calcSkillDamage(
       makeFinalStats({
         amplify: 10,
         dmgVuln: 9,
@@ -481,10 +559,10 @@ describe('damage formula parity', () => {
   })
 
   it('adds electro rage damage into electro flare only when electro flare is above its default cap', () => {
-    const baseline = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11 })
-    const withElectroRage = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11, electroRage: 2 })
-    const gatedOff = computeSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 10, electroRage: 2 })
-    const buffed = computeSkillDamage(
+    const baseline = calcSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11 })
+    const withElectroRage = calcSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 11, electroRage: 2 })
+    const gatedOff = calcSkillDamage(makeFinalStats(), electroFlareSkill, enemy, 90, { electroFlare: 10, electroRage: 2 })
+    const buffed = calcSkillDamage(
       makeFinalStats({
         amplify: 10,
         dmgVuln: 9,
@@ -508,5 +586,74 @@ describe('damage formula parity', () => {
     expect(withElectroRage.avg).toBeGreaterThan(baseline.avg)
     expect(gatedOff.avg).toBeLessThan(withElectroRage.avg)
     expect(buffed.avg).toBeGreaterThan(withElectroRage.avg)
+  })
+
+  it('builds a compact direct damage formula breakdown', () => {
+    const finalStats = makeFinalStats({
+      amplify: 25,
+      dmgBonus: 40,
+      dmgVuln: 15,
+      special: 10,
+      skillType: {
+        ...makeFinalStats().skillType,
+        resonanceSkill: {
+          ...makeBuff(),
+          critRate: 70,
+          critDmg: 80,
+        },
+      },
+    })
+    const result = calcSkillDamage(finalStats, skill, enemy, 90)
+    const breakdown = formBrkd(makeFeatureResult(skill, result), finalStats, enemy, 90, makeCombatState())
+    const text = fmtBreakdown(breakdown)
+
+    expect(breakdown.title).toBe('Skill DMG')
+    expect(breakdown.sections.map((section) => section.label)).toEqual(['core', 'enemy', 'mods'])
+    expect(text).toContain('// Skill DMG')
+    expect(text).toContain('out.normal =')
+    expect(text).toContain('mod.dmgBonus =')
+    expect(text).toContain('crit.rate =')
+  })
+
+  it('builds negative-effect and tune rupture formula breakdowns without duplicated output', () => {
+    const glacioBiteSkill: SkillDef = {
+      ...glacioChafeSkill,
+      id: 'glacio-bite',
+      label: 'Glacio Bite',
+      fixedMv: 10200,
+    }
+    const combatState = { ...makeCombatState(), glacioChafe: 10 }
+    const glacioResult = calcSkillDamage(makeFinalStats(), glacioBiteSkill, enemy, 90, combatState)
+    const glacioBreakdown = formBrkd(
+      makeFeatureResult(glacioBiteSkill, glacioResult),
+      makeFinalStats(),
+      enemy,
+      90,
+      combatState,
+    )
+    const tuneResult = calcSkillDamage(makeFinalStats({ tbb: 40 }), tuneRuptureSkill, enemy, 90)
+    const tuneBreakdown = formBrkd(
+      makeFeatureResult(tuneRuptureSkill, tuneResult),
+      makeFinalStats({ tbb: 40 }),
+      enemy,
+      90,
+      makeCombatState(),
+    )
+    const hackResult = calcSkillDamage(makeFinalStats({ tbb: 40 }), hackSkill, enemy, 90)
+    const hackBreakdown = formBrkd(
+      makeFeatureResult(hackSkill, hackResult),
+      makeFinalStats({ tbb: 40 }),
+      enemy,
+      90,
+      makeCombatState(),
+    )
+
+    expect(glacioBreakdown.title).toBe('Glacio Bite DMG')
+    expect(glacioBreakdown.sections.map((section) => section.label)).toEqual(['core', 'enemy', 'mods'])
+    expect(tuneBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.tuneAmp')
+    expect(hackBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.hackAmp')
+    expect(fmtBreakdown(hackBreakdown)).not.toContain('mod.tuneBoost')
+    expect(tuneBreakdown.equation).not.toContain('x x')
+    expect(fmtBreakdown(tuneBreakdown).split('\n').filter((line) => line.startsWith('out.normal ='))).toHaveLength(1)
   })
 })

@@ -1,8 +1,14 @@
-import { useEffect } from 'react'
-import { migrateLegacyCookieConsent } from '@/infra/cookies/cookieConsent'
+/*
+  Author: Runor Ewhro
+  Description: Hydrates cookie-related preferences from persisted browser state
+               when the app first mounts.
+*/
 
-export function useCookieBootstrap() {
+import { useEffect } from 'react'
+import { mgrtLegCkCns } from '@/infra/cookies/cookieConsent'
+
+export function useCkBoot() {
   useEffect(() => {
-    migrateLegacyCookieConsent()
+    mgrtLegCkCns()
   }, [])
 }

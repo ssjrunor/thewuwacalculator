@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { FinalStats, SkillDefinition } from '@/domain/entities/stats'
-import { computeSkillDamage } from '@/engine/formulas/damage'
+import type { FinalStats, SkillDef } from '@/domain/entities/stats'
+import { calcSkillDamage } from '@/engine/formulas/damage'
 import type { EnemyProfile } from '@/domain/entities/appState'
 
 function makeBuff() {
@@ -45,6 +45,7 @@ function makeFinalStats(): FinalStats {
       healing: makeBuff(),
       shield: makeBuff(),
       tuneRupture: makeBuff(),
+      hack: makeBuff(),
     },
     negativeEffect: {
       spectroFrazzle: makeNegativeEffectBuff(),
@@ -65,12 +66,12 @@ function makeFinalStats(): FinalStats {
     defIgnore: 0,
     defShred: 0,
     dmgVuln: 0,
-    tuneBreakBoost: 0,
+    tbb: 0,
     special: 0,
   }
 }
 
-const skill: SkillDefinition = {
+const skill: SkillDef = {
   id: 'fusion-test',
   label: 'Fusion Test',
   tab: 'resonanceSkill',
@@ -116,9 +117,9 @@ describe('enemy resistance indexing', () => {
       },
     }
 
-    const baseline = computeSkillDamage(makeFinalStats(), skill, enemyUsingFusionIndex, 90)
-    const changedGlacioOnly = computeSkillDamage(makeFinalStats(), skill, enemyWithChangedGlacioOnly, 90)
-    const changedFusion = computeSkillDamage(makeFinalStats(), skill, enemyWithChangedFusion, 90)
+    const baseline = calcSkillDamage(makeFinalStats(), skill, enemyUsingFusionIndex, 90)
+    const changedGlacioOnly = calcSkillDamage(makeFinalStats(), skill, enemyWithChangedGlacioOnly, 90)
+    const changedFusion = calcSkillDamage(makeFinalStats(), skill, enemyWithChangedFusion, 90)
 
     expect(baseline.normal).toBeGreaterThan(0)
     expect(changedGlacioOnly.normal).toBeCloseTo(baseline.normal)

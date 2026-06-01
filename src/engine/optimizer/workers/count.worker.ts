@@ -5,20 +5,20 @@
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
-import { countOptimizerCombinationsByMode, type OptimizerCountMode } from '../search/counting.ts'
+import { countOptCombos, type OptCntMode } from '../search/counting.ts'
 
 // message sent from the main thread to start a count job
-export interface CountWorkerStartMessage {
+export interface CntWrkrStart {
   type: 'start'
   payload: {
     echoes: EchoInstance[]
-    lockedMainEchoId: string | null
-    countMode?: OptimizerCountMode
+    lockedMainId: string | null
+    countMode?: OptCntMode
   }
 }
 
 // message sent back to the main thread once counting is complete
-export interface CountWorkerDoneMessage {
+export interface CntWrkrDoneM {
   type: 'done'
   payload: {
     total: number
@@ -26,18 +26,18 @@ export interface CountWorkerDoneMessage {
 }
 
 // all supported inbound worker messages
-export type CountWorkerInMessage = CountWorkerStartMessage
+export type CntWrkrInMsg = CntWrkrStart
 
 // handle one count request and immediately return the computed total
-self.onmessage = (event: MessageEvent<CountWorkerInMessage>) => {
+self.onmessage = (event: MessageEvent<CntWrkrInMsg>) => {
   const message = event.data
 
-  const response: CountWorkerDoneMessage = {
+  const response: CntWrkrDoneM = {
     type: 'done',
     payload: {
-      total: countOptimizerCombinationsByMode(
+      total: countOptCombos(
           message.payload.echoes,
-          message.payload.lockedMainEchoId,
+          message.payload.lockedMainId,
           message.payload.countMode ?? 'rows',
       ),
     },

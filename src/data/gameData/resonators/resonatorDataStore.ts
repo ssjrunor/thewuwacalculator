@@ -4,30 +4,30 @@
                populated by initializeGameData() before the app renders.
 */
 
-import type { ResonatorDetails } from '@/domain/entities/resonator'
-import type { ResonatorSeed } from '@/domain/entities/runtime'
+import type { ResDtls } from '@/domain/entities/resonator'
+import type { ResSeed } from '@/domain/entities/runtime'
 
-let catalogCache: ResonatorSeed[] = []
-let catalogByIdCache: Record<string, ResonatorSeed> = {}
-let detailsByIdCache: Record<string, ResonatorDetails> = {}
+let catalogCache: ResSeed[] = []
+let catByIdCch: Record<string, ResSeed> = {}
+let dtlsByIdCch: Record<string, ResDtls> = {}
 
-export function initResonatorCatalog(catalog: ResonatorSeed[]): void {
+export function initResCat(catalog: ResSeed[]): void {
   catalogCache = catalog
-  catalogByIdCache = Object.fromEntries(catalog.map((r) => [r.id, r]))
+  catByIdCch = Object.fromEntries(catalog.map((r) => [r.id, r]))
 }
 
-export function initResonatorDetails(details: Record<string, ResonatorDetails>): void {
-  detailsByIdCache = details
+export function initResDtls(details: Record<string, ResDtls>): void {
+  dtlsByIdCch = details
 }
 
-export function getResonatorCatalog(): ResonatorSeed[] {
+export function getResCat(): ResSeed[] {
   return catalogCache
 }
 
-export function getResonatorCatalogById(): Record<string, ResonatorSeed> {
-  return catalogByIdCache
+export function getResCatByI(): Record<string, ResSeed> {
+  return catByIdCch
 }
 
-export function getResonatorDetailsById(): Record<string, ResonatorDetails> {
-  return detailsByIdCache
+export function getResDtlsBy(): Record<string, ResDtls> {
+  return dtlsByIdCch
 }

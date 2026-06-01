@@ -8,7 +8,7 @@
 // resonator-specific stat weights for echo scoring.
 // keys are resonator IDs, values map stat keys to importance weights (0–1.25).
 // stats not listed have weight 0 (no scoring contribution).
-const charStatWeights: Record<string, Record<string, number>> = {
+const charStatWght: Record<string, Record<string, number>> = {
   '1506': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, heavyAtk: 0.75, spectro: 1 },
   '1107': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, resonanceSkill: 1, glacio: 1 },
   '1409': { hpPercent: 1, hpFlat: 0.25, energyRegen: 1, critRate: 1, critDmg: 1, resonanceLiberation: 0.5, basicAtk: 1, aero: 1 },
@@ -61,14 +61,17 @@ const charStatWeights: Record<string, Record<string, number>> = {
   '1210': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, resonanceLiberation: 1, fusion: 1 },
   '1211': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, resonanceLiberation: 1, fusion: 1 },
   '1412': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, aero: 1 },
+  '1511': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, heavyAtk: 1, spectro: 1 },
+  '1308': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 1, electro: 1 },
+  '1109': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 1, glacio: 1 },
 }
 
 // get the weight of a single stat key for a given character
 export function getWeight(charId: string, key: string): number {
-  return charStatWeights[charId]?.[key] ?? 0
+  return charStatWght[charId]?.[key] ?? 0
 }
 
 // get the full stat-weight object for a given character
 export function getWeightObj(charId: string): Record<string, number> {
-  return charStatWeights[charId] ?? {}
+  return charStatWght[charId] ?? {}
 }

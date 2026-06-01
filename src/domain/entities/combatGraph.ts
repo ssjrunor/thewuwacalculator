@@ -4,24 +4,24 @@
                participants, slot-local state, and stat snapshots in combat.
 */
 
-import type { FinalStats, ResonatorBaseStats } from './stats'
-import type { SlotLocalState, SlotRoutingState } from './profile'
+import type { FinalStats, ResBaseStats } from './stats'
+import type { SlotLocalState, SlotRatingState } from './profile'
 import type { SlotId } from './session'
-import type { ResonatorRuntimeState } from './runtime'
+import type { ResRuntime } from './runtime'
 
-export interface CombatParticipantSlotState {
+export interface CombatPartSlot {
   slotId: SlotId
   resonatorId: string
   local: SlotLocalState
-  routing: SlotRoutingState
+  routing: SlotRatingState
 }
 
-export interface CombatParticipant {
+export interface CombatPart {
   slotId: SlotId
   resonatorId: string
-  slot: CombatParticipantSlotState
-  runtime: ResonatorRuntimeState
-  baseStats: ResonatorBaseStats
+  slot: CombatPartSlot
+  runtime: ResRuntime
+  baseStats: ResBaseStats
   snapshots: {
     preStats?: FinalStats
     postStats?: FinalStats
@@ -30,5 +30,5 @@ export interface CombatParticipant {
 
 export interface CombatGraph {
   activeSlotId: SlotId
-  participants: Record<SlotId, CombatParticipant>
+  participants: Record<SlotId, CombatPart>
 }

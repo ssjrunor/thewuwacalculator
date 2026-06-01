@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { createEchoUid } from '@/domain/entities/runtime'
+import { makeEchoUid } from '@/domain/entities/runtime'
 import { listEchoes } from '@/domain/services/echoCatalogService'
-import { getResonatorById } from '@/domain/services/resonatorCatalogService'
-import { DEFAULT_RESONATOR_ID } from '@/domain/state/defaults'
+import { getResById } from '@/domain/services/resonatorCatalogService'
+import { DEF_RES_ID } from '@/domain/state/defaults'
 import { useAppStore } from '@/domain/state/store'
-import { consumeDirtyPersistedDomains } from '@/infra/persistence/storage'
+import { consumePersist } from '@/infra/persistence/storage'
 
 function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
   const definition = listEchoes().find((echo) => echo.id === echoId)
@@ -14,12 +14,12 @@ function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
     throw new Error(`missing echo ${echoId}`)
   }
 
-  const primaryStats = ECHO_PRIMARY_STATS[definition.cost]
-  const secondaryStat = ECHO_SECONDARY_STATS[definition.cost]
+  const primaryStats = ECHO_MAIN_STATS[definition.cost]
+  const secondaryStat = ECHO_SIDE_STATS[definition.cost]
   const primaryKey = Object.keys(primaryStats)[0]
 
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: definition.id,
     set: definition.sets[0] ?? 0,
     mainEcho: slotIndex === 0,
@@ -37,42 +37,42 @@ function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
 describe('persistence domain routing', () => {
   beforeEach(() => {
     useAppStore.getState().resetState()
-    consumeDirtyPersistedDomains()
+    consumePersist()
 
-    const defaultSeed = getResonatorById(DEFAULT_RESONATOR_ID)
+    const defaultSeed = getResById(DEF_RES_ID)
     if (!defaultSeed) {
-      throw new Error(`missing default resonator ${DEFAULT_RESONATOR_ID}`)
+      throw new Error(`missing default resonator ${DEF_RES_ID}`)
     }
 
-    useAppStore.getState().activateResonator(defaultSeed)
-    consumeDirtyPersistedDomains()
+    useAppStore.getState().actRes(defaultSeed)
+    consumePersist()
   })
 
   it('marks only appearance persistence for theme changes', () => {
     useAppStore.getState().setTheme('dark')
 
-    expect(consumeDirtyPersistedDomains()).toEqual(['ui.appearance'])
+    expect(consumePersist()).toEqual(['ui.appearance'])
   })
 
   it('marks layout and optimizer context when switching to optimizer mode', () => {
     useAppStore.getState().setMainMode('optimizer')
 
-    expect(consumeDirtyPersistedDomains()).toEqual(['ui.layout', 'calculator.optimizerContext'])
+    expect(consumePersist()).toEqual(['ui.layout', 'calculator.optimizerContext'])
   })
 
-  it('marks only the session domain for enemy updates', () => {
+  it('marks session and layout domains for enemy updates', () => {
     const { enemyProfile } = useAppStore.getState().calculator.session
-    useAppStore.getState().setEnemyProfile({
+    useAppStore.getState().setEnemy({
       ...enemyProfile,
       level: enemyProfile.level + 1,
     })
 
-    expect(consumeDirtyPersistedDomains()).toEqual(['calculator.session'])
+    expect(consumePersist()).toEqual(['calculator.session', 'ui.layout'])
   })
 
   it('marks only echo inventory persistence when adding an echo', () => {
-    useAppStore.getState().addEchoToInventory(makeEchoInstance(listEchoes()[0].id))
+    useAppStore.getState().addInvEcho(makeEchoInstance(listEchoes()[0].id))
 
-    expect(consumeDirtyPersistedDomains()).toEqual(['calculator.inventory.echoes'])
+    expect(consumePersist()).toEqual(['calculator.inventory.echoes'])
   })
 })

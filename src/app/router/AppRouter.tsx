@@ -1,4 +1,4 @@
-/**
+/*
   Author: Runor Ewhro
   Description: Resolves and renders the application's route tree from the
                root route table.

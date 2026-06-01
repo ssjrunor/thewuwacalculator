@@ -1,67 +1,98 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the calculator page.
+*/
+
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/domain/state/store'
-import { selectActiveResonatorId } from '@/domain/state/selectors'
-import { seedResonators, seedResonatorsById } from '@/modules/calculator/model/seedData'
-import { ATTRIBUTE_COLORS } from '@/modules/calculator/model/display'
-import { ResonatorQueueBubble } from '@/shared/ui/ResonatorQueueBubble'
-import { useResonatorQueueStore } from '@/shared/util/resonatorQueueStore.ts'
-import { DeferredInventoryLayer } from '@/modules/calculator/components/stages/DeferredInventoryLayer'
-import { CalculatorWorkspaceStage } from '@/modules/calculator/components/stages/CalculatorWorkspaceStage'
-import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
+import { selActResId, selWorkDrvd } from '@/domain/state/selectors'
+import { seedRsnt, seedRsntById } from '@/modules/calculator/features/resonator/lib/seedData.ts'
+import { ATTR_COLORS } from '@/modules/calculator/model/display'
+import { ResQBbbl } from '@/shared/ui/ResonatorQueueBubble'
+import { useResQStr } from '@/shared/util/resonatorQueueStore.ts'
+import { Inventory } from '@/modules/calculator/features/inventory/Inventory.tsx'
+import { Calculator } from '@/modules/calculator/features/main/Calculator.tsx'
+import { CalcProv } from '@/modules/calculator/features/main/lib/ctx.tsx'
+import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
 
-const LazyCalculatorOptimizerStage = lazy(async () => ({
-  default: (await import('@/modules/calculator/components/optimizer/CalculatorOptimizerStage')).CalculatorOptimizerStage,
+const LazyCalcOptS = lazy(async () => ({
+  default: (await import('@/modules/calculator/features/optimizer/Optimizer.tsx')).Optimizer,
 }))
 
-const LazyCalculatorOverviewStage = lazy(async () => ({
-  default: (await import('@/modules/calculator/components/stages/CalculatorOverviewStage')).CalculatorOverviewStage,
+const LazyCalcVrgz = lazy(async () => ({
+  default: (await import('@/modules/calculator/features/overview/Overview.tsx')).Overview,
 }))
 
-// orchestrates the calculator shell, stage routing, and theme accent around the workspace.
-export function CalculatorPage() {
+// orchestrates the calculator shell, stage routing, and theme accent around the main.
+export function CalcPage() {
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const ui = useAppStore((state) => state.ui)
-  const activeResonatorId = useAppStore(selectActiveResonatorId)
-  const hasActiveProfile = useAppStore((state) => {
+  const actResId = useAppStore(selActResId)
+  const hasActProf = useAppStore((state) => {
     const resonatorId = state.calculator.session.activeResonatorId
     return Boolean(resonatorId && state.calculator.profiles[resonatorId])
   })
-  const switchToResonator = useAppStore((state) => state.switchToResonator)
-  const [isCollapsedMode, setIsCollapsedMode] = useState(() =>
+  const {
+    actRt: actRt,
+    partRtsById: partRntmById,
+  } = useAppStore(selWorkDrvd)
+  const swtcToRes = useAppStore((state) => state.swRes)
+  const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
+  const [isCllpMode, setIsCllpMod] = useState(() =>
       typeof window !== 'undefined' ? window.innerWidth < 910 : false,
   )
 
-  const activeSeed = activeResonatorId ? seedResonatorsById[activeResonatorId] ?? null : null
-  const activeAttribute = activeSeed?.attribute ?? 'aero'
-  const currentAccent = ATTRIBUTE_COLORS[activeAttribute] ?? '#20bfb9'
-  const pushToQueue = useResonatorQueueStore((s) => s.pushToQueue)
-  const prevResonatorIdRef = useRef<string | null>(null)
+  const activeSeed = actResId ? seedRsntById[actResId] ?? null : null
+  const actTtrb = activeSeed?.attribute ?? 'aero'
+  const curCcnt = ATTR_COLORS[actTtrb] ?? '#20bfb9'
+  const pushToQueue = useResQStr((s) => s.pushToQueue)
+  const prevResIdRef = useRef<string | null>(null)
+  const shldSeedNtlF = useRef(Boolean(actResId && hasActProf))
 
   useEffect(() => {
-    const prevId = prevResonatorIdRef.current
-    if (prevId && prevId !== activeResonatorId) {
-      const prevSeed = seedResonatorsById[prevId]
+    const prevId = prevResIdRef.current
+    if (prevId && prevId !== actResId) {
+      const prevSeed = seedRsntById[prevId]
       if (prevSeed) {
         pushToQueue({
           id: prevId,
           name: prevSeed.name,
-          icon: prevSeed.profile ?? '/assets/default-icon.webp',
+          icon: prevSeed.profile ?? '/assets/default.webp',
         })
       }
     }
-    prevResonatorIdRef.current = activeResonatorId
-  }, [activeResonatorId, pushToQueue])
+    prevResIdRef.current = actResId
+  }, [actResId, pushToQueue])
 
   useEffect(() => {
-    if (!hasActiveProfile) {
-      const fallbackId = activeResonatorId ?? seedResonators[0]?.id
-      if (fallbackId) switchToResonator(fallbackId)
+    if (!shldSeedNtlF.current || !actResId || !hasActProf) {
+      return
     }
-  }, [activeResonatorId, switchToResonator, hasActiveProfile])
+
+    shldSeedNtlF.current = false
+    bumpPickerFreq([
+      {
+        bucket: 'resonator',
+        ids: [actResId],
+      },
+      {
+        bucket: 'teamResonator',
+        slot: 'active',
+        ids: [actResId],
+      },
+    ])
+  }, [actResId, bumpPickerFreq, hasActProf])
+
+  useEffect(() => {
+    if (!hasActProf) {
+      const fallbackId = actResId ?? seedRsnt[0]?.id
+      if (fallbackId) swtcToRes(fallbackId)
+    }
+  }, [actResId, swtcToRes, hasActProf])
 
   useEffect(() => {
     const onResize = () => {
-      setIsCollapsedMode(window.innerWidth < 910)
+      setIsCllpMod(window.innerWidth < 910)
     }
 
     onResize()
@@ -70,35 +101,37 @@ export function CalculatorPage() {
   }, [])
 
   useEffect(() => {
-    const body = layoutRef.current?.closest('body')
-    if (!(body instanceof HTMLElement)) {
-      return
-    }
-
-    body.style.setProperty('--resonator-accent', currentAccent)
+    const root = document.documentElement
+    root.style.setProperty('--resonator-accent', curCcnt)
 
     return () => {
-      body.style.removeProperty('--resonator-accent')
+      root.style.removeProperty('--resonator-accent')
     }
-  }, [currentAccent])
+  }, [curCcnt])
 
   return (
-      <div ref={layoutRef} className={`layout ${isCollapsedMode ? 'collapsed-mode' : ''}`}>
-        <DeferredInventoryLayer />
+      <CalcProv
+        actResId={actResId}
+        actRt={actRt}
+        prtcRntmById={partRntmById}
+      >
+      <div ref={layoutRef} className={`layout ${isCllpMode ? 'collapsed-mode' : ''}`}>
+        <Inventory />
 
         {ui.mainMode === 'optimizer' ? (
-          <Suspense fallback={<AppLoaderOverlay mode="centered" text="Loading optimizer..." />}>
-            <LazyCalculatorOptimizerStage />
+          <Suspense fallback={<AppLdrVrly mode="centered" text="Loading optimizer..." />}>
+            <LazyCalcOptS />
           </Suspense>
         ) : null}
         {ui.mainMode === 'overview' ? (
-          <Suspense fallback={<AppLoaderOverlay mode="centered" text="Loading overview..." />}>
-            <LazyCalculatorOverviewStage />
+          <Suspense fallback={<AppLdrVrly mode="centered" text="Loading overview..." />}>
+            <LazyCalcVrgz />
           </Suspense>
         ) : null}
-        {ui.mainMode === 'default' ? <CalculatorWorkspaceStage isCollapsedMode={isCollapsedMode} /> : null}
+        {ui.mainMode === 'default' ? <Calculator isCllpMode={isCllpMode} /> : null}
 
-        <ResonatorQueueBubble />
+        <ResQBbbl />
       </div>
+      </CalcProv>
   )
 }

@@ -5,16 +5,16 @@
                they add the most value.
 */
 
-import { getSubstatStepOptions } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
+import { getSbstStepP } from '@/data/gameData/catalog/echoStats'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 import type { RandGenEcho } from './echoSetBuilder'
-import { getSubstatScore } from './substats'
+import { getSbstScr } from './substats'
 
 // all legal ER roll values used when building an ER plan
-const ER_OPTIONS = getSubstatStepOptions('energyRegen')
+const ER_OPTIONS = getSbstStepP('energyRegen')
 
 // find a low-overflow ER split across up to maxEchoes echoes
-function findBestERSplit(target: number, maxEchoes: number, rollQuality: number): number[] {
+function findBestErSp(target: number, maxEchoes: number, rollQuality: number): number[] {
   if (target <= 0 || ER_OPTIONS.length === 0) {
     return Array(maxEchoes).fill(0)
   }
@@ -54,10 +54,10 @@ function findBestERSplit(target: number, maxEchoes: number, rollQuality: number)
       continue
     }
 
-    const remainingSlots = maxEchoes - combo.length
+    const rmnnSlts = maxEchoes - combo.length
 
     // prune branches that cannot possibly reach the target even with max rolls
-    if (sum + remainingSlots * maxValue < target) {
+    if (sum + rmnnSlts * maxValue < target) {
       continue
     }
 
@@ -79,10 +79,10 @@ function findBestERSplit(target: number, maxEchoes: number, rollQuality: number)
 
 // inject one ER roll into an echo, either by replacing an existing ER roll,
 // using an empty slot, or replacing the least valuable current substat
-function injectErIntoEcho(
+function njctErIntoEc(
     echo: RandGenEcho,
     erValue: number,
-    statWeight: OptimizerStatWeightMap,
+    statWeight: OptStatWeight,
 ): RandGenEcho {
   if (!erValue || erValue <= 0) {
     return echo
@@ -111,7 +111,7 @@ function injectErIntoEcho(
       continue
     }
 
-    const score = getSubstatScore(key, value, statWeight)
+    const score = getSbstScr(key, value, statWeight)
     if (score < worstScore) {
       worstScore = score
       worstKey = key
@@ -128,16 +128,16 @@ function injectErIntoEcho(
 }
 
 // apply an ER plan across a generated echo set until the target ER is met
-export function applyErPlanToEchoes(params: {
+export function applyErPlanT(params: {
   echoes: RandGenEcho[]
-  targetEnergyRegen: number
+  tgtNrgyRgn: number
   rollQuality: number
-  statWeight: OptimizerStatWeightMap
+  statWeight: OptStatWeight
 }): RandGenEcho[] {
-  const { echoes, targetEnergyRegen, rollQuality, statWeight } = params
+  const { echoes, tgtNrgyRgn: trgtNrgyRgn, rollQuality, statWeight } = params
 
   // no ER goal means no changes
-  if (!targetEnergyRegen || targetEnergyRegen <= 0) {
+  if (!trgtNrgyRgn || trgtNrgyRgn <= 0) {
     return echoes
   }
 
@@ -149,13 +149,13 @@ export function applyErPlanToEchoes(params: {
   }, 0)
 
   // only plan for the missing portion
-  const remainingTarget = Math.max(0, targetEnergyRegen - existingER)
-  if (remainingTarget <= 0) {
+  const rmnnTgt = Math.max(0, trgtNrgyRgn - existingER)
+  if (rmnnTgt <= 0) {
     return echoes
   }
 
   // compute a per-echo ER allocation
-  const erCombo = findBestERSplit(remainingTarget, echoes.length, rollQuality)
+  const erCombo = findBestErSp(rmnnTgt, echoes.length, rollQuality)
 
   // inject each allocated ER value into its corresponding echo
   return echoes.map((echo, index) => {
@@ -164,6 +164,6 @@ export function applyErPlanToEchoes(params: {
       return echo
     }
 
-    return injectErIntoEcho(echo, erVal, statWeight)
+    return njctErIntoEc(echo, erVal, statWeight)
   })
 }

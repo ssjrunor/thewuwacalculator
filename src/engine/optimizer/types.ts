@@ -6,34 +6,43 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { EchoDefinition } from '@/domain/entities/catalog'
-import type { GameDataRegistry } from '@/domain/gameData/contracts'
+import type { EchoDef } from '@/domain/entities/catalog'
+import type { GameDataReg } from '@/domain/gameData/contracts'
 import type { RotationNode } from '@/domain/gameData/contracts'
-import type { OptimizerSettings } from '@/domain/entities/optimizer'
-import type { ResonatorDetails } from '@/domain/entities/resonator'
-import type { EchoInstance, ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
-import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
-import type { SkillDefinition } from '@/domain/entities/stats'
-import type { GeneratedWeapon } from '@/domain/entities/weapon'
+import type { OptSets } from '@/domain/entities/optimizer'
+import type { ResDtls } from '@/domain/entities/resonator'
+import type { EchoInstance, ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
+import type { FinalStats, ResBaseStats, SkillDef } from '@/domain/entities/stats'
+import type { GenWpn } from '@/domain/entities/weapon'
 import type { SetDef } from '@/data/gameData/echoSets/effects'
+import type { EchoSttsCatD } from '@/data/gameData/catalog/echoStats'
 
 // lifecycle states for an optimizer run
-export type OptimizerStatus = 'idle' | 'running' | 'done' | 'error' | 'cancelled'
+export type OptStts = 'idle' | 'running' | 'done' | 'error' | 'cancelled'
 
 // backend chosen to execute the optimizer
-export type OptimizerBackend = 'cpu' | 'gpu'
+export type OptBckn = 'cpu' | 'gpu'
+
+// optimizer phase the progress snapshot is currently describing. theory mode
+// runs a discovery phase (the producer walks the row space) before workers
+// begin evaluating; non-theory modes go straight to evaluation.
+export type OptPrgrPh = 'discovering' | 'evaluating'
 
 // progress snapshot exposed while optimization is running
-export interface OptimizerProgress {
+export interface OptPrgr {
   progress: number
   elapsedMs: number
   remainingMs: number
   processed: number
   speed: number
+  total?: number
+  phase?: OptPrgrPh
+  discovered?: number
 }
 
 // compact stat summary attached to one optimizer result entry
-export interface OptimizerResultStats {
+export interface OptResultStats {
   atk: number
   hp: number
   def: number
@@ -45,14 +54,22 @@ export interface OptimizerResultStats {
 }
 
 // one resolved optimizer result, usually storing selected echo ids plus damage
-export interface OptimizerResultEntry {
+export interface OptResultEntry {
   uids: string[]
   damage: number
-  stats: OptimizerResultStats | null
+  stats: OptResultStats | null
+}
+
+// materialized theoretical result, built from compact recipe rows only when needed
+export interface TheoryResult {
+  uids: string[]
+  echoes: EchoInstance[]
+  damage: number
+  stats: OptResultStats | null
 }
 
 // bag-style result reference that stores indices instead of full echo payloads
-export interface OptimizerBagResultRef {
+export interface OptBagResult {
   damage: number
   i0: number
   i1: number
@@ -61,54 +78,79 @@ export interface OptimizerBagResultRef {
   i4: number
 }
 
+// theoretical result reference that stores the generated echo recipe compactly
+export interface TheoryResultRow {
+  damage: number
+  ids: string[]
+  sets: number[]
+  mains: string[]
+  main: number
+  stats: OptResultStats | null
+}
+
+export type OptRawResult =
+    | OptBagResult
+    | TheoryResultRow
+
+export type OptFinalResult =
+    | OptResultEntry
+    | TheoryResult
+
 // typed aliases used by the packed optimizer buffers
-export type OptimizerCostsArray = Uint8Array
-export type OptimizerSetsArray = Uint8Array
-export type OptimizerKindsArray = Uint16Array
+export type CostArray = Uint8Array
+export type SetArray = Uint8Array
+export type KindArray = Uint16Array
 
 // shared payload fields used by both target-skill and rotation optimizer runs
-export interface PreparedOptimizerSharedPayload {
+// these keys are internal worker contract fields, so compact names keep hot
+// payload plumbing readable without touching persisted optimizer settings.
+export interface PrepOptShrdP {
   resultsLimit: number
-  lowMemoryMode: boolean
+  lowMmryMode: boolean
   constraints: Float32Array
-  costs: OptimizerCostsArray
-  sets: OptimizerSetsArray
-  kinds: OptimizerKindsArray
+  costs: CostArray
+  sets: SetArray
+  kinds: KindArray
   comboN: number
   comboK: number
-  comboTotalCombos: number
+  totalCombos: number
   comboIndexMap: Int32Array
   comboBinom: Uint32Array
-  lockedMainRequested: boolean
-  lockedMainCandidateIndices: Int32Array
-  progressFactor: number
+  lockMainReq: boolean
+  lockMainCands: Int32Array
+  progFact: number
 }
 
 // input payload used to start building an optimizer execution context
-export interface OptimizerStartPayload {
+// this is the high-level request shape before compiler packing; short aliases
+// distinguish transient catalog snapshots from saved calculator state.
+export interface OptStartPay {
   resonatorId: string
-  resonatorSeed?: ResonatorSeed
+  resSeed?: ResSeed
   staticData?: {
-    gameDataRegistry: GameDataRegistry
-    resonatorCatalogById: Record<string, ResonatorSeed>
-    resonatorDetailsById: Record<string, ResonatorDetails>
-    weaponsById: Record<string, GeneratedWeapon>
-    echoCatalogById: Record<string, EchoDefinition>
+    gameDataReg: GameDataReg
+    resCatById: Record<string, ResSeed>
+    resDtlsById: Record<string, ResDtls>
+    weaponsById: Record<string, GenWpn>
+    echoCatById: Record<string, EchoDef>
     echoSetDefs: SetDef[]
+    echoStats?: EchoSttsCatD
   }
-  runtime: ResonatorRuntimeState
-  settings: OptimizerSettings
-  inventoryEchoes: EchoInstance[]
+  runtime: ResRuntime
+  settings: OptSets
+  invChs: EchoInstance[]
   enemyProfile: EnemyProfile
-  selectedTargetsByOwnerKey?: Record<string, string | null>
-  setConditionals?: SonataSetConditionals
-  rotationItems?: RotationNode[] | null
+  selectedTargets?: Record<string, string | null>
+  setConds?: SntSetConds
+  rotTms?: RotationNode[] | null
 }
 
 // fully compiled scalar context for a single target skill evaluation
 // this is the dense numeric form used to avoid repeated high-level reads
 // during the optimizer inner loop.
-export interface CompiledTargetSkillContext {
+// fields are grouped by final stats, scaling, skill bonuses, and combat
+// counters in the same order used by the packed float context.
+export interface CompTargetSkill {
   archetype: number
   characterId: number
   sequence: number
@@ -119,26 +161,26 @@ export interface CompiledTargetSkillContext {
   baseAtk: number
   baseHp: number
   baseDef: number
-  staticFinalAtk: number
-  staticFinalHp: number
-  staticFinalDef: number
-  staticFinalER: number
-  staticCritRate: number
-  staticCritDmg: number
-  staticHealingBonus: number
-  staticShieldBonus: number
-  staticDmgBonus: number
-  staticAmplify: number
-  staticFlatDmg: number
-  staticSpecial: number
+  statFinAtk: number
+  statFinHp: number
+  statFinDef: number
+  statFinEr: number
+  statCritRate: number
+  statCritDmg: number
+  statHealBosi: number
+  statShieldna: number
+  statDmgBonus: number
+  statAmp: number
+  statFlatDmg: number
+  statSpec: number
   resMult: number
   defMult: number
   dmgReduction: number
-  staticTuneBreakBoost: number
-  staticResShred: number
-  staticDefIgnore: number
-  staticDefShred: number
-  staticDmgVuln: number
+  statTuneBrcq: number
+  statResShrd: number
+  statDefGnr: number
+  statDefShrd: number
+  statDmgVuln: number
   scalingAtk: number
   scalingHp: number
   scalingDef: number
@@ -148,37 +190,46 @@ export interface CompiledTargetSkillContext {
   multiplier: number
   flat: number
   fixedDmg: number
-  skillHealingBonus: number
-  skillShieldBonus: number
-  tuneRuptureScale: number
-  tuneRuptureCritRate: number
-  tuneRuptureCritDmg: number
-  negativeEffectMultiplier: number
-  negativeEffectFixedMv: number
-  negativeEffectCritRate: number
-  negativeEffectCritDmg: number
-  combatSpectroFrazzle: number
-  combatAeroErosion: number
-  combatFusionBurst: number
-  combatGlacioChafe: number
-  combatElectroFlare: number
-  combatElectroRage: number
+  skillHealBonus: number
+  skillShield: number
+  tuneRptrScl: number
+  tuneRptrCrny: number
+  tuneCritDmg: number
+  negEfxMult: number
+  negEfxFxdMv: number
+  negEfxCritoo: number
+  negEfxCritsa: number
+  combatSpectro: number
+  combatAero: number
+  combatFusion: number
+  combatGlacio: number
+  combatElectro: number
+  combatElecRage: number
 }
 
 // prepared target-skill optimizer run before final packed execution handoff
-export interface PreparedTargetSkillRun extends PreparedOptimizerSharedPayload {
+export interface PrepTargetSkill extends PrepOptShrdP {
   mode: 'targetSkill'
-  runtime: ResonatorRuntimeState
-  skill: SkillDefinition
-  compiled: CompiledTargetSkillContext
-  setRuntimeMask: number
+  runtime: ResRuntime
+  skill: SkillDef
+  selectedSkill: {
+    id: string
+    tab: string
+    element: SkillDef['element']
+    skillType: SkillDef['skillType']
+    archetype: SkillDef['archetype']
+  }
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
+  compiled: CompTargetSkill
+  setRtMask: number
   stats: Float32Array
   setConstLut: Float32Array
   mainEchoBuffs: Float32Array
 }
 
 // final packed target-skill payload sent into the execution layer
-export interface PackedTargetSkillExecutionPayload extends PreparedOptimizerSharedPayload {
+export interface PackedSkill extends PrepOptShrdP {
   mode: 'targetSkill'
   context: Float32Array
   stats: Float32Array
@@ -188,25 +239,98 @@ export interface PackedTargetSkillExecutionPayload extends PreparedOptimizerShar
 
 // prepared rotation optimizer run containing multiple packed contexts
 // and one display context used for presenting representative stats/results.
-export interface PreparedRotationRun extends PreparedOptimizerSharedPayload {
+export interface PrepRotRun extends PrepOptShrdP {
   mode: 'rotation'
+  runtime: ResRuntime
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
   contextStride: number
   contextCount: number
   contexts: Float32Array
-  contextWeights: Float32Array
+  contextWeight: Float32Array
   displayContext: Float32Array
   stats: Float32Array
   setConstLut: Float32Array
   mainEchoBuffs: Float32Array
 }
 
+export interface ThryProf {
+  uid: string
+  substats: Record<string, number>
+}
+
+export interface ThryEchoCt {
+  id: string
+  cost: number
+  sets: number[]
+  // true when the catalog echo carries at least one effect with
+  // `targetScope: 'self'` (or implicit default). only self-buff cats are
+  // eligible to serve as the main echo in theory search.
+  hasSelfBff: boolean
+}
+
+export interface TheoryRow {
+  slot: number
+  id: string | null
+  ids: string[]
+  set: number
+  main: string
+  cost: number
+  mainOk: boolean
+}
+
+// prepared target-skill theory run with fixed substat profiles and catalog rows
+export interface PrepTheoryTarget extends PrepOptShrdP {
+  mode: 'theoryTarget'
+  staticData?: OptStartPay['staticData']
+  theoryTotal: number
+  runtime: ResRuntime
+  skill: SkillDef
+  selectedSkill: PrepTargetSkill['selectedSkill']
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
+  compiled: CompTargetSkill
+  setRtMask: number
+  stats: Float32Array
+  setConstLut: Float32Array
+  mainEchoBuffs: Float32Array
+  profs: ThryProf[]
+  cats: ThryEchoCt[]
+  theoryRows: TheoryRow[]
+  mainFltr: string[]
+  selBonus: string | null
+}
+
+// prepared rotation theory run with the same display/evaluation context shape
+export interface PrepTheoryRot extends PrepOptShrdP {
+  mode: 'theoryRotation'
+  staticData?: OptStartPay['staticData']
+  theoryTotal: number
+  runtime: ResRuntime
+  sourceBaseStats: ResBaseStats
+  sourceFinals: FinalStats
+  contextStride: number
+  contextCount: number
+  contexts: Float32Array
+  contextWeight: Float32Array
+  displayContext: Float32Array
+  stats: Float32Array
+  setConstLut: Float32Array
+  mainEchoBuffs: Float32Array
+  profs: ThryProf[]
+  cats: ThryEchoCt[]
+  theoryRows: TheoryRow[]
+  mainFltr: string[]
+  selBonus: string | null
+}
+
 // final packed rotation payload sent into the execution layer
-export interface PackedRotationExecutionPayload extends PreparedOptimizerSharedPayload {
+export interface PckdRotXctnP extends PrepOptShrdP {
   mode: 'rotation'
   contextStride: number
   contextCount: number
   contexts: Float32Array
-  contextWeights: Float32Array
+  contextWeight: Float32Array
   displayContext: Float32Array
   stats: Float32Array
   setConstLut: Float32Array
@@ -214,11 +338,13 @@ export interface PackedRotationExecutionPayload extends PreparedOptimizerSharedP
 }
 
 // union of all prepared optimizer payload shapes
-export type PreparedOptimizerPayload =
-    | PreparedTargetSkillRun
-    | PreparedRotationRun
+export type PrepOptPay =
+    | PrepTargetSkill
+    | PrepRotRun
+    | PrepTheoryTarget
+    | PrepTheoryRot
 
 // union of all packed execution payload shapes
-export type PackedOptimizerExecutionPayload =
-    | PackedTargetSkillExecutionPayload
-    | PackedRotationExecutionPayload
+export type PckdOptXctnP =
+    | PackedSkill
+    | PckdRotXctnP

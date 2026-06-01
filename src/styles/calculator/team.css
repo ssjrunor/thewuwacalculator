@@ -1,4 +1,4 @@
-/* Team Buffs slot deck and picker-specific styling */
+
 
 .team-slot-deck {
   display: grid;
@@ -16,7 +16,7 @@
   overflow: hidden;
   background:
           linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 2%, transparent), transparent 68%),
-          var(--calc-item-bg);
+          var(--item-bg);
   border: 1px solid color-mix(in srgb, var(--picker-rarity-border) 68%, var(--picker-modal-item-border));
 }
 
@@ -51,7 +51,7 @@
   font-size: 1.9rem;
   line-height: 1;
   font-weight: 500;
-  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--text));
 }
 
 .team-slot-copy {
@@ -83,12 +83,12 @@
 }
 
 .team-slot-status {
-  color: var(--calc-muted);
+  color: var(--muted);
   font-size: 0.8rem;
 }
 
 .team-slot-card.is-empty .team-slot-name {
-  color: color-mix(in srgb, var(--calc-text) 78%, var(--calc-muted));
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
 }
 
 .team-slot-remove {
@@ -101,10 +101,10 @@
   width: 1.65rem;
   height: 1.65rem;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border));
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
-  color: color-mix(in srgb, var(--calc-text) 82%, var(--resonator-accent));
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  color: color-mix(in srgb, var(--text) 82%, var(--resonator-accent));
   box-shadow: 0 0.35rem 0.8rem color-mix(in srgb, black 8%, transparent);
   cursor: pointer;
   transition:
@@ -116,8 +116,8 @@
 
 .team-slot-remove:hover {
   transform: scale(1.06);
-  border-color: color-mix(in srgb, #d94b64 54%, var(--calc-item-border));
-  background: color-mix(in srgb, #d94b64 10%, var(--surface-strong));
+  border-color: color-mix(in srgb, #d94b64 54%, var(--item-border));
+  background: color-mix(in srgb, #d94b64 10%, var(--surface-2));
   color: #d94b64;
 }
 
@@ -129,10 +129,9 @@
 
 .team-state-card {
   --ui-surface-padding: 0.9rem;
-  --ui-surface-radius: 1.22rem 1.55rem 1.08rem 1.4rem;
-  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-box-border));
+  --ui-surface-radius: 1.22rem 1.75rem 1.22rem 1.22rem;
+  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent) 18%, var(--box-border));
   --ui-surface-border: 1px solid var(--ui-surface-border-color);
-  --ui-surface-bg: var(--calc-item-bg);
   display: grid;
   gap: 0;
   overflow: hidden;
@@ -158,11 +157,8 @@
 }
 
 .team-state-expandable-trigger:focus-visible {
-  outline: 2px solid var(--calc-focus-ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.team-state-expandable {
 }
 
 .team-state-source {
@@ -179,8 +175,8 @@
   flex: 0 0 auto;
   overflow: hidden;
   border-radius: 1rem 1.2rem 0.95rem 1.12rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 20%, var(--calc-box-border));
-  background: color-mix(in srgb, var(--calc-header-icon-bg) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 20%, var(--box-border));
+  background: color-mix(in srgb, var(--hdr-bg) 84%, transparent);
   box-shadow: none;
 }
 
@@ -196,7 +192,7 @@
 }
 
 .team-state-source-copy span {
-  color: color-mix(in srgb, var(--resonator-accent) 72%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 72%, var(--text));
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -218,9 +214,9 @@
   min-height: 1.7rem;
   padding: 0.2rem 0.58rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
-  background: color-mix(in srgb, var(--resonator-accent) 6%, var(--calc-item-bg));
-  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--calc-text));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 6%, var(--item-bg));
+  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--text));
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -231,7 +227,7 @@
 .team-state-chevron {
   width: 1.7rem;
   height: 1.7rem;
-  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--text));
   align-self: center;
 }
 
@@ -245,9 +241,9 @@
   margin: 0;
   padding: 1.2rem 0.8rem;
   border-radius: 1rem 1.2rem 0.92rem 1.08rem;
-  border: 1px dashed color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
-  background: color-mix(in srgb, var(--calc-header-icon-bg) 30%, transparent);
-  color: var(--calc-muted);
+  border: 1px dashed color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
+  background: color-mix(in srgb, var(--hdr-bg) 30%, transparent);
+  color: var(--muted);
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -285,7 +281,7 @@
 }
 
 .team-state-config-title {
-  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 74%, var(--text));
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -301,7 +297,7 @@
 .team-state-config-field {
   display: grid;
   gap: 0.35rem;
-  color: color-mix(in srgb, var(--calc-text) 82%, var(--calc-muted));
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -335,8 +331,8 @@
   gap: 0.48rem;
   padding: 0.72rem 0.8rem;
   border-radius: 1rem 1.2rem 0.92rem 1.08rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 12%, var(--calc-item-border));
-  background: color-mix(in srgb, var(--calc-header-icon-bg) 54%, transparent);
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 12%, var(--item-border));
+  background: color-mix(in srgb, var(--hdr-bg) 54%, transparent);
 }
 
 .team-state-expandable[aria-hidden='true'] .team-state-control {
@@ -361,41 +357,15 @@
   gap: 0.32rem;
 }
 
-.state-control-label,
-.stack label:not(.toggle-row, .team-state-target, .state-control-label),
-.team-state-control label:not(.toggle-row, .team-state-target, .state-control-label) {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
-  border-radius: 0.95rem;
-  background: color-mix(in srgb, var(--calc-item-bg) 96%, transparent);
-  align-items: center;
-}
-
-.toggle-row {
-  justify-content: space-between;
-  gap: 0.8rem;
-  width: 100%;
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border)) !important;
-  border-radius: 1rem;
-  cursor: pointer;
-  background: color-mix(in srgb, var(--calc-item-bg) 96%, transparent) !important;
-}
-
 .team-state-control .toggle-row.is-disabled,
 .team-state-control label.is-disabled {
-  border-color: color-mix(in srgb, #c96d1a 35%, var(--calc-item-border)) !important;
-  background: color-mix(in srgb, #c96d1a 5%, var(--calc-item-bg)) !important;
+  border-color: color-mix(in srgb, #c96d1a 35%, var(--item-border)) !important;
+  background: color-mix(in srgb, #c96d1a 5%, var(--item-bg)) !important;
 }
 
 .team-state-control span,
 .team-state-control label {
-  color: var(--calc-text);
+  color: var(--text);
   font-size: 0.84rem;
   font-weight: 600;
 }
@@ -409,7 +379,7 @@
   padding: 0.05rem 0 0;
   background: none;
   border: 0;
-  color: var(--calc-muted);
+  color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -436,7 +406,7 @@
 
 .team-member-config-modal__hero {
   position: relative;
-  border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 10%, var(--calc-box-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 10%, var(--box-border));
 }
 
 .team-member-config-modal__hero-main {
@@ -463,7 +433,7 @@
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--resonator-accent) 76%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 76%, var(--text));
 }
 
 .team-member-config-modal__avatar {
@@ -475,10 +445,10 @@
 }
 
 .team-member-config-modal__avatar-frame {
-  border-color: color-mix(in srgb, var(--picker-rarity-border) 72%, var(--calc-item-border));
+  border-color: color-mix(in srgb, var(--picker-rarity-border) 72%, var(--item-border));
   background:
           linear-gradient(180deg, color-mix(in srgb, white 5%, transparent), transparent 72%),
-          color-mix(in srgb, var(--picker-rarity-surface) 42%, var(--calc-header-icon-bg));
+          color-mix(in srgb, var(--picker-rarity-surface) 42%, var(--hdr-bg));
 }
 
 .team-member-config-modal__hero-title-row {
@@ -502,7 +472,7 @@
 .team-member-config-modal__description {
   margin: 0;
   max-width: 42rem;
-  color: color-mix(in srgb, var(--calc-muted) 92%, var(--calc-text));
+  color: color-mix(in srgb, var(--muted) 92%, var(--text));
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -524,11 +494,11 @@
   gap: 0.2rem 0.56rem;
   min-width: 5rem;
   padding: 0.25rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--calc-item-border));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--item-border));
   border-radius: 1rem;
   background:
           linear-gradient(180deg, color-mix(in srgb, white 3%, transparent), transparent 76%),
-          color-mix(in srgb, var(--surface-strong) 88%, transparent);
+          color-mix(in srgb, var(--surface-2) 88%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -538,7 +508,7 @@
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--calc-muted) 90%, var(--calc-text));
+  color: color-mix(in srgb, var(--muted) 90%, var(--text));
 }
 
 .team-member-config-modal__summary-value {
@@ -547,7 +517,7 @@
   font-weight: 700;
   line-height: 1.2;
   text-align: left;
-  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--text));
   overflow-wrap: anywhere;
 }
 
@@ -609,9 +579,9 @@
   height: 1.85rem;
   flex: 0 0 auto;
   border-radius: 0.78rem 0.94rem 0.72rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--calc-item-border));
-  background: color-mix(in srgb, var(--calc-header-icon-bg) 78%, transparent);
-  color: color-mix(in srgb, var(--resonator-accent) 80%, var(--calc-text));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border));
+  background: color-mix(in srgb, var(--hdr-bg) 78%, transparent);
+  color: color-mix(in srgb, var(--resonator-accent) 80%, var(--text));
 }
 
 .team-member-config-modal__section-copy {
@@ -623,11 +593,11 @@
   margin: 0;
   font-size: 0.98rem;
   letter-spacing: -0.02em;
-  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--calc-text));
+  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--text));
 }
 
 .team-member-config-modal__section-copy span {
-  color: color-mix(in srgb, var(--calc-muted) 92%, var(--calc-text));
+  color: color-mix(in srgb, var(--muted) 92%, var(--text));
   font-size: 0.74rem;
   line-height: 1.35;
 }
@@ -732,7 +702,7 @@
   border-radius: 1rem 1.18rem 0.96rem 1.1rem;
   background:
           linear-gradient(180deg, color-mix(in srgb, white 2%, transparent), transparent 75%),
-          color-mix(in srgb, var(--calc-header-icon-bg) 34%, var(--calc-item-bg));
+          color-mix(in srgb, var(--hdr-bg) 34%, var(--item-bg));
   box-shadow:
           inset 0 1px 0 rgba(255, 255, 255, 0.04),
           0 0.65rem 1.2rem rgba(15, 23, 42, 0.05);
@@ -743,17 +713,10 @@
   border-radius: 0.95rem;
 }
 
-.team-member-config-modal__state-row .toggle-row {
-}
-
-.team-member-config-modal__state-row .stack,
-.team-member-config-modal__state-row label,
-.team-member-config-modal__state-row .rich-description {
-}
 
 .team-member-config-modal__weapon-desc {
   padding: 0.05rem 0 0.15rem;
-  color: var(--calc-muted);
+  color: var(--muted);
   line-height: 1.45;
 }
 
@@ -763,9 +726,9 @@
   min-height: 8rem;
   line-height: 1.4;
   text-align: center;
-  border: 1px dashed color-mix(in srgb, var(--resonator-accent) 14%, var(--calc-item-border));
+  border: 1px dashed color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--calc-header-icon-bg) 24%, transparent);
+  background: color-mix(in srgb, var(--hdr-bg) 24%, transparent);
 }
 
 .team-member-config-modal__close {
@@ -853,9 +816,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .team-member-config-modal__summary-pill {
-  }
-
   .team-member-config-modal__stats-grid,
   .team-member-config-modal__state-gallery {
     grid-template-columns: 1fr;
@@ -868,7 +828,7 @@
   }
 }
 
-/* ── Teams pane entrance animation ── */
+
 
 @keyframes teams-section-in {
   from {

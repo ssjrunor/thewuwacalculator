@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders tokenized console-style text with lightweight semantic
+               color treatment for formulas, traces, and debug output.
+*/
+
 import { useMemo } from 'react'
 
 type TokenType =
@@ -20,16 +26,16 @@ type Token = {
     type: TokenType
 }
 
-type EditorConsoleProps = {
+type DtrCnslPrps = {
     text: string
     language?: 'ts' | 'tsx' | 'js' | 'json' | 'plain' | 'formula'
-    showLineNumbers?: boolean
+    showLineNmbr?: boolean
     title?: string
     className?: string
 }
 
-const FORMULA_NUMBER_PATTERN = '-?\\d[\\d,]*(?:\\.\\d+)?%?'
-const FORMULA_NUMBER_REGEX = new RegExp(`^${FORMULA_NUMBER_PATTERN}$`)
+const FORMNMBRPTTR = '-?\\d[\\d,]*(?:\\.\\d+)?%?'
+const FORMNMBRRGX = new RegExp(`^${FORMNMBRPTTR}$`)
 
 const TS_KEYWORDS = new Set([
     'const',
@@ -67,9 +73,9 @@ const TS_KEYWORDS = new Set([
     'undefined',
 ])
 
-function tokenizeFormulaExpression(expression: string): Token[] {
+function tknzFormExpr(expression: string): Token[] {
     const parts =
-        expression.match(new RegExp(`(${FORMULA_NUMBER_PATTERN}|[A-Za-z][A-Za-z0-9]*|[()+\\-x/*=,:|]|\\s+|.)`, 'g')) ?? [expression]
+        expression.match(new RegExp(`(${FORMNMBRPTTR}|[A-Za-z][A-Za-z0-9]*|[()+\\-x/*=,:|]|\\s+|.)`, 'g')) ?? [expression]
 
     return parts.map((part) => {
         if (/^\s+$/.test(part)) {
@@ -80,7 +86,7 @@ function tokenizeFormulaExpression(expression: string): Token[] {
             return { text: part, type: 'operator' as const }
         }
 
-        if (FORMULA_NUMBER_REGEX.test(part)) {
+        if (FORMNMBRRGX.test(part)) {
             return { text: part, type: 'number' as const }
         }
 
@@ -100,7 +106,7 @@ function tokenizeFormulaExpression(expression: string): Token[] {
     })
 }
 
-function tokenizeFormulaLine(line: string): Token[] {
+function tknzFormLine(line: string): Token[] {
     const trimmed = line.trim()
 
     if (!trimmed) {
@@ -126,7 +132,7 @@ function tokenizeFormulaLine(line: string): Token[] {
         return [
             { text: line.slice(0, colonIndex).trimEnd(), type: 'label' },
             { text: ':', type: 'operator' },
-            ...tokenizeFormulaExpression(line.slice(colonIndex + 1)),
+            ...tknzFormExpr(line.slice(colonIndex + 1)),
         ]
     }
 
@@ -135,31 +141,31 @@ function tokenizeFormulaLine(line: string): Token[] {
         const right = line.slice(equalIndex + 1)
         const leftTrimmed = left.trim()
 
-        if (FORMULA_NUMBER_REGEX.test(leftTrimmed)) {
+        if (FORMNMBRRGX.test(leftTrimmed)) {
             return [
                 { text: leftTrimmed, type: 'result' },
                 { text: ' =', type: 'operator' },
-                ...tokenizeFormulaExpression(right),
+                ...tknzFormExpr(right),
             ]
         }
 
         return [
             { text: leftTrimmed, type: 'label' },
             { text: ' =', type: 'operator' },
-            ...tokenizeFormulaExpression(right),
+            ...tknzFormExpr(right),
         ]
     }
 
-    return tokenizeFormulaExpression(line)
+    return tknzFormExpr(line)
 }
 
-function tokenizeLine(line: string, language: EditorConsoleProps['language']): Token[] {
+function tokenizeLine(line: string, language: DtrCnslPrps['language']): Token[] {
     if (language === 'plain') {
         return [{ text: line, type: 'plain' }]
     }
 
     if (language === 'formula') {
-        return tokenizeFormulaLine(line)
+        return tknzFormLine(line)
     }
 
     const trimmed = line.trim()
@@ -210,22 +216,22 @@ function tokenizeLine(line: string, language: EditorConsoleProps['language']): T
     return tokens
 }
 
-export function EditorConsole({
+export function DtrCnsl({
                                   text,
                                   language = 'tsx',
-                                  showLineNumbers = true,
+                                  showLineNmbr: showLineNmbr = true,
                                   title,
                                   className = '',
-                              }: EditorConsoleProps) {
+                              }: DtrCnslPrps) {
     const lines = useMemo(() => text.replace(/\r\n/g, '\n').split('\n'), [text])
-    const rootClassName = [
+    const rootClssName = [
         'editor-console',
         language === 'formula' ? 'editor-console--formula' : '',
         className,
     ].filter(Boolean).join(' ')
 
     return (
-        <div className={rootClassName}>
+        <div className={rootClssName}>
             {title && (
              <div className="editor-console__topbar">
                   <div className="editor-console__dots">
@@ -244,7 +250,7 @@ export function EditorConsole({
 
                     return (
                         <div className="editor-console__line" key={`${index}-${line}`}>
-                            {showLineNumbers && (
+                            {showLineNmbr && (
                                 <span className="editor-console__line-number">{index + 1}</span>
                             )}
 

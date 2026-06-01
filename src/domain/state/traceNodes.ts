@@ -5,7 +5,7 @@
 */
 
 import type { AttributeKey } from '@/domain/entities/stats'
-import type { ResonatorSeed, TraceNodeBuffs } from '@/domain/entities/runtime'
+import type { ResSeed, TraceNodeBuffs } from '@/domain/entities/runtime'
 
 // create a zeroed base stat buff
 function makeBaseBuff() {
@@ -27,7 +27,7 @@ function makeModBuff() {
 }
 
 // create an empty trace node buff object
-function makeDefaultTraceNodeBuffs(): TraceNodeBuffs {
+function makeTraceNode(): TraceNodeBuffs {
   return {
     atk: makeBaseBuff(),
     hp: makeBaseBuff(),
@@ -67,11 +67,11 @@ const traceBuffMap: Record<string, { type: 'stat' | 'scalar' | 'attribute'; key:
 }
 
 // compute trace node buffs from the active node map
-export function computeTraceNodeBuffs(
-    seed: Pick<ResonatorSeed, 'traceNodes'>,
+export function cmptTrcNodeB(
+    seed: Pick<ResSeed, 'traceNodes'>,
     activeNodes: Record<string, boolean>,
 ): TraceNodeBuffs {
-  const next = makeDefaultTraceNodeBuffs()
+  const next = makeTraceNode()
   next.activeNodes = activeNodes
 
   for (const node of seed.traceNodes ?? []) {
@@ -111,7 +111,7 @@ export function computeTraceNodeBuffs(
 }
 
 // compute trace node buffs with every trace node enabled
-export function makeMaxTraceNodeBuffs(seed: Pick<ResonatorSeed, 'traceNodes'>): TraceNodeBuffs {
+export function mkMaxTrcNode(seed: Pick<ResSeed, 'traceNodes'>): TraceNodeBuffs {
   const activeNodes = Object.fromEntries((seed.traceNodes ?? []).map((node) => [node.id, true]))
-  return computeTraceNodeBuffs(seed, activeNodes)
+  return cmptTrcNodeB(seed, activeNodes)
 }

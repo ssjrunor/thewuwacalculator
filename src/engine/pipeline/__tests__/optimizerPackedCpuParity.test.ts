@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { FinalStats, SkillDefinition } from '@/domain/entities/stats'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
-import { createDefaultResonatorRuntime, makeDefaultEnemyProfile } from '@/domain/state/defaults'
-import { computeSkillDamage } from '@/engine/formulas/damage'
+import type { FinalStats, SkillDef } from '@/domain/entities/stats'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
+import { calcSkillDamage } from '@/engine/formulas/damage'
 import {
-  OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO,
-  OPTIMIZER_STATS_PER_ECHO,
+  MAIN_BUFF_LEN,
+  STAT_STRIDE,
 } from '@/engine/optimizer/config/constants'
-import { createCpuScratch } from '@/engine/optimizer/cpu/scratch'
-import { createComboDamageScratch, evaluateTargetSkillCombo } from '@/engine/optimizer/cpu/computeDamage'
-import { buildCompiledOptimizerContext } from '@/engine/optimizer/context/compiled'
-import { packTargetContext } from '@/engine/optimizer/context/pack'
-import { packCompiledContext } from '@/engine/optimizer/context/vector'
-import { runRotationSearchBatch } from '@/engine/optimizer/search/rotationCpu'
-import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/encode/sets'
-import { evaluateTargetCpuCombo } from '@/engine/optimizer/target/cpu'
+import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch'
+import { mkCmbDmgScrt, evalTgtSkllC } from '@/engine/optimizer/cpu/computeDamage'
+import { makeOptContext } from '@/engine/optimizer/context/compiled'
+import { packTargetCtx } from '@/engine/optimizer/context/pack'
+import { packCompCtx } from '@/engine/optimizer/context/vector'
+import { runRotSrchBt } from '@/engine/optimizer/search/rotationCpu'
+import { buildSetRows, makeSetMask } from '@/engine/optimizer/encode/sets'
+import { evalTgtCpuCm } from '@/engine/optimizer/target/cpu'
 
 function makeBuff() {
   return {
@@ -72,6 +72,7 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
       healing: makeBuff(),
       shield: makeBuff(),
       tuneRupture: makeBuff(),
+      hack: makeBuff(),
     },
     negativeEffect: {
       spectroFrazzle: makeNegativeEffectBuff(),
@@ -92,13 +93,13 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
     defIgnore: 0,
     defShred: 0,
     dmgVuln: 0,
-    tuneBreakBoost: 0,
+    tbb: 0,
     special: 0,
     ...overrides,
   }
 }
 
-const tuneRuptureSkill: SkillDefinition = {
+const tuneRuptureSkill: SkillDef = {
   id: 'tune-rupture',
   label: 'Tune Rupture',
   tab: 'tuneBreak',
@@ -117,7 +118,21 @@ const tuneRuptureSkill: SkillDefinition = {
   ],
 }
 
-const spectroFrazzleSkill: SkillDefinition = {
+const hackSkill: SkillDef = {
+  id: 'hack-damage',
+  label: 'Hack Damage',
+  tab: 'forteCircuit',
+  element: 'spectro',
+  skillType: ['hack'],
+  archetype: 'hack',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 4,
+  flat: 0,
+  hits: [{ count: 1, multiplier: 4 }],
+}
+
+const spectroFrazzleSkill: SkillDef = {
   id: 'spectro-frazzle',
   label: 'Spectro Frazzle',
   tab: 'negativeEffect',
@@ -133,7 +148,7 @@ const spectroFrazzleSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const fusionBurstSkill: SkillDefinition = {
+const fusionBurstSkill: SkillDef = {
   id: 'fusion-burst',
   label: 'Fusion Burst',
   tab: 'negativeEffect',
@@ -149,7 +164,7 @@ const fusionBurstSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const glacioChafeSkill: SkillDefinition = {
+const glacioChafeSkill: SkillDef = {
   id: 'glacio-chafe',
   label: 'Glacio Chafe',
   tab: 'negativeEffect',
@@ -165,7 +180,7 @@ const glacioChafeSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const electroFlareSkill: SkillDefinition = {
+const electroFlareSkill: SkillDef = {
   id: 'electro-flare',
   label: 'Electro Flare',
   tab: 'negativeEffect',
@@ -181,7 +196,7 @@ const electroFlareSkill: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const resonanceSkillTarget: SkillDefinition = {
+const resonanceSkillTarget: SkillDef = {
   id: 'rotation-skill',
   label: 'Rotation Skill',
   tab: 'resonanceSkill',
@@ -195,7 +210,7 @@ const resonanceSkillTarget: SkillDefinition = {
   hits: [{ count: 1, multiplier: 1 }],
 }
 
-const liberationTarget: SkillDefinition = {
+const liberationTarget: SkillDef = {
   id: 'rotation-lib',
   label: 'Rotation Liberation',
   tab: 'resonanceLiberation',
@@ -232,22 +247,22 @@ function evaluatePackedCpuSkill(params: {
     electroRage?: number
   }
   finalStats: FinalStats
-  skill: SkillDefinition
+  skill: SkillDef
   enemy: EnemyProfile
 }): number {
-  const seed = getResonatorSeedById('1209')
+  const seed = getResSeedBy('1209')
   if (!seed) {
     throw new Error('Missing test seed 1209')
   }
 
-  const runtime = createDefaultResonatorRuntime(seed)
+  const runtime = makeResRuntime(seed)
   runtime.base.level = 90
   runtime.state.combat = {
     ...runtime.state.combat,
     ...params.runtimeCombat,
   }
 
-  const compiled = buildCompiledOptimizerContext({
+  const compiled = makeOptContext({
     resonatorId: runtime.id,
     runtime,
     skill: params.skill,
@@ -256,17 +271,17 @@ function evaluatePackedCpuSkill(params: {
     combatState: runtime.state.combat,
   })
 
-  const evaluated = evaluateTargetSkillCombo({
-    context: packCompiledContext(compiled),
-    stats: new Float32Array(5 * OPTIMIZER_STATS_PER_ECHO),
+  const evaluated = evalTgtSkllC({
+    context: packCompCtx(compiled),
+    stats: new Float32Array(5 * STAT_STRIDE),
     sets: new Uint8Array([0, 1, 2, 3, 4]),
     kinds: new Uint16Array([0, 1, 2, 3, 4]),
     setConstLut: buildSetRows(runtime),
-    mainEchoBuffs: new Float32Array(5 * OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO),
+    mainEchoBuffs: new Float32Array(5 * MAIN_BUFF_LEN),
     constraints: createDisabledConstraints(),
     comboIds: new Int32Array([0, 1, 2, 3, 4]),
-    lockedMainIndex: 0,
-    scratch: createComboDamageScratch(),
+    lockMainIdx: 0,
+    scratch: mkCmbDmgScrt(),
   })
 
   return evaluated?.damage ?? 0
@@ -274,11 +289,11 @@ function evaluatePackedCpuSkill(params: {
 
 describe('optimizer packed cpu parity', () => {
   it('matches computeSkillDamage for tune rupture', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 18,
       dmgVuln: 12,
-      tuneBreakBoost: 24,
+      tbb: 24,
       skillType: {
         ...makeFinalStats().skillType,
         tuneRupture: {
@@ -288,7 +303,7 @@ describe('optimizer packed cpu parity', () => {
       },
     })
 
-    const expected = computeSkillDamage(finalStats, tuneRuptureSkill, enemy, 90).avg
+    const expected = calcSkillDamage(finalStats, tuneRuptureSkill, enemy, 90).avg
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: tuneRuptureSkill,
@@ -298,8 +313,37 @@ describe('optimizer packed cpu parity', () => {
     expect(Math.abs(packed - expected)).toBeLessThan(0.01)
   })
 
+  it('matches computeSkillDamage for hack damage without tune rupture bonuses', () => {
+    const enemy = makeEnemy()
+    const finalStats = makeFinalStats({
+      amplify: 18,
+      dmgVuln: 12,
+      tbb: 999,
+      skillType: {
+        ...makeFinalStats().skillType,
+        hack: {
+          ...makeBuff(),
+          dmgBonus: 35,
+        },
+        tuneRupture: {
+          ...makeBuff(),
+          dmgBonus: 999,
+        },
+      },
+    })
+
+    const expected = calcSkillDamage(finalStats, hackSkill, enemy, 90).avg
+    const packed = evaluatePackedCpuSkill({
+      finalStats,
+      skill: hackSkill,
+      enemy,
+    })
+
+    expect(Math.abs(packed - expected)).toBeLessThan(0.01)
+  })
+
   it('matches computeSkillDamage for spectro frazzle', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 15,
       dmgVuln: 10,
@@ -315,19 +359,19 @@ describe('optimizer packed cpu parity', () => {
     })
 
     const combat = { spectroFrazzle: 4 }
-    const expected = computeSkillDamage(finalStats, spectroFrazzleSkill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, spectroFrazzleSkill, enemy, 90, combat).avg
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: spectroFrazzleSkill,
       enemy,
-      runtimeCombat: combat,
+      runtimeCombat: { spectroFrazzle: 4 },
     })
 
     expect(Math.abs(packed - expected)).toBeLessThan(0.001)
   })
 
   it('matches computeSkillDamage for fusion burst', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 12,
       dmgVuln: 7,
@@ -350,7 +394,7 @@ describe('optimizer packed cpu parity', () => {
     })
 
     const combat = { fusionBurst: 3 }
-    const expected = computeSkillDamage(finalStats, fusionBurstSkill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, fusionBurstSkill, enemy, 90, combat).avg
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: fusionBurstSkill,
@@ -362,7 +406,7 @@ describe('optimizer packed cpu parity', () => {
   })
 
   it('matches computeSkillDamage for glacio chafe', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       skillType: {
         ...makeFinalStats().skillType,
@@ -374,7 +418,7 @@ describe('optimizer packed cpu parity', () => {
       },
     })
     const combat = { glacioChafe: 4 }
-    const expected = computeSkillDamage(finalStats, glacioChafeSkill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, glacioChafeSkill, enemy, 90, combat).avg
     const actual = evaluatePackedCpuSkill({
       finalStats,
       skill: glacioChafeSkill,
@@ -386,7 +430,7 @@ describe('optimizer packed cpu parity', () => {
   })
 
   it('matches computeSkillDamage for fixed-mv glacio bite', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       skillType: {
         ...makeFinalStats().skillType,
@@ -404,7 +448,7 @@ describe('optimizer packed cpu parity', () => {
       label: 'Glacio Bite',
       fixedMv: 10200,
     }
-    const expected = computeSkillDamage(finalStats, skill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, skill, enemy, 90, combat).avg
     const actual = evaluatePackedCpuSkill({
       finalStats,
       skill,
@@ -416,7 +460,7 @@ describe('optimizer packed cpu parity', () => {
   })
 
   it('matches computeSkillDamage for electro flare', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 16,
       dmgVuln: 11,
@@ -432,7 +476,7 @@ describe('optimizer packed cpu parity', () => {
     })
 
     const combat = { electroFlare: 5 }
-    const expected = computeSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: electroFlareSkill,
@@ -444,7 +488,7 @@ describe('optimizer packed cpu parity', () => {
   })
 
   it('matches computeSkillDamage for electro flare when electro rage stacks are also present', () => {
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 16,
       dmgVuln: 11,
@@ -460,7 +504,7 @@ describe('optimizer packed cpu parity', () => {
     })
 
     const combat = { electroFlare: 11, electroRage: 3 }
-    const expected = computeSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
+    const expected = calcSkillDamage(finalStats, electroFlareSkill, enemy, 90, combat).avg
     const packed = evaluatePackedCpuSkill({
       finalStats,
       skill: electroFlareSkill,
@@ -472,22 +516,22 @@ describe('optimizer packed cpu parity', () => {
   })
 
   it('uses one shared main echo across the full CPU rotation total', async () => {
-    const seed = getResonatorSeedById('1209')
+    const seed = getResSeedBy('1209')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       critRate: 0,
       critDmg: 100,
     })
-    const setRuntimeMask = buildSetRuntimeMask(runtime)
+    const setRuntimeMask = makeSetMask(runtime)
 
-    const compiledSkill = buildCompiledOptimizerContext({
+    const compiledSkill = makeOptContext({
       resonatorId: runtime.id,
       runtime,
       skill: resonanceSkillTarget,
@@ -495,7 +539,7 @@ describe('optimizer packed cpu parity', () => {
       enemy,
       combatState: runtime.state.combat,
     })
-    const compiledLib = buildCompiledOptimizerContext({
+    const compiledLib = makeOptContext({
       resonatorId: runtime.id,
       runtime,
       skill: liberationTarget,
@@ -504,7 +548,7 @@ describe('optimizer packed cpu parity', () => {
       combatState: runtime.state.combat,
     })
 
-    const contextSkill = packTargetContext({
+    const contextSkill = packTargetCtx({
       compiled: compiledSkill,
       skill: resonanceSkillTarget,
       runtime,
@@ -512,10 +556,10 @@ describe('optimizer packed cpu parity', () => {
       comboK: 5,
       comboCount: 1,
       comboBaseIndex: 0,
-      lockedEchoIndex: -1,
-      setRuntimeMask,
+      lockEchoIdx: -1,
+      setRtMask: setRuntimeMask,
     })
-    const contextLib = packTargetContext({
+    const contextLib = packTargetCtx({
       compiled: compiledLib,
       skill: liberationTarget,
       runtime,
@@ -523,66 +567,66 @@ describe('optimizer packed cpu parity', () => {
       comboK: 5,
       comboCount: 1,
       comboBaseIndex: 0,
-      lockedEchoIndex: -1,
-      setRuntimeMask,
+      lockEchoIdx: -1,
+      setRtMask: setRuntimeMask,
     })
 
     const stats = new Float32Array(5 * 20)
-    const mainEchoBuffs = new Float32Array(5 * 15)
-    mainEchoBuffs[0 * 15 + 4] = 100
-    mainEchoBuffs[1 * 15 + 5] = 100
+    const mainEchoBuffs = new Float32Array(5 * MAIN_BUFF_LEN)
+    mainEchoBuffs[0 * MAIN_BUFF_LEN + 4] = 100
+    mainEchoBuffs[1 * MAIN_BUFF_LEN + 5] = 100
 
     const sharedPayload = {
       mode: 'rotation' as const,
       resultsLimit: 4,
-      lowMemoryMode: false,
+      lowMmryMode: false,
       constraints: createDisabledConstraints(),
       costs: new Uint8Array([4, 1, 1, 1, 1]),
       sets: new Uint8Array([0, 1, 2, 3, 4]),
       kinds: new Uint16Array([0, 1, 2, 3, 4]),
       comboN: 5,
       comboK: 5,
-      comboTotalCombos: 1,
+      totalCombos: 1,
       comboIndexMap: new Int32Array([0, 1, 2, 3, 4]),
       comboBinom: new Uint32Array(0),
-      lockedMainRequested: false,
-      lockedMainCandidateIndices: new Int32Array([0, 1, 2, 3, 4]),
-      progressFactor: 1,
+      lockMainReq: false,
+      lockMainCands: new Int32Array([0, 1, 2, 3, 4]),
+      progFact: 1,
       contextStride: contextSkill.length,
       contextCount: 2,
       contexts: new Float32Array([...contextSkill, ...contextLib]),
-      contextWeights: new Float32Array([1, 1]),
+      contextWeight: new Float32Array([1, 1]),
       displayContext: contextSkill,
       stats,
       setConstLut: buildSetRows(runtime),
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
     }
 
     const comboIds = new Int32Array([0, 1, 2, 3, 4])
     const totalsByMain = Array.from(comboIds, (mainIndex) => {
-      const skillDamage = evaluateTargetCpuCombo({
+      const skillDamage = evalTgtCpuCm({
         context: contextSkill,
         stats,
         setConstLut: sharedPayload.setConstLut,
-        mainEchoBuffs,
+        mainEchoBuffs: mainEchoBuffs,
         sets: sharedPayload.sets,
         kinds: sharedPayload.kinds,
         constraints: createDisabledConstraints(),
         comboIds,
-        lockedMainIndex: mainIndex,
-        scratch: createCpuScratch(),
+        lockMainIdx: mainIndex,
+        scratch: makeCpuScratch(),
       })?.damage ?? 0
-      const libDamage = evaluateTargetCpuCombo({
+      const libDamage = evalTgtCpuCm({
         context: contextLib,
         stats,
         setConstLut: sharedPayload.setConstLut,
-        mainEchoBuffs,
+        mainEchoBuffs: mainEchoBuffs,
         sets: sharedPayload.sets,
         kinds: sharedPayload.kinds,
         constraints: createDisabledConstraints(),
         comboIds,
-        lockedMainIndex: mainIndex,
-        scratch: createCpuScratch(),
+        lockMainIdx: mainIndex,
+        scratch: makeCpuScratch(),
       })?.damage ?? 0
 
       return skillDamage + libDamage
@@ -592,13 +636,13 @@ describe('optimizer packed cpu parity', () => {
     const expectedMainIndex = totalsByMain.indexOf(expectedDamage)
     expect(expectedDamage).toBeGreaterThan(0)
 
-    const results = await runRotationSearchBatch(
+    const results = await runRotSrchBt(
       sharedPayload,
       {
         combosBatch: comboIds,
         comboCount: 1,
-        lockedMainIndex: -1,
-        jobResultsLimit: 4,
+        lockMainIdx: -1,
+        jobResultLimit: 4,
       },
     )
 

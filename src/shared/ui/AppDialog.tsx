@@ -1,19 +1,32 @@
+/*
+  Author: Runor Ewhro
+  Description: Wraps the shared radix dialog primitives with the app's portal,
+               overlay, and outside-interaction safeguards.
+*/
+
 import * as Dialog from '@radix-ui/react-dialog'
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
+import { VisuallyHidden as VsllHddn } from '@radix-ui/react-visually-hidden'
 import type { ReactNode } from 'react'
 
-interface AppDialogProps {
+interface AppDlgPrps {
   visible: boolean
   open: boolean
   closing?: boolean
   portalTarget: HTMLElement | null
-  overlayClassName?: string
-  contentClassName?: string
+  contentClass?: string
   ariaLabel?: string
-  ariaLabelledBy?: string
-  ariaDescribedBy?: string
+  ariaLabelBy?: string
+  ariaDscrBy?: string
   onClose: () => void
   children: ReactNode
+}
+
+function isFltnCtxMen(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('.floating-context-menu'))
+}
+
+function isFltnSelCtn(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('.selection-focus-actions'))
 }
 
 export function AppDialog({
@@ -21,22 +34,21 @@ export function AppDialog({
   open,
   closing = false,
   portalTarget,
-  overlayClassName,
-  contentClassName,
+  contentClass: contentClass,
   ariaLabel,
-  ariaLabelledBy,
-  ariaDescribedBy,
+  ariaLabelBy: ariaLabelBy,
+  ariaDscrBy: ariaDscrBy,
   onClose,
   children,
-}: AppDialogProps) {
+}: AppDlgPrps) {
   if (!visible || !portalTarget) {
     return null
   }
 
-  const overlayClassNames = ['app-modal-overlay', overlayClassName, open ? 'open' : '', closing ? 'closing' : '']
+  const vrlyClssNms = ['app-modal-overlay', open ? 'open' : '', closing ? 'closing' : '']
     .filter(Boolean)
     .join(' ')
-  const contentClassNames = [contentClassName, open ? 'open' : '', closing ? 'closing' : '']
+  const cntnClssNms = [contentClass, open ? 'open' : '', closing ? 'closing' : '']
     .filter(Boolean)
     .join(' ')
 
@@ -47,17 +59,37 @@ export function AppDialog({
       }
     }}>
       <Dialog.Portal forceMount container={portalTarget}>
-        <Dialog.Overlay forceMount className={overlayClassNames}>
+        <Dialog.Overlay
+          forceMount
+          className={vrlyClssNms}
+          data-app-modal-overlay="true"
+        >
           <Dialog.Content
             forceMount
-            className={contentClassNames}
+            className={cntnClssNms}
+            data-app-modal-content="true"
             aria-label={ariaLabel}
-            aria-labelledby={ariaLabelledBy}
-            aria-describedby={ariaDescribedBy}
+            aria-labelledby={ariaLabelBy}
+            aria-describedby={ariaDscrBy}
+            onInteractOutside={(event) => {
+              // menus and floating selection actions should keep working even
+              // when a dialog is mounted, so do not treat them as backdrop hits.
+              if (
+                isFltnCtxMen(event.target)
+                || isFltnSelCtn(event.target)
+              ) {
+                event.preventDefault()
+              }
+            }}
           >
-            <VisuallyHidden>
+            <VsllHddn>
               <Dialog.Title>{ariaLabel ?? 'Dialog'}</Dialog.Title>
-            </VisuallyHidden>
+            </VsllHddn>
+            {ariaDscrBy ? null : (
+              <VsllHddn>
+                <Dialog.Description />
+              </VsllHddn>
+            )}
             {children}
           </Dialog.Content>
         </Dialog.Overlay>

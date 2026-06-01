@@ -4,111 +4,167 @@
                runtime, inventory, and optimizer state management.
 */
 
-import { create } from 'zustand'
+import {create} from 'zustand'
 import type {
-  LeftPaneView,
-  PersistedAppState,
-  ThemeMode,
-  ThemePreference,
-  EnemyProfile,
-  UiState,
+    EnemyProfile,
+    HistoryMax,
+    LeftPaneView,
+    PckrFreqUpd,
+    PersistedState,
+    ThemeMode,
+    ThemePref,
+    UiState,
 } from '@/domain/entities/appState'
+import {HIST_MAX_OPTS} from '@/domain/entities/appState'
+import type {BgThemeVar, BlurMode, DarkThemeVar, LightThemeVar,} from '@/domain/entities/themes'
 import type {
-  BackgroundThemeVariant,
-  BlurMode,
-  DarkThemeVariant,
-  LightThemeVariant,
-} from '@/domain/entities/themes'
-import type {
-  ResonatorRuntimeState,
-  EchoInstance,
-  ResonatorSeed,
-  ResonatorId,
-  TeamMemberRuntimeView,
+    EchoInstance,
+    ResonatorId,
+    ResRuntime,
+    ResSeed,
+    TeamMemRtVie,
 } from '@/domain/entities/runtime'
 import type {
-  InventoryEchoEntry,
-  InventoryBuildEntry,
-  InventoryRotationEntry,
-  RotationEntrySummary,
+    InventoryEntry,
+    InvEchoEnt,
+    InvRotEnt,
+    RotEntSmmr,
 } from '@/domain/entities/inventoryStorage'
-import type { OptimizerContextState, OptimizerSettings } from '@/domain/entities/optimizer'
-import type { ResonatorProfile } from '@/domain/entities/profile'
-import type { SonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
-import type { ResonatorSuggestionsState } from '@/domain/entities/suggestions'
+import {
+    areMkSnpsQvl,
+    areEchoNstnQ,
+    cloneEchoFor,
+    cloneEchoLdt,
+    cloneRotNds,
+    makeInvBuild,
+    makeInvEcho,
+    makeInvRot,
+    isEmptyBuild,
+    normInvRotDu,
+    normInvRotNo,
+} from '@/domain/entities/inventoryStorage'
+import type {OptContext, OptSets} from '@/domain/entities/optimizer'
+import type {ResProf} from '@/domain/entities/profile'
+import type {SntSetConds} from '@/domain/entities/sonataSetConditionals'
+import type {SuggestState, SuggsViewMod, WeaponPlanSet} from '@/domain/entities/suggestions'
 import type {
-  OptimizerBagResultRef,
-  OptimizerBackend,
-  OptimizerProgress,
-  OptimizerResultEntry,
-  PreparedOptimizerPayload,
-  OptimizerStatus,
-  OptimizerStartPayload,
+    OptBckn,
+    OptBagResult,
+    OptFinalResult,
+    OptPrgr,
+    OptRawResult,
+    OptStartPay,
+    OptStts,
+    PrepOptPay,
 } from '@/engine/optimizer/types'
 import {
-  cancelActiveOptimizerWorkerPoolRun,
-  resetOptimizerWorkerPool,
-  runOptimizerWithWorkerPool,
+    cnclActOptWr,
+    rstOptWrkrPo,
+    runOptWithWr,
 } from '@/engine/optimizer/workers/pool'
-import { deriveInitialOptimizerSettings } from '@/engine/optimizer/config/defaultSettings.ts'
-import type { OptimizerCompileOutMessage } from '@/engine/optimizer/compiler/compileWorker.types.ts'
+import {matThryRsltCh} from '@/engine/optimizer/results/materialize.ts'
+import {ROT_GPU_JOB, CPU_THEORY_JOB, GPU_THEORY_JOB,} from '@/engine/optimizer/config/constants'
+import {errorOpt, logOptimizer} from '@/engine/optimizer/config/log.ts'
 import {
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU,
-} from '@/engine/optimizer/config/constants'
-import { errorOptimizer, logOptimizer } from '@/engine/optimizer/config/log.ts'
-import {
-  areEchoInstancesEquivalent,
-  areBuildSnapshotsEquivalent,
-  cloneEchoLoadout,
-  cloneEchoForSlot,
-  createInventoryEchoEntry,
-  createInventoryBuildEntry,
-  isEmptyBuildSnapshot,
-  createInventoryRotationEntry,
-  cloneRotationNodes,
-} from '@/domain/entities/inventoryStorage'
-import {
-  createDefaultAppState,
-  createDefaultResonatorSuggestionsState,
-  createOptimizerContextFromRuntime,
-  createDefaultResonatorProfile,
-  initializePersistedAppState,
-  DEFAULT_RESONATOR_ID,
+    makeAppState,
+    makeResProfile,
+    makeSuggest,
+    DEF_RES_ID,
+    initAppState,
 } from '@/domain/state/defaults'
 import {
-  loadPersistedAppState,
-  loadPersistedInventoryState,
-  markPersistedDomainsDirty,
-  type PersistedDomainKey,
+    mkLeftPaneVi,
+    mkRtUpdHistL,
+    mkTeamMemRtU,
+    clonePrssSna,
+    mkMptyHistSt,
+    mkHistEnt,
+    type PrssHistEnt,
+    type PrssHistStt,
+    resFllbHistL,
+    trimHistEnts,
+} from '@/domain/state/history'
+import {
+    applyPckrFre,
+    mkProfPckrFr,
+    mkRtPckrFreq,
+    mkTeamMemVie,
+} from '@/domain/state/pickerFrequency'
+import {
+    ALL_DOMAIN_KEYS,
+    loadPrssInvS,
+    markPrssDmns,
+    type PersistKey,
 } from '@/infra/persistence/storage'
 import {
-  applyRuntimeToCalculatorState,
-  buildActiveRuntime,
-  buildSelectedTargetResonatorMap,
-  buildRuntimeFromProfile,
-  buildTeamMemberRuntimeView,
-  findSlotIdForResonator,
-  getActiveResonatorId,
+    applyRtToCal,
+    mkRtFromProf,
+    mkTeamMemRtV,
+    findSlotIdFo,
+    getActResId,
 } from '@/domain/state/runtimeAdapters'
-import { resonatorSeedsById } from '@/domain/services/resonatorSeedService'
+import {resSdsById} from '@/domain/services/resonatorSeedService'
+import {getEchoById} from '@/domain/services/echoCatalogService'
+import {cloneResProf, cloneRtSttVl,} from '@/domain/state/runtimeCloning'
+import {getSystTheme, type RslvSystThem} from '@/shared/lib/systemTheme'
 import {
-  cloneResonatorProfile,
-  cloneRuntimeStateValue,
-} from '@/domain/state/runtimeCloning'
-import { getSystemThemeMode, type ResolvedSystemThemeMode } from '@/shared/lib/systemTheme'
+    mkDefMkName,
+    mkDefRotName,
+    mkNtlAppStt,
+    getOptCtxFro,
+    getSuggsSttF,
+    getSyncOptCt,
+} from '@/domain/state/storeHelpers'
+import {
+    bgnOptRun,
+    compOptPayIn,
+    ensOptCompWr,
+    inferOptBtch,
+    nvldOptRun,
+    isOptRunCur,
+    matOptRsltsI,
+    resOptBtchSi,
+    stopOptCompW,
+    stopOptComhl,
+} from '@/domain/state/storeOptimizerRuntime'
+import {selectPersisted} from '@/domain/state/serialization'
 
-const INVENTORY_DEPENDENT_LEFT_PANE_VIEWS = new Set<LeftPaneView>(['echoes', 'teams', 'rotations'])
+const INV_LEFT_PANES = new Set<LeftPaneView>(['echoes', 'teams', 'rotations'])
 
-function bumpCalculatorRuntimeRevision<T extends { runtimeRevision: number }>(calculator: T): T {
+function mkIdleOptStt(): AppStore['optimizer'] {
+  return {
+    status: 'idle',
+    progress: null,
+    results: [],
+    error: null,
+    batchSize: null,
+    resPay: null,
+    resultEchoes: [],
+  }
+}
+
+function applyPrssSna(
+  state: AppStore,
+  snapshot: PersistedState,
+  history: PrssHistStt,
+): AppStore {
+  return {
+    ...state,
+    ...initAppState(snapshot),
+    invHydr: true,
+    optimizer: mkIdleOptStt(),
+    history,
+  }
+}
+
+function bumpCalcRtRv<T extends { runtimeRevision: number }>(calculator: T): T {
   return {
     ...calculator,
     runtimeRevision: calculator.runtimeRevision + 1,
   }
 }
 
-function replaceCalculatorWithRuntimeRevision(
+function rplcCalcWith(
     current: AppStore['calculator'],
     next: AppStore['calculator'],
 ): AppStore['calculator'] {
@@ -122,507 +178,567 @@ function replaceCalculatorWithRuntimeRevision(
   }
 }
 
-export interface AppStore extends PersistedAppState {
-  inventoryOpen: boolean
-  inventoryHasMounted: boolean
-  inventoryHydrated: boolean
+function trimHistStt(history: PrssHistStt, max: HistoryMax): PrssHistStt {
+  return {
+    ...history,
+    past: trimHistEnts(history.past, max, 'recent'),
+    future: trimHistEnts(history.future, max, 'earliest'),
+  }
+}
+
+function applyUiFreqP(
+    state: AppStore,
+    updates: PckrFreqUpd[],
+): AppStore {
+  if (updates.length === 0) {
+    return state
+  }
+
+  const nextFreq = applyPckrFre(state.ui.itemFreq, updates)
+  if (nextFreq === state.ui.itemFreq) {
+    return state
+  }
+
+  return {
+    ...state,
+    ui: {
+      ...state.ui,
+      itemFreq: nextFreq,
+    },
+  }
+}
+
+export interface AppStore extends PersistedState {
+  // store-owned ui flags are intentionally kept out of the persisted snapshot;
+  // the short names mark them as local runtime state rather than schema fields.
+  invOpen: boolean
+  invEchoQ: string
+  invMounted: boolean
+  invHydr: boolean
+  history: PrssHistStt
+  // optimizer keeps the compiled payload and result echo rows only for the
+  // active browser session, so these keys can stay compact without migrations.
   optimizer: {
-    status: OptimizerStatus
-    progress: OptimizerProgress | null
-    results: Array<OptimizerBagResultRef | OptimizerResultEntry>
+    status: OptStts
+    progress: OptPrgr | null
+    results: Array<OptRawResult | OptFinalResult>
     error: string | null
     batchSize: number | null
-    resolutionPayload: PreparedOptimizerPayload | null
+    resPay: PrepOptPay | null
     resultEchoes: EchoInstance[]
   }
-  hydrate: (payload: PersistedAppState) => void
+  hydrate: (payload: PersistedState) => void
   resetState: () => void
-  ensureInventoryHydrated: () => void
+  undo: () => void
+  redo: () => void
+  undoTo: (index: number) => void
+  redoTo: (index: number) => void
+  canUndo: () => boolean
+  canRedo: () => boolean
+  undoHist: () => PrssHistEnt[]
+  redoHist: () => PrssHistEnt[]
+  ensInvHydr: () => void
+  // preference actions wrap persisted ui writes; the action names are short,
+  // while the underlying saved ui keys remain unchanged inside each updater.
   setTheme: (theme: ThemeMode) => void
-  setThemePreference: (themePreference: ThemePreference) => void
-  syncThemeWithSystem: (theme: ResolvedSystemThemeMode) => void
-  setLightVariant: (variant: LightThemeVariant) => void
-  setDarkVariant: (variant: DarkThemeVariant) => void
-  setBackgroundVariant: (variant: BackgroundThemeVariant) => void
-  setBackgroundImageKey: (key: string) => void
-  setBackgroundTextMode: (mode: 'light' | 'dark') => void
-  setBodyFontSelection: (fontName: string, fontUrl: string) => void
+  setThemePref: (themePref: ThemePref) => void
+  syncTheme: (theme: RslvSystThem) => void
+  setLightVar: (variant: LightThemeVar) => void
+  setDarkVar: (variant: DarkThemeVar) => void
+  setBgVar: (variant: BgThemeVar) => void
+  setBgImgKey: (key: string) => void
+  setBgTxtMode: (mode: 'light' | 'dark') => void
+  setBodyFont: (fontName: string, fontUrl: string) => void
   setBlurMode: (mode: BlurMode) => void
-  setEntranceAnimations: (mode: 'on' | 'off') => void
-  setLeftPaneView: (view: LeftPaneView) => void
+  setEntrAnim: (enabled: boolean) => void
+  setCtxMenu: (enabled: boolean) => void
+  setUpdToast: (enabled: boolean) => void
+  setRecMenus: (enabled: boolean) => void
+  setUnqOvr: (enabled: boolean) => void
+  setSugView: (view: SuggsViewMod) => void
+  setLeftView: (view: LeftPaneView) => void
+  openLeftView: (view: LeftPaneView) => void
   setMainMode: (mode: 'default' | 'optimizer' | 'overview') => void
-  setShowSubHits: (enabled: boolean) => void
-  setOptimizerCpuHintSeen: (seen: boolean) => void
-  setSavedRotationPreferences: (
+  setSubHits: (enabled: boolean) => void
+  setCmpInv: (enabled: boolean) => void
+  setSeeEqp: (enabled: boolean) => void
+  setHistOn: (enabled: boolean) => void
+  setHistMax: (max: HistoryMax) => void
+  setOptHint: (seen: boolean) => void
+  setOptSprite: (useSprite: boolean) => void
+  setRotPrefs: (
       updater: (
           preferences: UiState['savedRotationPreferences'],
       ) => UiState['savedRotationPreferences'],
   ) => void
-  setInventoryOpen: (open: boolean) => void
-  setEnemyProfile: (enemy: EnemyProfile) => void
-  setActiveResonator: (resonatorId: ResonatorId) => void
-  activateResonator: (seed: ResonatorSeed) => void
-  switchToResonator: (resonatorId: ResonatorId) => void
-  deleteResonatorProfile: (resonatorId: ResonatorId, preferredNextResonatorId?: ResonatorId | null) => void
-  resetResonator: (resonatorId: ResonatorId) => void
-  loadResonatorProfile: (profile: ResonatorProfile) => void
-  ensureResonatorRuntime: (seed: ResonatorSeed) => void
-  ensureTeamMemberRuntime: (seed: ResonatorSeed) => void
-  updateResonatorRuntime: (
+  setInvOpen: (open: boolean) => void
+  setInvEchoQ: (search: string) => void
+  bumpPickFr: (updates: PckrFreqUpd | PckrFreqUpd[]) => void
+  // resonator actions own profile switching, runtime creation, and
+  // target/suggestion updates for the currently selected calculator context.
+  setEnemy: (enemy: EnemyProfile) => void
+  setActRes: (resonatorId: ResonatorId) => void
+  actRes: (seed: ResSeed) => void
+  swRes: (resonatorId: ResonatorId) => void
+  delResProf: (resonatorId: ResonatorId, prfrNextResI?: ResonatorId | null) => void
+  delResProfs: (resonatorIds: ResonatorId[], prfrNextResI?: ResonatorId | null) => void
+  resetRes: (resonatorId: ResonatorId) => void
+  loadResProf: (profile: ResProf) => void
+  upsertRes: (profiles: ResProf[], historyLabel?: string) => void
+  ensResRt: (seed: ResSeed) => void
+  ensTeamRt: (seed: ResSeed) => void
+  updResRt: (
       resonatorId: ResonatorId,
-      updater: (runtime: ResonatorRuntimeState) => ResonatorRuntimeState,
+      updater: (runtime: ResRuntime) => ResRuntime,
   ) => void
-  updateTeamMemberRuntimeView: (
+  updTeamView: (
       resonatorId: ResonatorId,
-      updater: (runtimeView: TeamMemberRuntimeView) => TeamMemberRuntimeView,
+      updater: (runtimeView: TeamMemRtVie) => TeamMemRtVie,
   ) => void
-  updateActiveResonatorRuntime: (
-      updater: (runtime: ResonatorRuntimeState) => ResonatorRuntimeState,
+  updActRt: (
+      updater: (runtime: ResRuntime) => ResRuntime,
   ) => void
-  updateResonatorSuggestionsState: (
+  updResSuggs: (
       resonatorId: ResonatorId,
-      updater: (state: ResonatorSuggestionsState) => ResonatorSuggestionsState,
+      updater: (state: SuggestState) => SuggestState,
   ) => void
-  updateActiveResonatorSuggestionsState: (
-      updater: (state: ResonatorSuggestionsState) => ResonatorSuggestionsState,
+  updActSuggs: (
+      updater: (state: SuggestState) => SuggestState,
   ) => void
-  updateResonatorSetConditionals: (
+  updWpnSuggs: (
+      updater: (state: WeaponPlanSet) => WeaponPlanSet,
+  ) => void
+  updResConds: (
       resonatorId: ResonatorId,
-      updater: (state: SonataSetConditionals) => SonataSetConditionals,
+      updater: (state: SntSetConds) => SntSetConds,
   ) => void
-  updateActiveResonatorSetConditionals: (
-      updater: (state: SonataSetConditionals) => SonataSetConditionals,
+  updActConds: (
+      updater: (state: SntSetConds) => SntSetConds,
   ) => void
-  setResonatorTargetSelection: (
+  setResTgt: (
       resonatorId: ResonatorId,
       ownerKey: string,
-      targetResonatorId: ResonatorId | null,
+      tgtResId: ResonatorId | null,
   ) => void
-  addEchoToInventory: (echo: EchoInstance) => InventoryEchoEntry | null
-  replaceInventoryEchoes: (echoes: EchoInstance[]) => void
-  updateEchoInInventory: (entryId: string, echo: EchoInstance) => void
-  removeEchoFromInventory: (entryId: string) => void
-  clearInventoryEchoes: () => void
-  addBuildToInventory: (input: {
+  addInvEcho: (echo: EchoInstance) => InvEchoEnt | null
+  rplInvEcho: (echoes: EchoInstance[]) => void
+  updInvEcho: (entryId: string, echo: EchoInstance) => void
+  cleanInvEcho: () => number
+  rmInvEcho: (entryId: string) => void
+  clrInvEcho: () => void
+  // inventory actions keep persisted entry fields descriptive because saved
+  // builds and rotations are user data, even though the store methods are short.
+  addInvBuild: (input: {
     name?: string
     resonatorId: ResonatorId
     resonatorName: string
     build: {
-      weapon: ResonatorRuntimeState['build']['weapon']
+      weapon: ResRuntime['build']['weapon']
       echoes: Array<EchoInstance | null>
     }
-  }) => InventoryBuildEntry | null
-  updateInventoryBuild: (
+  }) => InventoryEntry | null
+  updInvBuild: (
       entryId: string,
-      changes: Partial<Pick<InventoryBuildEntry, 'name'>> & {
+      changes: Partial<Pick<InventoryEntry, 'name'>> & {
         build?: {
-          weapon: ResonatorRuntimeState['build']['weapon']
+          weapon: ResRuntime['build']['weapon']
           echoes: Array<EchoInstance | null>
         }
       },
   ) => void
-  removeInventoryBuild: (entryId: string) => void
-  clearInventoryBuilds: () => void
-  addRotationToInventory: (input: {
+  rmInvBuild: (entryId: string) => void
+  clrInvBuild: () => void
+  addInvRot: (input: {
     name?: string
     mode: 'personal' | 'team'
     resonatorId: ResonatorId
     resonatorName: string
-    team?: ResonatorRuntimeState['build']['team']
-    items: ResonatorRuntimeState['rotation']['personalItems']
-    snapshot?: ResonatorProfile
-    summary?: RotationEntrySummary
-  }) => InventoryRotationEntry | null
-  updateInventoryRotation: (
+    duration?: number
+    note?: string
+    team?: ResRuntime['build']['team']
+    items: ResRuntime['rotation']['personalItems']
+    snapshot?: ResProf
+    summary?: RotEntSmmr
+  }) => InvRotEnt | null
+  updInvRot: (
       entryId: string,
-      changes: Partial<Pick<InventoryRotationEntry, 'name'>> & {
-        items?: ResonatorRuntimeState['rotation']['personalItems']
-        team?: ResonatorRuntimeState['build']['team']
+      changes: Partial<Pick<InvRotEnt, 'name' | 'note' | 'duration'>> & {
+        items?: ResRuntime['rotation']['personalItems']
+        team?: ResRuntime['build']['team']
       },
   ) => void
-  removeInventoryRotation: (entryId: string) => void
-  clearInventoryRotations: () => void
-  ensureOptimizerContext: () => void
-  syncOptimizerContextToLiveRuntime: (resonatorId?: ResonatorId) => void
-  updateOptimizerRuntime: (
-      updater: (runtime: OptimizerContextState['runtime']) => OptimizerContextState['runtime'],
+  rmInvRot: (entryId: string) => void
+  clrInvRot: () => void
+  // optimizer actions bridge live calculator state into packed worker payloads
+  // and then materialize selected results back into the persisted runtime.
+  ensureOptimizer: () => void
+  syncOptRt: (resonatorId?: ResonatorId) => void
+  updOptRt: (
+      updater: (runtime: OptContext['runtime']) => OptContext['runtime'],
   ) => void
-  updateOptimizerSettings: (
-      updater: (settings: OptimizerSettings) => OptimizerSettings,
+  updOptSets: (
+      updater: (settings: OptSets) => OptSets,
   ) => void
-  clearOptimizerContext: () => void
-  startOptimizer: (
-      input: OptimizerStartPayload,
+  clrOptCtx: () => void
+  startOpt: (
+      input: OptStartPay,
       hooks?: {
-        onProgress?: (progress: OptimizerProgress) => void
+        onProgress?: (progress: OptPrgr) => void
       },
   ) => void
-  cancelOptimizer: () => void
-  clearOptimizerResults: () => void
-  applyOptimizerResult: (index: number) => void
-}
-
-// build a default saved build name
-function buildDefaultBuildName(resonatorName: string, existingCount: number): string {
-  return `${resonatorName} Build ${existingCount + 1}`
-}
-
-// build a default saved rotation name
-function buildDefaultRotationName(
-    resonatorName: string,
-    mode: 'personal' | 'team',
-    existingCount: number,
-): string {
-  return mode === 'team'
-      ? `${resonatorName} Team Rotation ${existingCount + 1}`
-      : `${resonatorName} Rotation ${existingCount + 1}`
-}
-
-// create the initial app state, using persisted storage in the browser
-function createInitialAppState(): PersistedAppState {
-  if (typeof window === 'undefined') {
-    return createDefaultAppState()
-  }
-
-  const baseState = loadPersistedAppState({ includeInventory: false }) ?? createDefaultAppState()
-  if (
-    baseState.ui.mainMode === 'optimizer'
-    || INVENTORY_DEPENDENT_LEFT_PANE_VIEWS.has(baseState.ui.leftPaneView)
-  ) {
-    return loadPersistedAppState({ includeInventory: true }) ?? baseState
-  }
-
-  return baseState
-}
-
-// get an optimizer context synced to the current active runtime
-function getSyncedOptimizerContext(state: AppStore): OptimizerContextState | null {
-  const activeRuntime = buildActiveRuntime(state.calculator)
-  if (!activeRuntime) {
-    return null
-  }
-
-  const existing = state.calculator.optimizerContext
-  if (existing?.resonatorId === activeRuntime.id) {
-    return existing
-  }
-
-  return createOptimizerContextFromRuntime(
-      activeRuntime,
-      deriveInitialOptimizerSettings({
-        runtime: activeRuntime,
-        enemy: state.calculator.session.enemyProfile,
-        selectedTargetsByOwnerKey: buildSelectedTargetResonatorMap(state.calculator),
-      }),
-  )
-}
-
-// rebuild an optimizer context from the current live runtime
-function getOptimizerContextFromLiveRuntime(
-    state: AppStore,
-    resonatorId?: ResonatorId,
-): OptimizerContextState | null {
-  const targetResonatorId =
-      resonatorId
-      ?? state.calculator.optimizerContext?.resonatorId
-      ?? getActiveResonatorId(state.calculator)
-
-  if (!targetResonatorId) {
-    return null
-  }
-
-  const liveRuntime = buildRuntimeFromProfile(state.calculator, targetResonatorId)
-      ?? buildActiveRuntime(state.calculator)
-
-  if (!liveRuntime) {
-    return null
-  }
-
-  const existing = state.calculator.optimizerContext
-  const settings = existing?.resonatorId === liveRuntime.id
-      ? existing.settings
-      : deriveInitialOptimizerSettings({
-        runtime: liveRuntime,
-        enemy: state.calculator.session.enemyProfile,
-        selectedTargetsByOwnerKey: buildSelectedTargetResonatorMap(state.calculator),
-      })
-
-  return createOptimizerContextFromRuntime(liveRuntime, settings)
-}
-
-// optimizer worker lifecycle state
-let optimizerRunToken = 0
-let optimizerCompileWorker: Worker | null = null
-
-// create or reuse the compile worker
-function ensureOptimizerCompileWorker(): Worker {
-  if (optimizerCompileWorker) {
-    return optimizerCompileWorker
-  }
-
-  logOptimizer('[optimizer:store] spawning compile worker')
-  optimizerCompileWorker = new Worker(
-      new URL('@/engine/optimizer/workers/compile.worker.ts', import.meta.url),
-      { type: 'module' },
-  )
-
-  optimizerCompileWorker.onerror = (event) => {
-    errorOptimizer('[optimizer:store] compile worker uncaught error', {
-      message: event.message,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-    })
-  }
-
-  return optimizerCompileWorker
-}
-
-// fully stop the compile worker
-function stopOptimizerCompileWorker(): void {
-  optimizerCompileWorker?.terminate()
-  optimizerCompileWorker = null
-}
-
-// collect transferable buffers from a prepared optimizer payload
-function collectPreparedPayloadTransferables(payload: PreparedOptimizerPayload): Transferable[] {
-  const maybePush = (items: Transferable[], buffer: ArrayBufferLike) => {
-    if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
-      return
-    }
-    items.push(buffer)
-  }
-
-  const out: Transferable[] = []
-  maybePush(out, payload.constraints.buffer)
-  maybePush(out, payload.costs.buffer)
-  maybePush(out, payload.sets.buffer)
-  maybePush(out, payload.kinds.buffer)
-  maybePush(out, payload.comboIndexMap.buffer)
-  maybePush(out, payload.comboBinom.buffer)
-  maybePush(out, payload.lockedMainCandidateIndices.buffer)
-
-  if (payload.mode === 'rotation') {
-    maybePush(out, payload.contexts.buffer)
-    maybePush(out, payload.contextWeights.buffer)
-    maybePush(out, payload.displayContext.buffer)
-    maybePush(out, payload.stats.buffer)
-    maybePush(out, payload.setConstLut.buffer)
-    maybePush(out, payload.mainEchoBuffs.buffer)
-    return out
-  }
-
-  maybePush(out, payload.stats.buffer)
-  maybePush(out, payload.setConstLut.buffer)
-  maybePush(out, payload.mainEchoBuffs.buffer)
-  return out
-}
-
-// wait for a specific compile worker response type
-async function waitForCompileWorkerMessage<T extends OptimizerCompileOutMessage['type']>(
-    worker: Worker,
-    runId: number,
-    expectedType: T,
-    dispatch: () => void,
-): Promise<Extract<OptimizerCompileOutMessage, { type: T }>> {
-  return await new Promise((resolve, reject) => {
-    const handleMessage = (event: MessageEvent<OptimizerCompileOutMessage>) => {
-      const message = event.data
-      if (message.runId !== runId) {
-        return
-      }
-
-      worker.removeEventListener('message', handleMessage)
-      worker.removeEventListener('error', handleError)
-
-      if (message.type === 'error') {
-        reject(new Error(message.message))
-        return
-      }
-
-      if (message.type !== expectedType) {
-        reject(new Error(`Unexpected optimizer compile worker response: ${message.type}`))
-        return
-      }
-
-      resolve(message as Extract<OptimizerCompileOutMessage, { type: T }>)
-    }
-
-    const handleError = (event: ErrorEvent) => {
-      worker.removeEventListener('message', handleMessage)
-      worker.removeEventListener('error', handleError)
-      reject(new Error(event.message || 'Optimizer compile worker failed unexpectedly'))
-    }
-
-    worker.addEventListener('message', handleMessage)
-    worker.addEventListener('error', handleError)
-    dispatch()
-  })
-}
-
-// compile the optimizer payload in the worker
-async function compileOptimizerPayloadInWorker(
-    worker: Worker,
-    runId: number,
-    input: OptimizerStartPayload,
-): Promise<PreparedOptimizerPayload> {
-  logOptimizer('[optimizer:store] dispatching compile job to worker', {
-    runId,
-    resonatorId: input.resonatorId,
-    rotationMode: input.settings.rotationMode,
-    inventorySize: input.inventoryEchoes.length,
-    hasStaticData: !!input.staticData,
-  })
-
-  const t0 = performance.now()
-  const message = await waitForCompileWorkerMessage(worker, runId, 'done', () => {
-    worker.postMessage({
-      type: 'start',
-      runId,
-      payload: input,
-    })
-  })
-
-  logOptimizer('[optimizer:store] compile worker responded', {
-    runId,
-    mode: message.payload.mode,
-    comboTotalCombos: message.payload.comboTotalCombos,
-    comboN: message.payload.comboN,
-    comboK: message.payload.comboK,
-    contextCount: 'contextCount' in message.payload ? message.payload.contextCount : undefined,
-    elapsedMs: Math.round(performance.now() - t0),
-  })
-
-  return message.payload
-}
-
-// materialize optimizer result refs into full result entries
-async function materializeOptimizerResultsInWorker(
-    worker: Worker,
-    runId: number,
-    payload: PreparedOptimizerPayload,
-    results: OptimizerBagResultRef[],
-    uidByIndex: string[],
-    limit: number,
-): Promise<OptimizerResultEntry[]> {
-  logOptimizer('[optimizer:store] dispatching materialize job to worker', {
-    runId,
-    resultCount: results.length,
-    limit,
-    mode: payload.mode,
-  })
-
-  const t0 = performance.now()
-  const message = await waitForCompileWorkerMessage(worker, runId, 'materialized', () => {
-    worker.postMessage({
-      type: 'materialize',
-      runId,
-      payload,
-      results,
-      uidByIndex,
-      limit,
-    }, collectPreparedPayloadTransferables(payload))
-  })
-
-  logOptimizer('[optimizer:store] materialize complete', {
-    runId,
-    finalizedCount: message.results.length,
-    elapsedMs: Math.round(performance.now() - t0),
-  })
-
-  return message.results
-}
-
-// infer the batch size before execution starts
-function inferOptimizerBatchSizeFromInput(input: OptimizerStartPayload): number | null {
-  if (input.settings.rotationMode) {
-    return input.settings.enableGpu
-        ? ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU
-        : ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU
-  }
-
-  return input.settings.enableGpu
-      ? ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU
-      : ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU
-}
-
-// resolve the batch size from the chosen backend
-function resolveOptimizerBatchSize(backend: OptimizerBackend): number | null {
-  return backend === 'gpu'
-      ? ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU
-      : ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU
-}
-
-// get a safe cloned suggestions state for a resonator
-function getSuggestionsStateForResonator(
-    state: AppStore,
-    resonatorId: ResonatorId,
-): ResonatorSuggestionsState {
-  return state.calculator.suggestionsByResonatorId[resonatorId]
-      ? structuredClone(state.calculator.suggestionsByResonatorId[resonatorId])
-      : createDefaultResonatorSuggestionsState()
+  cnclOpt: () => void
+  clrOptRslt: () => void
+  applyOpt: (index: number) => void
 }
 
 // main zustand store
-const initialPersistedState = createInitialAppState()
-const initialInventoryHydrated =
-    initialPersistedState.ui.mainMode === 'optimizer'
-    || INVENTORY_DEPENDENT_LEFT_PANE_VIEWS.has(initialPersistedState.ui.leftPaneView)
+const ntlPrssStt = mkNtlAppStt()
+const ntlInvHydr =
+    ntlPrssStt.ui.mainMode === 'optimizer'
+    || INV_LEFT_PANES.has(ntlPrssStt.ui.leftPaneView)
 
 export const useAppStore = create<AppStore>((set, get) => {
+  const rstrPrssSnap = (
+    snapshot: PersistedState,
+    {
+      past,
+      future,
+    }: {
+      past: PrssHistEnt[]
+      future: PrssHistEnt[]
+    },
+  ) => {
+    nvldOptRun()
+    stopOptCompW()
+    cnclActOptWr()
+    set((state) => applyPrssSna(state, snapshot, {
+      past,
+      future,
+      isRestoring: false,
+    }))
+    markPrssDmns(ALL_DOMAIN_KEYS)
+  }
+
+  const resHistLbl = (
+    dirtyDomains: PersistKey[],
+    options: {
+      historyLabel?: string
+    },
+  ) => options.historyLabel?.trim() || resFllbHistL(dirtyDomains)
+
+  const undoToHistNd = (index: number) => {
+    const state = get()
+    if (!state.ui.haveHistory || index < 0 || index >= state.history.past.length) {
+      return
+    }
+
+    const curSnap = clonePrssSna(selectPersisted(state))
+    const steps = index + 1
+    const selectedPast = state.history.past.slice(-steps)
+    const tgtSnap = selectedPast[0]?.snapshot
+
+    if (!tgtSnap) {
+      return
+    }
+
+    const nextFuture = [
+      ...selectedPast.map((entry, entryIndex) => mkHistEnt(
+        entryIndex < selectedPast.length - 1
+          ? selectedPast[entryIndex + 1]!.snapshot
+          : curSnap,
+        entry.label,
+      )),
+      ...state.history.future,
+    ]
+
+    rstrPrssSnap(tgtSnap, {
+      past: state.history.past.slice(0, -steps),
+      future: trimHistEnts(nextFuture, state.ui.historyMax, 'earliest'),
+    })
+  }
+
+  const redoToHistNd = (index: number) => {
+    const state = get()
+    if (!state.ui.haveHistory || index < 0 || index >= state.history.future.length) {
+      return
+    }
+
+    const curSnap = clonePrssSna(selectPersisted(state))
+    const steps = index + 1
+    const selFtr = state.history.future.slice(0, steps)
+    const tgtSnap = selFtr[selFtr.length - 1]?.snapshot
+
+    if (!tgtSnap) {
+      return
+    }
+
+    const nextPast = [
+      ...state.history.past,
+      ...selFtr.map((entry, entryIndex) => mkHistEnt(
+        entryIndex === 0
+          ? curSnap
+          : selFtr[entryIndex - 1]!.snapshot,
+        entry.label,
+      )),
+    ]
+
+    rstrPrssSnap(tgtSnap, {
+      past: trimHistEnts(nextPast, state.ui.historyMax, 'recent'),
+      future: state.history.future.slice(steps),
+    })
+  }
+
   const persistedSet = (
-    dirtyDomains: PersistedDomainKey[],
+    dirtyDomains: PersistKey[],
     updater: (state: AppStore) => AppStore,
+    options: {
+      recHist?: boolean
+      historyLabel?: string
+    } = {},
   ) => {
     set((state) => {
       const next = updater(state)
       if (next !== state) {
-        markPersistedDomainsDirty(dirtyDomains)
+        if (!state.history.isRestoring && state.ui.haveHistory && options.recHist !== false) {
+          const curSnap = selectPersisted(state)
+            next.history = {
+              ...state.history,
+              past: trimHistEnts([...state.history.past, mkHistEnt(
+                  curSnap,
+                  resHistLbl(dirtyDomains, options),
+              )], state.ui.historyMax, 'recent'),
+              future: [],
+          }
+        }
+        markPrssDmns(dirtyDomains)
       }
       return next
     })
   }
 
-  return ({
-  ...initialPersistedState,
-  inventoryOpen: false,
-  inventoryHasMounted: false,
-  inventoryHydrated: initialInventoryHydrated,
-  optimizer: {
-    status: 'idle',
-    progress: null,
-    results: [],
-    error: null,
-    batchSize: null,
-    resolutionPayload: null,
-    resultEchoes: [],
-  },
-
-  hydrate: (payload) => {
-    set(() => ({
-      ...initializePersistedAppState(payload),
-      inventoryHydrated: true,
-    }))
-  },
-
-  resetState: () => {
-    stopOptimizerCompileWorker()
-    cancelActiveOptimizerWorkerPoolRun()
-    set(() => ({
-      ...createDefaultAppState(),
-      inventoryHydrated: false,
-    }))
-  },
-
-  ensureInventoryHydrated: () => {
-    if (get().inventoryHydrated || typeof window === 'undefined') {
+  const bumpPckrFreq = (updates: PckrFreqUpd[]) => {
+    if (updates.length === 0) {
       return
     }
 
-    const inventory = loadPersistedInventoryState()
+    persistedSet(['ui.layout'], (state) => applyUiFreqP(state, updates), {
+      recHist: false,
+    })
+  }
+
+  const psrtResPrflI = (
+    profiles: ResProf[],
+    historyLabel = profiles.length === 1 ? 'Loaded Resonator Profile' : 'Pasted Resonator Profiles',
+  ) => {
+    if (profiles.length === 0) {
+      return
+    }
+
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session', 'ui.layout'], (state) => {
+      const nextProfiles = { ...state.calculator.profiles }
+      let nextSuggsByR = state.calculator.suggestionsByResonatorId
+      let changed = false
+
+      for (const profile of profiles) {
+        nextProfiles[profile.resonatorId] = cloneResProf(profile)
+        changed = true
+
+        if (!nextSuggsByR[profile.resonatorId]) {
+          if (nextSuggsByR === state.calculator.suggestionsByResonatorId) {
+            nextSuggsByR = { ...state.calculator.suggestionsByResonatorId }
+          }
+
+          nextSuggsByR[profile.resonatorId] = makeSuggest()
+        }
+      }
+
+      if (!changed) {
+        return state
+      }
+
+      const nextActResId = state.calculator.session.activeResonatorId ?? profiles[0]?.resonatorId ?? null
+
+      return applyUiFreqP({
+        ...state,
+        calculator: bumpCalcRtRv({
+          ...state.calculator,
+          profiles: nextProfiles,
+          suggestionsByResonatorId: nextSuggsByR,
+          session: {
+            ...state.calculator.session,
+            activeResonatorId: nextActResId,
+          },
+        }),
+      }, mkProfPckrFr(profiles))
+    }, { historyLabel })
+  }
+
+  const dltResPrflIm = (
+    resonatorIds: ResonatorId[],
+    prfrNextResI: ResonatorId | null = null,
+    historyLabel?: string,
+  ) => {
+    if (resonatorIds.length === 0) {
+      return
+    }
+
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => {
+      const nextProfiles = { ...state.calculator.profiles }
+      const nextSuggsByR = { ...state.calculator.suggestionsByResonatorId }
+      const removedIds: ResonatorId[] = []
+
+      for (const resonatorId of resonatorIds) {
+        if (!nextProfiles[resonatorId]) {
+          continue
+        }
+
+        delete nextProfiles[resonatorId]
+        delete nextSuggsByR[resonatorId]
+        removedIds.push(resonatorId)
+      }
+
+      if (removedIds.length === 0) {
+        return state
+      }
+
+      const remainingIds = Object.keys(nextProfiles)
+      const actResId = state.calculator.session.activeResonatorId
+
+      if (remainingIds.length === 0) {
+        const fallbackSeed = resSdsById[DEF_RES_ID]
+        if (!fallbackSeed) {
+          return {
+            ...state,
+            calculator: bumpCalcRtRv({
+              ...state.calculator,
+              profiles: {},
+              suggestionsByResonatorId: {},
+              session: {
+                ...state.calculator.session,
+                activeResonatorId: null,
+              },
+            }),
+          }
+        }
+
+        return {
+          ...state,
+          calculator: bumpCalcRtRv({
+            ...state.calculator,
+            profiles: {
+              [fallbackSeed.id]: makeResProfile(fallbackSeed),
+            },
+            suggestionsByResonatorId: {
+              [fallbackSeed.id]: makeSuggest(),
+            },
+            session: {
+              ...state.calculator.session,
+              activeResonatorId: fallbackSeed.id,
+            },
+          }),
+        }
+      }
+
+      const rslvNextActI =
+        actResId && nextProfiles[actResId] && !removedIds.includes(actResId)
+          ? actResId
+          : (
+              (prfrNextResI && nextProfiles[prfrNextResI]
+                ? prfrNextResI
+                : null)
+              ?? remainingIds[0]
+            )
+
+      return {
+        ...state,
+        calculator: bumpCalcRtRv({
+          ...state.calculator,
+          profiles: nextProfiles,
+          suggestionsByResonatorId: nextSuggsByR,
+          session: {
+            ...state.calculator.session,
+            activeResonatorId: rslvNextActI,
+          },
+        }),
+      }
+    }, {
+      historyLabel: historyLabel
+        ?? (resonatorIds.length === 1 ? 'Deleted Resonator Profile' : `Deleted ${resonatorIds.length} Resonator Profiles`),
+    })
+  }
+
+  return ({
+  ...ntlPrssStt,
+  invOpen: false,
+  invEchoQ: '',
+  invMounted: false,
+  invHydr: ntlInvHydr,
+  history: mkMptyHistSt(),
+  optimizer: mkIdleOptStt(),
+
+  hydrate: (payload) => {
+    const curSnap = selectPersisted(get())
+    const nextSnapshot = clonePrssSna(payload)
+    const { ui } = get()
+
+    nvldOptRun()
+    stopOptCompW()
+    cnclActOptWr()
+    set((state) => applyPrssSna(state, nextSnapshot, {
+      past: ui.haveHistory
+        ? trimHistEnts(
+          [...state.history.past, mkHistEnt(curSnap, 'Imported App State')],
+          ui.historyMax,
+          'recent',
+        )
+        : [],
+      future: [],
+      isRestoring: false,
+    }))
+    markPrssDmns(ALL_DOMAIN_KEYS)
+  },
+
+  resetState: () => {
+    stopOptCompW()
+    cnclActOptWr()
+    set(() => ({
+      ...makeAppState(),
+      invHydr: false,
+      history: mkMptyHistSt(),
+      optimizer: mkIdleOptStt(),
+    }))
+  },
+
+  undo: () => {
+    undoToHistNd(0)
+  },
+
+  redo: () => {
+    redoToHistNd(0)
+  },
+
+  undoTo: (index) => {
+    undoToHistNd(index)
+  },
+
+  redoTo: (index) => {
+    redoToHistNd(index)
+  },
+
+  canUndo: () => get().ui.haveHistory && get().history.past.length > 0,
+  canRedo: () => get().ui.haveHistory && get().history.future.length > 0,
+  undoHist: () => get().ui.haveHistory ? get().history.past.slice().reverse() : [],
+  redoHist: () => get().ui.haveHistory ? get().history.future.slice() : [],
+
+  ensInvHydr: () => {
+    if (get().invHydr || typeof window === 'undefined') {
+      return
+    }
+
+    const inventory = loadPrssInvS()
     set((state) => ({
       ...state,
-      inventoryHydrated: true,
+      invHydr: true,
       calculator: {
         ...state.calculator,
         inventoryEchoes: inventory.inventoryEchoes,
@@ -640,23 +756,23 @@ export const useAppStore = create<AppStore>((set, get) => {
         theme,
         themePreference: theme,
       },
-    }))
+    }), { historyLabel: 'Changed Theme' })
   },
 
-  setThemePreference: (themePreference) => {
+  setThemePref: (themePref) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        themePreference,
-        theme: themePreference === 'system'
-          ? getSystemThemeMode()
-          : themePreference,
+        themePreference: themePref,
+        theme: themePref === 'system'
+          ? getSystTheme()
+          : themePref,
       },
-    }))
+    }), { historyLabel: 'Changed Theme Preference' })
   },
 
-  syncThemeWithSystem: (theme) => {
+  syncTheme: (theme) => {
     persistedSet(['ui.appearance'], (state) => {
       if (state.ui.themePreference !== 'system' || state.ui.theme === theme) {
         return state
@@ -669,60 +785,60 @@ export const useAppStore = create<AppStore>((set, get) => {
           theme,
         },
       }
-    })
+    }, { recHist: false })
   },
 
-  setLightVariant: (lightVariant) => {
+  setLightVar: (lightVariant) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
         lightVariant,
       },
-    }))
+    }), { historyLabel: 'Changed Light Theme Variant' })
   },
 
-  setDarkVariant: (darkVariant) => {
+  setDarkVar: (darkVariant) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
         darkVariant,
       },
-    }))
+    }), { historyLabel: 'Changed Dark Theme Variant' })
   },
 
-  setBackgroundVariant: (backgroundVariant) => {
+  setBgVar: (bgVar) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        backgroundVariant,
+        backgroundVariant: bgVar,
       },
-    }))
+    }), { historyLabel: 'Changed Background Variant' })
   },
 
-  setBackgroundImageKey: (backgroundImageKey) => {
+  setBgImgKey: (bgMgKey) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        backgroundImageKey,
+        backgroundImageKey: bgMgKey,
       },
-    }))
+    }), { historyLabel: 'Changed Background Image' })
   },
 
-  setBackgroundTextMode: (backgroundTextMode) => {
+  setBgTxtMode: (bgTextMode) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        backgroundTextMode,
+        backgroundTextMode: bgTextMode,
       },
-    }))
+    }), { historyLabel: 'Changed Background Text Mode' })
   },
 
-  setBodyFontSelection: (bodyFontName, bodyFontUrl) => {
+  setBodyFont: (bodyFontName, bodyFontUrl) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
@@ -730,7 +846,7 @@ export const useAppStore = create<AppStore>((set, get) => {
         bodyFontName,
         bodyFontUrl,
       },
-    }))
+    }), { historyLabel: 'Changed Body Font' })
   },
 
   setBlurMode: (blurMode) => {
@@ -740,22 +856,84 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...state.ui,
         blurMode,
       },
-    }))
+    }), { historyLabel: 'Changed Blur Mode' })
   },
 
-  setEntranceAnimations: (entranceAnimations) => {
+  setEntrAnim: (ntrnNmtn) => {
     persistedSet(['ui.appearance'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        entranceAnimations,
+        entranceAnimations: ntrnNmtn,
       },
-    }))
+    }), { historyLabel: 'Changed Entrance Animations' })
   },
 
-  setLeftPaneView: (leftPaneView) => {
-    if (INVENTORY_DEPENDENT_LEFT_PANE_VIEWS.has(leftPaneView)) {
-      get().ensureInventoryHydrated()
+  setCtxMenu: (ctxMenu) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          ctxMenu,
+        },
+      },
+    }), { historyLabel: 'Changed Context Menu Mode' })
+  },
+
+  setUpdToast: (updateToast) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          updateToast,
+        },
+      },
+    }), { historyLabel: 'Changed Update Toast Mode' })
+  },
+
+  setRecMenus: (rcmmMenuTms) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          recommendedMenuItems: rcmmMenuTms,
+        },
+      },
+    }), { historyLabel: 'Changed Recommended Menu Items' })
+  },
+
+  setUnqOvr: (showNqntVrvw) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          showUnquantifiedOverviewStates: showNqntVrvw,
+        },
+      },
+    }), { historyLabel: 'Changed Overview State Visibility' })
+  },
+
+  setSugView: (suggsViewMode) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        suggsViewMode,
+      },
+    }), { historyLabel: 'Changed Suggestions View' })
+  },
+
+  setLeftView: (leftPaneView) => {
+    if (INV_LEFT_PANES.has(leftPaneView)) {
+      get().ensInvHydr()
     }
 
     persistedSet(['ui.layout'], (state) => ({
@@ -764,12 +942,33 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...state.ui,
         leftPaneView,
       },
-    }))
+    }), { historyLabel: 'Changed Left Pane View' })
+  },
+
+  openLeftView: (leftPaneView) => {
+    if (INV_LEFT_PANES.has(leftPaneView)) {
+      get().ensInvHydr()
+    }
+
+    persistedSet(['ui.layout'], (state) => {
+      if (state.ui.mainMode === 'default' && state.ui.leftPaneView === leftPaneView) {
+        return state
+      }
+
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          mainMode: 'default',
+          leftPaneView,
+        },
+      }
+    }, { historyLabel: mkLeftPaneVi(leftPaneView) })
   },
 
   setMainMode: (mainMode) => {
     if (mainMode === 'optimizer') {
-      get().ensureInventoryHydrated()
+      get().ensInvHydr()
     }
 
     persistedSet(['ui.layout', 'calculator.optimizerContext'], (state) => ({
@@ -781,207 +980,241 @@ export const useAppStore = create<AppStore>((set, get) => {
       calculator: {
         ...state.calculator,
         optimizerContext: mainMode === 'optimizer'
-            ? getSyncedOptimizerContext(state)
+            ? getSyncOptCt(state)
             : state.calculator.optimizerContext,
       },
-    }))
+    }), {
+      historyLabel: mainMode === 'optimizer'
+        ? 'Opened Optimizer'
+        : mainMode === 'overview'
+          ? 'Opened Overview'
+          : 'Returned to Calculator',
+    })
   },
 
-  setShowSubHits: (showSubHits) => {
+  setSubHits: (showSubHits) => {
     persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
         showSubHits,
       },
-    }))
+    }), { historyLabel: 'Updated Sub-Hit Visibility' })
   },
 
-  setOptimizerCpuHintSeen: (optimizerCpuHintSeen) => {
+  setCmpInv: (compactInv) => {
     persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
-        optimizerCpuHintSeen,
+        compactInv,
+      },
+    }), { historyLabel: 'Toggled Compact Inventory', recHist: false })
+  },
+
+  setSeeEqp: (seeEquipped) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        seeEquipped,
+      },
+    }), { historyLabel: 'Toggled Equipped Items', recHist: false })
+  },
+
+  setHistOn: (haveHistory) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        haveHistory,
+      },
+      history: haveHistory
+        ? state.history
+        : {
+          ...state.history,
+          past: [],
+          future: [],
+        },
+    }), { historyLabel: 'Toggled History', recHist: false })
+  },
+
+  setHistMax: (historyMax) => {
+    const nextHistMax = HIST_MAX_OPTS.includes(historyMax) ? historyMax : 10
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        historyMax: nextHistMax,
+      },
+      history: trimHistStt(state.history, nextHistMax),
+    }), { historyLabel: 'Changed History Capacity', recHist: false })
+  },
+
+  setOptHint: (optCpuHintSe) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        optimizerCpuHintSeen: optCpuHintSe,
       },
     }))
   },
 
-  setSavedRotationPreferences: (updater) => {
+  setOptSprite: (useSprite) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        optimizerUseSprite: useSprite,
+      },
+    }))
+  },
+
+  setRotPrefs: (updater) => {
     persistedSet(['ui.savedRotationPreferences'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
         savedRotationPreferences: updater(state.ui.savedRotationPreferences),
       },
-    }))
+    }), { historyLabel: 'Updated Saved Rotation Preferences' })
   },
 
-  setInventoryOpen: (inventoryOpen) => {
-    if (inventoryOpen) {
-      get().ensureInventoryHydrated()
+  setInvOpen: (invOpen) => {
+    if (invOpen) {
+      get().ensInvHydr()
     }
 
     set((state) => ({
       ...state,
-      inventoryOpen,
-      inventoryHasMounted: state.inventoryHasMounted || inventoryOpen,
+      invOpen: invOpen,
+      invMounted: state.invMounted || invOpen,
     }))
   },
 
-  setEnemyProfile: (enemyProfile) => {
-    persistedSet(['calculator.session'], (state) => ({
+  setInvEchoQ: (invEchoSrch) => {
+    set((state) => ({
       ...state,
-      calculator: bumpCalculatorRuntimeRevision({
-        ...state.calculator,
-        session: {
-          ...state.calculator.session,
-          enemyProfile,
-        },
-      }),
+      invEchoQ: invEchoSrch,
     }))
   },
 
-  setActiveResonator: (resonatorId) => {
+  bumpPickFr: (updates) => {
+    bumpPckrFreq(Array.isArray(updates) ? updates : [updates])
+  },
+
+  setEnemy: (enemyProfile) => {
+    persistedSet(['calculator.session', 'ui.layout'], (state) => {
+      const nextState = {
+        ...state,
+        calculator: bumpCalcRtRv({
+          ...state.calculator,
+          session: {
+            ...state.calculator.session,
+            enemyProfile,
+          },
+        }),
+      }
+
+      return enemyProfile.id && enemyProfile.id !== state.calculator.session.enemyProfile.id
+        ? applyUiFreqP(nextState, [{
+          bucket: 'enemy',
+          ids: [enemyProfile.id],
+        }])
+        : nextState
+    }, { historyLabel: 'Updated Enemy Profile' })
+  },
+
+  setActRes: (resonatorId) => {
     if (get().calculator.session.activeResonatorId === resonatorId) {
       return
     }
 
-    persistedSet(['calculator.session'], (state) => ({
+    persistedSet(['calculator.session', 'ui.layout'], (state) => applyUiFreqP({
       ...state,
-      calculator: bumpCalculatorRuntimeRevision({
+      calculator: bumpCalcRtRv({
         ...state.calculator,
         session: {
           ...state.calculator.session,
           activeResonatorId: resonatorId,
         },
       }),
-    }))
+    }, [
+      {
+        bucket: 'resonator',
+        ids: [resonatorId],
+      },
+      {
+        bucket: 'teamResonator',
+        slot: 'active',
+        ids: [resonatorId],
+      },
+    ]), { historyLabel: 'Changed Active Resonator' })
   },
 
-  activateResonator: (seed) => {
-    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => {
+  actRes: (seed) => {
+    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session', 'ui.layout'], (state) => {
       const existing = state.calculator.profiles[seed.id]
       if (existing && state.calculator.session.activeResonatorId === seed.id) {
         return state
       }
 
-      return {
+      return applyUiFreqP({
         ...state,
-        calculator: bumpCalculatorRuntimeRevision({
+        calculator: bumpCalcRtRv({
           ...state.calculator,
           profiles: existing
               ? state.calculator.profiles
               : {
                 ...state.calculator.profiles,
-                [seed.id]: createDefaultResonatorProfile(seed),
+                [seed.id]: makeResProfile(seed),
               },
           suggestionsByResonatorId: state.calculator.suggestionsByResonatorId[seed.id]
               ? state.calculator.suggestionsByResonatorId
               : {
                 ...state.calculator.suggestionsByResonatorId,
-                [seed.id]: createDefaultResonatorSuggestionsState(),
+                [seed.id]: makeSuggest(),
               },
           session: {
             ...state.calculator.session,
             activeResonatorId: seed.id,
           },
         }),
-      }
+      }, [
+        {
+          bucket: 'resonator',
+          ids: [seed.id],
+        },
+        {
+          bucket: 'teamResonator',
+          slot: 'active',
+          ids: [seed.id],
+        },
+      ])
+    }, {
+      historyLabel: get().calculator.profiles[seed.id]
+        ? 'Changed Active Resonator'
+        : 'Added Resonator Profile',
     })
   },
 
-  switchToResonator: (resonatorId) => {
-    const seed = resonatorSeedsById[resonatorId]
+  swRes: (resonatorId) => {
+    const seed = resSdsById[resonatorId]
     if (!seed) return
-    get().activateResonator(seed)
+    get().actRes(seed)
   },
 
-  deleteResonatorProfile: (resonatorId, preferredNextResonatorId = null) => {
-    persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => {
-      const targetProfile = state.calculator.profiles[resonatorId]
-      if (!targetProfile) {
-        return state
-      }
-
-      const nextProfiles = { ...state.calculator.profiles }
-      const nextSuggestionsByResonatorId = { ...state.calculator.suggestionsByResonatorId }
-
-      delete nextProfiles[resonatorId]
-      delete nextSuggestionsByResonatorId[resonatorId]
-
-      const remainingIds = Object.keys(nextProfiles)
-      const activeResonatorId = state.calculator.session.activeResonatorId
-
-      if (remainingIds.length === 0) {
-        const fallbackSeed = resonatorSeedsById[DEFAULT_RESONATOR_ID]
-        if (!fallbackSeed) {
-          return {
-            ...state,
-            calculator: bumpCalculatorRuntimeRevision({
-              ...state.calculator,
-              profiles: {},
-              suggestionsByResonatorId: {},
-              session: {
-                ...state.calculator.session,
-                activeResonatorId: null,
-              },
-            }),
-          }
-        }
-
-        return {
-          ...state,
-          calculator: bumpCalculatorRuntimeRevision({
-            ...state.calculator,
-            profiles: {
-              [fallbackSeed.id]: createDefaultResonatorProfile(fallbackSeed),
-            },
-            suggestionsByResonatorId: {
-              [fallbackSeed.id]: createDefaultResonatorSuggestionsState(),
-            },
-            session: {
-              ...state.calculator.session,
-              activeResonatorId: fallbackSeed.id,
-            },
-          }),
-        }
-      }
-
-      const resolvedNextActiveId =
-        activeResonatorId === resonatorId
-          ? (
-              (preferredNextResonatorId && nextProfiles[preferredNextResonatorId]
-                ? preferredNextResonatorId
-                : null)
-              ?? remainingIds[0]
-            )
-          : activeResonatorId && nextProfiles[activeResonatorId]
-            ? activeResonatorId
-            : (
-                (preferredNextResonatorId && nextProfiles[preferredNextResonatorId]
-                  ? preferredNextResonatorId
-                  : null)
-                ?? remainingIds[0]
-              )
-
-      return {
-        ...state,
-        calculator: bumpCalculatorRuntimeRevision({
-          ...state.calculator,
-          profiles: nextProfiles,
-          suggestionsByResonatorId: nextSuggestionsByResonatorId,
-          session: {
-            ...state.calculator.session,
-            activeResonatorId: resolvedNextActiveId,
-          },
-        }),
-      }
-    })
+  delResProf: (resonatorId, prfrNextResI = null) => {
+    dltResPrflIm([resonatorId], prfrNextResI, 'Deleted Resonator Profile')
   },
 
-  resetResonator: (resonatorId) => {
-    const seed = resonatorSeedsById[resonatorId]
+  delResProfs: (resonatorIds, prfrNextResI = null) => {
+    dltResPrflIm(resonatorIds, prfrNextResI)
+  },
+
+  resetRes: (resonatorId) => {
+    const seed = resSdsById[resonatorId]
     if (!seed) return
 
     persistedSet(['calculator.profiles'], (state) => {
@@ -989,39 +1222,34 @@ export const useAppStore = create<AppStore>((set, get) => {
 
       return {
         ...state,
-        calculator: bumpCalculatorRuntimeRevision({
+        calculator: bumpCalcRtRv({
           ...state.calculator,
           profiles: {
             ...state.calculator.profiles,
-            [resonatorId]: createDefaultResonatorProfile(seed),
+            [resonatorId]: makeResProfile(seed),
           },
         }),
       }
-    })
+    }, { historyLabel: 'Reset Resonator' })
   },
 
-  loadResonatorProfile: (profile) => {
-    persistedSet(['calculator.profiles'], (state) => ({
-      ...state,
-      calculator: bumpCalculatorRuntimeRevision({
-        ...state.calculator,
-        profiles: {
-          ...state.calculator.profiles,
-          [profile.resonatorId]: cloneResonatorProfile(profile),
-        },
-      }),
-    }))
+  loadResProf: (profile) => {
+    psrtResPrflI([profile], 'Loaded Resonator Profile')
   },
 
-  ensureResonatorRuntime: (seed) => {
+  upsertRes: (profiles, historyLabel) => {
+    psrtResPrflI(profiles, historyLabel)
+  },
+
+  ensResRt: (seed) => {
     const existing = get().calculator.profiles[seed.id]
     if (existing && get().calculator.suggestionsByResonatorId[seed.id]) return
 
-    const profile = createDefaultResonatorProfile(seed)
+    const profile = makeResProfile(seed)
 
     persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => ({
       ...state,
-      calculator: bumpCalculatorRuntimeRevision({
+      calculator: bumpCalcRtRv({
         ...state.calculator,
         profiles: {
           ...state.calculator.profiles,
@@ -1031,7 +1259,7 @@ export const useAppStore = create<AppStore>((set, get) => {
             ? state.calculator.suggestionsByResonatorId
             : {
               ...state.calculator.suggestionsByResonatorId,
-              [seed.id]: createDefaultResonatorSuggestionsState(),
+              [seed.id]: makeSuggest(),
             },
         session:
             state.calculator.session.activeResonatorId != null
@@ -1039,99 +1267,113 @@ export const useAppStore = create<AppStore>((set, get) => {
                 : {
                   ...state.calculator.session,
                   activeResonatorId: seed.id,
-                },
+        },
       }),
-    }))
+    }), { historyLabel: 'Added Resonator Profile' })
   },
 
-  ensureTeamMemberRuntime: (seed) => {
+  ensTeamRt: (seed) => {
     void seed
     // no-op: team member runtimes are created when the teammate is actually assigned to a slot
     // this stays as a stable api for callers that previously ensured a profile existed
   },
 
-  updateResonatorRuntime: (resonatorId, updater) => {
-    const target = buildRuntimeFromProfile(get().calculator, resonatorId)
+  updResRt: (resonatorId, updater) => {
+    const target = mkRtFromProf(get().calculator, resonatorId)
     if (!target) return
 
     const next = updater(target)
     if (next === target) return
 
-    persistedSet(['calculator.profiles'], (state) => ({
+    persistedSet(['calculator.profiles', 'ui.layout'], (state) => applyUiFreqP({
       ...state,
-      calculator: replaceCalculatorWithRuntimeRevision(
+      calculator: rplcCalcWith(
           state.calculator,
-          applyRuntimeToCalculatorState(state.calculator, resonatorId, next),
+          applyRtToCal(state.calculator, resonatorId, next),
       ),
-    }))
+    }, mkRtPckrFreq(target, next)), {
+      historyLabel: mkRtUpdHistL(target, next),
+    })
   },
 
-  updateTeamMemberRuntimeView: (resonatorId, updater) => {
-    const target = buildTeamMemberRuntimeView(get().calculator, resonatorId)
+  updTeamView: (resonatorId, updater) => {
+    const target = mkTeamMemRtV(get().calculator, resonatorId)
     if (!target) return
 
     const next = updater(target)
     if (next === target) return
 
-    const activeRuntime = buildRuntimeFromProfile(get().calculator, resonatorId)
-    if (!activeRuntime) {
+    const actRt = mkRtFromProf(get().calculator, resonatorId)
+    if (!actRt) {
       return
     }
 
-      const bridgedRuntime: ResonatorRuntimeState = {
-      ...activeRuntime,
+      const brdgRt: ResRuntime = {
+      ...actRt,
       base: {
-        ...activeRuntime.base,
+        ...actRt.base,
         sequence: next.base.sequence,
       },
       build: {
-        ...activeRuntime.build,
+        ...actRt.build,
         weapon: {
-          ...activeRuntime.build.weapon,
+          ...actRt.build.weapon,
           id: next.build.weapon.id,
           rank: next.build.weapon.rank,
           baseAtk: next.build.weapon.baseAtk,
         },
         echoes: next.build.echoes,
       },
-      state: cloneRuntimeStateValue(next.state),
+      state: cloneRtSttVl(next.state),
     }
 
-    persistedSet(['calculator.profiles'], (state) => ({
+    persistedSet(['calculator.profiles', 'ui.layout'], (state) => applyUiFreqP({
       ...state,
-      calculator: replaceCalculatorWithRuntimeRevision(
+      calculator: rplcCalcWith(
           state.calculator,
-          applyRuntimeToCalculatorState(state.calculator, resonatorId, bridgedRuntime),
+          applyRtToCal(state.calculator, resonatorId, brdgRt),
       ),
-    }))
+    }, mkTeamMemVie(resonatorId, target, next)), {
+      historyLabel: mkTeamMemRtU(target, next),
+    })
   },
 
-  updateActiveResonatorRuntime: (updater) => {
-    const activeResonatorId = getActiveResonatorId(get().calculator)
-    if (!activeResonatorId) return
-    get().updateResonatorRuntime(activeResonatorId, updater)
+  updActRt: (updater) => {
+    const actResId = getActResId(get().calculator)
+    if (!actResId) return
+    get().updResRt(actResId, updater)
   },
 
-  updateResonatorSuggestionsState: (resonatorId, updater) => {
+  updResSuggs: (resonatorId, updater) => {
     persistedSet(['calculator.suggestions'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         suggestionsByResonatorId: {
           ...state.calculator.suggestionsByResonatorId,
-          [resonatorId]: updater(getSuggestionsStateForResonator(state, resonatorId)),
+          [resonatorId]: updater(getSuggsSttF(state, resonatorId)),
         },
       },
-    }))
+    }), { historyLabel: 'Updated Suggestions' })
   },
 
-  updateActiveResonatorSuggestionsState: (updater) => {
-    const activeResonatorId = getActiveResonatorId(get().calculator)
-    if (!activeResonatorId) return
-    get().updateResonatorSuggestionsState(activeResonatorId, updater)
+  updActSuggs: (updater) => {
+    const actResId = getActResId(get().calculator)
+    if (!actResId) return
+    get().updResSuggs(actResId, updater)
   },
 
-  updateResonatorSetConditionals: (resonatorId, updater) => {
+  updWpnSuggs: (updater) => {
+    persistedSet(['calculator.suggestions'], (state) => ({
+      ...state,
+      calculator: {
+        ...state.calculator,
+        weaponSuggests: updater(state.calculator.weaponSuggests),
+      },
+    }), { historyLabel: 'Updated Weapon Suggestions' })
+  },
+
+  updResConds: (resonatorId, updater) => {
     persistedSet(['calculator.profiles'], (state) => {
       const profile = state.calculator.profiles[resonatorId]
       if (!profile) {
@@ -1157,21 +1399,21 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         },
       }
-    })
+    }, { historyLabel: 'Updated Set Conditionals' })
   },
 
-  updateActiveResonatorSetConditionals: (updater) => {
-    const activeResonatorId = getActiveResonatorId(get().calculator)
-    if (!activeResonatorId) return
-    get().updateResonatorSetConditionals(activeResonatorId, updater)
+  updActConds: (updater) => {
+    const actResId = getActResId(get().calculator)
+    if (!actResId) return
+    get().updResConds(actResId, updater)
   },
 
-  setResonatorTargetSelection: (resonatorId, ownerKey, targetResonatorId) => {
+  setResTgt: (resonatorId, ownerKey, tgtResId) => {
     persistedSet(['calculator.profiles'], (state) => {
       // for teammates, write routing to the active resonator's profile
-      const slotId = findSlotIdForResonator(state.calculator, resonatorId)
+      const slotId = findSlotIdFo(state.calculator, resonatorId)
       const profileId = slotId && slotId !== 'active'
-          ? getActiveResonatorId(state.calculator)
+          ? getActResId(state.calculator)
           : resonatorId
 
       if (!profileId) return state
@@ -1185,13 +1427,13 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...profile.runtime.routing,
         selectedTargetsByOwnerKey: {
           ...profile.runtime.routing.selectedTargetsByOwnerKey,
-          [ownerKey]: targetResonatorId,
+          [ownerKey]: tgtResId,
         },
       }
 
       return {
         ...state,
-        calculator: bumpCalculatorRuntimeRevision({
+        calculator: bumpCalcRtRv({
           ...state.calculator,
           profiles: {
             ...state.calculator.profiles,
@@ -1205,35 +1447,35 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         }),
       }
-    })
+    }, { historyLabel: 'Updated Target Selection' })
   },
 
-  addEchoToInventory: (echo) => {
-    get().ensureInventoryHydrated()
+  addInvEcho: (echo) => {
+    get().ensInvHydr()
     const existing = get().calculator.inventoryEchoes.find((entry) =>
-        areEchoInstancesEquivalent(entry.echo, echo),
+        areEchoNstnQ(entry.echo, echo),
     )
 
     if (existing) {
       return null
     }
 
-    const nextEntry = createInventoryEchoEntry(echo)
+    const nextEntry = makeInvEcho(echo)
     persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryEchoes: [...state.calculator.inventoryEchoes, nextEntry],
       },
-    }))
+    }), { historyLabel: 'Added Inventory Echo' })
 
     return nextEntry
   },
 
-  replaceInventoryEchoes: (echoes) => {
-    get().ensureInventoryHydrated()
-    const dedupedEchoes = echoes.reduce<EchoInstance[]>((acc, echo) => {
-      if (acc.some((existing) => areEchoInstancesEquivalent(existing, echo))) {
+  rplInvEcho: (echoes) => {
+    get().ensInvHydr()
+    const ddpdChs = echoes.reduce<EchoInstance[]>((acc, echo) => {
+      if (acc.some((existing) => areEchoNstnQ(existing, echo))) {
         return acc
       }
 
@@ -1255,13 +1497,13 @@ export const useAppStore = create<AppStore>((set, get) => {
       ...state,
       calculator: {
         ...state.calculator,
-        inventoryEchoes: dedupedEchoes.map((echo, index) => createInventoryEchoEntry(echo, now + index)),
+        inventoryEchoes: ddpdChs.map((echo, index) => makeInvEcho(echo, now + index)),
       },
-    }))
+    }), { historyLabel: 'Replaced Inventory Echoes' })
   },
 
-  updateEchoInInventory: (entryId, echo) => {
-    get().ensureInventoryHydrated()
+  updInvEcho: (entryId, echo) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
@@ -1284,39 +1526,60 @@ export const useAppStore = create<AppStore>((set, get) => {
                 : entry,
         ),
       },
-    }))
+    }), { historyLabel: 'Updated Inventory Echo' })
   },
 
-  removeEchoFromInventory: (entryId) => {
-    get().ensureInventoryHydrated()
+  cleanInvEcho: () => {
+    get().ensInvHydr()
+    const invChs = get().calculator.inventoryEchoes
+    const vldInvChs = invChs.filter((entry) => getEchoById(entry.echo.id))
+    const removedCount = invChs.length - vldInvChs.length
+
+    if (removedCount === 0) {
+      return 0
+    }
+
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
+      ...state,
+      calculator: {
+        ...state.calculator,
+        inventoryEchoes: state.calculator.inventoryEchoes.filter((entry) => getEchoById(entry.echo.id)),
+      },
+    }), { historyLabel: 'Cleaned Inventory Echoes', recHist: false })
+
+    return removedCount
+  },
+
+  rmInvEcho: (entryId) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryEchoes: state.calculator.inventoryEchoes.filter((entry) => entry.id !== entryId),
       },
-    }))
+    }), { historyLabel: 'Removed Inventory Echo' })
   },
 
-  clearInventoryEchoes: () => {
-    get().ensureInventoryHydrated()
+  clrInvEcho: () => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryEchoes: [],
       },
-    }))
+    }), { historyLabel: 'Cleared Inventory Echoes' })
   },
 
-  addBuildToInventory: ({ name, resonatorId, resonatorName, build }) => {
-    get().ensureInventoryHydrated()
-    if (isEmptyBuildSnapshot(build)) {
+  addInvBuild: ({ name, resonatorId, resonatorName: resName, build }) => {
+    get().ensInvHydr()
+    if (isEmptyBuild(build)) {
       return null
     }
 
     const existing = get().calculator.inventoryBuilds.find((entry) =>
-        areBuildSnapshotsEquivalent(entry.build, build),
+        areMkSnpsQvl(entry.build, build),
     )
 
     if (existing) {
@@ -1324,10 +1587,10 @@ export const useAppStore = create<AppStore>((set, get) => {
     }
 
     const builds = get().calculator.inventoryBuilds
-    const nextEntry = createInventoryBuildEntry({
-      name: name?.trim() || buildDefaultBuildName(resonatorName, builds.length),
+    const nextEntry = makeInvBuild({
+      name: name?.trim() || mkDefMkName(resName, builds.length),
       resonatorId,
-      resonatorName,
+      resonatorName: resName,
       build,
     })
 
@@ -1337,13 +1600,13 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...state.calculator,
         inventoryBuilds: [...state.calculator.inventoryBuilds, nextEntry],
       },
-    }))
+    }), { historyLabel: 'Added Inventory Build' })
 
     return nextEntry
   },
 
-  updateInventoryBuild: (entryId, changes) => {
-    get().ensureInventoryHydrated()
+  updInvBuild: (entryId, changes) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
@@ -1360,7 +1623,7 @@ export const useAppStore = create<AppStore>((set, get) => {
                 ? {
                   build: {
                     weapon: { ...changes.build.weapon },
-                    echoes: cloneEchoLoadout(changes.build.echoes),
+                    echoes: cloneEchoLdt(changes.build.echoes),
                   },
                 }
                 : {}),
@@ -1368,43 +1631,45 @@ export const useAppStore = create<AppStore>((set, get) => {
           }
         }),
       },
-    }))
+    }), { historyLabel: 'Updated Inventory Build' })
   },
 
-  removeInventoryBuild: (entryId) => {
-    get().ensureInventoryHydrated()
+  rmInvBuild: (entryId) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryBuilds: state.calculator.inventoryBuilds.filter((entry) => entry.id !== entryId),
       },
-    }))
+    }), { historyLabel: 'Removed Inventory Build' })
   },
 
-  clearInventoryBuilds: () => {
-    get().ensureInventoryHydrated()
+  clrInvBuild: () => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.builds'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryBuilds: [],
       },
-    }))
+    }), { historyLabel: 'Cleared Inventory Builds' })
   },
 
-  addRotationToInventory: ({ name, mode, resonatorId, resonatorName, team, items, snapshot, summary }) => {
-    get().ensureInventoryHydrated()
+  addInvRot: ({ name, mode, resonatorId, resonatorName: resName, duration, note, team, items, snapshot, summary }) => {
+    get().ensInvHydr()
     const rotations = get().calculator.inventoryRotations
-    const nextEntry = createInventoryRotationEntry({
-      name: name?.trim() || buildDefaultRotationName(
-          resonatorName,
+    const nextEntry = makeInvRot({
+      name: name?.trim() || mkDefRotName(
+          resName,
           mode,
           rotations.filter((entry) => entry.mode === mode).length,
       ),
       mode,
       resonatorId,
-      resonatorName,
+      resonatorName: resName,
+      duration,
+      note,
       ...(mode === 'team' && team ? { team } : {}),
       items,
       snapshot,
@@ -1417,13 +1682,13 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...state.calculator,
         inventoryRotations: [...state.calculator.inventoryRotations, nextEntry],
       },
-    }))
+    }), { historyLabel: 'Added Inventory Rotation' })
 
     return nextEntry
   },
 
-  updateInventoryRotation: (entryId, changes) => {
-    get().ensureInventoryHydrated()
+  updInvRot: (entryId, changes) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
@@ -1436,64 +1701,66 @@ export const useAppStore = create<AppStore>((set, get) => {
           return {
             ...entry,
             ...(changes.name != null ? { name: changes.name.trim() || entry.name } : {}),
+            ...(changes.note !== undefined ? { note: normInvRotNo(changes.note) } : {}),
+            ...(changes.duration !== undefined ? { duration: normInvRotDu(changes.duration) } : {}),
             ...(changes.team !== undefined
                 ? {
                   team: changes.team
-                      ? [...changes.team] as ResonatorRuntimeState['build']['team']
+                      ? [...changes.team] as ResRuntime['build']['team']
                       : undefined,
                 }
                 : {}),
-            ...(changes.items ? { items: cloneRotationNodes(changes.items) } : {}),
+            ...(changes.items ? { items: cloneRotNds(changes.items) } : {}),
             updatedAt: Date.now(),
           }
         }),
       },
-    }))
+    }), { historyLabel: 'Updated Inventory Rotation' })
   },
 
-  removeInventoryRotation: (entryId) => {
-    get().ensureInventoryHydrated()
+  rmInvRot: (entryId) => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryRotations: state.calculator.inventoryRotations.filter((entry) => entry.id !== entryId),
       },
-    }))
+    }), { historyLabel: 'Removed Inventory Rotation' })
   },
 
-  clearInventoryRotations: () => {
-    get().ensureInventoryHydrated()
+  clrInvRot: () => {
+    get().ensInvHydr()
     persistedSet(['calculator.inventory.rotations'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         inventoryRotations: [],
       },
-    }))
+    }), { historyLabel: 'Cleared Inventory Rotations' })
   },
 
-  ensureOptimizerContext: () => {
+  ensureOptimizer: () => {
     persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
-        optimizerContext: getSyncedOptimizerContext(state),
+        optimizerContext: getSyncOptCt(state),
       },
-    }))
+    }), { historyLabel: 'Synced Optimizer Context' })
   },
 
-  syncOptimizerContextToLiveRuntime: (resonatorId) => {
+  syncOptRt: (resonatorId) => {
     persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
-        optimizerContext: getOptimizerContextFromLiveRuntime(state, resonatorId),
+        optimizerContext: getOptCtxFro(state, resonatorId),
       },
-    }))
+    }), { historyLabel: 'Synced Optimizer Context' })
   },
 
-  updateOptimizerRuntime: (updater) => {
+  updOptRt: (updater) => {
     persistedSet(['calculator.optimizerContext'], (state) => {
       const existing = state.calculator.optimizerContext
       if (!existing) {
@@ -1510,10 +1777,10 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         },
       }
-    })
+    }, { historyLabel: 'Updated Optimizer Runtime' })
   },
 
-  updateOptimizerSettings: (updater) => {
+  updOptSets: (updater) => {
     persistedSet(['calculator.optimizerContext'], (state) => {
       const existing = state.calculator.optimizerContext
       if (!existing) {
@@ -1530,38 +1797,40 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         },
       }
-    })
+    }, { historyLabel: 'Updated Optimizer Settings' })
   },
 
-  clearOptimizerContext: () => {
+  clrOptCtx: () => {
     persistedSet(['calculator.optimizerContext'], (state) => ({
       ...state,
       calculator: {
         ...state.calculator,
         optimizerContext: null,
       },
-    }))
+    }), { historyLabel: 'Cleared Optimizer Context' })
   },
 
-  startOptimizer: (input, hooks = {}) => {
+  startOpt: (input, hooks = {}) => {
     const current = get()
     if (current.optimizer.status === 'running') {
-      current.cancelOptimizer()
+      current.cnclOpt()
     }
 
-    stopOptimizerCompileWorker()
-    resetOptimizerWorkerPool()
-    const runToken = ++optimizerRunToken
+    // keep the compile worker warm across runs (it hydrates game data once);
+    // only the task-worker pool is reset here. explicit teardown still happens
+    // on cancel / clear / error so resources free when the surface is left.
+    rstOptWrkrPo()
+    const runToken = bgnOptRun()
 
     logOptimizer('[optimizer:store] run started', {
       runToken,
       resonatorId: input.resonatorId,
       rotationMode: input.settings.rotationMode,
       enableGpu: input.settings.enableGpu,
-      lowMemoryMode: input.settings.lowMemoryMode,
-      inventorySize: input.inventoryEchoes.length,
+      lowMem: input.settings.lowMemoryMode,
+      invSize: input.invChs.length,
       resultsLimit: input.settings.resultsLimit,
-      sharedArrayBufferAvailable: typeof SharedArrayBuffer !== 'undefined',
+      sabAvail: typeof SharedArrayBuffer !== 'undefined',
     })
 
     set((state) => ({
@@ -1571,32 +1840,32 @@ export const useAppStore = create<AppStore>((set, get) => {
         progress: null,
         results: [],
         error: null,
-        batchSize: inferOptimizerBatchSizeFromInput(input),
-        resolutionPayload: null,
+        batchSize: inferOptBtch(input),
+        resPay: null,
         resultEchoes: [],
       },
     }))
 
-    const compileWorker = ensureOptimizerCompileWorker()
+    const compWrkr = ensOptCompWr()
     const runStartTime = performance.now()
 
     void (async () => {
       try {
-        const compiledPayload = await compileOptimizerPayloadInWorker(compileWorker, runToken, input)
-        if (optimizerRunToken !== runToken) {
+        const compPay = await compOptPayIn(compWrkr, runToken, input)
+        if (!isOptRunCur(runToken)) {
           logOptimizer('[optimizer:store] run superseded after compile, dropping', { runToken })
           return
         }
 
-        const backend: OptimizerBackend = input.settings.enableGpu ? 'gpu' : 'cpu'
+        const backend: OptBckn = input.settings.enableGpu ? 'gpu' : 'cpu'
 
         logOptimizer('[optimizer:store] starting pool search', {
           runToken,
           backend,
-          mode: compiledPayload.mode,
-          comboTotalCombos: compiledPayload.comboTotalCombos,
-          resultsLimit: compiledPayload.resultsLimit,
-          lowMemoryMode: compiledPayload.lowMemoryMode,
+          mode: compPay.mode,
+          totalCombos: compPay.totalCombos,
+          resultsLimit: compPay.resultsLimit,
+          lowMem: compPay.lowMmryMode,
         })
 
         set((state) => ({
@@ -1604,17 +1873,36 @@ export const useAppStore = create<AppStore>((set, get) => {
           optimizer: {
             ...state.optimizer,
             batchSize:
-                compiledPayload.mode === 'rotation' && backend === 'gpu'
-                    ? ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU
-                    : resolveOptimizerBatchSize(backend),
-            resolutionPayload: null,
+                compPay.mode === 'theoryTarget' || compPay.mode === 'theoryRotation'
+                    ? backend === 'gpu'
+                        ? GPU_THEORY_JOB
+                        : CPU_THEORY_JOB
+                    : compPay.mode === 'rotation' && backend === 'gpu'
+                        ? ROT_GPU_JOB
+                        : resOptBtchSi(backend),
+            resPay: null,
           },
         }))
 
+        // push the exact combo total to the caller right after compile so the
+        // UI's permutations desc can switch off the looser reactive estimate
+        // before the worker pool starts emitting progress.
+        hooks.onProgress?.({
+          progress: 0,
+          elapsedMs: 0,
+          remainingMs: Infinity,
+          processed: 0,
+          speed: 0,
+          total: compPay.totalCombos,
+          phase: 'evaluating',
+          discovered: 0,
+        })
+
         const searchT0 = performance.now()
-        const results = await runOptimizerWithWorkerPool(compiledPayload, backend, {
+        const results = await runOptWithWr(compPay, backend, {
+          isCancelled: () => !isOptRunCur(runToken),
           onProgress: (progress) => {
-            if (optimizerRunToken !== runToken) {
+            if (!isOptRunCur(runToken)) {
               return
             }
 
@@ -1622,35 +1910,41 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         })
 
-        if (optimizerRunToken !== runToken) {
+        if (!isOptRunCur(runToken)) {
           logOptimizer('[optimizer:store] run superseded after search, dropping', { runToken })
           return
         }
 
         logOptimizer('[optimizer:store] pool search complete', {
           runToken,
-          rawResultCount: results.length,
-          searchElapsedMs: Math.round(performance.now() - searchT0),
+          rawRsltCnt: results.length,
+          srchMs: Math.round(performance.now() - searchT0),
         })
 
-        const finalizedResults = await materializeOptimizerResultsInWorker(
-            compileWorker,
-            runToken,
-            compiledPayload,
-            results,
-            input.inventoryEchoes.map((echo) => echo.uid),
-            compiledPayload.resultsLimit,
-        )
+        const lazyTheory =
+            compPay.mode === 'theoryTarget' ||
+            compPay.mode === 'theoryRotation'
+        const fnlzRslts = lazyTheory
+            ? results
+            : await matOptRsltsI(
+                compWrkr,
+                runToken,
+                compPay,
+                results,
+                input.invChs.map((echo) => echo.uid),
+                compPay.resultsLimit,
+            )
 
-        if (optimizerRunToken !== runToken) {
+        if (!isOptRunCur(runToken)) {
           logOptimizer('[optimizer:store] run superseded after materialize, dropping', { runToken })
           return
         }
 
         logOptimizer('[optimizer:store] run complete', {
           runToken,
-          finalResultCount: finalizedResults.length,
-          totalElapsedMs: Math.round(performance.now() - runStartTime),
+          finRsltCnt: fnlzRslts.length,
+          lazyTheory,
+          ttlMs: Math.round(performance.now() - runStartTime),
         })
 
         set((state) => ({
@@ -1658,31 +1952,28 @@ export const useAppStore = create<AppStore>((set, get) => {
           optimizer: {
             status: 'done',
             progress: state.optimizer.progress,
-            results: finalizedResults,
+            results: fnlzRslts,
             error: null,
             batchSize: state.optimizer.batchSize,
-            resolutionPayload: null,
+            resPay: lazyTheory ? compPay : null,
             resultEchoes: [],
           },
         }))
 
-        if (optimizerCompileWorker === compileWorker) {
-          stopOptimizerCompileWorker()
-        }
+        // leave the compile worker warm for the next run; do not tear it down
+        // on the success path.
 
       } catch (error) {
-        errorOptimizer('[optimizer:store] run failed', {
+        errorOpt('[optimizer:store] run failed', {
           runToken,
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           elapsedMs: Math.round(performance.now() - runStartTime),
         })
 
-        if (optimizerCompileWorker === compileWorker) {
-          stopOptimizerCompileWorker()
-        }
+        stopOptComhl(compWrkr)
 
-        if (optimizerRunToken !== runToken) {
+        if (!isOptRunCur(runToken)) {
           return
         }
 
@@ -1694,7 +1985,7 @@ export const useAppStore = create<AppStore>((set, get) => {
             results: [],
             error: error instanceof Error ? error.message : 'Optimizer worker pool failed unexpectedly',
             batchSize: state.optimizer.batchSize,
-            resolutionPayload: null,
+            resPay: null,
             resultEchoes: [],
           },
         }))
@@ -1702,10 +1993,10 @@ export const useAppStore = create<AppStore>((set, get) => {
     })()
   },
 
-  cancelOptimizer: () => {
-    optimizerRunToken += 1
-    stopOptimizerCompileWorker()
-    cancelActiveOptimizerWorkerPoolRun()
+  cnclOpt: () => {
+    nvldOptRun()
+    stopOptCompW()
+    cnclActOptWr()
 
     set((state) => ({
       ...state,
@@ -1715,14 +2006,14 @@ export const useAppStore = create<AppStore>((set, get) => {
         results: state.optimizer.results,
         error: null,
         batchSize: state.optimizer.batchSize,
-        resolutionPayload: state.optimizer.resolutionPayload,
+        resPay: state.optimizer.resPay,
         resultEchoes: state.optimizer.resultEchoes,
       },
     }))
   },
 
-  clearOptimizerResults: () => {
-    stopOptimizerCompileWorker()
+  clrOptRslt: () => {
+    stopOptCompW()
     set((state) => ({
       ...state,
       optimizer: {
@@ -1731,33 +2022,74 @@ export const useAppStore = create<AppStore>((set, get) => {
         results: [],
         error: null,
         batchSize: null,
-        resolutionPayload: null,
+        resPay: null,
         resultEchoes: [],
       },
     }))
   },
 
-  applyOptimizerResult: (index) => {
+  applyOpt: (index) => {
     const result = get().optimizer.results[index]
     if (!result) return
 
+    const resultPayload = get().optimizer.resPay
+    if (
+        resultPayload &&
+        (resultPayload.mode === 'theoryTarget' || resultPayload.mode === 'theoryRotation') &&
+        ('i0' in result || 'ids' in result)
+    ) {
+      const nextEchoes = matThryRsltCh(resultPayload, result)
+          ?.map((echo, i) => cloneEchoFor(echo, i)) ?? []
+      if (nextEchoes.length === 0) return
+
+      const actResId = getActResId(get().calculator)
+      if (!actResId) return
+
+      get().updResRt(actResId, (runtime) => ({
+        ...runtime,
+        build: {
+          ...runtime.build,
+          echoes: nextEchoes,
+        },
+      }))
+      return
+    }
+
+    // apply materialized theoretical results
+    if ('echoes' in result && Array.isArray(result.echoes)) {
+      const nextEchoes = result.echoes.map((echo, i) => cloneEchoFor(echo, i))
+      if (nextEchoes.length === 0) return
+
+      const actResId = getActResId(get().calculator)
+      if (!actResId) return
+
+      get().updResRt(actResId, (runtime) => ({
+        ...runtime,
+        build: {
+          ...runtime.build,
+          echoes: nextEchoes,
+        },
+      }))
+      return
+    }
+
     // apply materialized uid-based results
     if ('uids' in result && Array.isArray(result.uids)) {
-      const inventoryEchoesByUid = new Map(
+      const invChsByUid = new Map(
           get().calculator.inventoryEchoes.map((entry) => [entry.echo.uid, entry.echo] as const),
       )
 
       const nextEchoes = result.uids
-          .map((uid) => inventoryEchoesByUid.get(uid) ?? null)
+          .map((uid) => invChsByUid.get(uid) ?? null)
           .filter((echo): echo is EchoInstance => echo != null)
-          .map((echo, i) => cloneEchoForSlot(echo, i))
+          .map((echo, i) => cloneEchoFor(echo, i))
 
       if (nextEchoes.length === 0) return
 
-      const activeResonatorId = getActiveResonatorId(get().calculator)
-      if (!activeResonatorId) return
+      const actResId = getActResId(get().calculator)
+      if (!actResId) return
 
-      get().updateResonatorRuntime(activeResonatorId, (runtime) => ({
+      get().updResRt(actResId, (runtime) => ({
         ...runtime,
         build: {
           ...runtime.build,
@@ -1768,7 +2100,7 @@ export const useAppStore = create<AppStore>((set, get) => {
     }
 
     // apply bag index-based results
-    const bagResult = result as OptimizerBagResultRef
+    const bagResult = result as OptBagResult
     const resultEchoes = get().optimizer.resultEchoes
     const nextEchoes = [
       resultEchoes[bagResult.i0] ?? null,
@@ -1778,14 +2110,14 @@ export const useAppStore = create<AppStore>((set, get) => {
       resultEchoes[bagResult.i4] ?? null,
     ]
         .filter((echo): echo is EchoInstance => echo != null)
-        .map((echo, i) => cloneEchoForSlot(echo, i))
+        .map((echo, i) => cloneEchoFor(echo, i))
 
     if (nextEchoes.length === 0) return
 
-    const activeResonatorId = getActiveResonatorId(get().calculator)
-    if (!activeResonatorId) return
+    const actResId = getActResId(get().calculator)
+    if (!actResId) return
 
-    get().updateResonatorRuntime(activeResonatorId, (runtime) => ({
+    get().updResRt(actResId, (runtime) => ({
       ...runtime,
       build: {
         ...runtime.build,

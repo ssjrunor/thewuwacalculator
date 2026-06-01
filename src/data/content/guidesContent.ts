@@ -1,1128 +1,1722 @@
-export interface GuideArticle {
-  title: string
-  type: string
-  shortDesc: string
-  content: string
-}
+/*
+  Author: Runor Ewhro
+  Description: Authored guide categories and structured content for the in-app
+               guides page.
+*/
 
 export interface GuideSection {
-  category: string
-  guides: GuideArticle[]
+  title: string
+  blocks: GuideBlock[]
 }
 
-export const guideSections: GuideSection[] = [
-  {
-    category: 'Rotations',
-    guides: [
-      {
-        title: 'Using the Rotations Section',
-        type: 'article',
-        shortDesc: 'Learn how to record, organize, and optimize skill rotations in the calculator.',
-        content: `
-                <p>The <strong>Rotations Section</strong> lets you create and manage skill sequences for your character, whether you want to test a short combo or simulate full team damage rotations. Every entry you add contributes to a running total, which updates live as you experiment.</p>
-
-                <h4>1. Adding Skills</h4>
-                <p>Click <strong>+ Skill</strong> to open a categorized menu showing all your character's attacks, skills, and effects. Each group (Normal Attack, Resonance Skill, Liberation, etc.) can be expanded or collapsed. Selecting a skill adds it to your current rotation list with its name, icon, and damage preview.</p>
-                <p>You can also <strong>edit existing entries</strong> by clicking the pencil icon next to them — this reopens the skill menu so you can swap that entry for another ability while keeping its multiplier.</p>
-
-                <h4>2. Adding Blocks</h4>
-                <p>Click <strong>+ Block</strong> to add an empty block. Skills can be dragged and dropped into the body of a block to add the skill to that block, dragging a skill out of a block will remove it from the block. Grass is green, sky is blue.</p>
-                <p>You can click the Eye icon to collapse and expand a block. Click the pencil icon to open up the block's preview and properly inspect it's skill entries.</p>
-
-                <h4>3. Reordering Skills and Blocks</h4>
-                <p>Click and drag skills in the list to change their order. The order doesn't impact the skill entry or rotation totals.</p>
-
-                <h4>4. Multipliers</h4>
-                <p>Each skill has a small numeric field labeled <strong>×</strong>. This acts as a multiplier — for example, entering 3 simulates using that skill three times in a row. The total rotation damage reflects all multipliers instantly.</p>
-
-                <h4>5. Skill and Block Action Buttons</h4>
-                <p>Click on the lock icon on a skill or block entry to toggle its <strong>locked</strong> state. When locked on skill, the skill snapshot is frozen: its damage will no longer update when buffs, weapon stats, or character levels change. When locked on block, all skill entries in the block will be locked.</p>
-                <p>Click on the Power icon on a skill or block entry to toggle its <strong>disabled</strong> state. When disabled on skill, the skill's calculated damage, healing or shield effect will not be factored into the total rotation calculation. When locked on block, all skill entries in the block will be disabled.</p>
-
-                <h4>6. Clearing and Editing</h4>
-                <p>Use the <span style="color: red; font-weight: bold;">Clear</span> button to remove all entries and start fresh. Each entry also includes delete and edit buttons for precise management.</p>
-
-                <h4>7. Team Rotations</h4>
-                <p>The <strong>Team Rotation</strong> system lets you combine multiple characters' saved rotations into one synchronized total. This feature appears in the <strong>Team Buffs</strong> section once your active character has at least one teammate added to the team and those teammates have their own recorded or saved rotations.</p>
-
-                <p>Each teammate will appear inside an expandable <strong>Rotations</strong> section, showing a dropdown selector and a summary of their damage totals — <strong>Normal</strong>, <strong>Crit</strong>, and <strong>Average</strong>.</p>
-
-                <p>From the dropdown, you can pick which version of that teammate's rotation to include:
-                <ul>
-                <li><strong>Live</strong> — their current on-screen rotation and character setup.</li>
-                <li><strong>Saved</strong> — one of their previously stored rotations.</li>
-                </ul>
-                When you select a rotation, it's immediately linked to your active character's team rotation data.</p>
-
-                <p>Next to each teammate entry, you'll find an <strong>Enable</strong> checkbox. This determines whether that teammate's rotation is currently contributing to the total team damage output. You can toggle it on or off to compare performance with and without specific teammates.</p>
-
-                <p>The selected teammate rotation values update live, displaying their total <strong>Normal</strong>, <strong>Crit</strong>, and <strong>Average</strong> damage in the panel. Once all active teammates are configured and enabled, the calculator combines their totals with your own in the <strong>Team Rotation Summary</strong> located beneath the Damage section. Each character's contribution percentage is displayed clearly to show who carried the fight.</p>
-
-                <p>When you <strong>save a Team Rotation</strong>, the system stores just your main character's state and the linked teammate rotations.</p>
-
-                <h4>8. Saving and Loading Rotations</h4>
-                <p>When you're satisfied with a sequence, click the large <strong>＋</strong> button to save it. For team rotations, you'll find this save button in the <strong>Team</strong> tab, to save a team rotation you'll need to have at least <span style="font-weight: bold" >ONE</span> teammate's rotation enabled.</p>
-                <p>Saved rotations are stored globally and can be accessed later from the <strong>Saved</strong> tab. You can rename them inline, sort by date, total damage, or name, and delete old ones anytime.</p>
-
-                <p>You can also <strong>export</strong> or <strong>import</strong> rotations as <code>.json</code> files, making it easy to share builds with other players. Importing a file from a different character <span style="font-weight: bold">WILL NOT WORK</span>. Mismatched data from being applied so rotations always stay consistent with their intended character.</p>
-                <p>Keep in mind that loading a saved personal or team rotation will <code style="color: red; font-weight: bold;">OVERWRITE</code> your current character's state with the saved one.</p>
-
-                <h4>9. Sorting and Filtering Saved Rotations</h4>
-                <p>In the <strong>Saved</strong>/<strong>Team</strong> tab, you can:</p>
-                <ul>
-                    <li>Sort by <em>Date</em>, <em>Name</em>, or <em>Total Damage</em>.</li>
-                    <li>Switch between ascending and descending order.</li>
-                    <li>Filter to view only rotations for a specific character.</li>
-                </ul>
-                <p>Each saved entry shows Normal, Crit, and Average damage values, along with the date it was created. You can also export <span style="font-weight: bold">rotation files</span> or load the saved character's <span style="font-weight: bold">full character state</span> from here directly.</p>
-
-                <p>To make filtering easier, a <strong>Smart Filter</strong> option is available beside the <strong>Saved Rotations</strong> and <strong>Saved Team Rotations</strong> titles. When enabled, the system automatically detects your <strong>active character</strong> and filters the lists to show only the rotations relevant to them. Turning it off restores full manual control, allowing you to browse all saved rotations freely.</p>
-
-                <p><strong>Smart Filter</strong> is remembered between sessions, so your preference persists even after reloading the page.</p>
-
-                <h4>10. Total Damage Summaries</h4>
-                <p>At the bottom of the Damage section, a <strong>Rotation Summary</strong> shows the total Normal, Crit, and Average values for your sequence. It also breaks down damage contribution by type (e.g., Basic, Skill, Liberation). If any healing or shielding abilities were used, these appear in separate totals in <span style="color: limegreen; font-weight: bold;">green</span> and <span style="color: #838383; font-weight: bold;">gray</span> respectively.</p>
-                <p>When a valid team rotation is active, you'll see a <strong>Team Damage Summary</strong> below, showing each character's percentage contribution to the total output.</p>
-
-                <h4>11. Basic Rotations (<a href="https://www.prydwen.gg/wuthering-waves" target="_blank" rel="noopener noreferrer">Prydwen</a>)</h4>
-                <p>The <strong>Basic</strong> button in the <strong>Rotations</strong> section automatically loads a preset rotation sourced from <strong>Prydwen</strong>. These are curated "baseline" combos for each character, designed to help you get started or compare against your own builds.</p>
-
-                <p>If a character has a rotation available in the database, clicking the <strong>Basic</strong> button will instantly apply it. Additionally, if a character has no existing rotation, their <strong>Prydwen</strong> rotation will load in automatically once.</p>
-
-                <p>Note that <strong>beta characters</strong> will not have a Prydwen rotation until they are officially released in the game and receive one from <strong>Prydwen</strong>.</p>
-
-                <h4>12. Advanced Tips</h4>
-                <ul>
-                    <li><strong>Snapshot Behavior:</strong> Locking skills allows testing "snapshot" buffs — like when a skill's damage is fixed at activation even if later buffs expire.</li>
-                    <li><strong>Skill Visibility:</strong> Hidden or disabled skills (like passive or auto-applied damage types) won't appear in the menu or totals to prevent clutter.</li>
-                    <li><strong>Subhits:</strong> If you enable <em>"Show Sub-Hits"</em> in the Damage Section, individual hit components appear with tooltips, helping analyze multi-hit or DOT effects.</li>
-                </ul>
-
-                <p>The Rotations system is designed to feel like a training ground — flexible, responsive, and easy to adjust. Combine it with the Buffs and Echo panes to model real gameplay scenarios and fine-tune your builds with precision.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Echoes',
-    guides: [
-      {
-        title: 'Using the Echoes Pane',
-        type: 'article',
-        shortDesc: 'Learn how to equip, edit, and manage Echoes in your character setup.',
-        content: `
-                <p>The <strong>Echoes Pane</strong> lets you equip up to five Echoes per character, view their stats, and manage your builds efficiently. It's designed to mirror the in-game experience while giving you full customization and control.</p>
-
-                <h4>1. Equipping Echoes</h4>
-                <p>Each of the five Echo slots can hold one Echo. Click an empty slot or an existing Echo to open the <strong>Echo Menu</strong>, where you can browse available Echoes. Echoes are grouped by their <strong>cost tiers (1, 3, or 4)</strong>, and the total cost must stay under 12.</p>
-                <p>To clear everything, click the <strong>Unequip All</strong> button next to Import Echo.</p>
-
-                <h4>2. Echo Information</h4>
-                <p>Each Echo displays its <strong>name, icon, cost, main stats,</strong> and <strong>set affiliation</strong>. Hover over an Echo to see its detailed description and any set bonuses it contributes toward.</p>
-
-                <h4>3. Editing Stats</h4>
-                <p>Click on an equipped echo stats space to open it's <strong>Edit Substats Modal</strong>. Here you can:
-                <ul>
-                    <li>View or change its main stats (like HP%, ATK%, or Attribute Bonus).</li>
-                    <li>Edit up to five substats directly using dropdowns and value inputs.</li>
-                    <li>Add new substats using the <strong>+</strong> button, initialized with default values.</li>
-                    <li>Switch between available <strong>sonata set options</strong> using the icon toggle icons.</li>
-                    Changes made her will need to be saved by clicking on the save button.
-                </ul>
-                Changes are applied instantly and reflected in your total Echo stats summary.</p>
-
-                <h4>4. Echo Bag</h4>
-                <p>Your <strong>Echo Bag</strong> acts as a shared collection across all characters. You can store Echoes you've created or parsed from screenshots (see below), and later equip them onto any character. The bag opens as a scrollable menu where you can manage saved Echoes, edit them, or transfer them into active slots.</p>
-
-                <h4>5. Parsing Echoes from Screenshots</h4>
-                <p>The built-in <strong>Echo Parser</strong> uses OCR (Optical Character Recognition) to extract Echo data directly from screenshots. Upload an image or drag it into the parser area, and it will automatically detect the Echo's:
-                <ul>
-                    <li>Name and cost</li>
-                    <li>Main and substats</li>
-                    <li>Associated set</li>
-                </ul>
-                See more under the <strong>Echo Importing</strong> guide category.</p>
-
-                <h4>6. Managing Sets and Bonuses</h4>
-                <p>Echoes belonging to the same sonata set automatically grant <strong>2-piece</strong>, <strong>3-piece</strong> or <strong>5-piece bonuses</strong>, depending on how many are equipped. The system displays these bonuses in real time under your character's stats and contributes to the final damage calculations.</p>
-
-                <h4>7. The Main Echo Slot</h4>
-                <p>One slot is designated as your <strong>Main Echo</strong>. Echoes placed here grant an additional active effect or buff. Some of these buffs are <strong>toggleable</strong> or <strong>stackable</strong> — if available, you'll see small checkboxes or dropdowns beside the description to control them.</p>
-
-                <h4>8. Did you know?</h4>
-                <p>Hovering over individual substats let you see their roll values as percentages.</p>
-
-                <h4>9. Derived Metrics</h4>
-                <p>The Overview includes advanced metrics like <strong>Crit Value (CV)</strong> and <strong>Build Score</strong>, which evaluate how optimized your build is. These are derived automatically:</p>
-                <ul>
-                    <li><strong>Crit Value (CV):</strong> A combined score from Crit Rate and Crit DMG — used to measure offensive balance.</li>
-                    <li><strong>Build Score:</strong> A normalized build quality metric based on Echo substat efficiency and scoring. (See more under the <strong>Build and Echo Scoring</strong> guide category.</li>
-                </ul>
-                 `
-      }
-    ]
-  },
-  {
-    category: 'Enemies',
-    guides: [
-      {
-        title: 'Using the Enemy Section',
-        type: 'article',
-        shortDesc: 'Pick a target, tweak its resistances/level, and set up one custom enemy.',
-        content: `
-                <p>The <strong>Enemy Section</strong> lets you choose which foe your calculations target. You can swap enemies, adjust their level and resistances, flip endgame mode, and keep one custom enemy for special cases.</p>
-
-                <h4>1. Selecting an enemy</h4>
-                <ul>
-                  <li>Click the enemy icon to open the <strong>Menu</strong>.</li>
-                  <li>Filter the list by <strong>Attribute</strong> or <strong>Class</strong>; each row shows an attribute icon.</li>
-                  <li>Picking one sets it as the active target. Use the level slider or input field (1–120) to match whatever.</li>
-                </ul>
-
-                <h4>2. Resistances & ToA</h4>
-                <ul>
-                  <li>Resistances show for all elements with their icons. Values come from the selected enemy.</li>
-                  <li>Toggle <strong>Endgame / Overworld</strong>. Endgame bumps any 10% res to 20% and 40% res to 60% for every attribute; adjusts level when enabled.</li>
-                </ul>
-
-                <h4>3. Custom enemy</h4>
-                <ul>
-                  <li>Click <strong>EDIT</strong> to jump to your custom enemy. If none exists, one is created from the current target and saved.</li>
-                  <li>Custom enemy has editable resistances (0–100) and a class picker (Common/Elite/Overlord/Calamity).</li>
-                  <li>Only one custom enemy exists; it persists between sessions.</li>
-                  <li><strong>DELETE</strong> <a href="https://tenor.com/bzsbK.gif" target="_blank" rel="noopener noreferrer">deletes</a> it.</li>
-                </ul>
-
-                <h4>4. Tunability & debuffs</h4>
-                <ul>
-                  <li><strong>Tune Strain</strong> slider adds stacks that amplify tune-break buffs for certain characters.</li>
-                  <li>Negative effects (Spectro Frazzle, Aero Erosion, Havoc Bane, Electro Flare) live here too—set them to match your scenario.</li>
-                </ul>
-
-                <h4>5. Persistence</h4>
-                <ul>
-                  <li>Your chosen enemy, level, Endgame state, and any custom enemy edits are saved automatically and aren't tied to a character.</li>
-                </ul>
-                `
-      }
-    ]
-  },
-  {
-    category: 'Random Echoes',
-    guides: [
-      {
-        title: 'Generating Random Echoes',
-        type: 'article',
-        shortDesc: 'Generate ranked Echo builds using set filters, main echo focus, and stat-weighted scoring.',
-        content: `
-              <p>
-                The <strong>Random Echo Generator</strong> lives in the <strong>Suggestions</strong> tab and creates
-                full 5-Echo loadouts, then ranks them using the same damage engine as the main optimizer.
-              </p>
-
-              <h4>1. Where to find it</h4>
-              <ul>
-                <li>Open the <strong>Suggestions</strong> tab in the left pane.</li>
-                <li>Switch to the <strong>Random Echoes</strong> view.</li>
-              </ul>
-
-              <h4>2. Quick start</h4>
-              <ol>
-                <li>Choose a <strong>Target Skill</strong> (the skill the generator will optimize damage for).</li>
-                <li>Optionally pick a <strong>Main Echo</strong> to focus the main slot around.</li>
-                <li>Set <strong>Bias</strong> and <strong>Roll Quality</strong> to shape how "good" the rolls look.</li>
-                <li>If you care about rotations, set a <strong>Target Energy Regen</strong> (e.g. 120–150%).</li>
-                <li>Adjust any <strong>Sonata plans</strong> if you want specific 2p/5p setups.</li>
-                <li>Click <strong>Regenerate</strong> to roll a batch of builds.</li>
-              </ol>
-
-              <h4>3. Key settings</h4>
-              <ul>
-                <li>
-                  <strong>Target Skill</strong> –
-                  The skill used for scoring. Stat weights and damage are computed around this skill.
-                </li>
-                <li>
-                  <strong>Main Echo Focus</strong> –
-                  Tells the generator which Echo (and cost) should sit in the main slot. Leave empty for fully free combos.
-                </li>
-                <li>
-                  <strong>Bias</strong> (0–1) –
-                  Controls how often "desirable" stats (based on your stat weights) show up on substats.
-                  Low bias = more scuffed, realistic rolls. High bias = more cracked, min-maxed rolls.
-                </li>
-                <li>
-                  <strong>Roll Quality</strong> (0–1) –
-                  Controls how close each substat roll is to its max tier. Low = low/mid rolls, high = near-perfect rolls.
-                </li>
-                <li>
-                  <strong>Target Energy Regen</strong> –
-                  The generator tries to meet or slightly exceed this ER across the full 5-Echo set.
-                </li>
-                <li>
-                  <strong>Sonata Plan</strong> –
-                  Restrict generation to specific 2p/5p combinations (for example "2p+2p", "2pc+3pc" or a full 5p),
-                  or leave it open to let the generator mix sets freely.
-                </li>
-              </ul>
-
-              <h4>4. Reading the results</h4>
-              <ul>
-                <li>Each row is a full 5-Echo set with its <strong>damage</strong> and/or <strong>Build Score</strong>.</li>
-                <li>You can inspect a selected result to see per-Echo main/sub stats and Sonata set breakdown.</li>
-                <li>Use the <strong>Apply</strong> button to apply that build to the current character.</li>
-              </ul>
-
-              <h4>5. Practical tips</h4>
-              <ul>
-                <li>Try low bias + mid roll quality to simulate "realistic" farming results.</li>
-                <li>Try high bias + high roll quality to see your theoretical ceiling for a given build.</li>
-                <li>Change the target skill (e.g. Basic vs Liberation) to see how priorities shift.</li>
-                <li>Use the ER target when planning rotation-heavy teams or characters that feel starved for ult uptime.</li>
-              </ul>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Echo Presets',
-    guides: [
-      {
-        title: 'Managing Echo Presets',
-        type: 'article',
-        shortDesc: 'Learn how to create, edit, and apply Echo Presets for faster loadouts and optimized builds.',
-        content: `
-            <p>The <strong>Echo Presets</strong> system lets you save, organize, and reuse complete Echo loadouts across characters. Presets store your exact Echo configurations including main stats, substats, and sets so you can instantly reapply them without rebuilding from scratch.</p>
-
-            <h4>1. Overview</h4>
-            <p>Echo Presets act as customizable templates. Each preset remembers a full set of five Echoe slots and their selected sets, stats, and configurations. You can save your current build or load a preset into another character for testing or optimization.</p>
-
-            <ul>
-                <li><strong>Create Preset</strong> – Save your currently equipped Echoes using the <em>Save Preset</em> button.</li>
-            </ul>
-
-            <h4>2. Presets View</h4>
-            <p>All saved presets appear in the <strong>Presets</strong> panel in your <strong>Echo Bag</strong>, where you can filter and organize them:</p>
-            <ul>
-                <li>Use the <strong>Filter by Character</strong> dropdown to quickly view presets associated with a specific character.</li>
-                <li>Presets show the <strong>character name</strong> it was saved with, <strong>creation date</strong> and characters with the preset equipped for better organization.</li>
-            </ul>
-
-            <h4>3. Presets Inspection</h4>
-            <p>Click on a preset to inspect it. On this modal you'll see a detailed view of the echoes in this preset.</p>
-            <ul>
-                <li><strong>Edit Preset Name</strong> – Click <strong>Edit Preset Name</strong> to edit the name of the preset (Presets are saved with the character's name it was saved with by default.</li>
-                <li><strong>Equip Preset</strong> – Click <strong>Equip</strong> to apply the preset to the current active character.</li>
-                <li><strong>Delete Preset</strong> – Click <strong>Delete</strong> to remove presets permanently.</li>
-            </ul>
-
-
-            <h4>4. Saving from Runtime</h4>
-            <p>When you save while viewing a character's current Echoes, the preset automatically records all equipped Echo data—including their <strong>main stats</strong>, <strong>substats</strong>, and <strong>selected set</strong>.</p>
-            <ul>
-                <li>If a preset already contains an identical combination, it won't create a duplicate.</li>
-                <li>Each preset tracks which characters currently have it equipped, syncing automatically as you switch builds.</li>
-            </ul>
-
-            <h4>5. Syncing and Equipping</h4>
-            <p>Echo presets stay linked with your equipped Echoes through a sync system:</p>
-            <ul>
-                <li>Whenever you change Echoes, the system checks if they match any saved preset.</li>
-                <li>If they do, the preset will automatically appear as <em>equipped</em> under that character's profile.</li>
-                <li>Removing or modifying an Echo breaks the link, but the preset remains available for reapplication.</li>
-            </ul>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Team Buffs',
-    guides: [
-      {
-        title: 'Using the Team Buffs Section',
-        type: 'article',
-        shortDesc: 'Learn how to manage Echo, Weapon, and Team buffs and how teammate rotations contribute to total damage.',
-        content: `
-                <p>The <strong>Team Buffs</strong> section brings together all external effects from teammates that influence your character's stats, from <strong>Echo/Sonata Set</strong> effects to <strong>Weapon</strong> passives and <strong>Teammate</strong> synergy effects. It acts as the central hub for managing and viewing every modifier that affects your character's performance within a team.</p>
-
-                <h4>1. Overview</h4>
-                <p>This section automatically compiles three major buff sources:</p>
-                <ul>
-                    <li><strong>Weapon Buffs</strong> – effects from teammates' weapons.</li>
-                    <li><strong>Echo Buffs</strong> – effects from teammates' echoes and sonata sets.</li>
-                    <li><strong>Teammate Buffs</strong> – conditional effects provided by your selected teammates, such as shared ATK boosts or healing amplifications.</li>
-                </ul>
-
-                <h4>2. Weapon Buffs</h4>
-                <p>All weapons with supportive effects are listed automatically under <strong>Weapon Buffs</strong>.</p>
-                <ul>
-                    <li>Use the <strong>Rank</strong> dropdown beside a weapon to select its refinement (0–5).</li>
-                    <li>The passive becomes active only when its rank is above 0, and its value scales accordingly.</li>
-                    <li>Changes are reflected instantly in the active character's stats and damage output.</li>
-                </ul>
-
-                <h4>3. Echo Buffs</h4>
-                <p>All <strong>Echo</strong> and <strong>Sonata Set</strong> bonuses with supportive effects appear here automatically.</p>
-                <ul>
-                    <li>Toggle switches activate effects like DMG bonuses, healing boosts, or RES shredding.</li>
-                    <li>Stackable effects display a dropdown to set the current number of stacks.</li>
-                    <li>Adjustments update your final stats and calculations in real time.</li>
-                </ul>
-
-                <h4>4. Teammate Buffs</h4>
-                <p>When you select <strong>teammates</strong> for your active character, their passive or support effects are also represented here.</p>
-                <ul>
-                    <li>For example, a support who provides teamwide ATK% or Elemental DMG bonuses will have their effects listed automatically.</li>
-                    <li>Some effects may not require you to do anything and are automatically merged into your stats behind the scenes, so no toggle is needed.</li>
-                    <li>Others may include toggles or dropdowns to represent active or stack-based buffs, allowing fine control over synergy effects.</li>
-                </ul>
-
-                <h4>5. Teammate Rotations</h4>
-                <p>Beneath the above, you'll find the <strong>Rotations</strong> section whenever valid team rotations exist. This links your teammates' saved or active rotations directly into the team's total calculation.</p>
-                <ul>
-                    <li>Each teammate appears with their name, a rotation dropdown, and their total <strong>Normal</strong>, <strong>Crit</strong>, and <strong>Average</strong> damage values.</li>
-                    <li>You can switch between different saved rotations for that teammate, or disable them entirely using the <strong>Enable</strong> checkbox.</li>
-                    <li>Enabled teammate rotations contribute their totals to your <strong>Team Damage Summary</strong> at the bottom of the Damage Section, giving you a live snapshot of overall team output and percentage contribution per character.</li>
-                    <p>See more under the Rotations guide category.</p>
-                </ul>
-
-                <p>Use the <strong>Team Buffs</strong> section to fine-tune every cooperative variable affecting your team's performance. Whether you're activating weapon passives, enabling Echo Set bonuses, or syncing teammate rotations, this pane provides a unified overview of how each member's effects combine to shape total output.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Suggestions',
-    guides: [
-      {
-        title: 'Using Main Stat & Sonata Suggestions',
-        type: 'article',
-        shortDesc: 'Let the calculator propose main stats and Sonata set plans for your current target skill.',
-        content: `
-        <p>The <strong>Echo Suggestions</strong> panel is split into two modes:
-        <strong>Main Stats</strong> and <strong>Sonata Sets</strong>.
-        Both are built on top of the same damage engine as the main calculator and
-        use your selected <strong>Target Skill</strong> to rank options.</p>
-
-        <h4>1. Picking a Target Skill</h4>
-        <p>At the top of the panel, you'll see a <strong>Target Skill</strong> selector.
-        This controls what the suggester is trying to optimize around.</p>
-        <ul>
-          <li>Click the <strong>Target Skill</strong> box to open the skill menu.</li>
-          <li>Skills are grouped by tab (Basic, Heavy, Skill, Liberation, etc.).</li>
-          <li>Once you pick a skill, the suggester re-runs in the background using that skill's damage weights.</li>
-        </ul>
-        <p>The same target skill is used for both <strong>Main Stats</strong> and <strong>Sonata Sets</strong>.</p>
-
-        <h4>2. Main Stats View</h4>
-        <p>The <strong>Main Stats</strong> tab suggests main stat layouts for each Echo slot
-        (HP%, ATK%, Crit Rate, Energy Regen, etc.) and estimates how much damage that layout would do
-        compared to your current setup.</p>
-
-        <h5>What you're seeing</h5>
-        <ul>
-          <li><strong>Rank #</strong> – The ordering from best to worse, based on average damage.</li>
-          <li><strong>Cost signature</strong> – The Echo cost pattern (e.g. <code>4 • 4 • 1 • 1 • 1</code>).</li>
-          <li><strong>avg: X dmg</strong> – Estimated average damage for the suggested layout on the target skill.</li>
-          <li><strong>Current / % change</strong> – Shows how much higher or lower this layout is vs your current build.</li>
-          <li><strong>Rows per Echo</strong> – Each row shows one Echo slot:
-            <ul>
-              <li><strong>Cost N</strong> – That Echo's cost.</li>
-              <li><strong>Pills</strong> – The chosen main stats, e.g. <code>ATK%</code>, <code>Crit DMG</code>, <code>Energy Regen</code>, with their suggested values.</li>
-            </ul>
-          </li>
-        </ul>
-
-        <h5>Buttons</h5>
-        <ul>
-          <li><strong>Target Skill</strong> – Changes which skill the suggestions are optimized for.</li>
-          <li><strong>Inspect</strong> – Opens a preview modal that shows a full Echo grid using the suggested main stats,
-          so you can visually compare it with your current build before applying.</li>
-          <li><strong>Reset Selection</strong> – Jumps back to the top-ranked main stat layout.</li>
-        </ul>
-
-        <h5>How it works (simplified)</h5>
-        <ul>
-          <li>The worker builds candidate main-stat recipes for each slot.</li>
-          <li>For each recipe, it simulates a full set of Echoes using your current character, buffs, and weights.</li>
-          <li>The damage of the target skill is computed using the same formula as the main Damage page.</li>
-          <li>Results are sorted by damage, and only the top few are shown.</li>
-        </ul>
-
-        <h4>3. Sonata Sets View</h4>
-        <p>The <strong>Sonata Sets</strong> tab suggests 2-piece, 3-piece, and 5-piece Sonata combinations
-        that play nicely with your chosen skill and character. It doesn't change your substats or main stat types;
-        it only changes <strong>which sets</strong> you're wearing on each Echo.</p>
-
-        <h5>What you're seeing</h5>
-        <ul>
-          <li><strong>Rank #</strong> – Best to worst, sorted by average damage on the target skill.</li>
-          <li><strong>Set badges</strong> – Each badge shows something like <code>2pc Freezing Frost</code>
-          with its icon. Hover to see what that set's 2pc / 3pc / 5pc bonus actually does.</li>
-          <li><strong>avg: X dmg</strong> – Estimated damage using that exact Sonata combination.</li>
-          <li><strong>Current / % change</strong> – How much better or worse this Sonata setup is than your current one.</li>
-        </ul>
-
-        <h5>Buttons</h5>
-        <ul>
-          <li><strong>Target Skill</strong> – Same as in the Main Stats view; controls what is being optimized.</li>
-          <li><strong>Inspect</strong> – Builds a preview Echo grid using the suggested Sonata set plan:
-            <ul>
-              <li>Your main stat values and substats are preserved where possible.</li>
-              <li>Only the <strong>selected set</strong> on each Echo is changed to match the suggested plan.</li>
-              <li>The preview also respects Echo cost and avoids duplicate template Echo IDs where it can.</li>
-            </ul>
-          </li>
-          <li><strong>Reset Selection</strong> – Returns to the highest-ranked Sonata set plan.</li>
-        </ul>
-
-        <h5>How Sonata suggestions behave</h5>
-        <ul>
-          <li>The suggester tries all legal 2pc, 3pc, and 5pc Sonata combinations from the enabled set list.</li>
-          <li>Each combination is scored by recomputing damage with that set plan applied.</li>
-          <li>Plans that don't change damage compared to "no sets" are ignored.</li>
-          <li>If a multi-set combo behaves the same as a single 2pc/3pc baseline (no extra benefit),
-          only the standalone version is kept to avoid clutter.</li>
-          <li>Before a suggestion is shown, a feasibility check makes sure it's actually possible with:
-            <ul>
-              <li>Your current Echo <strong>cost pattern</strong>, and</li>
-              <li>The available Echo templates (unique IDs) in the database.</li>
-            </ul>
-          </li>
-        </ul>
-
-        <h4>4. How Apply / Preview Works</h4>
-        <p>When you click <strong>Inspect</strong> in either mode, a preview modal appears with a 5-Echo grid:</p>
-        <ul>
-          <li>Each Echo is shown with its icon, cost, selected set, and a relative score bar.</li>
-          <li>This view does not immediately overwrite your current build.</li>
-          <li>Click <strong>Apply</strong> to save the suggested Echo layout as your new
-          <strong>equipped Echoes</strong> for that character.</li>
-        </ul>
-
-        <h4>5. Set Conditionals</h4>
-        <p>In the <strong>Sonata Sets</strong> view, click <strong>Config</strong> to open <strong>Set Conditionals</strong>.</p>
-        <ul>
-          <li>Each set is split into condition parts (base piece effects, stack components, and trigger-based parts).</li>
-          <li>Turn parts <strong>on/off</strong> to match your scenario before ranking suggestions.</li>
-          <li>Disabled parts are excluded from set-plan scoring, so recommendations stop assuming unrealistic uptime.</li>
-          <li>These toggles are saved per character and reused by Optimizer, keeping both tools aligned.</li>
-        </ul>
-
-        <h4>6. Tips & Use Cases</h4>
-        <ul>
-          <li>Use <strong>Main Stats</strong> to answer questions like
-          "Should I run Crit Rate / Crit DMG or ATK% / Crit DMG on this character?"</li>
-          <li>Use <strong>Sonata Sets</strong> to test whether chasing a 5pc is actually worth it over
-          mixed 2pc / 3pc setups.</li>
-          <li>If results look weird, make sure you've selected the right target skill and that your buffs /
-          character level match what you actually play.</li>
-        </ul>
-      `
-      }
-    ]
-  },
-  {
-    category: 'Optimizer',
-    guides: [
-      {
-        title: 'Using the Echo Optimizer',
-        type: 'article',
-        shortDesc: 'Configure filters, run the optimizer, and interpret the best echo combinations for your character.',
-        content: `
-                <p>The <strong>Echo Optimizer</strong> searches through your available echoes and finds the most efficient combinations for your current character. It respects cost limits, set effects, and your chosen stat priorities to rank the strongest options first.</p>
-
-                <h4>1. Overview</h4>
-                <p>The optimizer works on top of your existing <strong>Echo Bag</strong> and filter settings. It takes the echoes that pass your filters, generates all valid 5-piece (cost ≤ 12) combinations, and evaluates their total damage using the same calculation logic as the main Damage Section.</p>
-                <p>The result is a sorted list of candidate builds, each showing its sets, total stats, and expected output compared to your current build.</p>
-
-                <h4>2. Echo Source & Filters</h4>
-                <p>The optimizer never invents new gear — it only uses echoes you have in your <strong>Echo Bag</strong>. Before running it, make sure your bag is correct and up to date.</p>
-                <p>Echoes are filtered using the same options as the main Echo Filters:</p>
-                <ul>
-                    <li><strong>Filter Strength</strong> – Keeps only the top slice of your bag, based on your selected <em>stat weights</em>. For example, 30% filters out the least preferable 30% of echoes by weighted score.</li>
-                    <li><strong>Allowed Sets</strong> – Lets you prioritize or restrict specific sets. These rules constrain which combinations are considered.</li>
-                    <li><strong>Main Stat Filter</strong> – Limits which main stats are allowed on certain slots, so you don't get weird or unusable rolls for your target build.</li>
-                </ul>
-                <p>Whenever you adjust these filters, the optimizer automatically recalculates how many valid combinations exist and shows this number in the control panel.</p>
-
-                <h4>3. Main Echo Slot</h4>
-                <p>The <strong>Main Echo</strong> selector lets you pin a specific echo to the main slot. When set, the optimizer only considers combinations that include that echo in slot 1. This is useful when you want to keep a prized 4-cost echo and just optimize the remaining pieces around it.</p>
-                <p>Clearing the main echo returns the search to "fully free" mode, allowing any echo to occupy the main slot.</p>
-
-                <h4>4. Stat Range Limits</h4>
-                <p>The <strong>Stat Range Limits</strong> panel lets you set <em>hard constraints</em> on the final stats that a build is allowed to have. Instead of just "preferring" certain stats with weights, these limits decide which echo combinations are valid at all.</p>
-
-                <p>For each tracked stat, you'll see a row like this:</p>
-
-                <ul>
-                    <li><strong>Label</strong> – The stat name (e.g., ATK%, Crit Rate, Energy Regen).</li>
-                    <li><strong>Min</strong> – The minimum allowed total for that stat across the full echo set.</li>
-                    <li><strong>Max</strong> – The maximum allowed total for that stat across the full echo set.</li>
-                </ul>
-
-                <p>When you type a value in <strong>Min</strong> or <strong>Max</strong>, the optimizer will <strong>discard any combination</strong> whose final total for that stat falls outside the specified range. Combos that fail even one of these checks are never evaluated or shown in the results table.</p>
-
-                <p>This is especially useful when you need to:</p>
-                <ul>
-                    <li>Guarantee a minimum <strong>Energy Regen</strong> so your rotations stay functional.</li>
-                    <li>Enforce a target <strong>Crit Rate</strong> window (e.g., at least 60%, but not more than 80%).</li>
-                    <li>Cap certain stats (like ATK% or Crit DMG) to avoid over-investing past a useful point.</li>
-                </ul>
-
-                <p>Leave a field blank to ignore that side of the constraint (for example, setting only a minimum but no maximum). If all fields for a stat are empty, that stat places no limits on the optimizer.</p>
-
-                <h4>5. Running the Optimizer</h4>
-                <p>Once your filters are ready, click the main <strong>Run</strong> button. The optimizer will:</p>
-                <ul>
-                    <li>Generate the combinations in batches.</li>
-                    <li>Evaluate each batch using the current character, echo stats, and buffs.</li>
-                    <li>Keep only the top-scoring results in memory, based on damage or target metric.</li>
-                </ul>
-                <p>A progress bar and statistics panel show <strong>how many combos have been processed</strong>, the current speed (combos per second), and an estimated remaining time. You can stop the run early using the <strong>HALT</strong> button, keeping the best results found so far.</p>
-
-                <h4>6. Reading the Results Table</h4>
-                <p>The optimizer outputs a ranked table of builds. Typical columns include:</p>
-                <ul>
-                    <li><strong>Sets</strong> – Shows the 2-piece and 5-piece sets active in that combination.</li>
-                    <li><strong>Main</strong> – The echo equipped in the main slot (often your 3- or 4-cost echo).</li>
-                    <li><strong>∑ Cost</strong> – Total echo cost, which must be ≤ 12 for a valid build.</li>
-                    <li><strong>∑ ATK / HP / DEF / ER / CR / CD</strong> – Summed stats from all five echoes.</li>
-                    <li><strong>∑ BNS% / AMP%</strong> – Total relevant damage bonuses and amplifications contributed by echo sets and substats.</li>
-                    <li><strong>DMG</strong> – The optimizer's estimated damage (or healing/shielding) for this build.</li>
-                    <li><strong>DIFF</strong> – The upgrade (or downgrade) as compared to your original build, helping you see how much stronger it is at a glance.</li>
-                </ul>
-
-                <h4>7. Inspecting & Equipping Results</h4>
-                <p>When you click on a result, you can:</p>
-                <ul>
-                    <li>Inspect which specific echoes it uses in each slot.</li>
-                    <li>Check the exact main and substats contributing to the totals.</li>
-                    <li>Optionally <strong>apply</strong> that build to your character, updating the main calculator to use that combination.</li>
-                </ul>
-                <p>This lets you bounce between "theory" (optimizer results) and "practice" (full damage breakdown in the Damage Section) without manually reassigning echoes one by one.</p>
-
-                <h4>8. Performance Tips</h4>
-                <ul>
-                    <li><strong>Tighten filters</strong> if the combination count is extremely high. Increasing the filter strength or narrowing allowed sets can dramatically speed things up.</li>
-                    <li><strong>Use a main echo lock</strong> when you already know which echo you want in the primary slot, rather than letting the optimizer search every possibility.</li>
-                </ul>
-
-                <h4>9. Troubleshooting Results</h4>
-                <ul>
-                    <li>If you get <strong>no valid combinations</strong>, your filters may be too strict. Loosen set restrictions or reduce filter strength.</li>
-                    <li>If results look "worse" than your current build, verify that your <strong>Echo Bag</strong> and equipped echoes are in sync with what you actually want to optimize.</li>
-                    <li>If you change your character's build (weapons, buffs, or level), rerun the optimizer to update damage estimates.</li>
-                </ul>
-
-                <h4>10. Set Conditionals</h4>
-                <p>Open <strong>Set Conditionals</strong> from Character Settings to control which Sonata effect parts are allowed during optimization.</p>
-                <ul>
-                    <li>Each set part can be toggled on/off (base piece effects, stack parts, and trigger-based parts).</li>
-                    <li>Disabled parts are excluded from scoring, which is useful for realistic uptime testing.</li>
-                    <li>Enabled parts are counted normally when set-piece requirements are met.</li>
-                    <li>These values are shared with Suggestions for the same character, so both tools compare with the same assumptions.</li>
-                </ul>
-
-                <p>The optimizer is meant to feel like an automated theorycrafter: you can tell it which stats and sets you care about, and it sifts through the combinatorial chaos to surface the most promising builds.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Custom Buffs',
-    guides: [
-      {
-        title: 'Using Custom Buffs',
-        type: 'article',
-        shortDesc: 'Add and adjust personal buffs for testing stat variations and conditional bonuses.',
-        content: `
-                <p>The <strong>Custom Buffs Pane</strong> lets you manually add or adjust stat bonuses that aren't tied to characters, teammates, weapons, or echoes. It's perfect for testing how specific buffs affect your final damage output.</p>
-
-                <h4>1. Main Stats</h4>
-                <p>At the top, you'll see inputs for <strong>Attack</strong>, <strong>HP</strong>, and <strong>Defense</strong> — each with a flat and percentage field.
-                You can also modify core attributes like <strong>Crit Rate</strong>, <strong>Crit Damage</strong>, <strong>Energy Regen</strong>, and <strong>Healing Bonus</strong>.
-                These directly influence your base stats and are reflected instantly in your character summary.</p>
-
-                <h4>2. Damage Modifiers</h4>
-                <p>Below, you'll find a large grid of fields controlling how different attack types and elements are boosted.
-                These include <strong>Basic, Heavy, Resonance Skill, and Resonance Liberation</strong> damage, as well as attribute bonuses such as <span style="color: rgb(15,205,160); font-weight: bold;">Aero</span>, <span style="color: rgb(62,189,227); font-weight: bold;">Glacio</span>, and <span style="color: rgb(197,52,79); font-weight: bold;">Fusion</span>.
-                Each stat can be entered as a percentage value to represent bonus damage.</p>
-
-                <h4>3. Amplify and Shred Effects</h4>
-                <p>Amplify modifiers boost damage scaling rather than adding flat bonuses.
-                They apply to specific attack types or attributes (e.g., "Basic Attack DMG Amplify" or "Spectro DMG Amplify").
-                You can also simulate defensive effects with fields like <strong>Enemy DEF Shred</strong>, <strong>Enemy DEF Ignore</strong>, or <strong>Enemy RES Shred</strong> to test how they impact your damage output.</p>
-
-                <h4>4. Coordinated and Special Damage</h4>
-                <p>Coordinated and special damage types, such as <span style="color: rgb(202,179,63); font-weight: bold;">Frazzle</span> or <span style="color: rgb(15,205,160); font-weight: bold;">Erosion</span>, have their own dedicated fields.
-                These affect abilities that trigger off allied attacks or secondary damage sources.</p>
-
-                <h4>5. Adjusting Values</h4>
-                <p>Simply type numbers into the fields to modify stats.
-                Percent-based fields automatically include a "%" symbol, while flat stats are raw numeric values.
-                All changes apply instantly to your calculations — no need to press Save.</p>
-
-                <h4>6. Clearing Buffs</h4>
-                <p>If you want to reset everything, click the <span style="color: red; font-weight: bold;">Clear All</span> button at the bottom.
-                This restores all fields to zero and removes every manually added buff.</p>
-
-                <p>The Custom Buffs pane is ideal for experimentation.
-                Whether you're modeling food buffs, temporary effects, or new theories about damage scaling,
-                this section gives you total control over the numbers before they merge into your final stat pool.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'UI Controls',
-    guides: [
-      {
-        title: 'Toggles, Stacks, and Input Fields Explained',
-        type: 'article',
-        shortDesc: 'Learn how to use character toggles, stack counters, and input fields — and when they\'re locked, conditional, or not required.',
-        content: `
-                <p>Each character's section in the calculator includes interactive elements that simulate in-game conditions. These controls let you manually enable buffs, adjust stack counts, or input numeric values to reflect your combat setup more accurately. Understanding how they behave ensures your results match in-game performance.</p>
-
-                <h4>1. Toggles (On/Off Buffs)</h4>
-                <p>Toggles are checkboxes used to enable or disable specific states or abilities. When checked, the corresponding buff becomes active and its effects are immediately reflected in your calculations.</p>
-
-                <p>For example, <strong>Zani</strong>'s <span class="highlight">Inferno Mode</span> toggle activates a state where her Basic Attack damage is increased. You can switch it on when testing burst phases or off when simulating downtime.</p>
-
-                <p>Some toggles are <strong>conditional</strong>. <strong>Lupa</strong>'s <span class="highlight">Pack Hunt (2)</span> toggle only activates when your team has exactly three <span style="color: rgb(197,52,79); font-weight: bold;">Fusion</span> Resonators. If that condition isn't met, the toggle is dimmed and displays a message like <em>"Needs 3  <span style="color: rgb(197,52,79); font-weight: bold;">Fusion</span> Resonators in the team."</em> This prevents impossible setups from being activated.</p>
-
-                <p>Other toggles, such as <span class="highlight">Outro Skill</span> buffs like <strong>Binary Butterfly</strong> or <strong>Beacon for the Future</strong>, can be freely toggled at any time, since they represent effects that can occur during normal play.</p>
-
-                <h4>2. Stacks (Layered Buff Counters)</h4>
-                <p>Stack counters simulate effects that build up over time or through repeated actions. These appear as dropdowns or numeric selectors labeled <strong>Stacks</strong>.</p>
-
-                <p>For instance, <strong>Lupa</strong>'s <span class="highlight">Hunting Field</span> can stack up to 2 times, granting a  <span style="color: rgb(197,52,79); font-weight: bold;">Fusion DMG Bonus</span> for each stack. You can use the dropdown to select 0, 1, or 2 stacks, and the total buff scales accordingly.</p>
-
-                <p>Similarly, Zani's <span class="highlight">Heliacal Ember</span> uses a numeric input where you can enter the current number of embers (from 0–60). Each stack increases damage dealt by a fixed percentage, making it easy to test full-power states versus minimal ones.</p>
-
-                <p>When a stack-based ability isn't relevant to a character or build, its field simply won't appear.</p>
-
-                <h4>3. Input Fields (Dynamic Values)</h4>
-                <p>Numeric input fields let you fine-tune continuous values such as percentages, thresholds, or resource levels. For example, <strong>Energy Regen</strong> sliders and <strong>Blaze Consumed</strong> inputs directly modify the calculations they're tied to.</p>
-
-                <p>In <strong>Zani</strong>'s case, her <span class="highlight">Blaze Consumed</span> input allows values up to 40 (or more for sequence variants). Each number represents how many Blazes are used in her Heavy Attack, directly scaling her damage. These inputs are clamped to valid ranges, so entering an invalid value automatically snaps back to the nearest limit.</p>
-
-                <p>Inputs also respect dependencies — for example, some sliders or dropdowns may be disabled if a prerequisite state isn't active or unlocked by sequence level.</p>
-
-                <h4>4. Level and Sequence Restrictions</h4>
-                <p>Some toggles or stack fields are locked until the Resonator reaches a specific level or sequence tier. These are shown with faded color and a tooltip such as <em>"Unlocks at Lv. 70"</em> or <em>"Requires Sequence 3"</em>. When you raise your character level or sequence value in the app, the controls automatically become usable.</p>
-
-                <h4>5. When Controls Aren't Needed</h4>
-                <p>If a skill or state is always active by default — for example, a passive buff that doesn't depend on toggles or stacks — no interactive field is shown. The calculator hides unnecessary inputs to reduce clutter and make the layout intuitive.</p>
-
-                <h4>6. How They Work Together</h4>
-                <p>Many of these elements interact dynamically. Activating <span class="highlight">Inferno Mode</span> for Zani can affect how her <span class="highlight">Blaze Consumed</span> input contributes to damage. Similarly, enabling <span class="highlight">Pack Hunt</span> for Lupa modifies how her <span class="highlight">Hunting Field</span> stacks scale team-wide bonuses. These interactions ensure your setup behaves like an in-game combat sequence rather than isolated numbers.</p>
-
-                <p>Every toggle, stack, and input updates the calculator in real time — so you can test how buffs combine, explore edge cases, and see exactly how different configurations change your team's performance.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Echo Importing',
-    guides: [
-      {
-        title: 'Using the Echo Parser',
-        type: 'article',
-        shortDesc: 'Quickly import your equipped Echoes directly from screenshots using OCR and image recognition.',
-        content: `
-                <p>The <strong>Echo Parser</strong> lets you import your full set of equipped Echoes automatically from a screenshot — no manual stat entry required. It uses OCR (optical character recognition) and image comparison to read the details directly from an image generated by the <strong>Wuthering Waves bot</strong>.</p>
-
-                <h4>1. What It Does</h4>
-                <p>This feature scans an image of your Echo setup, detects each Echo's cost, main stat, substats, and set name, and then automatically equips them for the currently selected character. It's a fast, hands-free way to sync your in-game build with the calculator.</p>
-
-                <h4>2. Getting a Valid Image</h4>
-                <p>For the parser to work properly, your image must match the expected format:</p>
-                <ul>
-                    <li>Use the <code>/create</code> command with the <strong>Wuwa bot</strong> on the official Wuthering Waves Discord server (or anywhere else the bot is available).</li>
-                    <li>Make sure the image resolution is exactly <strong>1920 × 1080</strong>.</li>
-                    <li>Do not crop, resize, or compress the screenshot — even slightly altering dimensions can break detection.</li>
-                    <li>The parser currently supports <strong>English text only</strong>.</li>
-                    <li>The import is not always 100% accurate — check results after import and make manual corrections if needed.</li>
-                </ul>
-
-                <h4>3. Starting the Import</h4>
-                <p>Click the <strong>Import Echo</strong> button in the Echoes section (top left). This opens a pop-up with import rules and a sample image preview.</p>
-                <ul>
-                    <li>You can drag and drop your image into the import window, paste it from your clipboard, or click <strong>Choose Image</strong> to upload it manually.</li>
-                    <li>The app automatically validates the resolution before continuing.</li>
-                    <li>If the image is invalid (wrong size or format), a red error toast appears.</li>
-                </ul>
-
-                <h4>4. Parsing Process</h4>
-                <p>Once a valid image is uploaded, the system runs the following steps automatically:</p>
-                <ul>
-                    <li>Preloads reference icons for all known Echoes and set logos to improve recognition accuracy.</li>
-                    <li>Uses OCR (via <strong>Tesseract.js</strong>) to detect text for main stats and substats.</li>
-                    <li>Extracts five echo regions across the bottom of the image, matching the exact coordinates used by the Wuwa bot layout.</li>
-                    <li>Compares each icon region pixel-by-pixel with stored reference images to determine the Echo's name and set.</li>
-                    <li>Applies all parsed Echo data instantly to your current character — including main stats, substats, cost, and set.</li>
-                </ul>
-                <p>During parsing, a spinner will appear with a loading animation. Once finished, you'll see a success message</p>
-
-                <h4>5. Accuracy Notes</h4>
-                <p>The parser is trained for images in the default bot format and English text. It works best when:</p>
-                <ul>
-                    <li>Text is clear and uncompressed.</li>
-                    <li>Stats don't overlap or blur into backgrounds.</li>
-                    <li>The image hasn't been modified or taken through screenshots of screenshots (which causes compression artifacts).</li>
-                </ul>
-                <p>If an imported Echo looks off, you can open it in the <strong>Edit Substats</strong> modal to adjust values or fix stat labels manually.</p>
-
-                <h4>6. Managing Imports</h4>
-                <p>After a successful import:</p>
-                <ul>
-                    <li>Your five Echo slots update instantly with the new data.</li>
-                    <li>Each imported Echo automatically gets its proper set icon and name.</li>
-                    <li>You can still edit, remove, or replace individual Echoes afterward.</li>
-                </ul>
-
-                <h4>7. Behind the Scenes</h4>
-                <p>Here's a simplified overview of what happens technically:</p>
-                <ul>
-                    <li>Each Echo slot's region in the screenshot is mapped to pre-defined coordinates.</li>
-                    <li>Each slot's cost, main stat, and substats are extracted as text using OCR.</li>
-                    <li>Icon matching runs via pixel comparison between the slot's image region and a preloaded cache of reference icons.</li>
-                    <li>The results are passed to a converter that builds real Echo objects and applies them to your current character state.</li>
-                </ul>
-                <p>This all happens locally in your browser — no external uploads or server-side processing.</p>
-
-                <h4>8. Troubleshooting</h4>
-                <ul>
-                    <li>If nothing happens after upload, check that the image is exactly 1920×1080.</li>
-                    <li>If some stats look wrong, open each Echo's edit window and correct them manually.</li>
-                    <li>Images in other languages or formats (like cropped in-game screenshots) aren't supported yet.</li>
-                    <li>For repeated errors, try refreshing and importing again — browser caching sometimes interferes with reference images.</li>
-                </ul>
-
-                <h4>9. Performance Tips</h4>
-                <ul>
-                    <li>First import may take a few extra seconds while reference images load; subsequent imports will be much faster.</li>
-                    <li>Paste directly from your clipboard (Ctrl+V / Cmd+V) instead of saving locally — it's faster and skips file browsing.</li>
-                </ul>
-
-                <h4>10. Disclaimer on Image Format Changes</h4>
-                <p><span style="font-weight: bold; color: red">Important:</span> The parser depends entirely on the current format of images generated by the <strong>official Wuthering Waves Discord bot</strong> (or other supported generators). If <strong>Kuro Games</strong> or the maintainers of the bot ever change the image layout, text alignment, or resolution, the parser will no longer recognize data correctly until it's updated. In such cases, results will be unreliable until the parsing coordinates and recognition templates are adjusted.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'App Controls',
-    guides: [
-      {
-        title: 'App Actions & Activities',
-        type: 'article',
-        shortDesc: 'Understand what happens when you save, reset, sync, or interact with features throughout the calculator.',
-        content: `
-                <h4>1. Saving & Persistence</h4>
-                <p>Almost everything you do in the app — selecting characters, changing buffs, editing Echoes, setting up rotations — is saved automatically. This is handled through local storage, so your configuration stays exactly how you left it, even after refreshing or closing the browser.</p>
-                <ul>
-                    <li><strong>Auto-Save:</strong> Each pane saves its state (Echoes, Rotations, Buffs, Theme, etc.) individually, so updates in one area don't reset another.</li>
-                    <li><strong>Session Continuity:</strong> When you reopen the app, your last selected character, layout, and visual theme are restored automatically.</li>
-                    <li><strong>Persistent Settings:</strong> Preferences like system theme mode, animation toggles, or Drive Sync authentication are remembered until explicitly cleared.</li>
-                </ul>
-
-                <h4>2. App Reset</h4>
-                <p>The <strong>Delete</strong> button, found on the Settings page, completely restores the calculator to its default state — as if you were opening it for the very first time. It deletes <strong>everything</strong> stored locally, including saved rotations, equipped Echoes, team compositions, buffs, and all user preferences.</p>
-
-                <ul>
-                    <li><strong>Full Data Wipe:</strong> All localStorage data and runtime states are cleared instantly, including saved rotations, team rotations, Echo setups, and character progress.</li>
-                    <li><strong>Preference Reset:</strong> Dark/light theme overrides, dropdown selections, and pane-specific toggles are restored to default values.</li>
-                    <li><strong>UI Memory:</strong> Clears cached states like last-opened panels, tooltips, and toast history.</li>
-                    <li><strong>Global State:</strong> All character- and weapon-specific configurations are deleted, including any custom buffs or conditions you created.</li>
-                </ul>
-
-                <p>After confirmation, the app performs a full reload to rebuild a clean environment.
-                Your <strong>Google Drive–linked data</strong> (if Drive Sync is enabled) is not deleted automatically — it stays safe on your cloud storage until you manually remove or overwrite it from there.
-                Everything else stored locally will be permanently lost.</p>
-
-                <p>Use this action only when you want to start completely fresh or troubleshoot corrupted data. The reset is immediate, irreversible, and cannot be undone once confirmed.</p>
-
-                <h4>3. Theme & System Behavior</h4>
-                <p>The calculator's visual theme adapts dynamically:</p>
-                <ul>
-                    <li><strong>System Mode:</strong> It follows your device's current theme (light or dark) automatically.</li>
-                    <li><strong>Manual Toggle:</strong> You can override it with the switch in Settings. The toggle mimics system behavior and updates instantly if your OS theme changes.</li>
-                    <li><strong>Visual Consistency:</strong> All panes (Echoes, Rotations, Buffs) share the same theme context, so transitions are smooth and unified.</li>
-                </ul>
-
-                <h4>4. Font Customization</h4>
-                <p>The calculator now supports full <strong>Font Customization</strong>, allowing you to personalize how text appears across the interface for readability or aesthetics.</p>
-                <ul>
-                    <li><strong>Font Selector:</strong> Found in the <em>Settings</em> page, it lets you choose from available typefaces that fit different visual moods — from clean modern fonts to elegant serif styles.</li>
-                    <li><strong>Live Preview:</strong> Changes take effect instantly across the entire app so you can see how they look before leaving the menu.</li>
-                    <li><strong>Persistence:</strong> Your selected font is saved in local storage and re-applied automatically on reload.</li>
-                    <li><strong>Compatibility:</strong> Fonts are fully theme-aware — ensuring consistent contrast and legibility in both light and dark modes.</li>
-                </ul>
-                <p>This feature is especially helpful for users who want stronger accessibility or simply a personalized aesthetic to match their workflow.</p>
-
-                <h4>5. Exporting & Google Drive Sync</h4>
-                <p>The app supports exporting and syncing data, especially for advanced users who use multiple devices or want backups:</p>
-                <ul>
-                    <li><strong>Google Drive Sync:</strong> When enabled, your app state and configurations (Echoes, Rotations, etc.) save securely to your Google Drive in the hidden "AppData" folder.</li>
-                    <li><strong>Export / Import:</strong> You can export app data as <code>.json</code> files and import them later, or share with other users.</li>
-                </ul>
-
-                <h4>6. Interactive Activities</h4>
-                <p>Most parts of the app respond interactively — meaning they update immediately without reloading:</p>
-                <ul>
-                    <li><strong>Dragging & Dropping:</strong> You can reorder rotation entries, Echoes, or blocks using intuitive drag-and-drop behavior. All changes recalculate live.</li>
-                    <li><strong>Popup Messages:</strong> Small toasts appear to confirm actions (e.g., saving to bag, invalid import, success messages). These fade automatically but can be interacted with while visible.</li>
-                    <li><strong>Expandable Sections:</strong> Each pane uses collapsible sections (like Buffs, Totals, and Rotations) so you can keep your workspace tidy while focusing on specific areas.</li>
-                    <li><strong>Dynamic Tooltips:</strong> Hovering over stats or icons reveals detailed tooltips showing what each number represents, including calculated roll values or set bonuses.</li>
-                </ul>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Overview',
-    guides: [
-      {
-        title: 'Using the Overview Section',
-        type: 'article',
-        shortDesc: 'Get a full, interactive summary of your character\'s build.',
-        content: `
-                <p>The <strong>Overview Section</strong> gives you a complete visual snapshot of your character's build, combining both style and substance. It merges the <strong>Character Overview</strong> and <strong>Overview Detail Pane</strong> into a single, interactive display where you can view, verify, and showcase your entire setup at a glance.</p>
-
-                <h4>1. Overview Layout</h4>
-                <p>The Overview is divided into two complementary panels:</p>
-                <ul>
-                    <li><strong>Left Panel:</strong> Shows a list of all characters you're ever used.</li>
-                    <li><strong>Right Panel:</strong> Displays your character's splash art, name, level, weapon, Echoes, teammates... all that stuff — all dynamically linked to your current configuration.</li>
-                </ul>
-
-                <h4>2. Equipped Weapon</h4>
-                <p>Beneath the character info, the equipped weapon is shown with its icon, name, and rank. Hovering reveals its passive description and scaling. Any change you make in the <strong>Weapon Pane</strong> like changing its level or refinement immediately updates here.</p>
-
-                <h4>3. Rotation Summary</h4>
-                <p>The Overview includes two compact <strong>Rotation Boxes</strong> that summarize damage from your personal and team rotations. They let you review totals, skill-by-skill breakdowns, and teammate contributions without leaving the Overview page.</p>
-                <ul>
-                  <li><strong>Dropdown:</strong> Each box includes a dropdown that lets you choose which rotation to view — either your <em>live rotation</em> ("Rotation DMG" or "Team Rotation DMG") or any <em>saved rotation</em> by name.</li>
-                  <li><strong>Displayed values:</strong> Both boxes show three key numbers:
-                    <ul>
-                      <li><strong>Normal</strong> – non-critical damage total,</li>
-                      <li><strong>CRIT</strong> – critical hit total,</li>
-                      <li><strong>AVG</strong> – average combined damage.</li>
-                    </ul>
-                    Hovering over any value reveals the full formatted number with separators for precision.
-                  </li>
-                  <li><strong>Click to cycle views:</strong> Clicking inside a rotation box cycles through progressively detailed breakdowns.
-                    <ul>
-                      <li>First displays the <em>Total</em> (all skills or characters combined).</li>
-                      <li>Subsequent clicks move through each component — skills in your personal rotation, or characters in your team rotation.</li>
-                    </ul>
-                  </li>
-                  <li><strong>Contribution:</strong> Contributions (teammates or damage type) are shown as percentage values.</li>
-                  <li><strong>Missing breakdowns:</strong> If a saved rotation doesn't yet have detailed breakdown data, you'll see the note <em>"Re-save to see breakdown."</em> Simply load and re-save the rotation to generate its per-skill details.</li>
-                  <li><strong>Visibility:</strong> The <em>Personal Rotation Box</em> always appears when you have any personal rotations saved. The <em>Team Rotation Box</em> appears only when valid team rotations exist (e.g., teammates with linked rotations through the Team Buffs section).</li>
-                </ul>
-
-                <p><em>Tip:</em> Both boxes behave similarly — but the personal box cycles through <strong>skills</strong>, while the team box cycles through <strong>characters</strong>. Changing the dropdown always resets the view back to "Total."</p>
-
-                <h4>4. Equipped Echoes</h4>
-                <p>Below everything all five Echo slots in your current build are listed such that each Echo shows its icon, cost, and set badge ans stats</p>
-                <p>It's section provides an instant visual summary of your entire Echo configuration — no need to switch tabs to verify substats or sets.</p>
-
-                <h4>5. Core Combat Stats</h4>
-                <p>Next to your the character portrait, your merged combat stats — all calculated in real time using data from weapons, echoes, buffs, and teammates. The grid includes:</p>
-                <ul>
-                    <li><strong>Base Attributes:</strong> HP, ATK, DEF, and Energy Regen.</li>
-                    <li><strong>Offensive Stats:</strong> Crit Rate, Crit DMG, Elemental DMG Bonus, and Skill-specific bonuses.</li>
-                </ul>
-
-                <h4>6. Teammate Summary</h4>
-                <p>Your selected teammates are displayed as icons. In that same section any <strong>Echo Set</strong> or <strong>Weapon Buffs</strong> from <strong>Team Buffs</strong> show on here.</p>
-
-                <h4>7. Derived Metrics</h4>
-                <p>The Overview includes advanced metrics like <strong>Crit Value (CV)</strong> and <strong>Build Score</strong>, which evaluate how optimized your build is. These are derived automatically:</p>
-                <ul>
-                    <li><strong>Crit Value (CV):</strong> A combined score from Crit Rate and Crit DMG — used to measure offensive balance.</li>
-                    <li><strong>Build Score:</strong> A normalized build quality metric based on Echo substat efficiency and scoring. (See more under the <strong>Scoring</strong> guide category.</li>
-                </ul>
-
-                <h4>8. Real-Time Updates and Interaction</h4>
-                <p>The Overview Section is fully synchronized with the rest of the app:</p>
-                <ul>
-                    <li>Changing an Echo or stat in any other pane updates the Overview immediately.</li>
-                    <li>Swapping weapons or refining passives reflects in both visual display and numeric stats.</li>
-                    <li>Enabling or disabling buffs from teammates dynamically adjusts totals shown here.</li>
-                </ul>
-
-                <h4>9. Screenshot Export</h4>
-                <p>The Overview supports both light and dark modes automatically and is designed for visual exports. You can capture it using the <strong>Screenshot</strong> or <strong>Copy to Clipboard</strong> options in your calculator for easy sharing.</p>
-
-                <p><span style="font-weight: bold; color: red">Important:</span> You can't explicitly change a character's build from this interface.</p>
-            `
-      }
-    ]
-  },
-  {
-    category: 'Damage & Scaling',
-    guides: [
-      {
-        title: 'Understanding the Damage Section',
-        type: 'article',
-        shortDesc: 'Learn how damage is calculated and how to read skill breakdowns and sub-hits in the results display.',
-        content: `
-                <p>The <strong>Damage Section</strong> shows the calculated output of every skill or effect for your active character, based on the same combat model described on the <a href="https://wutheringwaves.fandom.com/wiki/Damage" target="_blank" rel="noopener noreferrer"><strong>Wuthering Waves Wiki</strong></a>. It combines your stats, skill multipliers, and combat modifiers into final <strong>Normal</strong>, <strong>CRIT</strong>, and <strong>Average</strong> values.</p>
-
-                <h4>1. How Damage is Calculated</h4>
-                <p>Every skill uses scaling values for ATK, HP, or DEF, applies multipliers and bonuses, then adjusts for enemy defense and resistance.</p>
-                <pre><code class="language-js">
-        Base = (ATK × atkScaling) + (HP × hpScaling) + (DEF × defScaling)
-        Final = (Base × Multiplier + FlatBonus)
-              × defMult × resMult × (1 + Bonuses) × (1 + Amplifications)
-        Crit  = Final × (1 + CritDmg)
-        Avg   = (Crit × CritRate) + (Final × (1 - CritRate))
-                </code></pre>
-                <p>This model also handles DoT effects like <span style="color: rgb(202,179,63); font-weight: bold;">Spectro Frazzle</span> and <span style="color: rgb(15,205,160); font-weight: bold;">Aero Erosion</span> using per-tick multipliers, applied without crit variance but still affected by resistance and DoT amplification.</p>
-
-                <h4>2. Reading the Damage Display</h4>
-                <p>Each skill row shows three columns — <strong>Normal</strong>, <strong>CRIT</strong>, and <strong>AVG</strong> — representing the calculated output after all modifiers. Hovering over a number shows its precise value with formatting separators for clarity.</p>
-
-                <ul>
-                  <li><strong>Normal:</strong> Damage without crits or variance.</li>
-                  <li><strong>CRIT:</strong> Damage with full crit multiplier.</li>
-                  <li><strong>AVG:</strong> Weighted damage using current crit rate.</li>
-                </ul>
-
-                <h4>3. Sub-Hits and Multi-Hit Skills</h4>
-                <p>Some skills, such as multi-hit combos or chained attacks, include expandable <strong>sub-hit breakdowns</strong>. Click the checkbox above the damage section to toggle the detailed breakdown for all skills.</p>
-                <ul>
-                  <li>Each sub-hit lists its own Normal, CRIT, and AVG values.</li>
-                  <li>Hovering over a main skill's hit value shows its sub-hit formula.</li>
-                </ul>
-
-                <h4>4. Tips and Visual Cues</h4>
-                <ul>
-                  <li>Values exceeding certain thresholds are cut off (e.g., 51.8B ).</li>
-                  <li>Support skills such as healing and shielding are highlighted.</li>
-                  <li>Echo skills show once a main echo with skills that inflict damage is set.</li>
-                </ul>
-
-                <h4>6. Summary</h4>
-                <p>All values are derived using the same structure as in the <a href="https://wutheringwaves.fandom.com/wiki/Damage" target="_blank" rel="noopener noreferrer">Wuthering Waves damage formula</a>. The interface simply visualizes this computation — showing how scaling, bonuses, and defenses shape each skill's final performance.</p>
-              `
-      }
-    ]
-  },
-  {
-    category: 'Build and Echo Scoring',
-    guides: [
-      {
-        title: 'Understanding the Scoring System',
-        type: 'article',
-        shortDesc: 'How Echo stats, rolls, and character weights combine into a total build score.',
-        content: `
-                <p>The calculator uses a dynamic <strong>Scoring System</strong> to evaluate the quality of your Echoes and overall build efficiency. It measures both <strong>substat rolls</strong> and <strong>character-specific stat relevance</strong> to produce consistent, comparable results — expressed through values like <strong>Echo Score</strong>, <strong>Percent Score</strong>, and <strong>Crit Value (CV)</strong>.</p>
-
-                <h4>1. Purpose of the Scoring System</h4>
-                <p>In <a href="https://wutheringwaves.fandom.com/wiki/Echo/Stats" target="_blank" rel="noopener noreferrer">Wuthering Waves</a>, Echoes can roll stats with variable strength, and not every stat benefits each character equally. This scoring model solves that by weighting and normalizing each stat based on:</p>
-                <ul>
-                  <li><strong>Roll quality:</strong> How close the stat is to its maximum possible value.</li>
-                  <li><strong>Character weights:</strong> How valuable that stat is for the selected character's kit.</li>
-                  <li><strong>Distribution:</strong> How much each Echo contributes to the overall build efficiency.</li>
-                </ul>
-
-                <h4>2. Substat Roll Quality</h4>
-                <p>Each substat has a known range from its minimum to maximum possible value, divided into several "roll tiers." The calculator grades each substat's strength as a percentage between 0–100 based on its actual rolled value.</p>
-
-                <pre><code class="language-js">
-    # Example (ATK%)
-    min = 6.4%, max = 11.6%, possibleRolls = 8
-    roll = 9.6%
-    → Roll Grade = 30 + ((roll - min) / (max - min)) × (100 - 30)
-                </code></pre>
-
-                <p>Lower-tier rolls score closer to 30%, while near-perfect rolls approach 100%. This simulates in-game roll variance for consistent comparison.</p>
-
-                <h4>3. Main Stat and Substat Normalization</h4>
-                <p>Main stats and substats are normalized by comparing them to ideal reference values per Echo cost tier:</p>
-                <ul>
-                  <li><strong>Cost 1 Echoes:</strong> HP% / ATK% / DEF% with flat HP as a fixed second stat.</li>
-                  <li><strong>Cost 3 Echoes:</strong> Attribute DMG% / Energy Regen% / HP% / ATK% / DEF%, flat ATK fixed second stat.</li>
-                  <li><strong>Cost 4 Echoes:</strong> CRIT Rate% / CRIT DMG% / Healing Bonus% / HP% / ATK% / DEF%, with flat ATK as a secondary.</li>
-                </ul>
-
-                <pre><code class="language-js">
-    # Normalization
-    normalizedQuality = (actualValue / idealValue) × 100
-    # idealValue used is 44 (crit dmg's main stat value because it's the highest)
-                </code></pre>
-
-                <p>This keeps all stats comparable even when using different Echo costs or stat categories.</p>
-
-                <h4>4. Character Weighting</h4>
-                <p>Each character in the database has a <strong>stat weight profile</strong> that defines how much value they gain from each stat type. These weights are stored per-character and applied automatically when computing Echo scores.</p>
-
-                <pre><code class="language-js">
-    # Example (Pheobe)
-    {
-        atkPercent: 1,
-        atkFlat: 0.75,
-        energyRegen: 1,
-        critRate: 1,
-        critDmg: 1,
-        heavyAtk: 0.75,
-        spectro: 1
-    }
-                </code></pre>
-
-                <p>Weights range between <code>0</code> (irrelevant) and <code>1</code> (highly desirable). They ensure the system favors stats that actually scale with the character's kit.</p>
-
-                <h4>5. Echo Score Formula</h4>
-                <p>The calculator combines roll quality and stat weights to produce three key metrics for each Echo:</p>
-
-                <pre><code class="language-js">
-    mainScore = (mainStatValue × normalizedQuality × weight)
-    subScore  = Σ (subStatValue × normalizedQuality × weight)
-    totalScore = mainScore + subScore
-                </code></pre>
-
-                <p>Every Echo's <code style="font-weight: bold">totalScore</code> represents its contribution to your build's overall power potential, scaled by how relevant those stats are for your character.</p>
-
-                <h4>6. Build Scoring and Percent Score</h4>
-                <p>Once all Echoes are scored, the system sums their weighted totals and divides them by the theoretical maximum possible score for that character's top 5 substats:</p>
-
-                <pre><code class="language-js">
-    buildScore = (TotalEchoScore / Top5SubstatMax) × 100
-                </code></pre>
-
-                <p>This gives your overall build a "Percent Efficiency" score, where 100% would represent a mathematically perfect distribution of substats and main stats for that character.</p>
-
-                <h4>7. Crit Value (CV)</h4>
-                <p>As a secondary metric, <strong>CV</strong> (Crit Value) is shown to summarize your offensive potential:</p>
-
-                <pre><code class="language-js">
-    CV = (Crit Rate × 2) + Crit DMG
-                </code></pre>
-
-                <p>While it's a simpler measure, it's useful for comparing builds of DPS characters that rely heavily on critical scaling.</p>
-
-                <h4>8. How Scores are Displayed</h4>
-                <ul>
-                  <li><strong>Echo Score:</strong> Appears on each Echo tile (main + sub combined).</li>
-                  <li><strong>Build Score:</strong> Shown under the Overview or Stats panels as "Build Score."</li>
-                  <li><strong>Crit Value:</strong> Listed alongside Crit Rate and Crit DMG in stat breakdowns.</li>
-                </ul>
-
-                <h4>9. Practical Notes</h4>
-                <ul>
-                  <li>Score weighting is unique per character.</li>
-                  <li>Substats are graded using exact in-game roll ranges from the <a href="https://wutheringwaves.fandom.com/wiki/Echo/Stats" target="_blank" rel="noopener noreferrer">Wuthering Waves Wiki</a>.</li>
-                  <li>Flat stats generally contribute less unless the character has scaling abilities that justify them.</li>
-                </ul>
-
-                <p>The scoring system is built to reflect in-game optimization standards, helping you identify strong Echo rolls, measure build efficiency, and compare setups on equal ground.</p>
-              `
-      }
-    ]
+export interface GuideArticle {
+  id: string
+  title: string
+  summary: string
+  sections: GuideSection[]
+}
+
+export interface GuideCategory {
+  id: string
+  title: string
+  summary: string
+  aliases?: string[]
+  articles: GuideArticle[]
+}
+
+export type GuideBlock =
+  | {
+    type: 'paragraph'
+    text: string[]
   }
+  | {
+    type: 'bullets'
+    items: string[]
+  }
+  | {
+    type: 'definitions'
+    items: Array<{ term: string, description: string }>
+  }
+  | {
+    type: 'note'
+    tone?: 'info' | 'warning'
+    text: string
+  }
+  | {
+    type: 'formula'
+    lines: string[]
+    note?: string
+  }
+  | {
+    type: 'example'
+    title: string
+    setup: string[]
+    observation: string[]
+    takeaway: string[]
+  }
+  | {
+    type: 'steps'
+    items: Array<{ title: string, description: string }>
+  }
+  | {
+    type: 'comparison'
+    leftLabel: string
+    rightLabel: string
+    rows: Array<{ label: string, left: string, right: string }>
+  }
+  | {
+    type: 'statTable'
+    rows: Array<{
+      stat: string
+      structure: string
+      meaning: string
+      surfaces: string
+    }>
+  }
+  | {
+    type: 'warningList'
+    items: string[]
+  }
+  | {
+    type: 'image'
+    src: string
+    alt: string
+    caption: string
+  }
+  | {
+    type: 'imagePlaceholder'
+    title: string
+    caption: string
+  }
+
+const paragraph = (...text: string[]): GuideBlock => ({ type: 'paragraph', text })
+const bullets = (...items: string[]): GuideBlock => ({ type: 'bullets', items })
+const definitions = (...items: Array<[string, string]>): GuideBlock => ({
+  type: 'definitions',
+  items: items.map(([term, description]) => ({ term, description })),
+})
+const note = (text: string, tone: 'info' | 'warning' = 'info'): GuideBlock => ({
+  type: 'note',
+  tone,
+  text,
+})
+const formula = (lines: string[], noteText?: string): GuideBlock => ({
+  type: 'formula',
+  lines,
+  note: noteText,
+})
+const example = (
+  title: string,
+  setup: string[],
+  observation: string[],
+  takeaway: string[],
+): GuideBlock => ({
+  type: 'example',
+  title,
+  setup,
+  observation,
+  takeaway,
+})
+const steps = (...items: Array<[string, string]>): GuideBlock => ({
+  type: 'steps',
+  items: items.map(([title, description]) => ({ title, description })),
+})
+const comparison = (
+  leftLabel: string,
+  rightLabel: string,
+  ...rows: Array<[string, string, string]>
+): GuideBlock => ({
+  type: 'comparison',
+  leftLabel,
+  rightLabel,
+  rows: rows.map(([label, left, right]) => ({ label, left, right })),
+})
+const statTable = (...rows: Array<[string, string, string, string]>): GuideBlock => ({
+  type: 'statTable',
+  rows: rows.map(([stat, structure, meaning, surfaces]) => ({
+    stat,
+    structure,
+    meaning,
+    surfaces,
+  })),
+})
+const warningList = (...items: string[]): GuideBlock => ({ type: 'warningList', items })
+const image = (src: string, alt: string, caption: string): GuideBlock => ({
+  type: 'image',
+  src,
+  alt,
+  caption,
+})
+const section = (title: string, ...blocks: GuideBlock[]): GuideSection => ({ title, blocks })
+const article = (
+  id: string,
+  title: string,
+  summary: string,
+  ...sections: GuideSection[]
+): GuideArticle => ({
+  id,
+  title,
+  summary,
+  sections,
+})
+
+export const gdCtgr: GuideCategory[] = [
+  {
+    id: 'rotations',
+    title: 'Rotations',
+    summary: 'How authored rotation structure becomes execution, totals, inspection contexts, and saved records.',
+    aliases: ['Rotations', 'Rotation'],
+    articles: [
+      article(
+        'rotation-mental-model',
+        'Rotation Mental Model',
+        'What the rotation system stores and what the simulator actually derives from it.',
+        section(
+          'Authored structure versus computed output',
+          paragraph(
+            'A rotation is authored state, not a frozen result. The node list stores what should execute, in what order, under which conditions, and with which loop or weighting rules. Damage, healing, shield, and contribution totals are computed later from that authored structure against the current build, team state, and enemy state.'
+          ),
+          definitions(
+            ['Authored structure', 'The nodes you keep in the editor. This includes features, conditions, repeat blocks, uptime blocks, loop markers, enabled state, and when rules.'],
+            ['Computed output', 'The execution trace, per skill results, inspection rows, and rotation totals produced when the simulator runs the authored structure.'],
+            ['Execution order', 'The simulator reads nodes in order. Earlier state changes can affect later feature rows.'],
+            ['Context', 'The active resonator build, teammate state, enemy profile, set conditionals, custom bonuses, and selected targets that exist at simulation time.']
+          ),
+          comparison(
+            'Authored',
+            'Computed',
+            ['What it stores', 'Node definitions, loop markers, weights, conditions, saved metadata', 'Damage rows, healing rows, shield rows, totals, breakdowns, inspection snapshots'],
+            ['When it changes', 'When you edit the rotation itself', 'Whenever authored structure or combat context changes'],
+            ['Persistence', 'Saved rotations keep it directly', 'Saved summaries and snapshots may keep a computed view of it']
+          ),
+          note('If a result looks wrong, check authored structure first, then check shared combat context. The simulator is only answering the scenario it was given.'),
+        ),
+      ),
+      article(
+        'rotation-node-types',
+        'Node Types and Tree Structure',
+        'What each rotation node type does and why it exists.',
+        section(
+          'Core node types',
+          definitions(
+            ['Feature', 'Runs one feature definition. This is the node that usually creates damage, healing, shield, tune rupture, negative effect, or another measurable output row.'],
+            ['Condition', 'Applies runtime changes without creating a damage row by itself. This is where stack changes, toggles, enemy status updates, and similar scenario state are authored.'],
+            ['Repeat', 'Executes its child list several times. It is direct repetition, not a named loop context.'],
+            ['Uptime', 'Executes its child list inside a weighted branch. The branch contributes only by its uptime ratio.'],
+            ['Loop start and loop end', 'Create a named loop context with run counters. Loop contexts can be targeted by when rules and are used by loop aware summaries.']
+          ),
+          comparison(
+            'Repeat',
+            'Loop',
+            ['Main purpose', 'Repeat a child list a fixed number of times', 'Create named iteration context with run numbering'],
+            ['Condition targeting', 'No per run context is created', 'When rules can target specific runs'],
+            ['Summary meaning', 'Raw repeated execution', 'Loop aware summaries can normalize by total configured runs'],
+            ['Authoring helper', 'Good for compact duplication', 'Good for modeling windows, passes, or repeated phases']
+          ),
+          paragraph(
+            'Loopify is a structural helper that wraps the selected nodes with a loop start and loop end marker. It does not invent new feature behavior. It only gives the wrapped nodes a named iteration context.'
+          ),
+        ),
+      ),
+      article(
+        'rotation-loops-and-iteration-semantics',
+        'Loops and Iteration Semantics',
+        'How loop markers, run counts, wrap modes, and summary normalization work.',
+        section(
+          'What loop markers mean',
+          paragraph(
+            'A loop start defines a loop id, desc, color, and run count. A matching loop end closes that loop id inside the same sibling list. The simulator keeps track of the active run number and the total configured run count while any node inside that loop is executing.'
+          ),
+          definitions(
+            ['Forward loop', 'The loop end appears after the loop start. The loop body is the range between them.'],
+            ['Wrap end loop', 'The loop end appears before the loop start in the same list. The loop body wraps across the list boundary.'],
+            ['Wrap start loop', 'There is no end marker. The loop starts at the start marker, runs through the rest of the list, then stops when it returns to the start marker.'],
+            ['Loop run', 'The current numbered pass through that loop. Inspection rows and when rules can reference it directly.'],
+            ['Loop run count', 'The configured number of total runs for that loop.']
+          ),
+          image(
+            '/assets/guides/loop-forward.png',
+            'Forward loop boundary example in the rotation editor',
+            'Forward case. The end marker appears after the start marker, so the loop body is the range between them.'
+          ),
+          image(
+            '/assets/guides/loop-wrap-end.png',
+            'Wrap end loop boundary example in the rotation editor',
+            'Wrap end case. The end marker appears before the start marker in the same list, so the loop body wraps across the list boundary.'
+          ),
+          image(
+            '/assets/guides/loop-wrap-start.png',
+            'Wrap start loop boundary example in the rotation editor',
+            'Wrap start case. There is no end marker, so the loop starts at the start marker and continues until execution returns to that marker.'
+          ),
+        ),
+        section(
+          'How summaries treat loops',
+          steps(
+            ['Execute each run', 'The simulator still emits one execution entry for each run. A loop with 3 runs creates three loop-scoped entries when the body contains one feature node.'],
+            ['Stamp loop context', 'Each entry inside the loop carries the current run number and the total configured runs for that loop. Nested loops carry more than one loop context at once.'],
+            ['Normalize loop aware totals', 'Rotation totals, contribution breakdowns, and saved loop total previews divide looped rows by their configured run counts before they are added together.'],
+            ['Keep run specific inspection', 'Run specific inspection rows still exist. Normalization is for summary interpretation, not for hiding per run execution.']
+          ),
+          example(
+            'Three run loop with one finisher',
+            [
+              'Loop A runs 3 times.',
+              'The loop body contains one feature row worth 40,000 average damage each run.',
+              'A finisher outside the loop is worth 120,000 average damage.',
+            ],
+            [
+              'The simulator emits three loop feature entries and one finisher entry.',
+              'The personal rotation total is interpreted as 40,000 from the loop window plus 120,000 from the finisher, for 160,000 average damage.',
+              'This is because the loop window is normalized by its 3 configured runs before it joins the summary.',
+            ],
+            [
+              'If the same loop had only 1 run, there would be no difference between raw and normalized totals.',
+              'If a row sits inside nested loops, the divisor multiplies across loop run counts. A row inside a 2 run outer loop and a 3 run inner loop is normalized by 6 in loop aware summary surfaces.',
+            ],
+          ),
+          warningList(
+            'Loop normalization does not mean the raw execution list disappears. The per run trace still exists.',
+            'If you are comparing summary rows to raw inspection rows, remember that the summary may be an average style view of repeated passes.',
+            'Saved loop marker totals depend on computed entries. If there is no computed run data yet, the loop inspector cannot show a meaningful total.'
+          ),
+        ),
+      ),
+      article(
+        'rotation-repeat-and-uptime',
+        'Repeat Blocks, Uptime Blocks, and Weighting',
+        'How structural blocks differ from loop markers.',
+        section(
+          'Repeat versus uptime',
+          paragraph(
+            'Repeat blocks and uptime blocks are structural execution tools. They are not interchangeable. Repeat duplicates child execution. Uptime scales branch contribution by a ratio.'
+          ),
+          definitions(
+            ['Repeat block', 'Evaluates its child list the requested number of times. If the repeat count resolves to 0, nothing inside it contributes.'],
+            ['Uptime block', 'Evaluates its child list inside a weighted branch. A 30 percent uptime block contributes 30 percent of its branch output to totals.'],
+            ['Setup branch', 'An uptime block can apply setup items before its weighted branch items execute. This is useful when a buff needs to exist before the weighted branch is measured.']
+          ),
+          example(
+            'Repeat and uptime are not the same',
+            [
+              'A repeat block with times = 3 around a 10,000 damage feature produces 30,000 raw damage before other context changes.',
+              'An uptime block with ratio = 0.3 around a 10,000 damage feature contributes 3,000 average damage to the parent summary.',
+            ],
+            [
+              'Repeat models discrete duplication.',
+              'Uptime models partial presence inside the total window.',
+            ],
+            [
+              'Use repeat when the event actually happens several times.',
+              'Use uptime when the effect exists for part of the window and should be weighted accordingly.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'rotation-conditions-and-when-rules',
+        'Conditions and When Rules',
+        'How node gating, loop targeted rules, and inspection contexts interact.',
+        section(
+          'What when rules do',
+          paragraph(
+            'A when rule decides whether a node executes for the current context. That context can include normal condition logic and loop run selection. When a loop rule is missing for a covering loop, the editor treats that as all runs active for that loop.'
+          ),
+          definitions(
+            ['Condition expression', 'The logical rule that determines whether the node should run at all.'],
+            ['Loop rule', 'A list of loop ids and allowed run numbers for that node.'],
+            ['Covering loop', 'A loop whose boundaries include the edited node. Only those loops are relevant for that node.'],
+            ['Inspection context', 'One concrete combination of loop runs such as Loop A #2/3 plus Loop B #1/2.']
+          ),
+          example(
+            'Only on the second pass',
+            [
+              'Loop A runs 3 times.',
+              'A condition node applies a crit buff only on run 2.',
+              'A feature row after it exists on all three runs.',
+            ],
+            [
+              'The feature row has three inspection contexts.',
+              'Only the Loop A #2/3 context sees the extra buff.',
+              'If no loop rule had been authored, all three runs would be active by default.',
+            ],
+            [
+              'When rules are usually needed when one pass through a loop has a different state than the others.',
+            ],
+          ),
+          warningList(
+            'If a node appears to stop running after loop edits, inspect its when rules first.',
+            'Short loop chips in the editor refer to the loop that actually covers that node, not every loop in the rotation.',
+            'A disabled node and a filtered out node look similar in totals, but they are different authoring states.'
+          ),
+        ),
+      ),
+      article(
+        'rotation-live-saved-and-team-state',
+        'Live Rotations, Saved Rotations, and Team Rotations',
+        'How current state, saved state, teammate links, and import or export boundaries relate.',
+        section(
+          'State boundaries',
+          comparison(
+            'Live',
+            'Saved',
+            ['What it is', 'The current rotation attached to the active runtime', 'A persisted inventory record with metadata and optional summary or snapshot'],
+            ['When it updates', 'Immediately when the editor or combat context changes', 'Only when you save, import, edit, rename, or delete the saved record'],
+            ['Resonator scope', 'Current active resonator', 'Stored with a resonator id and resonator name'],
+            ['Load behavior', 'Already active', 'Loading can overwrite current entries and may switch the active resonator']
+          ),
+          paragraph(
+            'Team rotations are a third layer. A personal rotation belongs to one resonator. A team rotation summary adds the enabled linked teammate rotations that are selected for the active setup. Those teammate links can point at live teammate state or a saved teammate rotation entry.'
+          ),
+          note('Loading a saved rotation from another resonator is a larger state change than loading one from the active resonator. It switches resonator context and then applies the rotation.'),
+        ),
+        section(
+          'Import, export, and saved metadata',
+          bullets(
+            'Rotation JSON export keeps authored items, mode, resonator identity, duration, note, team selection, and any saved snapshot or summary that already exists on the entry.',
+            'Imported rotations are normalized into fresh node ids so they do not collide with existing editor state.',
+            'Duration and DPS are saved metadata. They do not cause extra execution by themselves.',
+            'Summary fields are descriptive. They do not replace live recomputation once the rotation is loaded back into the calculator.'
+          ),
+        ),
+      ),
+      article(
+        'rotation-totals-and-breakdown-rows',
+        'Reading Rotation Totals and Breakdown Rows',
+        'How personal totals, team totals, support rows, and contribution tables should be interpreted.',
+        section(
+          'Total families',
+          definitions(
+            ['Personal rotation total', 'The active resonator only. Damage totals come from damage rows. Healing and shield are kept in separate aggregation buckets.'],
+            ['Team rotation total', 'The combined damage of the active resonator plus enabled linked teammate rotations.'],
+            ['Contributor breakdown', 'How much average damage each resonator contributes to the team total.'],
+            ['Skill type breakdown', 'How much average damage each skill family contributes inside the selected total view.'],
+            ['Support rows', 'Healing and shield totals shown beside damage summaries when those aggregation buckets are non zero.']
+          ),
+          example(
+            'Damage plus support in one rotation',
+            [
+              'A rotation deals 500,000 average damage, heals for 30,000, and creates 18,000 shield value.',
+            ],
+            [
+              'The damage total remains 500,000 in the main total row.',
+              'Healing and shield appear as separate support rows because they are tracked in their own aggregation buckets.',
+            ],
+            [
+              'Do not add support rows into the main damage total unless you are intentionally making your own combined utility metric.',
+            ],
+          ),
+          note('Normal, Crit, and Average columns are direct views of the same resolved row. Average is not a separate simulation mode.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'echoes',
+    title: 'Echoes',
+    summary: 'How the active five piece loadout, bag inventory, main echo behavior, and authored echo instances work.',
+    aliases: ['Echoes'],
+    articles: [
+      article(
+        'echo-loadout-rules',
+        'Loadout Rules and Slot Roles',
+        'What the equipped echo surface is actually modeling.',
+        section(
+          'The active echo build',
+          paragraph(
+            'The echo pane is the active resonator loadout. It holds up to five equipped echoes and enforces the 12C total cost budget used by the rest of the app, including suggestions and optimizer flows.'
+          ),
+          definitions(
+            ['Equipped echo', 'An echo currently attached to one of the five live loadout slots. Its main stats, secondary stat, substats, set id, and main echo flag feed the build immediately.'],
+            ['Main echo slot', 'The first equipped slot. This is the slot whose echo can expose main echo skill text and state controls.'],
+            ['Total cost', 'The combined echo cost of the equipped loadout. The shipped UI shows this against the 12C cap.'],
+            ['Legal loadout', 'A five slot arrangement that respects the app cost rules and uses real echo definitions.']
+          ),
+          comparison(
+            'Equipped',
+            'Bag',
+            ['Affects current build', 'Yes, immediately', 'No, until equipped'],
+            ['Resonator specific', 'Only because it is attached to the current runtime', 'Shared inventory state'],
+            ['Typical use', 'Current active build', 'Reusable stock for later equip, compare, save, or optimize actions']
+          ),
+        ),
+      ),
+      article(
+        'echo-instance-identity',
+        'Echo Instance Identity and Inventory State',
+        'How the app distinguishes one echo instance from another.',
+        section(
+          'Identity and persistence',
+          paragraph(
+            'An echo instance is more than an echo id. The saved instance also carries its set assignment, main stat values, substats, main echo flag, and identity. Two copies of the same echo definition can still be different inventory entries if their authored stats are different.'
+          ),
+          bullets(
+            'Saving an equipped echo to the bag creates or preserves a reusable inventory entry.',
+            'Removing an echo from the current loadout does not delete the inventory copy unless you explicitly remove it from the bag.',
+            'Saved builds and optimizer results reference concrete echo instances, not abstract names only.'
+          ),
+          example(
+            'Same echo definition, different instance value',
+            [
+              'You own two copies of the same 3C echo.',
+              'One has Crit Rate and Resonance Skill rolls.',
+              'The other has Energy Regen and HP percent rolls.',
+            ],
+            [
+              'They are the same echo family but not the same inventory instance.',
+              'Optimizer, score, and saved build behavior can treat them very differently.',
+            ],
+            [
+              'Whenever a result depends on your actual bag, echo identity matters as much as echo name.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'echo-main-stats-and-substats',
+        'Main Stats, Substats, and Roll Interpretation',
+        'How authored echo stats map into build math.',
+        section(
+          'What the editor changes',
+          paragraph(
+            'Main stat edits, set changes, and substat edits rewrite the authored echo instance itself. There is no separate preview stat mask inside the equip surface. If the value is on the echo, it is part of the active build.'
+          ),
+          definitions(
+            ['Primary main stat', 'The build defining main stat line on that echo cost tier. This is the line most score systems weight heavily.'],
+            ['Secondary main stat', 'The fixed secondary line tied to the echo cost tier. It still contributes to total stats but is not treated as the chosen primary roll.'],
+            ['Substats', 'The secondary authored lines that usually define roll quality and specialization.'],
+            ['Roll quality', 'How strong a value is compared with the known range for that stat line.']
+          ),
+          example(
+            'Why one small edit moves several surfaces',
+            [
+              'A 4C echo is edited from ATK% to Crit Rate.',
+              'The echo keeps the same identity, set, and substats.',
+            ],
+            [
+              'Final stats change immediately.',
+              'Damage results move because crit rate changes expected value.',
+              'Echo score can also change because the character specific scoring table values the main stat differently.',
+            ],
+            [
+              'One echo edit can change damage, score, suggestions, and optimizer baselines at the same time because all of those systems read the same loadout.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'echo-main-echo-and-sets',
+        'Main Echo Effects and Sonata Sets',
+        'How the active main echo and set counts affect runtime behavior.',
+        section(
+          'Main echo behavior',
+          paragraph(
+            'The main echo slot can expose active skill text and state controls. Some main echo definitions add a visible damage row. Others only add conditions, buffs, or options that modify later calculations.'
+          ),
+          definitions(
+            ['Main echo effect', 'The active skill or stateful effect exposed by the equipped main echo.'],
+            ['Selected set id', 'The set affiliation stored on each echo instance.'],
+            ['Active set bonus', 'A set effect that becomes available once the equipped counts satisfy its threshold.']
+          ),
+          note('Set logic uses the selected set ids on the equipped echoes. Suggestions that rewrite set plans are changing those set assignments, not inventing extra hidden set pieces.'),
+        ),
+      ),
+      article(
+        'echo-surface-totals-and-scores',
+        'Echo Stats, CV, and Surface Totals',
+        'How the echo surfaces summarize the current equipped loadout.',
+        section(
+          'What the summary badges mean',
+          paragraph(
+            'The echo surface can summarize the equipped loadout with total stat rows, Crit Value, and build score. These are summary helpers. They do not replace the full final stat tree or damage formulas.'
+          ),
+          definitions(
+            ['Echo Stats', 'The aggregated stat lines contributed by the currently equipped echoes only.'],
+            ['CV', 'Crit Value, computed as Crit Rate x 2 plus Crit Damage. It only describes crit concentration.'],
+            ['Build score', 'A normalized score percentage across the whole equipped echo loadout using the active resonator scoring weights.']
+          ),
+          note('Use Echo Stats when you want to know what the echoes themselves contribute. Use Overview and Damage Results when you need the full final build after weapon, traces, team, enemy, and manual bonuses are included.'),
+        ),
+      ),
+      article(
+        'echo-set-conditionals',
+        'Set Effect Conditionals',
+        'Telling the app which set bonuses you actually use, so suggestions and optimizer rankings match your real play.',
+        section(
+          'What this modal is for',
+          paragraph(
+            'Most sonata sets have bonuses that only kick in under specific conditions, like a teammate role you may not run, a stack count you may not hit, or a long uptime your rotation cannot keep. By default the app assumes every part is active. This modal lets you turn off the parts that do not match how you actually play, so suggestions and optimizer rankings reflect your real damage rather than a theoretical ceiling.'
+          ),
+          note('Settings here only change rankings. They never delete or modify the set itself, and you can flip a part back on at any time.'),
+        ),
+        section(
+          'When you might want to turn a part off',
+          bullets(
+            'A set bonus needs a teammate type you do not bring (for example a healer or a specific element).',
+            'A bonus needs many stacks or a long uptime your rotation cannot maintain.',
+            'A bonus only triggers in conditions you skip during a real fight.',
+            'You want to see how the ranking would look without an optional bonus before farming for it.'
+          ),
+          example(
+            'Did you know?',
+            [
+              'A 5 piece set bonus triggers when a teammate uses Liberation, but you usually play solo or with a different team.',
+            ],
+            [
+              'Suggestions and the optimizer were treating that bonus as fully active, pushing the set up the ranking unfairly.',
+            ],
+            [
+              'Turning the part off drops the set toward its realistic rank for your actual team. The recommendation you see now is the one that will actually perform for you.',
+            ],
+          ),
+        ),
+        section(
+          'Using the modal',
+          definitions(
+            ['Search', 'Type a set name, set id, or a phrase from a bonus description to narrow the cards.'],
+            ['Piece filter', 'Tap All, 2PC, 3PC, or 5PC to focus on one piece tier at a time.'],
+            ['Sort', 'Reorder by set id, name, or how many of the set\'s bonuses are toggleable.'],
+            ['Toggle all visible', 'The row at the top flips every bonus you can currently see on and off in one click. The dashed state means some are on and some are off inside your current filter.'],
+            ['Per part toggle', 'Each row inside a card is one set bonus. The small counter on the card header shows how many bonuses on that set are still on.']
+          ),
+          note('Bonuses that only apply to teammates are not shown here. Those belong to the other resonators in your team and you change them from each teammate\'s view.'),
+        ),
+        section(
+          'What changes when you toggle',
+          comparison(
+            'Bonus on (default)',
+            'Bonus off',
+            ['Suggestions', 'Counted in the score for set plans and weapon picks', 'Removed from the score so other sets compete fairly'],
+            ['Optimizer rows', 'Included when ranking your bag', 'Skipped, so builds that depended on it slide down the list'],
+            ['Damage on the main calculator', 'The set still works the same way in your normal damage results', 'Same as the on state, these toggles only affect ranking flows']
+          ),
+          note('Each resonator has its own list of off bonuses. A change you make on one character does not carry to another, so feel free to disable a bonus for a sub-DPS without affecting your main.'),
+        ),
+        section(
+          'Good habits',
+          bullets(
+            'Open this modal once after you settle on a team comp. Most of your toggles stay set after that.',
+            'When suggestions or optimizer ranks look surprising, check here first, a single off bonus can reshuffle the top results.',
+            'If you change teams, revisit the toggles. A bonus that was unrealistic in one team can become reliable in another.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'suggestions',
+    title: 'Suggestions',
+    summary: 'How suggestion engines choose targets, evaluate candidate recipes, and expose inspect or apply flows.',
+    aliases: ['Suggestions', 'Random Echoes'],
+    articles: [
+      article(
+        'suggestion-target-model',
+        'Target Skill and Evaluation Model',
+        'What the suggestion engines are actually optimizing.',
+        section(
+          'The chosen target defines the answer',
+          paragraph(
+            'Suggestions do not search for a universally correct build. They rank candidates against one current evaluation target. In direct mode that target is a chosen damage feature row. In rotation mode the target is the current personal rotation damage model.'
+          ),
+          definitions(
+            ['Direct mode', 'Suggestions optimize around one eligible direct damage feature row.'],
+            ['Rotation mode', 'Suggestions optimize around the current personal rotation damage result instead of one direct skill row.'],
+            ['Weight map', 'A stat importance map derived from the current target so the engine knows which stats matter most for this scenario.'],
+            ['Current comparison', 'The delta between the candidate and the currently equipped build under the same runtime assumptions.']
+          ),
+          example(
+            'Same character, different target',
+            [
+              'Target A is a Resonance Skill nuke.',
+              'Target B is a rotation that includes basic attacks, liberation damage, and coordinated hits.',
+            ],
+            [
+              'Target A may push heavy skill specific or crit focused choices.',
+              'Target B may spread value across several families because the rotation contains more than one important source.',
+            ],
+            [
+              'If suggestion output changes after you switch the target, that is expected. The question you asked the engine changed.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'suggestions-main-stat-recipes',
+        'Main Stat Suggestions',
+        'What a main stat suggestion row represents and what it does not represent.',
+        section(
+          'Recipe based suggestions',
+          paragraph(
+            'Main stat suggestions search legal main stat recipes under the echo cost budget. They are recipe suggestions for the current loadout, not bag constrained optimizer results.'
+          ),
+          bullets(
+            'The engine explores legal main stat combinations up to the current slot count and 12C budget.',
+            'The result row tells you which main stats the engine wants on each cost tier.',
+            'Applying the result rewrites the active equipped echo state to match that recipe output.'
+          ),
+          comparison(
+            'Main stat suggestion',
+            'Optimizer result',
+            ['Inventory constrained', 'No', 'Yes'],
+            ['What it changes', 'Main stat recipe on the current loadout model', 'Concrete loadout assembled from bag entries'],
+            ['Best use', 'Learn what stat pattern the current target wants', 'Find the best real build you can equip right now']
+          ),
+        ),
+      ),
+      article(
+        'suggestions-set-plans',
+        'Set Plan Suggestions',
+        'How suggested set plans are evaluated.',
+        section(
+          'Set plans change set ids, not echo identities',
+          paragraph(
+            'Set plan suggestions neutralize the current loadout set assignments, apply candidate set piece plans, then re-evaluate the same equipped echo shells under those plan choices. This isolates the value of the set plan itself.'
+          ),
+          definitions(
+            ['Set plan', 'A compact description such as 5pc one set, or mixed partial set counts, assigned back onto the current five echo slots.'],
+            ['Base average', 'The current no plan baseline used for comparison.'],
+            ['Feasible plan', 'A plan that is valid for the current slot count and supported plan rules.']
+          ),
+          example(
+            'Set plan without changing substats',
+            [
+              'Two candidate plans are compared on the same current echo shells.',
+              'Only set ids change between those candidates.',
+            ],
+            [
+              'A plan can win because its set effects outperform the current plan even before any substat farming is considered.',
+            ],
+            [
+              'Read set suggestions as set logic guidance first. Use optimizer later if you want a bag constrained answer.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'suggestions-weapons',
+        'Weapon Suggestions',
+        'Finding the weapon that best fits your current target and team, then equipping it without losing your previous weapon\'s settings.',
+        section(
+          'What you are picking between',
+          paragraph(
+            'Weapon suggestions look at every weapon your character can use and rank them against the skill or rotation you are currently optimizing for. The list reads top to bottom by how much damage each weapon would give you. Your equipped weapon does not change until you press Apply on a row, so you can browse without committing to anything.'
+          ),
+          note('Like the other suggestion lists, this ranking moves when you change the target skill or rotation. If you switch to a different feature row, expect the order to shuffle.'),
+        ),
+        section(
+          'Choosing a mode',
+          paragraph(
+            'The Mode setting at the top of the config decides how the app treats each weapon\'s passive when it scores them.'
+          ),
+          comparison(
+            'Default',
+            'Max',
+            ['What it asks', 'How strong is the weapon at its baseline passive', 'How strong is the weapon when its passive is fully active'],
+            ['When to use it', 'You want realistic numbers for fights where you cannot keep stacks up', 'You want the ceiling, what could this weapon do if I played it perfectly'],
+            ['What it changes', 'Uses each weapon\'s default passive value', 'Uses the maximum value you set on the Passives tab']
+          ),
+          paragraph(
+            'Both mode is a compromise, it scores every weapon twice and shows you the one that the "Rank by" picker chooses. Useful if you want a quick side-by-side without leaving the config.'
+          ),
+        ),
+        section(
+          'Limiting the search by rarity',
+          paragraph(
+            'Standard weapons are the ones every account has access to. They share one rank setting because the same standard weapon plays identically on every character. The rest of the rarities each have their own row with a visibility toggle and a rank picker.'
+          ),
+          bullets(
+            'Turn a rarity Off when you have no realistic way to get those weapons. They drop out of the list entirely.',
+            'Leave a rarity On at the rank you actually have (or plan to have). Most 5 stars are R1 unless you have pulled dupes.',
+          ),
+          note('These rarity rules apply across every character, not just your current resonator. The thinking is that a weapon\'s rank does not change depending on who is holding it.'),
+        ),
+        section(
+          'The Passives tab',
+          paragraph(
+            'Some weapons have a passive that scales with stacks, stances, or a toggle. The Passives tab lets you tell the app the largest value of that state you can actually keep up during your rotation. The list only shows weapons that are currently in the search, so flipping a rarity off also hides those weapon\'s state rows.'
+          ),
+          example(
+            'Did you know?',
+            [
+              'A weapon\'s passive scales up to 4 stacks of a buff, but your rotation can only realistically keep 2 stacks active most of the time.',
+            ],
+            [
+              'Leaving the passive at its 4 stack max in Max mode credits the weapon with damage you do not actually deal.',
+              'Disabling the passive entirely throws away the 2 stacks you do get.',
+            ],
+            [
+              'Set the max to 2 instead. The weapon now competes on what you can actually sustain, not on its theoretical ceiling.',
+            ],
+          ),
+          note('Use Off when a state really does not apply to your play. Use a lower max when the state applies but the listed maximum is unrealistic.'),
+        ),
+        section(
+          'Inspect vs Apply',
+          comparison(
+            'Inspect',
+            'Apply',
+            ['What it does', 'Opens a detailed view so you can see why a weapon ranked where it did', 'Equips the weapon, sets the rank, and updates the passive controls on your build'],
+            ['Does it change my build', 'No, it is read only', 'Yes, your active weapon and its passive settings change immediately'],
+            ['Best for', 'Comparing the top few options before committing', 'Adopting the winner as your working build']
+          ),
+          paragraph(
+            'When you Apply, the app clears your previous weapon\'s passive controls before writing the new one\'s. This is on purpose, leftover toggles from your old weapon should not bleed into the new one. The new weapon goes in at the rank shown on the row, which means standard weapons use the shared rank setting rather than whatever rank you had before.'
+          ),
+        ),
+        section(
+          'Things to watch for',
+          warningList(
+            'The ranking is target specific. A weapon that wins for your skill nuke can lose for your full rotation, and vice versa.',
+            'Switching modes (Default vs Max) can reorder the list a lot when some weapons depend on hard to reach states.',
+            'If a weapon you expected to see is missing, check the rarity row... its rarity might be turned off.',
+            'Standard weapon ranks live in this config, so changing the rank here changes the rank on every standard weapon you equip from a suggestion.'
+          ),
+        ),
+      ),
+      article(
+        'suggestions-random-generation',
+        'Random Echo Generation',
+        'What the generator synthesizes and how its controls influence the result.',
+        section(
+          'Synthetic loadouts',
+          paragraph(
+            'Random generation is deliberately not bag constrained. It synthesizes valid echo sets, main stats, and substats, then evaluates those generated builds against the same suggestion context used elsewhere.'
+          ),
+          definitions(
+            ['Bias', 'How strongly the generator favors the current weight map instead of spreading probability more evenly across legal stat choices.'],
+            ['Roll quality', 'The quality band the generator samples around when it creates substats. Higher values trend closer to stronger rolls.'],
+            ['Target Energy Regen', 'A soft target that adds or replaces Energy Regen where needed until the generated set reaches the requested threshold.'],
+            ['Set preferences', 'Optional rules that force or guide the generated build toward chosen set piece counts.']
+          ),
+          example(
+            'Why a generated build can beat your inventory',
+            [
+              'Your current bag is missing strong Crit Rate and Energy Regen combinations.',
+              'The generator is allowed to synthesize idealized legal echoes.',
+            ],
+            [
+              'The generated build can outperform your real bag because it is answering a ceiling question, not an inventory question.',
+            ],
+            [
+              'Use random generation for expectation setting and theory, not for claiming that your current account can equip the exact result.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'suggestions-inspect-and-apply',
+        'Inspect, Apply, and Common Misreadings',
+        'How to treat suggestion output once it has been ranked.',
+        section(
+          'Preview versus state change',
+          comparison(
+            'Inspect',
+            'Apply',
+            ['Meaning', 'Show the candidate in a readable concrete form', 'Write the candidate into active build state'],
+            ['Persistence', 'No state mutation by itself', 'Mutates current equipped state immediately'],
+            ['Best use', 'Understand why the candidate won', 'Adopt the candidate as your current working build']
+          ),
+          warningList(
+            'A suggestion can be locally correct for the chosen target and still be wrong for another target.',
+            'A set suggestion and a main stat suggestion are not the same question, even when they appear on the same page.',
+            'Random generation answers a synthetic ceiling question. Optimizer answers a bag constrained question.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'optimizer',
+    title: 'Optimizer',
+    summary: 'How the optimizer searches real inventory, prunes candidates, applies constraints, and exposes sim or live apply flows.',
+    aliases: ['Optimizer'],
+    articles: [
+      article(
+        'optimizer-search-space',
+        'Search Space and Inventory Filtering',
+        'What the optimizer is allowed to search before ranking results.',
+        section(
+          'Inventory mode',
+          paragraph(
+            'In Inventory mode the optimizer searches your real bag entries. Every result row must be buildable from filtered inventory echoes that survive the current rules, set allowances, main stat restrictions, and cost limits. Theorymax mode swaps this candidate pool out for the full catalog and is covered in its own article.'
+          ),
+          definitions(
+            ['Filtered inventory', 'The inventory echoes still eligible after current rule filters are applied.'],
+            ['Combination count', 'The number of legal loadout combinations that remain after filtering and main echo constraints.'],
+            ['Locked main echo', 'A forced main echo choice that remains in the search even if later filters are aggressive.'],
+            ['Keep percent filter', 'A weight based pruning pass that keeps only the strongest slice of echoes for direct mode search.']
+          ),
+          note('The keep percent filter is an Inventory-mode pruning shortcut for direct target search. Rotation mode keeps the full filtered pool because a simple direct weight prune is less reliable there. Theorymax does not use keep percent at all.'),
+        ),
+      ),
+      article(
+        'optimizer-targets-and-objectives',
+        'Targets, Weight Maps, and Objectives',
+        'Why the optimizer ranks one build above another.',
+        section(
+          'One objective at a time',
+          paragraph(
+            'Like suggestions, the optimizer ranks by one current objective. In target mode it optimizes a selected skill. In rotation mode it optimizes the selected rotation payload. The same bag can produce different winners when the objective changes.'
+          ),
+          definitions(
+            ['Target mode', 'One selected skill or eligible row is the optimization objective.'],
+            ['Rotation mode', 'The selected rotation items become the objective instead of one direct row.'],
+            ['Weight map', 'A marginal value map estimated from the current target so filters and helpers know which stats move the selected objective most.']
+          ),
+          example(
+            'Why a lower score echo can still be part of the top result',
+            [
+              'One echo has a better broad score but spreads value across unused stats.',
+              'Another echo has lower broad score but has the exact element or skill type bonus the selected target wants.',
+            ],
+            [
+              'The optimizer can prefer the narrower piece because it is solving the chosen objective, not a generic quality metric.',
+            ],
+            [
+              'Optimizer rank is objective specific. Echo score is broader and more human readable, but less exact for one target.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'optimizer-constraints-and-failures',
+        'Constraints, Locked State, and No Result Cases',
+        'How constraints change the search and why a run can fail to produce a winner.',
+        section(
+          'Hard boundaries',
+          paragraph(
+            'Main echo locks, allowed sets, stat minimums, and other constraints all shrink the legal search space before ranking happens. A higher damage candidate that violates one required limit is not a valid result.'
+          ),
+          bullets(
+            'Locked main echo keeps that main echo in the search and forces the rest of the loadout around it.',
+            'Stat constraints apply to final resolved stats, not to one isolated echo row.',
+            'If the set plan or filters are impossible with the current bag, the optimizer can correctly return no valid result.'
+          ),
+          warningList(
+            'No result does not always mean the engine failed. It often means your constraints removed every legal build.',
+            'Tight Energy Regen, set, and main echo constraints can combine into an impossible search faster than expected.',
+            'If a result seems too weak, check whether stronger candidates were filtered out by a hard limit rather than by rank.'
+          ),
+        ),
+      ),
+      article(
+        'optimizer-result-rows',
+        'Result Rows, Preview, and Apply Modes',
+        'How to read a ranked result and what happens when it is equipped.',
+        section(
+          'What a row contains',
+          definitions(
+            ['Result row', 'One ranked candidate loadout built from real inventory entries.'],
+            ['Preview', 'A concrete inspection surface that lets you see the echoes behind the rank.'],
+            ['Current delta', 'The difference between the candidate and the current optimizer baseline under the same target.'],
+            ['Base row', 'The current equipped baseline shown so candidates can be compared against something real.']
+          ),
+          comparison(
+            'Sim',
+            'Sim and Live',
+            ['Where it applies', 'Optimizer simulation state only', 'Optimizer simulation state and the live resonator runtime'],
+            ['Best use', 'Keep experimenting inside optimizer without touching the live build', 'Adopt the candidate into your real calculator state']
+          ),
+          note('Applying a result to Sim lets you continue optimizer work in a sandbox. Applying to Sim and Live carries the result back into the normal calculator runtime and can switch to the optimizer resonator if another one is active.'),
+        ),
+      ),
+      article(
+        'optimizer-theorymax-mode',
+        'Theorymax Mode',
+        'Asking the optimizer "where would my current rolls do the most damage" instead of "what is the best build out of my bag".',
+        section(
+          'A different question',
+          paragraph(
+            'Inventory mode answers a practical question: out of the echoes you actually own, which loadout hits the hardest right now. Theorymax answers a planning question: if you kept the substats you are already wearing but were free to change the echo itself, the set, the cost, and the main stat at each slot, where would those substats do the most damage. The substats stay yours. Everything else is up for grabs.'
+          ),
+          comparison(
+            'Inventory',
+            'Theorymax',
+            ['What it picks from', 'Echoes in your bag right now', 'Any echo from the catalog that fits your filters'],
+            ['Your substats', 'Whatever the picked bag echo has', 'The substats you are wearing today, kept slot for slot'],
+            ['Main stat, set, echo identity', 'Whatever the bag echo brings', 'The mode chooses what works best for your target'],
+            ['What you can equip', 'Right away from your bag', 'Only after farming the echoes the result is asking for']
+          ),
+          note('Theorymax is anchored to the echoes you have equipped. Empty slots are skipped, and the substats at each slot are the ones currently on your build. It is a ceiling for the rolls you already have, not a wishlist over perfect rolls.'),
+        ),
+        section(
+          'How to read a result',
+          paragraph(
+            'A Theorymax row tells you: this is the echo identity, this is the set, this is the main stat at each slot, and your current substats placed into that build would output this damage. Click a row to preview the full build in the inspection pane just like with Inventory results. The substats you see in the preview are the ones from your equipped slots, only the slot, set, and main stat changed.'
+          ),
+          bullets(
+            'The set badges show the set plan the ceiling wants.',
+            'The cost number is the total cost of the assembled five slots, capped at 12.',
+            'The main echo icon is the catalog echo Theorymax wants in your main slot.',
+            'The damage column is what your current substats would do in that build.'
+          ),
+        ),
+        section(
+          'What you can still constrain',
+          paragraph(
+            'All the constraints you set for Inventory mode keep working in Theorymax. Anything you exclude in settings stays excluded, so you can guide the search toward farming plans you actually care about.'
+          ),
+          bullets(
+            'Allowed sets cut the catalog before the search starts. Sets you exclude never show up in a result.',
+            'Set conditionals you turned off still get muted. The ceiling drops to the bonuses you actually trigger.',
+            'Cost stays capped at 12 across the five slots. Theorymax will not return an illegal build.',
+            'Locking a main echo forces that echo into your main slot and rebuilds the rest of the loadout around it.',
+            'The main stat filter restricts which main stats the result is allowed to ask for.'
+          ),
+          note('If Theorymax returns nothing, it usually means your filters left no legal build anywhere in the catalog, not just nothing in your bag. Loosen a constraint and try again.'),
+        ),
+        section(
+          'When Theorymax is worth running',
+          example(
+            'Did you know?',
+            [
+              'You just finished farming a fresh set of well rolled echoes and want to know if you should keep grinding for more pieces.',
+            ],
+            [
+              'Run Inventory first to set your floor, the best build out of your current bag.',
+              'Run Theorymax next. The top result is your ceiling for the substats you are wearing.',
+            ],
+            [
+              'A small gap between the two means farming more echoes will not move your damage much. A large gap usually points at one specific change: a different main echo, a different set, or one main stat — that would unlock the rest.',
+            ],
+          ),
+          steps(
+            ['Pick the same target', 'Use the same skill or rotation in both modes so the comparison is fair.'],
+            ['Run Inventory', 'This is your floor: the best you can equip right now.'],
+            ['Switch to Theorymax', 'Same target, same constraints. The winner here is your ceiling.'],
+            ['Look at the gap', 'Small gap means your bag is already close to ideal. Big gap means there is a specific upgrade worth farming.'],
+            ['Try focused filters', 'Lock a main echo, narrow allowed sets, or tighten main stats to see how the ceiling changes when you commit to a farming plan.']
+          ),
+        ),
+        section(
+          'Applying a Theorymax result',
+          paragraph(
+            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries — they only exist in your runtime state. Your bag is untouched.'
+          ),
+          comparison(
+            'Sim',
+            'Sim & Live',
+            ['Where the build shows up', 'Only inside the optimizer pane', 'Optimizer pane and your live calculator surfaces'],
+            ['Best use', 'Comparing the ceiling against your current build without touching your live damage results', 'Stress testing your full damage pipeline against the ceiling for the same scenario'],
+            ['Inventory impact', 'No new echoes are added to your bag', 'No new echoes are added to your bag']
+          ),
+          warningList(
+            'Applying Theorymax to Live will change the damage shown in your normal calculator until you swap back. This is the ceiling showing up everywhere, not your real build.',
+            'Theorymax echoes do not save to your bag automatically. Your previous build is still in your bag, ready to be re-equipped.',
+            'If you change something the search depends on — allowed sets, main stat filter, or set conditionals — re-run Theorymax before trusting the old results.'
+          ),
+        ),
+      ),
+      article(
+        'optimizer-cpu-and-gpu-paths',
+        'CPU and GPU Backends',
+        'What backend choice changes and what it does not change.',
+        section(
+          'Execution path, not meaning',
+          paragraph(
+            'CPU and GPU are backend choices for how the optimizer searches, batches, and evaluates combinations. They do not change what a result row means. The objective, filters, constraints, and final resolved candidate interpretation stay the same.'
+          ),
+          bullets(
+            'GPU paths can batch and reduce candidates differently for speed.',
+            'CPU paths can be easier to reason about when debugging one concrete run.',
+            'The backend can change performance and practical batch sizing without changing the user facing meaning of rank 1.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'team-effects',
+    title: 'Team Effects',
+    summary: 'How teammate sourced effects change the shared combat context and team rotation totals.',
+    aliases: ['Team Buffs'],
+    articles: [
+      article(
+        'team-effect-sources',
+        'Sources of Team Effects',
+        'Where support effects come from and what they change.',
+        section(
+          'Shared combat context',
+          paragraph(
+            'Team sourced effects are not isolated to the pane that toggled them. Once active, they become part of the shared combat context used by damage rows, suggestions, optimizer evaluation, and rotation summaries.'
+          ),
+          definitions(
+            ['Weapon effects', 'Teammate weapon passives that can modify the active resonator.'],
+            ['Echo or set effects', 'Team wide support value coming from equipped echo choices or active set bonuses.'],
+            ['Kit support effects', 'Resonator specific support logic such as shred, vulnerability, healing support, or buff windows.'],
+            ['Configurable effect', 'An effect that needs explicit user state such as stacks, toggles, or selected options before it can be resolved.']
+          ),
+          note('The important question is whether the effect exists in the shared runtime context, not which pane you used to author it.'),
+        ),
+      ),
+      article(
+        'team-effect-configuration',
+        'Automatic Versus Configurable Effects',
+        'Why some support effects just exist and others ask for scenario input.',
+        section(
+          'Scenario input matters',
+          bullets(
+            'Always on effects can be resolved directly from known build data.',
+            'Configurable effects expose controls because the app cannot guess stack count, mode, or target state safely.',
+            'If a teammate effect has no visible impact, check whether its prerequisite toggle or condition is still off.'
+          ),
+          example(
+            'Support effect with a toggle',
+            [
+              'A teammate passive only applies after a certain combat state is reached.',
+            ],
+            [
+              'The app keeps the effect configurable instead of assuming that state is always active.',
+            ],
+            [
+              'This prevents inflated default totals and keeps optimizer or suggestion output tied to the chosen scenario.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'team-rotation-links',
+        'Linked Teammate Rotations',
+        'How teammate rotation selections feed team totals.',
+        section(
+          'Live and saved teammate links',
+          paragraph(
+            'Each enabled teammate link tells the active resonator which teammate rotation to include in team mode. That selection can point at current live teammate state or a saved teammate rotation entry.'
+          ),
+          comparison(
+            'Personal total',
+            'Team total',
+            ['Included entries', 'Only the active resonator', 'Active resonator plus enabled linked teammate rotations'],
+            ['Breakdown meaning', 'Usually skill family emphasis', 'Contributor emphasis and combined skill family emphasis']
+          ),
+          note('If team totals look unchanged, check whether the teammate link is enabled and whether the selected teammate rotation actually contains contributing rows.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'enemy-and-combat-state',
+    title: 'Enemy and Combat State',
+    summary: 'How enemy level, resistances, Tower mode, negative effects, and enemy status fields affect calculations.',
+    aliases: ['Enemies', 'Enemy'],
+    articles: [
+      article(
+        'enemy-profile-basics',
+        'Enemy Profile Basics',
+        'What the selected enemy controls for every combat calculation.',
+        section(
+          'Global target state',
+          paragraph(
+            'Enemy state is global calculator context. The selected enemy profile affects every row that depends on defense, resistance, class, or tracked enemy status.'
+          ),
+          definitions(
+            ['Enemy level', 'Used by defense resolution. Higher target levels usually reduce final damage.'],
+            ['Resistance table', 'The per attribute resistance profile used by direct damage formulas.'],
+            ['Enemy class', 'Target class metadata used by specialized paths such as tune rupture scaling.'],
+            ['Source', 'Catalog or custom. Custom enemies keep your edits as their own target profile.']
+          ),
+        ),
+      ),
+      article(
+        'enemy-resistance-and-tower-mode',
+        'Resistances and Tower Mode',
+        'How the app interprets catalog enemies and endgame mode.',
+        section(
+          'Target assumptions',
+          paragraph(
+            'Catalog enemies bring a base resistance table. Tower mode then applies the app Tower of Adversity resistance interpretation on top of that base profile. A custom enemy can override the target state more directly.'
+          ),
+          bullets(
+            'Changing Tower mode changes the target assumptions for the selected enemy profile rather than creating a separate damage formula family.',
+            'Enemy state is shared across the calculator. A new enemy profile affects damage rows, suggestions, optimizer evaluation, and rotation totals at once.',
+            'Selecting another preset preserves tracked tune strain instead of discarding that status field.'
+          ),
+        ),
+      ),
+      article(
+        'enemy-negative-effects-and-status',
+        'Negative Effects, Tune Strain, and Specialized State',
+        'What the extra enemy side controls mean.',
+        section(
+          'Tracked status fields',
+          paragraph(
+            'The app also tracks enemy side status beyond base resistances. Negative effects such as Spectro Frazzle and Aero Erosion can feed specialized damage families. Tune strain is a tracked enemy status value from 0 to 10 that can be edited directly or changed inside rotation condition steps.'
+          ),
+          definitions(
+            ['Negative effect', 'A target side state used by specialized damage families and effect logic.'],
+            ['Tune strain', 'A tracked enemy status field preserved on the enemy profile and exposed to both the enemy surface and rotation conditions.'],
+            ['Persistence', 'These values stay active until you change them because they belong to shared combat state, not one temporary result row.']
+          ),
+          note('If changing a tracked status does not move a particular row, that row probably does not read that status path. Not every damage family uses every enemy side field.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'custom-bonuses',
+    title: 'Custom Bonuses',
+    summary: 'How manual quick buffs and scoped custom modifiers enter the shared buff pool.',
+    aliases: ['Custom Buffs', 'Custom Bonuses'],
+    articles: [
+      article(
+        'custom-bonus-purpose',
+        'What a Custom Bonus Represents',
+        'Why custom bonuses exist and when to use them.',
+        section(
+          'Purpose',
+          paragraph(
+            'Custom bonuses are the manual override layer for scenarios the default data model does not already express. They are appropriate when the effect is real for your scenario but should not be hard coded into the base resonator, weapon, or echo data.'
+          ),
+          definitions(
+            ['Quick buff', 'A direct top level stat entry such as ATK percent, Crit Rate, or Healing Bonus.'],
+            ['Modifier', 'A scoped authored bonus that targets a base stat, top stat, attribute bucket, skill type bucket, or one named skill or tab.'],
+            ['Scope', 'The level at which the modifier applies inside the formula tree.']
+          ),
+        ),
+      ),
+      article(
+        'custom-bonus-scope',
+        'Scope and Formula Placement',
+        'Why the same number can mean very different things depending on scope.',
+        section(
+          'Scope controls where the number lands',
+          comparison(
+            'Global',
+            'Scoped',
+            ['Typical effect', 'Changes many rows at once', 'Changes only matching rows'],
+            ['Examples', 'ATK percent, Crit Rate, DMG Bonus', 'Aero damage bonus, Resonance Skill bonus, one specific skill modifier'],
+            ['Troubleshooting', 'Check the number if totals look too high everywhere', 'Check the scope if only one family moved']
+          ),
+          bullets(
+            'Base stat modifiers feed the core ATK, HP, or DEF calculation before later damage modifiers are applied.',
+            'Top stat modifiers change scalar bonus paths like damage bonus, amplify, vulnerability, or tune break boost.',
+            'Attribute and skill type modifiers only apply when the current row matches that attribute or skill family.',
+            'Skill scoped modifiers are the narrowest. They only affect the matched skill id or tab rule.'
+          ),
+        ),
+      ),
+      article(
+        'custom-bonus-presets',
+        'Quick Imports with Presets',
+        'How to quickly add game-accurate buffs without manual entry.',
+        section(
+          'Automated Imports',
+          paragraph(
+            'Instead of manually entering every stat and scope, you can use Presets to import effects directly from the game data catalog. This is especially useful for representing buffs from teammate weapons, echo sets, or main echo skills.'
+          ),
+          paragraph(
+            'You can find the Presets tool in the Advanced Modifiers section of the optimizer. Look for the sparkle icon next to the "Add" button.'
+          ),
+          bullets(
+            'Source Filters: Narrow down choices by Echoes, Sonata Sets, or Weapons.',
+            'Target Filters: Filter by who receives the buff (Self, Active Resonator, or the whole Team).',
+            'Configurable Controls: Adjust refinement levels, stacks, or state toggles before importing.',
+          ),
+          note(
+            'Once imported, a preset becomes a standard manual modifier. You can still edit its numbers or change its scope if your scenario requires a custom variation.'
+          ),
+        ),
+      ),
+      article(
+        'custom-bonus-examples-and-pitfalls',
+        'Examples and Common Pitfalls',
+        'How to reason about custom bonus output.',
+        section(
+          'Worked examples',
+          example(
+            'Global ATK percent versus Resonance Skill bonus',
+            [
+              'A global ATK percent modifier increases base ability for every ATK scaling skill.',
+              'A Resonance Skill damage bonus only affects rows whose skill type matches Resonance Skill.',
+            ],
+            [
+              'The ATK percent modifier usually moves more than one surface at once.',
+              'The skill type modifier is narrower and usually easier to isolate in the formula view.',
+            ],
+            [
+              'If the wrong rows moved, the scope was probably broader than intended.',
+            ],
+          ),
+          warningList(
+            'Custom bonuses stack with everything else already in the build. They are not replacement values.',
+            'A narrow skill scoped modifier can look ineffective if you are inspecting a different row than the one it targets.',
+            'If a manual value seems too strong, inspect whether it was placed on a global top stat instead of an attribute or skill specific scope.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'damage-results',
+    title: 'Damage Results',
+    summary: 'How to read direct rows, support rows, sub hits, formulas, and rotation summaries.',
+    aliases: ['Damage & Scaling', 'Damage'],
+    articles: [
+      article(
+        'damage-result-columns',
+        'Result Columns and Row Families',
+        'What the main numbers on the damage surfaces actually mean.',
+        section(
+          'Normal, Crit, and Average',
+          definitions(
+            ['Normal', 'The resolved non critical output after stat scaling, buffs, defense, and resistance.'],
+            ['Crit', 'The same resolved row with the current critical damage multiplier applied.'],
+            ['Average', 'Expected value from the current crit rate and crit damage. It is not a separate execution path.'],
+            ['Row family', 'Damage, healing, shield, tune rupture, negative effect, or another specialized result type.']
+          ),
+          formula(
+            [
+              'normal = resolved non critical output',
+              'crit = normal x crit damage',
+              'avg = critRate x crit + (1 - critRate) x normal',
+            ],
+            'When crit rate reaches 100 percent, Average collapses to Crit for critical damage rows.',
+          ),
+          example(
+            'Expected value is not a guess',
+            [
+              'Normal = 10,000',
+              'Crit = 20,000',
+              'Crit Rate = 70 percent',
+            ],
+            [
+              'Average = 0.7 x 20,000 + 0.3 x 10,000 = 17,000',
+            ],
+            [
+              'Average is a deterministic expected value view of the same row, not a separate simulation setting.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'damage-subhits-and-grouping',
+        'Sub Hits, Grouped Rows, and Family Breakdowns',
+        'Why some rows expand into more detail.',
+        section(
+          'When sub hit rows appear',
+          paragraph(
+            'A skill can resolve as several hits. The calculator can show a grouped parent row and then sub hit rows when the hit structure is meaningfully more detailed than one single strike.'
+          ),
+          definitions(
+            ['Sub hit row', 'A lower level hit breakdown under a grouped result.'],
+            ['Grouped row', 'A parent row that represents the combined output of several sub hits or several related rows.'],
+            ['Breakdown row', 'A summary split such as skill type contribution or teammate contribution.']
+          ),
+          note('If a row has only one hit with count 1, sub hit rows are usually suppressed because there is nothing useful to decompose.'),
+        ),
+      ),
+      article(
+        'damage-formula-reading',
+        'Formula Reading Guide',
+        'How to follow the detailed formula view from top to bottom.',
+        section(
+          'Reading order',
+          paragraph(
+            'The formula panel is there to explain the path to the number. Read it in stages: base stat scaling, skill multiplier or hit multiplier, additive flats, then defense or resistance resolution, then outgoing bonus layers such as damage bonus, amplify, vulnerability, and crit.'
+          ),
+          formula(
+            [
+              'base ability = finalAtk x atkScale + finalHp x hpScale + finalDef x defScale + finalER x erScale',
+              'row normal = (base ability x hit multiplier + flat damage) x defense x resistance x outgoing modifiers',
+              'row crit = normal x crit damage',
+            ],
+            'Specialized rows such as tune rupture or negative effects use their own dedicated branch, but the panel still follows a base then modifier reading order.',
+          ),
+          warningList(
+            'If a modifier is absent from the formula panel, that row did not use it in the resolved context.',
+            'A visible stat in Overview does not guarantee that every skill row consumes it.',
+            'Formula panels explain one selected row, not the whole build at once.'
+          ),
+        ),
+      ),
+      article(
+        'damage-rotation-summary-interpretation',
+        'Rotation Summary Interpretation',
+        'How the result page totals should be read when rotations are involved.',
+        section(
+          'Loop aware summary reading',
+          paragraph(
+            'Rotation summary totals are derived from the simulated entries, but loop aware summary surfaces normalize repeated loop rows by configured run counts before adding them together. This is why a repeated loop window can behave like an average contribution rather than a raw unqualified sum.'
+          ),
+          example(
+            'Loop window plus finisher',
+            [
+              'A looped skill runs 3 times and averages 40,000 per run.',
+              'A finisher outside the loop averages 120,000.',
+            ],
+            [
+              'The summary reads as 40,000 from the loop window plus 120,000 from the finisher, not 240,000 from a raw three run sum.',
+            ],
+            [
+              'Use inspection views when you need per run detail. Use totals when you need representative contribution inside the rotation summary.',
+            ],
+          ),
+          comparison(
+            'Personal rotation',
+            'Team rotation',
+            ['Who is counted', 'Active resonator only', 'Active resonator plus enabled teammate links'],
+            ['Breakdown emphasis', 'Skill family contribution', 'Contributor share and combined family contribution']
+          ),
+        ),
+      ),
+      article(
+        'damage-healing-shield-and-specialized-rows',
+        'Healing, Shield, Tune, and Specialized Rows',
+        'How non standard rows differ from direct damage rows.',
+        section(
+          'Support and specialized output',
+          paragraph(
+            'Healing and shield rows are not just recolored damage rows. They use dedicated formula branches and are summarized in separate aggregation buckets. Tune rupture and negative effect rows also use specialized computation paths.'
+          ),
+          definitions(
+            ['Healing row', 'A support row resolved through healing bonus paths. Its meaningful number is its average value.'],
+            ['Shield row', 'A support row resolved through shield bonus paths. Its meaningful number is its average value.'],
+            ['Tune rupture row', 'A specialized row that uses tune rupture scaling, enemy class data, vulnerability, amplify, and tune break boost.'],
+            ['Negative effect row', 'A specialized row that reads the relevant enemy side negative effect state and that effect family specific logic.']
+          ),
+          note('Healing and shield summaries are shown in their own support rows because the main damage total stays damage only.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'scoring-and-stat-weights',
+    title: 'Scoring and Stat Weights',
+    summary: 'How final stat structure, echo scores, build scores, crit value, and weight maps should be interpreted.',
+    aliases: ['Build and Echo Scoring', 'Scoring'],
+    articles: [
+      article(
+        'stats-structure-reference',
+        'Stat Structure Reference',
+        'How the app groups stats before they are consumed by formulas.',
+        section(
+          'Core stat families',
+          statTable(
+            ['ATK, HP, DEF', 'Each has base and final values. Final = base x (1 + percent) + flat.', 'Core scaling stats used by many direct damage, healing, and shield formulas.', 'Overview, Damage, Echoes, Custom Bonuses'],
+            ['Crit Rate, Crit DMG, Energy Regen, Healing Bonus', 'Top level scalar stats on final stats.', 'Read directly by formulas that care about them.', 'Overview, Damage, Echoes, Custom Bonuses'],
+            ['Attribute buckets', 'One universal all bucket plus per element buckets.', 'Element damage bonus, shred, vulnerability, crit modifiers, and similar scoped stats.', 'Overview, Damage, Custom Bonuses'],
+            ['Skill type buckets', 'One universal all bucket plus per skill family buckets.', 'Family specific bonus, crit modifiers, shred, and vulnerability.', 'Overview, Damage, Custom Bonuses'],
+            ['Negative effect buckets', 'Per negative effect family tracking.', 'Specialized rows such as Spectro Frazzle or Aero Erosion use these values.', 'Damage, Enemy, Rotation conditions'],
+            ['Flat Damage, Amplify, DMG Bonus, DEF Ignore, DEF Shred, DMG Vulnerability, Shield Bonus, Tune Break Boost, Special', 'Top level modifier paths with their own formula entry points.', 'These are not interchangeable. They land at different points in the formula chain.', 'Overview, Damage, Custom Bonuses']
+          ),
+          paragraph(
+            'Overview groups these stats for readability, but formulas consume them by scope. A universal all bucket and a matching element or skill type bucket can both contribute to the same row at the same time.'
+          ),
+        ),
+      ),
+      article(
+        'score-vocabulary',
+        'Score Vocabulary',
+        'What the visible score badges actually include.',
+        section(
+          'Primary score terms',
+          definitions(
+            ['Echo score', 'A character specific score for one echo based on its primary main stat and substats compared against that character weight table.'],
+            ['Build score', 'The normalized combined score of all five equipped echoes for the active resonator.'],
+            ['Crit Value', 'Crit Rate x 2 plus Crit Damage. It only measures crit concentration.'],
+            ['Weight table', 'The character specific priority map that tells the score model which stats matter more.']
+          ),
+          paragraph(
+            'The score model normalizes each echo against a character specific theoretical maximum. Flat stats are intentionally discounted compared with their percent family equivalents, and the active resonator weight table decides what counts as valuable.'
+          ),
+        ),
+      ),
+      article(
+        'roll-quality-and-ranges',
+        'Roll Quality and Range Interpretation',
+        'How to read a line value before you even care about damage.',
+        section(
+          'Range relative quality',
+          paragraph(
+            'Roll quality is about where a stat line lands inside its known range. A line near the top of its range is a stronger roll than the same stat near the bottom, even before character weights are applied.'
+          ),
+          example(
+            'Same stat, different quality',
+            [
+              'Two echoes both have Crit Rate.',
+              'One has a low roll near the minimum range.',
+              'The other has a high roll near the maximum range.',
+            ],
+            [
+              'Both lines are still valuable, but the second line is contributing more of the stat the build cares about.',
+            ],
+            [
+              'Roll quality tells you how strong the line itself is. Weighting tells you how relevant that line is for this resonator.',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'character-weights-and-relevance',
+        'Stat Weights and Character Relevance',
+        'Why the same echo can score differently for different resonators.',
+        section(
+          'Weights change the meaning of a line',
+          paragraph(
+            'Echo score is not a universal item level. The weight map is character specific. A stat line that is excellent for one resonator can be much less valuable for another if their target rows do not consume it well.'
+          ),
+          example(
+            'Heavy attack line on two different resonators',
+            [
+              'Resonator A gets a large share of output from Heavy Attack rows.',
+              'Resonator B mostly cares about healing or Resonance Skill output.',
+            ],
+            [
+              'The same Heavy Attack line can score highly on Resonator A and only modestly on Resonator B.',
+            ],
+            [
+              'Scores always answer "for whom?" before they answer "how good?"',
+            ],
+          ),
+        ),
+      ),
+      article(
+        'score-limitations',
+        'Why a High Score Can Still Be Wrong',
+        'What the score system is good at and what it is not.',
+        section(
+          'Use score as guidance, not as a universal verdict',
+          bullets(
+            'High echo score usually means the piece has strong relevant lines for the selected resonator.',
+            'High build score does not guarantee highest output for every target skill or rotation.',
+            'Crit Value can be impressive while still hiding missing Energy Regen, element bonus, healing bonus, or other critical context.',
+            'A lower score piece can win in optimizer or target testing if it is better aligned with the chosen objective.'
+          ),
+          note('Score is strongest as a broad farming and sorting aid. Optimizer and damage results are stronger when the question is one exact target under one exact scenario.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'overview-and-build-state',
+    title: 'Overview and Build State',
+    summary: 'What the overview surface summarizes and how its readouts relate to the underlying runtime.',
+    aliases: ['OverviewLayer', 'Overview'],
+    articles: [
+      article(
+        'overview-surface-purpose',
+        'What Overview Is Summarizing',
+        'Why the overview page exists and what data it compresses.',
+        section(
+          'A read mostly summary surface',
+          paragraph(
+            'Overview is the cross section of the active build. It pulls together final stats, echo quality, rotation totals, top contributors, equipped assets, and selected profile state so you can reason about the build without opening every editing pane.'
+          ),
+          bullets(
+            'Overview is mostly derived output.',
+            'Most direct editing still happens in the dedicated resonator, weapon, echo, team, enemy, custom bonus, or rotation surfaces.',
+            'If a value changes in Overview, the source change usually happened somewhere else in the runtime.'
+          ),
+        ),
+      ),
+      article(
+        'overview-stat-groups',
+        'Stat Groups and Summary Cards',
+        'How Overview groups the final stat tree.',
+        section(
+          'Grouped final stats',
+          paragraph(
+            'Overview exposes base versus bonus versus total for core stats, then surfaces secondary percent style stats, then groups attribute and skill type damage modifiers. This keeps the final stat tree readable while still reflecting the same final stats used by formulas.'
+          ),
+          definitions(
+            ['Base', 'The starting value before bonus layers are added.'],
+            ['Bonus', 'The difference between final and base for the displayed stat.'],
+            ['Total', 'The final resolved stat value consumed by formulas.']
+          ),
+          note('Echo Stats on the echo pane are narrower than Overview stats. Overview includes the full build context, not just echo contributions.'),
+        ),
+      ),
+      article(
+        'overview-rotation-and-profile-readouts',
+        'Rotation and Profile Readouts',
+        'How build identity and performance snapshots appear in Overview.',
+        section(
+          'High level performance readouts',
+          bullets(
+            'Personal rotation and team rotation badges summarize the current simulation state for the selected profile.',
+            'Top skill type and top contributor summaries are there to show where output is concentrated.',
+            'Portrait, weapon, and echo badges help confirm that you are looking at the intended runtime and not another saved or inspected state.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'saved-builds-and-presets',
+    title: 'Saved Builds and Presets',
+    summary: 'How saved echoes, saved builds, and saved rotations are stored, matched, renamed, loaded, and removed.',
+    aliases: ['Build Presets', 'Inventory Builds'],
+    articles: [
+      article(
+        'saved-record-types',
+        'Saved Record Types',
+        'What each saved record family stores.',
+        section(
+          'Three different saved families',
+          definitions(
+            ['Saved echo', 'One reusable echo inventory entry.'],
+            ['Saved build', 'A snapshot of weapon plus five echoes for one resonator.'],
+            ['Saved rotation', 'A persisted rotation entry with authored nodes, metadata, and optional summary or snapshot fields.']
+          ),
+          comparison(
+            'Saved build',
+            'Saved rotation',
+            ['Primary purpose', 'Restore a full equipment snapshot', 'Restore a full authored rotation snapshot'],
+            ['Key payload', 'Weapon plus echo loadout', 'Rotation items plus mode, duration, note, team, and optional summary']
+          ),
+        ),
+      ),
+      article(
+        'saved-live-matching-and-usage',
+        'Live Matching and Usage Labels',
+        'How saved records relate to current state.',
+        section(
+          'Matching the current build',
+          paragraph(
+            'Saved builds can be marked Live when their snapshot matches the current weapon and echo snapshot. That match is based on the actual build payload, not only on the saved name.'
+          ),
+          bullets(
+            'Usage labels help show where an inventory echo or build is already being referenced.',
+            'A saved record being marked Live does not mean it is locked. It only means the current runtime matches it right now.',
+            'Changing the live build after that point breaks the match until the live state lines up again.'
+          ),
+        ),
+      ),
+      article(
+        'saved-load-overwrite-and-delete',
+        'Load, Overwrite, Rename, and Delete Semantics',
+        'What happens when you act on a saved record.',
+        section(
+          'State changing actions',
+          warningList(
+            'Loading a saved build or rotation overwrites the current active state for that surface.',
+            'Renaming changes metadata only. It does not rewrite the build or rotation payload.',
+            'Deleting removes the saved record. It does not automatically delete unrelated live state that happened to match it.'
+          ),
+          note('Saved records are persistence tools. They are meant to be loaded back into live state when you want that snapshot again.'),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'import-export-and-sync',
+    title: 'Import, Export, and Sync',
+    summary: 'How image import, JSON import and export, legacy backup conversion, and Google Drive snapshot sync behave.',
+    aliases: ['Import/Export', 'Sync'],
+    articles: [
+      article(
+        'import-echo-parser',
+        'Echo Image Import',
+        'What the screenshot parser can import and what it cannot.',
+        section(
+          'Parser scope',
+          paragraph(
+            'The image parser only imports echoes. It does not import the rest of the build. This makes it safe to use when you only want to capture echo instances without touching weapon, enemy, or rotation state.'
+          ),
+          image(
+            '/assets/sample-import-image.png',
+            'Sample echo import format used by the image parser',
+            'The parser expects the same image format shown in the built in sample.',
+          ),
+          warningList(
+            'The image size (must be 1920 x 1080).',
+            'The image itself. The parser is tuned for the expected Wuwa bot style export and works best with English text.',
+          ),
+        ),
+      ),
+      article(
+        'import-rotation-json-and-legacy-backups',
+        'Rotation JSON and Legacy Backup Import',
+        'What each JSON import path moves.',
+        section(
+          'Different JSON paths carry different payloads',
+          comparison(
+            'Rotation JSON import',
+            'Legacy backup import',
+            ['Main payload', 'Saved rotation entries', 'Old app snapshot conversion'],
+            ['Typical result', 'Adds normalized saved rotations with fresh ids', 'Builds a current persisted app snapshot from legacy data'],
+            ['What it includes', 'Rotation items, metadata, optional snapshot and summary', 'Profiles, enemy, inventory echoes, inventory builds, and suggestion state'],
+            ['What it does not currently include', 'Unrelated calculator state', 'Saved rotations are not imported in the current legacy app state path']
+          ),
+          note('Legacy import is a conversion path, not a literal byte for byte restore. The old payload is translated into the current persisted state schema.'),
+        ),
+      ),
+      article(
+        'sync-local-and-google-drive',
+        'Local Persistence and Google Drive Backup',
+        'How saved calculator state is stored and restored.',
+        section(
+          'Snapshot behavior',
+          paragraph(
+            'The app persists separate domain slices locally for layout, session, profiles, optimizer context, suggestions, inventory echoes, inventory builds, and inventory rotations. Google Drive sync uploads the current persisted snapshot into the appData folder and restore downloads the newest stored snapshot.'
+          ),
+          bullets(
+            'Drive backup keeps the newest 10 snapshots by pruning older files.',
+            'Restore reads the latest available Drive snapshot, not an arbitrary earlier file.',
+            'Drive sync uses the connected Google account, the Drive appData scope, and the lightweight Google identity data needed to keep that session attached to the right account.',
+            'A restored snapshot replaces current persisted state with the imported snapshot once it is accepted.'
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'app-behavior-and-controls',
+    title: 'App Behavior and Controls',
+    summary: 'Shared interaction rules around persistence, history, confirmations, toasts, and selection mode.',
+    aliases: ['UI Controls', 'App Controls'],
+    articles: [
+      article(
+        'app-persistence-model',
+        'Persistence Model',
+        'Which major app surfaces keep durable state.',
+        section(
+          'Durable versus transient',
+          paragraph(
+            'The app persists layout preferences, session state, resonator profiles, optimizer context, suggestions state, and inventory collections as separate local slices. Results, previews, and many temporary modal states are transient and are rebuilt from persisted state or current runtime when needed.'
+          ),
+          bullets(
+            'Inventory echoes, builds, and rotations are durable collections.',
+            'The active session and selected enemy are durable session state.',
+            'Suggestion settings and optimizer context persist so those surfaces can resume from previous work.',
+            'A preview panel or inspection view is usually transient and can be rebuilt.'
+          ),
+        ),
+      ),
+      article(
+        'app-selection-confirmations-and-toasts',
+        'Selection Mode, Confirmations, and Toasts',
+        'How the app communicates state changing actions.',
+        section(
+          'Interaction patterns',
+          paragraph(
+            'Shared selection mode lets some dense surfaces switch from one item actions to batch actions. Confirmation modals are used for destructive or overwrite style operations. Toasts are used for non blocking status such as copy, paste, import, save, or apply results.'
+          ),
+          definitions(
+            ['Selection mode', 'A temporary interaction mode where clicks target selected items and batch actions instead of normal single item actions.'],
+            ['Confirmation modal', 'A blocking prompt used before destructive or large overwrite style actions.'],
+            ['Toast', 'A short notification confirming that a non blocking action succeeded, failed, or needs attention.']
+          ),
+          note('If the app asks for confirmation, it is usually because the next action would overwrite or delete meaningful state.'),
+        ),
+      ),
+      article(
+        'app-history-and-restore-behavior',
+        'History, Undo, and Restore Behavior',
+        'How history works when it is enabled.',
+        section(
+          'History rules',
+          paragraph(
+            'App History stores labeled persisted snapshots so undo and redo can restore earlier calculator state. Labels are built from the kind of change that happened, such as Equipped Echoes, Weapon, Team Setup, Rotation, Suggestions, or Inventory collections.'
+          ),
+          bullets(
+            'Undo and redo are only available while history is enabled.',
+            'Turning history off clears past and future stacks instead of keeping stale restore points.',
+            'History capacity is bounded, so older entries are trimmed when the stack exceeds the selected size.',
+            'Restore is snapshot based. Undoing one change can revert several visible surfaces if they were part of the same recorded state change.'
+          ),
+        ),
+      ),
+    ],
+  },
 ]

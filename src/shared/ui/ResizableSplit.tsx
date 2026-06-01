@@ -1,29 +1,35 @@
+/*
+  Author: Runor Ewhro
+  Description: Two-pane resizable layout wrapper built on react-resizable-panels
+               for calculator and page-shell split views.
+*/
+
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Group,
-  type GroupImperativeHandle,
+  type GroupImperativeHandle as GrpMprtOn,
   type Layout,
   Panel,
   Separator,
 } from 'react-resizable-panels'
 
-interface ResizableSplitProps {
+interface RszbSpltPrps {
   left: ReactNode
   right: ReactNode
   leftId: string
   rightId: string
-  leftClassName?: string
-  rightClassName?: string
+  leftClssName?: string
+  rghtClssName?: string
   isCollapsed?: boolean
-  defaultLeftPercent?: number
+  defLeftPrcn?: number
   minLeftPx?: number
   minRightPx?: number
   storageKey?: string
   stackBelowPx?: number
 }
 
-function readStoredPercent(storageKey: string | undefined, fallback: number): number {
+function readStrdPrcn(storageKey: string | undefined, fallback: number): number {
   if (!storageKey || typeof window === 'undefined') {
     return fallback
   }
@@ -37,7 +43,7 @@ function readStoredPercent(storageKey: string | undefined, fallback: number): nu
   return Math.max(20, Math.min(80, parsed))
 }
 
-function persistStoredPercent(storageKey: string | undefined, leftPercent: number) {
+function prssStrdPrcn(storageKey: string | undefined, leftPercent: number) {
   if (!storageKey || typeof window === 'undefined') {
     return
   }
@@ -45,28 +51,28 @@ function persistStoredPercent(storageKey: string | undefined, leftPercent: numbe
   window.localStorage.setItem(storageKey, String(leftPercent))
 }
 
-export function ResizableSplit({
+export function RszbSplt({
   left,
   right,
   leftId,
   rightId,
-  leftClassName,
-  rightClassName,
+  leftClssName: leftClssName,
+  rghtClssName: rghtClssName,
   isCollapsed = false,
-  defaultLeftPercent = 50,
+  defLeftPrcn: dfltLeftPrcn = 50,
   minLeftPx = 360,
   minRightPx = 360,
   storageKey,
   stackBelowPx = 1070,
-}: ResizableSplitProps) {
-  const initialLeftPercent = readStoredPercent(storageKey, defaultLeftPercent)
-  const groupRef = useRef<GroupImperativeHandle | null>(null)
-  const pendingLeftPercentRef = useRef<number>(initialLeftPercent)
-  const [defaultLayout] = useState<Layout>(() => ({
-    [leftId]: initialLeftPercent,
-    [rightId]: 100 - initialLeftPercent,
+}: RszbSpltPrps) {
+  const ntlLeftPrcn = readStrdPrcn(storageKey, dfltLeftPrcn)
+  const groupRef = useRef<GrpMprtOn | null>(null)
+  const pndnLeftPrcn = useRef<number>(ntlLeftPrcn)
+  const [dfltLyt] = useState<Layout>(() => ({
+    [leftId]: ntlLeftPrcn,
+    [rightId]: 100 - ntlLeftPrcn,
   }))
-  const [isDragging, setIsDragging] = useState(false)
+  const [isDragging, setIsDrgg] = useState(false)
   const [isStacked, setIsStacked] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.innerWidth <= stackBelowPx
@@ -80,7 +86,7 @@ export function ResizableSplit({
     const update = () => {
       setIsStacked(media.matches)
       if (media.matches) {
-        setIsDragging(false)
+        setIsDrgg(false)
       }
     }
 
@@ -96,31 +102,31 @@ export function ResizableSplit({
     }
 
     document.body.classList.add('split-resizing')
-    const handlePointerUp = () => setIsDragging(false)
-    const handlePointerCancel = () => setIsDragging(false)
-    const handleWindowBlur = () => setIsDragging(false)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerCancel)
-    window.addEventListener('blur', handleWindowBlur)
+    const onPntrUp = () => setIsDrgg(false)
+    const onPntrCncl = () => setIsDrgg(false)
+    const onWndwBlur = () => setIsDrgg(false)
+    window.addEventListener('pointerup', onPntrUp)
+    window.addEventListener('pointercancel', onPntrCncl)
+    window.addEventListener('blur', onWndwBlur)
     return () => {
       document.body.classList.remove('split-resizing')
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerCancel)
-      window.removeEventListener('blur', handleWindowBlur)
+      window.removeEventListener('pointerup', onPntrUp)
+      window.removeEventListener('pointercancel', onPntrCncl)
+      window.removeEventListener('blur', onWndwBlur)
     }
   }, [isDragging])
 
   const shouldSplit = !isCollapsed && !isStacked
-  const handleResizeStart = () => setIsDragging(true)
-  const handleResizeEnd = () => {
-    setIsDragging(false)
-    persistStoredPercent(storageKey, pendingLeftPercentRef.current)
+  const onRszStart = () => setIsDrgg(true)
+  const onRszEnd = () => {
+    setIsDrgg(false)
+    prssStrdPrcn(storageKey, pndnLeftPrcn.current)
   }
 
   const resetLayout = () => {
-    groupRef.current?.setLayout(defaultLayout)
-    pendingLeftPercentRef.current = defaultLayout[leftId] ?? defaultLeftPercent
-    persistStoredPercent(storageKey, defaultLayout[leftId] ?? defaultLeftPercent)
+    groupRef.current?.setLayout(dfltLyt)
+    pndnLeftPrcn.current = dfltLyt[leftId] ?? dfltLeftPrcn
+    prssStrdPrcn(storageKey, dfltLyt[leftId] ?? dfltLeftPrcn)
   }
 
   return (
@@ -142,18 +148,18 @@ export function ResizableSplit({
           className="split split-inner"
           disableCursor
           groupRef={groupRef}
-          defaultLayout={defaultLayout}
+          defaultLayout={dfltLyt}
           onLayoutChanged={(layout) => {
-            pendingLeftPercentRef.current = layout[leftId] ?? defaultLeftPercent
+            pndnLeftPrcn.current = layout[leftId] ?? dfltLeftPrcn
             if (!isDragging) {
-              persistStoredPercent(storageKey, pendingLeftPercentRef.current)
+              prssStrdPrcn(storageKey, pndnLeftPrcn.current)
             }
           }}
         >
           <Panel
             id={leftId}
-            className={['split-panel', leftClassName].filter(Boolean).join(' ')}
-            defaultSize={defaultLayout[leftId]}
+            className={['split-panel', leftClssName].filter(Boolean).join(' ')}
+            defaultSize={dfltLyt[leftId]}
             minSize={`${minLeftPx}px`}
           >
             {left}
@@ -162,15 +168,15 @@ export function ResizableSplit({
           <Separator
             className="gutter"
             onDoubleClick={resetLayout}
-            onPointerDown={handleResizeStart}
-            onPointerUp={handleResizeEnd}
-            onPointerCancel={handleResizeEnd}
+            onPointerDown={onRszStart}
+            onPointerUp={onRszEnd}
+            onPointerCancel={onRszEnd}
           />
 
           <Panel
             id={rightId}
-            className={['split-panel', rightClassName].filter(Boolean).join(' ')}
-            defaultSize={defaultLayout[rightId]}
+            className={['split-panel', rghtClssName].filter(Boolean).join(' ')}
+            defaultSize={dfltLyt[rightId]}
             minSize={`${minRightPx}px`}
           >
             {right}
@@ -178,10 +184,10 @@ export function ResizableSplit({
         </Group>
       ) : (
         <>
-          <div id={leftId} className={['split-panel', leftClassName].filter(Boolean).join(' ')}>
+          <div id={leftId} className={['split-panel', leftClssName].filter(Boolean).join(' ')}>
             {left}
           </div>
-          <div id={rightId} className={['split-panel', rightClassName].filter(Boolean).join(' ')}>
+          <div id={rightId} className={['split-panel', rghtClssName].filter(Boolean).join(' ')}>
             {right}
           </div>
         </>

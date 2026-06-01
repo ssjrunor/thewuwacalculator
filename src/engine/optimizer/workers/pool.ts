@@ -6,195 +6,316 @@
 */
 
 import {
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU,
-  OPTIMIZER_LOW_MEMORY_RESULTS_LIMIT,
-  OPTIMIZER_MIN_PARALLEL_COMBOS,
+  CPU_JOB_SIZE,
+  TARGET_GPU_JOB,
+  ROT_GPU_JOB,
+  MIN_PAR_COMBOS,
+  CPU_THEORY_JOB,
+  GPU_THEORY_JOB,
   WORKER_COUNT,
 } from '@/engine/optimizer/config/constants.ts'
-import {countOptimizerCombinationsForMainIndices} from '@/engine/optimizer/search/counting.ts'
-import {OptimizerBagResultCollector} from '@/engine/optimizer/results/collector.ts'
-import {generateTargetCpuComboBatches} from '@/engine/optimizer/target/batches.ts'
+import {countMainCombos} from '@/engine/optimizer/search/counting.ts'
+import {OptResultSet} from '@/engine/optimizer/results/collector.ts'
+import {gnrtTgtCpuCm} from '@/engine/optimizer/target/batches.ts'
+import {gnrtThryCpuCm} from '@/engine/optimizer/target/theoryBatches.ts'
 import {
-  createPackedTargetSkillExecution,
-  sharePackedTargetSkillExecution,
+  packTargetSkill,
+  shrPckdTgtSk,
 } from '@/engine/optimizer/payloads/targetPayload.ts'
 import {
-  createPackedRotationExecution,
-  sharePackedRotationExecution,
+  packRotation,
+  shrPckdRotXc,
 } from '@/engine/optimizer/payloads/rotationPayload.ts'
+import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
+import { runTgtSrchBt } from '@/engine/optimizer/search/targetCpu.ts'
+import { runRotSrchBt } from '@/engine/optimizer/search/rotationCpu.ts'
 import type {
-  OptimizerBackend,
-  OptimizerBagResultRef,
-  OptimizerProgress,
-  PackedOptimizerExecutionPayload,
-  PackedRotationExecutionPayload,
-  PreparedOptimizerPayload,
-  PreparedRotationRun,
-  PreparedTargetSkillRun,
+  OptBckn,
+  OptBagResult,
+  OptPrgr,
+  OptRawResult,
+  PckdOptXctnP,
+  PckdRotXctnP,
+  PrepOptPay,
+  PrepRotRun,
+  PrepTheoryRot,
+  PrepTheoryTarget,
+  PrepTargetSkill,
 } from '@/engine/optimizer/types.ts'
 import type {
-  OptimizerTargetGpuStaticPayload,
-  OptimizerTaskDoneMessage,
-  OptimizerTaskInMessage,
-  OptimizerTaskOutMessage,
+  TargetGpuState,
+  OptTaskDoneM,
+  OptTaskInMsg,
+  OptTaskOutMs,
+  OptThryProdIn,
+  OptThryProdOu,
 } from '@/engine/optimizer/workers/messages.ts'
 import {
-  buildTargetGpuStaticPayload,
-  buildTargetJobs,
-  type TargetJobSpec,
+  makeTargetGpu,
+  mkTgtJobs,
+  type TgtJobSpec,
 } from '@/engine/optimizer/workers/targetGpu.ts'
 import {logOptimizer} from '@/engine/optimizer/config/log.ts'
 
 // guardrails for GPU result collection so per-job and collector heaps do not blow up
-const TARGET_GPU_RESULT_LIMIT_CAP = 65536
-const TARGET_GPU_JOB_OVERSAMPLE = 2
-const TARGET_GPU_COLLECTOR_OVERSAMPLE = 8
-const OPTIMIZER_WORKER_TASK_TIMEOUT_MS = 300_000
+const GPU_RESULT_LIMIT = 65536
+const TGTGPUJOBVRS = 2
+const GPU_COLLECT_MUL = 8
+const WORKER_TASK_MS = 300_000
+const PRGRRATEMIN = 1_500
+const PRGRRATEWND = 8_000
 
 interface PoolRunHooks {
-  onProgress?: (progress: OptimizerProgress) => void
+  isCancelled?: () => boolean
+  onProgress?: (progress: OptPrgr) => void
 }
 
-type OptimizerPoolGpuMode = 'target' | 'rotation'
+type OptPoolGpuMode = 'target' | 'rotation'
 
 // one queued GPU target job defined by a contiguous combo range
-interface OptimizerPoolRunTargetJob {
+interface TargetGpuJob {
   type: 'runTarget'
   runId: number
   size: number
   comboStart: number
   comboCount: number
-  lockedMainIndex: number
-  jobResultsLimit: number
+  lockMainIdx: number
+  jobResultLimit: number
   onProgress?: (delta: number) => void
-  resolve: (message: OptimizerTaskDoneMessage) => void
+  resolve: (message: OptTaskDoneM) => void
   reject: (error: Error) => void
 }
 
 // one queued CPU batch job defined by an explicit batch of combinadic rows
-interface OptimizerPoolRunTargetCpuBatchJob {
+interface TargetCpuJob {
   type: 'runTargetCpuBatch'
   runId: number
   size: number
   combosBatch: Int32Array
   comboCount: number
-  lockedMainIndex: number
-  jobResultsLimit: number
+  lockMainIdx: number
+  jobResultLimit: number
   onProgress?: (delta: number) => void
-  resolve: (message: OptimizerTaskDoneMessage) => void
+  resolve: (message: OptTaskDoneM) => void
   reject: (error: Error) => void
 }
 
-type OptimizerPoolJob =
-    | OptimizerPoolRunTargetJob
-    | OptimizerPoolRunTargetCpuBatchJob
+interface GpuBatchJob {
+  type: 'runGpuBatch'
+  runId: number
+  size: number
+  combosBatch: Int32Array
+  comboCount: number
+  lockMainIdx: number
+  jobResultLimit: number
+  onProgress?: (delta: number) => void
+  resolve: (message: OptTaskDoneM) => void
+  reject: (error: Error) => void
+}
 
-interface OptimizerPoolCpuRunContext {
+type OptPoolJob =
+    | TargetGpuJob
+    | TargetCpuJob
+    | GpuBatchJob
+
+interface OptPoolCpuRu {
   kind: 'cpu'
-  payload: PackedOptimizerExecutionPayload
+  payload: PckdOptXctnP
 }
 
-interface OptimizerPoolGpuRunContext {
+interface OptPoolGpuRu {
   kind: 'gpu'
-  mode: OptimizerPoolGpuMode
-  payload: OptimizerTargetGpuStaticPayload | PackedRotationExecutionPayload
+  mode: OptPoolGpuMode
+  payload: TargetGpuState | PckdRotXctnP
 }
 
-type OptimizerPoolRunContext =
-    | OptimizerPoolCpuRunContext
-    | OptimizerPoolGpuRunContext
+type OptPoolRunCt =
+    | OptPoolCpuRu
+    | OptPoolGpuRu
 
 // each worker keeps only the bits needed to know whether it can reuse
 // a cached cpu payload or a lazily initialized gpu backend.
-interface OptimizerPoolWorker {
+interface OptPoolWrkr {
   worker: Worker
-  currentJob: OptimizerPoolJob | null
-  cpuPayloadLoaded: boolean
-  gpuBackend: OptimizerPoolGpuMode | null
+  currentJob: OptPoolJob | null
+  cpuPayLdd: boolean
+  gpuBackend: OptPoolGpuMode | null
 }
 
 // global worker-pool state reused across optimizer runs
-let workers: OptimizerPoolWorker[] = []
-let queue: OptimizerPoolJob[] = []
+let workers: OptPoolWrkr[] = []
+let queue: OptPoolJob[] = []
 let nextRunId = 1
 let activeRunId: number | null = null
 // the active run context is shared by the pool, but actual reuse happens
 // inside each worker once its first task lands.
-let activeRunContext: OptimizerPoolRunContext | null = null
+let actRunCtx: OptPoolRunCt | null = null
+// the theory combo producer is kept warm across runs so it hydrates game data
+// only once (it caches that internally). torn down in rstOptWrkrPo / cnclActOptWr.
+let thryProducer: Worker | null = null
 
-function hasSharedArrayBuffer(): boolean {
+function ensThryProd(): Worker {
+  if (thryProducer) {
+    return thryProducer
+  }
+
+  thryProducer = new Worker(
+      new URL('@/engine/optimizer/workers/theoryProducer.worker.ts', import.meta.url),
+      { type: 'module' },
+  )
+  return thryProducer
+}
+
+function stopThryProd(): void {
+  thryProducer?.terminate()
+  thryProducer = null
+}
+
+function hasShrdRryBf(): boolean {
   return typeof SharedArrayBuffer !== 'undefined'
 }
 
 // scale a result limit upward for GPU local collection, but clamp it hard
-function clampTargetGpuResultLimit(resultsLimit: number, oversample: number): number {
+function clmpTgtGpuRs(resultsLimit: number, oversample: number): number {
   const baseLimit = Math.max(1, Math.floor(resultsLimit || 1))
   return Math.min(
       Math.max(Math.floor(baseLimit * oversample), baseLimit),
-      TARGET_GPU_RESULT_LIMIT_CAP,
+      GPU_RESULT_LIMIT,
   )
 }
 
-// result cap for an individual GPU job before merging
-export function resolveTargetGpuJobResultsLimit(resultsLimit: number): number {
-  return clampTargetGpuResultLimit(resultsLimit, TARGET_GPU_JOB_OVERSAMPLE)
+// result cap for an individual GPU job before merging. low-memory drops
+// the oversample factor so the GPU output buffer allocates only what the
+// user asked for, not 2-8x.
+export function resTgtGpuJob(resultsLimit: number, lowMem = false): number {
+  return clmpTgtGpuRs(resultsLimit, lowMem ? 1 : TGTGPUJOBVRS)
 }
 
-// larger result cap for the shared collector that merges job outputs
-export function resolveTargetGpuCollectorLimit(resultsLimit: number): number {
-  return clampTargetGpuResultLimit(resultsLimit, TARGET_GPU_COLLECTOR_OVERSAMPLE)
+// larger result cap for the shared collector that merges job outputs.
+// low-memory collapses the collector oversample to 1 for the same reason.
+export function resTgtGpuCll(resultsLimit: number, lowMem = false): number {
+  return clmpTgtGpuRs(resultsLimit, lowMem ? 1 : GPU_COLLECT_MUL)
 }
 
-// create a progress tracker that accumulates processed work and emits smoothed speed estimates
-function createProgressTracker(
-    totalForProgress: number,
-    onProgress?: (progress: OptimizerProgress) => void,
+// create a progress tracker that accumulates processed work and emits conservative speed estimates
+function mkPrgrTrck(
+    ttlForPrgr: number,
+    onProgress?: (progress: OptPrgr) => void,
+    initialPhase: import('@/engine/optimizer/types').OptPrgrPh = 'evaluating',
 ) {
-  let totalProcessed = 0
+  let curTotal = Math.max(0, ttlForPrgr)
+  let ttlPrcs = 0
+  let phase: import('@/engine/optimizer/types').OptPrgrPh = initialPhase
+  let discovered = 0
   const startTime = performance.now()
-  let lastUpdateTime = startTime
-  let avgSpeed = 0
-  let speedSamples = 0
+  let evalStart = initialPhase === 'evaluating' ? startTime : 0
+  const ratePts: Array<{ time: number; done: number }> = []
+
+  // report conservative wall-clock throughput instead of averaging per-message
+  // bursts. worker progress arrives in chunks, so instantaneous rates can be
+  // much higher than the run can sustain.
+  const calcSpeed = (now: number) => {
+    if (phase !== 'evaluating' || evalStart <= 0) {
+      return 0
+    }
+
+    const done = curTotal > 0 ? Math.min(ttlPrcs, curTotal) : ttlPrcs
+    const elapsed = now - evalStart
+    if (done <= 0 || elapsed < PRGRRATEMIN) {
+      return 0
+    }
+
+    const fullRate = done / elapsed
+    const cutoff = now - PRGRRATEWND
+    while (ratePts.length > 1 && ratePts[0].time < cutoff) {
+      ratePts.shift()
+    }
+
+    const base = ratePts[0]
+    if (!base || now - base.time < PRGRRATEMIN || done <= base.done) {
+      return fullRate
+    }
+
+    const winRate = (done - base.done) / (now - base.time)
+    return Math.min(fullRate, winRate)
+  }
 
   const emit = (now: number) => {
     if (!onProgress) {
       return
     }
 
+    const speed = calcSpeed(now)
     let remainingMs = Infinity
-    if (avgSpeed > 0) {
-      const combosLeft = Math.max(0, totalForProgress - totalProcessed)
-      remainingMs = combosLeft / avgSpeed
+    if (phase === 'evaluating' && speed > 0) {
+      const combosLeft = Math.max(0, curTotal - ttlPrcs)
+      remainingMs = combosLeft / speed
     }
 
-    const progress = totalForProgress > 0
-        ? totalProcessed / totalForProgress
+    const progress = curTotal > 0
+        ? Math.min(1, ttlPrcs / curTotal)
         : 0
 
     onProgress({
       progress,
       elapsedMs: now - startTime,
       remainingMs,
-      processed: totalProcessed,
-      speed: avgSpeed * 1000,
+      processed: curTotal > 0 ? Math.min(ttlPrcs, curTotal) : ttlPrcs,
+      speed: speed * 1000,
+      total: curTotal,
+      phase,
+      discovered,
     })
   }
 
+  // push an initial snapshot so subscribers see the exact denominator before
+  // the first worker batch reports; otherwise the UI falls back to its
+  // reactive countTheory estimate (the looser upper bound) until evaluation
+  // actually starts producing progress events.
+  emit(performance.now())
+
   return {
+    // let generated-batch paths raise the total as the real work queue expands
+    setTotal(total: number, exact = false) {
+      curTotal = exact
+          ? Math.max(0, total)
+          : Math.max(curTotal, total)
+      emit(performance.now())
+    },
+
+    // record what the discovery producer has emitted so far. only meaningful
+    // while phase === 'discovering'; safe to call afterward as a final tally.
+    setDiscovered(count: number) {
+      discovered = Math.max(discovered, count)
+      emit(performance.now())
+    },
+
+    // switch the run from discovery to evaluation. resets the speed estimator
+    // so evaluation throughput is not skewed by the (much faster) producer's
+    // contribution.
+    setPhase(next: import('@/engine/optimizer/types').OptPrgrPh) {
+      if (phase === next) {
+        return
+      }
+      phase = next
+      if (next === 'evaluating') {
+        evalStart = performance.now()
+        ratePts.length = 0
+      }
+      emit(performance.now())
+    },
+
     // apply a processed delta and update speed estimates
-    applyProgress(delta: number) {
-      totalProcessed += delta
+    applyPrgr(delta: number) {
+      ttlPrcs += delta
 
       const now = performance.now()
-      const elapsedSinceLast = now - lastUpdateTime
-
-      if (elapsedSinceLast > 0) {
-        const speed = delta / elapsedSinceLast
-        avgSpeed = (avgSpeed * speedSamples + speed) / (speedSamples + 1)
-        speedSamples += 1
-        lastUpdateTime = now
+      if (phase === 'evaluating') {
+        const done = curTotal > 0 ? Math.min(ttlPrcs, curTotal) : ttlPrcs
+        const last = ratePts[ratePts.length - 1]
+        if (!last || done > last.done) {
+          ratePts.push({ time: now, done })
+        }
       }
 
       emit(now)
@@ -202,14 +323,14 @@ function createProgressTracker(
 
     // force completion state at the end of a run
     complete() {
-      totalProcessed = totalForProgress
+      ttlPrcs = curTotal
       emit(performance.now())
     },
   }
 }
 
 // reject every queued job that has not been dispatched yet
-function rejectQueuedJobs(reason: Error): void {
+function rjctQdJobs(reason: Error): void {
   const pending = queue
   queue = []
 
@@ -219,107 +340,141 @@ function rejectQueuedJobs(reason: Error): void {
 }
 
 // fully dispose a worker handle, rejecting anything waiting on it
-function disposeWorkerHandle(handle: OptimizerPoolWorker, reason: Error): void {
+function dspsWrkrOn(handle: OptPoolWrkr, reason: Error): void {
   if (handle.currentJob) {
     handle.currentJob.reject(reason)
   }
 
   handle.currentJob = null
-  handle.cpuPayloadLoaded = false
+  handle.cpuPayLdd = false
   handle.gpuBackend = null
   handle.worker.terminate()
 }
 
-function resolveWorkerJobMessage(
-    handle: OptimizerPoolWorker,
-    job: OptimizerPoolJob,
+function resWrkrJobMs(
+    handle: OptPoolWrkr,
+    job: OptPoolJob,
 ): {
-  message: OptimizerTaskInMessage
-  transferables: Transferable[]
+  message: OptTaskInMsg
+  trns: Transferable[]
 } {
-  if (!activeRunContext) {
+  if (!actRunCtx) {
     throw new Error('Optimizer worker run context is missing')
   }
 
   if (job.type === 'runTargetCpuBatch') {
-    if (activeRunContext.kind !== 'cpu') {
+    if (actRunCtx.kind !== 'cpu') {
       throw new Error('CPU optimizer job was dispatched without a CPU run context')
     }
 
-    const message: OptimizerTaskInMessage = {
+    const message: OptTaskInMsg = {
       type: 'runTargetCpuBatch',
       runId: job.runId,
-      payload: handle.cpuPayloadLoaded ? undefined : activeRunContext.payload,
+      payload: handle.cpuPayLdd ? undefined : actRunCtx.payload,
       combosBatch: job.combosBatch,
       comboCount: job.comboCount,
-      lockedMainIndex: job.lockedMainIndex,
-      jobResultsLimit: job.jobResultsLimit,
+      lockMainIdx: job.lockMainIdx,
+      jobResultLimit: job.jobResultLimit,
     }
 
     // once a worker sees the payload once, later cpu tasks can stay small.
-    handle.cpuPayloadLoaded = true
+    handle.cpuPayLdd = true
 
     return {
       message,
-      transferables: [job.combosBatch.buffer],
+      trns: [job.combosBatch.buffer],
     }
   }
 
-  if (activeRunContext.kind !== 'gpu') {
+  if (actRunCtx.kind !== 'gpu') {
     throw new Error('GPU optimizer job was dispatched without a GPU run context')
   }
 
-  if (activeRunContext.mode === 'target') {
-    const message: OptimizerTaskInMessage = {
+  if (actRunCtx.mode === 'target') {
+    if (job.type === 'runGpuBatch') {
+      const message: OptTaskInMsg = {
+        type: 'runTargetGpuBatch',
+        runId: job.runId,
+        combosBatch: job.combosBatch,
+        comboCount: job.comboCount,
+        lockMainIdx: job.lockMainIdx,
+        jobResultLimit: job.jobResultLimit,
+        btstPay: handle.gpuBackend === 'target'
+          ? undefined
+          : actRunCtx.payload as TargetGpuState,
+      }
+
+      handle.gpuBackend = 'target'
+      return { message, trns: [job.combosBatch.buffer] }
+    }
+
+    const message: OptTaskInMsg = {
       type: 'runTargetGpu',
       runId: job.runId,
       comboStart: job.comboStart,
       comboCount: job.comboCount,
-      lockedMainIndex: job.lockedMainIndex,
-      jobResultsLimit: job.jobResultsLimit,
-      bootstrapPayload: handle.gpuBackend === 'target'
+      lockMainIdx: job.lockMainIdx,
+      jobResultLimit: job.jobResultLimit,
+      btstPay: handle.gpuBackend === 'target'
         ? undefined
-        : activeRunContext.payload as OptimizerTargetGpuStaticPayload,
+        : actRunCtx.payload as TargetGpuState,
     }
 
     // only the first target gpu task per worker needs the bootstrap payload.
     handle.gpuBackend = 'target'
-    return { message, transferables: [] }
+    return { message, trns: [] }
   }
 
-  const message: OptimizerTaskInMessage = {
+  if (job.type === 'runGpuBatch') {
+    const message: OptTaskInMsg = {
+      type: 'runRotationGpuBatch',
+      runId: job.runId,
+      combosBatch: job.combosBatch,
+      comboCount: job.comboCount,
+      lockMainIdx: job.lockMainIdx,
+      jobResultLimit: job.jobResultLimit,
+      btstPay: handle.gpuBackend === 'rotation'
+        ? undefined
+        : actRunCtx.payload as PckdRotXctnP,
+    }
+
+    handle.gpuBackend = 'rotation'
+    return { message, trns: [job.combosBatch.buffer] }
+  }
+
+  const message: OptTaskInMsg = {
     type: 'runRotationGpu',
     runId: job.runId,
     comboStart: job.comboStart,
     comboCount: job.comboCount,
-    lockedMainIndex: job.lockedMainIndex,
-    jobResultsLimit: job.jobResultsLimit,
-    bootstrapPayload: handle.gpuBackend === 'rotation'
+    lockMainIdx: job.lockMainIdx,
+    jobResultLimit: job.jobResultLimit,
+    btstPay: handle.gpuBackend === 'rotation'
       ? undefined
-      : activeRunContext.payload as PackedRotationExecutionPayload,
+      : actRunCtx.payload as PckdRotXctnP,
   }
 
   // same idea for rotation gpu workers.
   handle.gpuBackend = 'rotation'
-  return { message, transferables: [] }
+  return { message, trns: [] }
 }
 
 // send the next assigned job to a worker using request-scoped listeners instead
 // of a persistent worker "ready" handshake.
-function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): void {
+function dispWrkrJob(handle: OptPoolWrkr, job: OptPoolJob): void {
   handle.currentJob = job
 
-  let message: OptimizerTaskInMessage
-  let transferables: Transferable[] = []
+  let message: OptTaskInMsg
+  let trns: Transferable[] = []
 
   try {
-    const resolved = resolveWorkerJobMessage(handle, job)
+    const resolved = resWrkrJobMs(handle, job)
     message = resolved.message
-    transferables = resolved.transferables
+    trns = resolved.trns
   } catch (error) {
     handle.currentJob = null
     job.reject(error instanceof Error ? error : new Error(String(error)))
-    scheduleQueuedJobs()
+    schdQdJobs()
     return
   }
 
@@ -336,13 +491,13 @@ function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): 
     worker.removeEventListener('error', onError)
   }
 
-  const finishWithError = (error: Error) => {
+  const fnshWithRrr = (error: Error) => {
     cleanup()
     if (handle.currentJob === job) {
       handle.currentJob = null
     }
     job.reject(error)
-    scheduleQueuedJobs()
+    schdQdJobs()
   }
 
   const armTimeout = () => {
@@ -351,19 +506,19 @@ function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): 
     }
     // turn silent worker stalls into a surfaced optimizer error.
     timeoutId = setTimeout(() => {
-      finishWithError(new Error(`Optimizer worker task timed out: ${timeoutLabel}`))
-    }, OPTIMIZER_WORKER_TASK_TIMEOUT_MS)
+      fnshWithRrr(new Error(`Optimizer worker task timed out: ${timeoutLabel}`))
+    }, WORKER_TASK_MS)
   }
 
-  const onMessage = (event: MessageEvent<OptimizerTaskOutMessage>) => {
-    const workerMessage = event.data
+  const onMessage = (event: MessageEvent<OptTaskOutMs>) => {
+    const wrkrMsg = event.data
 
-    if (!workerMessage || workerMessage.runId !== job.runId) {
+    if (!wrkrMsg || wrkrMsg.runId !== job.runId) {
       return
     }
 
-    if (workerMessage.type === 'progress') {
-      job.onProgress?.(workerMessage.processedDelta)
+    if (wrkrMsg.type === 'progress') {
+      job.onProgress?.(wrkrMsg.prcsDlt)
       armTimeout()
       return
     }
@@ -374,17 +529,17 @@ function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): 
       handle.currentJob = null
     }
 
-    if (workerMessage.type === 'error') {
-      job.reject(new Error(workerMessage.message))
+    if (wrkrMsg.type === 'error') {
+      job.reject(new Error(wrkrMsg.message))
     } else {
-      job.resolve(workerMessage)
+      job.resolve(wrkrMsg)
     }
 
-    scheduleQueuedJobs()
+    schdQdJobs()
   }
 
   const onError = (event: ErrorEvent) => {
-    finishWithError(new Error(event.message || 'Optimizer task worker failed unexpectedly'))
+    fnshWithRrr(new Error(event.message || 'Optimizer task worker failed unexpectedly'))
   }
 
   worker.addEventListener('message', onMessage)
@@ -392,18 +547,18 @@ function dispatchWorkerJob(handle: OptimizerPoolWorker, job: OptimizerPoolJob): 
   armTimeout()
 
   try {
-    if (transferables.length > 0) {
-      worker.postMessage(message, transferables)
+    if (trns.length > 0) {
+      worker.postMessage(message, trns)
     } else {
       worker.postMessage(message)
     }
   } catch (error) {
-    finishWithError(error instanceof Error ? error : new Error(String(error)))
+    fnshWithRrr(error instanceof Error ? error : new Error(String(error)))
   }
 }
 
 // feed idle workers from the size-prioritized queue
-function scheduleQueuedJobs(): void {
+function schdQdJobs(): void {
   if (queue.length === 0) {
     return
   }
@@ -418,12 +573,12 @@ function scheduleQueuedJobs(): void {
       return
     }
 
-    dispatchWorkerJob(handle, job)
+    dispWrkrJob(handle, job)
   }
 }
 
 // construct one worker handle and wire all lifecycle message handlers
-function createWorkerHandle(): OptimizerPoolWorker {
+function mkWrkrOn(): OptPoolWrkr {
   const worker = new Worker(
       new URL('@/engine/optimizer/workers/task.worker.ts', import.meta.url),
       { type: 'module' },
@@ -432,25 +587,25 @@ function createWorkerHandle(): OptimizerPoolWorker {
   return {
     worker,
     currentJob: null,
-    cpuPayloadLoaded: false,
+    cpuPayLdd: false,
     gpuBackend: null,
   }
 }
 
 // ensure the global pool has exactly the requested number of workers
-function ensureWorkerPool(count: number): OptimizerPoolWorker[] {
+function ensWrkrPool(count: number): OptPoolWrkr[] {
   if (workers.length === count) {
     return workers
   }
 
   logOptimizer('[optimizer:pool] creating worker pool', { count, previous: workers.length })
-  resetOptimizerWorkerPool()
-  workers = Array.from({ length: count }, () => createWorkerHandle())
+  rstOptWrkrPo()
+  workers = Array.from({ length: count }, () => mkWrkrOn())
   return workers
 }
 
 // tear down the entire pool and reject anything waiting
-export function resetOptimizerWorkerPool(): void {
+export function rstOptWrkrPo(): void {
   if (workers.length > 0 || queue.length > 0) {
     logOptimizer('[optimizer:pool] resetting worker pool', {
       workerCount: workers.length,
@@ -460,19 +615,19 @@ export function resetOptimizerWorkerPool(): void {
 
   const reason = new Error('Optimizer worker pool reset')
 
-  rejectQueuedJobs(reason)
+  rjctQdJobs(reason)
 
   for (const handle of workers) {
-    disposeWorkerHandle(handle, reason)
+    dspsWrkrOn(handle, reason)
   }
 
   workers = []
   activeRunId = null
-  activeRunContext = null
+  actRunCtx = null
 }
 
 // cancel the active run on every worker and then reset the pool
-export function cancelActiveOptimizerWorkerPoolRun(): void {
+export function cnclActOptWr(): void {
   if (activeRunId == null) {
     return
   }
@@ -481,7 +636,7 @@ export function cancelActiveOptimizerWorkerPoolRun(): void {
   logOptimizer('[optimizer:pool] cancelling active run', { runId, workerCount: workers.length })
 
   for (const handle of workers) {
-    const message: OptimizerTaskInMessage = {
+    const message: OptTaskInMsg = {
       type: 'cancel',
       runId,
     }
@@ -489,36 +644,38 @@ export function cancelActiveOptimizerWorkerPoolRun(): void {
   }
 
   activeRunId = null
-  resetOptimizerWorkerPool()
+  // explicit cancel is a teardown point, so free the warm producer too.
+  stopThryProd()
+  rstOptWrkrPo()
 }
 
 // insert jobs into the queue ordered by size so larger jobs get dispatched first
-function enqueueJob(job: OptimizerPoolJob): void {
+function enqueueJob(job: OptPoolJob): void {
   let index = 0
   while (index < queue.length && queue[index].size <= job.size) {
     index += 1
   }
 
   queue.splice(index, 0, job)
-  scheduleQueuedJobs()
+  schdQdJobs()
 }
 
 // helper to run one GPU-style range job through the queue
-async function runTargetWorkerJob(
+async function runTgtWrkrJo(
     runId: number,
-    job: TargetJobSpec,
-    jobResultsLimit: number,
+    job: TgtJobSpec,
+    jobResultLimit: number,
     onProgress?: (delta: number) => void,
-): Promise<OptimizerTaskDoneMessage> {
-  return new Promise<OptimizerTaskDoneMessage>((resolve, reject) => {
+): Promise<OptTaskDoneM> {
+  return new Promise<OptTaskDoneM>((resolve, reject) => {
     enqueueJob({
       type: 'runTarget',
       runId,
       size: job.comboCount,
       comboStart: job.comboStart,
       comboCount: job.comboCount,
-      lockedMainIndex: job.lockedMainIndex,
-      jobResultsLimit,
+      lockMainIdx: job.lockMainIdx,
+      jobResultLimit: jobResultLimit,
       onProgress,
       resolve,
       reject,
@@ -527,23 +684,47 @@ async function runTargetWorkerJob(
 }
 
 // helper to run one CPU combinadic-batch job through the queue
-async function runTargetCpuBatchWorkerJob(
+async function runTgtCpuBtc(
     runId: number,
     combosBatch: Int32Array,
     comboCount: number,
     lockedMainIndex: number,
-    jobResultsLimit: number,
+    jobResultLimit: number,
     onProgress?: (delta: number) => void,
-): Promise<OptimizerTaskDoneMessage> {
-  return new Promise<OptimizerTaskDoneMessage>((resolve, reject) => {
+): Promise<OptTaskDoneM> {
+  return new Promise<OptTaskDoneM>((resolve, reject) => {
     enqueueJob({
       type: 'runTargetCpuBatch',
       runId,
       size: comboCount,
       combosBatch,
       comboCount,
-      lockedMainIndex,
-      jobResultsLimit,
+      lockMainIdx: lockedMainIndex,
+      jobResultLimit: jobResultLimit,
+      onProgress,
+      resolve,
+      reject,
+    })
+  })
+}
+
+async function runGpuBtc(
+    runId: number,
+    combosBatch: Int32Array,
+    comboCount: number,
+    lockedMainIndex: number,
+    jobResultLimit: number,
+    onProgress?: (delta: number) => void,
+): Promise<OptTaskDoneM> {
+  return new Promise<OptTaskDoneM>((resolve, reject) => {
+    enqueueJob({
+      type: 'runGpuBatch',
+      runId,
+      size: comboCount,
+      combosBatch,
+      comboCount,
+      lockMainIdx: lockedMainIndex,
+      jobResultLimit: jobResultLimit,
       onProgress,
       resolve,
       reject,
@@ -553,54 +734,458 @@ async function runTargetCpuBatchWorkerJob(
 
 // merge a batch of result refs into the shared top-k collector
 function mergeResults(
-    collector: OptimizerBagResultCollector,
-    results: readonly OptimizerBagResultRef[],
+    collector: OptResultSet,
+    results: readonly OptBagResult[],
 ): void {
   for (const result of results) {
     collector.push(result)
   }
 }
 
-// low-memory mode clamps the effective result limit further
-function resolveEffectiveResultsLimit(payload: PreparedOptimizerPayload): number {
-  return payload.lowMemoryMode
-      ? Math.min(payload.resultsLimit, OPTIMIZER_LOW_MEMORY_RESULTS_LIMIT)
-      : payload.resultsLimit
+function isBagRslt(result: OptRawResult): result is OptBagResult {
+  return !('ids' in result)
+}
+
+// shrink the per-job combo batch when the user opts into low-memory mode.
+// each combo batch is an Int32Array of (batchSize * 5) entries, so halving
+// the count directly halves the per-buffer allocation. with max-in-flight
+// already pinned at 1 in low-mem, batch buffers are the largest transient
+// allocation left in the run; this is where the real RSS savings come from.
+function bchSzFr(normal: number, lowMem: boolean): number {
+  return lowMem ? Math.max(1, Math.floor(normal / 2)) : normal
+}
+
+function mkThryXctPay(
+    payload: PrepTheoryTarget | PrepTheoryRot,
+): PckdOptXctnP {
+  if (payload.mode === 'theoryRotation') {
+    return {
+      ...payload,
+      mode: 'rotation',
+    }
+  }
+
+  return {
+    ...payload,
+    mode: 'targetSkill',
+    context: packTargetCtx({
+      compiled: payload.compiled,
+      skill: payload.skill,
+      runtime: payload.runtime,
+      comboN: payload.comboN,
+      comboK: payload.comboK,
+      comboCount: payload.totalCombos,
+      comboBaseIndex: 0,
+      lockEchoIdx: payload.lockMainCands[0] ?? -1,
+      setRtMask: payload.setRtMask,
+    }),
+  }
+}
+
+// drive the theory orchestrator without a producer worker. used only in
+// environments where Worker is unavailable (e.g. vitest in plain Node).
+async function runThryBtcInP(
+    payload: PrepTheoryTarget | PrepTheoryRot,
+    execution: PckdOptXctnP,
+    effectResultMax: number,
+    totalCombos: number,
+    runId: number,
+    progress: ReturnType<typeof mkPrgrTrck>,
+    collector: OptResultSet,
+    hooks: PoolRunHooks,
+): Promise<void> {
+  const effBatch = bchSzFr(CPU_THEORY_JOB, payload.lowMmryMode)
+  const freeBtchBffr: Int32Array[] = []
+  const iterator = gnrtThryCpuCm({
+    payload,
+    batchSize: effBatch,
+    borrowBuffer: (length) => freeBtchBffr.pop() ?? new Int32Array(length),
+  })
+  let genCmbs = 0
+
+  for (const batch of iterator) {
+    const rmnnCmbs = totalCombos - genCmbs
+    if (rmnnCmbs <= 0) {
+      break
+    }
+
+    const comboCount = Math.min(batch.comboCount, rmnnCmbs)
+    genCmbs += comboCount
+
+    if (activeRunId !== runId || hooks.isCancelled?.()) {
+      return
+    }
+
+    const results = execution.mode === 'rotation'
+        ? await runRotSrchBt(
+            execution,
+            {
+              combosBatch: batch.combos,
+              comboCount,
+              lockMainIdx: batch.lockMainIdx,
+              jobResultLimit: effectResultMax,
+            },
+            {
+              isCancelled: hooks.isCancelled,
+              onProcessed: progress.applyPrgr,
+            },
+          )
+        : await runTgtSrchBt(
+            execution,
+            {
+              combosBatch: batch.combos,
+              comboCount,
+              lockMainIdx: batch.lockMainIdx,
+              jobResultLimit: effectResultMax,
+            },
+            {
+              isCancelled: hooks.isCancelled,
+              onProcessed: progress.applyPrgr,
+            },
+          )
+
+    mergeResults(collector, results)
+
+    if (genCmbs >= totalCombos) {
+      break
+    }
+  }
+}
+
+async function runThryBtcWr(
+    payload: PrepTheoryTarget | PrepTheoryRot,
+    backend: OptBckn,
+    hooks: PoolRunHooks = {},
+): Promise<OptBagResult[]> {
+  const runT0 = performance.now()
+  const totalCombos = payload.theoryTotal
+  if (totalCombos <= 0) {
+    return []
+  }
+
+  const lowMmryMode = payload.lowMmryMode
+  const useGpu = backend === 'gpu' && typeof Worker !== 'undefined'
+  const workerTarget = lowMmryMode
+      ? 1
+      : totalCombos < MIN_PAR_COMBOS
+          ? 1
+          : useGpu
+            ? WORKER_COUNT.gpu
+            : WORKER_COUNT.cpu
+  const effBatch = bchSzFr(useGpu ? GPU_THEORY_JOB : CPU_THEORY_JOB, lowMmryMode)
+  const stmtJobs = Math.max(
+      1,
+      Math.ceil(totalCombos / Math.max(1, effBatch)),
+  )
+  const workerCount = typeof Worker === 'undefined'
+      ? 0
+      : Math.min(workerTarget, stmtJobs)
+  if (workerCount > 0) {
+    ensWrkrPool(workerCount)
+  }
+
+  const runId = nextRunId++
+  activeRunId = runId
+  logOptimizer('[optimizer:theory] run start', {
+    runId,
+    mode: payload.mode,
+    totalCombos,
+    theoryRows: payload.theoryRows.length,
+    resultLimit: payload.resultsLimit,
+    lowMemoryMode: lowMmryMode,
+    workerTarget,
+    workerCount,
+    batchSize: effBatch,
+    statedJobs: stmtJobs,
+    backend: useGpu ? 'gpu' : 'cpu',
+  })
+
+  // totalCombos comes from prnThryRows -> cntThryEmt and is exact, so the
+  // tracker can start in 'evaluating' from t=0. no discovery phase is needed.
+  const progress = mkPrgrTrck(totalCombos, hooks.onProgress, 'evaluating')
+  const effectResultMax = payload.resultsLimit
+  const jobResultLimit = useGpu
+      ? resTgtGpuJob(effectResultMax, payload.lowMmryMode)
+      : effectResultMax
+  const collector = new OptResultSet(effectResultMax, payload.lowMmryMode)
+  const execution = mkThryXctPay(payload)
+  actRunCtx = useGpu
+      ? {
+        kind: 'gpu',
+        mode: payload.mode === 'theoryRotation' ? 'rotation' : 'target',
+        payload: payload.mode === 'theoryRotation'
+            ? packRotation(payload)
+            : makeTargetGpu(payload),
+      }
+      : {
+        kind: 'cpu',
+        payload: execution.mode === 'rotation'
+            ? shrPckdRotXc(execution)
+            : shrPckdTgtSk(execution),
+      }
+
+  let producer: Worker | null = null
+  // detaches this run's listeners from the warm producer worker; set once the
+  // producer path wires them up. invoked in finally so the shared worker is
+  // left clean regardless of how the run exits.
+  let detachProducer: (() => void) | null = null
+
+  try {
+    if (workerCount <= 0) {
+      await runThryBtcInP(
+          payload,
+          execution,
+          effectResultMax,
+          totalCombos,
+          runId,
+          progress,
+          collector,
+          hooks,
+      )
+    } else {
+      // reuse the warm producer worker across runs; its game-data hydration
+      // persists. per-run message listeners are added/removed below so the
+      // shared worker stays clean between runs.
+      producer = ensThryProd()
+
+      const rsblBtchLngt = effBatch * 5
+      const inFlight = new Set<Promise<void>>()
+      const maxInFlghJob = lowMmryMode ? 1 : Math.max(1, workerCount)
+      const batchQueue: Array<{
+        combos: Int32Array
+        comboCount: number
+        lockMainIdx: number
+      }> = []
+      let producerDone = false
+      let producerError: Error | null = null
+      let pendingResolve: (() => void) | null = null
+      let genCmbs = 0
+      let jobsSent = 0
+      let jobsDone = 0
+      let rsltsSeen = 0
+
+      const wake = () => {
+        const resolve = pendingResolve
+        pendingResolve = null
+        if (resolve) {
+          resolve()
+        }
+      }
+
+      const onMessage = (event: MessageEvent<OptThryProdOu>) => {
+        const msg = event.data
+        if (msg.runId !== runId) {
+          return
+        }
+
+        if (msg.type === 'theoryBatch') {
+          batchQueue.push({
+            combos: msg.combos,
+            comboCount: msg.comboCount,
+            lockMainIdx: msg.lockMainIdx,
+          })
+          wake()
+          return
+        }
+
+        if (msg.type === 'theoryProducerDone') {
+          producerDone = true
+          wake()
+          return
+        }
+
+        producerError = new Error(msg.message)
+        wake()
+      }
+
+      const onError = (event: ErrorEvent) => {
+        producerError = new Error(event.message || 'Theory producer worker failed unexpectedly')
+        wake()
+      }
+
+      producer.addEventListener('message', onMessage)
+      producer.addEventListener('error', onError)
+      const localProd = producer
+      detachProducer = () => {
+        localProd.removeEventListener('message', onMessage)
+        localProd.removeEventListener('error', onError)
+      }
+
+      const startMsg: OptThryProdIn = {
+        type: 'startTheoryProducer',
+        runId,
+        payload,
+        batchSize: effBatch,
+      }
+      producer.postMessage(startMsg)
+
+      while (true) {
+        if (activeRunId !== runId || hooks.isCancelled?.()) {
+          const cancelMsg: OptThryProdIn = {
+            type: 'cancelTheoryProducer',
+            runId,
+          }
+          producer.postMessage(cancelMsg)
+          break
+        }
+
+        if (producerError) {
+          throw producerError
+        }
+
+        if (batchQueue.length === 0) {
+          if (producerDone) {
+            break
+          }
+          await new Promise<void>((resolve) => {
+            pendingResolve = resolve
+          })
+          continue
+        }
+
+        const batch = batchQueue.shift()!
+        const rmnnCmbs = totalCombos - genCmbs
+        if (rmnnCmbs <= 0) {
+          // tell the producer we're done; drain its trailing messages.
+          const cancelMsg: OptThryProdIn = {
+            type: 'cancelTheoryProducer',
+            runId,
+          }
+          producer.postMessage(cancelMsg)
+          break
+        }
+
+        const comboCount = Math.min(batch.comboCount, rmnnCmbs)
+        genCmbs += comboCount
+        jobsSent += 1
+
+        const localProducer = producer
+        const jobPromise = (useGpu ? runGpuBtc : runTgtCpuBtc)(
+            runId,
+            batch.combos,
+            comboCount,
+            batch.lockMainIdx,
+            jobResultLimit,
+            (delta) => {
+              if (activeRunId !== runId) {
+                return
+              }
+              progress.applyPrgr(delta)
+            },
+        )
+            .then((done) => {
+              if (activeRunId !== runId) {
+                return
+              }
+              mergeResults(collector, done.results.filter(isBagRslt))
+              if (useGpu) {
+                progress.applyPrgr(comboCount)
+              }
+              jobsDone += 1
+              rsltsSeen += done.results.length
+
+              if (
+                  done.rtrnCmbsBtch &&
+                  done.rtrnCmbsBtch.length === rsblBtchLngt &&
+                  activeRunId === runId
+              ) {
+                const returnMsg: OptThryProdIn = {
+                  type: 'returnTheoryBuffer',
+                  runId,
+                  buffer: done.rtrnCmbsBtch,
+                  lowMem: lowMmryMode,
+                }
+                localProducer.postMessage(returnMsg, [done.rtrnCmbsBtch.buffer])
+              }
+            })
+            .finally(() => {
+              inFlight.delete(jobPromise)
+              wake()
+            })
+
+        inFlight.add(jobPromise)
+
+        if (inFlight.size >= maxInFlghJob) {
+          await Promise.race(inFlight)
+        }
+      }
+
+      await Promise.all(inFlight)
+
+      logOptimizer('[optimizer:theory] dispatch done', {
+        runId,
+        generated: genCmbs,
+        totalCombos,
+        jobsSent,
+        jobsDone,
+        resultRefs: rsltsSeen,
+        elapsedMs: Math.round(performance.now() - runT0),
+      })
+    }
+  } catch (error) {
+    logOptimizer('[optimizer:theory] run error', {
+      runId,
+      elapsedMs: Math.round(performance.now() - runT0),
+      error: error instanceof Error ? error.message : String(error),
+    })
+    // defensively replace the producer on error when it may be in a bad state.
+    stopThryProd()
+    rstOptWrkrPo()
+    throw error
+  } finally {
+    // leave the producer warm; just detach this run's listeners. teardown of
+    // the worker itself happens via rstOptWrkrPo / cnclActOptWr (incl. the
+    // error path above, which already called rstOptWrkrPo).
+    detachProducer?.()
+    if (activeRunId === runId) {
+      activeRunId = null
+      progress.complete()
+    }
+    actRunCtx = null
+  }
+
+  const finalResults = collector.sorted()
+  logOptimizer('[optimizer:theory] run complete', {
+    runId,
+    elapsedMs: Math.round(performance.now() - runT0),
+    resultCount: finalResults.length,
+  })
+  return finalResults
 }
 
 // run a target-skill search on GPU workers using contiguous combo jobs
-async function runTargetSkillGpuWithWorkerPool(
-    payload: PreparedTargetSkillRun,
+async function runTgtSkllGp(
+    payload: PrepTargetSkill,
     hooks: PoolRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
+): Promise<OptBagResult[]> {
   const totalCombos =
-      payload.comboTotalCombos *
-      Math.max(1, payload.lockedMainRequested ? payload.lockedMainCandidateIndices.length : 1) *
-      payload.progressFactor
+      payload.totalCombos *
+      Math.max(1, payload.lockMainReq ? payload.lockMainCands.length : 1) *
+      payload.progFact
 
   if (totalCombos <= 0) {
     return []
   }
 
-  const jobs = buildTargetJobs(payload, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU)
+  const jobs = mkTgtJobs(payload, TARGET_GPU_JOB)
   const workerCount = Math.min(WORKER_COUNT.gpu, Math.max(1, jobs.length))
-  ensureWorkerPool(workerCount)
+  ensWrkrPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
 
-  const progress = createProgressTracker(totalCombos, hooks.onProgress)
-  const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
-  const collectorLimit = resolveTargetGpuCollectorLimit(effectiveResultsLimit)
-  const collector = new OptimizerBagResultCollector(collectorLimit)
-  const jobResultsLimit = resolveTargetGpuJobResultsLimit(effectiveResultsLimit)
+  const progress = mkPrgrTrck(totalCombos, hooks.onProgress)
+  const effectResultMax = payload.resultsLimit
+  const cllcLmt = resTgtGpuCll(effectResultMax, payload.lowMmryMode)
+  const collector = new OptResultSet(cllcLmt, payload.lowMmryMode)
+  const jobResultLimit = resTgtGpuJob(effectResultMax, payload.lowMmryMode)
 
   // gpu workers bootstrap lazily inside their first real task instead of
   // blocking the whole run on a separate ready handshake.
-  activeRunContext = {
+  actRunCtx = {
     kind: 'gpu',
     mode: 'target',
-    payload: buildTargetGpuStaticPayload(payload),
+    payload: makeTargetGpu(payload),
   }
 
   try {
@@ -609,61 +1194,61 @@ async function runTargetSkillGpuWithWorkerPool(
         return collector.sorted()
       }
 
-      const done = await runTargetWorkerJob(runId, job, jobResultsLimit)
+      const done = await runTgtWrkrJo(runId, job, jobResultLimit)
 
       if (activeRunId !== runId) {
         return collector.sorted()
       }
 
-      mergeResults(collector, done.results)
-      progress.applyProgress(job.comboCount * payload.progressFactor)
+      mergeResults(collector, done.results.filter(isBagRslt))
+      progress.applyPrgr(job.comboCount * payload.progFact)
     }
   } catch (error) {
-    resetOptimizerWorkerPool()
+    rstOptWrkrPo()
     throw error
   } finally {
     if (activeRunId === runId) {
       activeRunId = null
       progress.complete()
     }
-    activeRunContext = null
+    actRunCtx = null
   }
 
   return collector.sorted()
 }
 
 // run a rotation search on GPU workers using the same job model as target mode
-async function runRotationGpuWithWorkerPool(
-    payload: PreparedRotationRun,
+async function runRotGpuWit(
+    payload: PrepRotRun,
     hooks: PoolRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
+): Promise<OptBagResult[]> {
   const totalCombos =
-      payload.comboTotalCombos *
-      Math.max(1, payload.lockedMainRequested ? payload.lockedMainCandidateIndices.length : 1) *
-      payload.progressFactor
+      payload.totalCombos *
+      Math.max(1, payload.lockMainReq ? payload.lockMainCands.length : 1) *
+      payload.progFact
 
   if (payload.contextCount <= 0 || totalCombos <= 0) {
     return []
   }
 
-  const jobs = buildTargetJobs(payload, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_ROTATION_GPU)
+  const jobs = mkTgtJobs(payload, ROT_GPU_JOB)
   const workerCount = Math.min(WORKER_COUNT.gpu, Math.max(1, jobs.length))
-  ensureWorkerPool(workerCount)
+  ensWrkrPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
 
-  const progress = createProgressTracker(totalCombos, hooks.onProgress)
-  const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
-  const collectorLimit = resolveTargetGpuCollectorLimit(effectiveResultsLimit)
-  const collector = new OptimizerBagResultCollector(collectorLimit)
-  const jobResultsLimit = resolveTargetGpuJobResultsLimit(effectiveResultsLimit)
+  const progress = mkPrgrTrck(totalCombos, hooks.onProgress)
+  const effectResultMax = payload.resultsLimit
+  const cllcLmt = resTgtGpuCll(effectResultMax, payload.lowMmryMode)
+  const collector = new OptResultSet(cllcLmt, payload.lowMmryMode)
+  const jobResultLimit = resTgtGpuJob(effectResultMax, payload.lowMmryMode)
 
   // same lazy bootstrap path for rotation gpu workers.
-  activeRunContext = {
+  actRunCtx = {
     kind: 'gpu',
     mode: 'rotation',
-    payload: createPackedRotationExecution(payload),
+    payload: packRotation(payload),
   }
 
   try {
@@ -672,37 +1257,37 @@ async function runRotationGpuWithWorkerPool(
         return collector.sorted()
       }
 
-      const done = await runTargetWorkerJob(runId, job, jobResultsLimit)
+      const done = await runTgtWrkrJo(runId, job, jobResultLimit)
 
       if (activeRunId !== runId) {
         return collector.sorted()
       }
 
-      mergeResults(collector, done.results)
-      progress.applyProgress(job.comboCount * payload.progressFactor)
+      mergeResults(collector, done.results.filter(isBagRslt))
+      progress.applyPrgr(job.comboCount * payload.progFact)
     }
   } catch (error) {
-    resetOptimizerWorkerPool()
+    rstOptWrkrPo()
     throw error
   } finally {
     if (activeRunId === runId) {
       activeRunId = null
       progress.complete()
     }
-    activeRunContext = null
+    actRunCtx = null
   }
 
   return collector.sorted()
 }
 
 // run a target-skill search on CPU workers using explicit combo batches
-async function runTargetSkillCpuWithWorkerPool(
-    payload: PreparedTargetSkillRun,
+async function runTgtSkllCp(
+    payload: PrepTargetSkill,
     hooks: PoolRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
-  const totalCombos = countOptimizerCombinationsForMainIndices(
+): Promise<OptBagResult[]> {
+  const totalCombos = countMainCombos(
       payload.costs,
-      payload.lockedMainCandidateIndices,
+      payload.lockMainCands,
   )
 
   if (totalCombos <= 0) {
@@ -710,63 +1295,64 @@ async function runTargetSkillCpuWithWorkerPool(
   }
 
   // low-memory mode or tiny workloads avoid parallel overhead
-  const lowMemoryMode = payload.lowMemoryMode
-  const workerTarget = lowMemoryMode
+  const lowMmryMode = payload.lowMmryMode
+  const workerTarget = lowMmryMode
       ? 1
-      : totalCombos < OPTIMIZER_MIN_PARALLEL_COMBOS
+      : totalCombos < MIN_PAR_COMBOS
           ? 1
           : WORKER_COUNT.cpu
 
-  const lockedMainIndices = payload.lockedMainRequested
-      ? payload.lockedMainCandidateIndices
+  const lckdMainNdcs = payload.lockMainReq
+      ? payload.lockMainCands
       : [-1]
 
-  const estimatedJobs = lockedMainIndices.length * Math.max(
+  const effBatch = bchSzFr(CPU_JOB_SIZE, lowMmryMode)
+  const stmtJobs = lckdMainNdcs.length * Math.max(
       1,
-      Math.ceil(totalCombos / Math.max(1, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU * payload.progressFactor)),
+      Math.ceil(totalCombos / Math.max(1, effBatch * payload.progFact)),
   )
 
-  const workerCount = Math.min(workerTarget, Math.max(1, estimatedJobs))
-  const maxInFlightJobs = lowMemoryMode ? 1 : workerCount
-  ensureWorkerPool(workerCount)
+  const workerCount = Math.min(workerTarget, Math.max(1, stmtJobs))
+  const maxInFlghJob = lowMmryMode ? 1 : workerCount
+  ensWrkrPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
 
-  const progress = createProgressTracker(totalCombos, hooks.onProgress)
-  const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
-  const collector = new OptimizerBagResultCollector(effectiveResultsLimit)
+  const progress = mkPrgrTrck(totalCombos, hooks.onProgress)
+  const effectResultMax = payload.resultsLimit
+  const collector = new OptResultSet(effectResultMax, payload.lowMmryMode)
 
-  activeRunContext = {
+  actRunCtx = {
     kind: 'cpu',
-    payload: sharePackedTargetSkillExecution(createPackedTargetSkillExecution(payload)),
+    payload: shrPckdTgtSk(packTargetSkill(payload)),
   }
 
   try {
     const inFlight = new Set<Promise<void>>()
 
     // each combo batch stores 5 indices per combination
-    const reusableBatchLength = ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU * 5
-    const freeBatchBuffers: Int32Array[] = []
+    const rsblBtchLngt = effBatch * 5
+    const freeBtchBffr: Int32Array[] = []
 
-    for (const lockedMainIndex of lockedMainIndices) {
-      for (const batch of generateTargetCpuComboBatches({
+    for (const lockedMainIndex of lckdMainNdcs) {
+      for (const batch of gnrtTgtCpuCm({
         costs: payload.costs,
-        batchSize: ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
-        lockedMainIndex,
-        borrowBuffer: (length) => freeBatchBuffers.pop() ?? new Int32Array(length),
+        batchSize: effBatch,
+        lockMainIdx: lockedMainIndex,
+        borrowBuffer: (length) => freeBtchBffr.pop() ?? new Int32Array(length),
       })) {
-        const jobPromise = runTargetCpuBatchWorkerJob(
+        const jobPromise = runTgtCpuBtc(
             runId,
             batch.combos,
             batch.comboCount,
             lockedMainIndex,
-            effectiveResultsLimit,
+            effectResultMax,
             (delta) => {
               if (activeRunId !== runId) {
                 return
               }
-              progress.applyProgress(delta)
+              progress.applyPrgr(delta)
             },
         )
             .then((done) => {
@@ -774,11 +1360,11 @@ async function runTargetSkillCpuWithWorkerPool(
                 return
               }
 
-              mergeResults(collector, done.results)
+              mergeResults(collector, done.results.filter(isBagRslt))
 
               // recycle returned combo buffers when they match the standard reusable size
-              if (done.returnedCombosBatch && done.returnedCombosBatch.length === reusableBatchLength) {
-                freeBatchBuffers.push(done.returnedCombosBatch)
+              if (done.rtrnCmbsBtch && done.rtrnCmbsBtch.length === rsblBtchLngt) {
+                freeBtchBffr.push(done.rtrnCmbsBtch)
               }
             })
             .finally(() => {
@@ -788,7 +1374,7 @@ async function runTargetSkillCpuWithWorkerPool(
         inFlight.add(jobPromise)
 
         // throttle in-flight work to avoid over-buffering huge runs
-        if (inFlight.size >= maxInFlightJobs) {
+        if (inFlight.size >= maxInFlghJob) {
           await Promise.race(inFlight)
         }
       }
@@ -796,88 +1382,89 @@ async function runTargetSkillCpuWithWorkerPool(
 
     await Promise.all(inFlight)
   } catch (error) {
-    resetOptimizerWorkerPool()
+    rstOptWrkrPo()
     throw error
   } finally {
     if (activeRunId === runId) {
       activeRunId = null
       progress.complete()
     }
-    activeRunContext = null
+    actRunCtx = null
   }
 
   return collector.sorted()
 }
 
 // run a rotation search on CPU workers using the same batch system as target mode
-async function runRotationCpuWithWorkerPool(
-    payload: PreparedRotationRun,
+async function runRotCpuWit(
+    payload: PrepRotRun,
     hooks: PoolRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
-  const totalCombos = countOptimizerCombinationsForMainIndices(
+): Promise<OptBagResult[]> {
+  const totalCombos = countMainCombos(
       payload.costs,
-      payload.lockedMainCandidateIndices,
+      payload.lockMainCands,
   )
 
   if (payload.contextCount <= 0 || totalCombos <= 0) {
     return []
   }
 
-  const lowMemoryMode = payload.lowMemoryMode
-  const workerTarget = lowMemoryMode
+  const lowMmryMode = payload.lowMmryMode
+  const workerTarget = lowMmryMode
       ? 1
-      : totalCombos < OPTIMIZER_MIN_PARALLEL_COMBOS
+      : totalCombos < MIN_PAR_COMBOS
           ? 1
           : WORKER_COUNT.cpu
 
-  const lockedMainIndices = payload.lockedMainRequested
-      ? payload.lockedMainCandidateIndices
+  const lckdMainNdcs = payload.lockMainReq
+      ? payload.lockMainCands
       : [-1]
 
-  const estimatedJobs = lockedMainIndices.length * Math.max(
+  const effBatch = bchSzFr(CPU_JOB_SIZE, lowMmryMode)
+  const stmtJobs = lckdMainNdcs.length * Math.max(
       1,
-      Math.ceil(totalCombos / Math.max(1, ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU * payload.progressFactor)),
+      Math.ceil(totalCombos / Math.max(1, effBatch * payload.progFact)),
   )
 
-  const workerCount = Math.min(workerTarget, Math.max(1, estimatedJobs))
-  const maxInFlightJobs = lowMemoryMode ? 1 : workerCount
-  ensureWorkerPool(workerCount)
+  const workerCount = Math.min(workerTarget, Math.max(1, stmtJobs))
+  const maxInFlghJob = lowMmryMode ? 1 : workerCount
+  ensWrkrPool(workerCount)
 
   const runId = nextRunId++
   activeRunId = runId
 
-  const progress = createProgressTracker(totalCombos, hooks.onProgress)
-  const effectiveResultsLimit = resolveEffectiveResultsLimit(payload)
-  const collector = new OptimizerBagResultCollector(effectiveResultsLimit)
+  const progress = mkPrgrTrck(totalCombos, hooks.onProgress)
+  const effectResultMax = payload.resultsLimit
+  const collector = new OptResultSet(effectResultMax, payload.lowMmryMode)
 
-  activeRunContext = {
+  actRunCtx = {
     kind: 'cpu',
-    payload: sharePackedRotationExecution(createPackedRotationExecution(payload)),
+    payload: shrPckdRotXc(packRotation(payload)),
   }
 
   try {
     const inFlight = new Set<Promise<void>>()
-    const reusableBatchLength = ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU * 5
-    const freeBatchBuffers: Int32Array[] = []
+    const rsblBtchLngt = effBatch * 5
+    const freeBtchBffr: Int32Array[] = []
 
-    for (const lockedMainIndex of lockedMainIndices) {
-      for (const batch of generateTargetCpuComboBatches({
+    for (const lockedMainIndex of lckdMainNdcs) {
+      for (const batch of gnrtTgtCpuCm({
         costs: payload.costs,
-        batchSize: ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
-        lockedMainIndex,
-        borrowBuffer: (length) => freeBatchBuffers.pop() ?? new Int32Array(length),
+        batchSize: effBatch,
+        lockMainIdx: lockedMainIndex,
+        borrowBuffer: (length) => freeBtchBffr.pop() ?? new Int32Array(length),
       })) {
-        const jobPromise = runTargetCpuBatchWorkerJob(
+        const jobPromise = runTgtCpuBtc(
             runId,
             batch.combos,
             batch.comboCount,
             lockedMainIndex,
-            effectiveResultsLimit,
+            effectResultMax,
             (delta) => {
               if (activeRunId !== runId) {
                 return
               }
-              progress.applyProgress(delta)
+              progress.applyPrgr(delta)
             },
         )
             .then((done) => {
@@ -885,10 +1472,10 @@ async function runRotationCpuWithWorkerPool(
                 return
               }
 
-              mergeResults(collector, done.results)
+              mergeResults(collector, done.results.filter(isBagRslt))
 
-              if (done.returnedCombosBatch && done.returnedCombosBatch.length === reusableBatchLength) {
-                freeBatchBuffers.push(done.returnedCombosBatch)
+              if (done.rtrnCmbsBtch && done.rtrnCmbsBtch.length === rsblBtchLngt) {
+                freeBtchBffr.push(done.rtrnCmbsBtch)
               }
             })
             .finally(() => {
@@ -897,7 +1484,7 @@ async function runRotationCpuWithWorkerPool(
 
         inFlight.add(jobPromise)
 
-        if (inFlight.size >= maxInFlightJobs) {
+        if (inFlight.size >= maxInFlghJob) {
           await Promise.race(inFlight)
         }
       }
@@ -905,50 +1492,52 @@ async function runRotationCpuWithWorkerPool(
 
     await Promise.all(inFlight)
   } catch (error) {
-    resetOptimizerWorkerPool()
+    rstOptWrkrPo()
     throw error
   } finally {
     if (activeRunId === runId) {
       activeRunId = null
       progress.complete()
     }
-    activeRunContext = null
+    actRunCtx = null
   }
 
   return collector.sorted()
 }
 
 // top-level pool entrypoint that resets the pool, then routes by mode and backend
-export async function runOptimizerWithWorkerPool(
-    payload: PreparedOptimizerPayload,
-    backend: OptimizerBackend,
+export async function runOptWithWr(
+    payload: PrepOptPay,
+    backend: OptBckn,
     hooks: PoolRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
+): Promise<OptRawResult[]> {
   logOptimizer('[optimizer:pool] run starting', {
     mode: payload.mode,
     backend,
-    comboTotalCombos: payload.comboTotalCombos,
+    totalCombos: payload.totalCombos,
     resultsLimit: payload.resultsLimit,
-    lowMemoryMode: payload.lowMemoryMode,
-    sharedArrayBufferAvailable: hasSharedArrayBuffer(),
-    lockedMainRequested: payload.lockedMainRequested,
-    lockedMainCandidateCount: payload.lockedMainCandidateIndices.length,
+    lowMemoryMode: payload.lowMmryMode,
+    sharedArrayBufferAvailable: hasShrdRryBf(),
+    lockedMainRequested: payload.lockMainReq,
+    lockedMainCandidateCount: payload.lockMainCands.length,
     contextCount: 'contextCount' in payload ? payload.contextCount : undefined,
   })
 
-  resetOptimizerWorkerPool()
+  rstOptWrkrPo()
 
   const t0 = performance.now()
-  let results: OptimizerBagResultRef[]
+  let results: OptRawResult[]
 
-  if (payload.mode === 'rotation') {
+  if (payload.mode === 'theoryTarget' || payload.mode === 'theoryRotation') {
+    results = await runThryBtcWr(payload, backend, hooks)
+  } else if (payload.mode === 'rotation') {
     results = backend === 'gpu'
-        ? await runRotationGpuWithWorkerPool(payload, hooks)
-        : await runRotationCpuWithWorkerPool(payload, hooks)
+        ? await runRotGpuWit(payload, hooks)
+        : await runRotCpuWit(payload, hooks)
   } else {
     results = backend === 'gpu'
-        ? await runTargetSkillGpuWithWorkerPool(payload, hooks)
-        : await runTargetSkillCpuWithWorkerPool(payload, hooks)
+        ? await runTgtSkllGp(payload, hooks)
+        : await runTgtSkllCp(payload, hooks)
   }
 
   logOptimizer('[optimizer:pool] run complete', {

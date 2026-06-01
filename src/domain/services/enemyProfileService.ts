@@ -4,16 +4,16 @@
                profiles, including tower mode, presets, and resistances.
 */
 
-import type { EnemyProfile, EnemyResistanceIndex } from '@/domain/entities/appState'
-import type { EnemyCatalogEntry, EnemyClassId, EnemyElementId, EnemyPresetDefinition } from '@/domain/entities/enemy'
+import type { EnemyProfile, EnemyResistN, EnemyStateValue } from '@/domain/entities/appState'
+import type { EnemyCatEnt, EnemyClassId, EnemyElemId, EnemyPrstDef } from '@/domain/entities/enemy'
 import {
-  applyTowerOfAdversityResistances,
-  buildEnemyProfileFromCatalog,
-  ENEMY_ELEMENT_ATTRIBUTE_KEYS,
-  ENEMY_ELEMENT_LABELS,
-  getEnemyResistanceTable,
-  isEnemyClassId,
-  removeTowerOfAdversityResistances,
+  applyTwrOfDv,
+  makeEnemyProf,
+  ENEMY_ELEM_ATTR,
+  ENEMY_ELEM_TXT,
+  getEnemyResi,
+  isEnemyClssI,
+  rmTwrOfDvrsR,
 } from '@/domain/entities/enemy'
 
 // clamp a number into a bounded range
@@ -21,99 +21,99 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-export interface EnemyResistanceRow {
-  elementId: EnemyElementId
+export interface EnemyResistR {
+  elementId: EnemyElemId
   label: string
   attributeKey: string
   value: number
 }
 
 // check whether an enemy profile is custom
-export function isCustomEnemyProfile(profile: EnemyProfile): boolean {
+export function isCustEnemyP(profile: EnemyProfile): boolean {
   return profile.source === 'custom'
 }
 
 // read tune strain from an enemy profile with a safe fallback
-export function getEnemyTuneStrain(profile: EnemyProfile): number {
+export function getEnemyTune(profile: EnemyProfile): number {
   return profile.status?.tuneStrain ?? 0
 }
 
 // resolve a valid enemy class from a profile
-export function getResolvedEnemyClass(profile: EnemyProfile): EnemyClassId {
-  return isEnemyClassId(profile.class) ? profile.class : 1
+export function getRslvEnemy(profile: EnemyProfile): EnemyClassId {
+  return isEnemyClssI(profile.class) ? profile.class : 1
 }
 
 // build display rows for enemy resistances
-export function getEnemyResistanceRows(
+export function getEnemyReys(
     profile: EnemyProfile,
-    elementOptions: EnemyElementId[],
-): EnemyResistanceRow[] {
-  return elementOptions.map((elementId) => ({
+    elemPtns: EnemyElemId[],
+): EnemyResistR[] {
+  return elemPtns.map((elementId) => ({
     elementId,
-    label: ENEMY_ELEMENT_LABELS[elementId],
-    attributeKey: ENEMY_ELEMENT_ATTRIBUTE_KEYS[elementId],
+    label: ENEMY_ELEM_TXT[elementId],
+    attributeKey: ENEMY_ELEM_ATTR[elementId],
     value: profile.res[elementId],
   }))
 }
 
 // remap custom enemy resistances when toggling tower mode
-export function remapCustomEnemyResistances(profile: EnemyProfile, nextToa: boolean): EnemyProfile['res'] {
+export function rmpCustEnemy(profile: EnemyProfile, nextToa: boolean): EnemyProfile['res'] {
   if (profile.toa === nextToa) {
     return profile.res
   }
 
   return nextToa
-      ? applyTowerOfAdversityResistances(profile.res)
-      : removeTowerOfAdversityResistances(profile.res)
+      ? applyTwrOfDv(profile.res)
+      : rmTwrOfDvrsR(profile.res)
 }
 
 // select a catalog enemy while preserving useful current profile context
-export function selectCatalogEnemyProfile(
-    currentProfile: EnemyProfile,
-    selectedEnemy: EnemyCatalogEntry,
+export function selCatEnemyP(
+    curProf: EnemyProfile,
+    selEnemy: EnemyCatEnt,
 ): EnemyProfile {
-  return buildEnemyProfileFromCatalog(selectedEnemy, {
+  return makeEnemyProf(selEnemy, {
     previousProfile: {
-      ...currentProfile,
+      ...curProf,
       source: 'catalog',
     },
   })
 }
 
 // select a preset enemy profile while preserving current tune strain
-export function selectEnemyPreset(profile: EnemyProfile, preset: EnemyPresetDefinition): EnemyProfile {
+export function selEnemyPrst(profile: EnemyProfile, preset: EnemyPrstDef): EnemyProfile {
   return {
     ...preset.profile,
     toa: preset.profile.toa,
     status: {
-      tuneStrain: getEnemyTuneStrain(profile),
+      tuneStrain: getEnemyTune(profile),
     },
   }
 }
 
 // toggle tower mode for the current enemy profile
-export function toggleEnemyTowerMode(
+export function tglEnemyTwrM(
     profile: EnemyProfile,
-    selectedEnemy: EnemyCatalogEntry | null,
+    selEnemy: EnemyCatEnt | null,
     nextToa: boolean,
 ): EnemyProfile {
   const nextLevel = profile.level > 0 ? profile.level : nextToa ? 100 : 90
-  const customMode = isCustomEnemyProfile(profile)
+  const customMode = isCustEnemyP(profile)
 
   return {
     ...profile,
     toa: nextToa,
     level: clamp(nextLevel, 1, 150),
     res: customMode
-        ? remapCustomEnemyResistances(profile, nextToa)
-        : selectedEnemy
-            ? getEnemyResistanceTable(selectedEnemy, nextToa)
+        ? rmpCustEnemy(profile, nextToa)
+        : selEnemy
+            ? getEnemyResi(selEnemy, nextToa)
             : profile.res,
   }
 }
 
 // set enemy level with bounds applied
-export function setEnemyLevel(profile: EnemyProfile, value: number): EnemyProfile {
+export function setEnemyLvl(profile: EnemyProfile, value: number): EnemyProfile {
   return {
     ...profile,
     level: clamp(Math.round(value), 1, 150),
@@ -121,7 +121,7 @@ export function setEnemyLevel(profile: EnemyProfile, value: number): EnemyProfil
 }
 
 // set enemy class
-export function setEnemyClass(profile: EnemyProfile, enemyClass: EnemyClassId): EnemyProfile {
+export function setEnemyClss(profile: EnemyProfile, enemyClass: EnemyClassId): EnemyProfile {
   return {
     ...profile,
     class: enemyClass,
@@ -129,26 +129,51 @@ export function setEnemyClass(profile: EnemyProfile, enemyClass: EnemyClassId): 
 }
 
 // set one enemy resistance value with bounds applied
-export function setEnemyResistance(
+export function setEnemyResi(
     profile: EnemyProfile,
-    resistanceIndex: EnemyResistanceIndex,
+    resistNdx: EnemyResistN,
     value: number,
 ): EnemyProfile {
   return {
     ...profile,
     res: {
       ...profile.res,
-      [resistanceIndex]: clamp(value, -100, 200),
+      [resistNdx]: clamp(value, -100, 200),
     },
   }
 }
 
-// set enemy tune strain with bounds applied
-export function setEnemyTuneStrain(profile: EnemyProfile, value: number): EnemyProfile {
+// set enemy tune strain with bounds applied, preserving other state fields
+export function setEnemyTune(profile: EnemyProfile, value: number): EnemyProfile {
   return {
     ...profile,
     status: {
+      ...(profile.status ?? { tuneStrain: 0 }),
       tuneStrain: clamp(value, 0, 10),
+    },
+  }
+}
+
+// read an arbitrary enemy debuff-state value (toggle/stack/select) with a safe fallback
+export function getEnemyState(
+  profile: EnemyProfile,
+  field: string,
+): EnemyStateValue | undefined {
+  return profile.status?.[field]
+}
+
+// set an arbitrary enemy debuff-state value, preserving tuneStrain and other fields
+export function setEnemyState(
+  profile: EnemyProfile,
+  field: string,
+  value: EnemyStateValue,
+): EnemyProfile {
+  return {
+    ...profile,
+    status: {
+      tuneStrain: 0,
+      ...(profile.status ?? {}),
+      [field]: value,
     },
   }
 }

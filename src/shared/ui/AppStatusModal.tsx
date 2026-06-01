@@ -1,35 +1,48 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the authored app-status panel, including coverage notes,
+               recent updates, and quick navigation links.
+*/
+
 import { useNavigate } from 'react-router-dom'
-import { AppDialog } from '@/shared/ui/AppDialog'
-import { getMainContentPortalTarget } from '@/shared/lib/portalTarget'
+import { AppModal } from '@/shared/ui/AppModal'
+import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
-  lastUpdated: '17/04/2026',
+  lastUpdated: '31/05/2026',
   overallState: 'stable' as const,
-  patchVersion: "3.4.2",
+  patchVersion: CURRENT_VERSION,
   dataSources: [
     { label: 'Encore', href: 'https://encore.moe/new?lang=en' },
     { label: 'Nanoka', href: 'https://ww.nanoka.cc/' },
   ],
   notes: [
-    'HIIII~!',
-    'I added what was available for the 3.4.2 patch. i don\'t know what HACK dmg entails so anything hack dmg isn\'t accurate at all.',
-    'Remember, you can import your data from the old app if you have any data on there~',
-    'AND... If you see something amiss, do not fret. This is still brand new you know, so things may be broken. If you find a bug or you have a suggestion, please report it on the Discord server (˶˃⤙˂˶).',
-    'Added a default rotation for Lucilla, feels-crafted of course. Denia\'s is still as it was.'
+    'HEWO~! (˶˃ ᵕ ˂˶)',
+    '(ᵕ • ᴗ •) i actually started writing this up about 20 days ago which, at the time, was like 13 days after i started working on some of these. So basically, i\'ve been at this for over a month... sigh...',
+    'okay so i added a WHOLE bunch of stuff, like batch editing (on most items), loops in rotations, new saved rotation metadata like note and duration (and in turn dps),' +
+    ' new suggestions and optimizer feature and more~ (See the changelog for more details)',
+    'Denia\'s default/preset rotation is still built on my intuition (which generally sucks but it is what it is).'
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
-    { title: 'Enemies',    status: 'wip' as const,  desc: 'I\'m kinda tired so 3.3 enemies will come later.' },
-  ],
-  knownIssues: [
-    'The guides system not fully implemented yet.',
+    { title: 'Enemies',    status: 'wip' as const,  desc: 'I\'m still very much tired so this will be fully updated later.' },
   ],
   recentChanges: [
-    'CYBERPUNKKKK.',
-    'Added Lucilla, Rebecca, Lucy and other available 3.4.2 stuff'
+    'I HAVE FINALLY REDONE THE GUIDES SYSTEM (somewhat). Only the general guides in the guides page for now... but it\'s still something.',
+    "You can now play with loops in rotations, more on that in the changelog/guides.",
+    "The app has it's own context menus now, it's on by default but you can toggle it off in the app settings.",
+    "Speaking of toggling stuff off in the app settings, there're more preferences if you'd like to see for yourself",
+    "With the arrival of duration metadata for saved rotations, you can now see the dps of a rotation in the saved rotation list (and can sort by dps as well).",
+    "There's a new compact look for echoes in the inventory, you can toggle this in the app settings.",
+    "Weapon suggestions... yay...",
+    "A new optimizer mode... yippee...",
+    "There are other stuff but not too major. :)"
   ],
+  knownIssues: [
+    "there's not really anything atm. :)"
+  ]
 }
 
 const STATE_LABELS = {
@@ -38,38 +51,30 @@ const STATE_LABELS = {
   wip:      'IN PROGRESS',
 } as const
 
-interface AppStatusModalProps {
+interface AppSttsMdlPr {
   visible: boolean
   open: boolean
   closing?: boolean
   onClose: () => void
 }
 
-export function AppStatusModal({ visible, open, closing = false, onClose }: AppStatusModalProps) {
+export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsMdlPr) {
   const navigate = useNavigate()
-  const portalTarget = getMainContentPortalTarget()
 
   return (
-    <AppDialog
-      visible={visible}
-      open={open}
-      closing={closing}
-      portalTarget={portalTarget}
-      overlayClassName="picker-modal__overlay"
-      contentClassName="app-modal-panel app-status-modal"
+    <AppModal
+      state={{ visible, open, closing }}
+      variant="app-status"
       ariaLabel="Calculator Status"
       onClose={onClose}
     >
-      {/* Header */}
       <div className="app-status-modal__header">
         <span className="app-status-modal__eyebrow">Calculator Status</span>
         <span className="app-status-modal__title">System Report</span>
       </div>
 
-      {/* Bento grid */}
       <div className="app-status-bento">
 
-        {/* Hero cell */}
         <div className="app-status-hero">
           <div className="app-status-hero__notes-label">Dev Notes</div>
           <div className="app-status-hero__notes">
@@ -115,7 +120,6 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
           </div>
         </div>
 
-        {/* Coverage cards */}
         {STATUS_DATA.coverage.map((item, i) => (
           <div
             key={item.title}
@@ -132,7 +136,6 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
           </div>
         ))}
 
-        {/* Changes panel */}
         <div className="app-status-changes">
           <div className="app-status-panel__eyebrow">Recent Changes</div>
           {STATUS_DATA.recentChanges.map((entry, i) => (
@@ -143,7 +146,6 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
           ))}
         </div>
 
-        {/* Issues panel */}
         <div className="app-status-issues">
           <div className="app-status-panel__eyebrow">Known Issues</div>
           {STATUS_DATA.knownIssues.map((issue, i) => (
@@ -156,7 +158,6 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
 
       </div>
 
-      {/* Footer */}
       <div className="app-status-modal__footer">
         <button
           type="button"
@@ -173,6 +174,6 @@ export function AppStatusModal({ visible, open, closing = false, onClose }: AppS
           See Changelog
         </button>
       </div>
-    </AppDialog>
+    </AppModal>
   )
 }

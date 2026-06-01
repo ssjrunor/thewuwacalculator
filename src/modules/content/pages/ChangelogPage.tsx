@@ -1,22 +1,27 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the changelog page.
+*/
+
 import React from 'react'
-import { changelogSections } from '@/data/content/changelogEntries'
+import { chngSctn } from '@/data/content/changelogEntries'
 import { HtmlContent } from '@/shared/ui/HtmlContent'
 import { History } from 'lucide-react'
+import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
-export function ChangelogPage() {
+export function ChngPage() {
   return (
     <div className="page">
-      <header className="page-hero">
-        <div className="page-hero-eyebrow">History</div>
-        <h1>Changelog</h1>
-        <p className="page-hero-sub">
-          Complete history of updates and patches.
-        </p>
-      </header>
+      <CllpPageHeyf
+        eyebrow="History"
+        title="Changelog"
+        subtitle="Complete history of updates and patches."
+        layoutKey="changelog-hero"
+      />
 
       <div className="page-bento">
-        {changelogSections.map((section, sectionIndex) => {
-          const reversedEntries = [...section.entries].reverse()
+        {chngSctn.map((section, sectionIndex) => {
+          const rvrsEnts = [...section.entries].reverse()
 
           return (
             <React.Fragment key={section.id}>
@@ -32,7 +37,7 @@ export function ChangelogPage() {
               ) : null}
 
             <div className="changelog-section">
-              {reversedEntries.map((log, index) => (
+              {rvrsEnts.map((log, index) => (
                 <section key={`${section.id}-${index}`} className="page-tile page-tile--full changelog-entry">
                   <div className="changelog-header">
                     <div className="tile-icon"><History /></div>

@@ -1,4 +1,10 @@
-import { OPTIMIZER_ECHOS_PER_COMBO } from '@/engine/optimizer/config/constants.ts'
+/*
+  Author: Runor Ewhro
+  Description: builds combinadic lookup data for optimizer combo ranking and
+               unranking across both full and locked-main search modes.
+*/
+
+import { ECHOES_PER_SET } from '@/engine/optimizer/config/constants.ts'
 
 const MAX_U32 = 0xFFFFFFFF
 
@@ -6,7 +12,7 @@ function clampU32(value: number): number {
   return value > MAX_U32 ? MAX_U32 : value
 }
 
-export interface CombinadicIndexing {
+export interface ComboIndex {
   comboN: number
   comboK: number
   totalCombos: number
@@ -15,7 +21,9 @@ export interface CombinadicIndexing {
   lockedIndex?: number
 }
 
-export function buildCombinadicTable(n: number, kMax = OPTIMIZER_ECHOS_PER_COMBO): Uint32Array {
+// build a flattened binomial table so hot search code can rank and unrank
+// combinations without recomputing coefficients repeatedly
+export function mkCmbnTbl(n: number, kMax = ECHOES_PER_SET): Uint32Array {
   const stride = kMax + 1
   const out = new Uint32Array((n + 1) * stride)
 
@@ -38,10 +46,11 @@ export function buildCombinadicTable(n: number, kMax = OPTIMIZER_ECHOS_PER_COMBO
   return out
 }
 
-export function buildCombinadicIndexing(indexMap: Int32Array, comboK: number): CombinadicIndexing {
+// build the shared indexing bundle for one already-filtered candidate id list
+export function mkCmbnNdxn(indexMap: Int32Array, comboK: number): ComboIndex {
   const comboN = indexMap.length
-  const binom = buildCombinadicTable(comboN, Math.max(comboK, OPTIMIZER_ECHOS_PER_COMBO))
-  const totalCombos = binom[comboN * (Math.max(comboK, OPTIMIZER_ECHOS_PER_COMBO) + 1) + comboK]
+  const binom = mkCmbnTbl(comboN, Math.max(comboK, ECHOES_PER_SET))
+  const totalCombos = binom[comboN * (Math.max(comboK, ECHOES_PER_SET) + 1) + comboK]
 
   return {
     comboN,
@@ -52,7 +61,7 @@ export function buildCombinadicIndexing(indexMap: Int32Array, comboK: number): C
   }
 }
 
-export function buildTailComboIndexing(totalEchoes: number, mainIndex: number): CombinadicIndexing {
+export function mkTailCmbNdx(totalEchoes: number, mainIndex: number): ComboIndex {
   const indexMap = new Int32Array(totalEchoes - 1)
   let cursor = 0
 
@@ -65,15 +74,15 @@ export function buildTailComboIndexing(totalEchoes: number, mainIndex: number): 
     cursor += 1
   }
 
-  return buildCombinadicIndexing(indexMap, OPTIMIZER_ECHOS_PER_COMBO - 1)
+  return mkCmbnNdxn(indexMap, ECHOES_PER_SET - 1)
 }
 
-export function buildOptimizerCombinadicIndexing(options: {
+export function mkOptCmbnNdx(options: {
   echoCount: number
-  lockedEchoIndex?: number | null
-}): CombinadicIndexing {
+  lockEchoIdx?: number | null
+}): ComboIndex {
   const n = options.echoCount
-  const lockedIndex = options.lockedEchoIndex ?? -1
+  const lockedIndex = options.lockEchoIdx ?? -1
 
   if (lockedIndex < 0) {
     const indexMap = new Int32Array(n)
@@ -81,7 +90,7 @@ export function buildOptimizerCombinadicIndexing(options: {
       indexMap[i] = i
     }
     return {
-      ...buildCombinadicIndexing(indexMap, OPTIMIZER_ECHOS_PER_COMBO),
+      ...mkCmbnNdxn(indexMap, ECHOES_PER_SET),
       lockedIndex: -1,
     }
   }
@@ -95,30 +104,30 @@ export function buildOptimizerCombinadicIndexing(options: {
   }
 
   return {
-    ...buildCombinadicIndexing(indexMap, OPTIMIZER_ECHOS_PER_COMBO - 1),
+    ...mkCmbnNdxn(indexMap, ECHOES_PER_SET - 1),
     lockedIndex,
   }
 }
 
-export function unrankCombinadic(
+export function nrnkCmbn(
   rankInput: number,
-  comboIndexing: CombinadicIndexing,
-  maxSize = comboIndexing.lockedIndex != null && comboIndexing.lockedIndex >= 0
-    ? OPTIMIZER_ECHOS_PER_COMBO
-    : comboIndexing.comboK,
+  comboIndex: ComboIndex,
+  maxSize = comboIndex.lockedIndex != null && comboIndex.lockedIndex >= 0
+    ? ECHOES_PER_SET
+    : comboIndex.comboK,
 ): Int32Array {
   const out = new Int32Array(maxSize)
-  return unrankCombinadicInto(rankInput, comboIndexing, out, maxSize)
+  return nrnkCmbnInto(rankInput, comboIndex, out, maxSize)
 }
 
-export function unrankCombinadicInto(
+export function nrnkCmbnInto(
   rankInput: number,
-  comboIndexing: CombinadicIndexing,
+  comboIndex: ComboIndex,
   out: Int32Array,
   maxSize = out.length,
 ): Int32Array {
-  const { comboN, comboK, indexMap, binom, lockedIndex = -1 } = comboIndexing
-  const stride = Math.max(comboK, OPTIMIZER_ECHOS_PER_COMBO) + 1
+  const { comboN, comboK, indexMap, binom, lockedIndex = -1 } = comboIndex
+  const stride = Math.max(comboK, ECHOES_PER_SET) + 1
 
   out.fill(-1)
 
@@ -149,13 +158,13 @@ export function unrankCombinadicInto(
   return out
 }
 
-export function unrankCombinadicPositionsInto(
+export function nrnkCmbnPstn(
   rankInput: number,
-  comboIndexing: CombinadicIndexing,
+  comboIndex: ComboIndex,
   out: Int32Array,
 ): Int32Array {
-  const { comboN, comboK, binom } = comboIndexing
-  const stride = Math.max(comboK, OPTIMIZER_ECHOS_PER_COMBO) + 1
+  const { comboN, comboK, binom } = comboIndex
+  const stride = Math.max(comboK, ECHOES_PER_SET) + 1
 
   out.fill(-1)
 
@@ -182,13 +191,13 @@ export function unrankCombinadicPositionsInto(
   return out
 }
 
-export function fillCombinadicEchoIdsFromPositions(
-  comboIndexing: CombinadicIndexing,
+export function fillCmbnEcho(
+  comboIndex: ComboIndex,
   positions: Int32Array,
   out: Int32Array,
   maxSize = out.length,
 ): Int32Array {
-  const { comboK, indexMap, lockedIndex = -1 } = comboIndexing
+  const { comboK, indexMap, lockedIndex = -1 } = comboIndex
   out.fill(-1)
 
   for (let pos = 0; pos < comboK; pos += 1) {
@@ -206,7 +215,7 @@ export function fillCombinadicEchoIdsFromPositions(
   return out
 }
 
-export function advanceCombinadicPositionsInPlace(
+export function dvncCmbnPstn(
   positions: Int32Array,
   comboN: number,
   comboK: number,

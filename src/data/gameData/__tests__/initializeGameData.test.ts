@@ -32,6 +32,7 @@ describe('initializeGameData', () => {
       switch (url) {
         case '/data/resonator-sources.json':
         case '/data/echo-sources.json':
+        case '/data/enemy-sources.json':
         case '/data/weapon-data.json':
         case '/data/resonator-catalog.json':
         case '/data/echo-catalog.json':
@@ -55,7 +56,7 @@ describe('initializeGameData', () => {
     globalThis.fetch = fetchMock as typeof fetch
 
     try {
-      const { getGameData, initializeGameData } = await import('@/data/gameData')
+      const { getGameData, initGameData: initializeGameData } = await import('@/data/gameData')
 
       await Promise.all([
         initializeGameData(),
@@ -63,7 +64,7 @@ describe('initializeGameData', () => {
         initializeGameData(),
       ])
 
-      expect(fetchMock).toHaveBeenCalledTimes(9)
+      expect(fetchMock).toHaveBeenCalledTimes(10)
       expect(() => getGameData()).not.toThrow()
     } finally {
       globalThis.fetch = previousFetch

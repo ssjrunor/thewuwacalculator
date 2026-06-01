@@ -6,31 +6,31 @@
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime'
-import type { SuggestionEvaluationContext } from '@/engine/suggestions/types'
-import { evaluateSuggestionEchoesWithBuffs } from '@/engine/suggestions/shared'
+import type { SuggestContext } from '@/engine/suggestions/types'
+import { evalSuggChsW } from '@/engine/suggestions/shared'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
-import { applyMainStatRecipesToEchoes } from '@/engine/suggestions/mainStat-suggestion/utils'
+import { applyMainSta } from '@/engine/suggestions/mainStat-suggestion/utils'
 
 // evaluate damage after applying main-stat recipes to the current echo loadout
-export function computeMainStatDamage(
-    ctx: SuggestionEvaluationContext,
+export function cmptMainStat(
+    ctx: SuggestContext,
     recipes: MainStatRecipe[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
     mainEchoBuffs: Float32Array,
 ): number {
-  return evaluateSuggestionEchoesWithBuffs(
+  return evalSuggChsW(
       ctx,
-      applyMainStatRecipesToEchoes(recipes, equippedEchoes),
+      applyMainSta(recipes, qppdChs),
       mainEchoBuffs,
   )
 }
 
 // rotation main-stat damage currently follows the same evaluation path
-export function computeRotationMainStatDamage(
-    ctx: SuggestionEvaluationContext,
+export function cmptRotMainS(
+    ctx: SuggestContext,
     recipes: MainStatRecipe[],
-    equippedEchoes: Array<EchoInstance | null>,
+    qppdChs: Array<EchoInstance | null>,
     mainEchoBuffs: Float32Array,
 ): number {
-  return computeMainStatDamage(ctx, recipes, equippedEchoes, mainEchoBuffs)
+  return cmptMainStat(ctx, recipes, qppdChs, mainEchoBuffs)
 }

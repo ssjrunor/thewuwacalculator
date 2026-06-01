@@ -6,49 +6,52 @@
 */
 
 import type { FeatureResult } from '@/domain/gameData/contracts'
-import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
-import { buildOptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
-import { isOptimizerRotationTarget, sumOptimizerRotationDamage } from '@/engine/optimizer/rules/eligibility.ts'
+import type { WeaponPlanSet } from '@/domain/entities/suggestions'
+import type { ResRuntime } from '@/domain/entities/runtime'
+import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
+import { makeStatWeights } from '@/engine/optimizer/search/filtering.ts'
+import { isOptRotTgt, sumOptRotDmg } from '@/engine/optimizer/rules/eligibility.ts'
 import type {
-  DirectSuggestionContext,
-  MainStatSuggestionsInput,
-  PreparedMainStatSuggestionsInput,
-  PreparedRandomSuggestionsInput,
-  PreparedSetPlanSuggestionsInput,
-  RandomSuggestionsInput,
-  RotationSuggestionContext,
-  SetPlanSuggestionsInput,
-  SuggestionEvaluationContext,
-  SuggestionsEvaluationInput,
+  DrctSuggCtx,
+  MainStatSuwo,
+  MainStatPrep,
+  RandomPrep,
+  PrepSetPlanS,
+  PrepWeaponPlan,
+  RandSuggsNpt,
+  RotSuggCtx,
+  SetPlanSuggs,
+  SuggestContext,
+  SuggestInput,
 } from '@/engine/suggestions/types'
-import { runResonatorSimulation } from '@/engine/pipeline'
-import type { SimulationResult } from '@/engine/pipeline/types'
+import { runResSmlt } from '@/engine/pipeline'
+import type { SimResult } from '@/engine/pipeline/types'
 import { stripEchoes } from '@/engine/optimizer/compiler/shared'
-import { buildSetRows, buildSetRuntimeMask } from '@/engine/optimizer/encode/sets'
-import { buildGenericMainEchoRows, buildMainEchoRows, encodeEchoRows } from '@/engine/optimizer/encode/echoes'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
-import { packTargetContext } from '@/engine/optimizer/context/pack'
+import { buildSetRows, makeSetMask } from '@/engine/optimizer/encode/sets'
+import { mkGnrcMainEc, mkMainEchoRo, encEchoRows } from '@/engine/optimizer/encode/echoes'
+import { compOptTgtCt } from '@/engine/optimizer/target/context'
+import { packTargetCtx } from '@/engine/optimizer/context/pack'
 import { evalTarget } from '@/engine/optimizer/target/evaluate'
-import { applyPersonalRotationItems } from '@/engine/optimizer/rotation/runtime'
-import { buildTransientCombatGraph, findCombatParticipantSlotId } from '@/domain/state/combatGraph'
-import { buildCombatContext } from '@/engine/pipeline/buildCombatContext'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
-import { buildPreparedRotationEnvironment, runFeatureSimulation } from '@/engine/rotation/system'
-import { buildCompiledOptimizerContext } from '@/engine/optimizer/context/compiled'
-import { selectOptimizerTargetSkill, type OptimizerTargetSkill } from '@/engine/optimizer/target/selectedSkill'
-import { OPTIMIZER_CONTEXT_FLOATS } from '@/engine/optimizer/config/constants'
+import { applyPersRot } from '@/engine/optimizer/rotation/runtime'
+import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { mkPrepRotNvr, runFeatSmlt } from '@/engine/rotation/system'
+import { makeOptContext } from '@/engine/optimizer/context/compiled'
+import { selOptTgtSkl, type OptTargetSkill } from '@/engine/optimizer/target/selectedSkill'
+import { CTX_FLOATS } from '@/engine/optimizer/config/constants'
 
-interface RotationTargetContext {
+interface RotTgtCtx {
   skill: FeatureResult['skill']
   resonatorId: string
   weight: number
 }
 
 // merge one stat weight map into another with a multiplier applied
-function mergeWeightMaps(
-    target: OptimizerStatWeightMap,
-    source: OptimizerStatWeightMap,
+function mrgWghtMaps(
+    target: OptStatWeight,
+    source: OptStatWeight,
     multiplier: number,
 ): void {
   for (const [key, value] of Object.entries(source)) {
@@ -57,7 +60,7 @@ function mergeWeightMaps(
 }
 
 // create a minimal fallback target skill for rotation suggestion flows
-function createFallbackTarget(seedId: string): OptimizerTargetSkill {
+function mkFllbTgt(seedId: string): OptTargetSkill {
   return {
     id: `rotation:${seedId}`,
     tab: 'rotation',
@@ -68,23 +71,23 @@ function createFallbackTarget(seedId: string): OptimizerTargetSkill {
 }
 
 // run a standard simulation for a suggestion input and runtime snapshot
-export function runSuggestionSimulation(
-    input: SuggestionsEvaluationInput,
+export function runSuggSmlt(
+    input: SuggestInput,
     runtime = input.runtime,
-): SimulationResult {
-  return runResonatorSimulation(
+): SimResult {
+  return runResSmlt(
       runtime,
       input.seed,
       input.enemy,
-      buildRuntimeParticipantLookup(runtime, input.runtimesById),
-      input.selectedTargetsByOwnerKey,
+      makeRuntimeMap(runtime, input.runtimesById),
+      input.selectedTargets,
   )
 }
 
 // get the direct target feature entry that suggestions should optimize around
-export function getEligibleDirectEntry(
-    simulation: SimulationResult,
-    input: SuggestionsEvaluationInput,
+export function getLgblDrctE(
+    simulation: SimResult,
+    input: SuggestInput,
 ): FeatureResult | null {
   const entries = simulation.allSkills.filter((entry) => (
       entry.aggregationType === 'damage' &&
@@ -92,8 +95,8 @@ export function getEligibleDirectEntry(
   ))
 
   // prefer the explicitly selected target feature when one exists
-  if (input.targetFeatureId) {
-    const selected = entries.find((entry) => entry.id === input.targetFeatureId)
+  if (input.tgtFeatId) {
+    const selected = entries.find((entry) => entry.id === input.tgtFeatId)
     if (selected) {
       return selected
     }
@@ -104,31 +107,31 @@ export function getEligibleDirectEntry(
 }
 
 // resolve the main damage figure used to rank suggestions
-export function resolveSuggestionDamage(
-    simulation: SimulationResult,
-    input: SuggestionsEvaluationInput,
+export function resSuggDmg(
+    simulation: SimResult,
+    input: SuggestInput,
 ): number {
   if (input.rotationMode) {
-    return sumOptimizerRotationDamage(simulation.rotations.personal.entries, input.runtime.id)
+    return sumOptRotDmg(simulation.rotations.personal.entries, input.runtime.id)
   }
 
-  return getEligibleDirectEntry(simulation, input)?.avg ?? 0
+  return getLgblDrctE(simulation, input)?.avg ?? 0
 }
 
 // build the stat-weight map used by suggestion scoring heuristics
-export function buildSuggestionWeightMap(
-    simulation: SimulationResult,
-    input: SuggestionsEvaluationInput,
+export function mkSuggWghtMa(
+    simulation: SimResult,
+    input: SuggestInput,
     bias = 0,
-): OptimizerStatWeightMap {
+): OptStatWeight {
   // direct mode just uses the chosen target entry
   if (!input.rotationMode) {
-    const entry = getEligibleDirectEntry(simulation, input)
+    const entry = getLgblDrctE(simulation, input)
     if (!entry) {
       return {}
     }
 
-    return buildOptimizerStatWeightMap({
+    return makeStatWeights({
       finalStats: simulation.finalStats,
       skill: entry.skill,
       enemy: input.enemy,
@@ -139,26 +142,26 @@ export function buildSuggestionWeightMap(
 
   // rotation mode blends weights from all eligible rotation targets
   const entries = simulation.rotations.personal.entries.filter((entry) =>
-      isOptimizerRotationTarget(entry, input.runtime.id),
+      isOptRotTgt(entry, input.runtime.id),
   )
   if (entries.length === 0) {
     return {}
   }
 
   // use contribution-based weighting so more important entries influence the map more
-  const contributions = entries.map((entry) => Math.max(0, entry.avg * (entry.weight ?? 1)))
-  const baseTotal = contributions.reduce((sum, value) => sum + value, 0) || entries.length
+  const cntr = entries.map((entry) => Math.max(0, entry.avg * (entry.weight ?? 1)))
+  const baseTotal = cntr.reduce((sum, value) => sum + value, 0) || entries.length
 
   // exponent increases concentration as bias rises
   const exponent = Math.max(0, bias) * 10
-  const scaled = contributions.map((value) => Math.pow((value || 1) / baseTotal, exponent || 1))
+  const scaled = cntr.map((value) => Math.pow((value || 1) / baseTotal, exponent || 1))
   const scaledTotal = scaled.reduce((sum, value) => sum + value, 0) || entries.length
 
-  const weights: OptimizerStatWeightMap = {}
+  const weights: OptStatWeight = {}
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]
-    const entryWeights = buildOptimizerStatWeightMap({
+    const entryWeights = makeStatWeights({
       finalStats: simulation.finalStats,
       skill: entry.skill,
       enemy: input.enemy,
@@ -166,17 +169,17 @@ export function buildSuggestionWeightMap(
       combat: input.runtime.state.combat,
     })
 
-    mergeWeightMaps(weights, entryWeights, scaled[index] / scaledTotal)
+    mrgWghtMaps(weights, entryWeights, scaled[index] / scaledTotal)
   }
 
   return weights
 }
 
 // pull all weights toward or away from the average according to bias
-export function applyWeightBias(
-    weights: OptimizerStatWeightMap,
+export function applyWghtBia(
+    weights: OptStatWeight,
     bias: number,
-): OptimizerStatWeightMap {
+): OptStatWeight {
   const entries = Object.entries(weights)
   if (entries.length === 0) {
     return weights
@@ -193,38 +196,42 @@ export function applyWeightBias(
 }
 
 // build the packed direct-target evaluation context used for fast scoring
-export function buildDirectSuggestionContext(
-    input: MainStatSuggestionsInput | SetPlanSuggestionsInput | RandomSuggestionsInput,
-    simulation: SimulationResult,
-): DirectSuggestionContext | null {
-  const entry = getEligibleDirectEntry(simulation, input)
+export function mkDrctSuggCt(
+    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    simulation: SimResult,
+): DrctSuggCtx | null {
+  const entry = getLgblDrctE(simulation, input)
   if (!entry) {
     return null
   }
 
   // strip equipped echoes so candidates are evaluated from a clean baseline
   const runtime = stripEchoes(input.runtime)
-  const participants = buildRuntimeParticipantLookup(runtime, input.runtimesById)
+  const participants = makeRuntimeMap(runtime, input.runtimesById)
 
-  const prepared = compileOptimizerTargetContext({
+  const prepared = compOptTgtCt({
     runtime,
     resonatorId: input.runtime.id,
     skillId: entry.skill.id,
     enemy: input.enemy,
     runtimesById: participants,
-    selectedTargetsByOwnerKey: input.selectedTargetsByOwnerKey,
+    selectedTargets: input.selectedTargets,
   })
 
   const comboSize = Math.max(1, input.runtime.build.echoes.filter((echo) => echo != null).length)
-  const setRuntimeMask = buildSetRuntimeMask(runtime, input.setConditionals)
+  const setRtMask = makeSetMask(runtime, input.setConds)
 
   return {
     mode: 'target',
     runtime,
     selectedSkill: prepared.selectedSkill,
     sourceBaseStats: prepared.combat.baseStats,
-    sourceFinalStats: prepared.combat.finalStats,
-    packedContext: packTargetContext({
+    sourceFinals: prepared.combat.finalStats,
+    pool: prepared.combat.buffs,
+    skll: prepared.skill,
+    enemy: input.enemy,
+    setRtMask,
+    pckdCtx: packTargetCtx({
       compiled: prepared.compiled,
       skill: prepared.skill,
       runtime,
@@ -232,20 +239,20 @@ export function buildDirectSuggestionContext(
       comboK: comboSize,
       comboCount: 1,
       comboBaseIndex: 0,
-      lockedEchoIndex: -1,
-      setRuntimeMask,
+      lockEchoIdx: -1,
+      setRtMask: setRtMask,
     }),
-    setConstLut: buildSetRows(runtime, input.setConditionals),
+    setConstLut: buildSetRows(runtime, input.setConds),
   }
 }
 
 // extract all rotation feature targets that should contribute to suggestion scoring
-function buildRotationTargets(
+function mkRotTrgt(
     simulation: { rotations: { personal: { entries: FeatureResult[] } } },
     resonatorId: string,
-): RotationTargetContext[] {
+): RotTgtCtx[] {
   return simulation.rotations.personal.entries
-      .filter((entry) => isOptimizerRotationTarget(entry, resonatorId))
+      .filter((entry) => isOptRotTgt(entry, resonatorId))
       .map((entry) => ({
         skill: entry.skill,
         resonatorId: entry.resonatorId,
@@ -254,83 +261,84 @@ function buildRotationTargets(
 }
 
 // build the packed multi-context rotation evaluation context
-export function buildRotationSuggestionContext(
-    input: MainStatSuggestionsInput | SetPlanSuggestionsInput | RandomSuggestionsInput,
-    _simulation: SimulationResult,
-): RotationSuggestionContext | null {
+export function mkRotSuggCtx(
+    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    _simulation: SimResult,
+): RotSuggCtx | null {
   void _simulation
-  const seed = getResonatorSeedById(input.runtime.id)
+  const seed = getResSeedBy(input.runtime.id)
   if (!seed) {
     return null
   }
 
   // apply the personal rotation to a stripped runtime so setup effects are reflected
-  const rotationRuntime = applyPersonalRotationItems(
+  const rotRt = applyPersRot(
       stripEchoes(input.runtime),
       input.runtime.rotation.personalItems,
+      { ignoreLoops: true },
   )
-  const participants = buildRuntimeParticipantLookup(rotationRuntime, input.runtimesById)
+  const participants = makeRuntimeMap(rotRt, input.runtimesById)
 
   // build a transient graph and active combat context for rotation simulation
-  const graph = buildTransientCombatGraph({
-    activeRuntime: rotationRuntime,
+  const graph = makeCombatGraph({
+    actRt: rotRt,
     activeSeed: seed,
-    participantRuntimes: participants,
-    selectedTargetsByResonatorId: {
-      [rotationRuntime.id]: input.selectedTargetsByOwnerKey ?? {},
+    partRts: participants,
+    targetsByRes: {
+      [rotRt.id]: input.selectedTargets ?? {},
     },
   })
 
-  const activeContext = buildCombatContext({
+  const activeContext = makeCombatEnv({
     graph,
     targetSlotId: 'active',
     enemy: input.enemy,
   })
 
-  const rotationEnvironment = buildPreparedRotationEnvironment(activeContext, seed)
-  const simulated = runFeatureSimulation(activeContext, seed, participants, rotationEnvironment)
-  const targets = buildRotationTargets(simulated, input.runtime.id)
+  const rotNvrn = mkPrepRotNvr(activeContext, seed)
+  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn)
+  const targets = mkRotTrgt(simulated, input.runtime.id)
 
-  const fallbackSkill = targets[0]
-      ? selectOptimizerTargetSkill(targets[0].skill)
-      : createFallbackTarget(seed.id)
+  const fllbSkll = targets[0]
+      ? selOptTgtSkl(targets[0].skill)
+      : mkFllbTgt(seed.id)
 
   if (targets.length === 0) {
     return null
   }
 
   // cache one combat context per resonator that participates in rotation targets
-  const combatByResonatorId: Record<string, ReturnType<typeof buildCombatContext>> = {
-    [rotationRuntime.id]: activeContext,
+  const cmbtByResId: Record<string, ReturnType<typeof makeCombatEnv>> = {
+    [rotRt.id]: activeContext,
   }
 
   for (const target of targets) {
-    if (combatByResonatorId[target.resonatorId]) {
+    if (cmbtByResId[target.resonatorId]) {
       continue
     }
 
-    const slotId = findCombatParticipantSlotId(graph, target.resonatorId)
+    const slotId = findCombatPart(graph, target.resonatorId)
     if (!slotId) {
       continue
     }
 
-    combatByResonatorId[target.resonatorId] = buildCombatContext({
+    cmbtByResId[target.resonatorId] = makeCombatEnv({
       graph,
       targetSlotId: slotId,
       enemy: input.enemy,
     })
   }
 
-  const setRuntimeMask = buildSetRuntimeMask(rotationRuntime, input.setConditionals)
-  const contexts = new Float32Array(targets.length * OPTIMIZER_CONTEXT_FLOATS)
-  const contextWeights = new Float32Array(targets.length)
+  const setRtMask = makeSetMask(rotRt, input.setConds)
+  const contexts = new Float32Array(targets.length * CTX_FLOATS)
+  const contextWeight = new Float32Array(targets.length)
 
   // pack one optimizer context per rotation target
   for (let index = 0; index < targets.length; index += 1) {
     const target = targets[index]
-    const ownerCombat = combatByResonatorId[target.resonatorId] ?? activeContext
+    const ownerCombat = cmbtByResId[target.resonatorId] ?? activeContext
 
-    const compiled = buildCompiledOptimizerContext({
+    const compiled = makeOptContext({
       resonatorId: target.resonatorId,
       runtime: ownerCombat.runtime,
       skill: target.skill,
@@ -339,7 +347,7 @@ export function buildRotationSuggestionContext(
       combatState: ownerCombat.runtime.state.combat,
     })
 
-    const packedContext = packTargetContext({
+    const pckdCtx = packTargetCtx({
       compiled,
       skill: target.skill,
       runtime: ownerCombat.runtime,
@@ -347,43 +355,48 @@ export function buildRotationSuggestionContext(
       comboK: 5,
       comboCount: 1,
       comboBaseIndex: 0,
-      lockedEchoIndex: -1,
-      setRuntimeMask,
+      lockEchoIdx: -1,
+      setRtMask: setRtMask,
     })
 
-    contexts.set(packedContext, index * OPTIMIZER_CONTEXT_FLOATS)
-    contextWeights[index] = target.weight
+    contexts.set(pckdCtx, index * CTX_FLOATS)
+    contextWeight[index] = target.weight
   }
 
   return {
     mode: 'rotation',
-    runtime: rotationRuntime,
-    selectedSkill: fallbackSkill,
+    runtime: rotRt,
+    selectedSkill: fllbSkll,
     sourceBaseStats: activeContext.baseStats,
-    sourceFinalStats: activeContext.finalStats,
+    sourceFinals: activeContext.finalStats,
     contexts,
-    contextStride: OPTIMIZER_CONTEXT_FLOATS,
-    contextWeights,
+    contextStride: CTX_FLOATS,
+    contextWeight: contextWeight,
     contextCount: targets.length,
-    setConstLut: buildSetRows(rotationRuntime, input.setConditionals),
+    pool: activeContext.buffs,
+    sklls: targets.map((target) => target.skill),
+    resIds: targets.map((target) => target.resonatorId),
+    enemy: input.enemy,
+    setRtMask,
+    setConstLut: buildSetRows(rotRt, input.setConds),
   }
 }
 
 // choose the correct evaluation context based on direct or rotation mode
-export function buildSuggestionEvaluationContext(
-    input: MainStatSuggestionsInput | SetPlanSuggestionsInput | RandomSuggestionsInput,
-    simulation: SimulationResult,
-): SuggestionEvaluationContext | null {
+export function mkSuggVltnCt(
+    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    simulation: SimResult,
+): SuggestContext | null {
   return input.rotationMode
-      ? buildRotationSuggestionContext(input, simulation)
-      : buildDirectSuggestionContext(input, simulation)
+      ? mkRotSuggCtx(input, simulation)
+      : mkDrctSuggCt(input, simulation)
 }
 
-export function buildPreparedMainStatSuggestionsInput(
-    input: MainStatSuggestionsInput,
-    simulation: SimulationResult,
-): PreparedMainStatSuggestionsInput | null {
-  const context = buildSuggestionEvaluationContext(input, simulation)
+export function mkPrepMainSt(
+    input: MainStatSuwo,
+    simulation: SimResult,
+): MainStatPrep | null {
+  const context = mkSuggVltnCt(input, simulation)
   if (!context) {
     return null
   }
@@ -391,18 +404,18 @@ export function buildPreparedMainStatSuggestionsInput(
   return {
     context,
     rotationMode: input.rotationMode,
-    equippedEchoes: input.runtime.build.echoes,
+    qppdChs: input.runtime.build.echoes,
     charId: input.runtime.id,
-    statWeight: buildSuggestionWeightMap(simulation, input),
+    statWeight: mkSuggWghtMa(simulation, input),
     topK: input.topK,
   }
 }
 
-export function buildPreparedSetPlanSuggestionsInput(
-    input: SetPlanSuggestionsInput,
-    simulation: SimulationResult,
-): PreparedSetPlanSuggestionsInput | null {
-  const context = buildSuggestionEvaluationContext(input, simulation)
+export function mkPrepSetPla(
+    input: SetPlanSuggs,
+    simulation: SimResult,
+): PrepSetPlanS | null {
+  const context = mkSuggVltnCt(input, simulation)
   if (!context) {
     return null
   }
@@ -410,62 +423,119 @@ export function buildPreparedSetPlanSuggestionsInput(
   return {
     context,
     rotationMode: input.rotationMode,
-    equippedEchoes: input.runtime.build.echoes,
+    qppdChs: input.runtime.build.echoes,
     topK: input.topK,
   }
 }
 
-export function buildPreparedRandomSuggestionsInput(
-    input: RandomSuggestionsInput,
-    simulation: SimulationResult,
-): PreparedRandomSuggestionsInput | null {
-  const context = buildSuggestionEvaluationContext(input, simulation)
+// remove equipped weapon state from the baseline before weapon candidates run
+// each candidate adds its own base atk, secondary stat, and passive controls later.
+function dropWpnCtl(
+    controls: ResRuntime['state']['controls'],
+): ResRuntime['state']['controls'] {
+  return Object.fromEntries(
+      Object.entries(controls).filter(([key]) => !key.startsWith('weapon:')),
+  )
+}
+
+// strip the current equipped weapon from the suggestion baseline
+// weapon suggestions reapply each candidate from a neutral weapon state.
+function mkNoWpnNpt<T extends SuggestInput>(input: T): T {
+  const rt = input.runtime
+
+  return {
+    ...input,
+    runtime: {
+      ...rt,
+      build: {
+        ...rt.build,
+        weapon: {
+          ...rt.build.weapon,
+          id: null,
+          baseAtk: 0,
+        },
+      },
+      state: {
+        ...rt.state,
+        controls: dropWpnCtl(rt.state.controls),
+      },
+    },
+  }
+}
+
+export function mkPrepWpnSu(
+    input: (MainStatSuwo | SetPlanSuggs) & { weapon: WeaponPlanSet },
+    simulation: SimResult,
+): PrepWeaponPlan | null {
+  const clean = mkNoWpnNpt(input)
+  const context = mkSuggVltnCt(clean, simulation)
   if (!context) {
     return null
   }
 
-  const rawWeightMap = buildSuggestionWeightMap(simulation, input, input.settings.bias)
+  return {
+    context,
+    qppdChs: input.runtime.build.echoes,
+    weaponType: input.seed.weaponType,
+    level: input.runtime.build.weapon.level,
+    rank: input.runtime.build.weapon.rank,
+    curWpn: input.runtime.build.weapon,
+    settings: input.weapon,
+    topK: input.topK,
+  }
+}
+
+export function mkPrepRandSu(
+    input: RandSuggsNpt,
+    simulation: SimResult,
+): RandomPrep | null {
+  const context = mkSuggVltnCt(input, simulation)
+  if (!context) {
+    return null
+  }
+
+  const rawWeightMap = mkSuggWghtMa(simulation, input, input.settings.bias)
 
   return {
     context,
-    equippedEchoes: input.runtime.build.echoes,
+    qppdChs: input.runtime.build.echoes,
     runtimeId: input.runtime.id,
     rawWeightMap,
-    statWeight: applyWeightBias(rawWeightMap, input.settings.bias),
+    statWeight: applyWghtBia(rawWeightMap, input.settings.bias),
     settings: input.settings,
     resultsLimit: input.resultsLimit,
-    candidateCount: input.candidateCount,
+    candCnt: input.candCnt,
   }
 }
 
 // build main-echo buff rows for the current suggestion candidate loadout
-export function buildSuggestionMainEchoBuffs(
-    context: SuggestionEvaluationContext,
+export function mkSuggMainEc(
+    context: SuggestContext,
     echoes: Array<import('@/domain/entities/runtime').EchoInstance | null>,
 ): Float32Array {
   const concrete = echoes.filter((echo): echo is NonNullable<typeof echo> => echo != null)
 
   if (context.mode === 'target') {
-    return buildMainEchoRows({
+    return mkMainEchoRo({
       echoes: concrete,
       runtime: context.runtime,
       sourceBaseStats: context.sourceBaseStats,
-      sourceFinalStats: context.sourceFinalStats,
+      sourceFinals: context.sourceFinals,
       selectedSkill: context.selectedSkill,
     })
   }
 
-  return buildGenericMainEchoRows({
+  return mkGnrcMainEc({
     echoes: concrete,
     runtime: context.runtime,
     sourceBaseStats: context.sourceBaseStats,
-    sourceFinalStats: context.sourceFinalStats,
+    sourceFinals: context.sourceFinals,
   })
 }
 
 // evaluate a candidate echo loadout when main-echo buffs are already prepared
-export function evaluateSuggestionEchoesWithBuffs(
-    context: SuggestionEvaluationContext,
+export function evalSuggChsW(
+    context: SuggestContext,
     echoes: Array<import('@/domain/entities/runtime').EchoInstance | null>,
     mainEchoBuffs: Float32Array,
 ): number {
@@ -477,15 +547,15 @@ export function evaluateSuggestionEchoesWithBuffs(
   // build the encoded optimizer-friendly row data for this candidate
   const comboIds = Int32Array.from(concrete.map((_, index) => index))
   const mainIndex = Math.max(0, concrete.findIndex((echo) => echo.mainEcho))
-  const encoded = encodeEchoRows(concrete, context.selectedSkill, 'self')
+  const encoded = encEchoRows(concrete, context.selectedSkill, 'self')
 
   // direct mode evaluates against a single packed target context
   if (context.mode === 'target') {
     return evalTarget({
-      context: context.packedContext,
+      context: context.pckdCtx,
       stats: encoded.stats,
       setConstLut: context.setConstLut,
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
       sets: encoded.sets,
       kinds: encoded.kinds,
       comboIds,
@@ -505,27 +575,27 @@ export function evaluateSuggestionEchoesWithBuffs(
       context: slice,
       stats: encoded.stats,
       setConstLut: context.setConstLut,
-      mainEchoBuffs,
+      mainEchoBuffs: mainEchoBuffs,
       sets: encoded.sets,
       kinds: encoded.kinds,
       comboIds,
       mainIndex,
     })?.damage ?? 0
 
-    total += damage * (context.contextWeights[index] ?? 1)
+    total += damage * (context.contextWeight[index] ?? 1)
   }
 
   return total
 }
 
 // evaluate a candidate echo loadout from scratch, including main-echo buff rows
-export function evaluateSuggestionEchoes(
-    context: SuggestionEvaluationContext,
+export function evalSuggChs(
+    context: SuggestContext,
     echoes: Array<import('@/domain/entities/runtime').EchoInstance | null>,
 ): number {
-  return evaluateSuggestionEchoesWithBuffs(
+  return evalSuggChsW(
       context,
       echoes,
-      buildSuggestionMainEchoBuffs(context, echoes),
+      mkSuggMainEc(context, echoes),
   )
 }

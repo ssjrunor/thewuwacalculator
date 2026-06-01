@@ -1,16 +1,22 @@
+/*
+  Author: Runor Ewhro
+  Description: Shared picker modal that renders filterable card grids for
+               resonators, weapons, echoes, and other selection surfaces.
+*/
+
 import { useId } from 'react'
 import type { ReactNode } from 'react'
-import { AppDialog } from '@/shared/ui/AppDialog'
-import { ModalCloseButton } from '@/shared/ui/ModalCloseButton'
+import { AppModal } from '@/shared/ui/AppModal'
+import { MdlClsBttn } from '@/shared/ui/ModalCloseButton'
 
-export type PickerModalRarity = 1 | 2 | 3 | 4 | 5
+export type PckrMdlRrty = 1 | 2 | 3 | 4 | 5
 
-export interface PickerModalItem {
+export interface PckrMdlItem {
   id: string
   title: string
   subtitle?: string
   description?: string
-  rarity?: PickerModalRarity
+  rarity?: PckrMdlRrty
   leading?: ReactNode
   trailing?: ReactNode
   meta?: ReactNode
@@ -20,7 +26,7 @@ export interface PickerModalItem {
   onSelect: () => void
 }
 
-interface PickerModalProps {
+interface PckrMdlPrps {
   visible: boolean
   open: boolean
   closing?: boolean
@@ -30,7 +36,7 @@ interface PickerModalProps {
   description?: string
   summary?: ReactNode
   filters?: ReactNode
-  items: PickerModalItem[]
+  items: PckrMdlItem[]
   emptyState?: ReactNode
   closeLabel?: string
   panelWidth?: 'regular' | 'wide'
@@ -52,24 +58,21 @@ export function PickerModal({
   closeLabel = 'Close',
   panelWidth = 'regular',
   onClose,
-}: PickerModalProps) {
+}: PckrMdlPrps) {
   const titleId = useId()
-  const descriptionId = useId()
+  const dscrId = useId()
 
   if (!visible || !portalTarget) {
     return null
   }
 
   return (
-    <AppDialog
-      visible={visible}
-      open={open}
-      closing={closing}
-      portalTarget={portalTarget}
-      overlayClassName="picker-modal__overlay"
-      contentClassName={`app-modal-panel picker-modal__panel ${panelWidth === 'wide' ? 'app-modal-panel--wide picker-modal__panel--wide' : ''}`}
-      ariaLabelledBy={titleId}
-      ariaDescribedBy={description ? descriptionId : undefined}
+    <AppModal
+      state={{ visible, open, closing }}
+      variant="picker"
+      size={panelWidth}
+      ariaLabelBy={titleId}
+      ariaDscrBy={description ? dscrId : undefined}
       onClose={onClose}
     >
       <div className="picker-modal__frame" onClick={(event) => event.stopPropagation()}>
@@ -81,16 +84,19 @@ export function PickerModal({
                 {title}
               </h2>
               {description ? (
-                <p id={descriptionId} className="picker-modal__description">
+                <p id={dscrId} className="picker-modal__description">
                   {description}
                 </p>
               ) : null}
             </div>
-            {summary ? <div className="picker-modal__summary">{summary}</div> : null}
-            <ModalCloseButton className="picker-modal__close" onClick={onClose} label={closeLabel} />
+            <div className="picker-modal__actions">
+              {summary ? <div className="picker-modal__summary">{summary}</div> : null}
+              <MdlClsBttn className="picker-modal__close" onClick={onClose} label={closeLabel} />
+            </div>
           </div>
-          {filters ? <div className="picker-modal__filters">{filters}</div> : null}
         </div>
+
+        {filters ? <div className="picker-modal__filters">{filters}</div> : null}
 
         <div className="picker-modal__body">
           {items.length === 0 ? (
@@ -108,6 +114,9 @@ export function PickerModal({
                   onClick={item.onSelect}
                   disabled={item.disabled}
                 >
+                  <span className="picker-card-bracket picker-card-bracket--tl" aria-hidden="true" />
+                  <span className="picker-card-bracket picker-card-bracket--br" aria-hidden="true" />
+
                   <div className="picker-modal__card-main">
                     {item.leading ? <div className="picker-modal__card-media">{item.leading}</div> : null}
 
@@ -131,6 +140,6 @@ export function PickerModal({
           )}
         </div>
       </div>
-    </AppDialog>
+    </AppModal>
   )
 }

@@ -8,57 +8,69 @@
 
 /// <reference lib="webworker" />
 
-import { hydrateGameDataRegistry, initializeGameData } from '@/data/gameData'
-import { initEchoCatalog } from '@/data/gameData/catalog/echoes'
-import { initResonatorCatalog, initResonatorDetails } from '@/data/gameData/resonators/resonatorDataStore'
-import { initWeaponData } from '@/data/gameData/weapons/weaponDataStore'
-import { initEchoSetDefinitions } from '@/data/gameData/echoSets/effects'
+import { hydrGameData, initGameData } from '@/data/gameData'
+import { initEchoCat } from '@/data/gameData/catalog/echoes'
+import { initEchoStts } from '@/data/gameData/catalog/echoStats'
+import { initResCat, initResDtls } from '@/data/gameData/resonators/resonatorDataStore'
+import { initWpnData } from '@/data/gameData/weapons/weaponDataStore'
+import { initEchoSetD } from '@/data/gameData/echoSets/effects'
 import type {
-  OptimizerStartPayload,
-  PreparedOptimizerPayload,
-  PreparedRotationRun,
-  PreparedTargetSkillRun,
+  OptStartPay,
+  PrepOptPay,
+  PrepRotRun,
+  PrepTheoryRot,
+  PrepTheoryTarget,
+  PrepTargetSkill,
 } from '@/engine/optimizer/types.ts'
 import type {
-  OptimizerCompileDoneMessage,
-  OptimizerCompileErrorMessage,
-  OptimizerCompileInMessage,
-  OptimizerMaterializeDoneMessage,
+  OptCompDoneM,
+  OptCompRrrMs,
+  OptCompInMsg,
+  OptMatDoneMs,
 } from '@/engine/optimizer/compiler/compileWorker.types.ts'
-import { errorOptimizer, logOptimizer } from '@/engine/optimizer/config/log.ts'
+import { errorOpt, logOptimizer } from '@/engine/optimizer/config/log.ts'
 
-let optimizerCompileModulesPromise: Promise<{
-  compileOptimizerPayload: typeof import('@/engine/optimizer/compiler').compileOptimizerPayload
-  materializeOptimizerResultsFromUids: typeof import('@/engine/optimizer/results/materialize.ts').materializeOptimizerResultsFromUids
+let optCompMdlsP: Promise<{
+  cmplOptPay: typeof import('@/engine/optimizer/compiler').compOptPay
+  matOptResults: typeof import('@/engine/optimizer/results/materialize.ts').matOptRsltsF
 }> | null = null
 
-async function loadOptimizerCompileModules() {
-  if (!optimizerCompileModulesPromise) {
-    optimizerCompileModulesPromise = Promise.all([
+// the compile worker is now reused across runs, so game data only needs to be
+// hydrated once. game data is static for the lifetime of the page, so caching
+// this flag is safe and skips the repeated snapshot hydration cost on every
+// subsequent run.
+let gameDataReady = false
+
+async function loadOptCompM() {
+  if (!optCompMdlsP) {
+    optCompMdlsP = Promise.all([
       import('@/engine/optimizer/compiler'),
       import('@/engine/optimizer/results/materialize.ts'),
     ]).then(([compiler, materialize]) => ({
-      compileOptimizerPayload: compiler.compileOptimizerPayload,
-      materializeOptimizerResultsFromUids: materialize.materializeOptimizerResultsFromUids,
+      cmplOptPay: compiler.compOptPay,
+      matOptResults: materialize.matOptRsltsF,
     }))
   }
 
-  return optimizerCompileModulesPromise
+  return optCompMdlsP
 }
 
-function hydrateOptimizerStaticData(
-    snapshot: NonNullable<OptimizerStartPayload['staticData']>,
+function hydrOptSttcD(
+    snapshot: NonNullable<OptStartPay['staticData']>,
 ): void {
-  hydrateGameDataRegistry(snapshot.gameDataRegistry)
-  initResonatorCatalog(Object.values(snapshot.resonatorCatalogById))
-  initResonatorDetails(snapshot.resonatorDetailsById)
-  initWeaponData(Object.values(snapshot.weaponsById))
-  initEchoCatalog(Object.values(snapshot.echoCatalogById))
-  initEchoSetDefinitions(snapshot.echoSetDefs)
+  hydrGameData(snapshot.gameDataReg)
+  initResCat(Object.values(snapshot.resCatById))
+  initResDtls(snapshot.resDtlsById)
+  initWpnData(Object.values(snapshot.weaponsById))
+  initEchoCat(Object.values(snapshot.echoCatById))
+  initEchoSetD(snapshot.echoSetDefs)
+  if (snapshot.echoStats) {
+    initEchoStts(snapshot.echoStats)
+  }
 }
 
 // typed-array families we may clone into SharedArrayBuffer-backed views
-type SharedableTypedArray =
+type ShrdTypdRry =
     | Float32Array
     | Int32Array
     | Uint32Array
@@ -66,13 +78,13 @@ type SharedableTypedArray =
     | Uint8Array
 
 // feature check: shared buffers are only available in supported environments
-function canShareTypedArrays(): boolean {
+function canShrTypdRr(): boolean {
   return typeof SharedArrayBuffer !== 'undefined'
 }
 
 // copy a typed array into a SharedArrayBuffer-backed view of the same type
-function shareTypedArray<T extends SharedableTypedArray>(view: T): T {
-  if (!canShareTypedArrays()) {
+function shrTypdRry<T extends ShrdTypdRry>(view: T): T {
+  if (!canShrTypdRr()) {
     return view
   }
 
@@ -88,54 +100,54 @@ function shareTypedArray<T extends SharedableTypedArray>(view: T): T {
 
 // convert every transferable numeric buffer in a target-skill payload
 // into shared memory so downstream workers/threads can read it without copies
-function sharePreparedTargetSkillRun(payload: PreparedTargetSkillRun): PreparedTargetSkillRun {
-  if (!canShareTypedArrays()) {
+function shrPrepTgtSk<T extends PrepTargetSkill | PrepTheoryTarget>(payload: T): T {
+  if (!canShrTypdRr()) {
     return payload
   }
 
   return {
     ...payload,
-    constraints: shareTypedArray(payload.constraints),
-    costs: shareTypedArray(payload.costs),
-    sets: shareTypedArray(payload.sets),
-    kinds: shareTypedArray(payload.kinds),
-    comboIndexMap: shareTypedArray(payload.comboIndexMap),
-    comboBinom: shareTypedArray(payload.comboBinom),
-    stats: shareTypedArray(payload.stats),
-    setConstLut: shareTypedArray(payload.setConstLut),
-    mainEchoBuffs: shareTypedArray(payload.mainEchoBuffs),
-    lockedMainCandidateIndices: shareTypedArray(payload.lockedMainCandidateIndices),
+    constraints: shrTypdRry(payload.constraints),
+    costs: shrTypdRry(payload.costs),
+    sets: shrTypdRry(payload.sets),
+    kinds: shrTypdRry(payload.kinds),
+    comboIndexMap: shrTypdRry(payload.comboIndexMap),
+    comboBinom: shrTypdRry(payload.comboBinom),
+    stats: shrTypdRry(payload.stats),
+    setConstLut: shrTypdRry(payload.setConstLut),
+    mainEchoBuffs: shrTypdRry(payload.mainEchoBuffs),
+    lockMainCands: shrTypdRry(payload.lockMainCands),
   }
 }
 
 // same shared-memory upgrade path, but for rotation payloads
-function sharePreparedRotationRun(payload: PreparedRotationRun): PreparedRotationRun {
-  if (!canShareTypedArrays()) {
+function shrPrepRotRu<T extends PrepRotRun | PrepTheoryRot>(payload: T): T {
+  if (!canShrTypdRr()) {
     return payload
   }
 
   return {
     ...payload,
-    constraints: shareTypedArray(payload.constraints),
-    costs: shareTypedArray(payload.costs),
-    sets: shareTypedArray(payload.sets),
-    kinds: shareTypedArray(payload.kinds),
-    comboIndexMap: shareTypedArray(payload.comboIndexMap),
-    comboBinom: shareTypedArray(payload.comboBinom),
-    lockedMainCandidateIndices: shareTypedArray(payload.lockedMainCandidateIndices),
-    contexts: shareTypedArray(payload.contexts),
-    contextWeights: shareTypedArray(payload.contextWeights),
-    displayContext: shareTypedArray(payload.displayContext),
-    stats: shareTypedArray(payload.stats),
-    setConstLut: shareTypedArray(payload.setConstLut),
-    mainEchoBuffs: shareTypedArray(payload.mainEchoBuffs),
+    constraints: shrTypdRry(payload.constraints),
+    costs: shrTypdRry(payload.costs),
+    sets: shrTypdRry(payload.sets),
+    kinds: shrTypdRry(payload.kinds),
+    comboIndexMap: shrTypdRry(payload.comboIndexMap),
+    comboBinom: shrTypdRry(payload.comboBinom),
+    lockMainCands: shrTypdRry(payload.lockMainCands),
+    contexts: shrTypdRry(payload.contexts),
+    contextWeight: shrTypdRry(payload.contextWeight),
+    displayContext: shrTypdRry(payload.displayContext),
+    stats: shrTypdRry(payload.stats),
+    setConstLut: shrTypdRry(payload.setConstLut),
+    mainEchoBuffs: shrTypdRry(payload.mainEchoBuffs),
   }
 }
 
 // gather transferable buffers for a target-skill payload.
 // SharedArrayBuffer-backed views are skipped because they are shared, not transferred.
-function collectTargetSkillTransferables(
-    payload: PreparedTargetSkillRun,
+function cllcTgtSkllT(
+    payload: PrepTargetSkill | PrepTheoryTarget,
 ): Transferable[] {
   const maybePush = (items: Transferable[], buffer: ArrayBufferLike) => {
     if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
@@ -155,13 +167,13 @@ function collectTargetSkillTransferables(
   maybePush(out, payload.stats.buffer)
   maybePush(out, payload.setConstLut.buffer)
   maybePush(out, payload.mainEchoBuffs.buffer)
-  maybePush(out, payload.lockedMainCandidateIndices.buffer)
+  maybePush(out, payload.lockMainCands.buffer)
   return out
 }
 
 // gather transferable buffers for a rotation payload
-function collectRotationTransferables(
-    payload: PreparedRotationRun,
+function cllcRotTrns(
+    payload: PrepRotRun | PrepTheoryRot,
 ): Transferable[] {
   const maybePush = (items: Transferable[], buffer: ArrayBufferLike) => {
     if (typeof SharedArrayBuffer !== 'undefined' && buffer instanceof SharedArrayBuffer) {
@@ -178,9 +190,9 @@ function collectRotationTransferables(
   maybePush(out, payload.kinds.buffer)
   maybePush(out, payload.comboIndexMap.buffer)
   maybePush(out, payload.comboBinom.buffer)
-  maybePush(out, payload.lockedMainCandidateIndices.buffer)
+  maybePush(out, payload.lockMainCands.buffer)
   maybePush(out, payload.contexts.buffer)
-  maybePush(out, payload.contextWeights.buffer)
+  maybePush(out, payload.contextWeight.buffer)
   maybePush(out, payload.displayContext.buffer)
   maybePush(out, payload.stats.buffer)
   maybePush(out, payload.setConstLut.buffer)
@@ -189,27 +201,55 @@ function collectRotationTransferables(
 }
 
 // route to the correct transferable collector based on payload mode
-function collectTransferables(
-    payload: PreparedOptimizerPayload,
+function cllcTrns(
+    payload: PrepOptPay,
 ): Transferable[] {
-  return payload.mode === 'rotation'
-      ? collectRotationTransferables(payload)
-      : collectTargetSkillTransferables(payload)
+  if (payload.mode === 'rotation') {
+    return cllcRotTrns(payload)
+  }
+
+  if (payload.mode === 'targetSkill') {
+    return cllcTgtSkllT(payload)
+  }
+
+  if (payload.mode === 'theoryTarget') {
+    return cllcTgtSkllT(payload)
+  }
+
+  if (payload.mode === 'theoryRotation') {
+    return cllcRotTrns(payload)
+  }
+
+  return []
 }
 
 // route to the correct shared-memory conversion path based on payload mode
-function sharePreparedPayload(
-    payload: PreparedOptimizerPayload,
-): PreparedOptimizerPayload {
-  return payload.mode === 'rotation'
-      ? sharePreparedRotationRun(payload)
-      : sharePreparedTargetSkillRun(payload)
+function shrPrepPay(
+    payload: PrepOptPay,
+): PrepOptPay {
+  if (payload.mode === 'rotation') {
+    return shrPrepRotRu(payload)
+  }
+
+  if (payload.mode === 'targetSkill') {
+    return shrPrepTgtSk(payload)
+  }
+
+  if (payload.mode === 'theoryTarget') {
+    return shrPrepTgtSk(payload)
+  }
+
+  if (payload.mode === 'theoryRotation') {
+    return shrPrepRotRu(payload)
+  }
+
+  return payload
 }
 
 // main worker entrypoint:
 // - "start" compiles a raw optimizer payload and returns the packed result
 // - otherwise it materializes compact result refs back into user-facing results
-self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
+self.onmessage = async (event: MessageEvent<OptCompInMsg>) => {
   const message = event.data
   const scope = self as DedicatedWorkerGlobalScope
 
@@ -221,59 +261,62 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
 
   try {
     if (message.type === 'start') {
-      if (message.payload.staticData) {
-        logOptimizer('[optimizer:compile-worker] hydrating game data from static snapshot', {
-          runId: message.runId,
-        })
-        hydrateOptimizerStaticData(message.payload.staticData)
-        logOptimizer('[optimizer:compile-worker] static data hydrated', { runId: message.runId })
-      } else {
-        logOptimizer('[optimizer:compile-worker] fetching game data via initializeGameData()', {
-          runId: message.runId,
-        })
-        await initializeGameData()
-        logOptimizer('[optimizer:compile-worker] game data ready', { runId: message.runId })
+      if (!gameDataReady) {
+        if (message.payload.staticData) {
+          logOptimizer('[optimizer:compile-worker] hydrating game data from static snapshot', {
+            runId: message.runId,
+          })
+          hydrOptSttcD(message.payload.staticData)
+          logOptimizer('[optimizer:compile-worker] static data hydrated', { runId: message.runId })
+        } else {
+          logOptimizer('[optimizer:compile-worker] fetching game data via initializeGameData()', {
+            runId: message.runId,
+          })
+          await initGameData()
+          logOptimizer('[optimizer:compile-worker] game data ready', { runId: message.runId })
+        }
+        gameDataReady = true
       }
 
       logOptimizer('[optimizer:compile-worker] loading compiler modules', { runId: message.runId })
-      const { compileOptimizerPayload } = await loadOptimizerCompileModules()
+      const { cmplOptPay: cmplPtmzPyld } = await loadOptCompM()
       logOptimizer('[optimizer:compile-worker] compiler modules loaded', { runId: message.runId })
 
       logOptimizer('[optimizer:compile-worker] compiling payload', {
         runId: message.runId,
         rotationMode: message.payload.settings.rotationMode,
-        inventorySize: message.payload.inventoryEchoes.length,
+        inventorySize: message.payload.invChs.length,
       })
 
       const t0 = performance.now()
-      const compiled = compileOptimizerPayload(message.payload)
+      const compiled = cmplPtmzPyld(message.payload)
 
       logOptimizer('[optimizer:compile-worker] payload compiled, upgrading buffers', {
         runId: message.runId,
         mode: compiled.mode,
-        comboTotalCombos: compiled.comboTotalCombos,
+        totalCombos: compiled.totalCombos,
         contextCount: 'contextCount' in compiled ? compiled.contextCount : undefined,
         elapsedMs: Math.round(performance.now() - t0),
         willShareBuffers: typeof SharedArrayBuffer !== 'undefined',
       })
 
       // compile the raw payload, then upgrade eligible buffers to shared memory
-      const payload = sharePreparedPayload(compiled)
+      const payload = shrPrepPay(compiled)
 
-      const transferables = collectTransferables(payload)
+      const trns = cllcTrns(payload)
       logOptimizer('[optimizer:compile-worker] posting compiled payload', {
         runId: message.runId,
-        transferableCount: transferables.length,
+        transferableCount: trns.length,
       })
 
-      const response: OptimizerCompileDoneMessage = {
+      const response: OptCompDoneM = {
         type: 'done',
         runId: message.runId,
         payload,
       }
 
       // transfer regular ArrayBuffers to avoid copying large payloads
-      scope.postMessage(response, transferables)
+      scope.postMessage(response, trns)
       return
     }
 
@@ -285,8 +328,8 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
     })
 
     const t0 = performance.now()
-    const { materializeOptimizerResultsFromUids } = await loadOptimizerCompileModules()
-    const results = materializeOptimizerResultsFromUids(
+    const { matOptResults: mtrlPtmzRslt } = await loadOptCompM()
+    const results = mtrlPtmzRslt(
         message.uidByIndex,
         message.results,
         {
@@ -301,7 +344,7 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
       elapsedMs: Math.round(performance.now() - t0),
     })
 
-    const response: OptimizerMaterializeDoneMessage = {
+    const response: OptMatDoneMs = {
       type: 'materialized',
       runId: message.runId,
       results,
@@ -309,14 +352,14 @@ self.onmessage = async (event: MessageEvent<OptimizerCompileInMessage>) => {
 
     scope.postMessage(response)
   } catch (error) {
-    errorOptimizer('[optimizer:compile-worker] error', {
+    errorOpt('[optimizer:compile-worker] error', {
       runId: message.runId,
       type: message.type,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    const response: OptimizerCompileErrorMessage = {
+    const response: OptCompRrrMs = {
       type: 'error',
       runId: message.runId,
       message: error instanceof Error ? error.message : 'Failed to compile optimizer payload',

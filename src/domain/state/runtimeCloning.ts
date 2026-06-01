@@ -6,24 +6,24 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import { cloneEchoLoadout, cloneRotationNodes } from '@/domain/entities/inventoryStorage'
-import type { ManualBuffs, ManualModifier, ManualQuickBuffs } from '@/domain/entities/manualBuffs'
-import type { ResonatorProfile, SlotLocalState, SlotRoutingState } from '@/domain/entities/profile'
-import { cloneCompactSonataSetConditionals } from '@/domain/entities/sonataSetConditionals'
+import { cloneEchoLdt, cloneRotNds } from '@/domain/entities/inventoryStorage'
+import type { ManualBuffs, MnlMod, QuickBuffs } from '@/domain/entities/manualBuffs'
+import type { ResProf, SlotLocalState, SlotRatingState } from '@/domain/entities/profile'
+import { cloneSntSet } from '@/domain/entities/sonataSetConditionals'
 import type {
   CombatState,
-  ResonatorBaseState,
-  ResonatorRuntimeState,
-  ResonatorStateState,
+  ResBaseStt,
+  ResRuntime,
+  ResSttStt,
   RotationState,
   SkillLevels,
-  TeamMemberRuntime,
+  TeamMemRt,
   TraceNodeBuffs,
-  WeaponBuildState,
+  WeaponState,
 } from '@/domain/entities/runtime'
 import type { AttributeKey, BaseStatBuff, ModBuff } from '@/domain/entities/stats'
 
-function cloneBaseStatBuff(buff: BaseStatBuff): BaseStatBuff {
+function cloneBaseSta(buff: BaseStatBuff): BaseStatBuff {
   return {
     percent: buff.percent,
     flat: buff.flat,
@@ -43,7 +43,7 @@ function cloneModBuff(buff: ModBuff): ModBuff {
   }
 }
 
-export function cloneSkillLevels(skillLevels: SkillLevels): SkillLevels {
+export function cloneSkllLvl(skillLevels: SkillLevels): SkillLevels {
   return {
     normalAttack: skillLevels.normalAttack,
     resonanceSkill: skillLevels.resonanceSkill,
@@ -54,11 +54,11 @@ export function cloneSkillLevels(skillLevels: SkillLevels): SkillLevels {
   }
 }
 
-export function cloneTraceNodeBuffs(traceNodes: TraceNodeBuffs): TraceNodeBuffs {
+export function cloneTrcNode(traceNodes: TraceNodeBuffs): TraceNodeBuffs {
   return {
-    atk: cloneBaseStatBuff(traceNodes.atk),
-    hp: cloneBaseStatBuff(traceNodes.hp),
-    def: cloneBaseStatBuff(traceNodes.def),
+    atk: cloneBaseSta(traceNodes.atk),
+    hp: cloneBaseSta(traceNodes.hp),
+    def: cloneBaseSta(traceNodes.def),
     attribute: Object.fromEntries(
         Object.entries(traceNodes.attribute).map(([attribute, buff]) => [
           attribute,
@@ -72,7 +72,7 @@ export function cloneTraceNodeBuffs(traceNodes: TraceNodeBuffs): TraceNodeBuffs 
   }
 }
 
-function cloneQuickBuffs(quick: ManualQuickBuffs): ManualQuickBuffs {
+function cloneQckBffs(quick: QuickBuffs): QuickBuffs {
   return {
     atk: { ...quick.atk },
     hp: { ...quick.hp },
@@ -84,18 +84,18 @@ function cloneQuickBuffs(quick: ManualQuickBuffs): ManualQuickBuffs {
   }
 }
 
-function cloneManualModifier(modifier: ManualModifier): ManualModifier {
+function cloneMnlMod(modifier: MnlMod): MnlMod {
   return { ...modifier }
 }
 
-export function cloneManualBuffs(manualBuffs: ManualBuffs): ManualBuffs {
+export function cloneBuffs(manualBuffs: ManualBuffs): ManualBuffs {
   return {
-    quick: cloneQuickBuffs(manualBuffs.quick),
-    modifiers: manualBuffs.modifiers.map(cloneManualModifier),
+    quick: cloneQckBffs(manualBuffs.quick),
+    modifiers: manualBuffs.modifiers.map(cloneMnlMod),
   }
 }
 
-export function cloneCombatState(combat: CombatState): CombatState {
+export function cloneCmbtStt(combat: CombatState): CombatState {
   return {
     spectroFrazzle: combat.spectroFrazzle,
     aeroErosion: combat.aeroErosion,
@@ -107,7 +107,7 @@ export function cloneCombatState(combat: CombatState): CombatState {
   }
 }
 
-export function cloneWeaponBuildState(weapon: WeaponBuildState): WeaponBuildState {
+export function cloneWpnMkSt(weapon: WeaponState): WeaponState {
   return {
     id: weapon.id,
     level: weapon.level,
@@ -116,47 +116,47 @@ export function cloneWeaponBuildState(weapon: WeaponBuildState): WeaponBuildStat
   }
 }
 
-export function cloneRotationState(rotation: RotationState): RotationState {
+export function cloneRotation(rotation: RotationState): RotationState {
   return {
     view: rotation.view,
-    personalItems: cloneRotationNodes(rotation.personalItems),
-    teamItems: cloneRotationNodes(rotation.teamItems),
+    personalItems: cloneRotNds(rotation.personalItems),
+    teamItems: cloneRotNds(rotation.teamItems),
   }
 }
 
-export function cloneSlotRoutingStateValue(routing: SlotRoutingState): SlotRoutingState {
+export function cloneSlotRtn(routing: SlotRatingState): SlotRatingState {
   return {
     selectedTargetsByOwnerKey: { ...routing.selectedTargetsByOwnerKey },
   }
 }
 
-export function cloneSlotLocalStateValue(local: SlotLocalState): SlotLocalState {
+export function cloneSlotLcl(local: SlotLocalState): SlotLocalState {
   return {
     controls: { ...local.controls },
-    manualBuffs: cloneManualBuffs(local.manualBuffs),
-    combat: cloneCombatState(local.combat),
-    setConditionals: cloneCompactSonataSetConditionals(local.setConditionals),
+    manualBuffs: cloneBuffs(local.manualBuffs),
+    combat: cloneCmbtStt(local.combat),
+    setConditionals: cloneSntSet(local.setConditionals),
   }
 }
 
-export function cloneRuntimeStateValue(state: ResonatorStateState): ResonatorStateState {
+export function cloneRtSttVl(state: ResSttStt): ResSttStt {
   return {
     controls: { ...state.controls },
-    manualBuffs: cloneManualBuffs(state.manualBuffs),
-    combat: cloneCombatState(state.combat),
+    manualBuffs: cloneBuffs(state.manualBuffs),
+    combat: cloneCmbtStt(state.combat),
   }
 }
 
-export function cloneResonatorBaseState(base: ResonatorBaseState): ResonatorBaseState {
+export function cloneResBase(base: ResBaseStt): ResBaseStt {
   return {
     level: base.level,
     sequence: base.sequence,
-    skillLevels: cloneSkillLevels(base.skillLevels),
-    traceNodes: cloneTraceNodeBuffs(base.traceNodes),
+    skillLevels: cloneSkllLvl(base.skillLevels),
+    traceNodes: cloneTrcNode(base.traceNodes),
   }
 }
 
-export function cloneTeamMemberRuntime(teamMember: TeamMemberRuntime): TeamMemberRuntime {
+export function cloneTeamMem(teamMember: TeamMemRt): TeamMemRt {
   return {
     id: teamMember.id,
     base: {
@@ -168,62 +168,62 @@ export function cloneTeamMemberRuntime(teamMember: TeamMemberRuntime): TeamMembe
         rank: teamMember.build.weapon.rank,
         baseAtk: teamMember.build.weapon.baseAtk,
       },
-      echoes: cloneEchoLoadout(teamMember.build.echoes),
+      echoes: cloneEchoLdt(teamMember.build.echoes),
     },
-    manualBuffs: cloneManualBuffs(teamMember.manualBuffs),
+    manualBuffs: cloneBuffs(teamMember.manualBuffs),
   }
 }
 
-export function cloneTeamMemberRuntimes(
-    teamRuntimes: [TeamMemberRuntime | null, TeamMemberRuntime | null],
-): [TeamMemberRuntime | null, TeamMemberRuntime | null] {
+export function cloneTeamMvm(
+    teamRuntimes: [TeamMemRt | null, TeamMemRt | null],
+): [TeamMemRt | null, TeamMemRt | null] {
   return [
-    teamRuntimes[0] ? cloneTeamMemberRuntime(teamRuntimes[0]) : null,
-    teamRuntimes[1] ? cloneTeamMemberRuntime(teamRuntimes[1]) : null,
+    teamRuntimes[0] ? cloneTeamMem(teamRuntimes[0]) : null,
+    teamRuntimes[1] ? cloneTeamMem(teamRuntimes[1]) : null,
   ]
 }
 
-export function cloneResonatorRuntimeState(runtime: ResonatorRuntimeState): ResonatorRuntimeState {
+export function cloneResRtSt(runtime: ResRuntime): ResRuntime {
   return {
     id: runtime.id,
-    base: cloneResonatorBaseState(runtime.base),
+    base: cloneResBase(runtime.base),
     build: {
-      weapon: cloneWeaponBuildState(runtime.build.weapon),
-      echoes: cloneEchoLoadout(runtime.build.echoes),
+      weapon: cloneWpnMkSt(runtime.build.weapon),
+      echoes: cloneEchoLdt(runtime.build.echoes),
       team: [...runtime.build.team],
     },
-    state: cloneRuntimeStateValue(runtime.state),
-    rotation: cloneRotationState(runtime.rotation),
-    teamRuntimes: cloneTeamMemberRuntimes(runtime.teamRuntimes),
+    state: cloneRtSttVl(runtime.state),
+    rotation: cloneRotation(runtime.rotation),
+    teamRuntimes: cloneTeamMvm(runtime.teamRuntimes),
   }
 }
 
-export function cloneResonatorProfile(profile: ResonatorProfile): ResonatorProfile {
+export function cloneResProf(profile: ResProf): ResProf {
   return {
     resonatorId: profile.resonatorId,
     runtime: {
-      progression: cloneResonatorBaseState(profile.runtime.progression),
+      progression: cloneResBase(profile.runtime.progression),
       build: {
-        weapon: cloneWeaponBuildState(profile.runtime.build.weapon),
-        echoes: cloneEchoLoadout(profile.runtime.build.echoes),
+        weapon: cloneWpnMkSt(profile.runtime.build.weapon),
+        echoes: cloneEchoLdt(profile.runtime.build.echoes),
       },
-      local: cloneSlotLocalStateValue(profile.runtime.local),
-      routing: cloneSlotRoutingStateValue(profile.runtime.routing),
+      local: cloneSlotLcl(profile.runtime.local),
+      routing: cloneSlotRtn(profile.runtime.routing),
       team: [...profile.runtime.team],
-      rotation: cloneRotationState(profile.runtime.rotation),
-      teamRuntimes: cloneTeamMemberRuntimes(profile.runtime.teamRuntimes ?? [null, null]),
+      rotation: cloneRotation(profile.runtime.rotation),
+      teamRuntimes: cloneTeamMvm(profile.runtime.teamRuntimes ?? [null, null]),
     },
   }
 }
 
-export function cloneEnemyProfile(enemy: EnemyProfile): EnemyProfile {
+export function cloneEnemyPr(enemy: EnemyProfile): EnemyProfile {
   return {
     id: enemy.id,
     level: enemy.level,
     class: enemy.class,
     toa: enemy.toa,
     source: enemy.source,
-    ...(enemy.status ? { status: { tuneStrain: enemy.status.tuneStrain } } : {}),
+    ...(enemy.status ? { status: { ...enemy.status } } : {}),
     res: { ...enemy.res },
   }
 }

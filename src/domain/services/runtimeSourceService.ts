@@ -5,53 +5,53 @@
 */
 
 import type {
-  DataSourceRef,
-  FeatureDefinition,
-  SourceStateDefinition,
+  DataSrcRef,
+  FeatDef,
+  SourceState,
 } from '@/domain/gameData/contracts'
-import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import type { SkillDef } from '@/domain/entities/stats'
 import {
-  listFeaturesForSource,
-  listSkillsForSource,
-  listStatesForSource,
+  listFeatsFor,
+  listSkillsFor,
+  listStatesFor,
 } from '@/domain/services/gameDataService'
 import {
-  primeCompiledFeatureExpressions,
-  primeCompiledSkillExpressions,
-  primeCompiledStateExpressions,
+  prmCompFeatE,
+  prmCompSkllE,
+  prmCompSttEx,
 } from '@/engine/effects/evaluator'
 
-export interface RuntimeSourceCatalog {
-  sources: DataSourceRef[]
-  skills: SkillDefinition[]
-  features: FeatureDefinition[]
-  states: SourceStateDefinition[]
-  skillsById: Record<string, SkillDefinition>
-  featuresById: Record<string, FeatureDefinition>
+export interface RtSrcCat {
+  sources: DataSrcRef[]
+  skills: SkillDef[]
+  features: FeatDef[]
+  states: SourceState[]
+  skillsById: Record<string, SkillDef>
+  featuresById: Record<string, FeatDef>
 }
 
-export type PreparedRuntimeCatalog = RuntimeSourceCatalog
+export type PrepRtCat = RtSrcCat
 
-const sourceRefsCache = new Map<string, DataSourceRef[]>()
-const runtimeSourceCatalogCache = new Map<string, RuntimeSourceCatalog>()
-const preparedRuntimeCatalogCache = new WeakMap<ResonatorSeed, Map<string, PreparedRuntimeCatalog>>()
-const MAX_RUNTIME_SOURCE_CACHE_ENTRIES = 64
+const srcRefsCch = new Map<string, DataSrcRef[]>()
+const rtSrcCatCch = new Map<string, RtSrcCat>()
+const prepRtCatCch = new WeakMap<ResSeed, Map<string, PrepRtCat>>()
+const SRC_CACHE_MAX = 64
 
-function isEquippedEcho(
-    echo: ResonatorRuntimeState['build']['echoes'][number],
-): echo is NonNullable<ResonatorRuntimeState['build']['echoes'][number]> {
+function isQppdEcho(
+    echo: ResRuntime['build']['echoes'][number],
+): echo is NonNullable<ResRuntime['build']['echoes'][number]> {
   return Boolean(echo)
 }
 
-function touchCacheEntry<T>(cache: Map<string, T>, key: string, value: T): void {
+function tchCchEnt<T>(cache: Map<string, T>, key: string, value: T): void {
   if (cache.has(key)) {
     cache.delete(key)
   }
 
   cache.set(key, value)
 
-  while (cache.size > MAX_RUNTIME_SOURCE_CACHE_ENTRIES) {
+  while (cache.size > SRC_CACHE_MAX) {
     const oldestKey = cache.keys().next().value
     if (oldestKey == null) {
       break
@@ -62,68 +62,68 @@ function touchCacheEntry<T>(cache: Map<string, T>, key: string, value: T): void 
 }
 
 // build a cache signature for runtime sources
-function getRuntimeSourceSignature(runtime: ResonatorRuntimeState): string {
+function getRtSrcSig(runtime: ResRuntime): string {
   const mainEchoId =
       runtime.build.echoes.find((echo) => echo?.mainEcho)?.id ??
       runtime.build.echoes[0]?.id ??
-      runtime.build.echoes.find(isEquippedEcho)?.id ??
+      runtime.build.echoes.find(isQppdEcho)?.id ??
       ''
   return `${runtime.id}::${mainEchoId}`
 }
 
 // resolve the main echo source reference from the runtime
-export function getMainEchoSourceRef(runtime: ResonatorRuntimeState): DataSourceRef | null {
+export function getMainEchoS(runtime: ResRuntime): DataSrcRef | null {
   const echoId =
       runtime.build.echoes.find((echo) => echo?.mainEcho)?.id ??
       runtime.build.echoes[0]?.id ??
-      runtime.build.echoes.find(isEquippedEcho)?.id
+      runtime.build.echoes.find(isQppdEcho)?.id
   return echoId ? { type: 'echo', id: echoId } : null
 }
 
-function getPreparedRuntimeCatalogCache(
-    seed: ResonatorSeed,
-): Map<string, PreparedRuntimeCatalog> {
-  const cached = preparedRuntimeCatalogCache.get(seed)
+function getPrepRtCat(
+    seed: ResSeed,
+): Map<string, PrepRtCat> {
+  const cached = prepRtCatCch.get(seed)
   if (cached) {
     return cached
   }
 
-  const created = new Map<string, PreparedRuntimeCatalog>()
-  preparedRuntimeCatalogCache.set(seed, created)
+  const created = new Map<string, PrepRtCat>()
+  prepRtCatCch.set(seed, created)
   return created
 }
 
 // list all source references relevant to the runtime
-export function listRuntimeSourceRefs(runtime: ResonatorRuntimeState): DataSourceRef[] {
-  const signature = getRuntimeSourceSignature(runtime)
-  const cached = sourceRefsCache.get(signature)
+export function listRtSrcRef(runtime: ResRuntime): DataSrcRef[] {
+  const signature = getRtSrcSig(runtime)
+  const cached = srcRefsCch.get(signature)
   if (cached) {
     return cached
   }
 
-  const refs: DataSourceRef[] = [{ type: 'resonator', id: runtime.id }]
-  const mainEchoSource = getMainEchoSourceRef(runtime)
+  const refs: DataSrcRef[] = [{ type: 'resonator', id: runtime.id }]
+  const mainEchoSrc = getMainEchoS(runtime)
 
-  if (mainEchoSource) {
-    refs.push(mainEchoSource)
+  if (mainEchoSrc) {
+    refs.push(mainEchoSrc)
   }
 
-  touchCacheEntry(sourceRefsCache, signature, refs)
+  tchCchEnt(srcRefsCch, signature, refs)
   return refs
 }
 
 // build the full runtime source catalog
-export function buildRuntimeSourceCatalog(runtime: ResonatorRuntimeState): RuntimeSourceCatalog {
-  const signature = getRuntimeSourceSignature(runtime)
-  const cached = runtimeSourceCatalogCache.get(signature)
+export function makeSourceCat(runtime: ResRuntime): RtSrcCat {
+  const signature = getRtSrcSig(runtime)
+  const cached = rtSrcCatCch.get(signature)
   if (cached) {
     return cached
   }
 
-  const sources = listRuntimeSourceRefs(runtime)
-  const skills = sources.flatMap((source) => listSkillsForSource(source.type, source.id))
-  const features = sources.flatMap((source) => listFeaturesForSource(source.type, source.id))
-  const states = sources.flatMap((source) => listStatesForSource(source.type, source.id))
+  const sources = listRtSrcRef(runtime)
+  const skills = sources.flatMap((source) => listSkillsFor(source.type, source.id))
+  const features = sources.flatMap((source) => listFeatsFor(source.type, source.id))
+  const states = sources.flatMap((source) => listStatesFor(source.type, source.id))
 
   const catalog = {
     sources,
@@ -134,38 +134,38 @@ export function buildRuntimeSourceCatalog(runtime: ResonatorRuntimeState): Runti
     featuresById: Object.fromEntries(features.map((feature) => [feature.id, feature])),
   }
 
-  touchCacheEntry(runtimeSourceCatalogCache, signature, catalog)
+  tchCchEnt(rtSrcCatCch, signature, catalog)
   return catalog
 }
 
 // merge runtime-derived and seed-local content into one canonical catalog
-export function buildPreparedRuntimeCatalog(
-    runtime: ResonatorRuntimeState,
-    seed?: ResonatorSeed | null,
-): PreparedRuntimeCatalog {
-  const catalog = buildRuntimeSourceCatalog(runtime)
+export function makeRuntimeCat(
+    runtime: ResRuntime,
+    seed?: ResSeed | null,
+): PrepRtCat {
+  const catalog = makeSourceCat(runtime)
 
   if (!seed || (!seed.skills?.length && !seed.features?.length && !seed.states?.length)) {
     return catalog
   }
 
-  const signature = getRuntimeSourceSignature(runtime)
-  const preparedCache = getPreparedRuntimeCatalogCache(seed)
-  const cached = preparedCache.get(signature)
+  const signature = getRtSrcSig(runtime)
+  const prepCch = getPrepRtCat(seed)
+  const cached = prepCch.get(signature)
   if (cached) {
     return cached
   }
 
-  primeCompiledSkillExpressions(seed.skills ?? [])
-  primeCompiledFeatureExpressions(seed.features ?? [])
-  primeCompiledStateExpressions(seed.states ?? [])
+  prmCompSkllE(seed.skills ?? [])
+  prmCompFeatE(seed.features ?? [])
+  prmCompSttEx(seed.states ?? [])
 
   const skills = [...catalog.skills]
   const features = [...catalog.features]
   const states = [...catalog.states]
   const skillsById = { ...catalog.skillsById }
   const featuresById = { ...catalog.featuresById }
-  const stateControlKeys = new Set(states.map((entry) => entry.controlKey))
+  const sttCntrKeys = new Set(states.map((entry) => entry.controlKey))
 
   for (const skill of seed.skills ?? []) {
     if (skillsById[skill.id]) {
@@ -186,12 +186,12 @@ export function buildPreparedRuntimeCatalog(
   }
 
   for (const state of seed.states ?? []) {
-    if (stateControlKeys.has(state.controlKey)) {
+    if (sttCntrKeys.has(state.controlKey)) {
       continue
     }
 
     states.push(state)
-    stateControlKeys.add(state.controlKey)
+    sttCntrKeys.add(state.controlKey)
   }
 
   const prepared = {
@@ -203,11 +203,11 @@ export function buildPreparedRuntimeCatalog(
     featuresById,
   }
 
-  touchCacheEntry(preparedCache, signature, prepared)
+  tchCchEnt(prepCch, signature, prepared)
   return prepared
 }
 
 // list all runtime skills
-export function listRuntimeSkills(runtime: ResonatorRuntimeState): SkillDefinition[] {
-  return buildRuntimeSourceCatalog(runtime).skills
+export function listRtSkills(runtime: ResRuntime): SkillDef[] {
+  return makeSourceCat(runtime).skills
 }

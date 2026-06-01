@@ -1,51 +1,55 @@
 import { describe, expect, it } from 'vitest'
-import { listEchoesByCost } from '@/domain/services/echoCatalogService'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
-import { createDefaultResonatorRuntime, createDefaultOptimizerSettings, makeDefaultEnemyProfile } from '@/domain/state/defaults'
-import { buildRuntimeParticipantLookup } from '@/domain/state/runtimeAdapters'
-import { cloneEchoForSlot } from '@/domain/entities/inventoryStorage'
+import { listChsByCos } from '@/domain/services/echoCatalogService'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { makeResRuntime, makeOptSets, makeEnemy } from '@/domain/state/defaults'
+import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
+import { cloneEchoFor } from '@/domain/entities/inventoryStorage'
 import {
-  DEFAULT_SONATA_SET_CONDITIONALS,
-  withCompactSonataSetUpdates,
+  DEF_SET_COND,
+  withSntSet,
 } from '@/domain/entities/sonataSetConditionals'
-import { listRuntimeSkills } from '@/domain/services/runtimeSourceService'
+import { listRtSkills } from '@/domain/services/runtimeSourceService'
 import {
-  ECHO_OPTIMIZER_BATCH_SIZE_CAP,
-  ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU,
-  OPTIMIZER_REDUCE_K,
+  OPT_BATCH_SIZE,
+  TARGET_GPU_JOB,
+  MAIN_BUFF_LEN,
+  OPT_RDC_K,
 } from '@/engine/optimizer/config/constants'
-import { countOptimizerCombinations, runOptimizerSearch } from '@/engine/optimizer/engine'
-import { compileOptimizerPayload } from '@/engine/optimizer/compiler'
-import { passesConstraints as passesCpuConstraints, encodeStatConstraints } from '@/engine/optimizer/constraints/statConstraints'
+import { runOptSrch } from '@/engine/optimizer/engine'
+import { compOptPay } from '@/engine/optimizer/compiler'
+import { psssCstrs as passesCpuConstraints, encStatCstrs } from '@/engine/optimizer/constraints/statConstraints'
 import {
   buildSetRows,
-  buildSetRuntimeMask,
-  getSetRowOffset,
-  SET_RUNTIME_TOGGLE_ALL,
+  makeSetMask,
+  getSetRowFfs,
+  SETCNSTLUTST,
+  SETRTTGLALL,
 } from '@/engine/optimizer/encode/sets'
-import { countOptimizerCombinationsByMode } from '@/engine/optimizer/search/counting'
+import {countOptRows, countOptCombos} from '@/engine/optimizer/search/counting'
 import {
-  evaluatePreparedOptimizerBaseline,
-  materializeOptimizerResults,
+  evalPrepOptB,
+  matOptRslts,
 } from '@/engine/optimizer/results/materialize.ts'
 import { evalTarget } from '@/engine/optimizer/target/evaluate'
-import { runTargetSearchJob } from '@/engine/optimizer/search/targetCpu'
-import { unrankCombinadic } from '@/engine/optimizer/combos/combinadic.ts'
-import { OptimizerBagResultCollector, buildOptimizerBagResultSetKey } from '@/engine/optimizer/results/collector.ts'
-import { compileOptimizerTargetContext } from '@/engine/optimizer/target/context'
-import { createPackedTargetSkillExecution } from '@/engine/optimizer/payloads/targetPayload'
-import { applyPersonalRotationItems } from '@/engine/optimizer/rotation/runtime'
-import { listOptimizerTargets } from '@/engine/optimizer/target/skills'
+import { runTgtSrchJo } from '@/engine/optimizer/search/targetCpu'
+import { nrnkCmbn } from '@/engine/optimizer/combos/combinadic.ts'
+import { OptResultSet, mkOptBagRslt } from '@/engine/optimizer/results/collector.ts'
+import { compOptTgtCt } from '@/engine/optimizer/target/context'
+import { packTargetSkill } from '@/engine/optimizer/payloads/targetPayload'
+import { applyPersRot } from '@/engine/optimizer/rotation/runtime'
+import { listOptTrgt } from '@/engine/optimizer/target/skills'
 import {
-  resolveTargetGpuCollectorLimit,
-  resolveTargetGpuJobResultsLimit,
+  resTgtGpuCll,
+  resTgtGpuJob,
 } from '@/engine/optimizer/workers/pool'
-import { buildTargetGpuStaticKey } from '@/engine/optimizer/workers/targetGpu'
-import { runResonatorSimulation } from '@/engine/pipeline'
-import { buildPreparedRuntimeSkill } from '@/engine/pipeline/prepareRuntimeSkill'
+import { mkTgtGpuSttc } from '@/engine/optimizer/workers/targetGpu'
+import { runResSmlt } from '@/engine/pipeline'
+import { prepSkill } from '@/engine/pipeline/prepareRuntimeSkill'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
-import { buildDirectSkillDamageContext, computeSkillDamage } from '@/engine/formulas/damage'
+import { makeSkillDamage, calcSkillDamage } from '@/engine/formulas/damage'
 import type { EchoInstance } from '@/domain/entities/runtime'
+
+const setCol = (name: typeof SETCNSTLUTST[number]) => SETCNSTLUTST.indexOf(name)
 
 function makeEchoInstance(
   id: string,
@@ -69,17 +73,26 @@ function makeEchoInstance(
   }
 }
 
-function buildCandidateRuntime(runtime: ReturnType<typeof createDefaultResonatorRuntime>, echoes: EchoInstance[]) {
+function buildCandidateRuntime(runtime: ReturnType<typeof makeResRuntime>, echoes: EchoInstance[]) {
+  const mainEcho = echoes[0]
+
   return {
     ...runtime,
     build: {
       ...runtime.build,
-      echoes: echoes.map((echo, index) => cloneEchoForSlot(echo, index)),
+      echoes: echoes.map((echo, index) => cloneEchoFor(echo, index)),
+    },
+    state: {
+      ...runtime.state,
+      controls: {
+        ...runtime.state.controls,
+        ...(mainEcho ? { [`echo:${mainEcho.id}:main:active`]: true } : {}),
+      },
     },
   }
 }
 
-function stripRuntimeEchoes(runtime: ReturnType<typeof createDefaultResonatorRuntime>) {
+function stripRuntimeEchoes(runtime: ReturnType<typeof makeResRuntime>) {
   return {
     ...runtime,
     build: {
@@ -90,10 +103,10 @@ function stripRuntimeEchoes(runtime: ReturnType<typeof createDefaultResonatorRun
 }
 
 function selectVisibleSkillId(
-  runtime: ReturnType<typeof createDefaultResonatorRuntime>,
+  runtime: ReturnType<typeof makeResRuntime>,
   predicate: (skill: ReturnType<typeof resolveSkill>) => boolean,
 ): string | null {
-  const skill = listRuntimeSkills(runtime)
+  const skill = listRtSkills(runtime)
     .map((entry) => resolveSkill(runtime, entry))
     .find((entry) => entry.visible && predicate(entry))
   return skill?.id ?? null
@@ -101,22 +114,22 @@ function selectVisibleSkillId(
 
 function evaluateCompiledDisplay(params: {
   resonatorId: string
-  runtime: ReturnType<typeof createDefaultResonatorRuntime>
-  enemy: ReturnType<typeof makeDefaultEnemyProfile>
+  runtime: ReturnType<typeof makeResRuntime>
+  enemy: ReturnType<typeof makeEnemy>
   echoes: EchoInstance[]
   skillId: string
   lockedMainEchoId: string
 }) {
-  const settings = createDefaultOptimizerSettings()
+  const settings = makeOptSets()
   settings.enableGpu = true
   settings.targetSkillId = params.skillId
   settings.lockedMainEchoId = params.lockedMainEchoId
 
-  const compiled = compileOptimizerPayload({
+  const compiled = compOptPay({
     resonatorId: params.resonatorId,
     runtime: params.runtime,
     settings,
-    inventoryEchoes: params.echoes,
+    invChs: params.echoes,
     enemyProfile: params.enemy,
   })
 
@@ -125,7 +138,7 @@ function evaluateCompiledDisplay(params: {
     return null
   }
 
-  const execution = createPackedTargetSkillExecution(compiled)
+  const execution = packTargetSkill(compiled)
 
   return evalTarget({
     context: execution.context,
@@ -158,8 +171,8 @@ function enumerateFiveEchoCombinations(echoes: EchoInstance[]): EchoInstance[][]
 
 function buildBruteForceBestForLockedMain(params: {
   resonatorId: string
-  runtime: ReturnType<typeof createDefaultResonatorRuntime>
-  enemy: ReturnType<typeof makeDefaultEnemyProfile>
+  runtime: ReturnType<typeof makeResRuntime>
+  enemy: ReturnType<typeof makeEnemy>
   echoes: EchoInstance[]
   skillId: string
   lockedMainEchoId: string
@@ -196,7 +209,7 @@ function buildBruteForceBestForLockedMain(params: {
 
 describe('optimizer engine', () => {
   it('keeps the GPU reduce fan-out in sync with the target shaders', () => {
-    expect(OPTIMIZER_REDUCE_K).toBe(8)
+    expect(OPT_RDC_K).toBe(8)
   })
 
   it('hashes GPU static payloads using full typed-array bytes', () => {
@@ -211,20 +224,20 @@ describe('optimizer engine', () => {
       kinds: new Int32Array([19, 20, 21]),
       comboN: 5,
       comboK: 5,
-      comboTotalCombos: 1,
+      totalCombos: 1,
       comboIndexMap: new Int32Array([0, 1, 2, 3, 4]),
       comboBinom: new Uint32Array([1, 5, 10, 10, 5, 1]),
-      lockedMainRequested: false,
-      lockedMainCandidateIndices: new Int32Array([0, 1, 2, 3, 4]),
+      lockMainReq: false,
+      lockMainCands: new Int32Array([0, 1, 2, 3, 4]),
     })
 
-    expect(buildTargetGpuStaticKey(makePayload(5))).not.toBe(buildTargetGpuStaticKey(makePayload(6)))
-    expect(buildTargetGpuStaticKey(makePayload(5, 5))).not.toBe(buildTargetGpuStaticKey(makePayload(5, 6)))
+    expect(mkTgtGpuSttc(makePayload(5))).not.toBe(mkTgtGpuSttc(makePayload(6)))
+    expect(mkTgtGpuSttc(makePayload(5, 5))).not.toBe(mkTgtGpuSttc(makePayload(5, 6)))
   })
 
   it('counts ordered slot-0 combinations and respects locked main echo filters', () => {
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
 
     expect(fourCost).toBeTruthy()
     expect(oneCosts).toHaveLength(4)
@@ -234,29 +247,29 @@ describe('optimizer engine', () => {
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    expect(countOptimizerCombinations(echoes, null)).toBe(5)
-    expect(countOptimizerCombinations(echoes, fourCost.id)).toBe(1)
-    expect(countOptimizerCombinations(echoes, 'missing-echo')).toBe(0)
-    expect(countOptimizerCombinationsByMode(echoes, null, 'combos')).toBe(1)
-    expect(countOptimizerCombinationsByMode(echoes, null, 'combinadic')).toBe(5)
+    expect(countOptRows(echoes, null)).toBe(5)
+    expect(countOptRows(echoes, fourCost.id)).toBe(1)
+    expect(countOptRows(echoes, 'missing-echo')).toBe(0)
+    expect(countOptCombos(echoes, null, 'combos')).toBe(1)
+    expect(countOptCombos(echoes, null, 'combinadic')).toBe(5)
   })
 
   it('returns scored optimizer results with the locked echo in slot 0', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
 
-    const targetSkill = runResonatorSimulation(
+    const targetSkill = runResSmlt(
       runtime,
       seed,
-      makeDefaultEnemyProfile(),
-      buildRuntimeParticipantLookup(runtime),
+      makeEnemy(),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -264,25 +277,25 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
-      enemyProfile: makeDefaultEnemyProfile(),
+      invChs: echoes,
+      enemyProfile: makeEnemy(),
     })
 
     expect(results).toHaveLength(1)
@@ -293,18 +306,18 @@ describe('optimizer engine', () => {
   })
 
   it('filters out combinations that fail stat constraints', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const targetSkill = runResonatorSimulation(
+    const runtime = makeResRuntime(seed)
+    const targetSkill = runResSmlt(
       runtime,
       seed,
-      makeDefaultEnemyProfile(),
-      buildRuntimeParticipantLookup(runtime),
+      makeEnemy(),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -312,34 +325,34 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.statConstraints = {
       atk: { minTotal: '999999' },
     }
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
-      enemyProfile: makeDefaultEnemyProfile(),
+      invChs: echoes,
+      enemyProfile: makeEnemy(),
     })
 
     expect(results).toHaveLength(0)
   })
 
   it('encodes disabled stat constraints with GPU fast-path sentinels', () => {
-    const settings = createDefaultOptimizerSettings()
-    const encoded = encodeStatConstraints(settings)
+    const settings = makeOptSets()
+    const encoded = encStatCstrs(settings)
 
     expect(Array.from(encoded)).toEqual([
       1, 0,
@@ -369,90 +382,90 @@ describe('optimizer engine', () => {
   })
 
   it('encodes stateful optimizer set effects at max without reading runtime toggles', () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.state.controls['echoSet:27:bonus:trailblazingStar5pc'] = false
 
     const setRows = buildSetRows(runtime)
-    const row = getSetRowOffset(27, 3)
+    const row = getSetRowFfs(27, 4)
 
-    expect(buildSetRuntimeMask(runtime)).toBe(SET_RUNTIME_TOGGLE_ALL)
-    expect(setRows[row + 6]).toBeGreaterThan(0)
-    expect(setRows[row + 15]).toBeGreaterThan(10)
+    expect(makeSetMask(runtime)).toBe(SETRTTGLALL)
+    expect(setRows[row + setCol('critRate')]).toBeGreaterThan(0)
+    expect(setRows[row + setCol('fusion')]).toBeGreaterThan(10)
   })
 
   it('omits disabled set conditional rows from the optimizer LUT', () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const enabledRows = buildSetRows(runtime, DEFAULT_SONATA_SET_CONDITIONALS)
-    const setConditionals = withCompactSonataSetUpdates(DEFAULT_SONATA_SET_CONDITIONALS, [
+    const runtime = makeResRuntime(seed)
+    const enabledRows = buildSetRows(runtime, DEF_SET_COND)
+    const setConditionals = withSntSet(DEF_SET_COND, [
       { setId: 27, partKey: 'trailblazingStar5pc', checked: false },
     ])
     const disabledRows = buildSetRows(runtime, setConditionals)
-    const row = getSetRowOffset(27, 3)
+    const row = getSetRowFfs(27, 4)
 
-    expect(enabledRows[row + 6]).toBeGreaterThan(0)
-    expect(disabledRows[row + 6]).toBe(0)
-    expect(enabledRows[row + 15]).toBeGreaterThan(disabledRows[row + 15])
-    expect(disabledRows[row + 15]).toBe(10)
+    expect(enabledRows[row + setCol('critRate')]).toBeGreaterThan(0)
+    expect(disabledRows[row + setCol('critRate')]).toBe(0)
+    expect(enabledRows[row + setCol('fusion')]).toBeGreaterThan(disabledRows[row + setCol('fusion')])
+    expect(disabledRows[row + setCol('fusion')]).toBe(10)
   })
 
-  it('removes runtime mask bits when legacy set conditionals are toggled off', () => {
-    const seed = getResonatorSeedById('1210')
+  it('removes runtime mask bits when set conditionals are toggled off', () => {
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const setConditionals = withCompactSonataSetUpdates(DEFAULT_SONATA_SET_CONDITIONALS, [
+    const runtime = makeResRuntime(seed)
+    const setConditionals = withSntSet(DEF_SET_COND, [
       { setId: 14, partKey: 'fivePiece', checked: false },
       { setId: 22, partKey: 'flamewingsShadow2pcP1', checked: false },
       { setId: 22, partKey: 'flamewingsShadow2pcP2', checked: false },
       { setId: 29, partKey: 'soundOfTrueName5pc', checked: false },
     ])
 
-    expect(buildSetRuntimeMask(runtime, setConditionals)).toBe(0)
+    expect(makeSetMask(runtime, setConditionals)).toBe(0)
   })
 
   it('still excludes activeOther set buffs from optimizer encoding', () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     const setRows = buildSetRows(runtime)
 
-    const moonlitFive = getSetRowOffset(8, 3)
+    const moonlitFive = getSetRowFfs(8, 3)
     expect(setRows[moonlitFive + 0]).toBe(0)
 
-    const chromaticFive = getSetRowOffset(28, 3)
-    expect(setRows[chromaticFive + 15]).toBe(20)
+    const chromaticFive = getSetRowFfs(28, 4)
+    expect(setRows[chromaticFive + setCol('fusion')]).toBe(20)
   })
 
   it('applies Trailblazing Star 5pc for a legal unique 5-piece combo', () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.resonanceLiberation = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const skillId = '1210202'
 
     const fivePiece = [
@@ -497,16 +510,16 @@ describe('optimizer engine', () => {
   })
 
   it('preserves Trailblazing Star 5pc through the GPU target search path', async () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.resonanceLiberation = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const echoes = [
       makeEchoInstance('6000191', 27, 's27-0', 22),
       makeEchoInstance('6000193', 27, 's27-1', 10),
@@ -515,17 +528,17 @@ describe('optimizer engine', () => {
       makeEchoInstance('6000197', 27, 's27-4', 10),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = true
     settings.targetSkillId = '1210202'
     settings.lockedMainEchoId = '6000191'
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -549,16 +562,16 @@ describe('optimizer engine', () => {
   })
 
   it('matches brute-force best combo for Trailblazing Star in a mixed bag on CPU and GPU', async () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.resonanceLiberation = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const skillId = '1210202'
     const lockedMainEchoId = '6000191'
 
@@ -592,14 +605,14 @@ describe('optimizer engine', () => {
 
     expect(bruteForceBest.uids).toEqual(trailblazingCombo.map((echo) => echo.uid).sort())
 
-    const cpuSettings = createDefaultOptimizerSettings()
+    const cpuSettings = makeOptSets()
     cpuSettings.enableGpu = false
     cpuSettings.targetSkillId = skillId
     cpuSettings.lockedMainEchoId = lockedMainEchoId
     cpuSettings.resultsLimit = 8
     cpuSettings.keepPercent = 0
 
-    const gpuSettings = createDefaultOptimizerSettings()
+    const gpuSettings = makeOptSets()
     gpuSettings.enableGpu = true
     gpuSettings.targetSkillId = skillId
     gpuSettings.lockedMainEchoId = lockedMainEchoId
@@ -607,18 +620,18 @@ describe('optimizer engine', () => {
     gpuSettings.keepPercent = 0
 
     const [cpuResults, gpuResults] = await Promise.all([
-      runOptimizerSearch({
+      runOptSrch({
         resonatorId: seed.id,
         runtime,
         settings: cpuSettings,
-        inventoryEchoes: bag,
+        invChs: bag,
         enemyProfile: enemy,
       }),
-      runOptimizerSearch({
+      runOptSrch({
         resonatorId: seed.id,
         runtime,
         settings: gpuSettings,
-        inventoryEchoes: bag,
+        invChs: bag,
         enemyProfile: enemy,
       }),
     ])
@@ -630,22 +643,22 @@ describe('optimizer engine', () => {
   })
 
   it('ignores over-cost combos in the CPU range path', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = runResonatorSimulation(
+    const targetSkill = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -653,8 +666,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCosts = listEchoesByCost(4).slice(0, 3)
-    const oneCosts = listEchoesByCost(1).slice(0, 3)
+    const fourCosts = listChsByCos(4).slice(0, 3)
+    const oneCosts = listChsByCos(1).slice(0, 3)
     expect(fourCosts).toHaveLength(3)
     expect(oneCosts).toHaveLength(3)
 
@@ -665,7 +678,7 @@ describe('optimizer engine', () => {
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `light-${index}`, 8 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCosts[0].id
@@ -696,11 +709,11 @@ describe('optimizer engine', () => {
       return
     }
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -710,22 +723,22 @@ describe('optimizer engine', () => {
   })
 
   it('matches the full simulation target-skill result for the same fixed loadout', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = runResonatorSimulation(
+    const targetSkill = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -733,42 +746,36 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
     expect(results).toHaveLength(1)
 
-    const candidateRuntime = {
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: echoes.map((echo, index) => cloneEchoForSlot(echo, index)),
-      },
-    }
+    const candidateRuntime = buildCandidateRuntime(runtime, echoes)
 
-    const expected = runResonatorSimulation(
+    const expected = runResSmlt(
       candidateRuntime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(candidateRuntime),
+      makeRuntimeMap(candidateRuntime),
     )
     const expectedSkill = expected.perSkill.find((entry) => entry.skill.id === targetSkill.id)
 
@@ -789,18 +796,18 @@ describe('optimizer engine', () => {
   })
 
   it('matches full simulation when echo rows include skill-specific stats in the old slot order', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = listRuntimeSkills(runtime)
+    const targetSkill = listRtSkills(runtime)
       .map((skill) => resolveSkill(runtime, skill))
       .find((skill) => skill.visible && skill.tab === 'normalAttack')
 
@@ -809,8 +816,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       {
         ...makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock-basic', 22),
@@ -824,36 +831,30 @@ describe('optimizer engine', () => {
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-basic-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
     expect(results).toHaveLength(1)
 
-    const candidateRuntime = {
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: echoes.map((echo, index) => cloneEchoForSlot(echo, index)),
-      },
-    }
+    const candidateRuntime = buildCandidateRuntime(runtime, echoes)
 
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId: targetSkill.id,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -861,7 +862,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -873,22 +874,22 @@ describe('optimizer engine', () => {
   })
 
   it('matches the full simulation target-skill result for the rebuilt gpu payload path', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = runResonatorSimulation(
+    const targetSkill = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -896,23 +897,23 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = true
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCost.id
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -921,7 +922,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const execution = createPackedTargetSkillExecution(compiled)
+    const execution = packTargetSkill(compiled)
     const display = evalTarget({
       context: execution.context,
       stats: execution.stats,
@@ -939,19 +940,13 @@ describe('optimizer engine', () => {
       return
     }
 
-    const candidateRuntime = {
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: echoes.map((echo, index) => cloneEchoForSlot(echo, index)),
-      },
-    }
+    const candidateRuntime = buildCandidateRuntime(runtime, echoes)
 
-    const expected = runResonatorSimulation(
+    const expected = runResSmlt(
       candidateRuntime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(candidateRuntime),
+      makeRuntimeMap(candidateRuntime),
     )
     const expectedSkill = expected.perSkill.find((entry) => entry.skill.id === targetSkill.id)
 
@@ -964,22 +959,22 @@ describe('optimizer engine', () => {
   })
 
   it('matches direct evaluation for a non-zero CPU combo range job', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = runResonatorSimulation(
+    const targetSkill = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     ).perSkill.find((entry) => entry.avg > 0)?.skill
 
     expect(targetSkill).toBeTruthy()
@@ -987,23 +982,23 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 5)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 5)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-range', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-range-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.resultsLimit = 8
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -1012,11 +1007,11 @@ describe('optimizer engine', () => {
       return
     }
 
-    const execution = createPackedTargetSkillExecution(compiled)
-    const comboIds = unrankCombinadic(3, {
+    const execution = packTargetSkill(compiled)
+    const comboIds = nrnkCmbn(3, {
       comboN: execution.comboN,
       comboK: execution.comboK,
-      totalCombos: execution.comboTotalCombos,
+      totalCombos: execution.totalCombos,
       indexMap: execution.comboIndexMap,
       binom: execution.comboBinom,
       lockedIndex: -1,
@@ -1046,39 +1041,39 @@ describe('optimizer engine', () => {
       }
     }
 
-    const results = await runTargetSearchJob(
+    const results = await runTgtSrchJo(
       execution,
       {
         comboStart: 3,
         comboCount: 1,
-        lockedMainIndex: -1,
-        jobResultsLimit: 1,
+        lockMainIdx: -1,
+        jobResultLimit: 1,
       },
     )
 
     expect(results).toHaveLength(1)
     expect(Math.abs((results[0]?.damage ?? 0) - expectedDamage)).toBeLessThan(0.01)
-    expect(buildOptimizerBagResultSetKey([
+    expect(mkOptBagRslt([
       results[0]!.i0,
       results[0]!.i1,
       results[0]!.i2,
       results[0]!.i3,
       results[0]!.i4,
-    ])).toBe(buildOptimizerBagResultSetKey(Array.from(comboIds)))
+    ])).toBe(mkOptBagRslt(Array.from(comboIds)))
     expect(results[0]?.i0).toBe(expectedMainIndex)
   })
 
   it('derives the no-echo target baseline from the shared damage pipeline', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const strippedRuntime = stripRuntimeEchoes(runtime)
 
     const targetSkillId = selectVisibleSkillId(
@@ -1091,12 +1086,12 @@ describe('optimizer engine', () => {
       return
     }
 
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: strippedRuntime,
       seed,
       enemy,
       skillId: targetSkillId,
-      runtimesById: buildRuntimeParticipantLookup(strippedRuntime),
+      runtimesById: makeRuntimeMap(strippedRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -1104,51 +1099,51 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = buildDirectSkillDamageContext(
+    const expected = makeSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
       strippedRuntime.base.level,
     )
 
-    const compiled = compileOptimizerTargetContext({
+    const compiled = compOptTgtCt({
       runtime: strippedRuntime,
       resonatorId: seed.id,
       skillId: targetSkillId,
       enemy,
-      runtimesById: buildRuntimeParticipantLookup(strippedRuntime),
+      runtimesById: makeRuntimeMap(strippedRuntime),
     })
 
     expect(compiled.compiled.baseAtk).toBeCloseTo(expected.baseAtk, 8)
     expect(compiled.compiled.baseHp).toBeCloseTo(expected.baseHp, 8)
     expect(compiled.compiled.baseDef).toBeCloseTo(expected.baseDef, 8)
-    expect(compiled.compiled.staticFinalAtk).toBeCloseTo(expected.finalAtk, 8)
-    expect(compiled.compiled.staticFinalHp).toBeCloseTo(expected.finalHp, 8)
-    expect(compiled.compiled.staticFinalDef).toBeCloseTo(expected.finalDef, 8)
-    expect(compiled.compiled.staticFinalER).toBeCloseTo(expected.finalER, 8)
-    expect(compiled.compiled.staticCritRate).toBeCloseTo(expected.critRate, 8)
-    expect(compiled.compiled.staticCritDmg).toBeCloseTo(expected.critDmg, 8)
-    expect(compiled.compiled.staticDmgBonus).toBeCloseTo(expected.dmgBonus, 8)
-    expect(compiled.compiled.staticAmplify).toBeCloseTo(expected.amplify, 8)
+    expect(compiled.compiled.statFinAtk).toBeCloseTo(expected.finalAtk, 8)
+    expect(compiled.compiled.statFinHp).toBeCloseTo(expected.finalHp, 8)
+    expect(compiled.compiled.statFinDef).toBeCloseTo(expected.finalDef, 8)
+    expect(compiled.compiled.statFinEr).toBeCloseTo(expected.finalER, 8)
+    expect(compiled.compiled.statCritRate).toBeCloseTo(expected.critRate, 8)
+    expect(compiled.compiled.statCritDmg).toBeCloseTo(expected.critDmg, 8)
+    expect(compiled.compiled.statDmgBonus).toBeCloseTo(expected.dmgBonus, 8)
+    expect(compiled.compiled.statAmp).toBeCloseTo(expected.amplify, 8)
     expect(compiled.compiled.resMult).toBeCloseTo(expected.resMult, 8)
-    expect(compiled.compiled.defMult).toBeCloseTo(expected.defenseMultiplier, 8)
-    expect(compiled.compiled.dmgReduction).toBeCloseTo(expected.dmgVulnMultiplier, 8)
+    expect(compiled.compiled.defMult).toBeCloseTo(expected.defMult, 8)
+    expect(compiled.compiled.dmgReduction).toBeCloseTo(expected.dmgVulnMult, 8)
   })
 
   it('does not double count Sigillum liberation bonus for Aemeath', async () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.resonanceLiberation = 10
     runtime.state.controls['echoSet:27:bonus:trailblazingStar5pc'] = true
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = listRuntimeSkills(runtime)
+    const targetSkill = listRtSkills(runtime)
       .map((skill) => resolveSkill(runtime, skill))
       .find((skill) => skill.id === '1210202')
 
@@ -1166,36 +1161,30 @@ describe('optimizer engine', () => {
       index === 0 ? 22 : 10 + index,
     ))
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = '6000191'
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
     expect(results).toHaveLength(1)
 
-    const candidateRuntime = {
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: echoes.map((echo, index) => cloneEchoForSlot(echo, index)),
-      },
-    }
+    const candidateRuntime = buildCandidateRuntime(runtime, echoes)
 
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId: targetSkill.id,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -1203,7 +1192,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -1215,16 +1204,16 @@ describe('optimizer engine', () => {
   })
 
   it('keeps live runtime controls in the no-echo target baseline', () => {
-    const seed = getResonatorSeedById('1210')
+    const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const baseRuntime = createDefaultResonatorRuntime(seed)
+    const baseRuntime = makeResRuntime(seed)
     baseRuntime.base.level = 90
     baseRuntime.base.skillLevels.resonanceLiberation = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const targetSkillId = '1210202'
 
     const controlledRuntime = stripRuntimeEchoes({
@@ -1239,39 +1228,39 @@ describe('optimizer engine', () => {
       },
     })
 
-    const baselineCompiled = compileOptimizerTargetContext({
+    const baselineCompiled = compOptTgtCt({
       runtime: stripRuntimeEchoes(baseRuntime),
       resonatorId: seed.id,
       skillId: targetSkillId,
       enemy,
-      runtimesById: buildRuntimeParticipantLookup(stripRuntimeEchoes(baseRuntime)),
+      runtimesById: makeRuntimeMap(stripRuntimeEchoes(baseRuntime)),
     })
 
-    const controlledCompiled = compileOptimizerTargetContext({
+    const controlledCompiled = compOptTgtCt({
       runtime: controlledRuntime,
       resonatorId: seed.id,
       skillId: targetSkillId,
       enemy,
-      runtimesById: buildRuntimeParticipantLookup(controlledRuntime),
+      runtimesById: makeRuntimeMap(controlledRuntime),
     })
 
-    expect(controlledCompiled.compiled.staticAmplify).toBeGreaterThan(baselineCompiled.compiled.staticAmplify)
+    expect(controlledCompiled.compiled.statAmp).toBeGreaterThan(baselineCompiled.compiled.statAmp)
   })
 
   it('can optimize a visible skill even when the personal rotation is empty', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.rotation.personalItems = []
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = listRuntimeSkills(runtime)
+    const targetSkill = listRtSkills(runtime)
       .map((skill) => resolveSkill(runtime, skill))
       .find((skill) => skill.visible && skill.tab === 'normalAttack')
 
@@ -1280,24 +1269,24 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = targetSkill.id
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -1306,22 +1295,22 @@ describe('optimizer engine', () => {
   })
 
   it('compiles explicit personal rotation items into weighted optimizer contexts', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const baseline = runResonatorSimulation(
+    const baseline = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     )
     const rotationFeature = baseline.allFeatures.find((entry) => (
       entry.aggregationType === 'damage' &&
@@ -1333,25 +1322,25 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.rotationMode = true
     settings.targetComboSourceId = `live:${seed.id}`
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
-      rotationItems: [{
+      rotTms: [{
         id: 'optimizer-rotation-item',
         type: 'feature',
         featureId: rotationFeature.feature.id,
@@ -1365,30 +1354,119 @@ describe('optimizer engine', () => {
     }
 
     expect(compiled.contextCount).toBe(1)
-    expect(compiled.contextWeights[0]).toBeGreaterThan(0)
+    expect(compiled.contextWeight[0]).toBeGreaterThan(0)
     expect(compiled.contexts.length).toBe(compiled.contextCount * compiled.contextStride)
     expect(compiled.contextStride).toBe(36)
     expect(compiled.stats.length).toBe(echoes.length * 20)
-    expect(compiled.mainEchoBuffs.length).toBe(echoes.length * 15)
+    expect(compiled.mainEchoBuffs.length).toBe(echoes.length * MAIN_BUFF_LEN)
   })
 
-  it('matches the simulated personal rotation total for a fixed loadout', async () => {
-    const seed = getResonatorSeedById('1506')
+  it('ignores loop run counts when compiling rotation optimizer contexts', () => {
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const baseline = runResonatorSimulation(
+    const baseline = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
+    )
+    const rotationFeature = baseline.allFeatures.find((entry) => (
+      entry.aggregationType === 'damage' &&
+      entry.skill.tab !== 'negativeEffect'
+    ))
+
+    expect(rotationFeature).toBeTruthy()
+    if (!rotationFeature) {
+      return
+    }
+
+    const rotationItems = [
+      {
+        id: 'loop-start',
+        type: 'loop' as const,
+        kind: 'start' as const,
+        loopId: 'loop-a',
+        runs: 3,
+      },
+      {
+        id: 'loop-feature',
+        type: 'feature' as const,
+        featureId: rotationFeature.feature.id,
+        enabled: true,
+      },
+      {
+        id: 'loop-end',
+        type: 'loop' as const,
+        kind: 'end' as const,
+        loopId: 'loop-a',
+      },
+    ]
+
+    const normalRuntime = applyPersRot(runtime, rotationItems)
+    const normalSimulation = runResSmlt(
+      normalRuntime,
+      seed,
+      enemy,
+      makeRuntimeMap(normalRuntime),
+    )
+    expect(normalSimulation.rotations.personal.entries.filter((entry) => entry.nodeId === 'loop-feature')).toHaveLength(3)
+
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
+    const echoes = [
+      makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
+      ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
+    ]
+
+    const settings = makeOptSets()
+    settings.enableGpu = false
+    settings.rotationMode = true
+    settings.targetComboSourceId = `live:${seed.id}`
+
+    const compiled = compOptPay({
+      resonatorId: seed.id,
+      runtime,
+      settings,
+      invChs: echoes,
+      enemyProfile: enemy,
+      rotTms: rotationItems,
+    })
+
+    expect(compiled.mode).toBe('rotation')
+    if (compiled.mode !== 'rotation') {
+      return
+    }
+
+    expect(compiled.contextCount).toBe(1)
+    expect(Array.from(compiled.contextWeight)).toEqual([1])
+  })
+
+  it('matches the simulated personal rotation total for a fixed loadout', async () => {
+    const seed = getResSeedBy('1506')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = makeResRuntime(seed)
+    runtime.base.level = 90
+    runtime.base.skillLevels.normalAttack = 10
+    const enemy = makeEnemy()
+
+    const baseline = runResSmlt(
+      runtime,
+      seed,
+      enemy,
+      makeRuntimeMap(runtime),
     )
     const rotationFeature = baseline.allFeatures.find((entry) => (
       entry.aggregationType === 'damage' &&
@@ -1407,38 +1485,38 @@ describe('optimizer engine', () => {
       enabled: true,
     }]
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const candidateRuntime = applyPersonalRotationItems(
+    const candidateRuntime = applyPersRot(
       buildCandidateRuntime(runtime, echoes),
       rotationItems,
     )
-    const expected = runResonatorSimulation(
+    const expected = runResSmlt(
       candidateRuntime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(candidateRuntime),
+      makeRuntimeMap(candidateRuntime),
     ).rotations.personal.total.avg
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.rotationMode = true
     settings.targetComboSourceId = `live:${seed.id}`
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
-      rotationItems,
+      rotTms: rotationItems,
     })
 
     expect(results).toHaveLength(1)
@@ -1446,16 +1524,16 @@ describe('optimizer engine', () => {
   })
 
   it('matches the direct baseline evaluator against a single optimizer result', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.tab === 'normalAttack')
 
     expect(skillId).toBeTruthy()
@@ -1463,33 +1541,33 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = skillId
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
-    const baseline = evaluatePreparedOptimizerBaseline(compiled, 0)
+    const baseline = evalPrepOptB(compiled, 0)
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -1499,22 +1577,22 @@ describe('optimizer engine', () => {
   })
 
   it('matches the rotation baseline evaluator against a single optimizer result', async () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const baseline = runResonatorSimulation(
+    const baseline = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     )
     const rotationFeature = baseline.allFeatures.find((entry) => (
       entry.aggregationType === 'damage' &&
@@ -1533,37 +1611,37 @@ describe('optimizer engine', () => {
       enabled: true,
     }]
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = false
     settings.rotationMode = true
     settings.targetComboSourceId = `live:${seed.id}`
     settings.lockedMainEchoId = fourCost.id
     settings.resultsLimit = 8
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
-      rotationItems,
+      rotTms: rotationItems,
     })
-    const baselineEvaluation = evaluatePreparedOptimizerBaseline(compiled, 0)
+    const baselineEvaluation = evalPrepOptB(compiled, 0)
 
-    const results = await runOptimizerSearch({
+    const results = await runOptSrch({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
-      rotationItems,
+      rotTms: rotationItems,
     })
 
     expect(baselineEvaluation).toBeTruthy()
@@ -1572,19 +1650,19 @@ describe('optimizer engine', () => {
   })
 
   it('applies selected personal rotation items without mutating the source runtime', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const enemy = makeDefaultEnemyProfile()
-    const baseline = runResonatorSimulation(
+    const runtime = makeResRuntime(seed)
+    const enemy = makeEnemy()
+    const baseline = runResSmlt(
       runtime,
       seed,
       enemy,
-      buildRuntimeParticipantLookup(runtime),
+      makeRuntimeMap(runtime),
     )
     const rotationFeature = baseline.allFeatures.find((entry) => (
       entry.aggregationType === 'damage' &&
@@ -1604,7 +1682,7 @@ describe('optimizer engine', () => {
     }]
     const originalItems = structuredClone(runtime.rotation.personalItems)
 
-    const previewRuntime = applyPersonalRotationItems(runtime, rotationItems)
+    const previewRuntime = applyPersRot(runtime, rotationItems)
 
     expect(previewRuntime).not.toBe(runtime)
     expect(previewRuntime.rotation.personalItems).toEqual(rotationItems)
@@ -1613,17 +1691,17 @@ describe('optimizer engine', () => {
   })
 
   it('matches the damage section standalone skill flow for a visible feature skill', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
-    const enemy = makeDefaultEnemyProfile()
-    const runtimeLookup = buildRuntimeParticipantLookup(runtime)
-    const simulation = runResonatorSimulation(runtime, seed, enemy, runtimeLookup)
+    const enemy = makeEnemy()
+    const runtimeLookup = makeRuntimeMap(runtime)
+    const simulation = runResSmlt(runtime, seed, enemy, runtimeLookup)
     const displayEntry = simulation.allSkills.find((entry) => entry.aggregationType === 'damage')
 
     expect(displayEntry).toBeTruthy()
@@ -1631,7 +1709,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime,
       seed,
       enemy,
@@ -1644,7 +1722,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const result = computeSkillDamage(
+    const result = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -1658,18 +1736,18 @@ describe('optimizer engine', () => {
   })
 
   it('finalizes target GPU results using ordered main-first ids', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.skillLevels.normalAttack = 10
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
-    const targetSkill = listRuntimeSkills(runtime)
+    const targetSkill = listRtSkills(runtime)
       .map((skill) => resolveSkill(runtime, skill))
       .find((skill) => skill.visible && skill.tab === 'normalAttack')
 
@@ -1678,22 +1756,22 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = true
     settings.targetSkillId = targetSkill.id
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -1702,7 +1780,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const [result] = materializeOptimizerResults(echoes, [{
+    const [result] = matOptRslts(echoes, [{
       damage: 123456,
       i0: 2,
       i1: 0,
@@ -1726,52 +1804,52 @@ describe('optimizer engine', () => {
   })
 
   it('uses legacy target GPU oversample limits', () => {
-    expect(resolveTargetGpuJobResultsLimit(128)).toBe(256)
-    expect(resolveTargetGpuCollectorLimit(128)).toBe(1024)
-    expect(resolveTargetGpuCollectorLimit(8192)).toBe(65536)
-    expect(resolveTargetGpuJobResultsLimit(65536)).toBe(65536)
+    expect(resTgtGpuJob(128)).toBe(256)
+    expect(resTgtGpuCll(128)).toBe(1024)
+    expect(resTgtGpuCll(8192)).toBe(65536)
+    expect(resTgtGpuJob(65536)).toBe(65536)
   })
 
   it('uses the tuned target GPU batch size', () => {
-    expect(ECHO_OPTIMIZER_JOB_TARGET_COMBOS_GPU).toBe(20_000_000)
-    expect(ECHO_OPTIMIZER_BATCH_SIZE_CAP).toBe(50_000_000)
+    expect(TARGET_GPU_JOB).toBe(20_000_000)
+    expect(OPT_BATCH_SIZE).toBe(50_000_000)
   })
 
   it('restores the legacy default optimizer result limit', () => {
-    expect(createDefaultOptimizerSettings().resultsLimit).toBe(128)
+    expect(makeOptSets().resultsLimit).toBe(128)
   })
 
   it('keeps the legacy target GPU row widths', () => {
-    const seed = getResonatorSeedById('1506')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const enemy = makeDefaultEnemyProfile()
+    const runtime = makeResRuntime(seed)
+    const enemy = makeEnemy()
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.tab === 'normalAttack')
     expect(skillId).toBeTruthy()
     if (!skillId) {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-lock', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-${index}`, 10 + index)),
     ]
 
-    const settings = createDefaultOptimizerSettings()
+    const settings = makeOptSets()
     settings.enableGpu = true
     settings.targetSkillId = skillId
 
-    const compiled = compileOptimizerPayload({
+    const compiled = compOptPay({
       resonatorId: seed.id,
       runtime,
       settings,
-      inventoryEchoes: echoes,
+      invChs: echoes,
       enemyProfile: enemy,
     })
 
@@ -1781,17 +1859,17 @@ describe('optimizer engine', () => {
     }
 
     expect(compiled.stats.length / echoes.length).toBe(20)
-    expect(compiled.mainEchoBuffs.length / echoes.length).toBe(15)
+    expect(compiled.mainEchoBuffs.length / echoes.length).toBe(MAIN_BUFF_LEN)
   })
 
   it('uses the same set key for the same five ids regardless of order', () => {
-    expect(buildOptimizerBagResultSetKey([4, 2, 0, 3, 1])).toBe(
-      buildOptimizerBagResultSetKey([0, 1, 2, 3, 4]),
+    expect(mkOptBagRslt([4, 2, 0, 3, 1])).toBe(
+      mkOptBagRslt([0, 1, 2, 3, 4]),
     )
   })
 
   it('dedupes equivalent target GPU sets and prunes to the configured top-k', () => {
-    const collector = new OptimizerBagResultCollector(2)
+    const collector = new OptResultSet(2)
 
     collector.push({
       damage: 100,
@@ -1847,7 +1925,7 @@ describe('optimizer engine', () => {
   })
 
   it('keeps only the newest best entry for a duplicate target GPU set', () => {
-    const collector = new OptimizerBagResultCollector(2)
+    const collector = new OptResultSet(2)
 
     collector.push({
       damage: 100,
@@ -1895,9 +1973,9 @@ describe('optimizer engine', () => {
   })
 
   it('pushes ordered combo ids without allocating an intermediate combo result', () => {
-    const collector = new OptimizerBagResultCollector(2)
+    const collector = new OptResultSet(2)
 
-    collector.pushOrderedCombo(150, Int32Array.from([8, 3, 5, 6, 7]), 5)
+    collector.pushRdrdCmb(150, Int32Array.from([8, 3, 5, 6, 7]), 5)
 
     expect(collector.sorted()).toEqual([
       {
@@ -1912,16 +1990,16 @@ describe('optimizer engine', () => {
   })
 
   it('does not reapply 1206 ER-to-ATK conversion in rebuild evaluation', () => {
-    const seed = getResonatorSeedById('1206')
+    const seed = getResSeedBy('1206')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.state.controls['resonator:1206:my_moment:active'] = true
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.tab === 'normalAttack')
     expect(skillId).toBeTruthy()
@@ -1929,8 +2007,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       {
         ...makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1206', 22),
@@ -1957,12 +2035,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -1970,7 +2048,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -1982,16 +2060,16 @@ describe('optimizer engine', () => {
   })
 
   it('does not reapply 1209 marker/liberation scaling in rebuild evaluation', () => {
-    const seed = getResonatorSeedById('1209')
+    const seed = getResSeedBy('1209')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.state.controls['resonator:1209:interfered_marker:active'] = true
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId =
       selectVisibleSkillId(runtime, (skill) => skill.id === '1209021') ??
@@ -2001,8 +2079,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       {
         ...makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1209', 22),
@@ -2029,12 +2107,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2042,7 +2120,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -2054,17 +2132,17 @@ describe('optimizer engine', () => {
   })
 
   it('does not reapply 1306 crit conversion in rebuild evaluation', () => {
-    const seed = getResonatorSeedById('1306')
+    const seed = getResSeedBy('1306')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.base.sequence = 6
     runtime.state.controls['resonator:1306:crown_of_wills:stacks'] = 2
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.tab === 'resonanceSkill')
     expect(skillId).toBeTruthy()
@@ -2072,8 +2150,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       {
         ...makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1306', 22),
@@ -2100,12 +2178,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2113,7 +2191,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -2125,15 +2203,15 @@ describe('optimizer engine', () => {
   })
 
   it('does not reapply 1412 echo-skill ER conversion in rebuild evaluation', () => {
-    const seed = getResonatorSeedById('1412')
+    const seed = getResSeedBy('1412')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(
       runtime,
@@ -2144,8 +2222,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       {
         ...makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1412', 22),
@@ -2172,12 +2250,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2185,7 +2263,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -2197,15 +2275,15 @@ describe('optimizer engine', () => {
   })
 
   it('does not double count 6000106 aero bonus for aero rover targets', () => {
-    const seed = getResonatorSeedById('1406')
+    const seed = getResSeedBy('1406')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.element === 'aero' && skill.tab !== 'echo')
     expect(skillId).toBeTruthy()
@@ -2213,7 +2291,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const tailEchoes = listEchoesByCost(1).slice(0, 4)
+    const tailEchoes = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance('6000106', 6, 'main-6000106', 22),
       ...tailEchoes.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-6000106-${index}`, 10 + index)),
@@ -2234,12 +2312,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2247,7 +2325,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -2258,31 +2336,34 @@ describe('optimizer engine', () => {
     expect(display.damage).toBeCloseTo(expected.avg, 4)
   })
 
-  it('lists tune rupture and negative effects as optimizer targets while excluding echo attacks', () => {
-    const seed = getResonatorSeedById('1403')
-    expect(seed).toBeTruthy()
-    if (!seed) {
+  it('lists formula and negative-effect optimizer targets while excluding echo attacks', () => {
+    const tuneSeed = getResSeedBy('1403')
+    const negativeEffectSeed = getResSeedBy('1506')
+    expect(tuneSeed).toBeTruthy()
+    expect(negativeEffectSeed).toBeTruthy()
+    if (!tuneSeed || !negativeEffectSeed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
-    const targets = listOptimizerTargets(runtime)
+    const tuneTargets = listOptTrgt(makeResRuntime(tuneSeed))
+    const negativeEffectTargets = listOptTrgt(makeResRuntime(negativeEffectSeed))
 
-    expect(targets.some((skill) => skill.archetype === 'tuneRupture')).toBe(true)
-    expect(targets.some((skill) => skill.tab === 'negativeEffect')).toBe(true)
-    expect(targets.some((skill) => skill.tab === 'echoAttacks')).toBe(false)
+    expect(tuneTargets.some((skill) => skill.archetype === 'tuneRupture')).toBe(true)
+    expect(tuneTargets.some((skill) => skill.tab === 'echoAttacks')).toBe(false)
+    expect(negativeEffectTargets.some((skill) => skill.tab === 'negativeEffect')).toBe(true)
+    expect(negativeEffectTargets.some((skill) => skill.tab === 'echoAttacks')).toBe(false)
   })
 
   it('matches computeSkillDamage for tune rupture targets', () => {
-    const seed = getResonatorSeedById('1403')
+    const seed = getResSeedBy('1403')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.archetype === 'tuneRupture')
     expect(skillId).toBeTruthy()
@@ -2290,8 +2371,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1403-tune', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-1403-tune-${index}`, 10 + index)),
@@ -2312,12 +2393,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2325,7 +2406,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,
@@ -2337,16 +2418,16 @@ describe('optimizer engine', () => {
   })
 
   it('matches computeSkillDamage for negative effect targets', () => {
-    const seed = getResonatorSeedById('1403')
+    const seed = getResSeedBy('1506')
     expect(seed).toBeTruthy()
     if (!seed) {
       return
     }
 
-    const runtime = createDefaultResonatorRuntime(seed)
+    const runtime = makeResRuntime(seed)
     runtime.base.level = 90
     runtime.state.combat.spectroFrazzle = 5
-    const enemy = makeDefaultEnemyProfile()
+    const enemy = makeEnemy()
 
     const skillId = selectVisibleSkillId(runtime, (skill) => skill.archetype === 'spectroFrazzle')
     expect(skillId).toBeTruthy()
@@ -2354,8 +2435,8 @@ describe('optimizer engine', () => {
       return
     }
 
-    const fourCost = listEchoesByCost(4)[0]
-    const oneCosts = listEchoesByCost(1).slice(0, 4)
+    const fourCost = listChsByCos(4)[0]
+    const oneCosts = listChsByCos(1).slice(0, 4)
     const echoes = [
       makeEchoInstance(fourCost.id, fourCost.sets[0], 'main-1403-neg', 22),
       ...oneCosts.map((echo, index) => makeEchoInstance(echo.id, echo.sets[0], `tail-1403-neg-${index}`, 10 + index)),
@@ -2376,12 +2457,12 @@ describe('optimizer engine', () => {
     }
 
     const candidateRuntime = buildCandidateRuntime(runtime, echoes)
-    const prepared = buildPreparedRuntimeSkill({
+    const prepared = prepSkill({
       runtime: candidateRuntime,
       seed,
       enemy,
       skillId,
-      runtimesById: buildRuntimeParticipantLookup(candidateRuntime),
+      runtimesById: makeRuntimeMap(candidateRuntime),
     })
 
     expect(prepared).toBeTruthy()
@@ -2389,7 +2470,7 @@ describe('optimizer engine', () => {
       return
     }
 
-    const expected = computeSkillDamage(
+    const expected = calcSkillDamage(
       prepared.context.finalStats,
       prepared.skill,
       enemy,

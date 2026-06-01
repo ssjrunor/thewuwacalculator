@@ -5,9 +5,9 @@
                secondary stats, and sampled substats.
 */
 
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS, ECHO_SUBSTAT_KEYS } from '@/data/gameData/catalog/echoStats'
-import type { OptimizerStatWeightMap } from '@/engine/optimizer/search/filtering.ts'
-import { getRandomSubstat, randomSubValue } from './substats'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS, SUBSTAT_KEYS } from '@/data/gameData/catalog/echoStats'
+import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
+import { getRandSbst, randSubVl } from './substats'
 
 // sentinel value meaning no concrete set is assigned yet
 // this stays out of the normal set-count evaluation range
@@ -19,24 +19,24 @@ export interface RandGenEcho {
   primaryKey: string
   primaryValue: number
   secondaryKey: string
-  secondaryValue: number
+  scndVl: number
   substats: Record<string, number>
   mainEcho: boolean
 }
 
 // build one randomized echo loadout for a fixed main-stat combination
-export function buildEchoSetForCombination(params: {
+export function mkEchoSetFor(params: {
   combination: string[]
   costPlan: number[]
   bias: number
   rollQuality: number
-  statWeight: OptimizerStatWeightMap
+  statWeight: OptStatWeight
 }): RandGenEcho[] {
   const { combination, costPlan, bias, rollQuality, statWeight } = params
   const echoes: RandGenEcho[] = []
 
   const maxSubs = 5
-  const allSubKeys = ECHO_SUBSTAT_KEYS.length
+  const allSubKeys = SUBSTAT_KEYS.length
 
   // walk slot by slot and construct each randomized echo
   for (let i = 0; i < costPlan.length; i++) {
@@ -44,10 +44,10 @@ export function buildEchoSetForCombination(params: {
     const primaryKey = combination[i]
 
     // resolve the chosen primary main stat value from the cost tier table
-    const primaryValue = ECHO_PRIMARY_STATS[cost]?.[primaryKey] ?? 0
+    const primaryValue = ECHO_MAIN_STATS[cost]?.[primaryKey] ?? 0
 
     // resolve the fixed secondary stat for this cost tier
-    const secondary = ECHO_SECONDARY_STATS[cost]
+    const secondary = ECHO_SIDE_STATS[cost]
 
     const substats: Record<string, number> = {}
 
@@ -57,11 +57,11 @@ export function buildEchoSetForCombination(params: {
         Object.keys(substats).length < maxSubs &&
         Object.keys(substats).length < allSubKeys
         ) {
-      const key = getRandomSubstat(bias, false, statWeight)
+      const key = getRandSbst(bias, false, statWeight)
 
       // only keep the first roll for each substat key
       if (!substats[key]) {
-        substats[key] = randomSubValue(key, rollQuality)
+        substats[key] = randSubVl(key, rollQuality)
       }
     }
 
@@ -71,7 +71,7 @@ export function buildEchoSetForCombination(params: {
       primaryKey,
       primaryValue,
       secondaryKey: secondary?.key ?? 'atkFlat',
-      secondaryValue: secondary?.value ?? 0,
+      scndVl: secondary?.value ?? 0,
       substats,
       mainEcho: i === 0,
     })

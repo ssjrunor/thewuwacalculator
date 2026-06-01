@@ -7,46 +7,49 @@
 
 /// <reference lib="webworker" />
 
-import { initializeGameData } from '@/data/gameData'
+import { initGameData } from '@/data/gameData'
 import type {
-  SuggestionsWorkerDoneMessage,
-  SuggestionsWorkerErrorMessage,
-  SuggestionsWorkerInMessage,
+  SuggsWrkrDon,
+  SuggsWrkrRrr,
+  SuggsWrkrInM,
 } from '@/engine/suggestions/types'
 
-let suggestionsCorePromise: Promise<typeof import('@/engine/suggestions/core')> | null = null
+let suggsCorePrm: Promise<typeof import('@/engine/suggestions/core')> | null = null
 
-function loadSuggestionsCore() {
-  if (!suggestionsCorePromise) {
-    suggestionsCorePromise = import('@/engine/suggestions/core')
+function loadSuggsCor() {
+  if (!suggsCorePrm) {
+    suggsCorePrm = import('@/engine/suggestions/core')
   }
 
-  return suggestionsCorePromise
+  return suggsCorePrm
 }
 
 // handle incoming worker jobs and route them to the correct suggestion runner
-self.onmessage = async (event: MessageEvent<SuggestionsWorkerInMessage>) => {
+self.onmessage = async (event: MessageEvent<SuggsWrkrInM>) => {
   const message = event.data
   const scope = self as DedicatedWorkerGlobalScope
 
   try {
-    await initializeGameData()
+    await initGameData()
     const {
-      runMainStatSuggestions,
-      runRandomGenerator,
-      runSetPlanSuggestions,
-    } = await loadSuggestionsCore()
+      runMainStats: mainRunner,
+      runRandGnrt: randRunner,
+      runSetPlanqc: setRunner,
+      runWpnSuggs: wpnRunner,
+    } = await loadSuggsCor()
 
     // pick the correct runner based on the message type
     const result =
         message.type === 'mainStats'
-            ? runMainStatSuggestions(message.payload)
+            ? mainRunner(message.payload)
             : message.type === 'setPlans'
-                ? runSetPlanSuggestions(message.payload)
-                : await runRandomGenerator(message.payload)
+                ? setRunner(message.payload)
+                : message.type === 'weapons'
+                    ? wpnRunner(message.payload)
+                    : await randRunner(message.payload)
 
     // send a success response back to the main thread
-    const response: SuggestionsWorkerDoneMessage = {
+    const response: SuggsWrkrDon = {
       id: message.id,
       ok: true,
       result,
@@ -55,7 +58,7 @@ self.onmessage = async (event: MessageEvent<SuggestionsWorkerInMessage>) => {
     scope.postMessage(response)
   } catch (error) {
     // send a structured error response back to the main thread
-    const response: SuggestionsWorkerErrorMessage = {
+    const response: SuggsWrkrRrr = {
       id: message.id,
       ok: false,
       error: error instanceof Error ? error.message : 'Suggestions worker failed unexpectedly',

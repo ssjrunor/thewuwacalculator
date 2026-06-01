@@ -1,3 +1,6 @@
+// this kernel takes one workgroup-sized block of optimizer candidates and emits
+// the local top-k winners for that block so the cpu can merge them afterward.
+
 struct Candidate {
   // candidate score produced by the main optimizer shader
   damage: f32,

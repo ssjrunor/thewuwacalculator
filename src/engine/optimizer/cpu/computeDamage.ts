@@ -6,148 +6,148 @@
                stat extraction, and constraint filtering.
 */
 
-import type { OptimizerResultStats } from '@/engine/optimizer/types.ts'
-import { getNegativeEffectDefaultMax } from '@/domain/gameData/negativeEffects'
-import { getNegativeEffectBase } from '@/engine/formulas/negativeEffects.ts'
-import { getTuneRuptureLevelScale } from '@/engine/formulas/tuneRupture.ts'
-import { createCpuScratch, type CpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
-import { applySetEffectsEncoded } from '@/engine/optimizer/cpu/setEffects.ts'
-import { passesConstraints } from '@/engine/optimizer/constraints/statConstraints.ts'
+import type { OptResultStats } from '@/engine/optimizer/types.ts'
+import { getNegEffectDef } from '@/domain/gameData/negativeEffects'
+import { getNegBase } from '@/engine/formulas/negativeEffects.ts'
+import { getTuneLevel } from '@/engine/formulas/tuneRupture.ts'
+import { makeCpuScratch, type CpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
+import { applySetFfct } from '@/engine/optimizer/cpu/setEffects.ts'
+import { psssCstrs } from '@/engine/optimizer/constraints/statConstraints.ts'
 import {
-  OPTIMIZER_ARCHETYPE_AERO_EROSION,
-  OPTIMIZER_ARCHETYPE_DAMAGE,
-  OPTIMIZER_ARCHETYPE_ELECTRO_FLARE,
-  OPTIMIZER_ARCHETYPE_FUSION_BURST,
-  OPTIMIZER_ARCHETYPE_GLACIO_CHAFE,
-  OPTIMIZER_ARCHETYPE_HEALING,
-  OPTIMIZER_ARCHETYPE_SHIELD,
-  OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE,
-  OPTIMIZER_ARCHETYPE_TUNE_RUPTURE,
-  OPTIMIZER_ECHOS_PER_COMBO,
-  OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO,
-  OPTIMIZER_STATS_PER_ECHO,
-  OPTIMIZER_VEC_AMPLIFY,
-  OPTIMIZER_VEC_ATK_FLAT,
-  OPTIMIZER_VEC_ATK_PERCENT,
-  OPTIMIZER_VEC_CRIT_DMG,
-  OPTIMIZER_VEC_CRIT_RATE,
-  OPTIMIZER_VEC_DEF_FLAT,
-  OPTIMIZER_VEC_DEF_IGNORE,
-  OPTIMIZER_VEC_DEF_PERCENT,
-  OPTIMIZER_VEC_DEF_SHRED,
-  OPTIMIZER_VEC_DMG_BONUS,
-  OPTIMIZER_VEC_DMG_VULN,
-  OPTIMIZER_VEC_ENERGY_REGEN,
-  OPTIMIZER_VEC_FLAT_DMG,
-  OPTIMIZER_VEC_HEALING_BONUS,
-  OPTIMIZER_VEC_HP_FLAT,
-  OPTIMIZER_VEC_HP_PERCENT,
-  OPTIMIZER_VEC_RES_SHRED,
-  OPTIMIZER_VEC_SHIELD_BONUS,
-  OPTIMIZER_VEC_SPECIAL,
-  OPTIMIZER_VEC_TUNE_BREAK_BOOST,
+  ARCH_AERO,
+  ARCH_DAMAGE,
+  ARCH_ELECTRO,
+  ARCH_FUSION,
+  ARCH_GLACIO,
+  ARCH_HACK,
+  ARCH_HEAL,
+  ARCH_SHIELD,
+  ARCH_SPECTRO,
+  ARCH_TUNE,
+  ECHOES_PER_SET,
+  MAIN_BUFF_LEN,
+  STAT_STRIDE,
+  STAT_AMPLIFY,
+  STAT_ATK_FLAT,
+  STAT_ATK_PCT,
+  STAT_CRIT_DMG,
+  STAT_CRIT_RATE,
+  STAT_DEF_FLAT,
+  STAT_DEF_IGNORE,
+  STAT_DEF_PCT,
+  STAT_DEF_SHRED,
+  STAT_DMG_BONUS,
+  STAT_DMG_VULN,
+  STAT_ENERGY,
+  STAT_FLAT_DMG,
+  STAT_HEAL_BON,
+  STAT_HP_FLAT,
+  STAT_HP_PCT,
+  STAT_RES_SHRED,
+  STAT_SHIELD_BON,
+  STAT_SPECIAL,
+  STAT_TUNE_BREAK,
 } from '@/engine/optimizer/config/constants.ts'
 import {
-  PACKED_CONTEXT_STRIDE as OPTIMIZER_PACKED_CONTEXT_STRIDE,
-  CTX_ARCHETYPE as OPT_CTX_ARCHETYPE,
-  CTX_BASE_ATK as OPT_CTX_BASE_ATK,
-  CTX_BASE_DEF as OPT_CTX_BASE_DEF,
-  CTX_BASE_HP as OPT_CTX_BASE_HP,
-  CTX_COMBAT_AERO_EROSION as OPT_CTX_COMBAT_AERO_EROSION,
-  CTX_COMBAT_ELECTRO_FLARE as OPT_CTX_COMBAT_ELECTRO_FLARE,
-  CTX_COMBAT_GLACIO_CHAFE as OPT_CTX_COMBAT_GLACIO_CHAFE,
-  CTX_COMBAT_ELECTRO_RAGE as OPT_CTX_COMBAT_ELECTRO_RAGE,
-  CTX_COMBAT_FUSION_BURST as OPT_CTX_COMBAT_FUSION_BURST,
-  CTX_COMBAT_SPECTRO_FRAZZLE as OPT_CTX_COMBAT_SPECTRO_FRAZZLE,
-  CTX_ENEMY_BASE_RES as OPT_CTX_ENEMY_BASE_RES,
-  CTX_ENEMY_CLASS as OPT_CTX_ENEMY_CLASS,
-  CTX_ENEMY_LEVEL as OPT_CTX_ENEMY_LEVEL,
-  CTX_FIXED_DMG as OPT_CTX_FIXED_DMG,
+  PACKED_CTX_LEN as OPTPCKDCTXST,
+  CTX_ARCH as OPT_CTX_ARCH,
+  CTX_BASE_ATK as OPTCTXBASEbm,
+  CTX_BASE_DEF as OPTCTXBASED2,
+  CTX_BASE_HP as OPTCTXBASEna,
+  CTX_COMBAT_AERO as OPTCTXCMBTAE,
+  CTX_COMBAT_ELEC as OPTCTXCMBTLC,
+  CTX_COMBAT_GLAC as OPTCTXCMBTGL,
+  CTX_COMBAT_ERES as OPTCTXCMBTul,
+  CTX_COMBAT_FUS as OPTCTXCMBTFS,
+  CTX_COMBAT_SPEC as OPTCTXCMBTSP,
+  CTX_ENEMY_RES as OPTCTXENEMYB,
+  CTX_ENEMY_CLASS as OPTCTXENEMYC,
+  CTX_ENEMY_LVL as OPTCTXENEMYL,
+  CTX_FXD_DMG as OPTCTXFXDDMG,
   CTX_FLAT as OPT_CTX_FLAT,
-  CTX_HIT_COUNT as OPT_CTX_HIT_COUNT,
-  CTX_HIT_SCALE as OPT_CTX_HIT_SCALE,
-  CTX_LEVEL as OPT_CTX_LEVEL,
-  CTX_MULTIPLIER as OPT_CTX_MULTIPLIER,
-  CTX_NEGATIVE_EFFECT_CRIT_DMG as OPT_CTX_NEGATIVE_EFFECT_CRIT_DMG,
-  CTX_NEGATIVE_EFFECT_CRIT_RATE as OPT_CTX_NEGATIVE_EFFECT_CRIT_RATE,
-  CTX_NEGATIVE_EFFECT_FIXED_MV as OPT_CTX_NEGATIVE_EFFECT_FIXED_MV,
-  CTX_SCALING_ATK as OPT_CTX_SCALING_ATK,
-  CTX_SCALING_DEF as OPT_CTX_SCALING_DEF,
-  CTX_SCALING_ER as OPT_CTX_SCALING_ER,
-  CTX_SCALING_HP as OPT_CTX_SCALING_HP,
-  CTX_SKILL_HEALING_BONUS as OPT_CTX_SKILL_HEALING_BONUS,
-  CTX_SKILL_SHIELD_BONUS as OPT_CTX_SKILL_SHIELD_BONUS,
-  CTX_STATIC_AMPLIFY as OPT_CTX_STATIC_AMPLIFY,
-  CTX_STATIC_CRIT_DMG as OPT_CTX_STATIC_CRIT_DMG,
-  CTX_STATIC_CRIT_RATE as OPT_CTX_STATIC_CRIT_RATE,
-  CTX_STATIC_DEF_IGNORE as OPT_CTX_STATIC_DEF_IGNORE,
-  CTX_STATIC_DEF_SHRED as OPT_CTX_STATIC_DEF_SHRED,
-  CTX_STATIC_DMG_BONUS as OPT_CTX_STATIC_DMG_BONUS,
-  CTX_STATIC_DMG_VULN as OPT_CTX_STATIC_DMG_VULN,
-  CTX_STATIC_FINAL_ATK as OPT_CTX_STATIC_FINAL_ATK,
-  CTX_STATIC_FINAL_DEF as OPT_CTX_STATIC_FINAL_DEF,
-  CTX_STATIC_FINAL_ER as OPT_CTX_STATIC_FINAL_ER,
-  CTX_STATIC_FINAL_HP as OPT_CTX_STATIC_FINAL_HP,
-  CTX_STATIC_FLAT_DMG as OPT_CTX_STATIC_FLAT_DMG,
-  CTX_STATIC_HEALING_BONUS as OPT_CTX_STATIC_HEALING_BONUS,
-  CTX_NEGATIVE_EFFECT_MULTIPLIER as OPT_CTX_NEGATIVE_EFFECT_MULTIPLIER,
-  CTX_STATIC_RES_SHRED as OPT_CTX_STATIC_RES_SHRED,
-  CTX_STATIC_SHIELD_BONUS as OPT_CTX_STATIC_SHIELD_BONUS,
-  CTX_STATIC_SPECIAL as OPT_CTX_STATIC_SPECIAL,
-  CTX_STATIC_TUNE_BREAK_BOOST as OPT_CTX_STATIC_TUNE_BREAK_BOOST,
-  CTX_TUNE_RUPTURE_CRIT_DMG as OPT_CTX_TUNE_RUPTURE_CRIT_DMG,
-  CTX_TUNE_RUPTURE_CRIT_RATE as OPT_CTX_TUNE_RUPTURE_CRIT_RATE,
+  CTX_HIT_CNT as OPTCTXHITCNT,
+  CTX_HIT_SCL as OPTCTXHITSCL,
+  CTX_LEVEL as OPT_CTX_LVL,
+  CTX_MULT as OPT_CTX_MULT,
+  CTX_NEG_DMG as OPTCTXNEGFFC,
+  CTX_NEG_CRIT as OPT_NEG_CRIT,
+  CTX_NEG_FIXED as OPT_NEG_FIXED,
+  CTX_SCLN_ATK as OPTCTXSCLNdl,
+  CTX_SCLN_DEF as OPTCTXSCLND2,
+  CTX_SCALE_ER as OPT_SCALE_ER,
+  CTX_SCLN_HP as OPTCTXSCLNH2,
+  CTX_SKILL_HEAL as OPTCTXSKLLHL,
+  CTX_SKILL_SHLD as OPTCTXSKLLSH,
+  CTX_AMPLIFY as OPTCTXSTTCMP,
+  CTX_CRIT_DMG as OPTCTXSTTCCR,
+  CTX_CRIT_RATE as OPTCTXSTTCfh,
+  CTX_DEF_IGNORE as OPTCTXSTTCDE,
+  CTX_DEF_SHRED as OPTCTXSTTCww,
+  CTX_DMG_BONUS as OPTCTXSTTCDM,
+  CTX_DMG_VULN as OPTCTXSTTCtr,
+  CTX_FINAL_ATK as OPTCTXSTTCFN,
+  CTX_FINAL_DEF as OPTCTXSTTCgc,
+  CTX_FINAL_ER as OPTCTXSTTCvj,
+  CTX_FINAL_HP as OPTCTXSTTCF2,
+  CTX_FLAT_DMG as OPTCTXSTTCFL,
+  CTX_HEAL_BONUS as OPTCTXSTTCHL,
+  CTX_NEG_MULT as OPTCTXNEGFvl,
+  CTX_RES_SHRED as OPTCTXSTTCRE,
+  CTX_SHLD_BONUS as OPTCTXSTTCSH,
+  CTX_SPECIAL as OPTCTXSTTCSP,
+  CTX_TUNE_BREAK as OPTCTXSTTCTU,
+  CTX_TUNE_BOOST as OPTCTXTUNERP,
+  CTX_TUNE_CRIT as OPTCTXTUNErf,
 } from '@/engine/optimizer/context/vector.ts'
-import { SET_LUT_SIZE as SET_CONST_LUT_SIZE } from '@/engine/optimizer/encode/layout.ts'
 
-export interface ComboDamageResult {
+export interface CmbDmgRslt {
   damage: number
-  stats: OptimizerResultStats
+  stats: OptResultStats
   mainIndex: number
 }
 
 // convert raw enemy resistance percent into the actual damage multiplier
-function resistanceMultiplier(enemyResPercent: number): number {
-  if (enemyResPercent < 0) return 1 - enemyResPercent / 200
-  if (enemyResPercent < 75) return 1 - enemyResPercent / 100
-  return 1 / (1 + 5 * (enemyResPercent / 100))
+function resistMult(enemyResPct: number): number {
+  if (enemyResPct < 0) return 1 - enemyResPct / 200
+  if (enemyResPct < 75) return 1 - enemyResPct / 100
+  return 1 / (1 + 5 * (enemyResPct / 100))
 }
 
 // compute defense multiplier after def ignore and def shred are applied
-function defenseMultiplier(characterLevel: number, enemyLevel: number, defIgnore: number, defShred: number): number {
+function defenseMult(charLvl: number, enemyLevel: number, defIgnore: number, defShred: number): number {
   const enemyDefense = ((8 * enemyLevel) + 792) * (1 - (defIgnore + defShred) / 100)
-  return (800 + 8 * characterLevel) / (800 + 8 * characterLevel + Math.max(0, enemyDefense))
+  return (800 + 8 * charLvl) / (800 + 8 * charLvl + Math.max(0, enemyDefense))
 }
 
 // tune rupture uses enemy class scaling on top of normal multipliers
-function classMultiplier(enemyClass: number): number {
+function classMult(enemyClass: number): number {
   if (enemyClass === 3 || enemyClass === 4) return 14
   if (enemyClass === 2) return 3
   return 1
 }
 
 // compute resistance multiplier from packed base res + combo-added res shred
-function computePackedResMultiplier(enemyBaseRes: number, resShred: number): number {
+function calcPackedRes(enemyBaseRes: number, resShred: number): number {
   return enemyBaseRes === 100
       ? 0
-      : resistanceMultiplier(enemyBaseRes - resShred)
+      : resistMult(enemyBaseRes - resShred)
 }
 
 // build per-combo set counts while avoiding duplicate kind contributions
 // inside the same set. touched ids are tracked so clearing is cheap later.
-function buildComboSetState(
+function makeComboSets(
     scratch: CpuScratch,
     sets: Uint8Array,
     kinds: Uint16Array,
     comboIds: Int32Array,
 ): number {
   const setCounts = scratch.setCounts
-  const touchedSetIds = scratch.touchedSetIds
-  touchedSetIds.fill(0)
+  const tchdSetIds = scratch.tchdSetIds
+  tchdSetIds.fill(0)
 
-  let touchedSetCount = 0
+  let tchdSetCnt = 0
 
-  for (let index = 0; index < OPTIMIZER_ECHOS_PER_COMBO; index += 1) {
+  for (let index = 0; index < ECHOES_PER_SET; index += 1) {
     const echoIndex = comboIds[index]
     const setId = sets[echoIndex]
     const kindId = kinds[echoIndex]
@@ -158,186 +158,174 @@ function buildComboSetState(
     }
 
     // only count a set/kind pair once within the same combo
-    let isDuplicateKind = false
+    let isDplcKind = false
     for (let previous = 0; previous < index; previous += 1) {
-      const prevEchoIndex = comboIds[previous]
-      if (sets[prevEchoIndex] === setId && kinds[prevEchoIndex] === kindId) {
-        isDuplicateKind = true
+      const prevEchoNdx = comboIds[previous]
+      if (sets[prevEchoNdx] === setId && kinds[prevEchoNdx] === kindId) {
+        isDplcKind = true
         break
       }
     }
-    if (isDuplicateKind) {
+    if (isDplcKind) {
       continue
     }
 
     // first time this set appears in the combo, record it so we can clear later
     if (setCounts[setId] === 0) {
-      touchedSetIds[touchedSetCount] = setId
-      touchedSetCount += 1
+      tchdSetIds[tchdSetCnt] = setId
+      tchdSetCnt += 1
     }
 
     setCounts[setId] += 1
   }
 
-  return touchedSetCount
+  return tchdSetCnt
 }
 
 // reset only the set counters that were touched by the current combo
-function clearComboSetState(scratch: CpuScratch, touchedSetCount: number): void {
-  for (let index = 0; index < touchedSetCount; index += 1) {
-    scratch.setCounts[scratch.touchedSetIds[index]] = 0
+function clrCmbSetStt(scratch: CpuScratch, tchdSetCnt: number): void {
+  for (let index = 0; index < tchdSetCnt; index += 1) {
+    scratch.setCounts[scratch.tchdSetIds[index]] = 0
   }
 }
 
 // build the combo's base stat vector from raw encoded echoes, then apply set effects
-function buildBaseComboVector(
+function mkBaseCmbVct(
     scratch: CpuScratch,
     stats: Float32Array,
     setConstLut: Float32Array,
     comboIds: Int32Array,
-    touchedSetCount: number,
+    tchdSetCnt: number,
 ): Float32Array {
-  const comboVector = scratch.baseComboVector
+  const comboVector = scratch.baseCmbVctr
   comboVector.fill(0)
 
   // sum all encoded stats from the 5 chosen echoes
-  for (let index = 0; index < OPTIMIZER_ECHOS_PER_COMBO; index += 1) {
+  for (let index = 0; index < ECHOES_PER_SET; index += 1) {
     const echoIndex = comboIds[index]
-    const statsBase = echoIndex * OPTIMIZER_STATS_PER_ECHO
+    const statsBase = echoIndex * STAT_STRIDE
 
-    for (let offset = 0; offset < OPTIMIZER_STATS_PER_ECHO; offset += 1) {
+    for (let offset = 0; offset < STAT_STRIDE; offset += 1) {
       comboVector[offset] += stats[statsBase + offset]
     }
   }
 
   // inject 2pc / 5pc style encoded set effects into the summed vector
-  applySetEffectsEncoded(comboVector, scratch.setCounts, scratch.touchedSetIds, touchedSetCount, setConstLut)
+  applySetFfct(comboVector, scratch.setCounts, scratch.tchdSetIds, tchdSetCnt, setConstLut)
 
   return comboVector
 }
 
 // derive the per-main version of the combo vector by adding the chosen main echo buffs
-function buildMainComboVector(
+function mkMainCmbVct(
     scratch: CpuScratch,
     baseVector: Float32Array,
     mainEchoBuffs: Float32Array,
-    mainEchoIndex: number,
+    mainEchoNdx: number,
 ): Float32Array {
   const comboVector = scratch.comboVector
   comboVector.set(baseVector)
 
-  const mainBase = mainEchoIndex * OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO
-  for (let offset = 0; offset < OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO; offset += 1) {
+  const mainBase = mainEchoNdx * MAIN_BUFF_LEN
+  for (let offset = 0; offset < MAIN_BUFF_LEN; offset += 1) {
     comboVector[offset] += mainEchoBuffs[mainBase + offset]
   }
 
   return comboVector
 }
 
-// quick check used in rotation mode so we can skip constraint work entirely
-// when every constraint range is effectively disabled
-function areConstraintsDisabled(constraints: Float32Array): boolean {
-  for (let index = 0; index < constraints.length; index += 2) {
-    if ((constraints[index] ?? 0) <= (constraints[index + 1] ?? 0)) {
-      return false
-    }
-  }
-
-  return true
-}
-
 // materialize visible summary stats from a packed context + resolved combo vector
-function fillResultStats(
-    out: OptimizerResultStats,
+function fillRsltStts(
+    out: OptResultStats,
     context: Float32Array,
     contextOffset: number,
     comboVector: Float32Array,
 ): void {
   out.atk =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_ATK] +
-      (context[contextOffset + OPT_CTX_BASE_ATK] * comboVector[OPTIMIZER_VEC_ATK_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_ATK_FLAT]
+      context[contextOffset + OPTCTXSTTCFN] +
+      (context[contextOffset + OPTCTXBASEbm] * comboVector[STAT_ATK_PCT] / 100) +
+      comboVector[STAT_ATK_FLAT]
 
   out.hp =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_HP] +
-      (context[contextOffset + OPT_CTX_BASE_HP] * comboVector[OPTIMIZER_VEC_HP_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_HP_FLAT]
+      context[contextOffset + OPTCTXSTTCF2] +
+      (context[contextOffset + OPTCTXBASEna] * comboVector[STAT_HP_PCT] / 100) +
+      comboVector[STAT_HP_FLAT]
 
   out.def =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_DEF] +
-      (context[contextOffset + OPT_CTX_BASE_DEF] * comboVector[OPTIMIZER_VEC_DEF_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_DEF_FLAT]
+      context[contextOffset + OPTCTXSTTCgc] +
+      (context[contextOffset + OPTCTXBASED2] * comboVector[STAT_DEF_PCT] / 100) +
+      comboVector[STAT_DEF_FLAT]
 
-  out.er = context[contextOffset + OPT_CTX_STATIC_FINAL_ER] + comboVector[OPTIMIZER_VEC_ENERGY_REGEN]
-  out.cr = context[contextOffset + OPT_CTX_STATIC_CRIT_RATE] + comboVector[OPTIMIZER_VEC_CRIT_RATE]
-  out.cd = context[contextOffset + OPT_CTX_STATIC_CRIT_DMG] + comboVector[OPTIMIZER_VEC_CRIT_DMG]
-  out.bonus = context[contextOffset + OPT_CTX_STATIC_DMG_BONUS] + comboVector[OPTIMIZER_VEC_DMG_BONUS]
-  out.amp = context[contextOffset + OPT_CTX_STATIC_AMPLIFY] + comboVector[OPTIMIZER_VEC_AMPLIFY]
+  out.er = context[contextOffset + OPTCTXSTTCvj] + comboVector[STAT_ENERGY]
+  out.cr = context[contextOffset + OPTCTXSTTCfh] + comboVector[STAT_CRIT_RATE]
+  out.cd = context[contextOffset + OPTCTXSTTCCR] + comboVector[STAT_CRIT_DMG]
+  out.bonus = context[contextOffset + OPTCTXSTTCDM] + comboVector[STAT_DMG_BONUS]
+  out.amp = context[contextOffset + OPTCTXSTTCMP] + comboVector[STAT_AMPLIFY]
 }
 
 // evaluate one packed context against one resolved combo vector
 // this is the core cpu-side damage evaluator.
-function evaluatePackedContextDamage(
+function evalPckdCtxD(
     context: Float32Array,
     contextOffset: number,
     comboVector: Float32Array,
 ): number {
   const finalAtk =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_ATK] +
-      (context[contextOffset + OPT_CTX_BASE_ATK] * comboVector[OPTIMIZER_VEC_ATK_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_ATK_FLAT]
+      context[contextOffset + OPTCTXSTTCFN] +
+      (context[contextOffset + OPTCTXBASEbm] * comboVector[STAT_ATK_PCT] / 100) +
+      comboVector[STAT_ATK_FLAT]
 
   const finalHp =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_HP] +
-      (context[contextOffset + OPT_CTX_BASE_HP] * comboVector[OPTIMIZER_VEC_HP_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_HP_FLAT]
+      context[contextOffset + OPTCTXSTTCF2] +
+      (context[contextOffset + OPTCTXBASEna] * comboVector[STAT_HP_PCT] / 100) +
+      comboVector[STAT_HP_FLAT]
 
   const finalDef =
-      context[contextOffset + OPT_CTX_STATIC_FINAL_DEF] +
-      (context[contextOffset + OPT_CTX_BASE_DEF] * comboVector[OPTIMIZER_VEC_DEF_PERCENT] / 100) +
-      comboVector[OPTIMIZER_VEC_DEF_FLAT]
+      context[contextOffset + OPTCTXSTTCgc] +
+      (context[contextOffset + OPTCTXBASED2] * comboVector[STAT_DEF_PCT] / 100) +
+      comboVector[STAT_DEF_FLAT]
 
-  const finalER = context[contextOffset + OPT_CTX_STATIC_FINAL_ER] + comboVector[OPTIMIZER_VEC_ENERGY_REGEN]
+  const finalER = context[contextOffset + OPTCTXSTTCvj] + comboVector[STAT_ENERGY]
 
-  const critRatePct = context[contextOffset + OPT_CTX_STATIC_CRIT_RATE] + comboVector[OPTIMIZER_VEC_CRIT_RATE]
-  const critDmgPct = context[contextOffset + OPT_CTX_STATIC_CRIT_DMG] + comboVector[OPTIMIZER_VEC_CRIT_DMG]
+  const critRatePct = context[contextOffset + OPTCTXSTTCfh] + comboVector[STAT_CRIT_RATE]
+  const critDmgPct = context[contextOffset + OPTCTXSTTCCR] + comboVector[STAT_CRIT_DMG]
 
-  const healingBonusPct =
-      context[contextOffset + OPT_CTX_STATIC_HEALING_BONUS] +
-      comboVector[OPTIMIZER_VEC_HEALING_BONUS] +
-      context[contextOffset + OPT_CTX_SKILL_HEALING_BONUS]
+  const hlngBnsPct =
+      context[contextOffset + OPTCTXSTTCHL] +
+      comboVector[STAT_HEAL_BON] +
+      context[contextOffset + OPTCTXSKLLHL]
 
-  const shieldBonusPct =
-      context[contextOffset + OPT_CTX_STATIC_SHIELD_BONUS] +
-      comboVector[OPTIMIZER_VEC_SHIELD_BONUS] +
-      context[contextOffset + OPT_CTX_SKILL_SHIELD_BONUS]
+  const shldBnsPct =
+      context[contextOffset + OPTCTXSTTCSH] +
+      comboVector[STAT_SHIELD_BON] +
+      context[contextOffset + OPTCTXSKLLSH]
 
-  const damageBonusPct = context[contextOffset + OPT_CTX_STATIC_DMG_BONUS] + comboVector[OPTIMIZER_VEC_DMG_BONUS]
-  const amplifyPct = context[contextOffset + OPT_CTX_STATIC_AMPLIFY] + comboVector[OPTIMIZER_VEC_AMPLIFY]
-  const specialPct = context[contextOffset + OPT_CTX_STATIC_SPECIAL] + comboVector[OPTIMIZER_VEC_SPECIAL]
+  const dmgBnsPct = context[contextOffset + OPTCTXSTTCDM] + comboVector[STAT_DMG_BONUS]
+  const amplifyPct = context[contextOffset + OPTCTXSTTCMP] + comboVector[STAT_AMPLIFY]
+  const specialPct = context[contextOffset + OPTCTXSTTCSP] + comboVector[STAT_SPECIAL]
 
   const flatDmg =
-      context[contextOffset + OPT_CTX_STATIC_FLAT_DMG] +
-      comboVector[OPTIMIZER_VEC_FLAT_DMG] +
+      context[contextOffset + OPTCTXSTTCFL] +
+      comboVector[STAT_FLAT_DMG] +
       context[contextOffset + OPT_CTX_FLAT]
 
-  const resShred = context[contextOffset + OPT_CTX_STATIC_RES_SHRED] + comboVector[OPTIMIZER_VEC_RES_SHRED]
-  const defIgnore = context[contextOffset + OPT_CTX_STATIC_DEF_IGNORE] + comboVector[OPTIMIZER_VEC_DEF_IGNORE]
-  const defShred = context[contextOffset + OPT_CTX_STATIC_DEF_SHRED] + comboVector[OPTIMIZER_VEC_DEF_SHRED]
-  const dmgVulnPct = context[contextOffset + OPT_CTX_STATIC_DMG_VULN] + comboVector[OPTIMIZER_VEC_DMG_VULN]
+  const resShred = context[contextOffset + OPTCTXSTTCRE] + comboVector[STAT_RES_SHRED]
+  const defIgnore = context[contextOffset + OPTCTXSTTCDE] + comboVector[STAT_DEF_IGNORE]
+  const defShred = context[contextOffset + OPTCTXSTTCww] + comboVector[STAT_DEF_SHRED]
+  const dmgVulnPct = context[contextOffset + OPTCTXSTTCtr] + comboVector[STAT_DMG_VULN]
 
-  const negativeEffectMultiplier =
-      context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_MULTIPLIER]
+  const negFfctMltp =
+      context[contextOffset + OPTCTXNEGFvl]
 
-  const tuneBreakBoostPct =
-      context[contextOffset + OPT_CTX_STATIC_TUNE_BREAK_BOOST] +
-      comboVector[OPTIMIZER_VEC_TUNE_BREAK_BOOST]
+  const tuneBrkBstPc =
+      context[contextOffset + OPTCTXSTTCTU] +
+      comboVector[STAT_TUNE_BREAK]
 
-  const resMult = computePackedResMultiplier(context[contextOffset + OPT_CTX_ENEMY_BASE_RES], resShred)
+  const resMult = calcPackedRes(context[contextOffset + OPTCTXENEMYB], resShred)
 
-  const defMult = defenseMultiplier(
-      context[contextOffset + OPT_CTX_LEVEL],
-      context[contextOffset + OPT_CTX_ENEMY_LEVEL],
+  const defMult = defenseMult(
+      context[contextOffset + OPT_CTX_LVL],
+      context[contextOffset + OPTCTXENEMYL],
       defIgnore,
       defShred,
   )
@@ -347,102 +335,121 @@ function evaluatePackedContextDamage(
 
   // generic stat-scaling term shared by most archetypes
   const scaledValue =
-      finalAtk * context[contextOffset + OPT_CTX_SCALING_ATK] +
-      finalHp * context[contextOffset + OPT_CTX_SCALING_HP] +
-      finalDef * context[contextOffset + OPT_CTX_SCALING_DEF] +
-      finalER * context[contextOffset + OPT_CTX_SCALING_ER]
+      finalAtk * context[contextOffset + OPTCTXSCLNdl] +
+      finalHp * context[contextOffset + OPTCTXSCLNH2] +
+      finalDef * context[contextOffset + OPTCTXSCLND2] +
+      finalER * context[contextOffset + OPT_SCALE_ER]
 
-  switch (context[contextOffset + OPT_CTX_ARCHETYPE]) {
-    case OPTIMIZER_ARCHETYPE_HEALING: {
+  switch (context[contextOffset + OPT_CTX_ARCH]) {
+    case ARCH_HEAL: {
       const total =
-          ((scaledValue * context[contextOffset + OPT_CTX_MULTIPLIER]) + flatDmg) *
-          (1 + healingBonusPct / 100)
+          ((scaledValue * context[contextOffset + OPT_CTX_MULT]) + flatDmg) *
+          (1 + hlngBnsPct / 100)
 
       return Math.max(1, Math.floor(total))
     }
 
-    case OPTIMIZER_ARCHETYPE_SHIELD: {
+    case ARCH_SHIELD: {
       const total =
-          ((scaledValue * context[contextOffset + OPT_CTX_MULTIPLIER]) + flatDmg) *
-          (1 + shieldBonusPct / 100)
+          ((scaledValue * context[contextOffset + OPT_CTX_MULT]) + flatDmg) *
+          (1 + shldBnsPct / 100)
 
       return Math.max(1, Math.floor(total))
     }
 
-    case OPTIMIZER_ARCHETYPE_TUNE_RUPTURE: {
+    case ARCH_TUNE: {
       const normal =
-          context[contextOffset + OPT_CTX_HIT_SCALE] *
-          getTuneRuptureLevelScale(context[contextOffset + OPT_CTX_LEVEL]) *
-          classMultiplier(context[contextOffset + OPT_CTX_ENEMY_CLASS]) *
+          context[contextOffset + OPTCTXHITSCL] *
+          getTuneLevel(context[contextOffset + OPT_CTX_LVL]) *
+          classMult(context[contextOffset + OPTCTXENEMYC]) *
           resMult *
           defMult *
           (1 + dmgVulnPct / 100) *
-          (1 + damageBonusPct / 100) *
+          (1 + dmgBnsPct / 100) *
           (1 + amplifyPct / 100) *
-          (1 + tuneBreakBoostPct / 100)
+          (1 + tuneBrkBstPc / 100)
 
-      const crit = normal * context[contextOffset + OPT_CTX_TUNE_RUPTURE_CRIT_DMG]
+      const crit = normal * context[contextOffset + OPTCTXTUNERP]
 
-      return context[contextOffset + OPT_CTX_TUNE_RUPTURE_CRIT_RATE] >= 1
+      return context[contextOffset + OPTCTXTUNErf] >= 1
           ? crit
-          : (crit * context[contextOffset + OPT_CTX_TUNE_RUPTURE_CRIT_RATE]) +
-          (normal * (1 - context[contextOffset + OPT_CTX_TUNE_RUPTURE_CRIT_RATE]))
+          : (crit * context[contextOffset + OPTCTXTUNErf]) +
+          (normal * (1 - context[contextOffset + OPTCTXTUNErf]))
     }
 
-    case OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE:
-    case OPTIMIZER_ARCHETYPE_AERO_EROSION:
-    case OPTIMIZER_ARCHETYPE_FUSION_BURST:
-    case OPTIMIZER_ARCHETYPE_GLACIO_CHAFE:
-    case OPTIMIZER_ARCHETYPE_ELECTRO_FLARE: {
-      const archetype = context[contextOffset + OPT_CTX_ARCHETYPE]
+    case ARCH_HACK: {
+      const normal =
+          context[contextOffset + OPTCTXHITSCL] *
+          getTuneLevel(context[contextOffset + OPT_CTX_LVL]) *
+          classMult(context[contextOffset + OPTCTXENEMYC]) *
+          resMult *
+          defMult *
+          (1 + dmgVulnPct / 100) *
+          (1 + dmgBnsPct / 100) *
+          (1 + amplifyPct / 100)
 
-      const primaryStacks =
-          archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
-              ? context[contextOffset + OPT_CTX_COMBAT_SPECTRO_FRAZZLE]
-              : archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
-                  ? context[contextOffset + OPT_CTX_COMBAT_AERO_EROSION]
-                  : archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
-                      ? context[contextOffset + OPT_CTX_COMBAT_FUSION_BURST]
-                      : archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
-                          ? context[contextOffset + OPT_CTX_COMBAT_GLACIO_CHAFE]
-                      : context[contextOffset + OPT_CTX_COMBAT_ELECTRO_FLARE]
-      const extraElectroRageStacks =
-          archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-              && primaryStacks > getNegativeEffectDefaultMax('electroFlare')
-              ? context[contextOffset + OPT_CTX_COMBAT_ELECTRO_RAGE]
+      const crit = normal * context[contextOffset + OPTCTXTUNERP]
+
+      return context[contextOffset + OPTCTXTUNErf] >= 1
+          ? crit
+          : (crit * context[contextOffset + OPTCTXTUNErf]) +
+          (normal * (1 - context[contextOffset + OPTCTXTUNErf]))
+    }
+
+    case ARCH_SPECTRO:
+    case ARCH_AERO:
+    case ARCH_FUSION:
+    case ARCH_GLACIO:
+    case ARCH_ELECTRO: {
+      const archetype = context[contextOffset + OPT_CTX_ARCH]
+
+      const prmrStck =
+          archetype === ARCH_SPECTRO
+              ? context[contextOffset + OPTCTXCMBTSP]
+              : archetype === ARCH_AERO
+                  ? context[contextOffset + OPTCTXCMBTAE]
+                  : archetype === ARCH_FUSION
+                      ? context[contextOffset + OPTCTXCMBTFS]
+                      : archetype === ARCH_GLACIO
+                          ? context[contextOffset + OPTCTXCMBTGL]
+                      : context[contextOffset + OPTCTXCMBTLC]
+      const xtrLctrRageS =
+          archetype === ARCH_ELECTRO
+              && prmrStck > getNegEffectDef('electroFlare')
+              ? context[contextOffset + OPTCTXCMBTul]
               : 0
 
-      if (primaryStacks <= 0 && extraElectroRageStacks <= 0) {
+      if (prmrStck <= 0 && xtrLctrRageS <= 0) {
         return 0
       }
 
       const perStackBase =
-          getNegativeEffectBase(
-          archetype === OPTIMIZER_ARCHETYPE_SPECTRO_FRAZZLE
+          getNegBase(
+          archetype === ARCH_SPECTRO
               ? 'spectroFrazzle'
-              : archetype === OPTIMIZER_ARCHETYPE_AERO_EROSION
+              : archetype === ARCH_AERO
                   ? 'aeroErosion'
-                  : archetype === OPTIMIZER_ARCHETYPE_FUSION_BURST
+                  : archetype === ARCH_FUSION
                       ? 'fusionBurst'
-                      : archetype === OPTIMIZER_ARCHETYPE_GLACIO_CHAFE
+                      : archetype === ARCH_GLACIO
                           ? 'glacioChafe'
                       : 'electroFlare',
-          context[contextOffset + OPT_CTX_LEVEL],
-          primaryStacks,
+          context[contextOffset + OPT_CTX_LVL],
+          prmrStck,
           {
-            fixedMv: context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV] > 0
-              ? context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV]
+            fixedMv: context[contextOffset + OPT_NEG_FIXED] > 0
+              ? context[contextOffset + OPT_NEG_FIXED]
               : undefined,
           },
       ) + (
-            archetype === OPTIMIZER_ARCHETYPE_ELECTRO_FLARE
-                ? getNegativeEffectBase(
+            archetype === ARCH_ELECTRO
+                ? getNegBase(
                   'electroFlare',
-                  context[contextOffset + OPT_CTX_LEVEL],
-                  extraElectroRageStacks,
+                  context[contextOffset + OPT_CTX_LVL],
+                  xtrLctrRageS,
                   {
-                    fixedMv: context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV] > 0
-                      ? context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_FIXED_MV]
+                    fixedMv: context[contextOffset + OPT_NEG_FIXED] > 0
+                      ? context[contextOffset + OPT_NEG_FIXED]
                       : undefined,
                   },
                 )
@@ -451,38 +458,38 @@ function evaluatePackedContextDamage(
 
       const normal = Math.floor(
           perStackBase *
-          context[contextOffset + OPT_CTX_HIT_SCALE] *
-          (1 + negativeEffectMultiplier) *
+          context[contextOffset + OPTCTXHITSCL] *
+          (1 + negFfctMltp) *
           (1 + amplifyPct / 100) *
-          (1 + damageBonusPct / 100) *
+          (1 + dmgBnsPct / 100) *
           (1 + specialPct / 100) *
           resMult *
           defMult *
           (1 + dmgVulnPct / 100),
       )
 
-      const crit = normal * context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_CRIT_DMG]
+      const crit = normal * context[contextOffset + OPTCTXNEGFFC]
 
-      return context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_CRIT_RATE] >= 1
+      return context[contextOffset + OPT_NEG_CRIT] >= 1
           ? crit
-          : (crit * context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_CRIT_RATE]) +
-          (normal * (1 - context[contextOffset + OPT_CTX_NEGATIVE_EFFECT_CRIT_RATE]))
+          : (crit * context[contextOffset + OPT_NEG_CRIT]) +
+          (normal * (1 - context[contextOffset + OPT_NEG_CRIT]))
     }
 
-    case OPTIMIZER_ARCHETYPE_DAMAGE:
+    case ARCH_DAMAGE:
     default: {
       // fixed damage ignores normal stat-scaling and crit calculations
-      if (context[contextOffset + OPT_CTX_FIXED_DMG] > 0) {
-        return Math.max(1, Math.floor(context[contextOffset + OPT_CTX_FIXED_DMG]))
+      if (context[contextOffset + OPTCTXFXDDMG] > 0) {
+        return Math.max(1, Math.floor(context[contextOffset + OPTCTXFXDDMG]))
       }
 
       const normal =
-          (scaledValue * context[contextOffset + OPT_CTX_MULTIPLIER] +
-              flatDmg * context[contextOffset + OPT_CTX_HIT_COUNT]) *
+          (scaledValue * context[contextOffset + OPT_CTX_MULT] +
+              flatDmg * context[contextOffset + OPTCTXHITCNT]) *
           resMult *
           defMult *
           (1 + dmgVulnPct / 100) *
-          (1 + damageBonusPct / 100) *
+          (1 + dmgBnsPct / 100) *
           (1 + amplifyPct / 100) *
           (1 + specialPct / 100)
 
@@ -493,13 +500,13 @@ function evaluatePackedContextDamage(
 }
 
 // create scratch state once and reuse it across combo evaluations
-export function createComboDamageScratch(): CpuScratch {
-  return createCpuScratch()
+export function mkCmbDmgScrt(): CpuScratch {
+  return makeCpuScratch()
 }
 
 // evaluate one target-skill combo across every possible main echo in that combo
 // and return the best passing result.
-export function evaluateTargetSkillCombo(options: {
+export function evalTgtSkllC(options: {
   context: Float32Array
   stats: Float32Array
   sets: Uint8Array
@@ -508,45 +515,45 @@ export function evaluateTargetSkillCombo(options: {
   mainEchoBuffs: Float32Array
   constraints: Float32Array
   comboIds: Int32Array
-  lockedMainIndex: number
+  lockMainIdx: number
   scratch: CpuScratch
-}): ComboDamageResult | null {
+}): CmbDmgRslt | null {
   const {
     context,
     stats,
     sets,
     kinds,
     setConstLut,
-    mainEchoBuffs,
+    mainEchoBuffs: mainEchoBuffs,
     constraints,
     comboIds,
-    lockedMainIndex,
+    lockMainIdx: lockMainNdx,
     scratch,
   } = options
 
-  const touchedSetCount = buildComboSetState(scratch, sets, kinds, comboIds)
-  const baseVector = buildBaseComboVector(scratch, stats, setConstLut, comboIds, touchedSetCount)
+  const tchdSetCnt = makeComboSets(scratch, sets, kinds, comboIds)
+  const baseVector = mkBaseCmbVct(scratch, stats, setConstLut, comboIds, tchdSetCnt)
 
   let bestDamage = 0
   let bestMainIndex = -1
-  let bestStats: OptimizerResultStats | null = null
+  let bestStats: OptResultStats | null = null
 
   for (let index = 0; index < comboIds.length; index += 1) {
     const mainIndex = comboIds[index]
 
     // when main is locked, only evaluate that one candidate
-    if (lockedMainIndex >= 0 && mainIndex !== lockedMainIndex) {
+    if (lockMainNdx >= 0 && mainIndex !== lockMainNdx) {
       continue
     }
 
-    const comboVector = buildMainComboVector(scratch, baseVector, mainEchoBuffs, mainIndex)
-    const damage = evaluatePackedContextDamage(context, 0, comboVector)
+    const comboVector = mkMainCmbVct(scratch, baseVector, mainEchoBuffs, mainIndex)
+    const damage = evalPckdCtxD(context, 0, comboVector)
 
     if (damage <= 0) {
       continue
     }
 
-    const resultStats: OptimizerResultStats = {
+    const resultStats: OptResultStats = {
       atk: 0,
       hp: 0,
       def: 0,
@@ -557,9 +564,9 @@ export function evaluateTargetSkillCombo(options: {
       amp: 0,
     }
 
-    fillResultStats(resultStats, context, 0, comboVector)
+    fillRsltStts(resultStats, context, 0, comboVector)
 
-    const passes = passesConstraints(
+    const passes = psssCstrs(
         constraints,
         resultStats.atk,
         resultStats.hp,
@@ -581,184 +588,11 @@ export function evaluateTargetSkillCombo(options: {
     bestStats = resultStats
   }
 
-  clearComboSetState(scratch, touchedSetCount)
+  clrCmbSetStt(scratch, tchdSetCnt)
 
   return bestStats && bestMainIndex >= 0
       ? { damage: bestDamage, stats: bestStats, mainIndex: bestMainIndex }
       : null
 }
 
-// evaluate one combo in rotation mode.
-// each packed context contributes weighted damage, then one display context
-// is used to derive visible stats for the chosen best main echo.
-export function evaluateRotationCombo(options: {
-  contextStride: number
-  contextCount: number
-  contexts: Float32Array
-  weights: Float32Array
-  statsByContext: Float32Array
-  setConstLutByContext: Float32Array
-  mainEchoBuffsByContext: Float32Array
-  displayContext: Float32Array
-  displayStats: Float32Array
-  displaySetConstLut: Float32Array
-  displayMainEchoBuffs: Float32Array
-  sets: Uint8Array
-  kinds: Uint16Array
-  constraints: Float32Array
-  comboIds: Int32Array
-  lockedMainIndex: number
-  scratch: CpuScratch
-}): ComboDamageResult | null {
-  const {
-    contextStride,
-    contextCount,
-    contexts,
-    weights,
-    statsByContext,
-    setConstLutByContext,
-    mainEchoBuffsByContext,
-    displayContext,
-    displayStats,
-    displaySetConstLut,
-    displayMainEchoBuffs,
-    sets,
-    kinds,
-    constraints,
-    comboIds,
-    lockedMainIndex,
-    scratch,
-  } = options
-
-  const touchedSetCount = buildComboSetState(scratch, sets, kinds, comboIds)
-
-  const perContextStatsStride = sets.length * OPTIMIZER_STATS_PER_ECHO
-  const perContextMainBuffStride = sets.length * OPTIMIZER_MAIN_ECHO_BUFFS_PER_ECHO
-  const perContextSetLutStride = SET_CONST_LUT_SIZE
-
-  const constraintsDisabled = areConstraintsDisabled(constraints)
-
-  // total damage accumulated for each possible main echo position in the combo
-  const totalDamageByMain = [0, 0, 0, 0, 0]
-
-  let bestDamage = 0
-  let bestMainIndex = -1
-  let bestStats: OptimizerResultStats | null = null
-
-  // first pass: accumulate weighted damage from every rotation context
-  for (let index = 0; index < contextCount; index += 1) {
-    const weight = weights[index] ?? 1
-    if (!weight) {
-      continue
-    }
-
-    const baseVector = buildBaseComboVector(
-        scratch,
-        statsByContext.subarray(index * perContextStatsStride, (index + 1) * perContextStatsStride),
-        setConstLutByContext.subarray(index * perContextSetLutStride, (index + 1) * perContextSetLutStride),
-        comboIds,
-        touchedSetCount,
-    )
-
-    const mainEchoBuffs = mainEchoBuffsByContext.subarray(
-        index * perContextMainBuffStride,
-        (index + 1) * perContextMainBuffStride,
-    )
-
-    for (let comboIndex = 0; comboIndex < comboIds.length; comboIndex += 1) {
-      const mainIndex = comboIds[comboIndex]
-
-      if (lockedMainIndex >= 0 && mainIndex !== lockedMainIndex) {
-        continue
-      }
-
-      const comboVector = buildMainComboVector(
-          scratch,
-          baseVector,
-          mainEchoBuffs,
-          mainIndex,
-      )
-
-      const damage = evaluatePackedContextDamage(contexts, index * contextStride, comboVector)
-
-      if (damage > 0) {
-        totalDamageByMain[comboIndex] += damage * weight
-      }
-    }
-  }
-
-  // second pass uses the display context only for visible stat extraction
-  const displayBaseVector = buildBaseComboVector(
-      scratch,
-      displayStats,
-      displaySetConstLut,
-      comboIds,
-      touchedSetCount,
-  )
-
-  for (let comboIndex = 0; comboIndex < comboIds.length; comboIndex += 1) {
-    const mainIndex = comboIds[comboIndex]
-
-    if (lockedMainIndex >= 0 && mainIndex !== lockedMainIndex) {
-      continue
-    }
-
-    const totalDamage = totalDamageByMain[comboIndex] ?? 0
-    if (totalDamage <= 0) {
-      continue
-    }
-
-    // fast path: when constraints are disabled, skip stat extraction for clearly worse results
-    if (constraintsDisabled && totalDamage <= bestDamage) {
-      continue
-    }
-
-    const displayVector = buildMainComboVector(scratch, displayBaseVector, displayMainEchoBuffs, mainIndex)
-
-    const resultStats: OptimizerResultStats = {
-      atk: 0,
-      hp: 0,
-      def: 0,
-      er: 0,
-      cr: 0,
-      cd: 0,
-      bonus: 0,
-      amp: 0,
-    }
-
-    fillResultStats(resultStats, displayContext, 0, displayVector)
-
-    if (totalDamage <= bestDamage) {
-      continue
-    }
-
-    if (
-        !constraintsDisabled &&
-        !passesConstraints(
-            constraints,
-            resultStats.atk,
-            resultStats.hp,
-            resultStats.def,
-            resultStats.cr,
-            resultStats.cd,
-            resultStats.er,
-            resultStats.bonus,
-            totalDamage,
-        )
-    ) {
-      continue
-    }
-
-    bestDamage = totalDamage
-    bestMainIndex = mainIndex
-    bestStats = resultStats
-  }
-
-  clearComboSetState(scratch, touchedSetCount)
-
-  return bestStats && bestMainIndex >= 0
-      ? { damage: bestDamage, stats: bestStats, mainIndex: bestMainIndex }
-      : null
-}
-
-export { OPTIMIZER_PACKED_CONTEXT_STRIDE }
+export { OPTPCKDCTXST as OPTIMIZER_PACKED_CONTEXT_STRIDE }

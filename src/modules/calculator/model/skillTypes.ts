@@ -7,8 +7,8 @@
 import type { SkillTypeKey } from '@/domain/entities/stats'
 
 // ui display metadata for known skill types
-// if a type is missing here, we fall back to a formatted text label
-export const skillTypeDisplayMap: Record<string, { icon?: string; label: string }> = {
+// if a type is missing here, we fall back to a formatted text desc
+export const skllTypeDspl: Record<string, { icon?: string; label: string }> = {
   all: { label: 'All Skill Types' },
   basicAtk: { icon: '/assets/stat-icons/basic.png', label: 'Basic Attack' },
   heavyAtk: { icon: '/assets/stat-icons/heavy.png', label: 'Heavy Attack' },
@@ -27,11 +27,12 @@ export const skillTypeDisplayMap: Record<string, { icon?: string; label: string 
   healing: { icon: '/assets/stat-icons/healing.png', label: 'Healing' },
   shield: { label: 'Shield' },
   tuneRupture: { label: 'Tune Rupture' },
+  hack: { label: 'Hack' },
 }
 
 // convert internal keys like "resonanceSkill" or "echo_skill"
-// into a readable title-cased label for fallback display
-export function formatSkillTypeLabel(skillType: string): string {
+// into a readable title-cased desc for fallback display
+export function fmtSkllTypeL(skillType: string): string {
   return skillType
       .replace(/([a-z])([A-Z])/g, '$1 $2')
       .replace(/[-_]+/g, ' ')
@@ -41,7 +42,7 @@ export function formatSkillTypeLabel(skillType: string): string {
 
 // when a skill has multiple types, the ui usually wants the first one
 // as the main representative type/icon
-export function getPrimarySkillType(
+export function getPrimarySkill(
     skillType?: SkillTypeKey | SkillTypeKey[] | null,
 ): SkillTypeKey | undefined {
   if (!skillType) {
@@ -53,26 +54,26 @@ export function getPrimarySkillType(
 
 // resolve the display payload for a skill type input
 // accepts either a single type or an array and always uses the first entry
-// if nothing is provided, returns the generic "Feature" label
-export function getSkillTypeDisplay(
+// if nothing is provided, returns the generic "Feature" desc
+export function getSkillType(
     skillType?: SkillTypeKey | SkillTypeKey[] | string | string[] | null,
 ): { icon?: string; label: string } {
-  const primarySkillType = Array.isArray(skillType) ? skillType[0] : skillType
+  const prmrSkllType = Array.isArray(skillType) ? skillType[0] : skillType
 
-  if (!primarySkillType) {
+  if (!prmrSkllType) {
     return { label: 'Feature' }
   }
 
-  return skillTypeDisplayMap[primarySkillType] ?? { label: formatSkillTypeLabel(primarySkillType) }
+  return skllTypeDspl[prmrSkllType] ?? { label: fmtSkllTypeL(prmrSkllType) }
 }
 
 // typed wrapper for regular skill type fields coming from skill definitions
-export function getPrimarySkillTypeDisplay(
+export function getPrmrSklja(
     skillType?: SkillTypeKey | SkillTypeKey[] | null,
 ): { icon?: string; label: string } {
   if (!skillType) {
     return { label: 'Feature' }
   }
 
-  return getSkillTypeDisplay(getPrimarySkillType(skillType))
+  return getSkillType(getPrimarySkill(skillType))
 }

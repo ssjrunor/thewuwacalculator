@@ -4,7 +4,7 @@
                across resonator data, final stats, and damage computation.
 */
 
-import type { ConditionExpression } from '@/domain/gameData/contracts'
+import type { CondExpr } from '@/domain/gameData/contracts'
 
 export type AttributeKey =
     | 'aero'
@@ -34,10 +34,12 @@ export type SkillTypeKey =
     | 'healing'
     | 'shield'
     | 'tuneRupture'
+    | 'hack'
 
-export type SkillArchetype =
+export type SkillArch =
     | 'skillDamage'
     | 'tuneRupture'
+    | 'hack'
     | 'spectroFrazzle'
     | 'aeroErosion'
     | 'fusionBurst'
@@ -46,7 +48,7 @@ export type SkillArchetype =
     | 'healing'
     | 'shield'
 
-export type SkillAggregationType = 'damage' | 'healing' | 'shield'
+export type SkillAggType = 'damage' | 'healing' | 'shield'
 
 export interface BaseStatBuff {
   percent: number
@@ -64,7 +66,7 @@ export interface ModBuff {
   critDmg: number
 }
 
-export type NegativeEffectKey =
+export type NegEffectKey =
     | 'spectroFrazzle'
     | 'aeroErosion'
     | 'fusionBurst'
@@ -72,23 +74,32 @@ export type NegativeEffectKey =
     | 'glacioChafe'
     | 'electroFlare'
 
-export interface NegativeEffectBuff {
+export interface NegEffectBuff {
   critRate: number
   critDmg: number
   multiplier: number
 }
 
-export type AttributeBucket = Record<'all' | AttributeKey, ModBuff>
-export type SkillTypeBucket = Record<SkillTypeKey, ModBuff>
-export type NegativeEffectBucket = Record<NegativeEffectKey, NegativeEffectBuff>
+// scoped damage immunities applied against an enemy. a skill deals zero damage when it matches
+// any populated scope: `all`, its `element`, any of its `skillTypes`, or its negative-effect archetype.
+export interface ImmunitySet {
+  all: boolean
+  elements: AttributeKey[]
+  skillTypes: SkillTypeKey[]
+  negativeEffects: NegEffectKey[]
+}
+
+export type AttrBuffs = Record<'all' | AttributeKey, ModBuff>
+export type SkillTypeBuffs = Record<SkillTypeKey, ModBuff>
+export type NegEffectBuffs = Record<NegEffectKey, NegEffectBuff>
 
 export interface UnifiedBuffPool {
   atk: BaseStatBuff
   hp: BaseStatBuff
   def: BaseStatBuff
-  attribute: AttributeBucket
-  skillType: SkillTypeBucket
-  negativeEffect: NegativeEffectBucket
+  attribute: AttrBuffs
+  skillType: SkillTypeBuffs
+  negativeEffect: NegEffectBuffs
   flatDmg: number
   amplify: number
   critRate: number
@@ -102,9 +113,10 @@ export interface UnifiedBuffPool {
   dmgVuln: number
   tuneBreakBoost: number
   special: number
+  immunities: ImmunitySet
 }
 
-export interface ResonatorBaseStats {
+export interface ResBaseStats {
   hp: number
   atk: number
   def: number
@@ -119,9 +131,9 @@ export interface FinalStats {
   atk: { base: number; final: number }
   hp: { base: number; final: number }
   def: { base: number; final: number }
-  attribute: AttributeBucket
-  skillType: SkillTypeBucket
-  negativeEffect: NegativeEffectBucket
+  attribute: AttrBuffs
+  skillType: SkillTypeBuffs
+  negativeEffect: NegEffectBuffs
   flatDmg: number
   amplify: number
   critRate: number
@@ -133,18 +145,19 @@ export interface FinalStats {
   defIgnore: number
   defShred: number
   dmgVuln: number
-  tuneBreakBoost: number
+  tbb: number
   special: number
+  immunities?: ImmunitySet
 }
 
-export interface ScalingVector {
+export interface ScalingStats {
   atk: number
   hp: number
   def: number
   energyRegen: number
 }
 
-export type SkillLevelSourceKey =
+export type SkillLevelSrc =
     | 'normalAttack'
     | 'resonanceSkill'
     | 'forteCircuit'
@@ -152,13 +165,13 @@ export type SkillLevelSourceKey =
     | 'introSkill'
     | 'tuneBreak'
 
-export interface SkillHitTableEntry {
+export interface SkillHitTable {
   label?: string
   count: number
   values: number[]
 }
 
-export interface SkillSubHitResult {
+export interface SkillSubHit {
   label?: string
   count: number
   multiplier: number
@@ -167,15 +180,15 @@ export interface SkillSubHitResult {
   avg: number
 }
 
-export interface SkillDefinition {
+export interface SkillDef {
   id: string
   label: string
   tab: string
   sectionTitle?: string
   // ordered skill types; the primary display type is always skillType[0]
   skillType: SkillTypeKey[]
-  archetype: SkillArchetype
-  aggregationType: SkillAggregationType
+  archetype: SkillArch
+  aggregationType: SkillAggType
   element: AttributeKey
   multiplier: number
   multiplierValues?: number[]
@@ -183,7 +196,7 @@ export interface SkillDefinition {
   flatValues?: number[]
   fixedDmg?: number
   fixedDmgValues?: number[]
-  scaling: ScalingVector
+  scaling: ScalingStats
   skillBuffs?: Partial<ModBuff>
   skillHealingBonus?: number
   skillShieldBonus?: number
@@ -193,11 +206,11 @@ export interface SkillDefinition {
   tuneRuptureCritDmg?: number
   negativeEffectCritRate?: number
   negativeEffectCritDmg?: number
-  levelSource?: SkillLevelSourceKey | null
+  levelSource?: SkillLevelSrc | null
   visible?: boolean
-  visibleWhen?: ConditionExpression
+  visibleWhen?: CondExpr
   skillTypeWhen?: Array<{
-    when: ConditionExpression
+    when: CondExpr
     skillType: SkillTypeKey[]
   }>
   hits: Array<{
@@ -205,15 +218,15 @@ export interface SkillDefinition {
     count: number
     multiplier: number
   }>
-  hitTable?: SkillHitTableEntry[]
+  hitTable?: SkillHitTable[]
   fixedMv?: number
 }
 
-export interface SkillComputationResult {
+export interface SkillCalcResult {
   normal: number
   crit: number
   avg: number
-  subHits: SkillSubHitResult[]
+  subHits: SkillSubHit[]
 }
 
-export type DamageResult = SkillComputationResult
+export type DamageResult = SkillCalcResult

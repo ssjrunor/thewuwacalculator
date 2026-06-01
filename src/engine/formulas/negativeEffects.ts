@@ -4,16 +4,16 @@
                such as Spectro Frazzle, Aero Erosion, and Fusion Burst.
 */
 
-import type { SkillDefinition } from '@/domain/entities/stats'
+import type { SkillDef } from '@/domain/entities/stats'
 
-export type NegativeEffectArchetype = Extract<
-    SkillDefinition['archetype'],
+export type NegFfctArch = Extract<
+    SkillDef['archetype'],
     'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'
 >
 
 // resolve the level scaling curve
 // each range uses exponential interpolation between known breakpoints
-function getLevelValue(currentLevel: number): number {
+function getLvlVl(currentLevel: number): number {
   if (currentLevel >= 1 && currentLevel <= 20) {
     return 11 * Math.exp(Math.log(24 / 11) * (currentLevel - 1) / (20 - 1))
   }
@@ -48,9 +48,9 @@ function getLevelValue(currentLevel: number): number {
 
 // compute the base Fusion Burst damage before external multipliers
 // this depends on both the resonator level and the current stack count
-export function getFusionBurstBase(level: number, stacks: number): number {
+export function getFsnBrstBa(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
-  function getStackValue(value: number): number {
+  function getStckVl(value: number): number {
     // stack growth from 1 to 10
     if (value >= 1 && value <= 10) {
       return 8403.400535464296 + (value - 1) * 6828.894046048515
@@ -66,14 +66,14 @@ export function getFusionBurstBase(level: number, stacks: number): number {
   }
 
   // combine stack scaling and level scaling into the final base value
-  return getStackValue(stacks) * getLevelValue(level) / 10000
+  return getStckVl(stacks) * getLvlVl(level) / 10000
 }
 
 // compute the base Electro Flare damage before external multipliers
 // this depends on both the resonator level and the current stack count
-export function getElectroFlareBase(level: number, stacks: number): number {
+export function getLctrFlrBa(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
-  function getStackValue(value: number): number {
+  function getStckVl(value: number): number {
     switch (value) {
       case 1: return 5000;
       case 2: return 9065;
@@ -93,14 +93,14 @@ export function getElectroFlareBase(level: number, stacks: number): number {
   }
 
   // combine stack scaling and level scaling into the final base value
-  return getStackValue(stacks) * getLevelValue(level) / 10000
+  return getStckVl(stacks) * getLvlVl(level) / 10000
 }
 
 // compute the base Glacio Chafe damage before external multipliers
 // this depends on both the resonator level and the current stack count
-export function getGlacioChafeBase(level: number, stacks: number): number {
+export function getGlcChfBas(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
-  function getStackValue(value: number): number {
+  function getStckVl(value: number): number {
     switch (value) {
       case 1: return 2450;
       case 2: return 4442;
@@ -120,14 +120,14 @@ export function getGlacioChafeBase(level: number, stacks: number): number {
   }
 
   // combine stack scaling and level scaling into the final base value
-  return getStackValue(stacks) * getLevelValue(level) / 10000
+  return getStckVl(stacks) * getLvlVl(level) / 10000
 }
 
 // compute the base negative-effect damage for the given archetype
 // this returns only the archetype-specific base amount before later
 // damage bonuses, vulnerability, defense, and resistance multipliers
-export function getNegativeEffectBase(
-    archetype: NegativeEffectArchetype,
+export function getNegBase(
+    archetype: NegFfctArch,
     level: number,
     stacks: number,
     options?: {
@@ -140,7 +140,7 @@ export function getNegativeEffectBase(
   }
 
   if (options?.fixedMv !== undefined) {
-    return options.fixedMv * getLevelValue(level) / 10000
+    return options.fixedMv * getLvlVl(level) / 10000
   }
 
   // Spectro Frazzle uses a simple linear stack formula
@@ -157,13 +157,13 @@ export function getNegativeEffectBase(
   }
 
   if (archetype === 'electroFlare') {
-    return getElectroFlareBase(level, stacks)
+    return getLctrFlrBa(level, stacks)
   }
 
   if (archetype === 'glacioChafe') {
-    return getGlacioChafeBase(level, stacks)
+    return getGlcChfBas(level, stacks)
   }
 
   // Fusion Burst uses its own level-and-stack scaling helper
-  return getFusionBurstBase(level, stacks)
+  return getFsnBrstBa(level, stacks)
 }

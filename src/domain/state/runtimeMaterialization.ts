@@ -4,80 +4,80 @@
                including local state cloning and compact teammate expansion.
 */
 
-import type { ResonatorProfile, SlotLocalState } from '@/domain/entities/profile'
-import { cloneCompactSonataSetConditionals, DEFAULT_SONATA_SET_CONDITIONALS } from '@/domain/entities/sonataSetConditionals'
+import type { ResProf, SlotLocalState } from '@/domain/entities/profile'
+import { cloneSntSet, DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
 import type { SlotId } from '@/domain/entities/session'
 import type {
-  ResonatorRuntimeState,
-  ResonatorSeed,
+  ResRuntime,
+  ResSeed,
   RotationState,
-  TeamMemberRuntime,
+  TeamMemRt,
   TeamSlots,
 } from '@/domain/entities/runtime'
 import {
-  MAX_RESONATOR_LEVEL,
+  MAX_RES_LVL,
   MAX_SKILL_LEVEL,
-  MAX_WEAPON_LEVEL,
-  makeDefaultCombatState,
-  makeDefaultCustomBuffs,
-  makeMaxSkillLevels,
-  makeDefaultRotation,
+  MAX_WPN_LVL,
+  makeCombatState,
+  makeCustomBuff,
+  mkMaxSkllLvl,
+  mkDefRot,
 } from '@/domain/state/defaults'
-import { makeMaxTraceNodeBuffs } from '@/domain/state/traceNodes'
+import { mkMaxTrcNode } from '@/domain/state/traceNodes'
 import {
-  cloneManualBuffs,
-  cloneRotationState,
-  cloneSkillLevels,
-  cloneTraceNodeBuffs,
-  cloneWeaponBuildState,
+  cloneBuffs,
+  cloneRotation,
+  cloneSkllLvl,
+  cloneTrcNode,
+  cloneWpnMkSt,
 } from '@/domain/state/runtimeCloning'
 
 export const SLOT_IDS: SlotId[] = ['active', 'team1', 'team2']
 
-type SlotLocalStateSource = SlotLocalState | ResonatorRuntimeState['state']
+type SlotLclSttSr = SlotLocalState | ResRuntime['state']
 
 // clone persisted slot-local state with safe defaults
-export function cloneSlotLocalState(state?: SlotLocalStateSource): SlotLocalState {
-  const setConditionals =
+export function cloneSlotLuo(state?: SlotLclSttSr): SlotLocalState {
+  const setConds =
       state && 'setConditionals' in state
           ? state.setConditionals
           : undefined
 
   return {
     controls: { ...(state?.controls ?? {}) },
-    manualBuffs: cloneManualBuffs(state?.manualBuffs ?? makeDefaultCustomBuffs()),
-    combat: { ...(state?.combat ?? makeDefaultCombatState()) },
-    setConditionals: cloneCompactSonataSetConditionals(
-      setConditionals ?? DEFAULT_SONATA_SET_CONDITIONALS,
+    manualBuffs: cloneBuffs(state?.manualBuffs ?? makeCustomBuff()),
+    combat: { ...(state?.combat ?? makeCombatState()) },
+    setConditionals: cloneSntSet(
+      setConds ?? DEF_SET_COND,
     ),
   }
 }
 
-function materializeRuntimeState(state?: SlotLocalState): ResonatorRuntimeState['state'] {
+function matRtStt(state?: SlotLocalState): ResRuntime['state'] {
   return {
     controls: { ...(state?.controls ?? {}) },
-    manualBuffs: cloneManualBuffs(state?.manualBuffs ?? makeDefaultCustomBuffs()),
-    combat: { ...(state?.combat ?? makeDefaultCombatState()) },
+    manualBuffs: cloneBuffs(state?.manualBuffs ?? makeCustomBuff()),
+    combat: { ...(state?.combat ?? makeCombatState()) },
   }
 }
 
 // materialize progression for the given slot
-function materializeSlotProgression(
-    seed: ResonatorSeed,
-    profile: ResonatorProfile,
+function matSlotPrgr(
+    seed: ResSeed,
+    profile: ResProf,
     slotId: SlotId,
 ) {
   if (slotId === 'active') {
     return {
       level: profile.runtime.progression.level,
       sequence: profile.runtime.progression.sequence,
-      skillLevels: cloneSkillLevels(profile.runtime.progression.skillLevels),
-      traceNodes: cloneTraceNodeBuffs(profile.runtime.progression.traceNodes),
+      skillLevels: cloneSkllLvl(profile.runtime.progression.skillLevels),
+      traceNodes: cloneTrcNode(profile.runtime.progression.traceNodes),
     }
   }
 
   return {
-    level: MAX_RESONATOR_LEVEL,
+    level: MAX_RES_LVL,
     sequence: profile.runtime.progression.sequence,
     skillLevels: {
       normalAttack: MAX_SKILL_LEVEL,
@@ -87,25 +87,25 @@ function materializeSlotProgression(
       introSkill: MAX_SKILL_LEVEL,
       tuneBreak: MAX_SKILL_LEVEL,
     },
-    traceNodes: makeMaxTraceNodeBuffs(seed),
+    traceNodes: mkMaxTrcNode(seed),
   }
 }
 
 // materialize weapon data for the given slot
-function materializeSlotWeapon(profile: ResonatorProfile, slotId: SlotId) {
+function matSlotWpn(profile: ResProf, slotId: SlotId) {
   if (slotId === 'active') {
-    return cloneWeaponBuildState(profile.runtime.build.weapon)
+    return cloneWpnMkSt(profile.runtime.build.weapon)
   }
 
   return {
     ...profile.runtime.build.weapon,
-    level: MAX_WEAPON_LEVEL,
+    level: MAX_WPN_LVL,
   }
 }
 
-interface MaterializeRuntimeOptions {
-  seed: ResonatorSeed
-  profile: ResonatorProfile
+interface MatRtPtns {
+  seed: ResSeed
+  profile: ResProf
   slotId: SlotId
   localState: SlotLocalState
   teamSlots: TeamSlots
@@ -113,27 +113,27 @@ interface MaterializeRuntimeOptions {
 }
 
 // materialize a full runtime from a profile and slot context
-export function materializeRuntimeFromProfileAndSlot({
+export function matRtFromPro({
                                                        seed,
                                                        profile,
                                                        slotId,
                                                        localState,
                                                        teamSlots,
                                                        rotation,
-                                                     }: MaterializeRuntimeOptions): ResonatorRuntimeState {
+                                                     }: MatRtPtns): ResRuntime {
   return {
     id: seed.id,
-    base: materializeSlotProgression(seed, profile, slotId),
+    base: matSlotPrgr(seed, profile, slotId),
     build: {
-      weapon: materializeSlotWeapon(profile, slotId),
+      weapon: matSlotWpn(profile, slotId),
       echoes: profile.runtime.build.echoes,
       team: teamSlots,
     },
-    state: materializeRuntimeState(localState),
+    state: matRtStt(localState),
     rotation:
         slotId === 'active'
-            ? cloneRotationState(rotation ?? makeDefaultRotation(seed))
-            : makeDefaultRotation(seed),
+            ? cloneRotation(rotation ?? mkDefRot(seed))
+            : mkDefRot(seed),
     teamRuntimes:
         slotId === 'active'
             ? (profile.runtime.teamRuntimes ?? [null, null])
@@ -142,16 +142,16 @@ export function materializeRuntimeFromProfileAndSlot({
 }
 
 // extract namespaced teammate controls from the active control map
-function extractNamespacedControls(
-    activeControls: Record<string, boolean | number | string>,
+function xtrcNmspCntr(
+    actCntr: Record<string, boolean | number | string>,
     resonatorId: string,
 ): Record<string, boolean | number | string> {
   const prefix = `team:${resonatorId}:`
   const controls: Record<string, boolean | number | string> = {}
 
-  for (const key of Object.keys(activeControls)) {
+  for (const key of Object.keys(actCntr)) {
     if (key.startsWith(prefix) && !key.startsWith(`${prefix}__mb:`)) {
-      controls[key.slice(prefix.length)] = activeControls[key]
+      controls[key.slice(prefix.length)] = actCntr[key]
     }
   }
 
@@ -159,35 +159,35 @@ function extractNamespacedControls(
 }
 
 // materialize a full runtime from a compact teammate runtime
-export function materializeTeamMemberFromCompactRuntime(
-    seed: ResonatorSeed,
-    tmr: TeamMemberRuntime,
-    activeControls: Record<string, boolean | number | string>,
-    activeCombat: ResonatorRuntimeState['state']['combat'],
+export function matTeamMemFr(
+    seed: ResSeed,
+    tmr: TeamMemRt,
+    actCntr: Record<string, boolean | number | string>,
+    activeCombat: ResRuntime['state']['combat'],
     teamSlots: TeamSlots,
-): ResonatorRuntimeState {
+): ResRuntime {
   return {
     id: tmr.id,
     base: {
       sequence: tmr.base.sequence,
-      level: MAX_RESONATOR_LEVEL,
-      skillLevels: makeMaxSkillLevels(),
-      traceNodes: makeMaxTraceNodeBuffs(seed),
+      level: MAX_RES_LVL,
+      skillLevels: mkMaxSkllLvl(),
+      traceNodes: mkMaxTrcNode(seed),
     },
     build: {
       weapon: {
         ...tmr.build.weapon,
-        level: MAX_WEAPON_LEVEL,
+        level: MAX_WPN_LVL,
       },
       echoes: [...tmr.build.echoes],
       team: teamSlots,
     },
     state: {
-      controls: extractNamespacedControls(activeControls, tmr.id),
-      manualBuffs: cloneManualBuffs(tmr.manualBuffs ?? makeDefaultCustomBuffs()),
+      controls: xtrcNmspCntr(actCntr, tmr.id),
+      manualBuffs: cloneBuffs(tmr.manualBuffs ?? makeCustomBuff()),
       combat: { ...activeCombat },
     },
-    rotation: makeDefaultRotation(seed),
+    rotation: mkDefRot(seed),
     teamRuntimes: [null, null],
   }
 }

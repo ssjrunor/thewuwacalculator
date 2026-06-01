@@ -1,22 +1,27 @@
+/*
+  Author: Runor Ewhro
+  Description: Sends page-view analytics whenever the current route changes.
+*/
+
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { trackGoogleAnalyticsPageView } from '@/infra/analytics/googleAnalytics'
+import { trackGooglePage } from '@/infra/analytics/googleAnalytics'
 
-export function usePageTracking() {
+export function usePageTrck() {
   const location = useLocation()
-  const hasTrackedInitialPageRef = useRef(false)
+  const hasTrckNtlPa = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       return
     }
 
-    if (!hasTrackedInitialPageRef.current) {
-      hasTrackedInitialPageRef.current = true
+    if (!hasTrckNtlPa.current) {
+      hasTrckNtlPa.current = true
       return
     }
 
-    void trackGoogleAnalyticsPageView({
+    void trackGooglePage({
       pagePath: `${location.pathname}${location.search}`,
       pageLocation: window.location.href,
       pageTitle: document.title,

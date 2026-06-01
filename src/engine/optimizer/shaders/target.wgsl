@@ -1,3 +1,7 @@
+// this kernel evaluates target-skill optimizer candidates by unpacking one
+// combo rank, rebuilding the equipped stat state, and scoring the selected
+// skill against the packed target context.
+
 // storage inputs shared with the target-mode optimizer pass
 
 @group(0) @binding(0) var<storage, read> echoStats: array<vec4<f32>>;
@@ -8,6 +12,7 @@
 @group(0) @binding(6) var<storage, read> mainEchoBuffs: array<f32>;
 @group(0) @binding(8) var<storage, read> echoKindIds: array<i32>;
 @group(0) @binding(10) var<storage, read> comboBinom: array<u32>;
+@group(0) @binding(11) var<storage, read> theoryData: array<i32>;
 
 struct StatConstraints {
     // min/max windows for each tracked stat
@@ -37,6 +42,7 @@ struct Candidate {
 const REDUCE_K: u32 = 8u;
 const NEG_INF: f32 = -1.0e30;
 const INV_100: f32 = 0.01;  // reused for percent-to-ratio conversion
+const COMBO_MODE_BATCH: u32 = 3u;
 
 // skill type bit masks packed into skillId
 const SKILL_BASIC:      u32 = 1u << 0u;
@@ -56,6 +62,7 @@ const ARCHETYPE_AERO_EROSION: u32 = 5u;
 const ARCHETYPE_FUSION_BURST: u32 = 6u;
 const ARCHETYPE_ELECTRO_FLARE: u32 = 7u;
 const ARCHETYPE_GLACIO_CHAFE: u32 = 8u;
+const ARCHETYPE_HACK: u32 = 9u;
 
 struct Params {
     // packed target context, already precomputed on the cpu
@@ -112,9 +119,12 @@ var<uniform> params : Params;
 // encoded layout constants
 const STATS_VEC4S_PER_ECHO : u32 = 5u;
 const ECHOS_PER_COMBO: u32 = 5u;
-const BUFFS_PER_ECHO : u32 = 15u;
-const SET_SLOTS : u32 = 32u; // supports set ids 0..31 inclusive
-const SET_CONST_LUT_BUCKETS: u32 = 4u;
+// kept in sync with MAINBFFSPERE / MAIN_STRIDE in encode/echoes.ts,
+// target/cpu.ts, target/evaluate.ts, and compiler/theory.ts. slots 15-17
+// carry top_stat contributions (cr/cd/dmgBonus).
+const BUFFS_PER_ECHO : u32 = 18u;
+const SET_SLOTS : u32 = 33u; // supports set ids 0..32 inclusive
+const SET_CONST_LUT_BUCKETS: u32 = 5u;
 const SET_CONST_LUT_ROW_STRIDE: u32 = 23u;
 
 // runtime-controlled conditional set toggles
@@ -287,6 +297,15 @@ fn comboIndicesToEchoIds(combo: array<u32, 5>) -> array<i32, 5> {
 }
 
 fn buildEchoIds(index: u32) -> array<i32, 5> {
+    if (decodeComboMode(params) == COMBO_MODE_BATCH) {
+        var out: array<i32, 5>;
+        let base = index * 5u;
+        for (var pos: u32 = 0u; pos < 5u; pos = pos + 1u) {
+            out[pos] = theoryData[base + pos];
+        }
+        return out;
+    }
+
     let combo = buildComboIndices(index);
     return comboIndicesToEchoIds(combo);
 }
@@ -498,9 +517,10 @@ fn applySetEffectsBase(base: EchoBase) -> SetApplied {
 
     for (var setId: u32 = 0u; setId < SET_SLOTS; setId = setId + 1u) {
         let count = base.setCount[setId];
-        if (count < 2u) { continue; }
+        if (count < 1u) { continue; }
 
         let bucket =
+            u32(count >= 1u) +
             u32(count >= 2u) +
             u32(count >= 3u) +
             u32(count >= 5u);
@@ -706,6 +726,11 @@ fn evalMainPos(
     mainElem1: vec2<f32>,
     mainType0: vec4<f32>,
     mainType1: vec2<f32>,
+    // top_stat contributions from the chosen main echo, expressed as
+    // percentage points (matches the CPU evaluator's units).
+    mainCR: f32,
+    mainCD: f32,
+    mainDmgBns: f32,
 ) -> f32 {
     let finalER = pre.finalERBase + mainER;
 
@@ -729,6 +754,8 @@ fn evalMainPos(
     bonus += mainType0.w * f32((mask >> 3u) & 1u);
     bonus += mainType1.x * f32((mask >> 6u) & 1u);
     bonus += mainType1.y * f32((mask >> 7u) & 1u);
+    // generic top_stat dmgBonus from the main echo, unconditional
+    bonus += mainDmgBns;
 
     var dmgBonus = pre.dmgBonusBase + bonus * INV_100;
 
@@ -753,8 +780,11 @@ fn evalMainPos(
         dmgBonus += extraDmgBonus * INV_100 * f32((mask >> 6u) & 1u);
     }
 
-    var critRateForDmg = pre.critRateTotal;
-    var critDmgForDmg = pre.critDmgTotal;
+    // seed crit aggregates with main-echo top_stat contributions so echoes
+    // like 6000201 (Adam Smasher for Lucy/Rebecca) actually shift the
+    // damage estimate.
+    var critRateForDmg = pre.critRateTotal + mainCR * INV_100;
+    var critDmgForDmg = pre.critDmgTotal + mainCD * INV_100;
     let baseMul = pre.resDefAmp * pre.dmgReductionTotal;
 
     // 1209 er-based bonuses
@@ -776,12 +806,12 @@ fn evalMainPos(
 
     let archetype = u32(pre.archetype);
     var avg: f32 = 0.0;
-    var constraintCritRate = pre.critRateTotal;
-    var constraintCritDmg = pre.critDmgTotal;
+    var constraintCritRate = pre.critRateTotal + mainCR * INV_100;
+    var constraintCritDmg = pre.critDmgTotal + mainCD * INV_100;
     var constraintDmgBonus = dmgBonus;
 
     // archetype-specific average damage logic
-    if (archetype == ARCHETYPE_TUNE_RUPTURE) {
+    if (archetype == ARCHETYPE_TUNE_RUPTURE || archetype == ARCHETYPE_HACK) {
         let normal =
             pre.multiplier *
             params.resMult *
@@ -859,8 +889,10 @@ fn computeDamageForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
 
     var best: f32 = 0.0;
     var bestMain: u32 = 0u;
+    let batchMainFirst = decodeComboMode(params) == COMBO_MODE_BATCH;
 
     for (var mainPos: u32 = 0u; mainPos < 5u; mainPos = mainPos + 1u) {
+        if (batchMainFirst && mainPos != 0u) { continue; }
         let mainId = echoIds[mainPos];
         if (mainId < 0) { continue; }
         if (lockedIndex >= 0 && mainId != lockedIndex) { continue; }
@@ -893,6 +925,9 @@ fn computeDamageForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
             mainEchoBuffs[b + 13u],
             mainEchoBuffs[b + 14u]
         );
+        let mainCR = mainEchoBuffs[b + 15u];
+        let mainCD = mainEchoBuffs[b + 16u];
+        let mainDmgBns = mainEchoBuffs[b + 17u];
 
         let avg = evalMainPos(
             pre,
@@ -900,7 +935,8 @@ fn computeDamageForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
             setRuntimeMask,
             mainAtkP / 100.0, mainAtkF, mainER,
             mainElem0, mainElem1,
-            mainType0, mainType1
+            mainType0, mainType1,
+            mainCR, mainCD, mainDmgBns
         );
 
         if (avg > best) {
@@ -946,9 +982,12 @@ fn main(
 
     // dispatchWorkgroupBase lets the cpu split one big job into several submits
     let globalWorkgroup = decodeDispatchWorkgroupBase(params) + wg.x;
-    let baseIndex = (globalWorkgroup * 512u + lid) * CYCLES_PER_INVOCATION;
+    let batchMode = decodeComboMode(params) == COMBO_MODE_BATCH;
+    let laneIndex = globalWorkgroup * 512u + lid;
     let comboN = decodeComboN(params);
     let comboK = decodeComboK(params);
+
+    let baseIndex = laneIndex * CYCLES_PER_INVOCATION;
 
     // keep only this thread's best candidate across its mini-batch
     var best: f32 = NEG_INF;
@@ -957,12 +996,23 @@ fn main(
 
     if (baseIndex < comboCount) {
         var idx: u32 = baseIndex;
-        var combo = buildComboIndices(comboBaseIndex(params) + idx);
+        var combo: array<u32, 5>;
+        for (var c: u32 = 0u; c < 5u; c = c + 1u) {
+            combo[c] = 0u;
+        }
+        if (!batchMode) {
+            combo = buildComboIndices(comboBaseIndex(params) + idx);
+        }
 
         for (var j: u32 = 0u; j < CYCLES_PER_INVOCATION; j = j + 1u) {
             if (idx >= comboCount) { break; }
 
-            let echoIds = comboIndicesToEchoIds(combo);
+            var echoIds: array<i32, 5>;
+            if (batchMode) {
+                echoIds = buildEchoIds(comboBaseIndex(params) + idx);
+            } else {
+                echoIds = comboIndicesToEchoIds(combo);
+            }
             let eval = computeDamageForEchoIds(echoIds);
             if (eval.dmg > best) {
                 best = eval.dmg;
@@ -972,6 +1022,8 @@ fn main(
 
             idx = idx + 1u;
             if (j + 1u >= CYCLES_PER_INVOCATION || idx >= comboCount) { break; }
+
+            if (batchMode) { continue; }
 
             // advance to the next lexicographic combination without re-unranking
             var advanced: bool = false;
@@ -993,6 +1045,17 @@ fn main(
 
             if (!advanced) { break; }
         }
+    }
+
+    if (batchMode) {
+        if (best > 0.0) {
+            let mainPos = bestMain & 7u;
+            let packedIdx = (mainPos << 29u) | bestIndex;
+            candidates[laneIndex] = Candidate(best, packedIdx);
+        } else {
+            candidates[laneIndex] = Candidate(0.0, 0u);
+        }
+        return;
     }
 
     // write local best into shared memory for reduction

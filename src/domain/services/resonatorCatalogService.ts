@@ -4,41 +4,44 @@
                generated detail, and game data registry information.
 */
 
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import type { Resonator } from '@/domain/entities/resonator'
-import { getResonatorSeedById, listResonatorSeeds } from '@/domain/services/resonatorSeedService'
+import { getResSeedBy, listResSds } from '@/domain/services/resonatorSeedService'
 import {
-  listConditionsForSource,
-  listEffectsForSource,
-  listFeaturesForSource,
-  listOwnersForSource,
-  listResonatorRotations,
-  listSkillsForSource,
-  listStatesForSource,
+  listCondsFor,
+  listEffectsFor,
+  listFeatsFor,
+  listOwnersFor,
+  listResRttn,
+  listSkillsFor,
+  listStatesFor,
 } from '@/domain/services/gameDataService'
 
-const resonatorGameDataCache = new Map<string, Resonator>()
-let resonatorsCache: Resonator[] | null = null
+const resGameDataC = new Map<string, Resonator>()
+let rsntCch: Resonator[] | null = null
 
 // get full resonator game data by id
-export function getResonatorGameDataById(resonatorId: string): Resonator | null {
-  const cached = resonatorGameDataCache.get(resonatorId)
+export function getResGameDa(resonatorId: string): Resonator | null {
+  const cached = resGameDataC.get(resonatorId)
   if (cached) {
     return cached
   }
 
-  const catalog = getResonatorSeedById(resonatorId)
-  const details = getResonatorDetailsById()[resonatorId]
+  const catalog = getResSeedBy(resonatorId)
+  const details = getResDtlsBy()[resonatorId]
   if (!catalog || !details) {
     return null
   }
 
-  const sourceSkills = listSkillsForSource('resonator', resonatorId)
+  const sourceSkills = listSkillsFor('resonator', resonatorId)
   const resonator: Resonator = {
     ...catalog,
     rarity: catalog.rarity ?? 4,
     profile: catalog.profile ?? '',
     sprite: catalog.sprite ?? '',
+    spriteFaceX: catalog.spriteFaceX,
+    spriteFaceY: catalog.spriteFaceY,
+    spriteFaceScale: catalog.spriteFaceScale,
     traceNodes: catalog.traceNodes ?? details.traceNodes,
     skillsByTab: details.skillsByTab,
     statePanels: details.statePanels,
@@ -46,33 +49,33 @@ export function getResonatorGameDataById(resonatorId: string): Resonator | null 
     resonanceChains: details.resonanceChains,
     descriptionKeywords: details.descriptionKeywords,
     negativeEffectSources: details.negativeEffectSources,
-    owners: listOwnersForSource('resonator', resonatorId),
-    states: listStatesForSource('resonator', resonatorId),
-    conditions: listConditionsForSource('resonator', resonatorId),
-    effects: listEffectsForSource('resonator', resonatorId),
-    features: listFeaturesForSource('resonator', resonatorId),
-    rotations: listResonatorRotations(resonatorId),
+    owners: listOwnersFor('resonator', resonatorId),
+    states: listStatesFor('resonator', resonatorId),
+    conditions: listCondsFor('resonator', resonatorId),
+    effects: listEffectsFor('resonator', resonatorId),
+    features: listFeatsFor('resonator', resonatorId),
+    rotations: listResRttn(resonatorId),
     skills: sourceSkills,
   }
 
-  resonatorGameDataCache.set(resonatorId, resonator)
+  resGameDataC.set(resonatorId, resonator)
   return resonator
 }
 
 // get resonator data by id
-export function getResonatorById(resonatorId: string): Resonator | null {
-  return getResonatorGameDataById(resonatorId)
+export function getResById(resonatorId: string): Resonator | null {
+  return getResGameDa(resonatorId)
 }
 
 // list all resonators
-export function listResonators(): Resonator[] {
-  if (resonatorsCache) {
-    return resonatorsCache
+export function listRsnt(): Resonator[] {
+  if (rsntCch) {
+    return rsntCch
   }
 
-  resonatorsCache = listResonatorSeeds()
-      .map((resonator) => getResonatorGameDataById(resonator.id))
+  rsntCch = listResSds()
+      .map((resonator) => getResGameDa(resonator.id))
       .filter((resonator): resonator is Resonator => Boolean(resonator))
 
-  return resonatorsCache
+  return rsntCch
 }

@@ -1,24 +1,20 @@
 /*
   Author: Runor Ewhro
-  Description: Slider-feel scrubber for per-step echo set states.
-               Dots are decorative; the whole bar is the hit area.
-               The active pill is a motion.div that springs between positions —
-               it replaces the dot at the active index rather than floating above.
+  Description: Maps pointer position to bounded integer step values for echo
+               set state controls.
 */
 
 import './StepScrubber.css'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence as NmtPrsn } from 'motion/react'
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 
 const DOT_PITCH_PX = 10
 const MAX_DOTS = 50
 
-// Spring feel for the active pill sliding between values
-const ACTIVE_SPRING = { type: 'spring' as const, stiffness: 460, damping: 30, mass: 0.75 }
-// Snappier spring for the hover ghost appearing/scaling
+const ACT_SPRN = { type: 'spring' as const, stiffness: 460, damping: 30, mass: 0.75 }
 const HOVER_SPRING  = { type: 'spring' as const, stiffness: 560, damping: 34, mass: 0.6 }
 
-interface StepScrubberProps {
+interface StepScrbPrps {
   min: number
   max: number
   value: number
@@ -27,23 +23,23 @@ interface StepScrubberProps {
   className?: string
 }
 
-export function StepScrubber({ min, max, value, onChange, disabled, className }: StepScrubberProps) {
+export function StepScrubber({ min, max, value, onChange, disabled, className }: StepScrbPrps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
-  const [hoverRatio, setHoverRatio] = useState<number | null>(null)
+  const [cntnWdth, setCntnWdth] = useState(0)
+  const [hoverRatio, setHvrRt] = useState<number | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const ro = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
+    const ro = new ResizeObserver(([entry]) => setCntnWdth(entry.contentRect.width))
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
 
   const numDots = useMemo(() => {
-    if (containerWidth <= 0) return 16
-    return Math.max(2, Math.min(MAX_DOTS, Math.floor(containerWidth / DOT_PITCH_PX)))
-  }, [containerWidth])
+    if (cntnWdth <= 0) return 16
+    return Math.max(2, Math.min(MAX_DOTS, Math.floor(cntnWdth / DOT_PITCH_PX)))
+  }, [cntnWdth])
 
   const valueToRatio = useCallback(
     (v: number) => (max > min ? (v - min) / (max - min) : 0),
@@ -59,16 +55,16 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
   const activeRatio = valueToRatio(value)
   const activeDotIdx = Math.round(activeRatio * (numDots - 1))
 
-  const handleMouseMove = useCallback(
+  const onMsMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (disabled) return
       const rect = e.currentTarget.getBoundingClientRect()
-      setHoverRatio((e.clientX - rect.left) / rect.width)
+      setHvrRt((e.clientX - rect.left) / rect.width)
     },
     [disabled],
   )
 
-  const handleMouseLeave = useCallback(() => setHoverRatio(null), [])
+  const onMsLv = useCallback(() => setHvrRt(null), [])
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -86,11 +82,10 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
     <div
       ref={containerRef}
       className={`step-scrubber${disabled ? ' step-scrubber--disabled' : ''}${className ? ` ${className}` : ''}`}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={onMsMove}
+      onMouseLeave={onMsLv}
       onClick={handleClick}
     >
-      {/* ── Dot row ──────────────────────────────────────────── */}
       <div className="step-scrubber__dots" aria-hidden>
         {Array.from({ length: numDots }, (_, i) => {
           const dist = Math.abs(i - activeDotIdx)
@@ -102,18 +97,16 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
         })}
       </div>
 
-      {/* ── Active pill — springs between positions ──────────── */}
       <motion.div
-        className="step-scrubber__active-label"
+        className="step-scrubber__active-desc"
         aria-hidden
         animate={{ left: `${activeRatio * 100}%` }}
-        transition={ACTIVE_SPRING}
+        transition={ACT_SPRN}
       >
         {value}
       </motion.div>
 
-      {/* ── Hover ghost — shows adj · value · adj at cursor ──── */}
-      <AnimatePresence>
+      <NmtPrsn>
         {hoverValue !== null && (
           <div
             key="hover-anchor"
@@ -135,7 +128,7 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </NmtPrsn>
     </div>
   )
 }

@@ -46,12 +46,14 @@
       {
         "key": "twoPiece",
         "label": "Glacio DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Glacio DMG +10%"
       },
       {
         "key": "frost5pc",
-        "label": "Upon using Basic Attack or Heavy Attack, Glacio DMG increases by 10%, stacking up to three times, lasting for 15s.",
-        "trigger": "Triggered by using Basic Attack or Heavy Attack."
+        "label": "5pc Glacio Stacks",
+        "trigger": "Triggered by using Basic Attack or Heavy Attack.",
+        "description": "Upon using Basic Attack or Heavy Attack, Glacio DMG increases by 10%, stacking up to three times, lasting for 15s."
       }
     ]
   },
@@ -92,12 +94,14 @@
       {
         "key": "twoPiece",
         "label": "Fusion DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Fusion DMG +10%"
       },
       {
         "key": "molten5",
-        "label": "Upon using Resonance Skill, Fusion DMG increases by 30% for 15s.",
-        "trigger": "Triggered by using Resonance Skill."
+        "label": "5pc Fusion Buff",
+        "trigger": "Triggered by using Resonance Skill.",
+        "description": "Upon using Resonance Skill, Fusion DMG increases by 30% for 15s."
       }
     ]
   },
@@ -148,12 +152,14 @@
       {
         "key": "twoPiece",
         "label": "Electro DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Electro DMG +10%"
       },
       {
         "key": "void5pc",
-        "label": "Upon using Heavy Attack or Resonance Skill, Electro DMG increases by 15%, stacking up to 2 times for 15s.",
-        "trigger": "Triggered by using Heavy Attack or Resonance Skill."
+        "label": "5pc Electro Stacks",
+        "trigger": "Triggered by using Heavy Attack or Resonance Skill.",
+        "description": "Upon using Heavy Attack or Resonance Skill, Electro DMG increases by 15%, stacking up to 2 times for 15s."
       }
     ]
   },
@@ -194,12 +200,14 @@
       {
         "key": "twoPiece",
         "label": "Aero DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Aero DMG +10%"
       },
       {
         "key": "sierra5",
-        "label": "Upon using Intro Skill, Aero DMG increases by 30% for 15s.",
-        "trigger": "Triggered by using Intro Skill."
+        "label": "5pc Aero Buff",
+        "trigger": "Triggered by using Intro Skill.",
+        "description": "Upon using Intro Skill, Aero DMG increases by 30% for 15s."
       }
     ]
   },
@@ -240,12 +248,14 @@
       {
         "key": "twoPiece",
         "label": "Spectro DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Spectro DMG +10%"
       },
       {
         "key": "celestial5",
-        "label": "Upon using Intro Skill, Spectro DMG increases by 30% for 15s.",
-        "trigger": "Triggered by using Intro Skill."
+        "label": "5pc Spectro Buff",
+        "trigger": "Triggered by using Intro Skill.",
+        "description": "Upon using Intro Skill, Spectro DMG increases by 30% for 15s."
       }
     ]
   },
@@ -296,12 +306,14 @@
       {
         "key": "twoPiece",
         "label": "Havoc DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Havoc DMG +10%"
       },
       {
         "key": "eclipse5pc",
-        "label": "Upon using Basic Attack or Heavy Attack, Havoc DMG increases by 7.5%, stacking up to four times for 15s.",
-        "trigger": "Triggered by using Basic Attack or Heavy Attack."
+        "label": "5pc Havoc Stacks",
+        "trigger": "Triggered by using Basic Attack or Heavy Attack.",
+        "description": "Upon using Basic Attack or Heavy Attack, Havoc DMG increases by 7.5%, stacking up to four times for 15s."
       }
     ]
   },
@@ -340,12 +352,14 @@
       {
         "key": "twoPiece",
         "label": "Healing Bonus +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Healing Bonus +10%"
       },
       {
         "key": "rejuvenating5",
-        "label": "Upon healing allies, increase ATK of the entire team by 15%, lasting 30s.",
-        "trigger": "Triggered when healing allies."
+        "label": "5pc Team ATK",
+        "trigger": "Triggered when healing allies.",
+        "description": "Upon healing allies, increase ATK of the entire team by 15%, lasting 30s."
       }
     ]
   },
@@ -384,12 +398,14 @@
       {
         "key": "twoPiece",
         "label": "Energy Regen +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Energy Regen +10%"
       },
       {
         "key": "moonlit5",
-        "label": "Upon using Outro Skill, ATK of the next Resonator increases by 22.5% for 15s.",
-        "trigger": "Triggered by using Outro Skill."
+        "label": "5pc Outro ATK",
+        "trigger": "Triggered by using Outro Skill.",
+        "description": "Upon using Outro Skill, ATK of the next Resonator increases by 22.5% for 15s."
       }
     ]
   },
@@ -446,17 +462,20 @@
       {
         "key": "twoPiece",
         "label": "ATK +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "ATK +10%"
       },
       {
         "key": "fivePiece",
-        "label": "Outro Skill DMG increases by 60%.",
-        "trigger": "Always active at 5pc."
+        "label": "Outro Skill DMG +60%",
+        "trigger": "Always active at 5pc.",
+        "description": "Outro Skill DMG increases by 60%."
       },
       {
         "key": "lingering5p1",
-        "label": "While on the field, ATK increases by 5% every 1.5s, stacking up to 4 times.",
-        "trigger": "Triggered while on-field every 1.5s."
+        "label": "5pc ATK Stacks",
+        "trigger": "Triggered while on-field every 1.5s.",
+        "description": "While on the field, ATK increases by 5% every 1.5s, stacking up to 4 times."
       }
     ]
   },
@@ -519,17 +538,20 @@
       {
         "key": "twoPiece",
         "label": "Resonance Skill DMG +12%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Resonance Skill DMG +12%"
       },
       {
         "key": "frosty5p1",
-        "label": "Casting Resonance Skill grants 22.5% Glacio DMG Bonus for 15s.",
-        "trigger": "Triggered by casting Resonance Skill."
+        "label": "5pc Glacio Buff",
+        "trigger": "Triggered by casting Resonance Skill.",
+        "description": "Casting Resonance Skill grants 22.5% Glacio DMG Bonus for 15s."
       },
       {
         "key": "frosty5p2",
-        "label": "Casting Resonance Liberation increases Resonance Skill DMG by 18%, stacking up to 2 times.",
-        "trigger": "Triggered by casting Resonance Liberation."
+        "label": "5pc Skill DMG Stacks",
+        "trigger": "Triggered by casting Resonance Liberation.",
+        "description": "Casting Resonance Liberation increases Resonance Skill DMG by 18%, stacking up to 2 times."
       }
     ]
   },
@@ -580,17 +602,20 @@
       {
         "key": "twoPiece",
         "label": "Spectro DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Spectro DMG +10%"
       },
       {
         "key": "radiance5p1",
-        "label": "Inflicting Spectro Frazzle increases Crit. Rate by 20% for 15s.",
-        "trigger": "Triggered by inflicting Spectro Frazzle."
+        "label": "5pc Crit Rate",
+        "trigger": "Triggered by inflicting Spectro Frazzle.",
+        "description": "Inflicting Spectro Frazzle increases Crit. Rate by 20% for 15s."
       },
       {
         "key": "radiance5p2",
-        "label": "Attacking enemies with 10 stacks grants 15% Spectro DMG Bonus for 15s.",
-        "trigger": "Triggered by attacking enemies with 10 Spectro Frazzle stacks."
+        "label": "5pc Spectro Buff",
+        "trigger": "Triggered by attacking enemies with 10 Spectro Frazzle stacks.",
+        "description": "Attacking enemies with 10 stacks grants 15% Spectro DMG Bonus for 15s."
       }
     ]
   },
@@ -632,12 +657,14 @@
       {
         "key": "twoPiece",
         "label": "Havoc DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Havoc DMG +10%"
       },
       {
         "key": "midnight5",
-        "label": "When Outro Skill is triggered, grant the incoming Resonator 15% Havoc DMG Bonus for 15s.",
-        "trigger": "Triggered by using Outro Skill."
+        "label": "5pc Incoming Havoc",
+        "trigger": "Triggered by using Outro Skill.",
+        "description": "When Outro Skill is triggered, grant the incoming Resonator 15% Havoc DMG Bonus for 15s."
       }
     ]
   },
@@ -685,17 +712,20 @@
       {
         "key": "twoPiece",
         "label": "Energy Regen +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Energy Regen +10%"
       },
       {
         "key": "fivePiece",
-        "label": "Increase Coordinated Attack DMG by 80%.",
-        "trigger": "Always active at 5pc."
+        "label": "Coordinated Attack DMG +80%",
+        "trigger": "Always active at 5pc.",
+        "description": "Increase Coordinated Attack DMG by 80%."
       },
       {
         "key": "empyrean5",
-        "label": "Upon a critical hit of Coordinated Attack, increase the active Resonator's ATK by 20% for 4s.",
-        "trigger": "Triggered when a Coordinated Attack lands a CRIT hit."
+        "label": "5pc Active ATK",
+        "trigger": "Triggered when a Coordinated Attack lands a CRIT hit.",
+        "description": "Upon a critical hit of Coordinated Attack, increase the active Resonator's ATK by 20% for 4s."
       }
     ]
   },
@@ -729,12 +759,14 @@
       {
         "key": "twoPiece",
         "label": "Energy Regen +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Energy Regen +10%"
       },
       {
         "key": "fivePiece",
-        "label": "ATK +15%.",
-        "trigger": "Always active at 5pc."
+        "label": "ATK +15%",
+        "trigger": "Always active at 5pc.",
+        "description": "ATK +15%."
       }
     ]
   },
@@ -784,12 +816,14 @@
       {
         "key": "twoPiece",
         "label": "Aero DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Aero DMG +10%"
       },
       {
         "key": "welkin5",
-        "label": "Inflicting Aero Erosion increases Aero DMG for all Resonators in the team by 15%, and for the caster by an additional 15%, for 20s.",
-        "trigger": "Triggered by inflicting Aero Erosion."
+        "label": "5pc Aero Team Buff",
+        "trigger": "Triggered by inflicting Aero Erosion.",
+        "description": "Inflicting Aero Erosion increases Aero DMG for all Resonators in the team by 15%, and for the caster by an additional 15%, for 20s."
       }
     ]
   },
@@ -836,12 +870,14 @@
       {
         "key": "twoPiece",
         "label": "Aero DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Aero DMG +10%"
       },
       {
         "key": "windward5",
-        "label": "Hitting a target with Aero Erosion increases Crit. Rate by 10% and grants 30% Aero DMG Bonus for 10s.",
-        "trigger": "Triggered by hitting a target with Aero Erosion."
+        "label": "5pc Aero Buff",
+        "trigger": "Triggered by hitting a target with Aero Erosion.",
+        "description": "Hitting a target with Aero Erosion increases Crit. Rate by 10% and grants 30% Aero DMG Bonus for 10s."
       }
     ]
   },
@@ -891,12 +927,14 @@
       {
         "key": "twoPiece",
         "label": "Fusion DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Fusion DMG +10%"
       },
       {
         "key": "clawprint5",
-        "label": "Casting Resonance Liberation grants 15% Fusion DMG Bonus and 20% Resonance Liberation DMG Bonus for 35s.",
-        "trigger": "Triggered by casting Resonance Liberation."
+        "label": "5pc Fusion/Liberation Buff",
+        "trigger": "Triggered by casting Resonance Liberation.",
+        "description": "Casting Resonance Liberation grants 15% Fusion DMG Bonus and 20% Resonance Liberation DMG Bonus for 35s."
       }
     ]
   },
@@ -932,8 +970,9 @@
     "parts": [
       {
         "key": "dreamOfTheLost3pc",
-        "label": "Holding 0 Resonance Energy increases Crit. Rate by 20% and grants 35% Echo Skill DMG Bonus.",
-        "trigger": "Triggered while Resonance Energy is 0."
+        "label": "3pc Echo Skill Buff",
+        "trigger": "Triggered while Resonance Energy is 0.",
+        "description": "Holding 0 Resonance Energy increases Crit. Rate by 20% and grants 35% Echo Skill DMG Bonus."
       }
     ]
   },
@@ -983,8 +1022,9 @@
     "parts": [
       {
         "key": "crownOfValor3pc",
-        "label": "Upon gaining a Shield, increase ATK by 6% and Crit. DMG by 4% for 4s, stacking up to 5 times.",
-        "trigger": "Triggered upon gaining a Shield."
+        "label": "3pc Shield Stacks",
+        "trigger": "Triggered upon gaining a Shield.",
+        "description": "Upon gaining a Shield, increase ATK by 6% and Crit. DMG by 4% for 4s, stacking up to 5 times."
       }
     ]
   },
@@ -1042,8 +1082,9 @@
     "parts": [
       {
         "key": "lawOfHarmony3p",
-        "label": "Casting Echo Skill grants 30% Heavy Attack DMG Bonus. All Resonators gain 4% Echo Skill DMG Bonus, stacking up to 4 times.",
-        "trigger": "Triggered by casting Echo Skill."
+        "label": "3pc Echo/Heavy Buff",
+        "trigger": "Triggered by casting Echo Skill.",
+        "description": "Casting Echo Skill grants 30% Heavy Attack DMG Bonus. All Resonators gain 4% Echo Skill DMG Bonus, stacking up to 4 times."
       }
     ]
   },
@@ -1085,18 +1126,21 @@
     "parts": [
       {
         "key": "threePiece",
-        "label": "While both effects are active, gain 16% Fusion DMG Bonus.",
-        "trigger": "Active while both Flamewing's Shadow triggers are active."
+        "label": "3pc Fusion Buff",
+        "trigger": "Active while both Flamewing's Shadow triggers are active.",
+        "description": "While both effects are active, gain 16% Fusion DMG Bonus."
       },
       {
         "key": "flamewingsShadow2pcP1",
-        "label": "Dealing Echo Skill DMG increases Heavy Attack Crit. Rate by 20%.",
-        "trigger": "Triggered by dealing Echo Skill DMG."
+        "label": "3pc Heavy Crit",
+        "trigger": "Triggered by dealing Echo Skill DMG.",
+        "description": "Dealing Echo Skill DMG increases Heavy Attack Crit. Rate by 20%."
       },
       {
         "key": "flamewingsShadow2pcP2",
-        "label": "Dealing Heavy Attack DMG increases Echo Skill Crit. Rate by 20%.",
-        "trigger": "Triggered by dealing Heavy Attack DMG."
+        "label": "3pc Echo Crit",
+        "trigger": "Triggered by dealing Heavy Attack DMG.",
+        "description": "Dealing Heavy Attack DMG increases Echo Skill Crit. Rate by 20%."
       }
     ],
     "extraEffects": [
@@ -1137,7 +1181,7 @@
     "name": "Thread of Severed Fate",
     "setMax": 3,
     "desc": {
-      "threePiece": "Inflicting Havoc Bane increases ATK by 20% and grants 30% Havoc DMG Bonus for 5s."
+      "threePiece": "Inflicting Havoc Bane increases ATK by 20% and grants 30% Resonance Liberation DMG Bonus for 5s."
     },
     "twoPiece": null,
     "fivePiece": null,
@@ -1154,8 +1198,8 @@
           {
             "value": 30,
             "path": [
-              "attribute",
-              "havoc",
+              "skillType",
+              "resonanceLiberation",
               "dmgBonus"
             ]
           }
@@ -1165,8 +1209,9 @@
     "parts": [
       {
         "key": "threadOfSeveredFate3pc",
-        "label": "Inflicting Havoc Bane increases ATK by 20% and grants 30% Havoc DMG Bonus for 5s.",
-        "trigger": "Triggered by inflicting Havoc Bane."
+        "label": "3pc Liberation Buff",
+        "trigger": "Triggered by inflicting Havoc Bane.",
+        "description": "Inflicting Havoc Bane increases ATK by 20% and grants 30% Resonance Liberation DMG Bonus for 5s."
       }
     ]
   },
@@ -1229,17 +1274,20 @@
       {
         "key": "twoPiece",
         "label": "Spectro DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Spectro DMG +10%"
       },
       {
         "key": "neonlightLeap5",
-        "label": "After casting Outro Skill, increases ATK of the next Resonator by 15% for 15s.",
-        "trigger": "Triggered by using Outro Skill."
+        "label": "5pc Incoming ATK",
+        "trigger": "Triggered by using Outro Skill.",
+        "description": "After casting Outro Skill, increases ATK of the next Resonator by 15% for 15s."
       },
       {
         "key": "neonlightLeapOffTune",
-        "label": "Each point of Tune Break Boost additionally increases the next Resonator's ATK by 0.3%, up to 15%.",
-        "trigger": "Scales with the source Resonator's Tune Break Boost."
+        "label": "5pc Tune Break Scaling",
+        "trigger": "Scales with the source Resonator's Tune Break Boost.",
+        "description": "Each point of Tune Break Boost additionally increases the next Resonator's ATK by 0.3%, up to 15%."
       }
     ]
   },
@@ -1288,12 +1336,14 @@
       {
         "key": "twoPiece",
         "label": "Healing Bonus +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Healing Bonus +10%"
       },
       {
         "key": "starryRadiance5pc",
-        "label": "When healing an ally, every 1% Off-Tune Buildup Rate grants 0.2% ATK to the team, up to 25%.",
-        "trigger": "Triggered when healing an ally (scales with Off-Tune Buildup Rate)."
+        "label": "5pc Team ATK",
+        "trigger": "Triggered when healing an ally (scales with Off-Tune Buildup Rate).",
+        "description": "When healing an ally, every 1% Off-Tune Buildup Rate grants 0.2% ATK to the team, up to 25%."
       }
     ]
   },
@@ -1356,17 +1406,20 @@
       {
         "key": "twoPiece",
         "label": "Spectro DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Spectro DMG +10%"
       },
       {
         "key": "gildedRevelationStacks",
-        "label": "10% Spectro DMG Bonus (3 Stacks Max).",
-        "trigger": "Triggered by dealing Basic Attack DMG."
+        "label": "5pc Spectro Stacks",
+        "trigger": "Triggered by dealing Basic Attack DMG.",
+        "description": "10% Spectro DMG Bonus (3 Stacks Max)."
       },
       {
         "key": "gildedRevelationBasicBuff",
-        "label": "40% Basic Attack DMG Bonus.",
-        "trigger": "Triggered by casting Resonance Liberation at 3 stacks."
+        "label": "5pc Basic Attack Buff",
+        "trigger": "Triggered by casting Resonance Liberation at 3 stacks.",
+        "description": "40% Basic Attack DMG Bonus."
       }
     ]
   },
@@ -1413,12 +1466,14 @@
       {
         "key": "twoPiece",
         "label": "Fusion DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Fusion DMG +10%"
       },
       {
         "key": "trailblazingStar5pc",
-        "label": "20% CRIT Rate, 20% Fusion DMG Bonus.",
-        "trigger": "Triggered by inflicting Fusion Burst."
+        "label": "5pc Fusion Crit Buff",
+        "trigger": "Triggered by inflicting Fusion Burst.",
+        "description": "20% CRIT Rate, 20% Fusion DMG Bonus."
       }
     ]
   },
@@ -1472,17 +1527,20 @@
       {
         "key": "twoPiece",
         "label": "Fusion DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Fusion DMG +10%"
       },
       {
         "key": "chromaticFoamSelf",
-        "label": "When inflicting Fusion Burst, gain 10% Fusion DMG Bonus for 15s.",
-        "trigger": "Triggered by inflicting Fusion Burst."
+        "label": "5pc Self Fusion Buff",
+        "trigger": "Triggered by inflicting Fusion Burst.",
+        "description": "When inflicting Fusion Burst, gain 10% Fusion DMG Bonus for 15s."
       },
       {
         "key": "chromaticFoamOutro",
-        "label": "While this effect is active, casting an Outro Skill grants the incoming Resonator 25% Fusion DMG Bonus for 15s.",
-        "trigger": "Triggered by using Outro Skill while this effect is active."
+        "label": "5pc Incoming Fusion",
+        "trigger": "Triggered by using Outro Skill while this effect is active.",
+        "description": "While this effect is active, casting an Outro Skill grants the incoming Resonator 25% Fusion DMG Bonus for 15s."
       }
     ]
   },
@@ -1531,12 +1589,14 @@
       {
         "key": "twoPiece",
         "label": "Aero DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Aero DMG +10%"
       },
       {
         "key": "soundOfTrueName5pc",
-        "label": "Dealing Echo Skill DMG increases Echo Skill Crit. Rate by 20% and grants 15% Aero DMG Bonus for 5s.",
-        "trigger": "Triggered by dealing Echo Skill DMG."
+        "label": "5pc Echo Skill Buff",
+        "trigger": "Triggered by dealing Echo Skill DMG.",
+        "description": "Dealing Echo Skill DMG increases Echo Skill Crit. Rate by 20% and grants 15% Aero DMG Bonus for 5s."
       }
     ]
   },
@@ -1600,22 +1660,26 @@
       {
         "key": "twoPiece",
         "label": "Glacio DMG +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "Glacio DMG +10%"
       },
       {
         "key": "snowfall",
-        "label": "Inflicting Glacio Chafe on enemies increases Glacio DMG dealt by 10% for 15s.",
-        "trigger": "Triggered by inflicting Glacio Chafe."
+        "label": "5pc Glacio Buff",
+        "trigger": "Triggered by inflicting Glacio Chafe.",
+        "description": "Inflicting Glacio Chafe on enemies increases Glacio DMG dealt by 10% for 15s."
       },
       {
         "key": "snowfallCrit",
-        "label": "The Resonator gains the Snowfall effect, which can be triggered once every 25s. While Snowfall is active: dealing Resonance Liberation DMG removes Snowfall and increases the Resonator's Crit. Rate by 25% for 30s.",
-        "trigger": "Triggered by dealing Resonance Liberation DMG while Snowfall is active."
+        "label": "5pc Crit Rate",
+        "trigger": "Triggered by dealing Resonance Liberation DMG while Snowfall is active.",
+        "description": "The Resonator gains the Snowfall effect, which can be triggered once every 25s. While Snowfall is active: dealing Resonance Liberation DMG removes Snowfall and increases the Resonator's Crit. Rate by 25% for 30s."
       },
       {
         "key": "snowfallOutro",
-        "label": "Casting Outro Skill removes Snowfall and grants 25% Glacio DMG Bonus to the incoming Resonator for 30s.",
-        "trigger": "Triggered by casting Outro Skill while Snowfall is active."
+        "label": "5pc Incoming Glacio",
+        "trigger": "Triggered by casting Outro Skill while Snowfall is active.",
+        "description": "Casting Outro Skill removes Snowfall and grants 25% Glacio DMG Bonus to the incoming Resonator for 30s."
       }
     ]
   },
@@ -1654,12 +1718,55 @@
       {
         "key": "twoPiece",
         "label": "ATK +10%",
-        "trigger": "Always active at 2pc."
+        "trigger": "Always active at 2pc.",
+        "description": "ATK +10%"
       },
       {
         "key": "reelOfSplicedMemories5pc",
-        "label": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 20 for 30s.",
-        "trigger": "Triggered by inflicting Tune Rupture - Shifting or Tune Strain - Shifting."
+        "label": "5pc Tune Break Boost",
+        "trigger": "Triggered by inflicting Tune Rupture - Shifting or Tune Strain - Shifting.",
+        "description": "Inflicting Tune Rupture - Shifting or Tune Strain - Shifting on enemies increases the Tune Break Boost of Resonators in the team by 20 for 30s."
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "name": "Shadow of Shattered Dreams",
+    "setMax": 1,
+    "desc": {
+      "onePiece": "Inflicting Hack - Shifting on the target grants 35% Basic Attack DMG Bonus and Heavy Attack DMG Bonus for 15s."
+    },
+    "onePiece": null,
+    "states": {
+      "shadowOfShatteredDreams1pc": {
+        "max": [
+          {
+            "value": 35,
+            "path": [
+              "skillType",
+              "basicAtk",
+              "dmgBonus"
+            ],
+            "targetScope": "self"
+          },
+          {
+            "value": 35,
+            "path": [
+              "skillType",
+              "heavyAtk",
+              "dmgBonus"
+            ],
+            "targetScope": "self"
+          }
+        ]
+      }
+    },
+    "parts": [
+      {
+        "key": "shadowOfShatteredDreams1pc",
+        "label": "1pc Basic/Heavy Buff",
+        "trigger": "Triggered by Inflicting Hack - Shifting.",
+        "description": "Inflicting Hack - Shifting on the target grants 35% Basic Attack DMG Bonus and Heavy Attack DMG Bonus for 15s."
       }
     ]
   }

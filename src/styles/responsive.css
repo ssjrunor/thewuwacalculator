@@ -29,10 +29,11 @@
   .overview-resonator-strip {
     flex-direction: row;
     width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
     border-right: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 8%, var(--calc-box-border));
+    border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 8%, var(--box-border));
     padding: 0.6rem 1rem;
   }
 }
@@ -241,7 +242,6 @@
   .resonator-flow-header,
   .resonator-settings,
   .skills-settings,
-  .inherent-skills-box,
   .stats-box,
   .damage-box,
   .calculator-mode-panel {

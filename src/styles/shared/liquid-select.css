@@ -1,13 +1,10 @@
-/* Shared liquid select component */
+
 
 .liquid-select {
   --liquid-select-enter-offset: 0.7rem;
   --liquid-select-accent: var(--resonator-accent, var(--accent, #6b7cff));
-  --liquid-select-text: var(--calc-input-color, var(--text, #1b2435));
-  --liquid-select-input-border: var(--calc-input-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
-  --liquid-select-item-border: var(--calc-item-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
-  --liquid-select-surface-border: var(--calc-box-border, var(--panel-border, rgba(27, 36, 53, 0.14)));
-  --liquid-select-surface: var(--calc-box-bg, var(--surface-strong, rgba(255, 255, 255, 0.94)));
+  --liquid-select-text: var(--input-color, var(--text, #1b2435));
+  --liquid-select-input-border: var(--input-border, var(--border, rgba(27, 36, 53, 0.14)));
   --liquid-select-menu-z-index: 1300;
   position: relative;
   width: fit-content;
@@ -144,10 +141,10 @@
 }
 
 .liquid-select__menu {
-  --ui-panel-pill-active-bg: color-mix(in srgb, var(--resonator-accent) 70%, var(--calc-box-bg));
-  --ui-panel-pill-active-color: color-mix(in srgb, var(--resonator-accent) 74%, var(--calc-text));
-  --ui-panel-pill-border-color: color-mix(in srgb, var(--resonator-accent) 8%, var(--calc-item-border));
-  --ui-panel-pill-strong-color: color-mix(in srgb, var(--resonator-accent) 58%, var(--calc-text));
+  --ui-panel-pill-active-bg: color-mix(in srgb, var(--resonator-accent) 70%, var(--box-bg));
+  --ui-panel-pill-active-color: color-mix(in srgb, var(--resonator-accent) 74%, var(--text));
+  --ui-panel-pill-border-color: color-mix(in srgb, var(--resonator-accent) 8%, var(--item-border));
+  --ui-panel-pill-strong-color: color-mix(in srgb, var(--resonator-accent) 58%, var(--text));
 
   position: fixed;
   display: flex;
@@ -162,9 +159,9 @@
   color: var(--liquid-select-text);
   z-index: var(--liquid-select-menu-z-index);
   width: fit-content;
-  /*
-  max-width: 200px;
-  */
+
+  background: var(--bg);
+
   overscroll-behavior: contain;
   border-radius: 1.05rem;
   border: 1px solid color-mix(in srgb, var(--liquid-select-accent) 18%, var(--liquid-select-input-border));
@@ -285,7 +282,7 @@
   color: color-mix(
           in srgb,
           var(--resonator-accent, var(--accent, #6b7cff)) 28%,
-          var(--calc-text, var(--text, #1b2435))
+          var(--text, #1b2435)
   );
   background: color-mix(in srgb, var(--resonator-accent) 10%, transparent);
   border-color: color-mix(in srgb, var(--liquid-select-accent) 18%, var(--liquid-select-input-border));
@@ -294,6 +291,36 @@
 .liquid-select__option.selected .liquid-select__option-check {
   opacity: 1;
   transform: scale(1);
+}
+
+
+.liquid-select__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.liquid-select__group + .liquid-select__group {
+  margin-top: 0.32rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--liquid-select-accent) 14%, transparent);
+}
+
+.liquid-select__group-label {
+  padding: 0.22rem 0.55rem 0.16rem;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--liquid-select-accent) 55%, color-mix(in srgb, var(--liquid-select-text) 60%, transparent));
+  user-select: none;
+}
+
+.liquid-select__group-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
 }
 
 .liquid-select__menu::-webkit-scrollbar {

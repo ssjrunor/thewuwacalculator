@@ -4,38 +4,38 @@
                count can exceed the single-dispatch WebGPU limit.
 */
 
-const MAX_DISPATCH_WORKGROUPS = 65535
+const MAX_DISPATCH_WG = 65535
 
-export async function dispatchComputePass(options: {
+export async function dispCmptPass(options: {
   device: GPUDevice
   pipeline: GPUComputePipeline
   bindGroup: GPUBindGroup
-  workgroupCount: number
-  maxWorkgroupsPerBatch?: number
-  beforeDispatchBatch?: (workgroupBase: number, batchSize: number) => void | Promise<void>
+  wrkgCnt: number
+  maxWorkgroups?: number
+  bfrDsptBtch?: (wgBase: number, batchSize: number) => void | Promise<void>
 }): Promise<void> {
   const {
     device,
     pipeline,
     bindGroup,
-    workgroupCount,
-    beforeDispatchBatch,
+    wrkgCnt: wrkgCnt,
+    bfrDsptBtch: bfrDsptBtch,
   } = options
 
   // WebGPU only allows a limited number of workgroups in one dispatch call.
   // So if the caller requests more than that, split it into multiple dispatches.
-  let remaining = workgroupCount
+  let remaining = wrkgCnt
   let dispatched = 0
-  const maxWorkgroupsPerBatch = Math.max(
+  const maxWgPerBatch = Math.max(
       1,
-      options.maxWorkgroupsPerBatch ?? MAX_DISPATCH_WORKGROUPS,
+      options.maxWorkgroups ?? MAX_DISPATCH_WG,
   )
 
   while (remaining > 0) {
     // take the biggest legal chunk for this pass
-    const batch = Math.min(remaining, MAX_DISPATCH_WORKGROUPS, maxWorkgroupsPerBatch)
+    const batch = Math.min(remaining, MAX_DISPATCH_WG, maxWgPerBatch)
 
-    await beforeDispatchBatch?.(dispatched, batch)
+    await bfrDsptBtch?.(dispatched, batch)
 
     // create a fresh encoder/pass for this chunk
     const encoder = device.createCommandEncoder()

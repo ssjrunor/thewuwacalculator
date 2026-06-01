@@ -4,19 +4,23 @@
                states, including weapon states and echo set piece states.
 */
 
-import { getEchoSetDef } from '@/data/gameData/echoSets/effects'
-import type { SourceStateDefinition } from '@/domain/gameData/contracts'
+import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
+import type { SourceState } from '@/domain/gameData/contracts'
 import { getEchoById } from '@/domain/services/echoCatalogService'
-import { getWeaponById } from '@/domain/services/weaponCatalogService'
+import { getWpnById } from '@/domain/services/weaponCatalogService'
 
-export interface SourceStateDisplay {
+export interface SrcSttDspl {
   sourceName?: string
   label: string
   description?: string
 }
 
 // map internal echo set part keys to their short piece labels
-function getEchoSetPieceLabel(stateId: string, setMax: 3 | 5): string {
+function getEchoSetPc(stateId: string, setMax: 1 | 3 | 5): string {
+  if (stateId === 'onePiece') {
+    return '1pc'
+  }
+
   if (stateId === 'twoPiece') {
     return '2pc'
   }
@@ -30,13 +34,16 @@ function getEchoSetPieceLabel(stateId: string, setMax: 3 | 5): string {
   }
 
   // fallback for custom/other part ids based on the set's max piece format
+  if (setMax === 1) return '1pc'
   return setMax === 3 ? '3pc' : '5pc'
 }
 
 // build the ui display payload for a source state
 // weapons expose the weapon name as the source name
-// echo sets expose the set name and a formatted piece label
-export function getSourceStateDisplay(state: SourceStateDefinition): SourceStateDisplay {
+// echo sets expose the set name and a formatted piece desc
+export function getStateText(state: SourceState): SrcSttDspl {
+  // source kind controls whether the desc should favor the source owner name
+  // or the authored state desc itself.
   if (state.source.type === 'enemy') {
     return {
       sourceName: 'Enemy',
@@ -56,7 +63,7 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
 
   // weapon states show the owning weapon name directly
   if (state.source.type === 'weapon') {
-    const weapon = getWeaponById(state.source.id)
+    const weapon = getWpnById(state.source.id)
     return {
       sourceName: weapon?.name,
       label: state.label,
@@ -64,7 +71,7 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
     }
   }
 
-  // non-echo-set states just use their own label/description as-is
+  // non-echo-set states just use their own desc/description as-is
   if (state.source.type !== 'echoSet') {
     return {
       label: state.label,
@@ -74,7 +81,7 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
 
   // echo set ids come in as strings, so normalize to a numeric id first
   const setId = Number(state.source.id)
-  const setDef = Number.isFinite(setId) ? getEchoSetDef(setId) : null
+  const setDef = Number.isFinite(setId) ? getEchoSetDe(setId) : null
 
   // if the set cannot be resolved, fall back to the raw state text
   if (!setDef) {
@@ -89,7 +96,7 @@ export function getSourceStateDisplay(state: SourceStateDefinition): SourceState
 
   return {
     sourceName: setDef.name,
-    label: `${setDef.name} ${getEchoSetPieceLabel(state.id, setDef.setMax)}`,
-    description: part?.label ?? state.description ?? state.label,
+    label: `${setDef.name} ${getEchoSetPc(state.id, setDef.setMax)}`,
+    description: part?.description ?? state.description ?? part?.label ?? state.label,
   }
 }

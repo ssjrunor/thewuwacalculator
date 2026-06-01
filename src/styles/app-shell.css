@@ -1,25 +1,38 @@
 .app-shell {
-  --app-bg: #f6f7fb;
-  --app-bg-alt: #edf1f8;
+  --bg: #f6f7fb;
+  --bg-alt: #edf1f8;
   --surface: rgba(255, 255, 255, 0.85);
-  --surface-strong: rgba(255, 255, 255, 0.95);
+  --surface-2: rgba(255, 255, 255, 0.95);
   --panel: rgba(255, 255, 255, 0.85);
-  --panel-border: rgba(25, 51, 83, 0.14);
-  --ui-panel-card-divider-color: var(--panel-border);
-
+  --border: rgba(25, 51, 83, 0.14);
+  --ui-panel-card-divider-color: var(--border);
+  --floating-bg: color-mix(in srgb, var(--surface-2, var(--panel, #1c2330)) 88%, transparent);
   --text: #1f2b3f;
   --muted: #5b6b85;
   --accent: #20bfb9;
-  --accent-strong: #149fa9;
+  --accent-2: #149fa9;
   --danger: crimson;
   --ok: #1eab62;
   --toolbar-bg: rgba(255, 255, 255, 0.9);
   --sidebar-bg: rgba(255, 255, 255, 0.9);
-  --partition-bg: rgba(255, 255, 255, 0.74);
   --hover: rgba(0, 0, 0, 0.05);
   --shadow: 0 12px 28px rgba(17, 33, 66, 0.16);
   min-height: 100%;
   color: var(--text);
+}
+
+.app-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text) 3%, transparent) 0 1px,
+      transparent 1px 5px
+  );
+  opacity: 0.75;
 }
 
 .toolbar {
@@ -29,14 +42,12 @@
   justify-content: center;
   height: 3.75rem;
   padding: 0 1rem;
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border);
   background: var(--toolbar-bg);
   backdrop-filter: blur(10px);
 }
 
 .layout {
-  --sidebar-width: 12.5rem;
-  --sidebar-collapsed-width: 3.75rem;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -135,7 +146,7 @@
   width: 13.75rem;
   height: 100%;
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--panel-border);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -168,7 +179,6 @@
   align-items: center;
   height: 3rem;
   border: none;
-  border-radius: 0.6rem;
   margin: 0;
   padding: 0;
   text-align: left;
@@ -177,7 +187,7 @@
   outline: none;
   box-shadow: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background 300ms ease, grid-template-columns 0.2s ease, border 300ms ease;
+  transition: background 300ms ease, grid-template-columns 0.2s ease;
   text-decoration: none;
   overflow: visible;
 }
@@ -196,12 +206,7 @@
   background: var(--hover);
 }
 
-.sidebar-button:hover {
-  border-radius: 1rem;
-}
-
 .sidebar-button.selected,
-.sidebar-sub-button.selected,
 .sidebar-button.active {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--text);
@@ -497,7 +502,7 @@
   display: flex;
   gap: 0.45rem;
   overflow-x: auto;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   backdrop-filter: blur(8px);
@@ -505,8 +510,8 @@
 }
 
 .toolbar-tab {
-  border: 1px solid var(--panel-border);
-  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   color: var(--muted);
   border-radius: 10px;
   padding: 0.4rem 0.55rem;
@@ -521,8 +526,8 @@
 .toolbar-tab:hover,
 .toolbar-tab.active {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--panel-border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
 }
 
 .toolbar-tab-icon {
@@ -531,7 +536,7 @@
   justify-content: center;
   min-width: 2rem;
   min-height: 2rem;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 7px;
   padding: 0.1rem;
 }
@@ -547,7 +552,7 @@
 }
 
 .mode-toolbar {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   backdrop-filter: blur(8px);
@@ -570,7 +575,7 @@
 }
 
 .mode-toolbar-meta span {
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
   font-size: 0.74rem;
@@ -672,12 +677,13 @@ body.split-resizing * {
   border: 0.05rem solid #dddddd;
   border-radius: 0.75rem;
   overflow: hidden;
-  margin-bottom: 0.625rem;
   font-size: 1rem;
   font-weight: 500;
 }
 
 .stat-row {
+  border-radius: 0.25rem;
+  background: var(--inner-bg);
   display: grid;
   grid-template-columns: 1fr 5rem 5rem 5rem;
   padding: 0.5rem 0.75rem;
@@ -822,47 +828,83 @@ body.split-resizing * {
   mask-size: contain;
 }
 
-/* ── Entrance animation toggle ── */
+:is(.no-entrance-anim, .reduce-animation) .resonator-pane > .resonator-flow-header,
+:is(.no-entrance-anim, .reduce-animation) .resonator-pane > .resonator-snapshot-grid,
+:is(.no-entrance-anim, .reduce-animation) .resonator-pane > .resonator-settings,
+:is(.no-entrance-anim, .reduce-animation) .resonator-pane > .skills-settings,
+:is(.no-entrance-anim, .reduce-animation) .resonator-pane > .inherent-skills-box,
+:is(.no-entrance-anim, .reduce-animation) .echoes-pane > .echoes-pane-header,
+:is(.no-entrance-anim, .reduce-animation) .echoes-pane-content > .echoes-slot-grid,
+:is(.no-entrance-anim, .reduce-animation) .echoes-pane-content > .echo-set-bonuses,
+:is(.no-entrance-anim, .reduce-animation) .echoes-pane-content > .echo-totals,
+:is(.no-entrance-anim, .reduce-animation) .enemy-pane-v2 > .pane-section,
+:is(.no-entrance-anim, .reduce-animation) .teams-pane > h3,
+:is(.no-entrance-anim, .reduce-animation) .teams-pane > .pane-hint,
+:is(.no-entrance-anim, .reduce-animation) .teams-pane > .pane-section,
+:is(.no-entrance-anim, .reduce-animation) .custom-buffs-pane > h3,
+:is(.no-entrance-anim, .reduce-animation) .custom-buffs-pane > .pane-hint,
+:is(.no-entrance-anim, .reduce-animation) .custom-buffs-pane > .custom-buffs-card,
+:is(.no-entrance-anim, .reduce-animation) .custom-buffs-pane > .custom-buffs-footer,
+:is(.no-entrance-anim, .reduce-animation) .rotation-pane > .rotation-pane-header,
+:is(.no-entrance-anim, .reduce-animation) .rotation-pane > .pane-section,
+:is(.no-entrance-anim, .reduce-animation) .rotation-list-container > *,
+:is(.no-entrance-anim, .reduce-animation) .rotation-saved-list > *,
+:is(.no-entrance-anim, .reduce-animation) .character-overview-pane > .character-overview-header,
+:is(.no-entrance-anim, .reduce-animation) .character-overview-content > .overview-resonator-strip,
+:is(.no-entrance-anim, .reduce-animation) .overview-resonator-strip > .overview-resonator-pill,
+:is(.no-entrance-anim, .reduce-animation) .overview-mosaic > .overview-cell,
+:is(.no-entrance-anim, .reduce-animation) .overview-dashboard-left > .overview-stats-tree,
+:is(.no-entrance-anim, .reduce-animation) .overview-dashboard-layout > .calculator-hero-state-summary,
+:is(.no-entrance-anim, .reduce-animation) .calculator-hero-state-column > .calculator-hero-state-card,
+:is(.no-entrance-anim, .reduce-animation) .optimizer-pane > .sticky-wrapper,
+:is(.no-entrance-anim, .reduce-animation) .optimizer-pane > .optimizer-details,
+:is(.no-entrance-anim, .reduce-animation) .optimizer-pane > .sticky-controls,
+:is(.no-entrance-anim, .reduce-animation) .optimizer-details > .optimizer-character-settings,
+:is(.no-entrance-anim, .reduce-animation) .optimizer-details > .optimizer-search-results,
+:is(.no-entrance-anim, .reduce-animation) .calculator-results-pane > .results-pane-head,
+:is(.no-entrance-anim, .reduce-animation) .calculator-results-pane > .analysis-overview-grid,
+:is(.no-entrance-anim, .reduce-animation) .calculator-results-pane > .results-section-stack,
+:is(.no-entrance-anim, .reduce-animation) .calculator-results-pane > .soft-empty,
+:is(.no-entrance-anim, .reduce-animation) .analysis-overview-grid > .resonator-snapshot-card,
+:is(.no-entrance-anim, .reduce-animation) .results-section-stack > .pane-section,
+:is(.no-entrance-anim, .reduce-animation) .suggestions-pane > .suggestions-pane-header,
+:is(.no-entrance-anim, .reduce-animation) .suggestions-pane > .suggestions-controls,
+:is(.no-entrance-anim, .reduce-animation) .suggestions-pane > .suggestions-list,
+:is(.no-entrance-anim, .reduce-animation) .suggestions-list > .set-plan-card,
+:is(.no-entrance-anim, .reduce-animation) .suggestions-list > .main-stat-card,
+:is(.no-entrance-anim, .reduce-animation) .page-grid > *,
+:is(.no-entrance-anim, .reduce-animation) .page-hero,
+:is(.no-entrance-anim, .reduce-animation) .page-bento > .page-tile,
+:is(.no-entrance-anim, .reduce-animation) .not-found-center,
+:is(.no-entrance-anim, .reduce-animation) .picker-modal__grid > *,
+:is(.no-entrance-anim, .reduce-animation) .app-status-card,
+:is(.no-entrance-anim, .reduce-animation) .app-status-changes,
+:is(.no-entrance-anim, .reduce-animation) .app-status-issues,
+:is(.no-entrance-anim, .reduce-animation) .app-status-item,
+:is(.no-entrance-anim, .reduce-animation) .settings-pref-branch[data-open="true"] .settings-pref-branch__option,
+:is(.no-entrance-anim, .reduce-animation) .settings-prefs-panel > .tile-header,
+:is(.no-entrance-anim, .reduce-animation) .settings-prefs-categories > .settings-prefs-category,
+:is(.no-entrance-anim, .reduce-animation) .rotation-loop-card,
+:is(.no-entrance-anim, .reduce-animation) .rotation-when-plate,
+:is(.no-entrance-anim, .reduce-animation) .rotation-when-rung,
+:is(.no-entrance-anim, .reduce-animation) .rotation-when-editor__empty-orbit-ring,
+:is(.no-entrance-anim, .reduce-animation) .toolbar-icon-button,
+:is(.no-entrance-anim, .reduce-animation) .toolbar-group {
 
-.no-entrance-anim .resonator-pane > .resonator-flow-header,
-.no-entrance-anim .resonator-pane > .resonator-snapshot-grid,
-.no-entrance-anim .resonator-pane > .resonator-settings,
-.no-entrance-anim .resonator-pane > .skills-settings,
-.no-entrance-anim .resonator-pane > .inherent-skills-box,
-.no-entrance-anim .echoes-pane > .echoes-pane-header,
-.no-entrance-anim .echoes-pane-content > .echoes-slot-grid,
-.no-entrance-anim .echoes-pane-content > .echo-set-bonuses,
-.no-entrance-anim .echoes-pane-content > .echo-totals,
-.no-entrance-anim .enemy-pane-v2 > .enemy-pane-v2__hero,
-.no-entrance-anim .enemy-pane-v2 > .pane-section,
-.no-entrance-anim .teams-pane > h3,
-.no-entrance-anim .teams-pane > .pane-hint,
-.no-entrance-anim .teams-pane > .pane-section,
-.no-entrance-anim .custom-buffs-pane > h3,
-.no-entrance-anim .custom-buffs-pane > .pane-hint,
-.no-entrance-anim .custom-buffs-pane > .custom-buffs-card,
-.no-entrance-anim .custom-buffs-pane > .custom-buffs-footer,
-.no-entrance-anim .rotation-pane > h3,
-.no-entrance-anim .rotation-pane > .rotation-view-toggle,
-.no-entrance-anim .rotation-pane > .pane-section,
-.no-entrance-anim .character-overview-pane > .character-overview-header,
-.no-entrance-anim .character-overview-content > .overview-resonator-strip,
-.no-entrance-anim .overview-resonator-strip > .overview-resonator-pill,
-.no-entrance-anim .overview-mosaic > .overview-cell,
-.no-entrance-anim .overview-dashboard-left > .overview-stats-tree,
-.no-entrance-anim .overview-dashboard-layout > .calculator-hero-state-summary,
-.no-entrance-anim .calculator-hero-state-column > .calculator-hero-state-card,
-.no-entrance-anim .optimizer-pane > .sticky-wrapper,
-.no-entrance-anim .optimizer-pane > .optimizer-details,
-.no-entrance-anim .optimizer-pane > .sticky-controls,
-.no-entrance-anim .optimizer-details > .optimizer-character-settings,
-.no-entrance-anim .optimizer-details > .optimizer-search-results,
-.no-entrance-anim .calculator-results-pane > .results-pane-head,
-.no-entrance-anim .calculator-results-pane > .analysis-overview-grid,
-.no-entrance-anim .calculator-results-pane > .results-section-stack,
-.no-entrance-anim .calculator-results-pane > .soft-empty,
-.no-entrance-anim .analysis-overview-grid > .resonator-snapshot-card,
-.no-entrance-anim .results-section-stack > .pane-section,
-.no-entrance-anim .page-bento > .page-tile {
-  animation: none !important;
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+:is(.no-entrance-anim, .reduce-animation) .settings-pref-branch,
+:is(.no-entrance-anim, .reduce-animation) .settings-pref-branch[data-open="true"] {
+  transition: opacity 0.12s ease, grid-template-rows 0.12s ease !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+:is(.no-entrance-anim, .reduce-animation) .rotation-when-rung {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
 }

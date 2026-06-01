@@ -4,7 +4,7 @@
                effect applies to a given runtime target.
 */
 
-import type { EffectDefinition, EffectRuntimeContext } from '@/domain/gameData/contracts'
+import type { EffectDef, EffectContext } from '@/domain/gameData/contracts'
 
 // remove duplicates and empty ids
 function uniqueIds(values: string[]): string[] {
@@ -12,9 +12,9 @@ function uniqueIds(values: string[]): string[] {
 }
 
 // resolve all eligible target ids for an effect
-function resolveEligibleTargetIds(
-    effect: EffectDefinition,
-    context: EffectRuntimeContext,
+function resLgblTgtId(
+    effect: EffectDef,
+    context: EffectContext,
 ): string[] {
   const targetScope = effect.targetScope ?? 'self'
   const sourceId = context.sourceRuntime.id
@@ -32,39 +32,39 @@ function resolveEligibleTargetIds(
 }
 
 // resolve the final target id for an effect
-export function resolveEffectTargetId(
-    effect: EffectDefinition,
-    context: EffectRuntimeContext,
+export function resFfctTgtId(
+    effect: EffectDef,
+    context: EffectContext,
 ): string | null {
   const targetScope = effect.targetScope ?? 'self'
   if (targetScope !== 'active' && targetScope !== 'activeOther') {
     return null
   }
 
-  const eligibleTargetIds = resolveEligibleTargetIds(effect, context)
-  if (eligibleTargetIds.length === 0) {
+  const lgblTgtIds = resLgblTgtId(effect, context)
+  if (lgblTgtIds.length === 0) {
     return null
   }
 
   const ownerKey = effect.ownerKey
   if (ownerKey) {
-    const selectedTarget = context.selectedTargetsByOwnerKey?.[ownerKey]
-    if (typeof selectedTarget === 'string' && eligibleTargetIds.includes(selectedTarget)) {
-      return selectedTarget
+    const selTgt = context.selectedTargetsByOwnerKey?.[ownerKey]
+    if (typeof selTgt === 'string' && lgblTgtIds.includes(selTgt)) {
+      return selTgt
     }
   }
 
-  if (eligibleTargetIds.includes(context.activeResonatorId)) {
+  if (lgblTgtIds.includes(context.activeResonatorId)) {
     return context.activeResonatorId
   }
 
-  return eligibleTargetIds[0] ?? null
+  return lgblTgtIds[0] ?? null
 }
 
 // check whether an effect applies to the current target runtime
-export function effectTargetsRuntime(
-    effect: EffectDefinition,
-    context: EffectRuntimeContext,
+export function ffctTrgtRt(
+    effect: EffectDef,
+    context: EffectContext,
 ): boolean {
   const targetScope = effect.targetScope ?? 'self'
   const sourceId = context.sourceRuntime.id
@@ -75,7 +75,7 @@ export function effectTargetsRuntime(
   }
 
   if (targetScope === 'active' || targetScope === 'activeOther') {
-    return targetId === resolveEffectTargetId(effect, context)
+    return targetId === resFfctTgtId(effect, context)
   }
 
   if (targetScope === 'teamWide') {

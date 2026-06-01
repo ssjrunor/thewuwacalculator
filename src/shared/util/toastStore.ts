@@ -7,7 +7,7 @@
 import { create } from 'zustand'
 import type { ReactNode } from 'react'
 
-export type ToastPosition =
+export type TstPstn =
     | 'top-left'
     | 'top-center'
     | 'top-right'
@@ -21,7 +21,7 @@ export interface Toast {
   id: string
   content: ReactNode
   variant?: ToastVariant
-  position?: ToastPosition
+  position?: TstPstn
   duration?: number
   action?: { label: string; onClick: () => void }
   onClick?: () => void
@@ -37,7 +37,7 @@ interface ToastStore {
 
 let counter = 0
 
-export const useToastStore = create<ToastStore>((set, get) => ({
+export const useTstStr = create<ToastStore>((set, get) => ({
   toasts: [],
 
   // show a new toast and schedule auto-dismiss if needed

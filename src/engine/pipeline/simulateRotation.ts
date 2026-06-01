@@ -5,24 +5,41 @@
                from the produced entry lists.
 */
 
-import type { ResonatorRuntimeState, ResonatorSeed } from '@/domain/entities/runtime'
-import type { CombatContext, DamageTotals, SimulationResult } from '@/engine/pipeline/types'
-import { runFeatureSimulation, type PreparedRotationEnvironment } from '@/engine/rotation/system'
-import type { SkillAggregationType } from '@/domain/entities/stats'
-import type { PreparedDirectOutput } from '@/engine/pipeline/preparedWorkspace'
+import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import type { CombatContext, DamageTotals, SimResult } from '@/engine/pipeline/types'
+import { runFeatSmlt, type PrepRotNvrn } from '@/engine/rotation/system'
+import type { SkillAggType } from '@/domain/entities/stats'
+import type { PrepDrctTpt } from '@/engine/pipeline/preparedWorkspace'
+import type { FeatureResult } from '@/domain/gameData/contracts'
+
+function getLoopVrgDv(entry: FeatureResult): number {
+  if (!entry.loopRunCounts) {
+    return 1
+  }
+
+  return Object.values(entry.loopRunCounts).reduce(
+      (divisor, runs) => divisor * Math.max(1, Math.floor(runs)),
+      1,
+  )
+}
+
+function addNrmlEntTt(total: DamageTotals, entry: FeatureResult): void {
+  const divisor = getLoopVrgDv(entry)
+  total.normal += entry.normal / divisor
+  total.crit += entry.crit / divisor
+  total.avg += entry.avg / divisor
+}
 
 // sum only direct damage entries into one total bundle
 // healing and shield rows are ignored here because this helper is meant for damage totals
-function sumRotationTotals(entries: SimulationResult['perSkill']): DamageTotals {
+function sumRotTtls(entries: SimResult['perSkill']): DamageTotals {
   return entries.reduce(
       (acc, entry) => {
         if (entry.aggregationType !== 'damage') {
           return acc
         }
 
-        acc.normal += entry.normal
-        acc.crit += entry.crit
-        acc.avg += entry.avg
+        addNrmlEntTt(acc, entry)
         return acc
       },
       { normal: 0, crit: 0, avg: 0 },
@@ -31,7 +48,7 @@ function sumRotationTotals(entries: SimulationResult['perSkill']): DamageTotals 
 
 // build an empty totals object for every supported aggregation bucket
 // this gives reducers a stable shape to accumulate into
-function makeAggregationTotals(): Record<SkillAggregationType, DamageTotals> {
+function mkAggTtls(): Record<SkillAggType, DamageTotals> {
   return {
     damage: { normal: 0, crit: 0, avg: 0 },
     healing: { normal: 0, crit: 0, avg: 0 },
@@ -41,47 +58,45 @@ function makeAggregationTotals(): Record<SkillAggregationType, DamageTotals> {
 
 // sum all entries into their matching aggregation bucket
 // unlike sumRotationTotals, this preserves damage/healing/shield separation
-function sumTotalsByAggregation(entries: SimulationResult['perSkill']): Record<SkillAggregationType, DamageTotals> {
+function sumTtlsByAgg(entries: SimResult['perSkill']): Record<SkillAggType, DamageTotals> {
   return entries.reduce((acc, entry) => {
     const bucket = acc[entry.aggregationType]
-    bucket.normal += entry.normal
-    bucket.crit += entry.crit
-    bucket.avg += entry.avg
+    addNrmlEntTt(bucket, entry)
     return acc
-  }, makeAggregationTotals())
+  }, mkAggTtls())
 }
 
 // run the lower-level feature simulation, then reshape its output into the
 // higher-level simulation result object expected by the rest of the app
-export function simulateRotation(
+export function smltRot(
     context: CombatContext,
-    seed: ResonatorSeed,
-    runtimesById: Record<string, ResonatorRuntimeState> = {},
+    seed: ResSeed,
+    runtimesById: Record<string, ResRuntime> = {},
     options: {
-      directOutput?: PreparedDirectOutput | null
-      rotationEnvironment?: PreparedRotationEnvironment | null
+      directOutput?: PrepDrctTpt | null
+      rotNvrn?: PrepRotNvrn | null
     } = {},
-): SimulationResult {
+): SimResult {
   // execute the core simulation for this combat context
-  const simulation = runFeatureSimulation(
+  const simulation = runFeatSmlt(
       context,
       seed,
       runtimesById,
-      options.rotationEnvironment ?? undefined,
+      options.rotNvrn ?? undefined,
       options.directOutput?.allFeatures ?? undefined,
   )
 
   // split out personal and team rotation entry lists for summary building
-  const personalEntries = simulation.rotations.personal.entries
+  const persEnts = simulation.rotations.personal.entries
   const teamEntries = simulation.rotations.team.entries
 
   // compute overall damage-only totals for each rotation view
-  const personalTotal = sumRotationTotals(personalEntries)
-  const teamTotal = sumRotationTotals(teamEntries)
+  const persTtl = sumRotTtls(persEnts)
+  const teamTotal = sumRotTtls(teamEntries)
 
   // compute per-aggregation totals so healing and shield outputs are preserved too
-  const personalTotalsByAggregation = sumTotalsByAggregation(personalEntries)
-  const teamTotalsByAggregation = sumTotalsByAggregation(teamEntries)
+  const persTtlsByAg = sumTtlsByAgg(persEnts)
+  const teamTtlsByAg = sumTtlsByAgg(teamEntries)
 
   return {
     // final resolved combat stats for the active context
@@ -94,14 +109,14 @@ export function simulateRotation(
     // and per-aggregation bucket totals
     rotations: {
       personal: {
-        entries: personalEntries,
-        total: personalTotal,
-        totalsByAggregation: personalTotalsByAggregation,
+        entries: persEnts,
+        total: persTtl,
+        totalsByGroup: persTtlsByAg,
       },
       team: {
         entries: teamEntries,
         total: teamTotal,
-        totalsByAggregation: teamTotalsByAggregation,
+        totalsByGroup: teamTtlsByAg,
       },
     },
 
@@ -109,8 +124,8 @@ export function simulateRotation(
     allSkills: simulation.allFeatures.filter((entry) => entry.feature.variant !== 'subHit'),
 
     // keep personal rotation as the default per-skill / total summary surface
-    perSkill: personalEntries,
-    total: personalTotal,
-    totalsByAggregation: personalTotalsByAggregation,
+    perSkill: persEnts,
+    total: persTtl,
+    totalsByGroup: persTtlsByAg,
   }
 }

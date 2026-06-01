@@ -6,93 +6,101 @@
 
 import type {
   LeftPaneView,
-  PersistedAppState,
+  PersistedState,
   ThemeMode,
-  ThemePreference,
+  ThemePref,
   EnemyProfile,
-  CalculatorState,
+  CalcState,
   UiState,
 } from '@/domain/entities/appState'
+import { DEF_UI_PREFS } from '@/domain/entities/preferences'
 import type {
-  InventoryEchoEntry,
-  InventoryBuildEntry,
-  InventoryRotationEntry,
+  InvEchoEnt,
+  InventoryEntry,
+  InvRotEnt,
 } from '@/domain/entities/inventoryStorage'
-import type { OptimizerContextState, OptimizerSettings } from '@/domain/entities/optimizer'
+import type { OptContext, OptSets } from '@/domain/entities/optimizer'
 import {
-  cloneCompactSonataSetConditionals,
-  DEFAULT_SONATA_SET_CONDITIONALS,
+  cloneSntSet,
+  DEF_SET_COND,
 } from '@/domain/entities/sonataSetConditionals'
-import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
 import type {
-  RandomGeneratorSettings,
-  ResonatorSuggestionsState,
-  SuggestionSettings,
+  RandGnrtSets,
+  SuggestState,
+  SuggSets,
+  WeaponPlanSet,
 } from '@/domain/entities/suggestions'
 import {
-  BACKGROUND_THEME_VARIANTS,
-  DARK_THEME_VARIANTS,
-  LIGHT_THEME_VARIANTS,
+  BG_THEMES,
+  DARK_THEMES,
+  LIGHT_THEMES,
 } from '@/domain/entities/themes'
+import { mkDefPckrFre } from '@/domain/state/pickerFrequency'
 import {
-  DEFAULT_BODY_FONT_NAME,
-  getPresetBodyFontLink,
+  DEF_BODY_FONT,
+  getPrstBodyF,
 } from '@/modules/settings/model/typography'
-import { DEFAULT_BACKGROUND_WALLPAPER_KEY } from '@/modules/settings/model/backgroundTheme'
-import { getSystemThemeMode } from '@/shared/lib/systemTheme'
-import { DEFAULT_ENEMY_PROFILE } from '@/domain/entities/enemy'
+import { DEF_BG_KEY } from '@/modules/settings/model/backgroundTheme'
+import { getSystTheme } from '@/shared/lib/systemTheme'
+import { DEF_ENEMY_PROF } from '@/domain/entities/enemy'
 import type {
-  ResonatorRuntimeState,
-  ResonatorSeed,
+  ResRuntime,
+  ResSeed,
   SkillLevels,
   TraceNodeBuffs,
   CombatState,
   RotationState,
   TeamSlots,
-  TeamMemberRuntime,
-  TeamMemberRuntimeView,
-  WeaponBuildState,
+  TeamMemRt,
+  TeamMemRtVie,
+  WeaponState,
 } from '@/domain/entities/runtime'
 import type {
-  ResonatorProfile,
+  ResProf,
   SlotLocalState,
-  SlotRoutingState,
+  SlotRatingState,
 } from '@/domain/entities/profile'
 
-export type PersistedAppStateInput = Omit<PersistedAppState, 'version' | 'ui'> & {
+export type PersistedUnknown = Omit<PersistedState, 'version' | 'ui'> & {
   version: number
-  ui: Omit<UiState, 'themePreference'> & {
+  ui: Omit<UiState, 'themePreference' | 'historyMax' | 'itemFreq' | 'preferences' | 'suggsViewMode'> & {
     themePreference?: UiState['themePreference']
+    historyMax?: UiState['historyMax']
+    itemFreq?: UiState['itemFreq']
+    preferences?: UiState['preferences']
+    suggsViewMode?: UiState['suggsViewMode']
   }
 }
-import type { CombatSession } from '@/domain/entities/session'
 import type {
   ManualBuffs,
-  ManualModifier,
-  ManualQuickBuffs,
+  MnlMod,
+  QuickBuffs,
 } from '@/domain/entities/manualBuffs'
-import { UNSET_WEAPON_ID } from '@/domain/entities/runtime'
+import { NONE_WPN_ID } from '@/domain/entities/runtime'
 import type { AttributeKey, BaseStatBuff, ModBuff } from '@/domain/entities/stats'
-import { listWeaponsByType } from '@/domain/services/weaponCatalogService'
-import { writeRuntimePath } from '@/domain/gameData/runtimePath'
-import { makeMaxTraceNodeBuffs } from '@/domain/state/traceNodes'
-import { listResonatorRotations, listStatesForSource } from '@/domain/services/gameDataService'
+import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
+import { writeRtPath } from '@/domain/gameData/runtimePath'
+import { mkMaxTrcNode } from '@/domain/state/traceNodes'
+import { listResRttn, listStatesFor } from '@/domain/services/gameDataService'
 import {
-  cloneEnemyProfile,
-  cloneManualBuffs,
-  cloneResonatorRuntimeState,
-  cloneRotationState,
-  cloneTeamMemberRuntimes,
+  cloneEnemyPr,
+  cloneBuffs,
+  cloneResRtSt,
+  cloneRotation,
 } from '@/domain/state/runtimeCloning'
-import { PERSISTED_APP_STATE_VERSION } from '@/domain/state/schema'
+import { APP_STATE_VER } from '@/domain/state/schema'
+import {
+  allOptSetIds,
+  normOptSets,
+} from '@/engine/optimizer/config/allowedSets'
 
-export const DEFAULT_RESONATOR_ID = '1506'
-export const MAX_RESONATOR_LEVEL = 90
+export const DEF_RES_ID = '1506'
+export const MAX_RES_LVL = 90
 export const MAX_SKILL_LEVEL = 10
-export const MAX_WEAPON_LEVEL = 90
+export const MAX_WPN_LVL = 90
 
 // default saved rotation preferences
-export function createDefaultSavedRotationPreferences(): UiState['savedRotationPreferences'] {
+export function mkDefSvdRotP(): UiState['savedRotationPreferences'] {
   return {
     sortBy: 'date',
     sortOrder: 'desc',
@@ -102,7 +110,7 @@ export function createDefaultSavedRotationPreferences(): UiState['savedRotationP
 }
 
 // shared attribute keys
-const attributeKeys: AttributeKey[] = [
+const ttrbKeys: AttributeKey[] = [
   'aero',
   'glacio',
   'spectro',
@@ -132,7 +140,7 @@ export function makeModBuff(): ModBuff {
 }
 
 // create level 1 default skill levels
-export function makeDefaultSkillLevels(): SkillLevels {
+export function mkDefSkllLvl(): SkillLevels {
   return {
     normalAttack: 1,
     resonanceSkill: 1,
@@ -144,7 +152,7 @@ export function makeDefaultSkillLevels(): SkillLevels {
 }
 
 // create maxed skill levels
-export function makeMaxSkillLevels(): SkillLevels {
+export function mkMaxSkllLvl(): SkillLevels {
   return {
     normalAttack: MAX_SKILL_LEVEL,
     resonanceSkill: MAX_SKILL_LEVEL,
@@ -156,12 +164,12 @@ export function makeMaxSkillLevels(): SkillLevels {
 }
 
 // create default trace node buff storage
-export function makeDefaultTraceNodeBuffs(): TraceNodeBuffs {
+export function makeTraceNode(): TraceNodeBuffs {
   return {
     atk: makeBaseBuff(),
     hp: makeBaseBuff(),
     def: makeBaseBuff(),
-    attribute: Object.fromEntries(attributeKeys.map((key) => [key, makeModBuff()])) as Record<
+    attribute: Object.fromEntries(ttrbKeys.map((key) => [key, makeModBuff()])) as Record<
         AttributeKey,
         ModBuff
     >,
@@ -173,7 +181,7 @@ export function makeDefaultTraceNodeBuffs(): TraceNodeBuffs {
 }
 
 // create default quick manual buffs
-export function makeDefaultManualQuickBuffs(): ManualQuickBuffs {
+export function mkDefMnlQckB(): QuickBuffs {
   return {
     atk: { flat: 0, percent: 0 },
     hp: { flat: 0, percent: 0 },
@@ -186,10 +194,10 @@ export function makeDefaultManualQuickBuffs(): ManualQuickBuffs {
 }
 
 // create a default manual modifier for a given scope
-export function makeDefaultManualModifier(
+export function mkDefMnlMod(
     id: string,
-    scope: ManualModifier['scope'] = 'topStat',
-): ManualModifier {
+    scope: MnlMod['scope'] = 'topStat',
+): MnlMod {
   switch (scope) {
     case 'baseStat':
       return {
@@ -218,6 +226,15 @@ export function makeDefaultManualModifier(
         mod: 'dmgBonus',
         value: 0,
       }
+    case 'negativeEffect':
+      return {
+        id,
+        enabled: true,
+        scope,
+        negativeEffect: 'spectroFrazzle',
+        mod: 'critRate',
+        value: 0,
+      }
     case 'skill':
       return {
         id,
@@ -225,6 +242,7 @@ export function makeDefaultManualModifier(
         scope,
         matchMode: 'skillId',
         skillId: '',
+        effect: 'mod',
         mod: 'dmgBonus',
         value: 0,
       }
@@ -241,15 +259,15 @@ export function makeDefaultManualModifier(
 }
 
 // create default custom buffs state
-export function makeDefaultCustomBuffs(): ManualBuffs {
+export function makeCustomBuff(): ManualBuffs {
   return {
-    quick: makeDefaultManualQuickBuffs(),
+    quick: mkDefMnlQckB(),
     modifiers: [],
   }
 }
 
 // create default combat state
-export function makeDefaultCombatState(): CombatState {
+export function makeCombatState(): CombatState {
   return {
     spectroFrazzle: 0,
     aeroErosion: 0,
@@ -262,22 +280,24 @@ export function makeDefaultCombatState(): CombatState {
 }
 
 // create default optimizer settings
-export function createDefaultOptimizerSettings(): OptimizerSettings {
-  const allSetIds = SONATA_SETS.map((set) => set.id)
+export function makeOptSets(): OptSets {
+  const allSetIds = allOptSetIds()
 
   return {
     targetSkillId: null,
     targetMode: 'skill',
     targetComboSourceId: null,
     rotationMode: false,
+    searchMode: 'inventory',
     resultsLimit: 128,
     keepPercent: 0,
     lowMemoryMode: false,
     enableGpu: true,
     lockedMainEchoId: null,
     allowedSets: {
-      3: [...allSetIds],
-      5: [...allSetIds],
+      1: [...allSetIds[1]],
+      3: [...allSetIds[3]],
+      5: [...allSetIds[5]],
     },
     mainStatFilter: [],
     selectedBonus: null,
@@ -286,7 +306,7 @@ export function createDefaultOptimizerSettings(): OptimizerSettings {
 }
 
 // create default suggestion settings
-export function createDefaultSuggestionSettings(): SuggestionSettings {
+export function mkDefSuggSet(): SuggSets {
   return {
     targetFeatureId: null,
     rotationMode: false,
@@ -294,7 +314,7 @@ export function createDefaultSuggestionSettings(): SuggestionSettings {
 }
 
 // create default random generator settings
-export function createDefaultRandomGeneratorSettings(): RandomGeneratorSettings {
+export function mkDefRandGnr(): RandGnrtSets {
   return {
     bias: 0.5,
     rollQuality: 0.3,
@@ -304,36 +324,62 @@ export function createDefaultRandomGeneratorSettings(): RandomGeneratorSettings 
   }
 }
 
-// create default per-resonator suggestions state
-export function createDefaultResonatorSuggestionsState(): ResonatorSuggestionsState {
+// create default weapon suggestion settings
+export function mkDefWpnSug(): WeaponPlanSet {
   return {
-    settings: createDefaultSuggestionSettings(),
-    random: createDefaultRandomGeneratorSettings(),
+    mode: 'both',
+    target: 'max',
+    ranks: {
+      '5': 1,
+      '4': 5,
+      '3': 5,
+      '2': 5,
+      '1': 5,
+    },
+    stdRank: 1,
+    visible: {
+      '5': true,
+      '4': true,
+      '3': false,
+      '2': false,
+      '1': false,
+    },
+    states: {},
+  }
+}
+
+// create default per-resonator suggestions state
+export function makeSuggest(): SuggestState {
+  return {
+    settings: mkDefSuggSet(),
+    random: mkDefRandGnr(),
   }
 }
 
 // clone optimizer settings with defaults applied
-export function cloneOptimizerSettings(
-    settings?: Partial<OptimizerSettings> | null,
-): OptimizerSettings {
-  const defaults = createDefaultOptimizerSettings()
+export function cloneOptSets(
+    settings?: Partial<OptSets> | null,
+): OptSets {
+  const defaults = makeOptSets()
+  const allowedSets = normOptSets({
+    1: [...(settings?.allowedSets?.[1] ?? defaults.allowedSets[1])],
+    3: [...(settings?.allowedSets?.[3] ?? defaults.allowedSets[3])],
+    5: [...(settings?.allowedSets?.[5] ?? defaults.allowedSets[5])],
+  })
 
   return {
     ...defaults,
     ...(settings ?? {}),
-    allowedSets: {
-      3: [...(settings?.allowedSets?.[3] ?? defaults.allowedSets[3])],
-      5: [...(settings?.allowedSets?.[5] ?? defaults.allowedSets[5])],
-    },
+    allowedSets,
     mainStatFilter: [...(settings?.mainStatFilter ?? defaults.mainStatFilter)],
     statConstraints: structuredClone(settings?.statConstraints ?? defaults.statConstraints),
   }
 }
 
 // create a default weapon build state
-export function makeDefaultWeaponBuildState(weaponType?: number): WeaponBuildState {
+export function mkDefWpnMkSt(weaponType?: number): WeaponState {
   if (weaponType !== undefined) {
-    const weapons = listWeaponsByType(weaponType)
+    const weapons = listWpnsByTy(weaponType)
     if (weapons.length > 0) {
       const first = weapons[0]
       const stats = first.statsByLevel[1]
@@ -348,7 +394,7 @@ export function makeDefaultWeaponBuildState(weaponType?: number): WeaponBuildSta
   }
 
   return {
-    id: UNSET_WEAPON_ID,
+    id: NONE_WPN_ID,
     level: 1,
     rank: 1,
     baseAtk: 0,
@@ -356,64 +402,64 @@ export function makeDefaultWeaponBuildState(weaponType?: number): WeaponBuildSta
 }
 
 // create a maxed weapon build state
-export function makeMaxWeaponBuildState(
-    id: string | null = UNSET_WEAPON_ID,
+export function mkMaxWpnMkSt(
+    id: string | null = NONE_WPN_ID,
     rank = 1,
     baseAtk = 0,
-): WeaponBuildState {
+): WeaponState {
   return {
     id,
-    level: MAX_WEAPON_LEVEL,
+    level: MAX_WPN_LVL,
     rank,
     baseAtk,
   }
 }
 
 // create default team slots with the active resonator in slot 0
-export function makeDefaultTeamSlots(seed: ResonatorSeed): TeamSlots {
+export function mkDefTeamSlt(seed: ResSeed): TeamSlots {
   return [seed.id, null, null]
 }
 
 // create default local slot state
-export function makeDefaultSlotLocalState(): SlotLocalState {
+export function mkDefSlotLcl(): SlotLocalState {
   return {
     controls: {},
-    manualBuffs: makeDefaultCustomBuffs(),
-    combat: makeDefaultCombatState(),
-    setConditionals: cloneCompactSonataSetConditionals(DEFAULT_SONATA_SET_CONDITIONALS),
+    manualBuffs: makeCustomBuff(),
+    combat: makeCombatState(),
+    setConditionals: cloneSntSet(DEF_SET_COND),
   }
 }
 
 // create default slot routing state
-export function makeDefaultSlotRoutingState(): SlotRoutingState {
+export function mkDefSlotRtn(): SlotRatingState {
   return {
     selectedTargetsByOwnerKey: {},
   }
 }
 
 // clone the default enemy profile
-export function makeDefaultEnemyProfile(): EnemyProfile {
-  return cloneEnemyProfile(DEFAULT_ENEMY_PROFILE)
+export function makeEnemy(): EnemyProfile {
+  return cloneEnemyPr(DEF_ENEMY_PROF)
 }
 
 // resolve seed state definitions from the seed or catalog
-function getSeedStates(seed: ResonatorSeed) {
+function getSeedStts(seed: ResSeed) {
   if (seed.states?.length) {
     return seed.states
   }
 
-  return listStatesForSource('resonator', seed.id)
+  return listStatesFor('resonator', seed.id)
 }
 
 // create the default rotation state for a resonator
-export function makeDefaultRotation(seed: ResonatorSeed): RotationState {
-  const defaultRotation = seed.rotations?.[0] ?? listResonatorRotations(seed.id)[0]
+export function mkDefRot(seed: ResSeed): RotationState {
+  const defRot = seed.rotations?.[0] ?? listResRttn(seed.id)[0]
 
   return {
     view: 'personal',
-    personalItems: cloneRotationState({
+    personalItems: cloneRotation({
       view: 'personal',
-      personalItems: defaultRotation?.items ?? [],
+      personalItems: defRot?.items ?? [],
       teamItems: [],
     }).personalItems,
     teamItems: [],
@@ -421,76 +467,68 @@ export function makeDefaultRotation(seed: ResonatorSeed): RotationState {
 }
 
 // create a default persisted resonator profile
-export function createDefaultResonatorProfile(seed: ResonatorSeed): ResonatorProfile {
+export function makeResProfile(seed: ResSeed): ResProf {
   return {
     resonatorId: seed.id,
     runtime: {
       progression: {
         level: 1,
         sequence: 0,
-        skillLevels: makeDefaultSkillLevels(),
-        traceNodes: makeDefaultTraceNodeBuffs(),
+        skillLevels: mkDefSkllLvl(),
+        traceNodes: makeTraceNode(),
       },
       build: {
-        weapon: makeDefaultWeaponBuildState(seed.weaponType),
+        weapon: mkDefWpnMkSt(seed.weaponType),
         echoes: [null, null, null, null, null],
       },
-      local: applySeedStateDefaultsToLocalState(seed, makeDefaultSlotLocalState()),
-      routing: makeDefaultSlotRoutingState(),
-      team: makeDefaultTeamSlots(seed),
-      rotation: makeDefaultRotation(seed),
+      local: applySeedStt(seed, mkDefSlotLcl()),
+      routing: mkDefSlotRtn(),
+      team: mkDefTeamSlt(seed),
+      rotation: mkDefRot(seed),
       teamRuntimes: [null, null],
     },
   }
 }
 
-// create a default combat session
-export function createDefaultCombatSession(seed: ResonatorSeed): CombatSession {
-  return {
-    activeResonatorId: seed.id,
-    enemyProfile: makeDefaultEnemyProfile(),
-  }
-}
-
 // apply state defaults directly to a resonator runtime
-function applyStateDefaults(seed: ResonatorSeed, runtime: ResonatorRuntimeState): ResonatorRuntimeState {
-  return getSeedStates(seed).reduce((nextRuntime, state) => {
+function applySttDflt(seed: ResSeed, runtime: ResRuntime): ResRuntime {
+  return getSeedStts(seed).reduce((nextRuntime, state) => {
     if (state.defaultValue === undefined) {
       return nextRuntime
     }
 
-    return writeRuntimePath(nextRuntime, state.path, state.defaultValue)
+    return writeRtPath(nextRuntime, state.path, state.defaultValue)
   }, runtime)
 }
 
 // apply seed state defaults to local slot state only
-export function applySeedStateDefaultsToLocalState(
-    seed: ResonatorSeed,
+export function applySeedStt(
+    seed: ResSeed,
     localState: SlotLocalState,
 ): SlotLocalState {
-  const nextLocalState: SlotLocalState = {
+  const nextLclStt: SlotLocalState = {
     controls: { ...localState.controls },
-    manualBuffs: cloneManualBuffs(localState.manualBuffs),
+    manualBuffs: cloneBuffs(localState.manualBuffs),
     combat: { ...localState.combat },
-    setConditionals: cloneCompactSonataSetConditionals(localState.setConditionals),
+    setConditionals: cloneSntSet(localState.setConditionals),
   }
 
-  for (const state of getSeedStates(seed)) {
+  for (const state of getSeedStts(seed)) {
     if (state.defaultValue === undefined) {
       continue
     }
 
     if (state.path.startsWith('runtime.state.controls.')) {
       const controlKey = state.path.replace(/^runtime\.state\.controls\./, '')
-      nextLocalState.controls[controlKey] = state.defaultValue
+      nextLclStt.controls[controlKey] = state.defaultValue
     }
   }
 
-  return nextLocalState
+  return nextLclStt
 }
 
 // clone slot routing state
-export function cloneSlotRoutingState(routing?: SlotRoutingState): SlotRoutingState {
+export function cloneSlotRml(routing?: SlotRatingState): SlotRatingState {
   return {
     selectedTargetsByOwnerKey: {
       ...(routing?.selectedTargetsByOwnerKey ?? {}),
@@ -498,84 +536,84 @@ export function cloneSlotRoutingState(routing?: SlotRoutingState): SlotRoutingSt
   }
 }
 
-// normalize a profile team so the active resonator stays in slot 0 and duplicates are removed
-export function normalizeProfileTeam(
-    activeResonatorId: string,
+// keep the active resonator in slot 0 and remove duplicate teammates
+export function normProfTeam(
+    actResId: string,
     team: TeamSlots,
 ): TeamSlots {
-  const nextTeam1Id = team[1] && team[1] !== activeResonatorId ? team[1] : null
-  const nextTeam2Candidate = team[2] && team[2] !== activeResonatorId ? team[2] : null
-  const nextTeam2Id = nextTeam2Candidate && nextTeam2Candidate !== nextTeam1Id ? nextTeam2Candidate : null
+  const nextTeam1Id = team[1] && team[1] !== actResId ? team[1] : null
+  const nextTeam2Cand = team[2] && team[2] !== actResId ? team[2] : null
+  const nextTeam2Id = nextTeam2Cand && nextTeam2Cand !== nextTeam1Id ? nextTeam2Cand : null
 
-  return [activeResonatorId, nextTeam1Id, nextTeam2Id]
+  return [actResId, nextTeam1Id, nextTeam2Id]
 }
 
 // apply seed state defaults to a team member runtime view
-function applyTeamMemberStateDefaults(seed: ResonatorSeed, runtime: TeamMemberRuntimeView): TeamMemberRuntimeView {
-  return getSeedStates(seed).reduce((nextRuntime, state) => {
+function applyTeamMem(seed: ResSeed, runtime: TeamMemRtVie): TeamMemRtVie {
+  return getSeedStts(seed).reduce((nextRuntime, state) => {
     if (state.defaultValue === undefined) {
       return nextRuntime
     }
 
-    return writeRuntimePath(
-        nextRuntime as unknown as ResonatorRuntimeState,
+    return writeRtPath(
+        nextRuntime as unknown as ResRuntime,
         state.path,
         state.defaultValue,
-    ) as unknown as TeamMemberRuntimeView
+    ) as unknown as TeamMemRtVie
   }, runtime)
 }
 
 // create a default live resonator runtime
-export function createDefaultResonatorRuntime(seed: ResonatorSeed): ResonatorRuntimeState {
-  const baseRuntime: ResonatorRuntimeState = {
+export function makeResRuntime(seed: ResSeed): ResRuntime {
+  const baseRuntime: ResRuntime = {
     id: seed.id,
     base: {
       level: 1,
       sequence: 0,
-      skillLevels: makeDefaultSkillLevels(),
-      traceNodes: makeDefaultTraceNodeBuffs(),
+      skillLevels: mkDefSkllLvl(),
+      traceNodes: makeTraceNode(),
     },
     build: {
-      weapon: makeDefaultWeaponBuildState(seed.weaponType),
+      weapon: mkDefWpnMkSt(seed.weaponType),
       echoes: [null, null, null, null, null],
-      team: makeDefaultTeamSlots(seed),
+      team: mkDefTeamSlt(seed),
     },
     state: {
       controls: {},
-      manualBuffs: makeDefaultCustomBuffs(),
-      combat: makeDefaultCombatState(),
+      manualBuffs: makeCustomBuff(),
+      combat: makeCombatState(),
     },
-    rotation: makeDefaultRotation(seed),
+    rotation: mkDefRot(seed),
     teamRuntimes: [null, null],
   }
 
-  return applyStateDefaults(seed, baseRuntime)
+  return applySttDflt(seed, baseRuntime)
 }
 
 // create a default team member runtime view
-export function createDefaultTeamMemberRuntimeView(seed: ResonatorSeed): TeamMemberRuntimeView {
-  const baseRuntime: TeamMemberRuntimeView = {
+export function mkDefTeamMem(seed: ResSeed): TeamMemRtVie {
+  const baseRuntime: TeamMemRtVie = {
     id: seed.id,
     base: {
       sequence: 0,
     },
     build: {
-      weapon: (({ id, rank, baseAtk }) => ({ id, rank, baseAtk }))(makeDefaultWeaponBuildState(seed.weaponType)),
+      weapon: (({ id, rank, baseAtk }) => ({ id, rank, baseAtk }))(mkDefWpnMkSt(seed.weaponType)),
       echoes: [null, null, null, null, null],
     },
     state: {
       controls: {},
-      manualBuffs: makeDefaultCustomBuffs(),
-      combat: makeDefaultCombatState(),
+      manualBuffs: makeCustomBuff(),
+      combat: makeCombatState(),
     },
   }
 
-  return applyTeamMemberStateDefaults(seed, baseRuntime)
+  return applyTeamMem(seed, baseRuntime)
 }
 
 // create a maxed default team member runtime
-export function makeDefaultTeamMemberRuntime(seed: ResonatorSeed): TeamMemberRuntime {
-  const weapon = makeDefaultWeaponBuildState(seed.weaponType)
+export function makeTeamMember(seed: ResSeed): TeamMemRt {
+  const weapon = mkDefWpnMkSt(seed.weaponType)
 
   return {
     id: seed.id,
@@ -586,26 +624,26 @@ export function makeDefaultTeamMemberRuntime(seed: ResonatorSeed): TeamMemberRun
       weapon: (({ id, rank, baseAtk }) => ({ id, rank, baseAtk }))(weapon),
       echoes: [null, null, null, null, null],
     },
-    manualBuffs: makeDefaultCustomBuffs(),
+    manualBuffs: makeCustomBuff(),
   }
 }
 
 // expand a lightweight team member runtime view into a full resonator runtime
-export function materializeTeamMemberRuntimeView(
-    seed: ResonatorSeed,
-    teamMember: TeamMemberRuntimeView,
+export function matTeamMemRt(
+    seed: ResSeed,
+    teamMember: TeamMemRtVie,
     team: TeamSlots,
-): ResonatorRuntimeState {
+): ResRuntime {
   return {
     id: teamMember.id,
     base: {
-      level: MAX_RESONATOR_LEVEL,
+      level: MAX_RES_LVL,
       sequence: teamMember.base.sequence,
-      skillLevels: makeMaxSkillLevels(),
-      traceNodes: makeMaxTraceNodeBuffs(seed),
+      skillLevels: mkMaxSkllLvl(),
+      traceNodes: mkMaxTrcNode(seed),
     },
     build: {
-      weapon: makeMaxWeaponBuildState(
+      weapon: mkMaxWpnMkSt(
           teamMember.build.weapon.id,
           teamMember.build.weapon.rank,
           teamMember.build.weapon.baseAtk,
@@ -615,60 +653,61 @@ export function materializeTeamMemberRuntimeView(
     },
     state: {
       controls: { ...teamMember.state.controls },
-      manualBuffs: cloneManualBuffs(teamMember.state.manualBuffs),
+      manualBuffs: cloneBuffs(teamMember.state.manualBuffs),
       combat: { ...teamMember.state.combat },
     },
-    rotation: makeDefaultRotation(seed),
+    rotation: mkDefRot(seed),
     teamRuntimes: [null, null],
   }
 }
 
 // create an optimizer context from a runtime snapshot
-export function createOptimizerContextFromRuntime(
-    runtime: ResonatorRuntimeState,
-    settings?: Partial<OptimizerSettings> | null,
-): OptimizerContextState {
+export function mkOptCtxFrom(
+    runtime: ResRuntime,
+    settings?: Partial<OptSets> | null,
+): OptContext {
   return {
     resonatorId: runtime.id,
-    runtime: cloneResonatorRuntimeState(runtime),
-    settings: cloneOptimizerSettings(settings),
+    runtime: cloneResRtSt(runtime),
+    settings: cloneOptSets(settings),
   }
 }
 
 // clone an optimizer context safely
-export function cloneOptimizerContextState(
-    context?: OptimizerContextState | null,
-): OptimizerContextState | null {
+export function cloneOptCtxS(
+    context?: OptContext | null,
+): OptContext | null {
   if (!context) {
     return null
   }
 
   return {
     resonatorId: context.resonatorId,
-    runtime: cloneResonatorRuntimeState(context.runtime),
-    settings: cloneOptimizerSettings(context.settings),
+    runtime: cloneResRtSt(context.runtime),
+    settings: cloneOptSets(context.settings),
   }
 }
 
-// normalize and initialize calculator state
-function buildInitializedCalculatorState(base?: CalculatorState): CalculatorState {
-  const runtimeRevision = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
-  const profiles = { ...(base?.profiles ?? {}) }
-  const inventoryEchoes: InventoryEchoEntry[] = structuredClone(base?.inventoryEchoes ?? [])
-  const inventoryBuilds: InventoryBuildEntry[] = structuredClone(base?.inventoryBuilds ?? [])
-  const inventoryRotations: InventoryRotationEntry[] = structuredClone(base?.inventoryRotations ?? [])
-  const optimizerContext = cloneOptimizerContextState(base?.optimizerContext ?? null)
+// initialize calculator state with current defaults
+function mkInitCalcSt(base?: CalcState): CalcState {
+  const rtRvsn = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
+  const profiles = structuredClone(base?.profiles ?? {})
+  const invChs: InvEchoEnt[] = structuredClone(base?.inventoryEchoes ?? [])
+  const invBlds: InventoryEntry[] = structuredClone(base?.inventoryBuilds ?? [])
+  const invRttn: InvRotEnt[] = structuredClone(base?.inventoryRotations ?? [])
+  const optimizer = cloneOptCtxS(base?.optimizerContext ?? null)
+  const weaponSuggests: WeaponPlanSet = structuredClone(base?.weaponSuggests ?? mkDefWpnSug())
 
-  const suggestionsByResonatorId = Object.fromEntries(
+  const suggsByResId = Object.fromEntries(
       Object.entries(base?.suggestionsByResonatorId ?? {}).map(([resonatorId, state]) => [
         resonatorId,
         {
           settings: {
-            ...createDefaultSuggestionSettings(),
+            ...mkDefSuggSet(),
             ...(state?.settings ?? {}),
           },
           random: {
-            ...createDefaultRandomGeneratorSettings(),
+            ...mkDefRandGnr(),
             ...(state?.random ?? {}),
             setPreferences: structuredClone(state?.random?.setPreferences ?? []),
           },
@@ -679,99 +718,102 @@ function buildInitializedCalculatorState(base?: CalculatorState): CalculatorStat
   const session = base?.session
       ? {
         activeResonatorId: base.session.activeResonatorId,
-        enemyProfile: cloneEnemyProfile(base.session.enemyProfile),
+        enemyProfile: cloneEnemyPr(base.session.enemyProfile),
       }
       : null
 
-  const activeResonatorId = session?.activeResonatorId ?? DEFAULT_RESONATOR_ID
+  const actResId = session?.activeResonatorId ?? DEF_RES_ID
 
-  // ensure team runtimes exist on the active profile
-  if (activeResonatorId && profiles[activeResonatorId]) {
-    const activeProfile = profiles[activeResonatorId]
-    if (!activeProfile.runtime.teamRuntimes) {
-      profiles[activeResonatorId] = {
-        ...activeProfile,
-        runtime: {
-          ...activeProfile.runtime,
-          teamRuntimes: cloneTeamMemberRuntimes([null, null]),
-        },
-      }
-    }
+  const nextSssn = session ?? {
+    activeResonatorId: actResId,
+    enemyProfile: makeEnemy(),
   }
 
-  const normalizedSession = session ?? {
-    activeResonatorId,
-    enemyProfile: makeDefaultEnemyProfile(),
-  }
-
-  if (!normalizedSession.activeResonatorId) {
-    normalizedSession.activeResonatorId = activeResonatorId
+  if (!nextSssn.activeResonatorId) {
+    nextSssn.activeResonatorId = actResId
   }
 
   return {
-    runtimeRevision,
+    runtimeRevision: rtRvsn,
     profiles,
-    inventoryEchoes,
-    inventoryBuilds,
-    inventoryRotations,
-    optimizerContext,
-    suggestionsByResonatorId,
-    session: normalizedSession,
+    inventoryEchoes: invChs,
+    inventoryBuilds: invBlds,
+    inventoryRotations: invRttn,
+    optimizerContext: optimizer,
+    weaponSuggests,
+    suggestionsByResonatorId: suggsByResId,
+    session: nextSssn,
   }
 }
 
-// normalize a loaded persisted app state
-export function initializePersistedAppState(
-    state: PersistedAppStateInput,
-): PersistedAppState {
-  const themePreference: ThemePreference = state.ui.themePreference
+// initialize a loaded persisted app state
+export function initAppState(
+    state: PersistedUnknown,
+): PersistedState {
+  const rawUi = state.ui
+  const themePref: ThemePref = state.ui.themePreference
     ?? (state.ui.theme === 'background' ? 'background' : 'system')
 
   return {
     ...state,
-    version: PERSISTED_APP_STATE_VERSION,
+    version: APP_STATE_VER,
     ui: {
-      ...state.ui,
-      themePreference,
-      backgroundImageKey: state.ui.backgroundImageKey ?? DEFAULT_BACKGROUND_WALLPAPER_KEY,
-      backgroundTextMode: state.ui.backgroundTextMode ?? 'light',
-      bodyFontName: state.ui.bodyFontName ?? DEFAULT_BODY_FONT_NAME,
-      bodyFontUrl: state.ui.bodyFontUrl ?? getPresetBodyFontLink(state.ui.bodyFontName ?? DEFAULT_BODY_FONT_NAME),
-      optimizerCpuHintSeen: state.ui.optimizerCpuHintSeen ?? false,
+      ...rawUi,
+      themePreference: themePref,
+      backgroundImageKey: rawUi.backgroundImageKey ?? DEF_BG_KEY,
+      backgroundTextMode: rawUi.backgroundTextMode ?? 'light',
+      bodyFontName: rawUi.bodyFontName ?? DEF_BODY_FONT,
+      bodyFontUrl: rawUi.bodyFontUrl ?? getPrstBodyF(rawUi.bodyFontName ?? DEF_BODY_FONT),
+      optimizerCpuHintSeen: rawUi.optimizerCpuHintSeen ?? false,
+      optimizerUseSprite: rawUi.optimizerUseSprite ?? true,
+      preferences: rawUi.preferences ?? DEF_UI_PREFS,
+      suggsViewMode: rawUi.suggsViewMode ?? 'mainStats',
+      compactInv: rawUi.compactInv ?? false,
+      seeEquipped: rawUi.seeEquipped ?? false,
+      historyMax: rawUi.historyMax ?? 10,
+      itemFreq: rawUi.itemFreq ?? mkDefPckrFre(),
       savedRotationPreferences: {
-        ...createDefaultSavedRotationPreferences(),
-        ...state.ui.savedRotationPreferences,
+        ...mkDefSvdRotP(),
+        ...rawUi.savedRotationPreferences,
       },
     },
-    calculator: buildInitializedCalculatorState(state.calculator),
+    calculator: mkInitCalcSt(state.calculator),
   }
 }
 
 // create the full default app state
-export function createDefaultAppState(
-    theme: ThemeMode = getSystemThemeMode(),
+export function makeAppState(
+    theme: ThemeMode = getSystTheme(),
     leftPaneView: LeftPaneView = 'resonators',
-): PersistedAppState {
-  return initializePersistedAppState({
-    version: PERSISTED_APP_STATE_VERSION,
+): PersistedState {
+  return initAppState({
+    version: APP_STATE_VER,
     ui: {
       theme,
       themePreference: 'background' === theme ? 'background' : 'system',
-      lightVariant: LIGHT_THEME_VARIANTS[0],
-      darkVariant: DARK_THEME_VARIANTS[0],
-      backgroundVariant: BACKGROUND_THEME_VARIANTS[0],
-      backgroundImageKey: DEFAULT_BACKGROUND_WALLPAPER_KEY,
+      lightVariant: LIGHT_THEMES[0],
+      darkVariant: DARK_THEMES[0],
+      backgroundVariant: BG_THEMES[0],
+      backgroundImageKey: DEF_BG_KEY,
       backgroundTextMode: 'light',
-      bodyFontName: DEFAULT_BODY_FONT_NAME,
-      bodyFontUrl: getPresetBodyFontLink(DEFAULT_BODY_FONT_NAME),
-      blurMode: 'on',
-      entranceAnimations: 'on',
+      bodyFontName: DEF_BODY_FONT,
+      bodyFontUrl: getPrstBodyF(DEF_BODY_FONT),
+      blurMode: false,
+      entranceAnimations: true,
+      preferences: DEF_UI_PREFS,
       leftPaneView,
+      suggsViewMode: 'mainStats',
       mainMode: 'default',
       showSubHits: false,
+      compactInv: false,
+      seeEquipped: true,
+      haveHistory: true,
+      historyMax: 10,
+      itemFreq: mkDefPckrFre(),
       optimizerCpuHintSeen: false,
-      savedRotationPreferences: createDefaultSavedRotationPreferences(),
+      optimizerUseSprite: true,
+      savedRotationPreferences: mkDefSvdRotP(),
     },
-    calculator: buildInitializedCalculatorState(),
+    calculator: mkInitCalcSt(),
   })
 }

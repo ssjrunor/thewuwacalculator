@@ -5,34 +5,43 @@
 */
 
 import type {
-  MainStatSuggestionEntry,
-  PreparedMainStatSuggestionsInput,
-  PreparedRandomSuggestionsInput,
-  PreparedSetPlanSuggestionsInput,
-  RandomSuggestionEntry,
-  SetPlanSuggestionEntry,
+  MainStatSugg,
+  MainStatPrep,
+  RandomPrep,
+  PrepSetPlanS,
+  PrepWeaponPlan,
+  RandomEntry,
+  SetPlanSuggest,
+  WeaponEntry,
 } from '@/engine/suggestions/types'
-import { runPreparedMainStatSuggestor } from '@/engine/suggestions/mainStat-suggestion/suggestMainStat'
-import { runPreparedSetSuggestor } from '@/engine/suggestions/setPlan-suggestion/suggestSetPlan'
-import { runPreparedEchoGenerator } from '@/engine/suggestions/randomEchoes/compute'
+import { runPrepMainS } from '@/engine/suggestions/mainStat-suggestion/suggestMainStat'
+import { runPrepSetSg } from '@/engine/suggestions/setPlan-suggestion/suggestSetPlan'
+import { runPrepEchoG } from '@/engine/suggestions/randomEchoes/compute'
+import { runPrepWpn } from '@/engine/suggestions/weapon-suggestion/compute'
 
 // run the main-stat suggestion pipeline and return ranked entries
-export function runMainStatSuggestions(
-    input: PreparedMainStatSuggestionsInput,
-): MainStatSuggestionEntry[] {
-  return runPreparedMainStatSuggestor(input)
+export function runMainStats(
+    input: MainStatPrep,
+): MainStatSugg[] {
+  return runPrepMainS(input)
 }
 
 // run the set-plan suggestion pipeline and return only the result list
-export function runSetPlanSuggestions(
-    input: PreparedSetPlanSuggestionsInput,
-): SetPlanSuggestionEntry[] {
-  return runPreparedSetSuggestor(input).results
+export function runSetPlanqc(
+    input: PrepSetPlanS,
+): SetPlanSuggest[] {
+  return runPrepSetSg(input).results
 }
 
 // run the random echo generator
-export function runRandomGenerator(
-    input: PreparedRandomSuggestionsInput,
-): Promise<RandomSuggestionEntry[]> {
-  return runPreparedEchoGenerator(input)
+export function runRandGnrt(
+    input: RandomPrep,
+): Promise<RandomEntry[]> {
+  return runPrepEchoG(input)
+}
+
+export function runWpnSuggs(
+    input: PrepWeaponPlan,
+): WeaponEntry[] {
+  return runPrepWpn(input)
 }

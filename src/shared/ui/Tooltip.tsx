@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Shared radix-tooltip wrapper with app-level defaults for delay,
+               placement, and close timing.
+*/
+
 import React from 'react'
 import * as RadixTooltip from '@radix-ui/react-tooltip'
 import type { ReactNode } from 'react'
@@ -10,9 +16,9 @@ export interface TooltipProps {
   delay?: number
 }
 
-const TOOLTIP_CLOSE_DURATION_MS = 180
+const TLTPCLSDURMS = 180
 
-export function AppTooltipProvider({ children }: { children: ReactNode }) {
+export function AppTltpProv({ children }: { children: ReactNode }) {
   return (
     <RadixTooltip.Provider delayDuration={140} skipDelayDuration={120} disableHoverableContent>
       {children}
@@ -30,20 +36,20 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const [open, setOpen] = React.useState(false)
   const [present, setPresent] = React.useState(false)
   const [closing, setClosing] = React.useState(false)
-  const closeTimerRef = React.useRef<number | null>(null)
+  const clsTmrRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     return () => {
-      if (closeTimerRef.current !== null) {
-        window.clearTimeout(closeTimerRef.current)
+      if (clsTmrRef.current !== null) {
+        window.clearTimeout(clsTmrRef.current)
       }
     }
   }, [])
 
   const syncPresence = React.useCallback((nextOpen: boolean) => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
+    if (clsTmrRef.current !== null) {
+      window.clearTimeout(clsTmrRef.current)
+      clsTmrRef.current = null
     }
 
     if (nextOpen) {
@@ -56,21 +62,21 @@ export const Tooltip: React.FC<TooltipProps> = ({
     setOpen(false)
     setPresent(true)
     setClosing(true)
-    closeTimerRef.current = window.setTimeout(() => {
+    clsTmrRef.current = window.setTimeout(() => {
       setPresent(false)
       setClosing(false)
-      closeTimerRef.current = null
-    }, TOOLTIP_CLOSE_DURATION_MS)
+      clsTmrRef.current = null
+    }, TLTPCLSDURMS)
   }, [])
 
-  const handleOpenChange = (nextOpen: boolean) => {
+  const changeOpen = (nextOpen: boolean) => {
     syncPresence(nextOpen)
   }
 
   return (
     <RadixTooltip.Root
       open={open}
-      onOpenChange={handleOpenChange}
+      onOpenChange={changeOpen}
       delayDuration={delay}
       disableHoverableContent
     >
@@ -97,22 +103,22 @@ export const Tooltip: React.FC<TooltipProps> = ({
   )
 }
 
-interface DamageTooltipProps {
+interface DmgTltpPrps {
   label: string
+  metric: 'normal' | 'crit' | 'avg'
   formula?: string
 }
 
-export const DamageTooltip: React.FC<DamageTooltipProps> = ({ label, formula }) => {
+export const DmgTltp: React.FC<DmgTltpPrps> = ({ label, metric, formula }) => {
   return (
-    <div className="damage-tooltip-wrapper">
+    <div className="trace-node-tooltip damage-tooltip-wrapper">
       <div className="tooltip-header">
         <div className="tooltip-title">{label}</div>
       </div>
-      
+
       {formula && (
-        <div className="tooltip-section variant-formula">
-          <div className="tooltip-section-title">Hits</div>
-          <code className="formula-code">{formula}</code>
+        <div className="tooltip-section">
+          <code className="formula-code">{`out.${metric} = ${formula}`}</code>
         </div>
       )}
     </div>

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { buildGameDataRegistry } from '@/domain/gameData/registry'
-import { makeControlKey, makeControlPath, makeOwnerKey, parseControlKey, parseOwnerKey } from '@/domain/gameData/stateKeys'
-import type { SourcePackage } from '@/domain/gameData/contracts'
+import { mkGameDataRe } from '@/domain/gameData/registry'
+import { mkCntrKey, mkCntrPath, makeOwnerKey, prsCntrKey, prsOwnKey } from '@/domain/gameData/stateKeys'
+import type { SrcPkg } from '@/domain/gameData/contracts'
 
 describe('state keying', () => {
   it('builds and parses owner keys', () => {
     const ownerKey = makeOwnerKey('sequence', '1506', 's4')
 
     expect(ownerKey).toBe('sequence:1506:s4')
-    expect(parseOwnerKey(ownerKey)).toEqual({
+    expect(prsOwnKey(ownerKey)).toEqual({
       scope: 'sequence',
       sourceId: '1506',
       ownerId: 's4',
@@ -17,11 +17,11 @@ describe('state keying', () => {
 
   it('builds and parses control keys', () => {
     const ownerKey = makeOwnerKey('sequence', '1506', 's4')
-    const controlKey = makeControlKey(ownerKey, 'active')
+    const controlKey = mkCntrKey(ownerKey, 'active')
 
     expect(controlKey).toBe('sequence:1506:s4:active')
-    expect(makeControlPath(controlKey)).toBe('runtime.state.controls.sequence:1506:s4:active')
-    expect(parseControlKey(controlKey)).toEqual({
+    expect(mkCntrPath(controlKey)).toBe('runtime.state.controls.sequence:1506:s4:active')
+    expect(prsCntrKey(controlKey)).toEqual({
       ownerKey: 'sequence:1506:s4',
       stateId: 'active',
     })
@@ -29,8 +29,8 @@ describe('state keying', () => {
 
   it('indexes states and effects by owner and control key', () => {
     const ownerKey = makeOwnerKey('sequence', '1506', 's4')
-    const controlKey = makeControlKey(ownerKey, 'active')
-    const source: SourcePackage = {
+    const controlKey = mkCntrKey(ownerKey, 'active')
+    const source: SrcPkg = {
       source: {
         type: 'resonator',
         id: '1506',
@@ -58,7 +58,7 @@ describe('state keying', () => {
           },
           ownerKey,
           controlKey,
-          path: makeControlPath(controlKey),
+          path: mkCntrPath(controlKey),
           kind: 'toggle',
           defaultValue: false,
         },
@@ -73,7 +73,7 @@ describe('state keying', () => {
           },
           ownerKey,
           controlKey,
-          path: makeControlPath(controlKey),
+          path: mkCntrPath(controlKey),
           kind: 'toggle',
           defaultValue: false,
         },
@@ -102,7 +102,7 @@ describe('state keying', () => {
       ],
     }
 
-    const registry = buildGameDataRegistry([source])
+    const registry = mkGameDataRe([source])
 
     expect(registry.ownersByKey[ownerKey]?.label).toBe('Node 4')
     expect(registry.statesByControlKey[controlKey]?.label).toBe('Node 4 Active')

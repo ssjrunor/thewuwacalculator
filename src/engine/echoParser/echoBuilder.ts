@@ -1,20 +1,20 @@
 /*
   Author: Runor Ewhro
   Description: Builds echo instances from parsed OCR results and normalizes
-               legacy label and number mismatches into valid echo stat data.
+               legacy desc and number mismatches into valid echo stat data.
 */
 
 import { listEchoes } from '@/domain/services/echoCatalogService'
 import {
-  ECHO_PRIMARY_STATS,
-  ECHO_SECONDARY_STATS,
-  ECHO_SUBSTAT_KEYS,
-  snapToNearestSubstatValue,
+  ECHO_MAIN_STATS,
+  ECHO_SIDE_STATS,
+  SUBSTAT_KEYS,
+  snapToNrstSb,
 } from '@/data/gameData/catalog/echoStats'
-import { createEchoUid } from '@/domain/entities/runtime'
+import { makeEchoUid } from '@/domain/entities/runtime'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { getSetNameToId } from '@/engine/echoParser/imageMap'
-import type { RawParsedEcho } from '@/engine/echoParser/ocrParsing'
+import { getSetNameTo } from '@/engine/echoParser/imageMap'
+import type { RawPrsdEcho } from '@/engine/echoParser/ocrParsing'
 
 const labelToKey: Record<string, string> = {
   'Crit. Rate': 'critRate',
@@ -54,7 +54,7 @@ const labelToKey: Record<string, string> = {
 }
 
 // correct common OCR numeric misreads
-const correctionMap: Record<string, string> = {
+const crrcMap: Record<string, string> = {
   '1.9': '7.9',
   '1.8': '7.8',
   '1.7': '7.7',
@@ -70,11 +70,11 @@ const correctionMap: Record<string, string> = {
 
 // fix a known OCR number mismatch
 function fixOCRNumber(str: string): string {
-  return correctionMap[str] ?? str
+  return crrcMap[str] ?? str
 }
 
-// normalize a stat label for fuzzy matching
-function normalizeLabel(label: string): string {
+// normalize a stat desc for fuzzy matching
+function normLbl(label: string): string {
   return label
       .toLowerCase()
       .replace(/\./g, '')
@@ -85,25 +85,25 @@ function normalizeLabel(label: string): string {
 
 // normalized entries for primary key resolution
 const keyEntries = Object.entries(labelToKey).map(([label, key]) => ({
-  normalized: normalizeLabel(label),
+  normalized: normLbl(label),
   key,
 }))
 
 // normalized entries for substat parsing
-const subKeyEntries = Object.entries(labelToKey).map(([label, key]) => ({
+const subKeyEnts = Object.entries(labelToKey).map(([label, key]) => ({
   label: label.toLowerCase().replace(/\./g, '').replace(/\s+/g, ''),
   key,
 }))
 
 // parse OCR substat strings into normalized substat values
-function parseSubstats(substats: string[]): Record<string, number> {
+function prsSbst(substats: string[]): Record<string, number> {
   const result: Record<string, number> = {}
 
   for (const raw of substats) {
-    // bare number > 100 with no label is treated as flat hp
+    // bare number > 100 with no desc is treated as flat hp
     const bareNum = parseFloat(raw.trim())
     if (!isNaN(bareNum) && /^\d+(\.\d+)?$/.test(raw.trim()) && bareNum > 100) {
-      result.hpFlat = snapToNearestSubstatValue('hpFlat', bareNum)
+      result.hpFlat = snapToNrstSb('hpFlat', bareNum)
       continue
     }
 
@@ -116,7 +116,7 @@ function parseSubstats(substats: string[]): Record<string, number> {
     const hasPercent = raw.includes('%')
     if (isNaN(value)) continue
 
-    // bare numeric label > 100 is also treated as flat hp
+    // bare numeric desc > 100 is also treated as flat hp
     const labelNum = parseFloat(rawLabel.trim())
     if (!isNaN(labelNum) && /^\d+(\.\d+)?$/.test(rawLabel.trim()) && labelNum > 100) {
       result.hpFlat = labelNum
@@ -130,7 +130,7 @@ function parseSubstats(substats: string[]): Record<string, number> {
         .replace(/\s+/g, '')
 
     let matchKey: string | null = null
-    for (const { label, key } of subKeyEntries) {
+    for (const { label, key } of subKeyEnts) {
       if (cleanedLabel.includes(label)) {
         matchKey = key
         break
@@ -147,17 +147,17 @@ function parseSubstats(substats: string[]): Record<string, number> {
     }
 
     // element dmg and healing bonus are not valid substats
-    if (!(ECHO_SUBSTAT_KEYS as readonly string[]).includes(matchKey)) continue
+    if (!(SUBSTAT_KEYS as readonly string[]).includes(matchKey)) continue
 
-    result[matchKey] = snapToNearestSubstatValue(matchKey, value)
+    result[matchKey] = snapToNrstSb(matchKey, value)
   }
 
   return result
 }
 
-// resolve the primary main stat key from OCR label text
-function resolvePrimaryKey(rawLabel: string, cost: number): string | null {
-  const normalized = normalizeLabel(rawLabel)
+// resolve the primary main stat key from OCR desc text
+function resPrmrKey(rawLabel: string, cost: number): string | null {
+  const normalized = normLbl(rawLabel)
 
   let matchKey = keyEntries.find((entry) => normalized === entry.normalized)?.key ?? null
   if (!matchKey) {
@@ -169,13 +169,13 @@ function resolvePrimaryKey(rawLabel: string, cost: number): string | null {
     matchKey = `${matchKey}Percent`
   }
 
-  const primaryStats = ECHO_PRIMARY_STATS[cost]
+  const primaryStats = ECHO_MAIN_STATS[cost]
   if (!primaryStats || !(matchKey in primaryStats)) return null
   return matchKey
 }
 
 // build echo instances from parsed OCR results
-export function buildEchoInstancesFromParsed(raw: RawParsedEcho[]): Array<EchoInstance | null> {
+export function mkEchoNstnFr(raw: RawPrsdEcho[]): Array<EchoInstance | null> {
   const echoCatalog = listEchoes()
 
   return raw.map((item, index) => {
@@ -183,15 +183,15 @@ export function buildEchoInstancesFromParsed(raw: RawParsedEcho[]): Array<EchoIn
     const echoDef = item.echoName ? echoCatalog.find((echo) => echo.name === item.echoName) : null
     if (!echoDef) return null
 
-    const primaryKey = resolvePrimaryKey(item.mainStatLabel ?? '', cost)
-    const primaryStats = ECHO_PRIMARY_STATS[cost]
-    const secondaryStat = ECHO_SECONDARY_STATS[cost]
+    const primaryKey = resPrmrKey(item.mainStatLbl ?? '', cost)
+    const primaryStats = ECHO_MAIN_STATS[cost]
+    const secondaryStat = ECHO_SIDE_STATS[cost]
     if (!primaryKey || !primaryStats || !secondaryStat) return null
 
     const primaryValue = primaryStats[primaryKey]
     if (primaryValue === undefined) return null
 
-    const parsedSetId = item.setName ? getSetNameToId()[item.setName] : null
+    const parsedSetId = item.setName ? getSetNameTo()[item.setName] : null
     const validSets = echoDef.sets
     const selectedSet =
         parsedSetId != null && validSets.includes(parsedSetId)
@@ -199,7 +199,7 @@ export function buildEchoInstancesFromParsed(raw: RawParsedEcho[]): Array<EchoIn
             : (validSets[0] ?? 0)
 
     return {
-      uid: createEchoUid(),
+      uid: makeEchoUid(),
       id: echoDef.id,
       set: selectedSet,
       mainEcho: index === 0,
@@ -207,7 +207,7 @@ export function buildEchoInstancesFromParsed(raw: RawParsedEcho[]): Array<EchoIn
         primary: { key: primaryKey, value: primaryValue },
         secondary: { key: secondaryStat.key, value: secondaryStat.value },
       },
-      substats: parseSubstats(item.substats),
+      substats: prsSbst(item.substats),
     }
   })
 }

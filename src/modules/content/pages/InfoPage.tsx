@@ -1,23 +1,28 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the info page.
+*/
+
 import { Link } from 'react-router-dom'
 import {
   Info,
   FlaskConical,
   User,
   Heart,
-  MessageCircle,
+  MessageCircle as MsgCrcl,
   Scale,
 } from 'lucide-react'
+import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
 export function InfoPage() {
   return (
     <div className="page">
-      <header className="page-hero">
-        <div className="page-hero-eyebrow">About</div>
-        <h1>About</h1>
-        <p className="page-hero-sub">
-          Everything about the Wuthering Waves Damage Calculator & Optimizer.
-        </p>
-      </header>
+      <CllpPageHeyf
+        eyebrow="About"
+        title="About"
+        subtitle="Everything about the Wuthering Waves Damage Calculator & Optimizer."
+        layoutKey="info-hero"
+      />
 
       <div className="page-bento">
         <section className="page-tile page-tile--wide">
@@ -113,7 +118,7 @@ export function InfoPage() {
 
         <section className="page-tile page-tile--half">
           <div className="tile-header">
-            <div className="tile-icon tile-icon--blue"><MessageCircle /></div>
+            <div className="tile-icon tile-icon--blue"><MsgCrcl /></div>
             <div className="tile-header-text">
               <h3>Need help or want to hang out?</h3>
               <p>Come say hi</p>

@@ -5,33 +5,36 @@
 */
 
 import type {
-  PackedTargetSkillExecutionPayload,
-  PreparedTargetSkillRun,
+  PackedSkill,
+  PrepTheoryTarget,
+  PrepTargetSkill,
 } from '@/engine/optimizer/types.ts'
-import { packTargetContext } from '@/engine/optimizer/context/pack.ts'
+import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
 
 // choose the first allowed locked main candidate when the run requested one;
 // otherwise default to "no locked echo"
-function resolveDefaultLockedEchoIndex(prepared: PreparedTargetSkillRun): number {
-  return prepared.lockedMainRequested
-      ? (prepared.lockedMainCandidateIndices[0] ?? -1)
+type TgtPrepPay = PrepTargetSkill | PrepTheoryTarget
+
+function resDefLckdEc(prepared: TgtPrepPay): number {
+  return prepared.lockMainReq
+      ? (prepared.lockMainCands[0] ?? -1)
       : -1
 }
 
-export function createPackedTargetSkillExecution(
-    prepared: PreparedTargetSkillRun,
+export function packTargetSkill(
+    prepared: TgtPrepPay,
     options: {
       comboCount?: number
       comboBaseIndex?: number
-      lockedEchoIndex?: number
+      lockEchoIdx?: number
     } = {},
-): PackedTargetSkillExecutionPayload {
+): PackedSkill {
   return {
     mode: 'targetSkill',
 
     // shared optimizer search settings
     resultsLimit: prepared.resultsLimit,
-    lowMemoryMode: prepared.lowMemoryMode,
+    lowMmryMode: prepared.lowMmryMode,
     constraints: prepared.constraints,
 
     // encoded inventory data consumed directly by cpu/gpu evaluators
@@ -42,27 +45,27 @@ export function createPackedTargetSkillExecution(
     // combinadic indexing metadata for enumerating combos
     comboN: prepared.comboN,
     comboK: prepared.comboK,
-    comboTotalCombos: prepared.comboTotalCombos,
+    totalCombos: prepared.totalCombos,
     comboIndexMap: prepared.comboIndexMap,
     comboBinom: prepared.comboBinom,
 
     // locked-main bookkeeping stays available to downstream search code
-    lockedMainRequested: prepared.lockedMainRequested,
-    lockedMainCandidateIndices: prepared.lockedMainCandidateIndices,
-    progressFactor: prepared.progressFactor,
+    lockMainReq: prepared.lockMainReq,
+    lockMainCands: prepared.lockMainCands,
+    progFact: prepared.progFact,
 
     // pack the dense target context now so evaluators only need one flat float buffer
     // options can override the combo span / base offset / locked echo for sub-jobs
-    context: packTargetContext({
+    context: packTargetCtx({
       compiled: prepared.compiled,
       skill: prepared.skill,
       runtime: prepared.runtime,
       comboN: prepared.comboN,
       comboK: prepared.comboK,
-      comboCount: options.comboCount ?? prepared.comboTotalCombos,
+      comboCount: options.comboCount ?? prepared.totalCombos,
       comboBaseIndex: options.comboBaseIndex ?? 0,
-      lockedEchoIndex: options.lockedEchoIndex ?? resolveDefaultLockedEchoIndex(prepared),
-      setRuntimeMask: prepared.setRuntimeMask,
+      lockEchoIdx: options.lockEchoIdx ?? resDefLckdEc(prepared),
+      setRtMask: prepared.setRtMask,
     }),
 
     // pre-encoded rows reused across every combo evaluation
@@ -72,9 +75,9 @@ export function createPackedTargetSkillExecution(
   }
 }
 
-export function sharePackedTargetSkillExecution(
-    payload: PackedTargetSkillExecutionPayload,
-): PackedTargetSkillExecutionPayload {
+export function shrPckdTgtSk(
+    payload: PackedSkill,
+): PackedSkill {
   // if shared buffers are unavailable, or the context is already shared,
   // return the payload unchanged
   if (typeof SharedArrayBuffer === 'undefined' || payload.context.buffer instanceof SharedArrayBuffer) {
@@ -83,11 +86,11 @@ export function sharePackedTargetSkillExecution(
 
   // copy just the context into shared memory so worker threads can reuse it
   // without transferring ownership or duplicating fresh buffers repeatedly
-  const sharedContext = new Float32Array(new SharedArrayBuffer(payload.context.byteLength))
-  sharedContext.set(payload.context)
+  const shrdCtx = new Float32Array(new SharedArrayBuffer(payload.context.byteLength))
+  shrdCtx.set(payload.context)
 
   return {
     ...payload,
-    context: sharedContext,
+    context: shrdCtx,
   }
 }

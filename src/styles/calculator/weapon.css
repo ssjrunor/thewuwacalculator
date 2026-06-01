@@ -1,4 +1,4 @@
-/* Weapon pane overrides and additions */
+
 
 .weapon-pane .resonator-avatar-button img {
   object-fit: contain;
@@ -14,7 +14,7 @@
   object-fit: contain;
 }
 
-/* ── Stat icons (mask-image pattern) ── */
+
 
 .weapon-stat-icon {
   display: inline-block;
@@ -32,8 +32,6 @@
   mask-position: center;
 }
 
-/* ── Weapon effect section ── */
-
 .weapon-pane .control-panel-box h4.highlight {
   margin-bottom: 0.4rem;
 }
@@ -43,11 +41,90 @@
   line-height: 1.6;
 }
 
-/* ── Interleaved effect blocks (description + control pairs) ── */
+.weapon-effect {
+  display: grid;
+  filter: drop-shadow(0 0.6rem 1.3rem color-mix(in srgb, var(--resonator-accent) 14%, transparent));
+}
+
+.resonator-strip__head,
+.weapon-effect__bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.62rem 0.9rem 0.62rem 0.78rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--resonator-accent) 26%, var(--item-border));
+}
+
+.weapon-effect__sigil {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border-radius: 0.12rem;
+
+  background:
+      linear-gradient(
+          145deg,
+          color-mix(in srgb, white 44%, var(--resonator-accent)) 0%,
+          color-mix(in srgb, white 16%, var(--resonator-accent)) 36%,
+          var(--resonator-accent) 66%,
+          color-mix(in srgb, black 24%, var(--resonator-accent)) 100%
+      );
+
+  mask:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M50 0C58 23 64 34 73 40C82 46 92 49 100 50C92 51 82 54 73 60C64 66 58 77 50 100C42 77 36 66 27 60C18 54 8 51 0 50C8 49 18 46 27 40C36 34 42 23 50 0Z'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+
+  -webkit-mask:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='black' d='M50 0C58 23 64 34 73 40C82 46 92 49 100 50C92 51 82 54 73 60C64 66 58 77 50 100C42 77 36 66 27 60C18 54 8 51 0 50C8 49 18 46 27 40C36 34 42 23 50 0Z'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+
+  box-shadow:
+      0 0 0.55rem color-mix(in srgb, var(--resonator-accent) 55%, transparent),
+      inset 0 0.08rem 0.12rem color-mix(in srgb, white 30%, transparent),
+      inset 0 -0.08rem 0.16rem color-mix(in srgb, black 26%, transparent);
+}
+.weapon-effect__titles {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.weapon-effect__tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--text));
+}
+
+.weapon-effect__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.weapon-effect__body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.weapon-effect__body .rich-description {
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
 
 .weapon-effect-block {
-  padding-top: 0.5rem;
-  border-top: 1px solid color-mix(in srgb, var(--calc-text, #aaa) 10%, transparent);
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border));
 }
 
 .weapon-effect-block:first-of-type {
@@ -55,14 +132,158 @@
   border-top: none;
 }
 
-.weapon-effect-block .state-control-field {
-  margin-top: 0.35rem;
+
+.weapon-effect__tuning {
+  position: relative;
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.25rem;
+  padding-top: 0.85rem;
 }
 
-/* ── Fallback: un-structured state controls ── */
+.weapon-effect__tuning::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--resonator-accent) 50%, transparent) 0 9px,
+    transparent 9px 15px
+  );
+}
+
+.weapon-effect__tuning-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 
 .weapon-state-controls {
-  margin-top: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid color-mix(in srgb, var(--calc-text, #aaa) 12%, transparent);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.weapon-pane {
+  gap: 0.6rem;
+}
+
+.weapon-banner {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.weapon-banner__top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+.weapon-banner__avatar {
+  padding: 0;
+}
+
+.weapon-banner .resonator-avatar {
+  width: 8.25rem;
+  height: 8.25rem;
+  border-radius: 1.5rem;
+}
+
+.weapon-banner__id {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.weapon-banner__name {
+  margin: 0;
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.weapon-banner__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.weapon-banner__figures {
+  display: flex;
+  gap: 1.5rem;
+  justify-self: end;
+}
+
+.weapon-figure {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.weapon-figure__label {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.weapon-figure__value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.weapon-progression {
+  display: grid;
+  gap: 2rem;
+}
+
+.weapon-rank-seq .res-seq-track {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+
+@media (max-width: 900px) {
+  .weapon-banner__top {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .weapon-banner__figures {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .weapon-banner__top {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+}
+
+
+.weapon-pane > .resonator-strip__head,
+.weapon-pane > .weapon-banner,
+.weapon-pane > .weapon-effect {
+  animation: resonator-section-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.weapon-pane > :nth-child(1) { animation-delay: 0ms; }
+.weapon-pane > :nth-child(2) { animation-delay: 90ms; }
+.weapon-pane > :nth-child(3) { animation-delay: 180ms; }
+
+:is(.no-entrance-anim, .reduce-animation) .weapon-pane > .resonator-strip__head,
+:is(.no-entrance-anim, .reduce-animation) .weapon-pane > .weapon-banner,
+:is(.no-entrance-anim, .reduce-animation) .weapon-pane > .weapon-effect {
+  animation: none;
 }

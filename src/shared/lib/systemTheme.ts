@@ -1,9 +1,15 @@
+/*
+  Author: Runor Ewhro
+  Description: Resolves the browser's active system theme in a way that stays
+               safe during server-side or non-browser execution.
+*/
+
 import type { ThemeMode } from '@/domain/entities/appState'
 
-export type ResolvedSystemThemeMode = Exclude<ThemeMode, 'background'>
+export type RslvSystThem = Exclude<ThemeMode, 'background'>
 
 // resolve the browser's current light or dark preference with a light fallback outside the browser.
-export function getSystemThemeMode(): ResolvedSystemThemeMode {
+export function getSystTheme(): RslvSystThem {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return 'light'
   }

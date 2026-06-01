@@ -6,12 +6,12 @@
 */
 
 import type {
-  OptimizerTargetGpuStaticPayload,
+  TargetGpuState,
 } from '@/engine/optimizer/workers/messages.ts'
-import type { PreparedOptimizerSharedPayload, PreparedTargetSkillRun } from '@/engine/optimizer/types.ts'
-import { createPackedTargetSkillExecution } from '@/engine/optimizer/payloads/targetPayload.ts'
+import type { PrepOptShrdP, PrepTheoryTarget, PrepTargetSkill } from '@/engine/optimizer/types.ts'
+import { packTargetSkill } from '@/engine/optimizer/payloads/targetPayload.ts'
 
-export interface TargetJobSpec {
+export interface TgtJobSpec {
   // starting combo rank for this job window
   comboStart: number
 
@@ -19,12 +19,12 @@ export interface TargetJobSpec {
   comboCount: number
 
   // locked main echo index for this job, or -1 when main is unrestricted
-  lockedMainIndex: number
+  lockMainIdx: number
 }
 
 // create a stable content hash for typed-array payload parts so static gpu state
 // can be identified/reused by content rather than by object identity
-function hashTypedArray(view: ArrayBufferView): string {
+function hashTypdRry(view: ArrayBufferView): string {
   const bytes = new Uint8Array(
       view.buffer,
       view.byteOffset,
@@ -44,7 +44,7 @@ function hashTypedArray(view: ArrayBufferView): string {
 
 // shaders read certain small encoded buffers as float arrays,
 // so promote u8 storage to f32 here once during static payload construction
-function toGpuFloatArray(values: Uint8Array): Float32Array {
+function toGpuFltRry(values: Uint8Array): Float32Array {
   const out = new Float32Array(values.length)
 
   for (let index = 0; index < values.length; index += 1) {
@@ -55,7 +55,7 @@ function toGpuFloatArray(values: Uint8Array): Float32Array {
 }
 
 // shaders read kind ids as signed integers, so widen u16 ids into i32
-function toGpuIntArray(values: Uint16Array): Int32Array {
+function toGpuIntRry(values: Uint16Array): Int32Array {
   const out = new Int32Array(values.length)
 
   for (let index = 0; index < values.length; index += 1) {
@@ -67,73 +67,73 @@ function toGpuIntArray(values: Uint16Array): Int32Array {
 
 // build a deterministic cache key for the target gpu static state
 // every load-bearing binary blob is included so mismatched payloads cannot collide
-export function buildTargetGpuStaticKey(payload: OptimizerTargetGpuStaticPayload): string {
+export function mkTgtGpuSttc(payload: TargetGpuState): string {
   return [
     `n:${payload.comboN}`,
     `k:${payload.comboK}`,
-    `t:${payload.comboTotalCombos}`,
-    `l:${payload.lockedMainRequested ? 1 : 0}`,
-    `ctx:${hashTypedArray(payload.context)}`,
-    `stats:${hashTypedArray(payload.stats)}`,
-    `lut:${hashTypedArray(payload.setConstLut)}`,
-    `costs:${hashTypedArray(payload.costs)}`,
-    `constraints:${hashTypedArray(payload.constraints)}`,
-    `main:${hashTypedArray(payload.mainEchoBuffs)}`,
-    `sets:${hashTypedArray(payload.sets)}`,
-    `kinds:${hashTypedArray(payload.kinds)}`,
-    `index:${hashTypedArray(payload.comboIndexMap)}`,
-    `binom:${hashTypedArray(payload.comboBinom)}`,
-    `locked:${hashTypedArray(payload.lockedMainCandidateIndices)}`,
+    `t:${payload.totalCombos}`,
+    `l:${payload.lockMainReq ? 1 : 0}`,
+    `ctx:${hashTypdRry(payload.context)}`,
+    `stats:${hashTypdRry(payload.stats)}`,
+    `lut:${hashTypdRry(payload.setConstLut)}`,
+    `costs:${hashTypdRry(payload.costs)}`,
+    `constraints:${hashTypdRry(payload.constraints)}`,
+    `main:${hashTypdRry(payload.mainEchoBuffs)}`,
+    `sets:${hashTypdRry(payload.sets)}`,
+    `kinds:${hashTypdRry(payload.kinds)}`,
+    `index:${hashTypdRry(payload.comboIndexMap)}`,
+    `binom:${hashTypdRry(payload.comboBinom)}`,
+    `locked:${hashTypdRry(payload.lockMainCands)}`,
   ].join('|')
 }
 
 // turn a prepared target run into the static gpu init payload
 // this converts cpu-friendly typed arrays into the exact buffer shapes the gpu path expects
-export function buildTargetGpuStaticPayload(
-    prepared: PreparedTargetSkillRun,
-): OptimizerTargetGpuStaticPayload {
-  const payload = createPackedTargetSkillExecution(prepared)
+export function makeTargetGpu(
+    prepared: PrepTargetSkill | PrepTheoryTarget,
+): TargetGpuState {
+  const payload = packTargetSkill(prepared)
 
   return {
     context: payload.context,
     stats: payload.stats,
     setConstLut: payload.setConstLut,
-    costs: toGpuFloatArray(payload.costs),
+    costs: toGpuFltRry(payload.costs),
     constraints: payload.constraints,
     mainEchoBuffs: payload.mainEchoBuffs,
-    sets: toGpuFloatArray(payload.sets),
-    kinds: toGpuIntArray(payload.kinds),
+    sets: toGpuFltRry(payload.sets),
+    kinds: toGpuIntRry(payload.kinds),
     comboN: payload.comboN,
     comboK: payload.comboK,
-    comboTotalCombos: payload.comboTotalCombos,
+    totalCombos: payload.totalCombos,
     comboIndexMap: payload.comboIndexMap,
     comboBinom: payload.comboBinom,
-    lockedMainRequested: payload.lockedMainRequested,
-    lockedMainCandidateIndices: payload.lockedMainCandidateIndices,
+    lockMainReq: payload.lockMainReq,
+    lockMainCands: payload.lockMainCands,
   }
 }
 
 // split the full target-search space into fixed-size jobs
 // if main echo is locked, we generate one full combo window series per allowed locked index;
 // otherwise we generate a single unrestricted series using lockedMainIndex = -1
-export function buildTargetJobs(
+export function mkTgtJobs(
     payload: Pick<
-        PreparedOptimizerSharedPayload,
-        'comboTotalCombos' | 'lockedMainRequested' | 'lockedMainCandidateIndices'
+        PrepOptShrdP,
+        'totalCombos' | 'lockMainReq' | 'lockMainCands'
     >,
     combosPerJob: number,
-    lockedMainIndices: ReadonlyArray<number> | Int32Array = payload.lockedMainRequested
-        ? payload.lockedMainCandidateIndices
+    lckdMainNdcs: ReadonlyArray<number> | Int32Array = payload.lockMainReq
+        ? payload.lockMainCands
         : [-1],
-): TargetJobSpec[] {
-  const jobs: TargetJobSpec[] = []
+): TgtJobSpec[] {
+  const jobs: TgtJobSpec[] = []
 
-  for (const lockedMainIndex of lockedMainIndices) {
-    for (let comboStart = 0; comboStart < payload.comboTotalCombos; comboStart += combosPerJob) {
+  for (const lockedMainIndex of lckdMainNdcs) {
+    for (let comboStart = 0; comboStart < payload.totalCombos; comboStart += combosPerJob) {
       jobs.push({
         comboStart,
-        comboCount: Math.min(combosPerJob, payload.comboTotalCombos - comboStart),
-        lockedMainIndex,
+        comboCount: Math.min(combosPerJob, payload.totalCombos - comboStart),
+        lockMainIdx: lockedMainIndex,
       })
     }
   }

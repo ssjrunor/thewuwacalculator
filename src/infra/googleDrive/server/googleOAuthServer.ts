@@ -1,30 +1,36 @@
-export interface GoogleAuthEnv {
+/*
+  Author: Runor Ewhro
+  Description: Implements the server-side google oauth code exchange and token
+               refresh handlers used by the Cloudflare worker api routes.
+*/
+
+export interface GglAuthEnv {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   GOOGLE_REDIRECT_URI?: string
 }
 
-export interface GoogleAuthHandlerResult {
+export interface GoogleAuthResult {
   body: unknown
   status: number
 }
 
-interface GoogleAuthRequestInput {
+interface GglAuthRqstN {
   body?: Record<string, unknown> | string | null
-  env: GoogleAuthEnv
+  env: GglAuthEnv
   method?: string
 }
 
-interface GoogleCodeExchangeInput {
+interface GglCodeXchnN {
   code: string
   redirectUri?: string
 }
 
-function jsonResult(body: unknown, status = 200): GoogleAuthHandlerResult {
+function jsonResult(body: unknown, status = 200): GoogleAuthResult {
   return { body, status }
 }
 
-export function parseGoogleAuthRequestBody(
+export function prsGglAuthRq(
   rawBody?: Record<string, unknown> | string | null,
 ): Record<string, unknown> {
   if (!rawBody) {
@@ -42,23 +48,23 @@ export function parseGoogleAuthRequestBody(
   return rawBody
 }
 
-function getGoogleRedirectUri(env: GoogleAuthEnv, redirectUri?: string): string {
+function getGglRdrcUr(env: GglAuthEnv, redirectUri?: string): string {
   return redirectUri || env.GOOGLE_REDIRECT_URI || ''
 }
 
-export function validateGoogleServerCredentials(env: GoogleAuthEnv): boolean {
+export function vldtGglSrvrC(env: GglAuthEnv): boolean {
   return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)
 }
 
-export async function exchangeGoogleCode(
-  env: GoogleAuthEnv,
-  { code, redirectUri }: GoogleCodeExchangeInput,
-): Promise<GoogleAuthHandlerResult> {
+export async function xchnGglCode(
+  env: GglAuthEnv,
+  { code, redirectUri }: GglCodeXchnN,
+): Promise<GoogleAuthResult> {
   const tokenPayload = new URLSearchParams({
     code,
     client_id: env.GOOGLE_CLIENT_ID || '',
     client_secret: env.GOOGLE_CLIENT_SECRET || '',
-    redirect_uri: getGoogleRedirectUri(env, redirectUri),
+    redirect_uri: getGglRdrcUr(env, redirectUri),
     grant_type: 'authorization_code',
   })
 
@@ -91,10 +97,10 @@ export async function exchangeGoogleCode(
   return jsonResult({ ...tokens, user })
 }
 
-export async function refreshGoogleToken(
-  env: GoogleAuthEnv,
+export async function rfrsGglTkn(
+  env: GglAuthEnv,
   refreshToken: string,
-): Promise<GoogleAuthHandlerResult> {
+): Promise<GoogleAuthResult> {
   const tokenPayload = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID || '',
     client_secret: env.GOOGLE_CLIENT_SECRET || '',
@@ -124,55 +130,55 @@ export async function refreshGoogleToken(
   return jsonResult(tokens)
 }
 
-export async function handleExchangeCodeRequest({
+export async function onExchangeCode({
   body: rawBody,
   env,
   method,
-}: GoogleAuthRequestInput): Promise<GoogleAuthHandlerResult> {
+}: GglAuthRqstN): Promise<GoogleAuthResult> {
   if (method !== 'POST') {
     return jsonResult({ error: 'Method not allowed' }, 405)
   }
 
-  const body = parseGoogleAuthRequestBody(rawBody)
+  const body = prsGglAuthRq(rawBody)
   const code = typeof body.code === 'string' ? body.code : ''
   const redirectUri = typeof body.redirectUri === 'string' ? body.redirectUri : ''
   if (!code) {
     return jsonResult({ error: 'Missing authorization code' }, 400)
   }
 
-  if (!validateGoogleServerCredentials(env)) {
+  if (!vldtGglSrvrC(env)) {
     return jsonResult({ error: 'Google OAuth server credentials are not configured' }, 500)
   }
 
   try {
-    return await exchangeGoogleCode(env, { code, redirectUri })
+    return await xchnGglCode(env, { code, redirectUri })
   } catch (error) {
     console.error('google auth code exchange failed', error)
     return jsonResult({ error: 'Token exchange failed' }, 500)
   }
 }
 
-export async function handleRefreshTokenRequest({
+export async function onRefreshToken({
   body: rawBody,
   env,
   method,
-}: GoogleAuthRequestInput): Promise<GoogleAuthHandlerResult> {
+}: GglAuthRqstN): Promise<GoogleAuthResult> {
   if (method !== 'POST') {
     return jsonResult({ error: 'Method not allowed' }, 405)
   }
 
-  const body = parseGoogleAuthRequestBody(rawBody)
-  const refreshTokenValue = typeof body.refresh_token === 'string' ? body.refresh_token : ''
-  if (!refreshTokenValue) {
+  const body = prsGglAuthRq(rawBody)
+  const rfrsTknVl = typeof body.refresh_token === 'string' ? body.refresh_token : ''
+  if (!rfrsTknVl) {
     return jsonResult({ error: 'Missing refresh token' }, 400)
   }
 
-  if (!validateGoogleServerCredentials(env)) {
+  if (!vldtGglSrvrC(env)) {
     return jsonResult({ error: 'Google OAuth server credentials are not configured' }, 500)
   }
 
   try {
-    return await refreshGoogleToken(env, refreshTokenValue)
+    return await rfrsGglTkn(env, rfrsTknVl)
   } catch (error) {
     console.error('google token refresh failed', error)
     return jsonResult({ error: 'Token refresh failed' }, 500)

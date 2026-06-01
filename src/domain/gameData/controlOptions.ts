@@ -4,26 +4,26 @@
                and source states, and normalizes invalid stored control values.
 */
 
-import { getResonatorDetailsById } from '@/data/gameData/resonators/resonatorDataStore'
-import type { ResonatorStateControl } from '@/domain/entities/resonator'
-import type { ResonatorRuntimeState } from '@/domain/entities/runtime'
-import type { SourceStateDefinition, SourceStateOption } from '@/domain/gameData/contracts'
-import { buildTeamCompositionInfo } from '@/domain/gameData/teamComposition'
-import { evaluateCondition } from '@/engine/effects/evaluator'
-import { computeEchoSetCounts } from '@/engine/pipeline/buildCombatContext'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
+import type { ResStateControl } from '@/domain/entities/resonator'
+import type { ResRuntime } from '@/domain/entities/runtime'
+import type { SourceState, SrcSttPtn } from '@/domain/gameData/contracts'
+import { makeTeamComp } from '@/domain/gameData/teamComposition'
+import { evalCond } from '@/engine/effects/evaluator'
+import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
-export function buildResonatorControlScope(runtime: ResonatorRuntimeState) {
-  const teamMemberIds = Array.from(
+export function mkResCntrScp(runtime: ResRuntime) {
+  const teamMemIds = Array.from(
     new Set([
       runtime.id,
       ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
     ]),
   )
-  const team = buildTeamCompositionInfo(teamMemberIds)
+  const team = makeTeamComp(teamMemIds)
 
   return {
     sourceRuntime: runtime,
@@ -40,20 +40,20 @@ export function buildResonatorControlScope(runtime: ResonatorRuntimeState) {
       activeRuntime: runtime,
       targetRuntimeId: runtime.id,
       activeResonatorId: runtime.id,
-      teamMemberIds,
-      echoSetCounts: computeEchoSetCounts(runtime.build.echoes),
+      teamMemberIds: teamMemIds,
+      echoSetCounts: countEchoSets(runtime.build.echoes),
     },
   }
 }
 
-export function resolveResonatorControlOptions(
-  runtime: ResonatorRuntimeState,
-  control: ResonatorStateControl,
+export function resResCntrPt(
+  runtime: ResRuntime,
+  control: ResStateControl,
 ): number[] {
-  const scope = buildResonatorControlScope(runtime)
+  const scope = mkResCntrScp(runtime)
 
   for (const optionSet of control.optionsWhen ?? []) {
-    if (evaluateCondition(optionSet.when, scope)) {
+    if (evalCond(optionSet.when, scope)) {
       return optionSet.options
     }
   }
@@ -67,32 +67,36 @@ export function resolveResonatorControlOptions(
   return control.options ?? []
 }
 
-export function getResonatorControlInactiveValue(
-  control: ResonatorStateControl,
-  runtime?: ResonatorRuntimeState,
+export function getResCntrNc(
+  control: ResStateControl,
+  runtime?: ResRuntime,
 ): boolean | number {
+  if (control.defaultValue !== undefined) {
+    return control.defaultValue
+  }
+
   if (control.kind === 'toggle') {
     return false
   }
 
   if (control.kind === 'select') {
-    const firstOption = runtime ? resolveResonatorControlOptions(runtime, control)[0] : control.options?.[0]
+    const firstOption = runtime ? resResCntrPt(runtime, control)[0] : control.options?.[0]
     return control.min ?? firstOption ?? 0
   }
 
   return control.min ?? 0
 }
 
-export function normalizeResonatorRuntimeControls(
-  runtime: ResonatorRuntimeState,
+export function normResRtCnt(
+  runtime: ResRuntime,
   controls: Record<string, boolean | number | string> = runtime.state.controls,
 ): Record<string, boolean | number | string> {
-  const details = getResonatorDetailsById()[runtime.id]
+  const details = getResDtlsBy()[runtime.id]
   if (!details) {
     return controls
   }
 
-  const availableControls = [
+  const vlblCntr = [
     ...details.statePanels.flatMap((panel) => panel.controls),
     ...details.resonanceChains.flatMap((entry) => entry.controls ?? []),
   ]
@@ -100,8 +104,8 @@ export function normalizeResonatorRuntimeControls(
   const nextControls = { ...controls }
   let changed = false
 
-  for (const control of availableControls) {
-    const scopedRuntime = {
+  for (const control of vlblCntr) {
+    const scpdRt = {
       ...runtime,
       state: {
         ...runtime.state,
@@ -110,20 +114,20 @@ export function normalizeResonatorRuntimeControls(
     }
 
     if (control.disabledWhen && nextControls[control.disabledWhen.key] === control.disabledWhen.equals) {
-      const inactiveValue = getResonatorControlInactiveValue(control, scopedRuntime)
-      if (nextControls[control.key] !== inactiveValue) {
-        nextControls[control.key] = inactiveValue
+      const nctvVl = getResCntrNc(control, scpdRt)
+      if (nextControls[control.key] !== nctvVl) {
+        nextControls[control.key] = nctvVl
         changed = true
       }
       continue
     }
 
     if (control.kind === 'select') {
-      const options = resolveResonatorControlOptions(scopedRuntime, control)
+      const options = resResCntrPt(scpdRt, control)
       const currentValue = Number(nextControls[control.key] ?? Number.NaN)
 
       if (!options.includes(currentValue)) {
-        nextControls[control.key] = getResonatorControlInactiveValue(control, scopedRuntime)
+        nextControls[control.key] = getResCntrNc(control, scpdRt)
         changed = true
       }
       continue
@@ -152,66 +156,66 @@ export function normalizeResonatorRuntimeControls(
   return changed ? nextControls : controls
 }
 
-function resolveStateTargetRuntime(
-  sourceRuntime: ResonatorRuntimeState,
-  targetRuntime: ResonatorRuntimeState,
-  state: SourceStateDefinition,
-): ResonatorRuntimeState {
-  const teamScopedState = state.displayScope === 'team' || state.displayScope === 'both'
+function resSttTgtRt(
+  srcRt: ResRuntime,
+  tgtRt: ResRuntime,
+  state: SourceState,
+): ResRuntime {
+  const teamScpdStt = state.displayScope === 'team' || state.displayScope === 'both'
 
-  if (teamScopedState && sourceRuntime.id !== targetRuntime.id) {
-    return sourceRuntime
+  if (teamScpdStt && srcRt.id !== tgtRt.id) {
+    return srcRt
   }
 
-  return targetRuntime
+  return tgtRt
 }
 
-export function buildSourceStateScope(
-  sourceRuntime: ResonatorRuntimeState,
-  targetRuntime: ResonatorRuntimeState,
-  state: SourceStateDefinition,
-  activeRuntime: ResonatorRuntimeState = targetRuntime,
+export function mkSrcSttScp(
+  srcRt: ResRuntime,
+  tgtRt: ResRuntime,
+  state: SourceState,
+  actRt: ResRuntime = tgtRt,
 ) {
-  const scopedTargetRuntime = resolveStateTargetRuntime(sourceRuntime, targetRuntime, state)
-  const teamMemberIds = Array.from(
+  const scpdTgtRt = resSttTgtRt(srcRt, tgtRt, state)
+  const teamMemIds = Array.from(
     new Set([
-      activeRuntime.id,
-      ...activeRuntime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
+      actRt.id,
+      ...actRt.build.team.filter((memberId): memberId is string => Boolean(memberId)),
     ]),
   )
-  const team = buildTeamCompositionInfo(teamMemberIds)
+  const team = makeTeamComp(teamMemIds)
 
   return {
-    sourceRuntime,
-    targetRuntime: scopedTargetRuntime,
-    activeRuntime,
+    sourceRuntime: srcRt,
+    targetRuntime: scpdTgtRt,
+    activeRuntime: actRt,
     context: {
       team,
       source: {
         type: state.source.type,
         id: state.source.id,
       },
-      sourceRuntime,
-      targetRuntime: scopedTargetRuntime,
-      activeRuntime,
-      targetRuntimeId: scopedTargetRuntime.id,
-      activeResonatorId: activeRuntime.id,
-      teamMemberIds,
-      echoSetCounts: computeEchoSetCounts(sourceRuntime.build.echoes),
+      sourceRuntime: srcRt,
+      targetRuntime: scpdTgtRt,
+      activeRuntime: actRt,
+      targetRuntimeId: scpdTgtRt.id,
+      activeResonatorId: actRt.id,
+      teamMemberIds: teamMemIds,
+      echoSetCounts: countEchoSets(srcRt.build.echoes),
     },
   }
 }
 
-export function resolveSourceStateOptions(
-  sourceRuntime: ResonatorRuntimeState,
-  targetRuntime: ResonatorRuntimeState,
-  state: SourceStateDefinition,
-  activeRuntime: ResonatorRuntimeState = targetRuntime,
-): SourceStateOption[] {
-  const scope = buildSourceStateScope(sourceRuntime, targetRuntime, state, activeRuntime)
+export function sourceOptions(
+  srcRt: ResRuntime,
+  tgtRt: ResRuntime,
+  state: SourceState,
+  actRt: ResRuntime = tgtRt,
+): SrcSttPtn[] {
+  const scope = mkSrcSttScp(srcRt, tgtRt, state, actRt)
 
   for (const optionSet of state.optionsWhen ?? []) {
-    if (evaluateCondition(optionSet.when, scope)) {
+    if (evalCond(optionSet.when, scope)) {
       return optionSet.options
     }
   }
@@ -219,18 +223,18 @@ export function resolveSourceStateOptions(
   return state.options ?? []
 }
 
-export function getSourceStateInactiveValue(
-  sourceRuntime: ResonatorRuntimeState,
-  targetRuntime: ResonatorRuntimeState,
-  state: SourceStateDefinition,
-  activeRuntime: ResonatorRuntimeState = targetRuntime,
+export function getSrcSttNct(
+  srcRt: ResRuntime,
+  tgtRt: ResRuntime,
+  state: SourceState,
+  actRt: ResRuntime = tgtRt,
 ): boolean | number | string {
   if (state.kind === 'toggle') {
     return false
   }
 
   if (state.kind === 'select') {
-    return state.defaultValue ?? resolveSourceStateOptions(sourceRuntime, targetRuntime, state, activeRuntime)[0]?.id ?? ''
+    return state.defaultValue ?? sourceOptions(srcRt, tgtRt, state, actRt)[0]?.id ?? ''
   }
 
   return state.defaultValue ?? state.min ?? 0

@@ -4,20 +4,20 @@
                initializeGameData() before the app renders.
 */
 
-import type { GeneratedWeapon } from '@/domain/entities/weapon'
+import type { GenWpn } from '@/domain/entities/weapon'
 
-let weaponsCache: GeneratedWeapon[] = []
-let weaponsByIdCache: Record<string, GeneratedWeapon> = {}
+let weaponsCache: GenWpn[] = []
+let wpnsByIdCch: Record<string, GenWpn> = {}
 
-export function initWeaponData(weapons: GeneratedWeapon[]): void {
+export function initWpnData(weapons: GenWpn[]): void {
   weaponsCache = weapons
-  weaponsByIdCache = Object.fromEntries(weapons.map((w) => [w.id, w]))
+  wpnsByIdCch = Object.fromEntries(weapons.map((w) => [w.id, w]))
 }
 
-export function getWeapons(): GeneratedWeapon[] {
+export function getWeapons(): GenWpn[] {
   return weaponsCache
 }
 
-export function getWeaponsById(): Record<string, GeneratedWeapon> {
-  return weaponsByIdCache
+export function getWpnsById(): Record<string, GenWpn> {
+  return wpnsByIdCch
 }

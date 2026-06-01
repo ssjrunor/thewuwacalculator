@@ -4,26 +4,26 @@
                helpers, and preset enemy profile builders.
 */
 
-import type { EnemyProfile, EnemyResistanceIndex, EnemyResistanceTable } from '@/domain/entities/appState'
+import type { EnemyProfile, EnemyResistN, EnemyResistT } from '@/domain/entities/appState'
 
-export type EnemyElementId = EnemyResistanceIndex
+export type EnemyElemId = EnemyResistN
 export type EnemyClassId = 1 | 2 | 3 | 4
-export const DEFAULT_ENEMY_ID = '340000240'
+export const DEF_ENEMY_ID = '340000240'
 
-export interface EnemyCatalogEntry {
+export interface EnemyCatEnt {
   id: string
   name: string
   description: string
   descriptionOpen: string
   class: EnemyClassId
-  element: EnemyElementId | null
-  elementArray: EnemyElementId[]
+  element: EnemyElemId | null
+  elementArray: EnemyElemId[]
   icon: string | null
-  resistances: Partial<EnemyResistanceTable>
+  resistances: Partial<EnemyResistT>
 }
 
 // default tower-style enemy resistances
-export const DEFAULT_ENEMY_RESISTANCES: EnemyResistanceTable = {
+export const DEF_ENEMY_RES: EnemyResistT = {
   0: 20,
   1: 60,
   2: 20,
@@ -34,7 +34,7 @@ export const DEFAULT_ENEMY_RESISTANCES: EnemyResistanceTable = {
 }
 
 // standard non-tower enemy resistances
-export const STANDARD_ENEMY_RESISTANCES: EnemyResistanceTable = {
+export const STD_ENEMY_RES: EnemyResistT = {
   0: 10,
   1: 40,
   2: 10,
@@ -45,7 +45,7 @@ export const STANDARD_ENEMY_RESISTANCES: EnemyResistanceTable = {
 }
 
 // display labels for enemy elements
-export const ENEMY_ELEMENT_LABELS: Record<EnemyElementId, string> = {
+export const ENEMY_ELEM_TXT: Record<EnemyElemId, string> = {
   0: 'Physical',
   1: 'Glacio',
   2: 'Fusion',
@@ -56,7 +56,7 @@ export const ENEMY_ELEMENT_LABELS: Record<EnemyElementId, string> = {
 }
 
 // attribute keys for enemy elements
-export const ENEMY_ELEMENT_ATTRIBUTE_KEYS: Record<EnemyElementId, string> = {
+export const ENEMY_ELEM_ATTR: Record<EnemyElemId, string> = {
   0: 'physical',
   1: 'glacio',
   2: 'fusion',
@@ -67,14 +67,14 @@ export const ENEMY_ELEMENT_ATTRIBUTE_KEYS: Record<EnemyElementId, string> = {
 }
 
 // display labels for enemy classes
-export const ENEMY_CLASS_LABELS: Record<EnemyClassId, string> = {
+export const ENEMY_CLASS_TXT: Record<EnemyClassId, string> = {
   1: 'Common',
   2: 'Elite',
   3: 'Overlord',
   4: 'Calamity',
 }
 
-export interface EnemyPresetDefinition {
+export interface EnemyPrstDef {
   id: string
   label: string
   caption: string
@@ -82,7 +82,7 @@ export interface EnemyPresetDefinition {
 }
 
 // resolve an enemy icon path from a numeric enemy id
-export function getEnemyIconPath(enemyId: string | null | undefined): string | null {
+export function getEnemyIcon(enemyId: string | null | undefined): string | null {
   if (!enemyId) {
     return null
   }
@@ -91,7 +91,7 @@ export function getEnemyIconPath(enemyId: string | null | undefined): string | n
 }
 
 // built-in quick enemy presets
-export const ENEMY_PRESETS: EnemyPresetDefinition[] = [
+export const ENEMY_PRST: EnemyPrstDef[] = [
   {
     id: 'custom:tower-boss',
     label: 'Tower Boss Lv.100',
@@ -143,8 +143,8 @@ export const ENEMY_PRESETS: EnemyPresetDefinition[] = [
 ]
 
 // default selected enemy profile
-export const DEFAULT_ENEMY_PROFILE: EnemyProfile = {
-  id: DEFAULT_ENEMY_ID,
+export const DEF_ENEMY_PROF: EnemyProfile = {
+  id: DEF_ENEMY_ID,
   level: 90,
   class: 4,
   toa: false,
@@ -164,15 +164,15 @@ export const DEFAULT_ENEMY_PROFILE: EnemyProfile = {
 }
 
 // type guard for enemy class ids
-export function isEnemyClassId(value: number): value is EnemyClassId {
+export function isEnemyClssI(value: number): value is EnemyClassId {
   return value === 1 || value === 2 || value === 3 || value === 4
 }
 
 // normalize a partial resistance table into a full one
-export function normalizeEnemyResistanceTable(
-    resistances?: Partial<Record<EnemyResistanceIndex, number>> | Partial<Record<`${EnemyResistanceIndex}`, number>>,
-    fallback: EnemyResistanceTable = DEFAULT_ENEMY_RESISTANCES,
-): EnemyResistanceTable {
+export function normEnemyRes(
+    resistances?: Partial<Record<EnemyResistN, number>> | Partial<Record<`${EnemyResistN}`, number>>,
+    fallback: EnemyResistT = DEF_ENEMY_RES,
+): EnemyResistT {
   const raw = resistances as Record<string, number> | undefined
 
   return {
@@ -187,9 +187,9 @@ export function normalizeEnemyResistanceTable(
 }
 
 // convert standard resistances to tower of adversity values
-export function applyTowerOfAdversityResistances(resistances: EnemyResistanceTable): EnemyResistanceTable {
+export function applyTwrOfDv(resistances: EnemyResistT): EnemyResistT {
   const mapped = { ...resistances }
-  const indices: EnemyResistanceIndex[] = [0, 1, 2, 3, 4, 5, 6]
+  const indices: EnemyResistN[] = [0, 1, 2, 3, 4, 5, 6]
 
   for (const key of indices) {
     const value = mapped[key]
@@ -207,9 +207,9 @@ export function applyTowerOfAdversityResistances(resistances: EnemyResistanceTab
 }
 
 // convert tower of adversity resistances back to standard values
-export function removeTowerOfAdversityResistances(resistances: EnemyResistanceTable): EnemyResistanceTable {
+export function rmTwrOfDvrsR(resistances: EnemyResistT): EnemyResistT {
   const mapped = { ...resistances }
-  const indices: EnemyResistanceIndex[] = [0, 1, 2, 3, 4, 5, 6]
+  const indices: EnemyResistN[] = [0, 1, 2, 3, 4, 5, 6]
 
   for (const key of indices) {
     const value = mapped[key]
@@ -227,18 +227,18 @@ export function removeTowerOfAdversityResistances(resistances: EnemyResistanceTa
 }
 
 // get a resolved resistance table for a catalog enemy
-export function getEnemyResistanceTable(enemy: EnemyCatalogEntry | null, toa: boolean): EnemyResistanceTable {
-  const baseTable = normalizeEnemyResistanceTable(
+export function getEnemyResi(enemy: EnemyCatEnt | null, toa: boolean): EnemyResistT {
+  const baseTable = normEnemyRes(
       enemy?.resistances,
-      toa ? DEFAULT_ENEMY_RESISTANCES : STANDARD_ENEMY_RESISTANCES,
+      toa ? DEF_ENEMY_RES : STD_ENEMY_RES,
   )
 
-  return toa ? applyTowerOfAdversityResistances(baseTable) : baseTable
+  return toa ? applyTwrOfDv(baseTable) : baseTable
 }
 
 // build a live enemy profile from a catalog entry
-export function buildEnemyProfileFromCatalog(
-    enemy: EnemyCatalogEntry,
+export function makeEnemyProf(
+    enemy: EnemyCatEnt,
     options?: {
       previousProfile?: EnemyProfile
       toa?: boolean
@@ -258,6 +258,6 @@ export function buildEnemyProfileFromCatalog(
     status: options?.previousProfile?.status ?? {
       tuneStrain: 0,
     },
-    res: getEnemyResistanceTable(enemy, toa),
+    res: getEnemyResi(enemy, toa),
   }
 }

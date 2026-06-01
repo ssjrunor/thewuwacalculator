@@ -4,29 +4,204 @@
                inventory-facing estimates and encoded main-index subsets.
 */
 
-import type { EchoInstance } from '@/domain/entities/runtime'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
+import type { OptSets } from '@/domain/entities/optimizer'
+import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
+import { getGameData } from '@/data/gameData'
+import { ECHO_MAIN_STATS, getEchoSttsSrc } from '@/data/gameData/catalog/echoStats.ts'
+import { listEffects } from '@/domain/gameData/registry.ts'
+import { mkSetPlanCnd } from '@/engine/suggestions/mutate.ts'
+import {
+  normOptSets,
+  optSetIdSet,
+} from '@/engine/optimizer/config/allowedSets.ts'
 
 // the optimizer always builds 5-echo loadouts
-const OPTIMIZER_ECHOS_PER_COMBO = 5
+const ECHOES_PER_SET = 5
 
 // total echo cost cap for one valid loadout
-const OPTIMIZER_MAX_COST = 12
+const OPT_MAX_COST = 12
+const ELEMBNSKEYS = new Set(['aero', 'glacio', 'fusion', 'spectro', 'havoc', 'electro'])
 
-export type OptimizerCountMode = 'rows' | 'combos' | 'combinadic'
+export type OptCntMode = 'rows' | 'combos' | 'combinadic'
 
 // resolve the catalog cost for an inventory echo
 function getEchoCost(echo: EchoInstance): number {
   return getEchoById(echo.id)?.cost ?? 0
 }
 
+function mapMainFilter(key: string): string | null {
+  if (key === 'atkPercent') return 'atk%'
+  if (key === 'hpPercent') return 'hp%'
+  if (key === 'defPercent') return 'def%'
+  if (key === 'energyRegen') return 'er'
+  if (key === 'critRate') return 'cr'
+  if (key === 'critDmg') return 'cd'
+  if (key === 'healingBonus') return 'healing'
+  if (ELEMBNSKEYS.has(key)) return 'bonus'
+  return null
+}
+
+function mainOptKeys(
+    settings: OptSets,
+    cost: number,
+): string[] {
+  const rawStats = getEchoSttsSrc()?.primaryStats?.[String(cost)]
+  const all = Object.keys(rawStats ?? ECHO_MAIN_STATS[cost] ?? {})
+  if (all.length === 0 || settings.mainStatFilter.length === 0) {
+    return all
+  }
+
+  const filters = new Set(settings.mainStatFilter)
+  const filt = all.filter((key) => {
+    const filterKey = mapMainFilter(key)
+    if (!filterKey || !filters.has(filterKey)) {
+      return false
+    }
+
+    return filterKey !== 'bonus' || !settings.selectedBonus || key === settings.selectedBonus
+  })
+
+  return filt.length > 0 ? filt : all
+}
+
+function hasSelfBuff(echoId: string): boolean {
+  const effects = listEffects(getGameData(), { type: 'echo', id: echoId })
+  for (const effect of effects) {
+    if ((effect.targetScope ?? 'self') === 'self') {
+      return true
+    }
+  }
+  return false
+}
+
+function getAllowedSets(settings: OptSets): Set<number> {
+  return optSetIdSet(settings.allowedSets)
+}
+
+// count main-eligible catalog/set candidates by cost under the visible set
+// filter. the worker attempts main echo by concrete catalog+set row, so this
+// keeps the prepared total aligned with the processed counter.
+function cntMainByCost(settings: OptSets): Map<number, number> {
+  const setIds = getAllowedSets(settings)
+  const locked = settings.lockedMainEchoId
+  const byCost = new Map<number, Set<string>>()
+
+  for (const echo of listEchoes()) {
+    const sets = setIds.size === 0
+        ? echo.sets
+        : echo.sets.filter((setId) => setIds.has(setId))
+    if (sets.length === 0) {
+      continue
+    }
+
+    if (!(locked ? echo.id === locked : hasSelfBuff(echo.id))) {
+      continue
+    }
+
+    const bucket = byCost.get(echo.cost) ?? new Set<string>()
+    for (const setId of sets) {
+      bucket.add(`${echo.id}|${setId}`)
+    }
+    byCost.set(echo.cost, bucket)
+  }
+
+  return new Map(
+      [...byCost.entries()].map(([cost, ids]) => [cost, ids.size]),
+  )
+}
+
+// count legal cost/main layouts for the five current substat profiles.
+// this intentionally ignores set identity; set identity is counted by the
+// set-plan dimension so equivalent slot-level set permutations do not inflate
+// theory mode's displayed search space.
+function countTheoryMain(settings: OptSets, slotCount: number): number {
+  const setIds = getAllowedSets(settings)
+  const mainByCost = cntMainByCost(settings)
+  const costs = new Set<number>()
+
+  for (const echo of listEchoes()) {
+    const sets = setIds.size === 0
+        ? echo.sets
+        : echo.sets.filter((setId) => setIds.has(setId))
+    if (sets.length > 0) {
+      costs.add(echo.cost)
+    }
+  }
+
+  const opts = [...costs]
+      .map((cost) => ({
+        cost,
+        mains: mainOptKeys(settings, cost).length,
+        mainCats: mainByCost.get(cost) ?? 0,
+      }))
+      .filter((entry) => entry.mains > 0)
+
+  let ways = new Float64Array(OPT_MAX_COST + 1)
+  let mainSums = new Float64Array(OPT_MAX_COST + 1)
+  ways[0] = 1
+
+  for (let slot = 0; slot < slotCount; slot += 1) {
+    const nextWays = new Float64Array(OPT_MAX_COST + 1)
+    const nextMainSums = new Float64Array(OPT_MAX_COST + 1)
+
+    for (let cost = 0; cost <= OPT_MAX_COST; cost += 1) {
+      const baseWays = ways[cost]
+      if (baseWays <= 0) {
+        continue
+      }
+
+      for (const opt of opts) {
+        const nextCost = cost + opt.cost
+        if (nextCost > OPT_MAX_COST) {
+          continue
+        }
+
+        const optWays = baseWays * opt.mains
+        nextWays[nextCost] += optWays
+        nextMainSums[nextCost] += (mainSums[cost] * opt.mains) +
+            (optWays * opt.mainCats)
+      }
+    }
+
+    ways = nextWays
+    mainSums = nextMainSums
+  }
+
+  let total = 0
+  for (let cost = 0; cost <= OPT_MAX_COST; cost += 1) {
+    total += mainSums[cost]
+  }
+
+  return total
+}
+
+// count the visible set-plan dimension using the same helper as suggestions.
+// hidden sets stay out of the count; an empty allowed-set shape means the
+// compiler should leave set plans unrestricted.
+function countSetPlans(settings: OptSets, slotCount: number): number {
+  const allowedSets = normOptSets(settings.allowedSets)
+  const allow5 = new Set(allowedSets[5])
+  const allow3 = new Set(allowedSets[3])
+  const hasFilter = allow5.size > 0 || allow3.size > 0
+
+  return 1 + mkSetPlanCnd(slotCount).filter((plan) => (
+    !hasFilter ||
+    plan.every((entry) => (
+      entry.pieces === 3
+          ? allow3.has(entry.setId)
+          : allow5.has(entry.setId)
+    ))
+  )).length
+}
+
 // collect all inventory indices that are allowed to serve as the main echo
-function collectMainCandidateIndices(
+function getMainIndices(
     echoes: EchoInstance[],
-    lockedMainEchoId: string | null,
+    lockedMainEcho: string | null,
 ): number[] {
   // if no main echo is locked, every echo can be the main slot
-  if (!lockedMainEchoId) {
+  if (!lockedMainEcho) {
     return echoes.map((_, index) => index)
   }
 
@@ -34,7 +209,7 @@ function collectMainCandidateIndices(
 
   // otherwise keep only echoes whose id matches the locked main id
   for (let index = 0; index < echoes.length; index += 1) {
-    if (echoes[index]?.id === lockedMainEchoId) {
+    if (echoes[index]?.id === lockedMainEcho) {
       indices.push(index)
     }
   }
@@ -43,7 +218,7 @@ function collectMainCandidateIndices(
 }
 
 // sum the exact number of valid 5-echo combos from one DP row up to a cost cap
-function countDpRowWays(row: Int32Array, maxCost: number): number {
+function countDpRows(row: Int32Array, maxCost: number): number {
   let total = 0
 
   for (let cost = 0; cost <= maxCost; cost += 1) {
@@ -56,15 +231,15 @@ function countDpRowWays(row: Int32Array, maxCost: number): number {
 // build a DP table where dp[k][c] = number of ways to choose k echoes
 // with total cost exactly c, optionally skipping one excluded index.
 // this is the core counting engine for the exact cost-constrained modes.
-function buildDpExcluding(
+function makeDpExclude(
     costs: ArrayLike<number>,
     maxCost: number,
-    excludedIndex: number | null,
+    excludeIndex: number | null,
 ): Int32Array[] {
   // if one echo is already fixed as the main echo, only 4 more need to be chosen
-  const maxK = excludedIndex == null
-      ? OPTIMIZER_ECHOS_PER_COMBO
-      : (OPTIMIZER_ECHOS_PER_COMBO - 1)
+  const maxK = excludeIndex == null
+      ? ECHOES_PER_SET
+      : (ECHOES_PER_SET - 1)
 
   const dp = Array.from(
       { length: maxK + 1 },
@@ -76,7 +251,7 @@ function buildDpExcluding(
 
   for (let index = 0; index < costs.length; index += 1) {
     // skip the excluded main echo when one is fixed
-    if (excludedIndex != null && index === excludedIndex) {
+    if (excludeIndex != null && index === excludeIndex) {
       continue
     }
 
@@ -100,7 +275,7 @@ function buildDpExcluding(
 }
 
 // standard n-choose-k count used for combinadic-style rough estimates
-function countCombinadic(n: number, k: number): number {
+function countChoose(n: number, k: number): number {
   if (k < 0 || k > n) {
     return 0
   }
@@ -120,13 +295,13 @@ function countCombinadic(n: number, k: number): number {
 // - combinadic: rough closed-form estimate ignoring cost constraints
 // - combos: exact number of valid 5-echo combinations
 // - rows: exact combinations multiplied by 5 row positions when main is unlocked
-export function countOptimizerCombinationsByMode(
+export function countOptCombos(
     echoes: EchoInstance[],
-    lockedMainEchoId: string | null,
-    countMode: OptimizerCountMode = 'rows',
+    lockedMainEcho: string | null,
+    countMode: OptCntMode = 'rows',
 ): number {
   // fewer than 5 echoes means no valid loadout exists
-  if (echoes.length < OPTIMIZER_ECHOS_PER_COMBO) {
+  if (echoes.length < ECHOES_PER_SET) {
     return 0
   }
 
@@ -134,58 +309,58 @@ export function countOptimizerCombinationsByMode(
 
   // combinadic mode is a fast estimate that ignores the 12-cost cap
   if (countMode === 'combinadic') {
-    const mainCandidateIndices = collectMainCandidateIndices(echoes, lockedMainEchoId)
-    if (mainCandidateIndices.length === 0) {
+    const mainIndices = getMainIndices(echoes, lockedMainEcho)
+    if (mainIndices.length === 0) {
       return 0
     }
 
     // without a locked main echo:
     // choose any 5 echoes, then treat each of the 5 positions as a possible main row
-    if (!lockedMainEchoId) {
-      return countCombinadic(echoes.length, OPTIMIZER_ECHOS_PER_COMBO) * OPTIMIZER_ECHOS_PER_COMBO
+    if (!lockedMainEcho) {
+      return countChoose(echoes.length, ECHOES_PER_SET) * ECHOES_PER_SET
     }
 
     // with a locked main echo:
     // choose 4 of the remaining echoes for each valid locked-main candidate
-    return countCombinadic(
+    return countChoose(
         echoes.length - 1,
-        OPTIMIZER_ECHOS_PER_COMBO - 1,
-    ) * mainCandidateIndices.length
+        ECHOES_PER_SET - 1,
+    ) * mainIndices.length
   }
 
   // exact counting when the main echo is not locked
-  if (!lockedMainEchoId) {
-    const dp = buildDpExcluding(costs, OPTIMIZER_MAX_COST, null)
-    const combos = countDpRowWays(dp[OPTIMIZER_ECHOS_PER_COMBO], OPTIMIZER_MAX_COST)
+  if (!lockedMainEcho) {
+    const dp = makeDpExclude(costs, OPT_MAX_COST, null)
+    const combos = countDpRows(dp[ECHOES_PER_SET], OPT_MAX_COST)
 
     // "combos" returns the exact number of legal 5-echo sets
     // "rows" expands each combo into 5 possible main-row placements
     return countMode === 'combos'
         ? combos
-        : (combos * OPTIMIZER_ECHOS_PER_COMBO)
+        : (combos * ECHOES_PER_SET)
   }
 
   // exact counting when the main echo is locked to one or more matching candidates
-  const lockedIndices = collectMainCandidateIndices(echoes, lockedMainEchoId)
-  if (lockedIndices.length === 0) {
+  const lckdNdcs = getMainIndices(echoes, lockedMainEcho)
+  if (lckdNdcs.length === 0) {
     return 0
   }
 
   let totalCombos = 0
 
-  for (const lockedIndex of lockedIndices) {
-    const remainingCost = OPTIMIZER_MAX_COST - costs[lockedIndex]
+  for (const lockedIndex of lckdNdcs) {
+    const remainCost = OPT_MAX_COST - costs[lockedIndex]
 
     // if the locked main alone already exceeds the cost cap, skip it
-    if (remainingCost < 0) {
+    if (remainCost < 0) {
       continue
     }
 
     // count ways to choose 4 additional echoes from the remaining pool
-    const dp = buildDpExcluding(costs, OPTIMIZER_MAX_COST, lockedIndex)
-    const combosForMain = countDpRowWays(
-        dp[OPTIMIZER_ECHOS_PER_COMBO - 1],
-        remainingCost,
+    const dp = makeDpExclude(costs, OPT_MAX_COST, lockedIndex)
+    const combosForMain = countDpRows(
+        dp[ECHOES_PER_SET - 1],
+        remainCost,
     )
 
     totalCombos += combosForMain
@@ -195,28 +370,41 @@ export function countOptimizerCombinationsByMode(
 }
 
 // default helper used by callers that want the historical "rows" count
-export function countOptimizerCombinations(
+export function countOptRows(
     echoes: EchoInstance[],
-    lockedMainEchoId: string | null,
+    lockedMainEcho: string | null,
 ): number {
-  return countOptimizerCombinationsByMode(echoes, lockedMainEchoId, 'rows')
+  return countOptCombos(echoes, lockedMainEcho, 'rows')
 }
 
-export function countOptimizerCombinationsForMainIndices(
+export function countMainCombos(
     costs: ArrayLike<number>,
-    mainCandidateIndices: ReadonlyArray<number> | Int32Array,
+    mainIndices: ReadonlyArray<number> | Int32Array,
 ): number {
   let total = 0
 
-  for (const mainIndex of mainCandidateIndices) {
-    const remainingCost = OPTIMIZER_MAX_COST - ((costs[mainIndex] ?? 0) | 0)
-    if (remainingCost < 0) {
+  for (const mainIndex of mainIndices) {
+    const remainCost = OPT_MAX_COST - ((costs[mainIndex] ?? 0) | 0)
+    if (remainCost < 0) {
       continue
     }
 
-    const dp = buildDpExcluding(costs, OPTIMIZER_MAX_COST, mainIndex)
-    total += countDpRowWays(dp[OPTIMIZER_ECHOS_PER_COMBO - 1], remainingCost)
+    const dp = makeDpExclude(costs, OPT_MAX_COST, mainIndex)
+    total += countDpRows(dp[ECHOES_PER_SET - 1], remainCost)
   }
 
   return total
+}
+
+export function countTheory(
+    settings: OptSets,
+    runtime: ResRuntime,
+): number {
+  const slotCount = runtime.build.echoes.filter((echo) => echo != null).length
+  if (slotCount !== ECHOES_PER_SET) {
+    return 0
+  }
+
+  return countTheoryMain(settings, slotCount) *
+      countSetPlans(settings, slotCount)
 }

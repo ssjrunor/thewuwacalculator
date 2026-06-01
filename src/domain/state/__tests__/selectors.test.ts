@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { AppStore } from '@/domain/state/store'
-import { getResonatorSeedById } from '@/domain/services/resonatorSeedService'
-import { createDefaultAppState, createDefaultResonatorProfile, makeDefaultTeamMemberRuntime } from '@/domain/state/defaults'
-import { selectWorkspaceDerived } from '@/domain/state/selectors'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { makeAppState, makeResProfile, makeTeamMember } from '@/domain/state/defaults'
+import { selWorkDrvd } from '@/domain/state/selectors'
 
 const CHISA_UNRAVELING_CONTROL_KEY = 'team:1508:team:1508:unraveling_law_zero:active'
 
 function asAppStore() {
-  return createDefaultAppState() as unknown as AppStore
+  return makeAppState() as unknown as AppStore
 }
 
-describe('workspace prepared selectors', () => {
-  it('reuses prepared workspace for non-runtime calculator changes', () => {
+describe('main prepared selectors', () => {
+  it('reuses prepared main for non-runtime calculator changes', () => {
     const initial = asAppStore()
-    const first = selectWorkspaceDerived(initial)
+    const first = selWorkDrvd(initial)
 
     const secondState = {
       ...initial,
@@ -25,14 +25,14 @@ describe('workspace prepared selectors', () => {
       },
     } as AppStore
 
-    const second = selectWorkspaceDerived(secondState)
+    const second = selWorkDrvd(secondState)
 
-    expect(second.preparedWorkspace).toBe(first.preparedWorkspace)
+    expect(second.prepWork).toBe(first.prepWork)
   })
 
-  it('rebuilds prepared workspace when runtime revision changes', () => {
+  it('rebuilds prepared main when runtime revision changes', () => {
     const initial = asAppStore()
-    const first = selectWorkspaceDerived(initial)
+    const first = selWorkDrvd(initial)
 
     const secondState = {
       ...initial,
@@ -42,22 +42,22 @@ describe('workspace prepared selectors', () => {
       },
     } as AppStore
 
-    const second = selectWorkspaceDerived(secondState)
+    const second = selWorkDrvd(secondState)
 
-    expect(second.preparedWorkspace).not.toBe(first.preparedWorkspace)
+    expect(second.prepWork).not.toBe(first.prepWork)
   })
 
-  it('normalizes negative-effect combat state in the derived workspace runtime', () => {
+  it('normalizes negative-effect combat state in the derived main runtime', () => {
     const state = asAppStore()
-    const activeSeed = getResonatorSeedById('1207')!
-    const yuanwuSeed = getResonatorSeedById('1307')!
-    const chisaSeed = getResonatorSeedById('1508')!
-    const activeProfile = createDefaultResonatorProfile(activeSeed)
+    const activeSeed = getResSeedBy('1207')!
+    const yuanwuSeed = getResSeedBy('1307')!
+    const chisaSeed = getResSeedBy('1508')!
+    const activeProfile = makeResProfile(activeSeed)
 
     activeProfile.runtime.team = ['1207', '1307', '1508']
     activeProfile.runtime.teamRuntimes = [
-      makeDefaultTeamMemberRuntime(yuanwuSeed),
-      makeDefaultTeamMemberRuntime(chisaSeed),
+      makeTeamMember(yuanwuSeed),
+      makeTeamMember(chisaSeed),
     ]
     activeProfile.runtime.local.combat.electroFlare = 20
     activeProfile.runtime.local.combat.electroRage = 20
@@ -71,22 +71,22 @@ describe('workspace prepared selectors', () => {
     }
     state.calculator.runtimeRevision += 1
 
-    const workspace = selectWorkspaceDerived(state)
+    const workspace = selWorkDrvd(state)
 
-    expect(workspace.activeRuntime?.state.combat.electroFlare).toBe(13)
-    expect(workspace.activeRuntime?.state.combat.electroRage).toBe(13)
-    expect(workspace.activeRuntime?.state.combat.havocBane).toBe(6)
-    expect(workspace.activeRuntime?.state.combat.spectroFrazzle).toBe(0)
+    expect(workspace.actRt?.state.combat.electroFlare).toBe(13)
+    expect(workspace.actRt?.state.combat.electroRage).toBe(13)
+    expect(workspace.actRt?.state.combat.havocBane).toBe(6)
+    expect(workspace.actRt?.state.combat.spectroFrazzle).toBe(0)
   })
 
   it('zeros electro rage when electro flare is not above its default cap', () => {
     const state = asAppStore()
-    const activeSeed = getResonatorSeedById('1207')!
-    const yuanwuSeed = getResonatorSeedById('1307')!
-    const activeProfile = createDefaultResonatorProfile(activeSeed)
+    const activeSeed = getResSeedBy('1207')!
+    const yuanwuSeed = getResSeedBy('1307')!
+    const activeProfile = makeResProfile(activeSeed)
 
     activeProfile.runtime.team = ['1207', '1307', null]
-    activeProfile.runtime.teamRuntimes = [makeDefaultTeamMemberRuntime(yuanwuSeed), null]
+    activeProfile.runtime.teamRuntimes = [makeTeamMember(yuanwuSeed), null]
     activeProfile.runtime.local.combat.electroFlare = 10
     activeProfile.runtime.local.combat.electroRage = 6
 
@@ -96,20 +96,20 @@ describe('workspace prepared selectors', () => {
     }
     state.calculator.runtimeRevision += 1
 
-    const workspace = selectWorkspaceDerived(state)
+    const workspace = selWorkDrvd(state)
 
-    expect(workspace.activeRuntime?.state.combat.electroFlare).toBe(10)
-    expect(workspace.activeRuntime?.state.combat.electroRage).toBe(0)
+    expect(workspace.actRt?.state.combat.electroFlare).toBe(10)
+    expect(workspace.actRt?.state.combat.electroRage).toBe(0)
   })
 
   it('forces glacio chafe to its resolved max when Hiyuki is on the team', () => {
     const state = asAppStore()
-    const activeSeed = getResonatorSeedById('1207')!
-    const hiyukiSeed = getResonatorSeedById('1108')!
-    const activeProfile = createDefaultResonatorProfile(activeSeed)
+    const activeSeed = getResSeedBy('1207')!
+    const hiyukiSeed = getResSeedBy('1108')!
+    const activeProfile = makeResProfile(activeSeed)
 
     activeProfile.runtime.team = ['1207', '1108', null]
-    activeProfile.runtime.teamRuntimes = [makeDefaultTeamMemberRuntime(hiyukiSeed), null]
+    activeProfile.runtime.teamRuntimes = [makeTeamMember(hiyukiSeed), null]
     activeProfile.runtime.local.combat.glacioChafe = 2
 
     state.calculator.session.activeResonatorId = activeSeed.id
@@ -118,8 +118,8 @@ describe('workspace prepared selectors', () => {
     }
     state.calculator.runtimeRevision += 1
 
-    const workspace = selectWorkspaceDerived(state)
+    const workspace = selWorkDrvd(state)
 
-    expect(workspace.activeRuntime?.state.combat.glacioChafe).toBe(10)
+    expect(workspace.actRt?.state.combat.glacioChafe).toBe(10)
   })
 })

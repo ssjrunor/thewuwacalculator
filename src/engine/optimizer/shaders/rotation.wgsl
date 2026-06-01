@@ -1,3 +1,7 @@
+// this kernel evaluates rotation-mode optimizer candidates by unpacking one
+// combo rank, rebuilding the packed display contexts, and summing weighted
+// rotation damage for the candidate's equipped echo set.
+
 // encoded per-echo stat rows, 5 vec4s per echo
 @group(0) @binding(0) var<storage, read> echoStats: array<vec4<f32>>;
 
@@ -53,6 +57,7 @@ struct Candidate {
 const REDUCE_K: u32 = 8u;
 const NEG_INF: f32 = -1.0e30;
 const INV_100: f32 = 0.01;  // precomputed 1/100 for repeated percent math
+const COMBO_MODE_BATCH: u32 = 3u;
 
 // skill type bit masks packed into skillId
 const SKILL_BASIC:      u32 = 1u << 0u;
@@ -72,6 +77,7 @@ const ARCHETYPE_AERO_EROSION: u32 = 5u;
 const ARCHETYPE_FUSION_BURST: u32 = 6u;
 const ARCHETYPE_ELECTRO_FLARE: u32 = 7u;
 const ARCHETYPE_GLACIO_CHAFE: u32 = 8u;
+const ARCHETYPE_HACK: u32 = 9u;
 
 struct Params {
     // base stats and already-baked final stats from the optimizer context
@@ -145,9 +151,9 @@ var<uniform> rotationMeta: RotationMeta;
 // layout constants
 const STATS_VEC4S_PER_ECHO : u32 = 5u;
 const ECHOS_PER_COMBO: u32 = 5u;
-const BUFFS_PER_ECHO : u32 = 15u;
-const SET_SLOTS : u32 = 32u; // supports set ids 0..31 inclusive
-const SET_CONST_LUT_BUCKETS: u32 = 4u;
+const BUFFS_PER_ECHO : u32 = 18u;
+const SET_SLOTS : u32 = 33u; // supports set ids 0..32 inclusive
+const SET_CONST_LUT_BUCKETS: u32 = 5u;
 const SET_CONST_LUT_ROW_STRIDE: u32 = 23u;
 
 // set runtime toggle bits
@@ -318,6 +324,15 @@ fn comboIndicesToEchoIds(combo: array<u32, 5>) -> array<i32, 5> {
 }
 
 fn buildEchoIds(index: u32) -> array<i32, 5> {
+    if (decodeComboMode(params) == COMBO_MODE_BATCH) {
+        var out: array<i32, 5>;
+        let base = index * 5u;
+        for (var pos: u32 = 0u; pos < 5u; pos = pos + 1u) {
+            out[pos] = comboIndexMap[base + pos];
+        }
+        return out;
+    }
+
     let combo = buildComboIndices(index);
     return comboIndicesToEchoIds(combo);
 }
@@ -532,9 +547,10 @@ fn applySetEffectsBase(base: EchoBase) -> SetApplied {
     // apply the correct LUT bucket for each active set
     for (var setId: u32 = 0u; setId < SET_SLOTS; setId = setId + 1u) {
         let count = base.setCount[setId];
-        if (count < 2u) { continue; }
+        if (count < 1u) { continue; }
 
         let bucket =
+            u32(count >= 1u) +
             u32(count >= 2u) +
             u32(count >= 3u) +
             u32(count >= 5u);
@@ -659,7 +675,7 @@ fn buildPreMain(p: Params, s: SetApplied, skillMask: u32, elementId: u32) -> Pre
     let sequence = decodeSequence(p);
     pre.charId = charId;
 
-    // character-specific 1306 crit-rate-to-crit-dmg conversion
+    // character-specific 1306 cr-to-cd conversion
     if (pre.charId == 1306.0) {
         var bonusCd: f32 = 0.0;
         if (sequence >= 2.0 && pre.critRateTotal >= 1.0) {
@@ -740,6 +756,9 @@ fn evalMainPos(
     mainElem1: vec2<f32>,
     mainType0: vec4<f32>,
     mainType1: vec2<f32>,
+    mainCR: f32,
+    mainCD: f32,
+    mainDmgBns: f32,
 ) -> f32 {
     let finalER = pre.finalERBase + mainER;
 
@@ -763,6 +782,7 @@ fn evalMainPos(
     bonus += mainType0.w * f32((mask >> 3u) & 1u);
     bonus += mainType1.x * f32((mask >> 6u) & 1u);
     bonus += mainType1.y * f32((mask >> 7u) & 1u);
+    bonus += mainDmgBns;
 
     var dmgBonus = pre.dmgBonusBase + bonus * INV_100;
 
@@ -787,8 +807,8 @@ fn evalMainPos(
         dmgBonus += extraDmgBonus * INV_100 * f32((mask >> 6u) & 1u);
     }
 
-    var critRateForDmg = pre.critRateTotal;
-    var critDmgForDmg = pre.critDmgTotal;
+    var critRateForDmg = pre.critRateTotal + mainCR * INV_100;
+    var critDmgForDmg = pre.critDmgTotal + mainCD * INV_100;
     let baseMul = pre.resDefAmp * pre.dmgReductionTotal;
 
     // character-specific 1209 er conversions
@@ -810,12 +830,12 @@ fn evalMainPos(
 
     let archetype = u32(pre.archetype);
     var avg: f32 = 0.0;
-    var constraintCritRate = pre.critRateTotal;
-    var constraintCritDmg = pre.critDmgTotal;
+    var constraintCritRate = pre.critRateTotal + mainCR * INV_100;
+    var constraintCritDmg = pre.critDmgTotal + mainCD * INV_100;
     var constraintDmgBonus = dmgBonus;
 
     // archetype-specific average damage calculation
-    if (archetype == ARCHETYPE_TUNE_RUPTURE) {
+    if (archetype == ARCHETYPE_TUNE_RUPTURE || archetype == ARCHETYPE_HACK) {
         let normal =
             pre.multiplier *
             pre.resDefAmp *
@@ -943,6 +963,7 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
     totals[4] = 0.0;
 
     let lockedIndex: i32 = decodeLockedIndex(params);
+    let batchMainFirst = decodeComboMode(params) == COMBO_MODE_BATCH;
 
     // predecoded main-echo rows for the 5 combo positions
     var mainOk: array<u32, 5u>;
@@ -955,11 +976,18 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
     var mainElem1: array<vec2<f32>, 5u>;
     var mainType0: array<vec4<f32>, 5u>;
     var mainType1: array<vec2<f32>, 5u>;
+    var mainCR: array<f32, 5u>;
+    var mainCD: array<f32, 5u>;
+    var mainDmgBns: array<f32, 5u>;
 
     // cache main-echo bonuses once before looping over contexts
     for (var mainPos: u32 = 0u; mainPos < 5u; mainPos = mainPos + 1u) {
         let mainId = echoIds[mainPos];
-        if (mainId < 0 || (lockedIndex >= 0 && mainId != lockedIndex)) {
+        if (
+            mainId < 0 ||
+            (batchMainFirst && mainPos != 0u) ||
+            (lockedIndex >= 0 && mainId != lockedIndex)
+        ) {
             mainOk[mainPos] = 0u;
             mainAtkPRatio[mainPos] = 0.0;
             mainAtkF[mainPos] = 0.0;
@@ -968,6 +996,9 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
             mainElem1[mainPos] = vec2<f32>(0.0);
             mainType0[mainPos] = vec4<f32>(0.0);
             mainType1[mainPos] = vec2<f32>(0.0);
+            mainCR[mainPos] = 0.0;
+            mainCD[mainPos] = 0.0;
+            mainDmgBns[mainPos] = 0.0;
             continue;
         }
 
@@ -999,6 +1030,9 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
             mainEchoBuffs[b + 13u],
             mainEchoBuffs[b + 14u]
         );
+        mainCR[mainPos] = mainEchoBuffs[b + 15u];
+        mainCD[mainPos] = mainEchoBuffs[b + 16u];
+        mainDmgBns[mainPos] = mainEchoBuffs[b + 17u];
     }
 
     if (validCount == 0u) {
@@ -1040,7 +1074,10 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
                 mainElem0[mainPos],
                 mainElem1[mainPos],
                 mainType0[mainPos],
-                mainType1[mainPos]
+                mainType1[mainPos],
+                mainCR[mainPos],
+                mainCD[mainPos],
+                mainDmgBns[mainPos]
             );
             if (avg == NEG_INF) {
                 continue;
@@ -1088,10 +1125,13 @@ fn main(
     let lid = lid3.x;
     let comboCount = decodeComboCount(params);
 
-    // each thread evaluates CYCLES_PER_INVOCATION consecutive combos
-    let baseIndex = (wg.x * 512u + lid) * CYCLES_PER_INVOCATION;
+    let batchMode = decodeComboMode(params) == COMBO_MODE_BATCH;
+    let globalWorkgroup = decodeDispatchWorkgroupBase(params) + wg.x;
+    let laneIndex = globalWorkgroup * 512u + lid;
     let comboN = decodeComboN(params);
     let comboK = decodeComboK(params);
+
+    let baseIndex = laneIndex * CYCLES_PER_INVOCATION;
 
     // keep only the best local candidate from this thread's chunk
     var best: f32 = NEG_INF;
@@ -1100,12 +1140,23 @@ fn main(
 
     if (baseIndex < comboCount) {
         var idx: u32 = baseIndex;
-        var combo = buildComboIndices(comboBaseIndex(params) + idx);
+        var combo: array<u32, 5>;
+        for (var c: u32 = 0u; c < 5u; c = c + 1u) {
+            combo[c] = 0u;
+        }
+        if (!batchMode) {
+            combo = buildComboIndices(comboBaseIndex(params) + idx);
+        }
 
         for (var j: u32 = 0u; j < CYCLES_PER_INVOCATION; j = j + 1u) {
             if (idx >= comboCount) { break; }
 
-            let echoIds = comboIndicesToEchoIds(combo);
+            var echoIds: array<i32, 5>;
+            if (batchMode) {
+                echoIds = buildEchoIds(comboBaseIndex(params) + idx);
+            } else {
+                echoIds = comboIndicesToEchoIds(combo);
+            }
             let eval = computeRotationForEchoIds(echoIds);
             if (eval.dmg > best) {
                 best = eval.dmg;
@@ -1115,6 +1166,8 @@ fn main(
 
             idx = idx + 1u;
             if (j + 1u >= CYCLES_PER_INVOCATION || idx >= comboCount) { break; }
+
+            if (batchMode) { continue; }
 
             // advance to the next combination in lexicographic order
             var advanced: bool = false;
@@ -1136,6 +1189,17 @@ fn main(
 
             if (!advanced) { break; }
         }
+    }
+
+    if (batchMode) {
+        if (best > 0.0) {
+            let mainPos = bestMain & 7u;
+            let packedIdx = (mainPos << 29u) | bestIndex;
+            candidates[laneIndex] = Candidate(best, packedIdx);
+        } else {
+            candidates[laneIndex] = Candidate(0.0, 0u);
+        }
+        return;
     }
 
     // write thread-local best candidate into workgroup memory
@@ -1182,11 +1246,11 @@ fn main(
             winScore  = tmpScore[0];
 
             if (winScore <= 0.0) {
-                candidates[wg.x * REDUCE_K + k] = Candidate(0.0, 0u);
+                candidates[globalWorkgroup * REDUCE_K + k] = Candidate(0.0, 0u);
             } else {
                 let mainPos = origMain[winThread] & 7u;
                 let packedIdx = (mainPos << 29u) | tmpIdx[0];
-                candidates[wg.x * REDUCE_K + k] = Candidate(winScore, packedIdx);
+                candidates[globalWorkgroup * REDUCE_K + k] = Candidate(winScore, packedIdx);
             }
         }
 

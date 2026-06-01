@@ -1,17 +1,14 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Pages — barrel import + shared animations
-   ═══════════════════════════════════════════════════════════════════════════ */
+
 
 @import './page-design-system.css';
 @import './info.css';
 @import './changelog.css';
 @import './guides.css';
-@import './legal.css';
 @import './not-found.css';
 @import './settings.css';
 @import './admin.css';
 
-/* ── Staggered entrance animation for page cards ── */
+
 
 @keyframes page-fade-up {
   from {

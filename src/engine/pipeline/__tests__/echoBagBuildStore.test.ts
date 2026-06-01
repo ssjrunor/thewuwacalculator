@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ECHO_PRIMARY_STATS, ECHO_SECONDARY_STATS } from '@/data/gameData/catalog/echoStats'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import type { RotationNode } from '@/domain/gameData/contracts'
-import { createEchoUid } from '@/domain/entities/runtime'
-import { cloneRotationNodes } from '@/domain/entities/inventoryStorage'
+import { makeEchoUid } from '@/domain/entities/runtime'
+import { cloneRotNds } from '@/domain/entities/inventoryStorage'
 import { listEchoes } from '@/domain/services/echoCatalogService'
-import { getResonatorById } from '@/domain/services/resonatorCatalogService'
-import { DEFAULT_RESONATOR_ID } from '@/domain/state/defaults'
-import { selectActiveRuntime } from '@/domain/state/selectors'
+import { getResById } from '@/domain/services/resonatorCatalogService'
+import { DEF_RES_ID } from '@/domain/state/defaults'
+import { selActRt } from '@/domain/state/selectors'
 import { useAppStore } from '@/domain/state/store'
 
 function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
@@ -16,12 +16,12 @@ function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
     throw new Error(`missing echo ${echoId}`)
   }
 
-  const primaryStats = ECHO_PRIMARY_STATS[definition.cost]
-  const secondaryStat = ECHO_SECONDARY_STATS[definition.cost]
+  const primaryStats = ECHO_MAIN_STATS[definition.cost]
+  const secondaryStat = ECHO_SIDE_STATS[definition.cost]
   const primaryKey = Object.keys(primaryStats)[0]
 
   return {
-    uid: createEchoUid(),
+    uid: makeEchoUid(),
     id: definition.id,
     set: definition.sets[0] ?? 0,
     mainEcho: slotIndex === 0,
@@ -39,19 +39,19 @@ function makeEchoInstance(echoId: string, slotIndex = 0): EchoInstance {
 describe('echo bag and build bag', () => {
   beforeEach(() => {
     useAppStore.getState().resetState()
-    const defaultSeed = getResonatorById(DEFAULT_RESONATOR_ID)
+    const defaultSeed = getResById(DEF_RES_ID)
     if (!defaultSeed) {
-      throw new Error(`missing default resonator ${DEFAULT_RESONATOR_ID}`)
+      throw new Error(`missing default resonator ${DEF_RES_ID}`)
     }
 
-    useAppStore.getState().activateResonator(defaultSeed)
+    useAppStore.getState().actRes(defaultSeed)
   })
 
   it('dedupes identical echoes in the global echo bag', () => {
     const echo = makeEchoInstance(listEchoes()[0].id)
 
-    const first = useAppStore.getState().addEchoToInventory(echo)
-    const second = useAppStore.getState().addEchoToInventory({ ...echo, mainEcho: false })
+    const first = useAppStore.getState().addInvEcho(echo)
+    const second = useAppStore.getState().addInvEcho({ ...echo, mainEcho: false })
 
     expect(first).not.toBeNull()
     expect(second).toBeNull()
@@ -61,7 +61,7 @@ describe('echo bag and build bag', () => {
   it('replaces inventory echoes from an imported bag and dedupes equivalent entries', () => {
     const echo = makeEchoInstance(listEchoes()[0].id)
 
-    useAppStore.getState().replaceInventoryEchoes([
+    useAppStore.getState().rplInvEcho([
       echo,
       { ...echo, mainEcho: true },
     ])
@@ -71,14 +71,14 @@ describe('echo bag and build bag', () => {
   })
 
   it('saves and restores full build snapshots instead of echo-only presets', () => {
-    const runtime = selectActiveRuntime(useAppStore.getState())
+    const runtime = selActRt(useAppStore.getState())
     if (!runtime) {
       throw new Error('missing active runtime')
     }
 
     const savedEcho = makeEchoInstance(listEchoes()[0].id, 0)
 
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       build: {
         ...prev.build,
@@ -90,12 +90,12 @@ describe('echo bag and build bag', () => {
       },
     }))
 
-    const snapshot = selectActiveRuntime(useAppStore.getState())
+    const snapshot = selActRt(useAppStore.getState())
     if (!snapshot) {
       throw new Error('missing updated runtime')
     }
 
-    const savedBuild = useAppStore.getState().addBuildToInventory({
+    const savedBuild = useAppStore.getState().addInvBuild({
       resonatorId: snapshot.id,
       resonatorName: snapshot.id,
       build: {
@@ -108,7 +108,7 @@ describe('echo bag and build bag', () => {
     expect(savedBuild?.build.weapon.rank).toBe(3)
     expect(savedBuild?.build.echoes[0]?.id).toBe(savedEcho.id)
 
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       build: {
         ...prev.build,
@@ -120,7 +120,7 @@ describe('echo bag and build bag', () => {
       },
     }))
 
-    useAppStore.getState().updateActiveResonatorRuntime((prev) => ({
+    useAppStore.getState().updActRt((prev) => ({
       ...prev,
       build: {
         ...prev.build,
@@ -129,18 +129,18 @@ describe('echo bag and build bag', () => {
       },
     }))
 
-    const restored = selectActiveRuntime(useAppStore.getState())
+    const restored = selActRt(useAppStore.getState())
     expect(restored?.build.weapon.rank).toBe(3)
     expect(restored?.build.echoes[0]?.id).toBe(savedEcho.id)
   })
 
   it('stores saved rotations globally at the inventory level', () => {
-    const runtime = selectActiveRuntime(useAppStore.getState())
+    const runtime = selActRt(useAppStore.getState())
     if (!runtime) {
       throw new Error('missing active runtime')
     }
 
-    const entry = useAppStore.getState().addRotationToInventory({
+    const entry = useAppStore.getState().addInvRot({
       name: 'Stored Personal Rotation',
       mode: 'personal',
       resonatorId: runtime.id,
@@ -159,10 +159,55 @@ describe('echo bag and build bag', () => {
     expect(entry).not.toBeNull()
     expect(useAppStore.getState().calculator.inventoryRotations).toHaveLength(1)
     expect(useAppStore.getState().calculator.inventoryRotations[0]?.name).toBe('Stored Personal Rotation')
+    expect(useAppStore.getState().calculator.inventoryRotations[0]?.duration).toBe(0)
+    expect(useAppStore.getState().calculator.inventoryRotations[0]?.note).toBe('')
+  })
+
+  it('normalizes saved rotation metadata updates', () => {
+    const runtime = selActRt(useAppStore.getState())
+    if (!runtime) {
+      throw new Error('missing active runtime')
+    }
+
+    const entry = useAppStore.getState().addInvRot({
+      name: 'Stored Personal Rotation',
+      mode: 'personal',
+      resonatorId: runtime.id,
+      resonatorName: runtime.id,
+      items: [],
+    })
+
+    if (!entry) {
+      throw new Error('missing saved rotation entry')
+    }
+
+    useAppStore.getState().updInvRot(entry.id, {
+      name: '  Updated Rotation  ',
+      note: 'Line one\nLine two',
+      duration: -5,
+    })
+
+    let savedEntry = useAppStore.getState().calculator.inventoryRotations[0]
+    expect(savedEntry?.name).toBe('Updated Rotation')
+    expect(savedEntry?.note).toBe('Line one\nLine two')
+    expect(savedEntry?.duration).toBe(0)
+
+    useAppStore.getState().updInvRot(entry.id, {
+      duration: 21.5,
+    })
+
+    savedEntry = useAppStore.getState().calculator.inventoryRotations[0]
+    expect(savedEntry?.duration).toBe(21.5)
   })
 
   it('clones appended rotations with fresh recursive node ids', () => {
     const original: RotationNode[] = [
+      {
+        id: 'loop:end',
+        type: 'loop',
+        kind: 'end',
+        loopId: 'loop-a',
+      },
       {
         id: 'repeat:root',
         type: 'repeat',
@@ -183,16 +228,27 @@ describe('echo bag and build bag', () => {
           },
         ],
       },
+      {
+        id: 'loop:start',
+        type: 'loop',
+        kind: 'start',
+        loopId: 'loop-a',
+        runs: 1,
+      },
     ]
 
-    const cloned = cloneRotationNodes(original, { freshIds: true })
+    const cloned = cloneRotNds(original, { freshIds: true })
 
-    expect(cloned).toHaveLength(1)
+    expect(cloned).toHaveLength(3)
     expect(cloned[0]?.id).not.toBe(original[0]?.id)
-    expect(cloned[0]?.type).toBe('repeat')
-    expect(cloned[0]?.type === 'repeat' ? cloned[0].items[0]?.id : null).not.toBe(
-      original[0]?.type === 'repeat' ? original[0].items[0]?.id : null,
+    expect(cloned[1]?.type).toBe('repeat')
+    expect(cloned[1]?.type === 'repeat' ? cloned[1].items[0]?.id : null).not.toBe(
+      original[1]?.type === 'repeat' ? original[1].items[0]?.id : null,
     )
-    expect(cloned[0]).not.toBe(original[0])
+    expect(cloned[1]).not.toBe(original[1])
+    expect(cloned[0]?.type === 'loop' ? cloned[0].loopId : null).not.toBe('loop-a')
+    expect(cloned[0]?.type === 'loop' ? cloned[0].loopId : null).toBe(
+      cloned[2]?.type === 'loop' ? cloned[2].loopId : null,
+    )
   })
 })

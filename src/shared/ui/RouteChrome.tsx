@@ -4,143 +4,114 @@
                sidebar navigation, route outlet, and global overlay UI.
 */
 
-import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useLayoutEffect as useLytFfct, useMemo, useState, type CSSProperties as CssProps } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  SlidersHorizontal,
+  SlidersHorizontal as SldrHrzn,
   RotateCcw,
 } from 'lucide-react'
 import { useAppStore } from '@/domain/state/store'
-import { selectActiveResonatorId } from '@/domain/state/selectors'
-import type { LeftPaneView } from '@/domain/entities/appState'
-import { ALL_THEME_VARIANTS } from '@/domain/entities/themes'
-import { useResponsiveSidebar } from '@/app/hooks/useResponsiveSidebar.ts'
-import { RiHeartsFill, RiMoonClearFill } from 'react-icons/ri'
+import { selActResId } from '@/domain/state/selectors'
+import { ALL_THEMES } from '@/domain/entities/themes'
+import { useRspnSdbr } from '@/app/hooks/useResponsiveSidebar.ts'
+import { RiHeartsFill, RiMoonClearFill as RiMoonClrFil } from 'react-icons/ri'
+import { FaSun } from 'react-icons/fa'
 import { FaMicrochip } from 'react-icons/fa6'
-import { BsPersonVcard } from 'react-icons/bs'
-import { FaInfo, FaQuestion, FaSun } from 'react-icons/fa'
-import { RxActivityLog } from 'react-icons/rx'
-import { GiPokecog, GiSchoolBag } from 'react-icons/gi'
-import { IoSparkles } from 'react-icons/io5'
-import { ImHistory } from 'react-icons/im'
-import { NotificationToastContainer } from '@/shared/ui/NotificationToast'
-import { ConfirmationModal } from '@/shared/ui/ConfirmationModal'
-import { AppStatusModal } from '@/shared/ui/AppStatusModal'
+import { BsPersonVcard as BsPrsnVcrd } from 'react-icons/bs'
+import { RxActivityLog as RxCtvtLog } from 'react-icons/rx'
+import { GiSchoolBag } from 'react-icons/gi'
+import { NtfcTstCntn } from '@/shared/ui/NotificationToast'
 import { CookieBanner } from '@/shared/ui/CookieBanner'
-import { useConfirmation } from '@/app/hooks/useConfirmation.ts'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility.ts'
-import { useCookieBanner } from '@/app/hooks/useCookieBanner.ts'
-import { useToastStore } from '@/shared/util/toastStore.ts'
-import { getCuteMessage } from '@/shared/util/cuteMessages.ts'
-import { getStoredGoogleTokens } from '@/infra/googleDrive/googleAuth.ts'
+import { useCkBnnr } from '@/app/hooks/useCookieBanner.ts'
+import { useTstStr } from '@/shared/util/toastStore.ts'
+import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { useAppCtxMen } from '@/shared/ui/AppContextMenu'
+import { getCuteMsg } from '@/shared/util/cuteMessages.ts'
+import { getStrdGglTk } from '@/infra/googleDrive/googleAuth.ts'
 import {
-  getCurrentChangelogToastVersion,
-  latestCurrentChangelogEntry,
+  getCurChngTs,
+  ltstCurChngE,
 } from '@/data/content/changelogEntries'
+import { RtMenuProv, useRtChrmMen } from '@/shared/context-menu/RouteCtx.tsx'
+import { isDtblVntTgt } from '@/shared/lib/isEditableEventTarget'
+import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
 
-const CHANGELOG_TOAST_STORAGE_KEY = 'seen-changelog-version'
-let changelogToastShown = false
-
-interface NavigationLink {
-  to: string
-  label: string
-  Icon: typeof IoSparkles
-  iconClassName?: string
-}
-
-// primary sidebar navigation links
-const navigationLinks: NavigationLink[] = [
-  { to: '/', label: 'Home', Icon: IoSparkles },
-  { to: '/settings', label: 'Settings', Icon: GiPokecog, iconClassName: 'settings-icon' },
-  { to: '/info', label: 'Info', Icon: FaInfo },
-  { to: '/guides', label: 'Guides', Icon: FaQuestion, iconClassName: 'help-icon' },
-  { to: '/changelog', label: 'Changelog', Icon: ImHistory, iconClassName: 'changelog-icon' },
-]
-
-// calculator toolbar view buttons
-const calculatorToolbarViews: Array<{ key: LeftPaneView; label: string; icon: string }> = [
-  { key: 'resonators', label: 'Resonators', icon: 'resonator' },
-  { key: 'weapon', label: 'Weapon', icon: 'weapon' },
-  { key: 'echoes', label: 'Echoes', icon: 'echoes' },
-  { key: 'suggestions', label: 'Suggestions', icon: 'suggestions' },
-  { key: 'teams', label: 'Team Buffs', icon: 'teams' },
-  { key: 'enemy', label: 'Enemy', icon: 'enemy' },
-  { key: 'buffs', label: 'Custom Bonuses', icon: 'buffs' },
-  { key: 'rotations', label: 'Rotation', icon: 'rotations' },
-]
+const CHNGTSTSTORE = 'seen-changelog-version'
+let chngTstShwn = false
 
 export function RouteChrome() {
+  return (
+    <RtMenuProv>
+      <RtChrmCntn />
+    </RtMenuProv>
+  )
+}
+
+function RtChrmCntn() {
   const location = useLocation()
-  const navigate = useNavigate()
+  const rtChrmMenu = useRtChrmMen()
+  const contextMenu = useAppCtxMen()
 
   const {
     ui,
     setTheme,
-    setMainMode,
     setBlurMode,
-    setLeftPaneView,
-    setInventoryOpen,
-    resetResonator,
-    activeResonatorId,
+    openLeftPaneView: openLeftPane,
+    activeResonatorId: actResId,
   } = useAppStore(
-      useShallow((state) => ({
-        ui: state.ui,
-        setTheme: state.setTheme,
-        setMainMode: state.setMainMode,
-        setBlurMode: state.setBlurMode,
-        setLeftPaneView: state.setLeftPaneView,
-        setInventoryOpen: state.setInventoryOpen,
-        resetResonator: state.resetResonator,
-        activeResonatorId: selectActiveResonatorId(state),
-      })),
+    useShallow((state) => ({
+      ui: state.ui,
+      setTheme: state.setTheme,
+      setBlurMode: state.setBlurMode,
+      openLeftPaneView: state.openLeftView,
+      activeResonatorId: selActResId(state),
+    })),
   )
 
-  const confirmation = useConfirmation()
-  const appStatus = useAnimatedVisibility()
-  const cookieBanner = useCookieBanner()
-  const showToast = useToastStore((state) => state.show)
+  const cookieBanner = useCkBnnr()
+  const showToast = useTstStr((state) => state.show)
 
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [moveToolbarToSidebar, setMoveToolbarToSidebar] = useState(false)
+  const [showDropdown, setShowDrpd] = useState(false)
+  const [moveTlbrToSd, setMoveTlbrT] = useState(false)
   const {
-    hamburgerOpen,
-    setHamburgerOpen,
+    hamburgerOpen: hambOpen,
+    setHamburgerOpen: setHambOpen,
     isMobile,
-    isOverlayVisible,
-    isOverlayClosing,
-  } = useResponsiveSidebar()
+    isOverlayVisible: isOvrVis,
+    isOverlayClosing: isOvrCls,
+  } = useRspnSdbr()
 
-  // show the latest changelog summary once per update, mirroring the old app behavior.
   useEffect(() => {
-    if (changelogToastShown || !latestCurrentChangelogEntry?.shortDesc) {
+    if (!ui.preferences.updateToast || chngTstShwn || !ltstCurChngE?.shortDesc) {
       return
     }
 
-    const latestVersion = getCurrentChangelogToastVersion(latestCurrentChangelogEntry)
-    if (localStorage.getItem(CHANGELOG_TOAST_STORAGE_KEY) === latestVersion) {
+    const ltstVrsn = getCurChngTs(ltstCurChngE)
+    if (localStorage.getItem(CHNGTSTSTORE) === ltstVrsn) {
       return
     }
 
-    changelogToastShown = true
+    chngTstShwn = true
     showToast({
       content: (
-        <span dangerouslySetInnerHTML={{ __html: latestCurrentChangelogEntry.shortDesc }} />
+        <span dangerouslySetInnerHTML={{ __html: ltstCurChngE.shortDesc }} />
       ),
       variant: 'success',
       duration: 60000,
       position: 'top-center',
       onClick: () => {
-        localStorage.setItem(CHANGELOG_TOAST_STORAGE_KEY, latestVersion)
-        appStatus.show()
+        localStorage.setItem(CHNGTSTSTORE, ltstVrsn)
+        rtChrmMenu.actions.openStatus()
       },
     })
-  }, [appStatus, showToast])
+  }, [rtChrmMenu.actions, showToast, ui.preferences])
 
-  // move calculator toolbar into the sidebar on smaller screens
   useEffect(() => {
     const onResize = () => {
-      setMoveToolbarToSidebar(window.innerWidth < 900)
+      // narrow screens keep navigation in the header while desktop has room for
+      // sidebar-owned toolbar actions.
+      setMoveTlbrT(window.innerWidth < 900)
     }
 
     onResize()
@@ -148,35 +119,21 @@ export function RouteChrome() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const isCalculatorRoute = location.pathname === '/'
+  const isCalcRt = location.pathname === '/'
 
-  // resolve the current active navigation item from the route
-  const activeNavigationLink = useMemo(() => {
-    const exactMatch = navigationLinks.find(({ to }) => to === location.pathname)
-    if (exactMatch) {
-      return exactMatch
-    }
-
-    const fallbackMatch = navigationLinks.find(({ to }) => to !== '/' && location.pathname.startsWith(`${to}/`))
-    return fallbackMatch ?? navigationLinks[0]
-  }, [location.pathname])
-
-  // show all links except the currently active one in the dropdown
-  const dropdownNavigationLinks = useMemo(
-      () => navigationLinks.filter(({ to }) => to !== activeNavigationLink.to),
-      [activeNavigationLink.to],
+  const isNvgtLinkAc = (to: string) => (
+    to === location.pathname || (to !== '/' && location.pathname.startsWith(`${to}/`))
   )
 
   const navigateTo = (to: string) => {
-    navigate(to)
-    setShowDropdown(false)
+    rtChrmMenu.actions.navigateTo(to)
+    setShowDrpd(false)
     if (isMobile) {
-      setHamburgerOpen(false)
+      setHambOpen(false)
     }
   }
 
-  // resolve the currently applied visual theme variant
-  const activeVariant = useMemo(() => {
+  const actVar = useMemo(() => {
     if (ui.theme === 'background') {
       return ui.backgroundVariant
     }
@@ -184,325 +141,365 @@ export function RouteChrome() {
     return ui.theme === 'dark' ? ui.darkVariant : ui.lightVariant
   }, [ui.backgroundVariant, ui.darkVariant, ui.lightVariant, ui.theme])
 
-  const shellClassName = [
+  const shllClssName = [
     'app-shell',
-    activeVariant,
-    ui.blurMode === 'off' ? 'blur-off' : '',
-    ui.entranceAnimations === 'off' ? 'no-entrance-anim' : '',
+    actVar,
+    ui.blurMode ? 'blur-off' : '',
+    ui.entranceAnimations ? '' : 'no-entrance-anim reduce-animation',
     ui.theme === 'background'
       ? `${ui.backgroundTextMode}-text`
       : ui.theme === 'dark'
         ? 'dark-text'
         : 'light-text',
   ]
-      .filter(Boolean)
-      .join(' ')
+    .filter(Boolean)
+    .join(' ')
 
-  // sync the html theme classes the same way the old repo did, with app-shell mirroring for local styling hooks
-  useLayoutEffect(() => {
+  useLytFfct(() => {
     const root = document.documentElement
-    const themeClasses = [...ALL_THEME_VARIANTS, 'blur-off', 'no-entrance-anim', 'light-text', 'dark-text']
-    const textModeClass = ui.theme === 'background'
+    const themeClasses = [...ALL_THEMES, 'blur-off', 'no-entrance-anim', 'reduce-animation', 'light-text', 'dark-text']
+    const textModeClss = ui.theme === 'background'
       ? `${ui.backgroundTextMode}-text`
       : ui.theme === 'dark'
         ? 'dark-text'
         : 'light-text'
 
     root.classList.remove(...themeClasses)
-    root.classList.add(activeVariant)
-    root.classList.add(textModeClass)
+    root.classList.add(actVar)
+    root.classList.add(textModeClss)
 
-    if (ui.blurMode === 'off') {
-      root.classList.add('blur-off')
-    }
-    if (ui.entranceAnimations === 'off') {
-      root.classList.add('no-entrance-anim')
-    }
+    if (ui.blurMode) root.classList.add('blur-off')
+    if (!ui.entranceAnimations) root.classList.add('no-entrance-anim', 'reduce-animation')
+
 
     root.dataset.themeLocked = 'true'
     root.dataset.themeLoaded = 'true'
-  }, [activeVariant, ui.backgroundTextMode, ui.blurMode, ui.entranceAnimations, ui.theme])
+  }, [actVar, ui.backgroundTextMode, ui.blurMode, ui.entranceAnimations, ui.theme])
 
-  const themeToggleLabel = ui.theme === 'dark' ? 'Dawn' : 'Dusk'
+  const themeTglLbl = ui.theme === 'dark' ? 'Dawn' : 'Dusk'
+  const rtCtxMenuTms = useMemo(
+    () => rtChrmMenu.builders.routeChrome.bttmSec(),
+    [rtChrmMenu.builders.routeChrome],
+  )
+
+  useLytFfct(() => {
+    // global route actions are registered with the app context menu so blank
+    // surface menus still expose navigation, history, and reset actions.
+    contextMenu.setGlblTms(rtCtxMenuTms)
+
+    return () => {
+      contextMenu.setGlblTms([])
+    }
+  }, [contextMenu, rtCtxMenuTms])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isDtblVntTgt(event.target)) {
+        return
+      }
+
+      const commandKey = event.metaKey || event.ctrlKey
+      if (!commandKey || event.altKey) {
+        return
+      }
+
+      if (!event.shiftKey && event.key.toLowerCase() === 'z') {
+        if (!useAppStore.getState().canUndo()) {
+          return
+        }
+
+        event.preventDefault()
+        rtChrmMenu.actions.undo()
+        return
+      }
+
+      if (!event.shiftKey && event.key.toLowerCase() === 'y') {
+        if (!useAppStore.getState().canRedo()) {
+          return
+        }
+
+        event.preventDefault()
+        rtChrmMenu.actions.redo()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [rtChrmMenu.actions])
 
   return (
-      <div className={shellClassName}>
-        <header className="toolbar">
-          <button
-              type="button"
-              className={hamburgerOpen ? 'hamburger-button open' : 'hamburger-button'}
-              onClick={() => setHamburgerOpen((prev) => !prev)}
-              aria-label="Toggle sidebar"
-          >
-            <span />
-            <span />
-            <span />
-          </button>
+    <ContextTrigger
+      asChild
+      ariaLabel="App actions"
+      items={[]}
+    >
+      <div className={shllClssName}>
+      <header className="toolbar">
+        <button
+          type="button"
+          className={hambOpen ? 'hamburger-button open' : 'hamburger-button'}
+          onClick={() => setHambOpen((prev) => !prev)}
+          aria-label="Toggle sidebar"
+        >
+          <span />
+          <span />
+          <span />
+        </button>
 
-          {isCalculatorRoute && !moveToolbarToSidebar ? (
-              <div className="toolbar-group">
-                {calculatorToolbarViews.map((view, index) => {
-                  const isActive = ui.mainMode === 'default' && ui.leftPaneView === view.key
+        {isCalcRt && !moveTlbrToSd ? (
+          <div className="toolbar-group">
+            {rtChrmMenu.clclVws.map((view, index) => {
+              const isActive = ui.mainMode === 'default' && ui.leftPaneView === view.key
 
-                  return (
-                      <button
-                          key={view.key}
-                          type="button"
-                          className={isActive ? 'toolbar-icon-button active' : 'toolbar-icon-button'}
-                          aria-label={view.label}
-                          aria-pressed={isActive}
-                          title={view.label}
-                          style={{ '--toolbar-index': index } as CSSProperties}
-                          onClick={() => {
-                            setMainMode('default')
-                            setLeftPaneView(view.key)
-                          }}
-                      >
+              return (
+                <button
+                  key={view.key}
+                  type="button"
+                  className={isActive ? 'toolbar-icon-button active' : 'toolbar-icon-button'}
+                  aria-label={view.label}
+                  aria-pressed={isActive}
+                  title={view.label}
+                  style={{ '--toolbar-index': index } as CssProps}
+                  onClick={() => {
+                    openLeftPane(view.key)
+                  }}
+                >
                   <span className="toolbar-icon-shell" aria-hidden="true">
                     <span className="toolbar-icon-liquid toolbar-icon-liquid--primary" />
                     <span className="toolbar-icon-liquid toolbar-icon-liquid--secondary" />
                     <img
-                        src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
-                        alt=""
-                        className="toolbar-icon-image"
-                        loading="lazy"
+                      src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
+                      alt=""
+                      className="toolbar-icon-image"
+                      loading="lazy"
                     />
                   </span>
-                      </button>
-                  )
-                })}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <h4 className="toolbar-title">Wuthering Waves Damage Calculator &amp; Optimizer</h4>
+        )}
+      </header>
+
+      <div className="horizontal-layout">
+        <aside
+          className={`sidebar ${
+            isMobile ? (hambOpen ? 'open' : '') : hambOpen ? 'expanded' : 'collapsed'
+          }`}
+        >
+          <div className="sidebar-content">
+            <button
+              type="button"
+              className={showDropdown ? 'sidebar-button active' : 'sidebar-button'}
+              onClick={() => setShowDrpd((prev) => !prev)}
+              aria-expanded={showDropdown}
+              aria-controls="route-navigation-dropdown"
+            >
+              <div className="icon-slot">
+                <Thewuwacalculator width={24} height={24} aria-hidden="true" />
               </div>
-          ) : (
-              <h4 className="toolbar-title">Wuthering Waves Damage Calculator &amp; Optimizer</h4>
-          )}
-        </header>
-
-        <div className="horizontal-layout">
-          <aside
-              className={`sidebar ${
-                  isMobile ? (hamburgerOpen ? 'open' : '') : hamburgerOpen ? 'expanded' : 'collapsed'
-              }`}
-          >
-            <div className="sidebar-content">
-              <button
-                  type="button"
-                  className={showDropdown ? 'sidebar-button active' : 'sidebar-button'}
-                  onClick={() => setShowDropdown((prev) => !prev)}
-              >
-                <div className="icon-slot">
-                  <activeNavigationLink.Icon size={24} className={activeNavigationLink.iconClassName} />
-                </div>
-                <div className="label-slot">
-                  <span className="label-text">{activeNavigationLink.label}</span>
-                </div>
-              </button>
-
-              <div className={showDropdown ? 'sidebar-dropdown open' : 'sidebar-dropdown'}>
-                {dropdownNavigationLinks.map(({ to, label, Icon, iconClassName }) => (
-                    <button
-                        key={to}
-                        type="button"
-                        className="sidebar-sub-button"
-                        onClick={() => navigateTo(to)}
-                    >
-                      <div className="icon-slot">
-                        <Icon size={24} className={iconClassName} />
-                      </div>
-                      <div className="label-slot">
-                        <span className="label-text">{label}</span>
-                      </div>
-                    </button>
-                ))}
+              <div className="label-slot">
+                <span className="label-text">Pages</span>
               </div>
+            </button>
 
-              {isCalculatorRoute && (
-                  <>
-                    {moveToolbarToSidebar && (
-                        <div className="sidebar-toolbar">
-                          {calculatorToolbarViews.map((view) => (
-                              <button
-                                  key={view.key}
-                                  type="button"
-                                  className={ui.leftPaneView === view.key ? 'sidebar-button active' : 'sidebar-button'}
-                                  onClick={() => {
-                                    setMainMode('default')
-                                    setLeftPaneView(view.key)
-                                    if (isMobile) {
-                                      setHamburgerOpen(false)
-                                    }
-                                  }}
-                              >
-                                <div className="icon-slot">
-                                  <img
-                                      src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
-                                      alt={view.label}
-                                      style={{ maxWidth: '24px', maxHeight: '24px', minWidth: '24px', minHeight: '24px' }}
-                                      loading="lazy"
-                                  />
-                                </div>
-                                <div className="label-slot">
-                                  <span className="label-text">{view.label}</span>
-                                </div>
-                              </button>
-                          ))}
-                        </div>
-                    )}
-
-                    <button
-                        type="button"
-                        className="sidebar-button"
-                        onClick={() => {
-                          setInventoryOpen(true)
-                          if (isMobile) {
-                            setHamburgerOpen(false)
-                          }
-                        }}
-                    >
-                      <div className="icon-slot">
-                        <GiSchoolBag size={24} />
-                      </div>
-                      <div className="label-slot">
-                        <span className="label-text">Inventory</span>
-                      </div>
-                    </button>
-
-                    <button
-                        type="button"
-                        className={ui.mainMode === 'optimizer' ? 'sidebar-button selected' : 'sidebar-button'}
-                        onClick={() => setMainMode(ui.mainMode === 'optimizer' ? 'default' : 'optimizer')}
-                    >
-                      <div className="icon-slot">
-                        <FaMicrochip size={24} />
-                      </div>
-                      <div className="label-slot">
-                        <span className="label-text">Optimizer</span>
-                      </div>
-                    </button>
-
-                    <button
-                        type="button"
-                        className={ui.mainMode === 'overview' ? 'sidebar-button selected' : 'sidebar-button'}
-                        onClick={() => setMainMode(ui.mainMode === 'overview' ? 'default' : 'overview')}
-                    >
-                      <div className="icon-slot">
-                        <BsPersonVcard size={24} />
-                      </div>
-                      <div className="label-slot">
-                        <span className="label-text">Overview</span>
-                      </div>
-                    </button>
-
-                    <button
-                        type="button"
-                        className="sidebar-button"
-                        onClick={() => {
-                          appStatus.show()
-                          if (isMobile) setHamburgerOpen(false)
-                        }}
-                    >
-                      <div className="icon-slot">
-                        <RxActivityLog size={24} />
-                      </div>
-                      <div className="label-slot">
-                        <span className="label-text">Status</span>
-                      </div>
-                    </button>
-                  </>
-              )}
-
-              {ui.theme !== 'background' && (
-                  <button
-                      type="button"
-                      className="sidebar-button"
-                      onClick={() => setTheme(ui.theme === 'dark' ? 'light' : 'dark')}
-                  >
-                    <div className="icon-slot theme-toggle-icon">
-                      <FaSun className="icon-sun" size={24} />
-                      <RiMoonClearFill className="icon-moon" size={24} />
-                    </div>
-                    <div className="label-slot">
-                      <span className="label-text">{themeToggleLabel}</span>
-                    </div>
-                  </button>
-              )}
-
-              <button
+            <div
+              id="route-navigation-dropdown"
+              className={showDropdown ? 'sidebar-dropdown open' : 'sidebar-dropdown'}
+            >
+              {rtChrmMenu.pageLinks.map(({ to, label, Icon, iconClssName: iconClssName }) => (
+                <button
+                  key={to}
                   type="button"
-                  className="sidebar-button"
-                  onClick={() => setBlurMode(ui.blurMode === 'on' ? 'off' : 'on')}
-              >
-                <div className="icon-slot">
-                  <SlidersHorizontal size={24} />
-                </div>
-                <div className="label-slot">
-                  <span className="label-text">Blur {ui.blurMode === 'on' ? 'On' : 'Off'}</span>
-                </div>
-              </button>
+                  className={isNvgtLinkAc(to) ? 'sidebar-sub-button selected' : 'sidebar-sub-button'}
+                  onClick={() => navigateTo(to)}
+                >
+                  <div className="icon-slot">
+                    <Icon size={24} className={iconClssName} />
+                  </div>
+                  <div className="label-slot">
+                    <span className="label-text">{label}</span>
+                  </div>
+                </button>
+              ))}
             </div>
 
-            <div className="sidebar-footer">
-              <button
+            {isCalcRt ? (
+              <>
+                {moveTlbrToSd ? (
+                  <div className="sidebar-toolbar">
+                    {rtChrmMenu.clclVws.map((view) => (
+                      <button
+                        key={view.key}
+                        type="button"
+                        className={ui.leftPaneView === view.key ? 'sidebar-button active' : 'sidebar-button'}
+                        onClick={() => {
+                          openLeftPane(view.key)
+                          if (isMobile) {
+                            setHambOpen(false)
+                          }
+                        }}
+                      >
+                        <div className="icon-slot">
+                          <img
+                            src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
+                            alt={view.label}
+                            style={{ maxWidth: '24px', maxHeight: '24px', minWidth: '24px', minHeight: '24px' }}
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="label-slot">
+                          <span className="label-text">{view.label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                <button
                   type="button"
                   className="sidebar-button"
                   onClick={() => {
-                    // mirror the old delayed greeting behavior and reuse the signed-in name when available.
-                    const userName = getStoredGoogleTokens()?.user?.name ?? null
-
-                    window.setTimeout(() => {
-                      showToast({
-                        content: getCuteMessage(userName),
-                        duration: 5000,
-                      })
-                    }, 300)
+                    rtChrmMenu.actions.openInv()
+                    if (isMobile) {
+                      setHambOpen(false)
+                    }
                   }}
+                >
+                  <div className="icon-slot">
+                    <GiSchoolBag size={24} />
+                  </div>
+                  <div className="label-slot">
+                    <span className="label-text">Inventory</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={ui.mainMode === 'optimizer' ? 'sidebar-button selected' : 'sidebar-button'}
+                  onClick={() => rtChrmMenu.actions.tgglOpt()}
+                >
+                  <div className="icon-slot">
+                    <FaMicrochip size={24} />
+                  </div>
+                  <div className="label-slot">
+                    <span className="label-text">Optimizer</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={ui.mainMode === 'overview' ? 'sidebar-button selected' : 'sidebar-button'}
+                  onClick={() => rtChrmMenu.actions.tgglVrvw()}
+                >
+                  <div className="icon-slot">
+                    <BsPrsnVcrd size={24} />
+                  </div>
+                  <div className="label-slot">
+                    <span className="label-text">Overview</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="sidebar-button"
+                  onClick={() => {
+                    rtChrmMenu.actions.openStatus()
+                    if (isMobile) {
+                      setHambOpen(false)
+                    }
+                  }}
+                >
+                  <div className="icon-slot">
+                    <RxCtvtLog size={24} />
+                  </div>
+                  <div className="label-slot">
+                    <span className="label-text">Status</span>
+                  </div>
+                </button>
+              </>
+            ) : null}
+
+            {ui.theme !== 'background' ? (
+              <button
+                type="button"
+                className="sidebar-button"
+                onClick={() => setTheme(ui.theme === 'dark' ? 'light' : 'dark')}
               >
-                <div className="icon-slot">
-                  <RiHeartsFill size={24} />
+                <div className="icon-slot theme-toggle-icon">
+                  <FaSun className="icon-sun" size={24} />
+                  <RiMoonClrFil className="icon-moon" size={24} />
                 </div>
                 <div className="label-slot">
-                  <span className="label-text">Say Hi~!</span>
+                  <span className="label-text">{themeTglLbl}</span>
                 </div>
               </button>
-
-              <a
-                  href="https://discord.gg/wNaauhE4uH"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="sidebar-button discord"
+            ) : (
+              <button
+                type="button"
+                className="sidebar-button"
+                onClick={() => setBlurMode(!ui.blurMode)}
               >
                 <div className="icon-slot">
-                  <img
-                      src="/assets/icons/discord.svg"
-                      alt="Discord"
-                      className="discord-icon"
-                      style={{ maxWidth: '24px', maxHeight: '24px' }}
-                  />
+                  <SldrHrzn size={24} />
                 </div>
                 <div className="label-slot">
-                  <span className="label-text">Discord</span>
+                  <span className="label-text">Blur {ui.blurMode ? 'On' : 'Off'}</span>
                 </div>
-              </a>
+              </button>
+            )}
+          </div>
 
+          <div className="sidebar-footer">
+            <button
+              type="button"
+              className="sidebar-button"
+              onClick={() => {
+                const userName = getStrdGglTk()?.user?.name ?? null
+
+                window.setTimeout(() => {
+                  showToast({
+                    content: getCuteMsg(userName),
+                    duration: 5000,
+                  })
+                }, 300)
+              }}
+            >
+              <div className="icon-slot">
+                <RiHeartsFill size={24} />
+              </div>
+              <div className="label-slot">
+                <span className="label-text">Say Hi~!</span>
+              </div>
+            </button>
+
+            <a
+              href="https://discord.gg/wNaauhE4uH"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-button discord"
+            >
+              <div className="icon-slot">
+                <img
+                  src="/assets/icons/discord.svg"
+                  alt="Discord"
+                  className="discord-icon"
+                  style={{ maxWidth: '24px', maxHeight: '24px' }}
+                />
+              </div>
+              <div className="label-slot">
+                <span className="label-text">Discord</span>
+              </div>
+            </a>
+
+            {isCalcRt && (
               <button
-                  type="button"
-                  className="sidebar-button reset"
-                  disabled={!activeResonatorId}
-                  onClick={() => confirmation.confirm({
-                    title: 'You sure about that? ( · ❛ ֊ ❛)',
-                    message: 'This will reset the active resonator to default settings (level 1, no echoes, default weapon). Saved inventory items are not affected.',
-                    confirmLabel: 'Reset',
-                    variant: 'danger',
-                    onConfirm: () => {
-                      if (activeResonatorId) {
-                        resetResonator(activeResonatorId)
-                        useToastStore.getState().show({
-                          content: `Reset~ ദ്ദി ˉ꒳ˉ )✧`,
-                          variant: 'success',
-                          duration: 3000,
-                        })
-                      }
-                    },
-                  })}
+                type="button"
+                className="sidebar-button reset"
+                disabled={!actResId}
+                onClick={rtChrmMenu.actions.rstActRes}
               >
                 <div className="icon-slot">
                   <RotateCcw size={24} className="reset-icon" />
@@ -511,51 +508,31 @@ export function RouteChrome() {
                   <span className="label-text">Reset</span>
                 </div>
               </button>
-            </div>
-          </aside>
+            )}
+          </div>
+        </aside>
 
-          {/* mobile sidebar overlay */}
-          {isOverlayVisible && isMobile && (
-              <div
-                  className={`mobile-overlay ${hamburgerOpen ? 'visible' : ''} ${isOverlayClosing ? 'closing' : ''}`}
-                  onClick={() => setHamburgerOpen(false)}
-              />
-          )}
-
-          <main className="main-content">
-            <Outlet />
-          </main>
-
-          <NotificationToastContainer />
-
-          <ConfirmationModal
-              visible={confirmation.visible}
-              open={confirmation.open}
-              closing={confirmation.closing}
-              portalTarget={typeof document !== 'undefined' ? document.body : null}
-              title={confirmation.title}
-              message={confirmation.message}
-              confirmLabel={confirmation.confirmLabel}
-              cancelLabel={confirmation.cancelLabel}
-              variant={confirmation.variant}
-              onConfirm={confirmation.onConfirm}
-              onCancel={confirmation.onCancel}
+        {isOvrVis && isMobile ? (
+          <div
+            className={`mobile-overlay ${hambOpen ? 'visible' : ''} ${isOvrCls ? 'closing' : ''}`}
+            onClick={() => setHambOpen(false)}
           />
+        ) : null}
 
-          <AppStatusModal
-              visible={appStatus.visible}
-              open={appStatus.open}
-              closing={appStatus.closing}
-              onClose={appStatus.hide}
-          />
+        <main className="main-content">
+          <Outlet />
+        </main>
 
-          <CookieBanner
-              visible={cookieBanner.visible}
-              open={cookieBanner.open}
-              closing={cookieBanner.closing}
-              onAccept={cookieBanner.accept}
-          />
-        </div>
+        <NtfcTstCntn />
+
+        <CookieBanner
+          visible={cookieBanner.visible}
+          open={cookieBanner.open}
+          closing={cookieBanner.closing}
+          onAccept={cookieBanner.accept}
+        />
       </div>
+      </div>
+    </ContextTrigger>
   )
 }

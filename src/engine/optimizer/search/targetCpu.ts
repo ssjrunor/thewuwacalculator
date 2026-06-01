@@ -6,28 +6,29 @@
 */
 
 import type {
-  OptimizerBagResultRef,
-  PackedTargetSkillExecutionPayload,
-  OptimizerProgress,
+  OptBagResult,
+  PackedSkill,
+  OptPrgr,
 } from '@/engine/optimizer/types.ts'
-import { ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU } from '@/engine/optimizer/config/constants.ts'
-import { createCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
-import { countOptimizerCombinationsForMainIndices } from '@/engine/optimizer/search/counting.ts'
-import { createOptimizerProgressTracker } from '@/engine/optimizer/search/progress.ts'
-import { OptimizerBagResultCollector } from '@/engine/optimizer/results/collector.ts'
-import type { CombinadicIndexing } from '@/engine/optimizer/combos/combinadic.ts'
+import { CPU_JOB_SIZE } from '@/engine/optimizer/config/constants.ts'
+import { MAIN_FIRST } from '@/engine/optimizer/config/constants.ts'
+import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
+import { countMainCombos } from '@/engine/optimizer/search/counting.ts'
+import { mkOptPrgrTrc } from '@/engine/optimizer/search/progress.ts'
+import { OptResultSet } from '@/engine/optimizer/results/collector.ts'
+import type { ComboIndex } from '@/engine/optimizer/combos/combinadic.ts'
 import {
-  advanceCombinadicPositionsInPlace,
-  fillCombinadicEchoIdsFromPositions,
-  unrankCombinadicPositionsInto,
+  dvncCmbnPstn,
+  fillCmbnEcho,
+  nrnkCmbnPstn,
 } from '@/engine/optimizer/combos/combinadic.ts'
-import { evaluateTargetCpuCombo } from '@/engine/optimizer/target/cpu.ts'
-import { generateTargetCpuComboBatches } from '@/engine/optimizer/target/batches.ts'
+import { evalTgtCpuCm } from '@/engine/optimizer/target/cpu.ts'
+import { gnrtTgtCpuCm } from '@/engine/optimizer/target/batches.ts'
 
 // absolute combo cost ceiling for a valid echo loadout
-const OPTIMIZER_MAX_COST = 12
+const OPT_MAX_COST = 12
 
-export interface TargetSearchJobSpec {
+export interface TgtSrchJobSp {
   // starting combinadic rank inside the active job window
   comboStart: number
 
@@ -35,24 +36,24 @@ export interface TargetSearchJobSpec {
   comboCount: number
 
   // locked main echo index, or -1 when any combo member may be the main echo
-  lockedMainIndex: number
+  lockMainIdx: number
 
   // how many best results this job should keep locally
-  jobResultsLimit: number
+  jobResultLimit: number
 }
 
-interface TargetRunHooks {
+interface TgtRunHks {
   // cancellation signal checked between batches/iterations
   isCancelled?: () => boolean
 
   // optional progress callback for ui reporting
-  onProgress?: (progress: OptimizerProgress) => void
+  onProgress?: (progress: OptPrgr) => void
 
   // optional raw processed-row callback
-  onProcessed?: (processedDelta: number) => void
+  onProcessed?: (prcsDlt: number) => void
 }
 
-export interface TargetSearchBatchSpec {
+export interface TgtSrchBtchS {
   // explicit pre-generated batch of 5-wide combo indices
   combosBatch: Int32Array
 
@@ -60,21 +61,21 @@ export interface TargetSearchBatchSpec {
   comboCount: number
 
   // locked main echo index, or -1 when not locked
-  lockedMainIndex: number
+  lockMainIdx: number
 
   // local top-k size for this batch
-  jobResultsLimit: number
+  jobResultLimit: number
 }
 
 // sum the encoded echo costs for one concrete 5-echo combo
 // if any slot is invalid, force the cost above the max so the combo is rejected
-function computeComboCost(costs: Uint8Array, comboIds: Int32Array): number {
+function cmptCmbCost(costs: Uint8Array, comboIds: Int32Array): number {
   let totalCost = 0
 
   for (let index = 0; index < comboIds.length; index += 1) {
     const echoIndex = comboIds[index]
     if (echoIndex < 0) {
-      return OPTIMIZER_MAX_COST + 1
+      return OPT_MAX_COST + 1
     }
     totalCost += costs[echoIndex] | 0
   }
@@ -84,29 +85,29 @@ function computeComboCost(costs: Uint8Array, comboIds: Int32Array): number {
 
 // build the correct combinadic indexing view for this job
 // when a later locked-main index is used, the index map must exclude that echo
-function buildJobComboIndexing(
-    payload: PackedTargetSkillExecutionPayload,
+function mkJobCmbNdxn(
+    payload: PackedSkill,
     lockedMainIndex: number,
-): CombinadicIndexing {
-  if (!payload.lockedMainRequested || lockedMainIndex < 0) {
+): ComboIndex {
+  if (!payload.lockMainReq || lockedMainIndex < 0) {
     return {
       comboN: payload.comboN,
       comboK: payload.comboK,
-      totalCombos: payload.comboTotalCombos,
+      totalCombos: payload.totalCombos,
       indexMap: payload.comboIndexMap,
       binom: payload.comboBinom,
       lockedIndex: -1,
     }
   }
 
-  const firstLockedMainIndex = payload.lockedMainCandidateIndices[0] ?? -1
+  const frstLckdMain = payload.lockMainCands[0] ?? -1
 
   // if this is the first locked candidate, the prepared index map already matches
-  if (lockedMainIndex === firstLockedMainIndex) {
+  if (lockedMainIndex === frstLckdMain) {
     return {
       comboN: payload.comboN,
       comboK: payload.comboK,
-      totalCombos: payload.comboTotalCombos,
+      totalCombos: payload.totalCombos,
       indexMap: payload.comboIndexMap,
       binom: payload.comboBinom,
       lockedIndex: lockedMainIndex,
@@ -128,7 +129,7 @@ function buildJobComboIndexing(
   return {
     comboN: payload.comboN,
     comboK: payload.comboK,
-    totalCombos: payload.comboTotalCombos,
+    totalCombos: payload.totalCombos,
     indexMap,
     binom: payload.comboBinom,
     lockedIndex: lockedMainIndex,
@@ -137,26 +138,26 @@ function buildJobComboIndexing(
 
 // run a contiguous combinadic search window by unranking the first combo
 // then advancing positions in place for each next combo
-export async function runTargetSearchJob(
-    payload: PackedTargetSkillExecutionPayload,
-    job: TargetSearchJobSpec,
-    hooks: Pick<TargetRunHooks, 'isCancelled' | 'onProcessed'> = {},
-): Promise<OptimizerBagResultRef[]> {
-  const comboIndexing = buildJobComboIndexing(payload, job.lockedMainIndex)
-  const remainingCombos = comboIndexing.totalCombos - job.comboStart
-  const comboCount = Math.min(job.comboCount, Math.max(0, remainingCombos))
+export async function runTgtSrchJo(
+    payload: PackedSkill,
+    job: TgtSrchJobSp,
+    hooks: Pick<TgtRunHks, 'isCancelled' | 'onProcessed'> = {},
+): Promise<OptBagResult[]> {
+  const comboIndex = mkJobCmbNdxn(payload, job.lockMainIdx)
+  const rmnnCmbs = comboIndex.totalCombos - job.comboStart
+  const comboCount = Math.min(job.comboCount, Math.max(0, rmnnCmbs))
 
   if (comboCount <= 0) {
     return []
   }
 
-  const collector = new OptimizerBagResultCollector(job.jobResultsLimit)
-  const scratch = createCpuScratch()
-  const comboPositions = scratch.comboPositions
+  const collector = new OptResultSet(job.jobResultLimit, payload.lowMmryMode)
+  const scratch = makeCpuScratch()
+  const cmbPstn = scratch.cmbPstn
   const comboIds = scratch.comboIds
 
   // seed the traversal at the first requested combinadic rank
-  unrankCombinadicPositionsInto(job.comboStart, comboIndexing, comboPositions)
+  nrnkCmbnPstn(job.comboStart, comboIndex, cmbPstn)
 
   for (let offset = 0; offset < comboCount; offset += 1) {
     if (hooks.isCancelled?.()) {
@@ -164,12 +165,12 @@ export async function runTargetSearchJob(
     }
 
     // materialize real echo ids from the current combinadic position tuple
-    fillCombinadicEchoIdsFromPositions(comboIndexing, comboPositions, comboIds, comboIds.length)
+    fillCmbnEcho(comboIndex, cmbPstn, comboIds, comboIds.length)
 
     // only evaluate combos that respect the global echo cost ceiling
-    const comboCost = computeComboCost(payload.costs, comboIds)
-    if (comboCost <= OPTIMIZER_MAX_COST) {
-      const evaluated = evaluateTargetCpuCombo({
+    const comboCost = cmptCmbCost(payload.costs, comboIds)
+    if (comboCost <= OPT_MAX_COST) {
+      const evaluated = evalTgtCpuCm({
         context: payload.context,
         stats: payload.stats,
         setConstLut: payload.setConstLut,
@@ -178,23 +179,23 @@ export async function runTargetSearchJob(
         kinds: payload.kinds,
         constraints: payload.constraints,
         comboIds,
-        lockedMainIndex: job.lockedMainIndex,
+        lockMainIdx: job.lockMainIdx,
         scratch,
       })
 
       if (evaluated) {
-        collector.pushOrderedCombo(evaluated.damage, comboIds, evaluated.mainIndex)
+        collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex)
       }
 
-      hooks.onProcessed?.(payload.progressFactor)
+      hooks.onProcessed?.(payload.progFact)
     }
 
     // move to the next combinadic position unless this was the last iteration
     if (offset + 1 < comboCount) {
-      const advanced = advanceCombinadicPositionsInPlace(
-          comboPositions,
-          comboIndexing.comboN,
-          comboIndexing.comboK,
+      const advanced = dvncCmbnPstn(
+          cmbPstn,
+          comboIndex.comboN,
+          comboIndex.comboK,
       )
       if (!advanced) {
         break
@@ -207,19 +208,20 @@ export async function runTargetSearchJob(
 
 // run a pre-expanded concrete batch of combos
 // this is used by the higher-level cpu pipeline because batch generation is cheaper outside
-export async function runTargetSearchBatch(
-    payload: PackedTargetSkillExecutionPayload,
-    job: TargetSearchBatchSpec,
-    hooks: Pick<TargetRunHooks, 'isCancelled' | 'onProcessed'> = {},
-): Promise<OptimizerBagResultRef[]> {
+export async function runTgtSrchBt(
+    payload: PackedSkill,
+    job: TgtSrchBtchS,
+    hooks: Pick<TgtRunHks, 'isCancelled' | 'onProcessed'> = {},
+): Promise<OptBagResult[]> {
   const comboCount = job.comboCount
   if (comboCount <= 0) {
     return []
   }
 
-  const collector = new OptimizerBagResultCollector(job.jobResultsLimit)
-  const scratch = createCpuScratch()
+  const collector = new OptResultSet(job.jobResultLimit, payload.lowMmryMode)
+  const scratch = makeCpuScratch()
   const comboIds = scratch.comboIds
+  const mainFirst = job.lockMainIdx === MAIN_FIRST
 
   for (let comboIndex = 0; comboIndex < comboCount; comboIndex += 1) {
     if (hooks.isCancelled?.()) {
@@ -234,7 +236,7 @@ export async function runTargetSearchBatch(
     comboIds[3] = job.combosBatch[base + 3]
     comboIds[4] = job.combosBatch[base + 4]
 
-    const evaluated = evaluateTargetCpuCombo({
+    const evaluated = evalTgtCpuCm({
       context: payload.context,
       stats: payload.stats,
       setConstLut: payload.setConstLut,
@@ -243,64 +245,68 @@ export async function runTargetSearchBatch(
       kinds: payload.kinds,
       constraints: payload.constraints,
       comboIds,
-      lockedMainIndex: job.lockedMainIndex,
+      lockMainIdx: job.lockMainIdx,
       scratch,
     })
 
     if (evaluated) {
-      collector.pushOrderedCombo(evaluated.damage, comboIds, evaluated.mainIndex)
+      if (mainFirst) {
+        collector.pushMainFrst(evaluated.damage, comboIds)
+      } else {
+        collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex)
+      }
     }
   }
 
   // batch mode reports work in one lump after the whole batch finishes
-  hooks.onProcessed?.(comboCount * payload.progressFactor)
+  hooks.onProcessed?.(comboCount * payload.progFact)
   return collector.sorted()
 }
 
 // top-level cpu search entry for one prepared payload across all allowed main candidates
-export async function runTargetSearchForMainIndices(
-    payload: PackedTargetSkillExecutionPayload,
-    mainCandidateIndices: ReadonlyArray<number> | Int32Array,
-    hooks: TargetRunHooks = {},
-): Promise<OptimizerBagResultRef[]> {
-  const lockedMainIndices = payload.lockedMainRequested
-      ? mainCandidateIndices
+export async function runTgtSrchFo(
+    payload: PackedSkill,
+    mainIndices: ReadonlyArray<number> | Int32Array,
+    hooks: TgtRunHks = {},
+): Promise<OptBagResult[]> {
+  const lckdMainNdcs = payload.lockMainReq
+      ? mainIndices
       : [-1]
 
   // totalRows is used only for progress tracking and early empty-out checks
-  const totalRows = countOptimizerCombinationsForMainIndices(
+  const totalRows = countMainCombos(
       payload.costs,
-      payload.lockedMainRequested ? lockedMainIndices : payload.lockedMainCandidateIndices,
+      payload.lockMainReq ? lckdMainNdcs : payload.lockMainCands,
   )
 
-  if (totalRows <= 0 || (payload.lockedMainRequested && lockedMainIndices.length === 0)) {
+  if (totalRows <= 0 || (payload.lockMainReq && lckdMainNdcs.length === 0)) {
     return []
   }
 
-  const collector = new OptimizerBagResultCollector(payload.resultsLimit)
-  const progress = createOptimizerProgressTracker(totalRows, {
+  const collector = new OptResultSet(payload.resultsLimit, payload.lowMmryMode)
+  const progress = mkOptPrgrTrc(totalRows, {
     onProgress: hooks.onProgress,
     onProcessed: hooks.onProcessed,
   })
 
-  for (const lockedMainIndex of lockedMainIndices) {
+  for (const lockedMainIndex of lckdMainNdcs) {
     if (hooks.isCancelled?.()) {
       return collector.sorted()
     }
 
     // generate cpu batches of concrete 5-echo combinations
-    for (const batch of generateTargetCpuComboBatches({
+    for (const batch of gnrtTgtCpuCm({
       costs: payload.costs,
-      batchSize: ECHO_OPTIMIZER_JOB_TARGET_COMBOS_CPU,
-      lockedMainIndex,
+      batchSize: CPU_JOB_SIZE,
+      lockMainIdx: lockedMainIndex,
     })) {
-      const results = await runTargetSearchBatch(
+      const results = await runTgtSrchBt(
           payload,
           {
             combosBatch: batch.combos,
             comboCount: batch.comboCount,
-            lockedMainIndex,
-            jobResultsLimit: payload.resultsLimit,
+            lockMainIdx: lockedMainIndex,
+            jobResultLimit: payload.resultsLimit,
           },
           {
             isCancelled: hooks.isCancelled,

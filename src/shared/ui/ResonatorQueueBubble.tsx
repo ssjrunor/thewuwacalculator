@@ -1,14 +1,21 @@
+/*
+  Author: Runor Ewhro
+  Description: Draggable floating queue bubble that exposes quick resonator
+               switching and remembers its snapped screen position.
+*/
+
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  useResonatorQueueStore,
+  useResQStr,
   type SnapPosition,
 } from '@/shared/util/resonatorQueueStore.ts'
 import {GrDrag} from "react-icons/gr";
 import {useAppStore} from "@/domain/state/store.ts";
+import {withDefResMg} from "@/shared/lib/imageFallback.ts";
 
 const SNAP_MARGIN = 16
 
-function getSnapCoords(
+function getSnapCrds(
   position: SnapPosition,
   vw: number,
   vh: number,
@@ -43,11 +50,11 @@ function resolveSnap(x: number, y: number, vw: number, vh: number, bw: number, b
   return `${vertical}-${horizontal}` as SnapPosition
 }
 
-export function ResonatorQueueBubble() {
-  const queue = useResonatorQueueStore((s) => s.queue)
-  const snapPosition = useResonatorQueueStore((s) => s.snapPosition)
-  const setSnapPosition = useResonatorQueueStore((s) => s.setSnapPosition)
-  const switchToResonator = useAppStore((s) => s.switchToResonator)
+export function ResQBbbl() {
+  const queue = useResQStr((s) => s.queue)
+  const snapPosition = useResQStr((s) => s.snapPosition)
+  const setSnapPstn = useResQStr((s) => s.setSnapPstn)
+  const swtcToRes = useAppStore((s) => s.swRes)
 
   const bubbleRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -64,7 +71,7 @@ export function ResonatorQueueBubble() {
       const el = bubbleRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      const coords = getSnapCoords(snapPosition, window.innerWidth, window.innerHeight, rect.width, rect.height)
+      const coords = getSnapCrds(snapPosition, window.innerWidth, window.innerHeight, rect.width, rect.height)
       setPos(coords)
       mounted.current = true
     })
@@ -78,8 +85,8 @@ export function ResonatorQueueBubble() {
       const el = bubbleRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      const snap = useResonatorQueueStore.getState().snapPosition
-      const coords = getSnapCoords(snap, window.innerWidth, window.innerHeight, rect.width, rect.height)
+      const snap = useResQStr.getState().snapPosition
+      const coords = getSnapCrds(snap, window.innerWidth, window.innerHeight, rect.width, rect.height)
       setPos(coords)
     }
     window.addEventListener('resize', handleResize)
@@ -126,8 +133,8 @@ export function ResonatorQueueBubble() {
     if (!el || !pos) return
     const rect = el.getBoundingClientRect()
     const snap = resolveSnap(pos.x, pos.y, window.innerWidth, window.innerHeight, rect.width, rect.height)
-    setSnapPosition(snap)
-  }, [dragging, pos, setSnapPosition])
+    setSnapPstn(snap)
+  }, [dragging, pos, setSnapPstn])
 
   if (queue.length === 0) return null
 
@@ -149,7 +156,8 @@ export function ResonatorQueueBubble() {
         alt={queue[0].name}
         className="resonator-queue-bubble__icon"
         draggable={false}
-        onClick={() => switchToResonator(queue[0].id)}
+        onError={withDefResMg}
+        onClick={() => swtcToRes(queue[0].id)}
         title={`Switch to ${queue[0].name}`}
       />
       <div
@@ -166,7 +174,8 @@ export function ResonatorQueueBubble() {
           alt={queue[1].name}
           className="resonator-queue-bubble__icon"
           draggable={false}
-          onClick={() => switchToResonator(queue[1].id)}
+          onError={withDefResMg}
+          onClick={() => swtcToRes(queue[1].id)}
           title={`Switch to ${queue[1].name}`}
         />
       )}

@@ -1,40 +1,46 @@
+/*
+  Author: Runor Ewhro
+  Description: Tracks cookie-banner visibility and dismissal state for the app
+               shell.
+*/
+
 import { useEffect } from 'react'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimVis } from '@/app/hooks/useAnimatedVisibility'
 import {
-  COOKIE_CONSENT_EVENT_NAME,
-  hasAcknowledgedCookieConsent,
-  acknowledgeCookieConsent,
+  CONSENT_EVENT,
+  hasAckdCkCns,
+  ackCkCnsn,
 } from '@/infra/cookies/cookieConsent'
-import { loadGoogleAnalytics } from '@/infra/analytics/googleAnalytics'
+import { loadGglAnal } from '@/infra/analytics/googleAnalytics'
 
-const SHOW_DELAY_MS = 1400
+const SHOW_DLY_MS = 1400
 
-export function useCookieBanner() {
-  const { show, hide, visible, open, closing } = useAnimatedVisibility()
+export function useCkBnnr() {
+  const { show, hide, visible, open, closing } = useAnimVis()
 
   useEffect(() => {
-    if (hasAcknowledgedCookieConsent()) {
+    if (hasAckdCkCns()) {
       return
     }
 
-    const timer = window.setTimeout(show, SHOW_DELAY_MS)
+    const timer = window.setTimeout(show, SHOW_DLY_MS)
     return () => window.clearTimeout(timer)
   }, [show])
 
   useEffect(() => {
-    const handleConsentChanged = () => {
-      if (hasAcknowledgedCookieConsent()) {
+    const onConsentChange = () => {
+      if (hasAckdCkCns()) {
         hide()
       }
     }
 
-    window.addEventListener(COOKIE_CONSENT_EVENT_NAME, handleConsentChanged)
-    return () => window.removeEventListener(COOKIE_CONSENT_EVENT_NAME, handleConsentChanged)
+    window.addEventListener(CONSENT_EVENT, onConsentChange)
+    return () => window.removeEventListener(CONSENT_EVENT, onConsentChange)
   }, [hide])
 
   const accept = () => {
-    acknowledgeCookieConsent()
-    void loadGoogleAnalytics()
+    ackCkCnsn()
+    void loadGglAnal()
     hide()
   }
 

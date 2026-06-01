@@ -1,27 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
-import { googleLogout, useGoogleLogin } from '@react-oauth/google'
-import {
-  clearStoredGoogleTokens,
-  getStoredGoogleTokens,
-  refreshGoogleAccessTokenIfNeeded,
-  setStoredGoogleTokens,
-  type StoredGoogleTokens,
-  type StoredGoogleUser,
-} from '@/infra/googleDrive/googleAuth'
-import { getGoogleAuthEndpoint } from '@/infra/googleDrive/googleAuthEndpoints'
+/*
+  Author: Runor Ewhro
+  Description: Manages browser-side google drive oauth state, including login,
+               redirect handling, token refresh, and cached user/session state.
+*/
 
-const GOOGLE_DRIVE_SCOPE = [
+import { useCallback, useEffect, useState } from 'react'
+import { googleLogout, useGoogleLogin as useGglLgn } from '@react-oauth/google'
+import {
+  clrStrdGglTk,
+  getStrdGglTk,
+  rfrsGglCcssT,
+  setStrdGglTk,
+  type StrdGglTkns,
+  type StrdGglUser,
+} from '@/infra/googleDrive/googleAuth'
+import { getGglAuthNd } from '@/infra/googleDrive/googleAuthEndpoints'
+
+const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.appdata',
   'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ')
-const GOOGLE_AUTH_STATE_STORAGE_KEY = 'wwcalc.googleAuthState'
+const DRIVE_STATE_KEY = 'wwcalc.googleAuthState'
 
-type GoogleAuthUxMode = 'popup' | 'redirect'
+type GglAuthUxMod = 'popup' | 'redirect'
 
-export type GoogleDriveUser = StoredGoogleUser
+export type GglDrvUser = StrdGglUser
 
-interface UseGoogleDriveAuthResult {
+interface UseGglDrvAut {
   accessToken: string | null
   connect: () => void
   disconnect: () => void
@@ -29,26 +35,28 @@ interface UseGoogleDriveAuthResult {
   isConfigured: boolean
   isConnected: boolean
   refresh: () => Promise<string | null>
-  user: GoogleDriveUser | null
+  user: GglDrvUser | null
 }
 
-function getInitialGoogleAuthState(): Pick<UseGoogleDriveAuthResult, 'accessToken' | 'user'> {
-  const stored = getStoredGoogleTokens()
+function getNtlGglAut(): Pick<UseGglDrvAut, 'accessToken' | 'user'> {
+  const stored = getStrdGglTk()
   return {
     accessToken: stored?.access_token ?? null,
     user: stored?.user ?? null,
   }
 }
 
-function getGoogleClientId(): string {
+function getGglClntId(): string {
   return import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
 }
 
-function getGoogleAuthUxMode(): GoogleAuthUxMode {
+function getGglAuthUx(): GglAuthUxMod {
   return import.meta.env.VITE_GOOGLE_AUTH_UX === 'redirect' ? 'redirect' : 'popup'
 }
 
-function getGoogleRedirectUri(mode: GoogleAuthUxMode = getGoogleAuthUxMode()): string {
+function getGglRdrcUr(mode: GglAuthUxMod = getGglAuthUx()): string {
+  // redirect mode needs the current page url so google can return the user
+  // back to the same route after consent completes.
   if (typeof window === 'undefined') {
     return import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? ''
   }
@@ -62,9 +70,9 @@ function getGoogleRedirectUri(mode: GoogleAuthUxMode = getGoogleAuthUxMode()): s
     : window.location.origin
 }
 
-function areGoogleUsersEqual(
-  left: GoogleDriveUser | null,
-  right: GoogleDriveUser | null,
+function areGglSrsQl(
+  left: GglDrvUser | null,
+  right: GglDrvUser | null,
 ): boolean {
   if (left === right) {
     return true
@@ -80,7 +88,7 @@ function areGoogleUsersEqual(
     && left.sub === right.sub
 }
 
-async function readGoogleAuthResponse(response: Response): Promise<Record<string, unknown>> {
+async function readGglAuthR(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text()
   if (!text) {
     return {}
@@ -97,22 +105,24 @@ async function readGoogleAuthResponse(response: Response): Promise<Record<string
   }
 }
 
-function getGoogleAuthErrorMessage(payload: Record<string, unknown>, fallback: string): string {
+function getGglAuthRr(payload: Record<string, unknown>, fallback: string): string {
   const error = typeof payload.error === 'string' ? payload.error : ''
   const details = payload.details && typeof payload.details === 'object'
     ? payload.details as Record<string, unknown>
     : null
   const detailError = typeof details?.error === 'string' ? details.error : ''
-  const detailDescription = typeof details?.error_description === 'string' ? details.error_description : ''
+  const dtlDscr = typeof details?.error_description === 'string' ? details.error_description : ''
 
-  return detailDescription || detailError || error || fallback
+  return dtlDscr || detailError || error || fallback
 }
 
-function makeGoogleAuthState(): string {
+function makeGoogleState(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function removeGoogleAuthQueryParams(): void {
+function clrAuthQry(): void {
+  // once redirect-mode auth finishes, strip oauth params so refreshes and
+  // future routing do not keep replaying the callback state.
   const url = new URL(window.location.href)
   url.searchParams.delete('code')
   url.searchParams.delete('scope')
@@ -125,36 +135,36 @@ function removeGoogleAuthQueryParams(): void {
 }
 
 // manages the browser-side oauth flow and cached token lifecycle for drive sync.
-export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
-  const [initialAuthState] = useState(getInitialGoogleAuthState)
-  const [accessToken, setAccessToken] = useState<string | null>(initialAuthState.accessToken)
-  const [user, setUser] = useState<GoogleDriveUser | null>(initialAuthState.user)
+export function useGglDrvAut(): UseGglDrvAut {
+  const [initAuthStt] = useState(getNtlGglAut)
+  const [accessToken, setAccTok] = useState<string | null>(initAuthStt.accessToken)
+  const [user, setUser] = useState<GglDrvUser | null>(initAuthStt.user)
   const [error, setError] = useState<string | null>(null)
-  const [authRequestState] = useState(() => makeGoogleAuthState())
+  const [authRqstStt] = useState(() => makeGoogleState())
 
-  const isConfigured = Boolean(getGoogleClientId())
-  const authUxMode = getGoogleAuthUxMode()
+  const isConfigured = Boolean(getGglClntId())
+  const authUxMode = getGglAuthUx()
 
   const refresh = useCallback(async (): Promise<string | null> => {
     try {
-      const nextToken = await refreshGoogleAccessTokenIfNeeded(accessToken)
+      const nextToken = await rfrsGglCcssT(accessToken)
       if (!nextToken) {
-        setAccessToken(null)
+        setAccTok(null)
         setUser(null)
         return null
       }
 
-      const stored = getStoredGoogleTokens()
-      setAccessToken((currentToken) => (currentToken === nextToken ? currentToken : nextToken))
+      const stored = getStrdGglTk()
+      setAccTok((currentToken) => (currentToken === nextToken ? currentToken : nextToken))
       setUser((currentUser) => {
         const nextUser = stored?.user ?? currentUser ?? null
-        return areGoogleUsersEqual(currentUser, nextUser) ? currentUser : nextUser
+        return areGglSrsQl(currentUser, nextUser) ? currentUser : nextUser
       })
       return nextToken
     } catch (refreshError) {
       console.error('failed to refresh cached google drive token', refreshError)
-      clearStoredGoogleTokens()
-      setAccessToken(null)
+      clrStrdGglTk()
+      setAccTok(null)
       setUser(null)
       setError('Google Drive session expired. Sign in again to continue.')
       return null
@@ -162,7 +172,9 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
   }, [accessToken])
 
   useEffect(() => {
-    const refreshTimerId = window.setTimeout(() => {
+    // refresh once immediately after mount, then periodically while the app is
+    // open so drive sync keeps working without manual reconnects.
+    const rfrsTmrId = window.setTimeout(() => {
       void refresh()
     }, 0)
 
@@ -171,13 +183,13 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
     }, 30 * 60 * 1000)
 
     return () => {
-      window.clearTimeout(refreshTimerId)
+      window.clearTimeout(rfrsTmrId)
       window.clearInterval(intervalId)
     }
   }, [refresh])
 
-  const exchangeAuthCode = useCallback(async (code: string, redirectUri: string): Promise<void> => {
-    const response = await fetch(getGoogleAuthEndpoint('exchange-code'), {
+  const xchnAuthCode = useCallback(async (code: string, redirectUri: string): Promise<void> => {
+    const response = await fetch(getGglAuthNd('exchange-code'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -187,20 +199,21 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
         redirectUri,
       }),
     })
-    const payload = await readGoogleAuthResponse(response)
+    const payload = await readGglAuthR(response)
 
     if (!response.ok) {
-      throw new Error(getGoogleAuthErrorMessage(payload, 'Google Drive sign-in failed.'))
+      throw new Error(getGglAuthRr(payload, 'Google Drive sign-in failed.'))
     }
 
-    const tokens = payload as Omit<StoredGoogleTokens, 'issued_at'> & { user?: GoogleDriveUser | null }
-    const nextTokens: StoredGoogleTokens = {
+    const tokens = payload as Omit<StrdGglTkns, 'issued_at'> & { user?: GglDrvUser | null }
+    // stamp a local issue time so later refresh checks can reason about expiry.
+    const nextTokens: StrdGglTkns = {
       ...tokens,
       issued_at: Date.now(),
     }
 
-    setStoredGoogleTokens(nextTokens)
-    setAccessToken(nextTokens.access_token)
+    setStrdGglTk(nextTokens)
+    setAccTok(nextTokens.access_token)
     setUser(nextTokens.user ?? null)
   }, [])
 
@@ -209,13 +222,15 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       return
     }
 
+    // redirect-mode sign-in comes back through normal page navigation, so this
+    // effect owns the one-time callback exchange and cleanup.
     const params = new URLSearchParams(window.location.search)
-    const redirectedError = params.get('error')
-    if (redirectedError) {
+    const rdrcRrr = params.get('error')
+    if (rdrcRrr) {
       window.setTimeout(() => {
-        setError(params.get('error_description') ?? redirectedError)
+        setError(params.get('error_description') ?? rdrcRrr)
       }, 0)
-      removeGoogleAuthQueryParams()
+      clrAuthQry()
       return
     }
 
@@ -224,39 +239,39 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       return
     }
 
-    const expectedState = sessionStorage.getItem(GOOGLE_AUTH_STATE_STORAGE_KEY)
-    const receivedState = params.get('state')
-    if (!expectedState || !receivedState || expectedState !== receivedState) {
+    const xpctStt = sessionStorage.getItem(DRIVE_STATE_KEY)
+    const rcvdStt = params.get('state')
+    if (!xpctStt || !rcvdStt || xpctStt !== rcvdStt) {
       window.setTimeout(() => {
         setError('Google Drive sign-in state did not match. Try signing in again.')
       }, 0)
-      sessionStorage.removeItem(GOOGLE_AUTH_STATE_STORAGE_KEY)
-      removeGoogleAuthQueryParams()
+      sessionStorage.removeItem(DRIVE_STATE_KEY)
+      clrAuthQry()
       return
     }
 
-    sessionStorage.removeItem(GOOGLE_AUTH_STATE_STORAGE_KEY)
-    const redirectUri = getGoogleRedirectUri('redirect')
+    sessionStorage.removeItem(DRIVE_STATE_KEY)
+    const redirectUri = getGglRdrcUr('redirect')
     window.setTimeout(() => {
-      void exchangeAuthCode(code, redirectUri)
+      void xchnAuthCode(code, redirectUri)
         .catch((loginError) => {
           console.error('failed to exchange google redirect auth code', loginError)
           setError(loginError instanceof Error ? loginError.message : 'Google Drive sign-in failed.')
         })
-        .finally(removeGoogleAuthQueryParams)
+        .finally(clrAuthQry)
     }, 0)
-  }, [authUxMode, exchangeAuthCode])
+  }, [authUxMode, xchnAuthCode])
 
-  const connect = useGoogleLogin({
+  const connect = useGglLgn({
     flow: 'auth-code',
-    scope: GOOGLE_DRIVE_SCOPE,
+    scope: DRIVE_SCOPES,
     ux_mode: authUxMode,
-    redirect_uri: getGoogleRedirectUri(authUxMode),
-    state: authUxMode === 'redirect' ? authRequestState : undefined,
+    redirect_uri: getGglRdrcUr(authUxMode),
+    state: authUxMode === 'redirect' ? authRqstStt : undefined,
     onSuccess: async (codeResponse) => {
       try {
         setError(null)
-        await exchangeAuthCode(codeResponse.code, getGoogleRedirectUri('popup'))
+        await xchnAuthCode(codeResponse.code, getGglRdrcUr('popup'))
       } catch (loginError) {
         console.error('failed to exchange google auth code', loginError)
         setError(loginError instanceof Error ? loginError.message : 'Google Drive sign-in failed.')
@@ -274,8 +289,8 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
 
   const disconnect = () => {
     googleLogout()
-    clearStoredGoogleTokens()
-    setAccessToken(null)
+    clrStrdGglTk()
+    setAccTok(null)
     setUser(null)
     setError(null)
   }
@@ -289,7 +304,7 @@ export function useGoogleDriveAuth(): UseGoogleDriveAuthResult {
       }
 
       if (authUxMode === 'redirect') {
-        sessionStorage.setItem(GOOGLE_AUTH_STATE_STORAGE_KEY, authRequestState)
+        sessionStorage.setItem(DRIVE_STATE_KEY, authRqstStt)
         connect()
         return
       }
