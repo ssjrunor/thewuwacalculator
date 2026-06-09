@@ -436,14 +436,27 @@ function facetFromEchoes(echoes: Array<EchoInstance | null>): {
   counts: Map<number, number>
 } {
   const counts = new Map<number, number>()
+  const seenIdsBySet = new Map<number, Set<string>>()
   let totalCost = 0
 
   for (const echo of echoes) {
     if (!echo) {
       continue
     }
-    counts.set(echo.set, (counts.get(echo.set) ?? 0) + 1)
     totalCost += getEchoById(echo.id)?.cost ?? 0
+
+    // pieces count per sonata: a repeated echo id in one sonata counts once, the
+    // same id in a different sonata counts again.
+    let seenIds = seenIdsBySet.get(echo.set)
+    if (!seenIds) {
+      seenIds = new Set<string>()
+      seenIdsBySet.set(echo.set, seenIds)
+    }
+    if (seenIds.has(echo.id)) {
+      continue
+    }
+    seenIds.add(echo.id)
+    counts.set(echo.set, (counts.get(echo.set) ?? 0) + 1)
   }
 
   return { mainId: echoes[0]?.id ?? '', totalCost, counts }

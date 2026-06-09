@@ -36,6 +36,7 @@ import {
     cloneEchoFor,
     cloneEchoLdt,
     cloneRotNds,
+    dedupeInvEchoUids,
     makeInvBuild,
     makeInvEcho,
     makeInvRot,
@@ -43,6 +44,7 @@ import {
     normInvRotDu,
     normInvRotNo,
 } from '@/domain/entities/inventoryStorage'
+import { makeEchoUid } from '@/domain/entities/runtime'
 import type {OptContext, OptSets} from '@/domain/entities/optimizer'
 import type {ResProf} from '@/domain/entities/profile'
 import type {SntSetConds} from '@/domain/entities/sonataSetConditionals'
@@ -1467,7 +1469,8 @@ export const useAppStore = create<AppStore>((set, get) => {
 
   addInvEcho: (echo) => {
     get().ensInvHydr()
-    const existing = get().calculator.inventoryEchoes.find((entry) =>
+    const invChs = get().calculator.inventoryEchoes
+    const existing = invChs.find((entry) =>
         areEchoNstnQ(entry.echo, echo),
     )
 
@@ -1475,7 +1478,11 @@ export const useAppStore = create<AppStore>((set, get) => {
       return null
     }
 
-    const nextEntry = makeInvEcho(echo)
+    // a uid identifies one physical echo, so a new entry takes a fresh uid when
+    // the incoming echo's uid already belongs to another bag entry.
+    const uidTaken = echo.uid != null
+      && invChs.some((entry) => entry.echo.uid === echo.uid)
+    const nextEntry = makeInvEcho(uidTaken ? { ...echo, uid: makeEchoUid() } : echo)
     persistedSet(['calculator.inventory.echoes'], (state) => ({
       ...state,
       calculator: {
@@ -1512,7 +1519,9 @@ export const useAppStore = create<AppStore>((set, get) => {
       ...state,
       calculator: {
         ...state.calculator,
-        inventoryEchoes: ddpdChs.map((echo, index) => makeInvEcho(echo, now + index)),
+        inventoryEchoes: dedupeInvEchoUids(
+          ddpdChs.map((echo, index) => makeInvEcho(echo, now + index)),
+        ),
       },
     }), { historyLabel: 'Replaced Inventory Echoes' })
   },

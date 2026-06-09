@@ -131,12 +131,18 @@ export function mkDefEchoNst(
   }
 }
 
-// count unique equipped echoes by set to drive the set summary badges
+// counts pieces per sonata for the set summary badges. within one sonata a
+// repeated echo id counts once; the same echo id in two sonatas counts toward each.
 export function cmptSetCnts(echoes: Array<EchoInstance | null>): Record<number, number> {
   const counts: Record<number, number> = {}
-  const seenIds = new Set<string>()
+  const seenIdsBySet: Record<number, Set<string>> = {}
   for (const echo of echoes) {
-    if (!echo || seenIds.has(echo.id)) {
+    if (!echo) {
+      continue
+    }
+
+    const seenIds = seenIdsBySet[echo.set] ?? (seenIdsBySet[echo.set] = new Set<string>())
+    if (seenIds.has(echo.id)) {
       continue
     }
 

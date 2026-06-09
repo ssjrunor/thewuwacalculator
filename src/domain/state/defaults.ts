@@ -19,6 +19,7 @@ import type {
   InventoryEntry,
   InvRotEnt,
 } from '@/domain/entities/inventoryStorage'
+import { dedupeInvEchoUids } from '@/domain/entities/inventoryStorage'
 import type { OptContext, OptSets } from '@/domain/entities/optimizer'
 import {
   cloneSntSet,
@@ -752,7 +753,12 @@ export function cloneOptCtxS(
 function mkInitCalcSt(base?: CalcState): CalcState {
   const rtRvsn = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
   const profiles = normProfsCat(structuredClone(base?.profiles ?? {}))
-  const invChs: InvEchoEnt[] = structuredClone(base?.inventoryEchoes ?? [])
+  // inventory uids are unique within the bag; the entry an equipped loadout echo
+  // points at keeps its uid, and equipped echoes are passed in to resolve that.
+  const invChs: InvEchoEnt[] = dedupeInvEchoUids(
+    structuredClone(base?.inventoryEchoes ?? []),
+    Object.values(profiles).flatMap((profile) => profile.runtime.build.echoes),
+  )
   const invBlds: InventoryEntry[] = normBldsCat(structuredClone(base?.inventoryBuilds ?? []))
   const invRttn: InvRotEnt[] = normRotsCat(structuredClone(base?.inventoryRotations ?? []))
   const optimizer = normOptCat(cloneOptCtxS(base?.optimizerContext ?? null))

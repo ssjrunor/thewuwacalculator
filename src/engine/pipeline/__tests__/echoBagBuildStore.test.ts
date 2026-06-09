@@ -3,7 +3,8 @@ import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoSt
 import type { EchoInstance } from '@/domain/entities/runtime'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import { makeEchoUid } from '@/domain/entities/runtime'
-import { cloneRotNds } from '@/domain/entities/inventoryStorage'
+import type { InvEchoEnt } from '@/domain/entities/inventoryStorage'
+import { cloneRotNds, dedupeInvEchoUids, makeInvEcho } from '@/domain/entities/inventoryStorage'
 import { listEchoes } from '@/domain/services/echoCatalogService'
 import { getResById } from '@/domain/services/resonatorCatalogService'
 import { DEF_RES_ID } from '@/domain/state/defaults'
@@ -56,6 +57,40 @@ describe('echo bag and build bag', () => {
     expect(first).not.toBeNull()
     expect(second).toBeNull()
     expect(useAppStore.getState().calculator.inventoryEchoes).toHaveLength(1)
+  })
+
+  it('mints a fresh uid when a distinct echo reuses an existing bag uid', () => {
+    const [defA, defB] = listEchoes()
+    const first = makeEchoInstance(defA.id)
+    const firstEntry = useAppStore.getState().addInvEcho(first)
+    expect(firstEntry).not.toBeNull()
+
+    // a different echo (different id/set) that happens to carry the same uid
+    const collided = { ...makeEchoInstance(defB.id), uid: first.uid }
+    const secondEntry = useAppStore.getState().addInvEcho(collided)
+
+    const bag = useAppStore.getState().calculator.inventoryEchoes
+    expect(bag).toHaveLength(2)
+    expect(secondEntry).not.toBeNull()
+    expect(secondEntry?.echo.uid).not.toBe(first.uid)
+    expect(new Set(bag.map((entry) => entry.echo.uid)).size).toBe(2)
+  })
+
+  it('dedupes shared bag uids and keeps the uid on the equipped entry', () => {
+    const sharedUid = makeEchoUid()
+    const unequipped = makeInvEcho({ ...makeEchoInstance(listEchoes()[0].id), uid: sharedUid })
+    const equipped = makeInvEcho({ ...makeEchoInstance(listEchoes()[1].id), uid: sharedUid })
+    const entries: InvEchoEnt[] = [unequipped, equipped]
+
+    // a loadout equips the second entry, passed as a stat-equal echo on that uid
+    const deduped = dedupeInvEchoUids(entries, [{ ...equipped.echo }])
+
+    const uids = deduped.map((entry) => entry.echo.uid)
+    expect(new Set(uids).size).toBe(2)
+    const equippedAfter = deduped.find((entry) => entry.id === equipped.id)
+    const unequippedAfter = deduped.find((entry) => entry.id === unequipped.id)
+    expect(equippedAfter?.echo.uid).toBe(sharedUid)
+    expect(unequippedAfter?.echo.uid).not.toBe(sharedUid)
   })
 
   it('replaces inventory echoes from an imported bag and dedupes equivalent entries', () => {
