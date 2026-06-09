@@ -50,7 +50,6 @@ interface ResPtnsPnl {
   mainEcho: { id: string; name: string; icon: string } | null
   allowedSets: OptSetChoice
   mainStatFilter: string[]
-  mainStatRdly: boolean
   // theory mode: main-stat filters do not apply, so that slot becomes the
   // weapon-search toggle instead.
   isTheory: boolean
@@ -98,7 +97,6 @@ export function CharPtnsPnl({
   mainEcho,
   allowedSets,
   mainStatFilter: mainStatFilter,
-  mainStatRdly,
   isTheory,
   excludeEquipped,
   includeWeapons,
@@ -372,23 +370,23 @@ export function CharPtnsPnl({
 
               <div className="co-field">
                 {!isTheory ? (
-                    <>
-                      <span className="co-field__label">Sonata Sets</span>
-                      <div className="co-conds-split">
-                        <div className="co-conds-half">
-                          <AllowedSets
-                            selIdsByPc={allowedSets}
-                            onChange={onLlwdSetsCh}
-                          />
-                        </div>
-                        <div className="co-conds-half">
-                          <button type="button" className="co-chip" onClick={onOpenSetCon}>
-                            Conditionals
-                            <ChevronDown size={12} />
-                          </button>
-                        </div>
+                  <>
+                    <span className="co-field__label">Sonata Sets</span>
+                    <div className="co-conds-split">
+                      <div className="co-conds-half">
+                        <AllowedSets
+                          selIdsByPc={allowedSets}
+                          onChange={onLlwdSetsCh}
+                        />
                       </div>
-                    </>
+                      <div className="co-conds-half">
+                        <button type="button" className="co-chip" onClick={onOpenSetCon}>
+                          Conditionals
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <span className="co-field__label">Allowed Sets</span>
@@ -400,69 +398,79 @@ export function CharPtnsPnl({
                 )}
               </div>
 
-              {isTheory && includeWeapons && (
+              {isTheory && (
+                includeWeapons ? (
+                  <div className="co-field">
+                    <span className="co-field__label">Conditionals</span>
+                    <div className="co-conds-split">
+                      <div className="co-conds-half">
+                        <button type="button" className="co-chip" onClick={onOpenSetCon}>
+                          Sonata Sets
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                      <div className="co-conds-half">
+                        <button type="button" className="co-chip" onClick={onOpenWpnCond}>
+                          Weapons
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="co-field">
+                    <span className="co-field__label">Conditionals</span>
+                    <button type="button" className="co-chip" onClick={onOpenSetCon}>
+                      Set Conditionals
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
+                )
+              )}
+
+              {!isTheory && (
                 <div className="co-field">
-                  <span className="co-field__label">Conditionals</span>
-                  <div className="co-conds-split">
-                    <div className="co-conds-half">
-                      <button type="button" className="co-chip" onClick={onOpenSetCon}>
-                        Sonata Sets
-                        <ChevronDown size={12} />
+                  <div className="co-tile__head">
+                    <span className="co-field__label">Main Stat Filters</span>
+                    {mainStatFilter.length > 0 && (
+                      <button className="co-clear" onClick={onClrAllFltr}>
+                        Clear
                       </button>
-                    </div>
-                    <div className="co-conds-half">
-                      <button type="button" className="co-chip" onClick={onOpenWpnCond}>
-                        Weapons
-                        <ChevronDown size={12} />
-                      </button>
-                    </div>
+                    )}
+                  </div>
+                  <div className="co-tags">
+                    {mainStatPtns.map((option) => {
+                      if (option.value === 'bonus') {
+                        const isActive = mainStatFilter.includes('bonus')
+                        return (
+                          <LiquidSelect
+                            key={option.value}
+                            value={selectedBonus ?? ''}
+                            options={bonusOptions}
+                            onChange={onPickBonus}
+                            placeholder={option.short}
+                            baseClass="co-tag-select"
+                            className={isActive ? 'on' : ''}
+                            prfrPlcm="down"
+                          />
+                        )
+                      }
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`co-tag${mainStatFilter.includes(option.value) ? ' on' : ''}`}
+                          onClick={() => onTgglMainSt(option.value)}
+                          title={option.label}
+                        >
+                          {option.short}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
-
-              <div className={`co-field${mainStatRdly ? ' is-disabled' : ''}`}>
-                <div className="co-tile__head">
-                  <span className="co-field__label">Main Stat Filters</span>
-                  {mainStatFilter.length > 0 && !mainStatRdly ? (
-                    <button className="co-clear" onClick={onClrAllFltr} disabled={mainStatRdly}>
-                      Clear
-                    </button>
-                  ) : null}
-                </div>
-                <div className="co-tags">
-                  {mainStatPtns.map((option) => {
-                    if (option.value === 'bonus') {
-                      const isActive = mainStatFilter.includes('bonus')
-                      return (
-                        <LiquidSelect
-                          key={option.value}
-                          value={selectedBonus ?? ''}
-                          options={bonusOptions}
-                          onChange={onPickBonus}
-                          placeholder={option.short}
-                          baseClass="co-tag-select"
-                          className={isActive ? 'on' : ''}
-                          disabled={mainStatRdly}
-                          prfrPlcm="down"
-                        />
-                      )
-                    }
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`co-tag${mainStatFilter.includes(option.value) ? ' on' : ''}`}
-                        disabled={mainStatRdly}
-                        onClick={() => onTgglMainSt(option.value)}
-                        title={option.label}
-                      >
-                        {option.short}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
 
               {isTheory ? (
                 <div className="co-field co-field--weapon">

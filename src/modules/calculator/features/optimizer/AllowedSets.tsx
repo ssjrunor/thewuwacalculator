@@ -39,11 +39,11 @@ interface MenuLayout {
 }
 
 export function AllowedSets({
-  selIdsByPc: selIdsByPc,
-  onChange,
-  triggerClass: triggerClass,
-  viewTrggCntn: rndrTrggCntn,
-}: LlwdSetDrpdP) {
+                              selIdsByPc: selIdsByPc,
+                              onChange,
+                              triggerClass: triggerClass,
+                              viewTrggCntn: rndrTrggCntn,
+                            }: LlwdSetDrpdP) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -317,108 +317,108 @@ export function AllowedSets({
   const menu =
     menuVisible && rslvPrtlTgt
       ? createPortal(
-          <div
-            ref={menuRef}
-            className={`co-skill-select__menu co-skill-select__menu--${placement} co-set-dropdown__menu ${actVar} ${actTextModeC}${ui.blurMode ? ' blur-off' : ''}`}
-            tabIndex={-1}
-            data-state={open ? 'open' : 'closed'}
-            style={{
-              left: `${menuLayout.left}px`,
-              width: `${menuLayout.width}px`,
-              top: menuLayout.top !== undefined ? `${menuLayout.top}px` : undefined,
-              bottom: menuLayout.bottom !== undefined ? `${menuLayout.bottom}px` : undefined,
-              maxHeight: `${menuLayout.maxHeight}px`,
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' || event.key === 'Tab') {
-                closeMenu()
-              }
-            }}
-          >
-            <div className="co-set-dropdown__cmds" aria-label="Allowed set commands">
-              <button
-                type="button"
-                className={`co-set-dropdown__cmd${isReset ? ' is-active' : ''}`}
-                onClick={() => onChange({1: [], 3: [], 5: [] })}
-                onMouseDown={(event) => event.preventDefault()}
-              >
-                Any
-              </button>
-              <button
-                type="button"
-                className="co-set-dropdown__cmd"
-                onClick={setAll}
-                onMouseDown={(event) => event.preventDefault()}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className="co-set-dropdown__cmd"
-                onClick={invertAll}
-                onMouseDown={(event) => event.preventDefault()}
-              >
-                Invert
-              </button>
-            </div>
+        <div
+          ref={menuRef}
+          className={`co-skill-select__menu co-skill-select__menu--${placement} co-set-dropdown__menu ${actVar} ${actTextModeC}${ui.blurMode ? ' blur-off' : ''}`}
+          tabIndex={-1}
+          data-state={open ? 'open' : 'closed'}
+          style={{
+            left: `${menuLayout.left}px`,
+            width: `${menuLayout.width}px`,
+            top: menuLayout.top !== undefined ? `${menuLayout.top}px` : undefined,
+            bottom: menuLayout.bottom !== undefined ? `${menuLayout.bottom}px` : undefined,
+            maxHeight: `${menuLayout.maxHeight}px`,
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' || event.key === 'Tab') {
+              closeMenu()
+            }
+          }}
+        >
+          <div className="co-set-dropdown__cmds" aria-label="Allowed set commands">
+            <button
+              type="button"
+              className={`co-set-dropdown__cmd${isReset ? ' is-active' : ''}`}
+              onClick={() => onChange({1: [], 3: [], 5: [] })}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              Any
+            </button>
+            <button
+              type="button"
+              className="co-set-dropdown__cmd"
+              onClick={setAll}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className="co-set-dropdown__cmd"
+              onClick={invertAll}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              Invert
+            </button>
+          </div>
 
-            <div className="co-set-dropdown__board">
-              {optionGroups.map((group) => (
-                <section key={group.pieceCount} className="co-set-dropdown__col">
-                  <header className="co-set-dropdown__col-head">
-                    <span>{group.label}</span>
-                    <span className="co-set-dropdown__group-actions">
+          <div className="co-set-dropdown__board">
+            {optionGroups.map((group) => (
+              <section key={group.pieceCount} className="co-set-dropdown__col">
+                <header className="co-set-dropdown__col-head">
+                  <span>{group.label}</span>
+                  <span className="co-set-dropdown__group-actions">
                       <span className="co-set-dropdown__group-count">
                         {selIdsByPc[group.pieceCount].length}/{group.options.length}
                       </span>
-                      {selIdsByPc[group.pieceCount].length > 0 ? (
-                        <button
-                          type="button"
-                          aria-label={`Clear ${group.label}`}
-                          onClick={() => clearPc(group.pieceCount)}
-                          onMouseDown={(event) => event.preventDefault()}
-                        >
-                          <X size={10} />
-                        </button>
-                      ) : null}
+                    {selIdsByPc[group.pieceCount].length > 0 ? (
+                      <button
+                        type="button"
+                        aria-label={`Clear ${group.label}`}
+                        onClick={() => clearPc(group.pieceCount)}
+                        onMouseDown={(event) => event.preventDefault()}
+                      >
+                        <X size={10} />
+                      </button>
+                    ) : null}
                     </span>
-                  </header>
-                  <div className="co-set-dropdown__stack">
-                    {group.options.map((set) => {
-                      const selected = selIdsByPc[group.pieceCount].includes(set.id)
-                      return (
-                        <button
-                          key={`${group.pieceCount}-${set.id}`}
-                          type="button"
-                          className={`co-set-dropdown__tile${selected ? ' selected is-active' : ''}`}
-                          onClick={() => {
-                            const current = selIdsByPc[group.pieceCount]
-                            const next = selected
-                              ? current.filter((id) => id !== set.id)
-                              : [...current, set.id].sort((left, right) => left - right)
-                            onChange({
-                              ...selIdsByPc,
-                              [group.pieceCount]: next,
-                            })
-                          }}
-                          onMouseDown={(event) => event.preventDefault()}
-                        >
+                </header>
+                <div className="co-set-dropdown__stack">
+                  {group.options.map((set) => {
+                    const selected = selIdsByPc[group.pieceCount].includes(set.id)
+                    return (
+                      <button
+                        key={`${group.pieceCount}-${set.id}`}
+                        type="button"
+                        className={`co-set-dropdown__tile${selected ? ' selected is-active' : ''}`}
+                        onClick={() => {
+                          const current = selIdsByPc[group.pieceCount]
+                          const next = selected
+                            ? current.filter((id) => id !== set.id)
+                            : [...current, set.id].sort((left, right) => left - right)
+                          onChange({
+                            ...selIdsByPc,
+                            [group.pieceCount]: next,
+                          })
+                        }}
+                        onMouseDown={(event) => event.preventDefault()}
+                      >
                           <span className="co-set-dropdown__tile-icon" aria-hidden="true">
                             <img src={set.icon} alt="" className="co-set-dropdown__icon" onError={withDefIconM} />
                           </span>
-                          <span className="co-set-dropdown__tile-name">{set.name}</span>
-                          <span className="co-set-dropdown__tile-dot" aria-hidden="true" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
+                        <span className="co-set-dropdown__tile-name">{set.name}</span>
+                        <span className="co-set-dropdown__tile-dot" aria-hidden="true" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
 
-          </div>,
-          rslvPrtlTgt,
-        )
+        </div>,
+        rslvPrtlTgt,
+      )
       : null
 
   return (

@@ -2063,7 +2063,6 @@ export function Optimizer() {
                 mainEcho={selMainEchoF}
                 allowedSets={optSets?.allowedSets ?? {1: [], 3: [], 5: [] }}
                 mainStatFilter={isThryMode ? thryMFltr.mainStatFilter : optSets?.mainStatFilter ?? []}
-                mainStatRdly={isThryMode}
                 isTheory={isThryMode}
                 excludeEquipped={optSets?.excludeEquipped ?? false}
                 includeWeapons={optSets?.includeWeapons ?? false}

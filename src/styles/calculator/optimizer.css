@@ -2087,7 +2087,6 @@ input:is(.opt-qc__num):focus {
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 72%, var(--text));
 }
 
-
 .co-field {
   display: flex;
   flex-direction: column;
@@ -2112,7 +2111,6 @@ input:is(.opt-qc__num):focus {
   gap: 0.34rem;
 }
 
-/* Conditionals split: sonata sets | weapons, side by side */
 .co-conds-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2150,8 +2148,6 @@ input:is(.opt-qc__num):focus {
   width: 100%;
 }
 
-/* the optimizer renders WeaponConfig through SuggsMdl (same shell as weapon
-   suggestions); it only forces max-state search, so the Mode card is disabled */
 .wpncfg__card.is-locked {
   opacity: 0.78;
 }
