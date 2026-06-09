@@ -71,6 +71,10 @@ export function fmtBreakdown(breakdown: DmgBreakdown): string {
   ].join('\n')
 }
 
+function dmgTitle(label: string): string {
+  return /\bDMG$/i.test(label.trim()) ? label : `${label} DMG`
+}
+
 const WHOLE_NUM_FMT = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 })
@@ -504,7 +508,7 @@ function drctBrkd(
     )
 
     return {
-      title: `${skill.label} DMG`,
+      title: dmgTitle(skill.label),
       summary: [
         `out.crit = ${fmtInt(entry.crit)} = fixed damage`,
         `out.avg = ${fmtInt(entry.avg)} = fixed damage`,
@@ -517,7 +521,7 @@ function drctBrkd(
   const hits = skill.hits
   if (hits.length === 0) {
     return {
-      title: `${skill.label} DMG`,
+      title: dmgTitle(skill.label),
       summary: [
         `out.crit = ${fmtInt(entry.crit)}`,
         `out.avg = ${fmtInt(entry.avg)}`,
@@ -550,7 +554,7 @@ function drctBrkd(
   addSection(sections, 'mods', ...commonLines(finalStats, skill, shared))
 
   return {
-    title: `${skill.label} DMG`,
+    title: dmgTitle(skill.label),
     summary: [
       `out.crit = ${fmtInt(entry.crit)} = ${fmtInt(entry.normal)} x ${fmtPct(shared.critDmgPrcn)}`,
       shared.critRate >= 1
@@ -698,15 +702,13 @@ function tuneBrkd(
     ])}`,
     `mod.dmgBonus = ${fmtPct(formulaSkillType.dmgBonus)} = ${kindLabel} ${fmtPct(formulaSkillType.dmgBonus)}`,
     `mod.amp = ${fmtPct(finalStats.amplify)} = Global ${fmtPct(finalStats.amplify)}`,
-    ...(kind === 'tuneRupture'
-      ? [`mod.tuneBoost = ${fmtTuneBreakBoost(finalStats.tbb)}`]
-      : []),
+    `mod.tuneBoost = ${fmtTuneBreakBoost(finalStats.tbb)}`,
     `crit.rate = ${fmtPct(critRatePrcn)}`,
     `crit.dmg = ${fmtPct(critDmgPrcn)}`,
   )
 
   return {
-    title: `${skill.label} DMG`,
+    title: dmgTitle(skill.label),
     summary: [
       `out.crit = ${fmtInt(entry.crit)} = ${fmtInt(entry.normal)} x ${fmtPct(critDmgPrcn)}`,
       (skill.tuneRuptureCritRate ?? 0) >= 1
@@ -715,7 +717,7 @@ function tuneBrkd(
     ].join('\n'),
     equation: !ignoresEnemy && baseRes === 100
       ? `out.normal = ${fmtInt(entry.normal)} = 0 (enemy base RES shortcut)`
-      : `out.normal = ${fmtInt(entry.normal)} = ${fmtNum(levelScale, 2)} x ${fmtPct(ampPrcn)} x ${pctMul(defenseMult, 10)} x ${pctMul(resMult, 10)} x (1 + ${fmtPct(dmgVuln)}) x ${fmtNum(classMult, 2)} x (1 + ${fmtPct(finalStats.amplify)}) x (1 + ${fmtPct(formulaSkillType.dmgBonus)})${kind === 'tuneRupture' ? ` x (1 + ${fmtTuneBreakBoost(finalStats.tbb)} / 100)` : ''}`,
+      : `out.normal = ${fmtInt(entry.normal)} = ${fmtNum(levelScale, 2)} x ${fmtPct(ampPrcn)} x ${pctMul(defenseMult, 10)} x ${pctMul(resMult, 10)} x (1 + ${fmtPct(dmgVuln)}) x ${fmtNum(classMult, 2)} x (1 + ${fmtPct(finalStats.amplify)}) x (1 + ${fmtPct(formulaSkillType.dmgBonus)}) x (1 + ${fmtTuneBreakBoost(finalStats.tbb)} / 100)`,
     sections,
   }
 }
@@ -752,7 +754,7 @@ function negBreakdown(
     SkillDef['archetype'],
     'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'
   >
-  const stacks = effectArch === 'spectroFrazzle'
+  const rawStacks = effectArch === 'spectroFrazzle'
     ? combatState.spectroFrazzle
     : effectArch === 'aeroErosion'
       ? combatState.aeroErosion
@@ -761,6 +763,9 @@ function negBreakdown(
         : effectArch === 'glacioChafe'
           ? combatState.glacioChafe
         : combatState.electroFlare
+  const stacks = skill.stackMode === 'fixedMax'
+    ? skill.stackMax ?? getNegEffectDef(effectArch)
+    : rawStacks
   const extraStacks = effectArch === 'electroFlare'
     && combatState.electroFlare > getNegEffectDef('electroFlare')
     ? combatState.electroRage
@@ -802,7 +807,7 @@ function negBreakdown(
 
   if (stacks <= 0 && extraStacks <= 0) {
     return {
-      title: `${skill.label} DMG`,
+      title: dmgTitle(skill.label),
       summary: [
         `out.crit = ${fmtInt(entry.crit)}`,
         `out.avg = ${fmtInt(entry.avg)}`,
@@ -844,7 +849,7 @@ function negBreakdown(
   )
 
   return {
-    title: `${skill.label} DMG`,
+    title: dmgTitle(skill.label),
     summary: [
       `out.crit = ${fmtInt(entry.crit)} = ${fmtInt(entry.normal)} x ${fmtPct(critDmgPrcn)}`,
       critRatePrcn >= 100

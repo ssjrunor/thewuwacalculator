@@ -10,6 +10,10 @@ function collectAllBlocks() {
   )
 }
 
+function categoryText(id: string) {
+  return JSON.stringify(gdCtgr.find((category) => category.id === id))
+}
+
 describe('guides content', () => {
   it('resolves legacy category names through aliases', () => {
     expect(resGdCtgr(gdCtgr, 'OverviewLayer')?.id).toBe('overview-and-build-state')
@@ -73,5 +77,22 @@ describe('guides content', () => {
     expect(rotationText).toContain('loop run count')
     expect(scoringText).toContain('Final = base x (1 + percent) + flat')
     expect(scoringText).toContain('Crit Rate x 2 plus Crit Damage')
+  })
+
+  it('documents current surface-specific controls in the owning guide categories', () => {
+    const optimizer = categoryText('optimizer')
+    const resonators = categoryText('resonators')
+    const echoes = categoryText('echoes')
+    const teamEffects = categoryText('team-effects')
+    const overview = categoryText('overview-and-build-state')
+
+    expect(optimizer).toContain('Exclude equipped')
+    expect(optimizer).toContain('Include weapons')
+    expect(resonators).toContain('mode/status')
+    expect(resonators).toContain('Max button')
+
+    expect(echoes).not.toContain('Exclude equipped')
+    expect(teamEffects).not.toContain('mode/status')
+    expect(overview).not.toContain('Max button')
   })
 })

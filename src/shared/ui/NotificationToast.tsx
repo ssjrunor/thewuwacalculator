@@ -14,10 +14,10 @@ const EXIT_MS = 340
 const PSTN_CLSS: Record<TstPstn, string> = {
   'top-left': 'toast-container--top-left',
   'top-center': 'toast-container--top-center',
-  'top-right': 'toast-container--top-results',
+  'top-right': 'toast-container--top-right',
   'bottom-left': 'toast-container--bottom-left',
   'bottom-center': 'toast-container--bottom-center',
-  'bottom-right': 'toast-container--bottom-results',
+  'bottom-right': 'toast-container--bottom-right',
 }
 
 const VAR_CNS: Record<ToastVariant, typeof Info> = {

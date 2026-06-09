@@ -13,6 +13,7 @@ import type { OptSets } from '@/domain/entities/optimizer'
 import type { ResDtls } from '@/domain/entities/resonator'
 import type { EchoInstance, ResRuntime, ResSeed } from '@/domain/entities/runtime'
 import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
+import type { WeaponPlanSet } from '@/domain/entities/suggestions'
 import type { FinalStats, ResBaseStats, SkillDef } from '@/domain/entities/stats'
 import type { GenWpn } from '@/domain/entities/weapon'
 import type { SetDef } from '@/data/gameData/echoSets/effects'
@@ -66,6 +67,9 @@ export interface TheoryResult {
   echoes: EchoInstance[]
   damage: number
   stats: OptResultStats | null
+  // catalog id of the best weapon for this build when weapon search was active,
+  // else null. surfaced as the weapon result column (like the main echo).
+  weaponId?: string | null
 }
 
 // bag-style result reference that stores indices instead of full echo payloads
@@ -76,6 +80,9 @@ export interface OptBagResult {
   i2: number
   i3: number
   i4: number
+  // index into the run's weapon-overlay list for the best weapon found for this
+  // build, or -1/undefined when weapon search was not active.
+  weapon?: number
 }
 
 // theoretical result reference that stores the generated echo recipe compactly
@@ -119,6 +126,24 @@ export interface PrepOptShrdP {
   lockMainReq: boolean
   lockMainCands: Int32Array
   progFact: number
+
+  // weapon search (optional). when present, evaluation scores each build against
+  // every weapon overlay and keeps the best, tagging the result with its index.
+  // weaponOverlays: weaponCount × WEAPON_OVERLAY_STRIDE floats (base ⊕ overlay).
+  // weaponIds: catalog id per overlay row, parallel to the overlays.
+  weaponOverlays?: Float32Array
+  weaponCount?: number
+  weaponIds?: string[]
+
+  // rotation weapon search uses full per-weapon context sets instead of the
+  // compact overlays target mode uses: a rotation context's weapon-affected
+  // slots (e.g. the per-node move multiplier) vary per context, so a single
+  // overlay cannot represent a weapon across the whole rotation. layout:
+  //   weaponContexts: weaponCount × contextCount × contextStride floats
+  //   weaponDisplayContexts: weaponCount × contextStride floats (constraints/UI)
+  // both absent in target mode (it uses weaponOverlays instead).
+  weaponContexts?: Float32Array
+  weaponDisplayContexts?: Float32Array
 }
 
 // input payload used to start building an optimizer execution context
@@ -143,6 +168,10 @@ export interface OptStartPay {
   selectedTargets?: Record<string, string | null>
   setConds?: SntSetConds
   rotTms?: RotationNode[] | null
+  // global weapon-search plan (rarity visibility + ranks). when present, theory
+  // weapon search restricts candidates to visible rarities at the configured
+  // ranks, mirroring weapon suggestions. absent -> the built-in 4★/5★ defaults.
+  weaponPlan?: WeaponPlanSet
 }
 
 // fully compiled scalar context for a single target skill evaluation

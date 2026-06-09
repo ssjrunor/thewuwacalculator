@@ -106,6 +106,7 @@ import {
 import {resSdsById} from '@/domain/services/resonatorSeedService'
 import {getEchoById} from '@/domain/services/echoCatalogService'
 import {cloneResProf, cloneRtSttVl,} from '@/domain/state/runtimeCloning'
+import {catWpnAtk} from '@/domain/state/weaponState'
 import {getSystTheme, type RslvSystThem} from '@/shared/lib/systemTheme'
 import {
     mkDefMkName,
@@ -255,6 +256,7 @@ export interface AppStore extends PersistedState {
   setUpdToast: (enabled: boolean) => void
   setRecMenus: (enabled: boolean) => void
   setUnqOvr: (enabled: boolean) => void
+  setMaxResInit: (enabled: boolean) => void
   setSugView: (view: SuggsViewMod) => void
   setLeftView: (view: LeftPaneView) => void
   openLeftView: (view: LeftPaneView) => void
@@ -375,6 +377,7 @@ export interface AppStore extends PersistedState {
   syncOptRt: (resonatorId?: ResonatorId) => void
   updOptRt: (
       updater: (runtime: OptContext['runtime']) => OptContext['runtime'],
+      options?: { sourceRuntimeSig?: (runtime: OptContext['runtime']) => string },
   ) => void
   updOptSets: (
       updater: (settings: OptSets) => OptSets,
@@ -626,7 +629,7 @@ export const useAppStore = create<AppStore>((set, get) => {
           calculator: bumpCalcRtRv({
             ...state.calculator,
             profiles: {
-              [fallbackSeed.id]: makeResProfile(fallbackSeed),
+              [fallbackSeed.id]: makeResProfile(fallbackSeed, { maxed: state.ui.preferences.maxResOnInit }),
             },
             suggestionsByResonatorId: {
               [fallbackSeed.id]: makeSuggest(),
@@ -921,6 +924,19 @@ export const useAppStore = create<AppStore>((set, get) => {
     }), { historyLabel: 'Changed Overview State Visibility' })
   },
 
+  setMaxResInit: (maxResOnInit) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          maxResOnInit,
+        },
+      },
+    }), { historyLabel: 'Changed Resonator Init Mode' })
+  },
+
   setSugView: (suggsViewMode) => {
     persistedSet(['ui.layout'], (state) => ({
       ...state,
@@ -1168,7 +1184,7 @@ export const useAppStore = create<AppStore>((set, get) => {
               ? state.calculator.profiles
               : {
                 ...state.calculator.profiles,
-                [seed.id]: makeResProfile(seed),
+                [seed.id]: makeResProfile(seed, { maxed: state.ui.preferences.maxResOnInit }),
               },
           suggestionsByResonatorId: state.calculator.suggestionsByResonatorId[seed.id]
               ? state.calculator.suggestionsByResonatorId
@@ -1226,7 +1242,7 @@ export const useAppStore = create<AppStore>((set, get) => {
           ...state.calculator,
           profiles: {
             ...state.calculator.profiles,
-            [resonatorId]: makeResProfile(seed),
+            [resonatorId]: makeResProfile(seed, { maxed: state.ui.preferences.maxResOnInit }),
           },
         }),
       }
@@ -1245,15 +1261,15 @@ export const useAppStore = create<AppStore>((set, get) => {
     const existing = get().calculator.profiles[seed.id]
     if (existing && get().calculator.suggestionsByResonatorId[seed.id]) return
 
-    const profile = makeResProfile(seed)
-
     persistedSet(['calculator.profiles', 'calculator.suggestions', 'calculator.session'], (state) => ({
       ...state,
       calculator: bumpCalcRtRv({
         ...state.calculator,
         profiles: {
           ...state.calculator.profiles,
-          ...(state.calculator.profiles[seed.id] ? {} : { [seed.id]: profile }),
+          ...(state.calculator.profiles[seed.id]
+            ? {}
+            : { [seed.id]: makeResProfile(seed, { maxed: state.ui.preferences.maxResOnInit }) }),
         },
         suggestionsByResonatorId: state.calculator.suggestionsByResonatorId[seed.id]
             ? state.calculator.suggestionsByResonatorId
@@ -1308,7 +1324,7 @@ export const useAppStore = create<AppStore>((set, get) => {
       return
     }
 
-      const brdgRt: ResRuntime = {
+    const brdgRt: ResRuntime = {
       ...actRt,
       base: {
         ...actRt.base,
@@ -1316,12 +1332,11 @@ export const useAppStore = create<AppStore>((set, get) => {
       },
       build: {
         ...actRt.build,
-        weapon: {
+        weapon: catWpnAtk({
           ...actRt.build.weapon,
           id: next.build.weapon.id,
           rank: next.build.weapon.rank,
-          baseAtk: next.build.weapon.baseAtk,
-        },
+        }),
         echoes: next.build.echoes,
       },
       state: cloneRtSttVl(next.state),
@@ -1760,12 +1775,13 @@ export const useAppStore = create<AppStore>((set, get) => {
     }), { historyLabel: 'Synced Optimizer Context' })
   },
 
-  updOptRt: (updater) => {
+  updOptRt: (updater, options) => {
     persistedSet(['calculator.optimizerContext'], (state) => {
       const existing = state.calculator.optimizerContext
       if (!existing) {
         return state
       }
+      const nextRuntime = updater(existing.runtime)
 
       return {
         ...state,
@@ -1773,7 +1789,10 @@ export const useAppStore = create<AppStore>((set, get) => {
           ...state.calculator,
           optimizerContext: {
             ...existing,
-            runtime: updater(existing.runtime),
+            runtime: nextRuntime,
+            sourceRuntimeSig: options?.sourceRuntimeSig
+              ? options.sourceRuntimeSig(nextRuntime)
+              : existing.sourceRuntimeSig,
           },
         },
       }

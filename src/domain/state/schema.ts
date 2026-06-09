@@ -119,29 +119,26 @@ const wpnMkSchm = z.object({
   id: z.string().nullable(),
   level: z.number(),
   rank: z.number(),
-  baseAtk: z.number(),
-}).strict()
+})
 
 // teammate weapon storage omits fixed level and resolves it at runtime
 const teamMemWpnMk = z.object({
   id: z.string().nullable(),
   rank: z.number(),
-  baseAtk: z.number(),
-}).strict()
+})
 
 // saved build entry
 const svdMkSchm = z.object({
   id: z.string(),
   name: z.string(),
   resonatorId: z.string(),
-  resonatorName: z.string(),
   build: z.object({
     weapon: wpnMkSchm,
     echoes: z.array(echoNstnSchm.nullable()),
   }).strict(),
   createdAt: z.number(),
   updatedAt: z.number(),
-}).strict()
+})
 
 // shared base progression state
 const baseSttSchm = z.object({
@@ -459,6 +456,11 @@ const optSetsSchm = z.object({
   }).strict(),
   mainStatFilter: z.array(z.string()),
   selectedBonus: z.string().nullable(),
+  // inventory-mode toggle. optional + default so older snapshots backfill.
+  excludeEquipped: z.boolean().optional().default(false),
+  // theory-mode weapon search toggle. optional + default so snapshots exported
+  // before it existed still validate; cloneOptSets backfills the default.
+  includeWeapons: z.boolean().optional().default(false),
   statConstraints: z.record(z.string(), z.object({
     minTotal: z.string().optional(),
     maxTotal: z.string().optional(),
@@ -506,6 +508,7 @@ const resRtSttSchm = z.object({
 const optCtxSchm = z.object({
   resonatorId: z.string(),
   runtime: resRtSttSchm,
+  sourceRuntimeSig: z.string().default(''),
   settings: optSetsSchm,
 }).strict()
 
@@ -607,9 +610,8 @@ const dmgTtlsSnapS = z.object({
 // teammate contribution snapshot
 const teamMemCntrS = z.object({
   id: z.string(),
-  name: z.string(),
   contribution: dmgTtlsSnapS,
-}).strict()
+})
 
 // saved rotation summary snapshot
 const rotEntSmmrSc = z.object({
@@ -623,7 +625,6 @@ const invRotSchm = z.object({
   name: z.string(),
   mode: z.enum(['personal', 'team']),
   resonatorId: z.string(),
-  resonatorName: z.string(),
   duration: z.number().default(0),
   note: z.string().default(''),
   team: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]).optional(),
@@ -632,7 +633,7 @@ const invRotSchm = z.object({
   summary: rotEntSmmrSc.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
-}).strict()
+})
 
 // combat session persistence
 const cmbtSssnSchm = z.object({
@@ -747,10 +748,11 @@ const uiPersistSchema = z.object({
   blurMode: uiBoolSchm(false),
   entranceAnimations: uiBoolSchm(true),
   preferences: z.object({
-    ctxMenu: z.boolean(),
-    updateToast: z.boolean(),
-    recommendedMenuItems: z.boolean(),
-    showUnquantifiedOverviewStates: z.boolean(),
+    ctxMenu: z.boolean().default(DEF_UI_PREFS.ctxMenu),
+    updateToast: z.boolean().default(DEF_UI_PREFS.updateToast),
+    recommendedMenuItems: z.boolean().default(DEF_UI_PREFS.recommendedMenuItems),
+    showUnquantifiedOverviewStates: z.boolean().default(DEF_UI_PREFS.showUnquantifiedOverviewStates),
+    maxResOnInit: z.boolean().default(DEF_UI_PREFS.maxResOnInit),
   }).default(DEF_UI_PREFS),
   leftPaneView: z.enum([
     'resonators',

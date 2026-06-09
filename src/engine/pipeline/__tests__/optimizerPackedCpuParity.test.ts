@@ -6,7 +6,7 @@ import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
 import { calcSkillDamage } from '@/engine/formulas/damage'
 import {
   MAIN_BUFF_LEN,
-  STAT_STRIDE,
+  FULL_STAT_STRIDE,
 } from '@/engine/optimizer/config/constants'
 import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch'
 import { mkCmbDmgScrt, evalTgtSkllC } from '@/engine/optimizer/cpu/computeDamage'
@@ -273,7 +273,7 @@ function evaluatePackedCpuSkill(params: {
 
   const evaluated = evalTgtSkllC({
     context: packCompCtx(compiled),
-    stats: new Float32Array(5 * STAT_STRIDE),
+    stats: new Float32Array(5 * FULL_STAT_STRIDE),
     sets: new Uint8Array([0, 1, 2, 3, 4]),
     kinds: new Uint16Array([0, 1, 2, 3, 4]),
     setConstLut: buildSetRows(runtime),
@@ -313,12 +313,12 @@ describe('optimizer packed cpu parity', () => {
     expect(Math.abs(packed - expected)).toBeLessThan(0.01)
   })
 
-  it('matches computeSkillDamage for hack damage without tune rupture bonuses', () => {
+  it('matches computeSkillDamage for hack damage with tune break boost', () => {
     const enemy = makeEnemy()
     const finalStats = makeFinalStats({
       amplify: 18,
       dmgVuln: 12,
-      tbb: 999,
+      tbb: 24,
       skillType: {
         ...makeFinalStats().skillType,
         hack: {
@@ -402,6 +402,38 @@ describe('optimizer packed cpu parity', () => {
       runtimeCombat: combat,
     })
 
+    expect(Math.abs(packed - expected)).toBeLessThan(0.001)
+  })
+
+  it('matches computeSkillDamage for fixed-max fusion burst', () => {
+    const enemy = makeEnemy()
+    const finalStats = makeFinalStats({
+      skillType: {
+        ...makeFinalStats().skillType,
+        fusionBurst: {
+          ...makeBuff(),
+          amplify: 22,
+          dmgBonus: 18,
+        },
+      },
+    })
+    const combat = { fusionBurst: 0 }
+    const skill = {
+      ...fusionBurstSkill,
+      id: 'seraphic-duet-fusion-burst',
+      label: 'Seraphic Duet: Fusion Burst',
+      stackMode: 'fixedMax' as const,
+      stackMax: 13,
+    }
+    const expected = calcSkillDamage(finalStats, skill, enemy, 90, combat).avg
+    const packed = evaluatePackedCpuSkill({
+      finalStats,
+      skill,
+      enemy,
+      runtimeCombat: combat,
+    })
+
+    expect(expected).toBeGreaterThan(0)
     expect(Math.abs(packed - expected)).toBeLessThan(0.001)
   })
 

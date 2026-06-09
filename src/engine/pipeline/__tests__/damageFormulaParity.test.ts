@@ -418,7 +418,7 @@ describe('damage formula parity', () => {
     expect(result.subHits).toHaveLength(2)
   })
 
-  it('computes hack damage through the level-scaled branch without tune rupture buffs', () => {
+  it('computes hack damage through the level-scaled branch with tune break boost', () => {
     const baseStats = makeFinalStats({
       skillType: {
         ...makeFinalStats().skillType,
@@ -444,7 +444,7 @@ describe('damage formula parity', () => {
     const scaled = calcSkillDamage(baseStats, scaledHackSkill, enemy, 90)
 
     expect(base.avg).toBeGreaterThan(0)
-    expect(tuneBuffed.avg).toBeCloseTo(base.avg, 6)
+    expect(tuneBuffed.avg).toBeCloseTo(base.avg * (1 + 999 / 100), 6)
     expect(scaled.avg).toBeCloseTo(base.avg * 1.5, 6)
   })
 
@@ -480,6 +480,33 @@ describe('damage formula parity', () => {
     expect(baseline.avg).toBe(baseline.normal)
     expect(baseline.subHits).toHaveLength(1)
     expect(boosted.normal).toBeGreaterThan(baseline.normal)
+  })
+
+  it('lets skill-level fixedMax negative effects ignore persisted stack count', () => {
+    const fixedMaxFusionBurst: SkillDef = {
+      ...fusionBurstSkill,
+      id: 'seraphic-duet-fusion-burst',
+      label: 'Seraphic Duet: Fusion Burst',
+      stackMode: 'fixedMax',
+    }
+
+    const noStacks = calcSkillDamage(makeFinalStats(), fixedMaxFusionBurst, enemy, 90, { fusionBurst: 0 })
+    const fewStacks = calcSkillDamage(makeFinalStats(), fixedMaxFusionBurst, enemy, 90, { fusionBurst: 3 })
+    const maxStacks = calcSkillDamage(makeFinalStats(), fixedMaxFusionBurst, enemy, 90, { fusionBurst: 10 })
+    const effectiveMaxStacks = calcSkillDamage(
+      makeFinalStats(),
+      { ...fixedMaxFusionBurst, stackMax: 13 },
+      enemy,
+      90,
+      { fusionBurst: 0 },
+    )
+    const manualFewStacks = calcSkillDamage(makeFinalStats(), fusionBurstSkill, enemy, 90, { fusionBurst: 3 })
+
+    expect(noStacks.avg).toBeGreaterThan(0)
+    expect(noStacks.avg).toBe(maxStacks.avg)
+    expect(fewStacks.avg).toBe(maxStacks.avg)
+    expect(effectiveMaxStacks.avg).toBeGreaterThan(maxStacks.avg)
+    expect(manualFewStacks.avg).toBeLessThan(maxStacks.avg)
   })
 
   it('computes glacio chafe from its level-and-stack base formula', () => {
@@ -613,6 +640,20 @@ describe('damage formula parity', () => {
     expect(text).toContain('out.normal =')
     expect(text).toContain('mod.dmgBonus =')
     expect(text).toContain('crit.rate =')
+
+    const dmgLabelSkill = { ...skill, label: 'BOOM! Fireworks! DMG' }
+    const dmgLabelResult = calcSkillDamage(finalStats, dmgLabelSkill, enemy, 90)
+    const dmgLabelBreakdown = formBrkd(
+      makeFeatureResult(dmgLabelSkill, dmgLabelResult),
+      finalStats,
+      enemy,
+      90,
+      makeCombatState(),
+    )
+
+    expect(dmgLabelBreakdown.title).toBe('BOOM! Fireworks! DMG')
+    expect(fmtBreakdown(dmgLabelBreakdown)).toContain('// BOOM! Fireworks! DMG\n')
+    expect(fmtBreakdown(dmgLabelBreakdown)).not.toContain('DMG DMG')
   })
 
   it('builds negative-effect and tune rupture formula breakdowns without duplicated output', () => {
@@ -652,7 +693,7 @@ describe('damage formula parity', () => {
     expect(glacioBreakdown.sections.map((section) => section.label)).toEqual(['core', 'enemy', 'mods'])
     expect(tuneBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.tuneAmp')
     expect(hackBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.hackAmp')
-    expect(fmtBreakdown(hackBreakdown)).not.toContain('mod.tuneBoost')
+    expect(fmtBreakdown(hackBreakdown)).toContain('mod.tuneBoost')
     expect(tuneBreakdown.equation).not.toContain('x x')
     expect(fmtBreakdown(tuneBreakdown).split('\n').filter((line) => line.startsWith('out.normal ='))).toHaveLength(1)
   })

@@ -16,13 +16,13 @@ import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
 import { countMainCombos } from '@/engine/optimizer/search/counting.ts'
 import { mkOptPrgrTrc } from '@/engine/optimizer/search/progress.ts'
 import { OptResultSet } from '@/engine/optimizer/results/collector.ts'
-import type { ComboIndex } from '@/engine/optimizer/combos/combinadic.ts'
+import { mkJobCmbNdxn } from '@/engine/optimizer/combos/jobIndex.ts'
 import {
   dvncCmbnPstn,
   fillCmbnEcho,
   nrnkCmbnPstn,
 } from '@/engine/optimizer/combos/combinadic.ts'
-import { evalTgtCpuCm } from '@/engine/optimizer/target/cpu.ts'
+import { evalTgtCpuCm, composeWeaponContexts, evalTgtCpuCmWeapons } from '@/engine/optimizer/target/cpu.ts'
 import { gnrtTgtCpuCm } from '@/engine/optimizer/target/batches.ts'
 
 // absolute combo cost ceiling for a valid echo loadout
@@ -83,58 +83,6 @@ function cmptCmbCost(costs: Uint8Array, comboIds: Int32Array): number {
   return totalCost
 }
 
-// build the correct combinadic indexing view for this job
-// when a later locked-main index is used, the index map must exclude that echo
-function mkJobCmbNdxn(
-    payload: PackedSkill,
-    lockedMainIndex: number,
-): ComboIndex {
-  if (!payload.lockMainReq || lockedMainIndex < 0) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: -1,
-    }
-  }
-
-  const frstLckdMain = payload.lockMainCands[0] ?? -1
-
-  // if this is the first locked candidate, the prepared index map already matches
-  if (lockedMainIndex === frstLckdMain) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: lockedMainIndex,
-    }
-  }
-
-  // otherwise rebuild a view that excludes the chosen locked main echo
-  const indexMap = new Int32Array(payload.costs.length - 1)
-  let cursor = 0
-
-  for (let index = 0; index < payload.costs.length; index += 1) {
-    if (index === lockedMainIndex) {
-      continue
-    }
-    indexMap[cursor] = index
-    cursor += 1
-  }
-
-  return {
-    comboN: payload.comboN,
-    comboK: payload.comboK,
-    totalCombos: payload.totalCombos,
-    indexMap,
-    binom: payload.comboBinom,
-    lockedIndex: lockedMainIndex,
-  }
-}
 
 // run a contiguous combinadic search window by unranking the first combo
 // then advancing positions in place for each next combo
@@ -223,6 +171,13 @@ export async function runTgtSrchBt(
   const comboIds = scratch.comboIds
   const mainFirst = job.lockMainIdx === MAIN_FIRST
 
+  // weapon search: precompose the per-weapon contexts once (base ⊕ overlay), then
+  // each combo is scored against all of them and tagged with the best weapon.
+  const weaponCount = payload.weaponCount ?? 0
+  const weaponContexts = payload.weaponOverlays && weaponCount > 0
+      ? composeWeaponContexts(payload.context, payload.weaponOverlays, weaponCount)
+      : null
+
   for (let comboIndex = 0; comboIndex < comboCount; comboIndex += 1) {
     if (hooks.isCancelled?.()) {
       return collector.sorted()
@@ -235,6 +190,30 @@ export async function runTgtSrchBt(
     comboIds[2] = job.combosBatch[base + 2]
     comboIds[3] = job.combosBatch[base + 3]
     comboIds[4] = job.combosBatch[base + 4]
+
+    if (weaponContexts) {
+      const evaluated = evalTgtCpuCmWeapons({
+        weaponContexts,
+        stats: payload.stats,
+        setConstLut: payload.setConstLut,
+        mainEchoBuffs: payload.mainEchoBuffs,
+        sets: payload.sets,
+        kinds: payload.kinds,
+        constraints: payload.constraints,
+        comboIds,
+        lockMainIdx: job.lockMainIdx,
+        scratch,
+      })
+
+      if (evaluated) {
+        if (mainFirst) {
+          collector.pushMainFrst(evaluated.damage, comboIds, evaluated.weaponIndex)
+        } else {
+          collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex, evaluated.weaponIndex)
+        }
+      }
+      continue
+    }
 
     const evaluated = evalTgtCpuCm({
       context: payload.context,

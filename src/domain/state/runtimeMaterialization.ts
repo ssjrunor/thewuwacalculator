@@ -31,6 +31,7 @@ import {
   cloneTrcNode,
   cloneWpnMkSt,
 } from '@/domain/state/runtimeCloning'
+import { catTmWpnAtk } from '@/domain/state/weaponState'
 
 export const SLOT_IDS: SlotId[] = ['active', 'team1', 'team2']
 
@@ -98,7 +99,7 @@ function matSlotWpn(profile: ResProf, slotId: SlotId) {
   }
 
   return {
-    ...profile.runtime.build.weapon,
+    ...catTmWpnAtk(profile.runtime.build.weapon, MAX_WPN_LVL),
     level: MAX_WPN_LVL,
   }
 }
@@ -176,7 +177,7 @@ export function matTeamMemFr(
     },
     build: {
       weapon: {
-        ...tmr.build.weapon,
+        ...catTmWpnAtk(tmr.build.weapon, MAX_WPN_LVL),
         level: MAX_WPN_LVL,
       },
       echoes: [...tmr.build.echoes],

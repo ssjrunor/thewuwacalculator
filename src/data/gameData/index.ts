@@ -10,6 +10,7 @@ import { initSntSets, type SntSetDef } from '@/data/gameData/catalog/sonataSets'
 import { initEchoSetD, sntSetSrcs, type SetDef } from '@/data/gameData/echoSets/effects'
 import type { GameDataReg, SrcPkg } from '@/domain/gameData/contracts'
 import { mkGameDataRe } from '@/domain/gameData/registry'
+import { materializeResonatorStatesById } from '@/domain/gameData/resonatorStateGraph'
 import type { EchoDef } from '@/domain/entities/catalog'
 import type { ResSeed } from '@/domain/entities/runtime'
 import type { ResDtls } from '@/domain/entities/resonator'
@@ -112,7 +113,9 @@ export async function initGameData(): Promise<void> {
         ...sntSetSrcs,
       ]
 
-      getGameDataG().registry = mkGameDataRe(allSources)
+      getGameDataG().registry = mkGameDataRe(allSources, {
+        resonatorStatesById: materializeResonatorStatesById(resDtls),
+      })
     })().catch((error) => {
       const nextState = getGameDataG()
       nextState.initializationPromise = null

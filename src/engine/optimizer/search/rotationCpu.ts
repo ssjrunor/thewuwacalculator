@@ -12,6 +12,7 @@ import type {
   PckdRotXctnP,
 } from '@/engine/optimizer/types.ts'
 import { makeCpuScratch } from '@/engine/optimizer/cpu/scratch.ts'
+import { MAIN_FIRST } from '@/engine/optimizer/config/constants.ts'
 import {
   DISABLED_CONSTRAINTS,
   psssCstrs as psssCpuCstrs,
@@ -19,7 +20,11 @@ import {
 import { countMainCombos } from '@/engine/optimizer/search/counting.ts'
 import { mkOptPrgrTrc } from '@/engine/optimizer/search/progress.ts'
 import { OptResultSet } from '@/engine/optimizer/results/collector.ts'
-import { evalTgtCpuCm } from '@/engine/optimizer/target/cpu.ts'
+import {
+  clrCmbSetStt,
+  evalTgtCpuCmPrepped,
+  mkCmbBaseStt,
+} from '@/engine/optimizer/target/cpu.ts'
 import { evalTarget } from '@/engine/optimizer/target/evaluate.ts'
 import { gnrtTgtCpuCm } from '@/engine/optimizer/target/batches.ts'
 
@@ -48,42 +53,57 @@ export interface RotSrchBtchS {
   jobResultLimit: number
 }
 
-// evaluate one combo exactly for rotation mode by:
+// the rotation context set used for one evaluation: the per-target contexts and
+// weights plus the representative display context for constraint checks. weapon
+// search swaps this view per candidate weapon; the base path uses the payload's.
+interface RotCtxView {
+  contexts: Float32Array
+  contextStride: number
+  contextCount: number
+  contextWeight: Float32Array
+  displayContext: Float32Array
+}
+
+// evaluate one combo exactly for rotation mode against a given context view by:
 // 1. trying each valid main echo position
 // 2. summing weighted damage across every rotation context
 // 3. re-evaluating the best candidate through the display context for constraints
-function evalRotCmbXc(
+function evalRotCmbCore(
     payload: PckdRotXctnP,
     comboIds: Int32Array,
     lockedMainIndex: number,
     scratch: ReturnType<typeof makeCpuScratch>,
+    view: RotCtxView,
 ): { damage: number; mainIndex: number } | null {
   let bestMainIndex = -1
   let bestDamage = 0
 
-  // if the main echo is locked, only test that one index
-  // otherwise test all 5 combo positions as potential mains
-  const candMainNdcs = lockedMainIndex >= 0
-      ? [lockedMainIndex]
-      : Array.from(comboIds)
+  // main echo selection:
+  // MAIN_FIRST (theory) pins the main to combo slot 0; a non-negative locked
+  // index uses only that echo; otherwise (inventory) every combo position is
+  // tried as a potential main.
+  const candMainNdcs = lockedMainIndex === MAIN_FIRST
+      ? [comboIds[0]]
+      : lockedMainIndex >= 0
+          ? [lockedMainIndex]
+          : Array.from(comboIds)
 
   for (const mainIndex of candMainNdcs) {
     let totalDamage = 0
 
     // exact rotation damage is the weighted sum across all contexts
-    for (let contextIndex = 0; contextIndex < payload.contextCount; contextIndex += 1) {
-      const contextBase = contextIndex * payload.contextStride
-      const context = payload.contexts.subarray(contextBase, contextBase + payload.contextStride)
+    for (let contextIndex = 0; contextIndex < view.contextCount; contextIndex += 1) {
+      const contextBase = contextIndex * view.contextStride
+      const context = view.contexts.subarray(contextBase, contextBase + view.contextStride)
 
       // use the target cpu evaluator with disabled constraints here
-      // constraints are checked later against the display context only
-      const evaluated = evalTgtCpuCm({
+      // constraints are checked later against the display context only.
+      // the combo's echo-stat aggregate is built once by the caller
+      // (runRotSrchBt) and reused across every context and weapon.
+      const evaluated = evalTgtCpuCmPrepped({
         context,
-        stats: payload.stats,
         setConstLut: payload.setConstLut,
         mainEchoBuffs: payload.mainEchoBuffs,
-        sets: payload.sets,
-        kinds: payload.kinds,
         constraints: DISABLED_CONSTRAINTS,
         comboIds,
         lockMainIdx: mainIndex,
@@ -93,7 +113,7 @@ function evalRotCmbXc(
         continue
       }
 
-      totalDamage += evaluated.damage * (payload.contextWeight[contextIndex] ?? 1)
+      totalDamage += evaluated.damage * (view.contextWeight[contextIndex] ?? 1)
     }
 
     // skip invalid or non-improving candidates early
@@ -104,7 +124,7 @@ function evalRotCmbXc(
     // displayContext is used to compute the user-facing stat line and
     // constraint values for the final chosen main candidate
     const display = evalTarget({
-      context: payload.displayContext,
+      context: view.displayContext,
       stats: payload.stats,
       setConstLut: payload.setConstLut,
       mainEchoBuffs: payload.mainEchoBuffs,
@@ -141,6 +161,75 @@ function evalRotCmbXc(
       : null
 }
 
+// base (single-weapon) rotation combo evaluation using the payload's contexts.
+// caller must have already run mkCmbBaseStt for this combo (scratch holds the
+// echo-stat aggregate, reused across contexts).
+function evalRotCmbXc(
+    payload: PckdRotXctnP,
+    comboIds: Int32Array,
+    lockedMainIndex: number,
+    scratch: ReturnType<typeof makeCpuScratch>,
+): { damage: number; mainIndex: number } | null {
+  return evalRotCmbCore(payload, comboIds, lockedMainIndex, scratch, {
+    contexts: payload.contexts,
+    contextStride: payload.contextStride,
+    contextCount: payload.contextCount,
+    contextWeight: payload.contextWeight,
+    displayContext: payload.displayContext,
+  })
+}
+
+// weapon-search rotation combo evaluation: score the combo against every
+// candidate weapon's full context set and keep the best, tagging its index.
+// the per-target weights are weapon-independent, so payload.contextWeight is
+// reused; only the contexts and display context change per weapon. caller must
+// have already run mkCmbBaseStt for this combo. the echo aggregate is
+// combo-only, so it is shared across all weapons and contexts here.
+function evalRotCmbWeapons(
+    payload: PckdRotXctnP,
+    comboIds: Int32Array,
+    lockedMainIndex: number,
+    scratch: ReturnType<typeof makeCpuScratch>,
+): { damage: number; mainIndex: number; weaponIndex: number } | null {
+  const weaponCount = payload.weaponCount ?? 0
+  const weaponContexts = payload.weaponContexts
+  const weaponDisplay = payload.weaponDisplayContexts
+  if (!weaponContexts || !weaponDisplay || weaponCount <= 0) {
+    return null
+  }
+
+  const stride = payload.contextStride
+  const count = payload.contextCount
+  const perWeapon = count * stride
+
+  let bestDamage = 0
+  let bestMainIndex = -1
+  let bestWeapon = -1
+
+  for (let w = 0; w < weaponCount; w += 1) {
+    const contexts = weaponContexts.subarray(w * perWeapon, (w + 1) * perWeapon)
+    const displayContext = weaponDisplay.subarray(w * stride, (w + 1) * stride)
+
+    const evaluated = evalRotCmbCore(payload, comboIds, lockedMainIndex, scratch, {
+      contexts,
+      contextStride: stride,
+      contextCount: count,
+      contextWeight: payload.contextWeight,
+      displayContext,
+    })
+
+    if (evaluated && evaluated.damage > bestDamage) {
+      bestDamage = evaluated.damage
+      bestMainIndex = evaluated.mainIndex
+      bestWeapon = w
+    }
+  }
+
+  return bestWeapon >= 0
+      ? { damage: bestDamage, mainIndex: bestMainIndex, weaponIndex: bestWeapon }
+      : null
+}
+
 // evaluate one pre-generated batch of combos for rotation mode
 export async function runRotSrchBt(
     payload: PckdRotXctnP,
@@ -157,6 +246,10 @@ export async function runRotSrchBt(
   // scratch.comboIds is reused per combo to avoid new allocations
   const comboIds = scratch.comboIds
 
+  // weapon search scores each combo against every candidate weapon's full
+  // rotation context set and tags the winner; otherwise the single-weapon path.
+  const weaponMode = (payload.weaponCount ?? 0) > 0 && !!payload.weaponContexts
+
   for (let comboIndex = 0; comboIndex < job.comboCount; comboIndex += 1) {
     if (hooks.isCancelled?.()) {
       return collector.sorted()
@@ -170,16 +263,23 @@ export async function runRotSrchBt(
     comboIds[3] = job.combosBatch[base + 3]
     comboIds[4] = job.combosBatch[base + 4]
 
-    const evaluated = evalRotCmbXc(
-        payload,
-        comboIds,
-        job.lockMainIdx,
-        scratch,
-    )
+    // aggregate the combo's echo stats + set counts once; the per-context and
+    // per-weapon evaluations below all read this same aggregate.
+    const tchdSetCnt = mkCmbBaseStt(scratch, payload.stats, payload.sets, payload.kinds, comboIds)
 
-    if (evaluated) {
-      collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex)
+    if (weaponMode) {
+      const evaluated = evalRotCmbWeapons(payload, comboIds, job.lockMainIdx, scratch)
+      if (evaluated) {
+        collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex, evaluated.weaponIndex)
+      }
+    } else {
+      const evaluated = evalRotCmbXc(payload, comboIds, job.lockMainIdx, scratch)
+      if (evaluated) {
+        collector.pushRdrdCmb(evaluated.damage, comboIds, evaluated.mainIndex)
+      }
     }
+
+    clrCmbSetStt(scratch, tchdSetCnt)
   }
 
   // report processed rows scaled by payload.progressFactor to stay aligned

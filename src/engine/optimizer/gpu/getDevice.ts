@@ -27,7 +27,7 @@ export async function getGpuDevice(): Promise<GPUDevice> {
   logOptimizer('[optimizer:gpu] requesting WebGPU adapter')
   cchdDptr = await gpu.requestAdapter()
   if (!cchdDptr) {
-    warnOpt('[optimizer:gpu] gpu.requestAdapter() returned null — no suitable GPU adapter found')
+    warnOpt('[optimizer:gpu] gpu.requestAdapter() returned null: no suitable GPU adapter found')
     throw new Error('Failed to acquire a WebGPU adapter')
   }
 

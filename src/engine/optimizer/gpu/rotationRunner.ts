@@ -12,11 +12,13 @@ import {
   ensureGpuBuffer,
   GPU_CAND_STRIDE,
   readCandBffr,
+  sortCnddByDm,
   toGpuPldView,
   writeGpuBffr,
   type ReusableBuffer,
 } from '@/engine/optimizer/gpu/common.ts'
-import { getRotGpuPpl } from '@/engine/optimizer/gpu/rotationPipeline.ts'
+import { getRotGpuPpl, getRotBatchPpl } from '@/engine/optimizer/gpu/rotationPipeline.ts'
+import { mkNdxMapXcld, mkJobCmbNdxn } from '@/engine/optimizer/combos/jobIndex.ts'
 import { runRdcPassIf } from '@/engine/optimizer/gpu/reduce.ts'
 import { dispCmptPass } from '@/engine/optimizer/gpu/dispatch.ts'
 import { getGpuDevice } from '@/engine/optimizer/gpu/getDevice.ts'
@@ -26,10 +28,14 @@ import {
 } from '@/engine/optimizer/context/pack.ts'
 import {
   CTX_FLOATS,
+  GPU_BATCH_MAX_READBACK,
+  GPU_COMBO_MODE_BATCH,
+  GPU_REDUCE_K,
   ROT_CYCLES,
-  ROT_REDUCE_K,
+  WEAPON_BIT_MASK,
+  WEAPON_RANK_MASK,
+  WEAPON_INDEX_SHIFT,
 } from '@/engine/optimizer/config/constants.ts'
-import type { ComboIndex } from '@/engine/optimizer/combos/combinadic.ts'
 import { nrnkCmbnInto } from '@/engine/optimizer/combos/combinadic.ts'
 import { OptResultSet } from '@/engine/optimizer/results/collector.ts'
 import type {
@@ -68,6 +74,8 @@ interface RotGpuSttcSt {
   device: GPUDevice
   layout: GPUBindGroupLayout
   pipeline: GPUComputePipeline
+  // theory batch pipeline: one combo per thread (one candidate per combo).
+  batchPipeline: GPUComputePipeline
 
   // original packed execution payload used to initialize this state
   execution: PckdRotXctnP
@@ -109,22 +117,8 @@ interface RotGpuSttcSt {
   actLockMaiok: number
 }
 
-// minimal slice of the execution payload needed to rebuild per-job combinadic state
-type RotGpuRtPay = Pick<
-    PckdRotXctnP,
-    | 'costs'
-    | 'comboN'
-    | 'comboK'
-    | 'totalCombos'
-    | 'comboIndexMap'
-    | 'comboBinom'
-    | 'lockMainReq'
-    | 'lockMainCands'
->
-
 // singleton worker-side state for rotation gpu execution
 let rotGpuState: RotGpuSttcSt | null = null
-const GPU_COMBO_BITS = 3
 const BTCWGSIZE = 512
 
 // destroy one reusable buffer wrapper and reset it to an empty state
@@ -163,65 +157,6 @@ function dstrRotGpuSt(): void {
   rotGpuState = null
 }
 
-// build a combo index map that excludes one locked main echo from the selectable pool
-// this is needed for locked-main jobs when the requested locked echo is not the default one
-function mkNdxMapXcld(payload: RotGpuRtPay, lockedMainIndex: number): Int32Array {
-  const indexMap = new Int32Array(payload.costs.length - 1)
-  let cursor = 0
-
-  for (let index = 0; index < payload.costs.length; index += 1) {
-    if (index === lockedMainIndex) {
-      continue
-    }
-
-    indexMap[cursor] = index
-    cursor += 1
-  }
-
-  return indexMap
-}
-
-// derive the combinadic indexing view for this specific job
-// unlocked jobs can reuse the execution payload directly
-// locked jobs may need a remapped index map depending on which locked main is active
-function mkJobCmbNdxn(payload: RotGpuRtPay, lockedMainIndex: number): ComboIndex {
-  if (!payload.lockMainReq || lockedMainIndex < 0) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: -1,
-    }
-  }
-
-  const frstLckdMain = payload.lockMainCands[0] ?? -1
-
-  // if this job uses the same locked main index as the base payload,
-  // we can reuse the original index map as-is
-  if (lockedMainIndex === frstLckdMain) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: lockedMainIndex,
-    }
-  }
-
-  // otherwise rebuild the effective candidate map for this locked echo
-  return {
-    comboN: payload.comboN,
-    comboK: payload.comboK,
-    totalCombos: payload.totalCombos,
-    indexMap: mkNdxMapXcld(payload, lockedMainIndex),
-    binom: payload.comboBinom,
-    lockedIndex: lockedMainIndex,
-  }
-}
-
 // helper: convert compact uint8 data into float32 for shader storage buffers
 // some gpu paths prefer all numeric payloads in float buffers
 function toGpuFltRry(values: Uint8Array): Float32Array {
@@ -239,11 +174,6 @@ function toGpuIntRry(values: Uint16Array): Int32Array {
     out[index] = values[index] ?? 0
   }
   return out
-}
-
-// candidates are read back unsorted, so sort strongest-first before decoding them into combos
-function sortCnddByDm(candidates: Array<{ damage: number; rank: number; mainPos: number }>): void {
-  candidates.sort((left, right) => right.damage - left.damage)
 }
 
 // state guard used by runtime job execution functions
@@ -342,11 +272,16 @@ function getBindGroup(
 }
 
 // shader binding count is tight, so contexts and weights are packed into one buffer:
-// [all contexts..., all weights...]
+// [all contexts..., all weights...]. weapon search stores weaponCount back-to-back
+// context sets in place of the single set; the weights are shared and stay last.
 function mkRotCtxBffr(payload: PckdRotXctnP): Float32Array {
-  const merged = new Float32Array(payload.contexts.length + payload.contextWeight.length)
-  merged.set(payload.contexts, 0)
-  merged.set(payload.contextWeight, payload.contexts.length)
+  const weaponCount = payload.weaponCount ?? 0
+  const contexts = weaponCount > 0 && payload.weaponContexts
+      ? payload.weaponContexts
+      : payload.contexts
+  const merged = new Float32Array(contexts.length + payload.contextWeight.length)
+  merged.set(contexts, 0)
+  merged.set(payload.contextWeight, contexts.length)
   return merged
 }
 
@@ -357,11 +292,13 @@ export async function initRotGpu(payload: PckdRotXctnP): Promise<void> {
 
   const device = await getGpuDevice()
   const { layout, pipeline } = await getRotGpuPpl(device)
+  const batchPipeline = await getRotBatchPpl(device)
 
   rotGpuState = {
     device,
     layout,
     pipeline,
+    batchPipeline,
     execution: payload,
 
     // upload all mostly-static buffers once
@@ -408,11 +345,11 @@ export async function initRotGpu(payload: PckdRotXctnP): Promise<void> {
   }
 
   // metadata layout:
-  // [contextCount, contextStride, reserved0, reserved1]
+  // [contextCount, contextStride, weaponCount, reserved1]
   device.queue.writeBuffer(
       rotGpuState.rotMetaBffr,
       0,
-      new Uint32Array([payload.contextCount, payload.contextStride, 0, 0]),
+      new Uint32Array([payload.contextCount, payload.contextStride, payload.weaponCount ?? 0, 0]),
   )
 }
 
@@ -437,21 +374,33 @@ function mkRotJobPrms(options: {
   })
 }
 
-// decode packed candidate rank field:
-// lower 29 bits -> combo rank
-// upper 3 bits -> position of the chosen main echo within the decoded combo
+// decode packed candidate rank field.
+// default layout: lower 29 bits -> combo rank, upper 3 bits -> main position.
+// weapon-search layout: lower 27 bits -> combo rank, upper 5 bits -> weapon
+// index (the main is pinned to slot 0, so mainPos is always 0).
 function dcdPckdCndd(
     candidates: Array<{ damage: number; rank: number }>,
-): Array<{ damage: number; rank: number; mainPos: number }> {
-  const out: Array<{ damage: number; rank: number; mainPos: number }> = []
+    weaponMode = false,
+): Array<{ damage: number; rank: number; mainPos: number; weapon: number }> {
+  const out: Array<{ damage: number; rank: number; mainPos: number; weapon: number }> = []
 
   for (const candidate of candidates) {
     const packed = candidate.rank >>> 0
-    out.push({
-      damage: candidate.damage,
-      rank: packed & 0x1fffffff,
-      mainPos: packed >>> 29,
-    })
+    if (weaponMode) {
+      out.push({
+        damage: candidate.damage,
+        rank: packed & WEAPON_RANK_MASK,
+        mainPos: 0,
+        weapon: (packed >>> WEAPON_INDEX_SHIFT) & WEAPON_BIT_MASK,
+      })
+    } else {
+      out.push({
+        damage: candidate.damage,
+        rank: packed & 0x1fffffff,
+        mainPos: packed >>> 29,
+        weapon: -1,
+      })
+    }
   }
 
   return out
@@ -488,7 +437,7 @@ export async function runRotGpuJob(
   const wgCnt = Math.ceil(job.comboCount / Math.max(1, BTCWGSIZE * ROT_CYCLES))
 
   // the shader emits OPTIMIZER_ROTATION_REDUCE_K candidates per workgroup
-  const candCnt = wgCnt * ROT_REDUCE_K
+  const candCnt = wgCnt * GPU_REDUCE_K
   if (candCnt <= 0) {
     return []
   }
@@ -533,15 +482,16 @@ export async function runRotGpuJob(
     },
   })
 
-  // reduce only when the raw candidates exceed the requested readback budget.
-  // the rotation shader already emits local top-k winners per workgroup.
-  const rdBkLmt = Math.max(ROT_REDUCE_K, job.jobResultLimit * ROT_REDUCE_K)
+  // read all per-workgroup candidates back (up to the cap) and let the cpu
+  // collector select the exact top-k. the gpu reduce pass only runs when the
+  // candidate count exceeds the cap.
+  const rdBkLmt = Math.max(GPU_REDUCE_K, Math.min(GPU_BATCH_MAX_READBACK, candCnt))
   const rdbcTgt = await runRdcPassIf({
     device: state.device,
     candidateBuffer: candidateBuffer,
     candCnt: candCnt,
     maxReadback: rdBkLmt,
-    reduceK: ROT_REDUCE_K,
+    reduceK: GPU_REDUCE_K,
     reuse: state.reduceReuse,
   })
 
@@ -567,7 +517,7 @@ export async function runRotGpuJob(
 
   // oversample the number of decoded candidates we push through unranking,
   // because many may collapse/dedup before final sorting
-  const candLmt = Math.max(1, job.jobResultLimit * ROT_REDUCE_K)
+  const candLmt = Math.max(1, job.jobResultLimit * GPU_REDUCE_K)
   let pushed = 0
 
   for (const candidate of dcddCndd) {
@@ -604,7 +554,10 @@ export async function runRotGpuBtc(
     return []
   }
 
-  const wgCnt = Math.ceil(job.comboCount / Math.max(1, BTCWGSIZE * ROT_CYCLES))
+  // theory batch dispatches one combo per thread (the batch pipeline overrides
+  // CYCLES_PER_INVOCATION to 1), so every combo gets its own candidate slot. the
+  // reduce pass then trims the candidates down to the requested result limit.
+  const wgCnt = Math.ceil(job.comboCount / Math.max(1, BTCWGSIZE))
   const candCnt = wgCnt * BTCWGSIZE
   if (candCnt <= 0) {
     return []
@@ -623,7 +576,7 @@ export async function runRotGpuBtc(
     comboCount: job.comboCount,
     comboBaseIndex: 0,
     lockEchoIdx: job.lockMainIdx,
-    comboMode: GPU_COMBO_BITS,
+    comboMode: GPU_COMBO_MODE_BATCH,
   })
 
   const paramsBuffer = ensureGpuBuffer(
@@ -645,7 +598,7 @@ export async function runRotGpuBtc(
 
   await dispCmptPass({
     device: state.device,
-    pipeline: state.pipeline,
+    pipeline: state.batchPipeline,
     bindGroup,
     wrkgCnt: wgCnt,
     bfrDsptBtch: (wgBase) => {
@@ -654,13 +607,13 @@ export async function runRotGpuBtc(
     },
   })
 
-  const rdBkLmt = Math.max(ROT_REDUCE_K, job.jobResultLimit * ROT_REDUCE_K)
+  const rdBkLmt = Math.max(GPU_REDUCE_K, Math.min(GPU_BATCH_MAX_READBACK, candCnt))
   const rdbcTgt = await runRdcPassIf({
     device: state.device,
     candidateBuffer: candidateBuffer,
     candCnt: candCnt,
     maxReadback: rdBkLmt,
-    reduceK: ROT_REDUCE_K,
+    reduceK: GPU_REDUCE_K,
     reuse: state.reduceReuse,
   })
 
@@ -675,12 +628,13 @@ export async function runRotGpuBtc(
     return []
   }
 
-  const dcddCndd = dcdPckdCndd(results)
+  const weaponMode = (state.execution.weaponCount ?? 0) > 0
+  const dcddCndd = dcdPckdCndd(results, weaponMode)
   sortCnddByDm(dcddCndd)
 
   const collector = new OptResultSet(job.jobResultLimit)
   const comboIds = new Int32Array(5)
-  const candLmt = Math.max(1, job.jobResultLimit * ROT_REDUCE_K)
+  const candLmt = Math.max(1, job.jobResultLimit * GPU_REDUCE_K)
   let pushed = 0
 
   for (const candidate of dcddCndd) {
@@ -696,7 +650,7 @@ export async function runRotGpuBtc(
     comboIds[4] = job.combosBatch[base + 4] ?? -1
 
     const mainIndex = comboIds[candidate.mainPos] ?? -1
-    collector.pushRdrdCmb(candidate.damage, comboIds, mainIndex)
+    collector.pushRdrdCmb(candidate.damage, comboIds, mainIndex, candidate.weapon)
     pushed += 1
 
     if (pushed >= candLmt) {

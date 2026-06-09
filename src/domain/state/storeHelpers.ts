@@ -24,6 +24,7 @@ import {
 import { loadPrssAppS } from '@/infra/persistence/storage'
 import type { PersistedState } from '@/domain/entities/appState'
 import { deriveOptSets, preserveToggles } from '@/engine/optimizer/config/defaultSettings.ts'
+import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 import type { AppStore } from './store'
 
 const INV_LEFT_PANES = new Set(['echoes', 'teams', 'rotations'])
@@ -68,7 +69,12 @@ export function getSyncOptCt(state: AppStore): OptContext | null {
 
   const existing = state.calculator.optimizerContext
   if (existing?.resonatorId === actRt.id) {
-    return existing
+    return existing.sourceRuntimeSig
+      ? existing
+      : {
+        ...existing,
+        sourceRuntimeSig: runtimeSig(existing.runtime),
+      }
   }
 
   // following a new active resonator re-derives resonator-specific settings,

@@ -8,7 +8,7 @@
 import {
   ECHOES_PER_SET,
   SET_SLOT_COUNT,
-  STAT_STRIDE,
+  FULL_STAT_STRIDE,
 } from '@/engine/optimizer/config/constants.ts'
 
 export interface CpuScratch {
@@ -31,10 +31,10 @@ export function makeCpuScratch(): CpuScratch {
     cmbPstn: new Int32Array(ECHOES_PER_SET),
 
     // summed combo stats before main-echo-only buffs are applied
-    baseCmbVctr: new Float32Array(STAT_STRIDE),
+    baseCmbVctr: new Float32Array(FULL_STAT_STRIDE),
 
     // final combo stats after main-echo-only buffs are applied
-    comboVector: new Float32Array(STAT_STRIDE),
+    comboVector: new Float32Array(FULL_STAT_STRIDE),
 
     // per-set piece counts for the active combo
     setCounts: new Uint8Array(SET_SLOT_COUNT),

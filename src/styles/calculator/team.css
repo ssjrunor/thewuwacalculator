@@ -363,8 +363,8 @@
   background: color-mix(in srgb, #c96d1a 5%, var(--item-bg)) !important;
 }
 
-.team-state-control span,
-.team-state-control label {
+.team-state-control:not(:has(.res-mode-panel)) span,
+.team-state-control:not(:has(.res-mode-panel)) label {
   color: var(--text);
   font-size: 0.84rem;
   font-weight: 600;

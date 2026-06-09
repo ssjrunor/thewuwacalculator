@@ -14,7 +14,16 @@ import {cmptTrcNodeB} from '@/domain/state/traceNodes'
 import {RichDscr} from '@/shared/ui/RichDescription'
 import {Tooltip} from '@/shared/ui/Tooltip'
 import {LiquidSelect} from '@/shared/ui/LiquidSelect'
-import {normResRtCnt} from '@/domain/gameData/controlOptions'
+import {getResNumMax, normResCntrOpt, normResRtCnt} from '@/domain/gameData/controlOptions'
+import {maxResRt} from '@/domain/gameData/resonatorMax'
+import {
+  getResChainControls,
+  getResInherentControls,
+  getResModeGroups,
+  getResPanelControls,
+  getResStateControls,
+  getResStateGroups,
+} from '@/domain/gameData/resonatorStateGraph'
 import {ResPckr} from '@/modules/calculator/features/resonator/Picker.tsx'
 import {SkillData} from '@/modules/calculator/features/resonator/SkillData.tsx'
 import {StackGauge} from '@/modules/calculator/features/controls/StackGauge.tsx'
@@ -65,12 +74,16 @@ interface ResPanePrps {
   isDarkMode: boolean
 }
 
-interface RsnnChnCntr {
-  controls?: ResStateControl[]
-}
+function sameRtVal(left: boolean | number | string | undefined, right: boolean | number | string): boolean {
+  if (Object.is(left, right)) {
+    return true
+  }
 
-function getRsnnChnCn(entry: RsnnChnCntr): ResStateControl[] {
-  return entry.controls ?? []
+  if ((typeof left === 'number' || typeof left === 'string') && (typeof right === 'number' || typeof right === 'string')) {
+    return String(left) === String(right)
+  }
+
+  return false
 }
 
 function NumberInput({
@@ -124,10 +137,15 @@ export function Resonator({
   const curTtrb = resonator?.attribute ?? 'physical'
   const curSldrClr = ATTR_COLORS[curTtrb] ?? '#888'
   const activeSprite = resonator?.sprite ?? '/assets/default.webp'
-  const vlblCntr = [
-    ...(details?.statePanels.flatMap((panel) => panel.controls) ?? []),
-    ...(details?.resonanceChains.flatMap((entry) => getRsnnChnCn(entry)) ?? []),
-  ]
+  const vlblCntr = details ? getResStateControls(details) : []
+  const viewRuntime = useMemo(() => ({
+    ...runtime,
+    state: {
+      ...runtime.state,
+      controls: normResRtCnt(runtime),
+    },
+  }), [runtime])
+  const exclusiveCntrKeys = new Set(details ? getResStateGroups(details).flatMap((group) => group.members ?? []) : [])
   // controls are indexed once so sequence-aware toggles can reset dependent controls without searching every panel.
   const cntrByKey = Object.fromEntries(vlblCntr.map((control) => [control.key, control]))
 
@@ -233,14 +251,8 @@ export function Resonator({
     }))
   }
 
-  const updCntrVl = (control: ResStateControl, rawValue: boolean | number) => {
-    const curSqnc = runtime.base.sequence
-    // some controls change their legal max after a sequence breakpoint; compute that cap at edit time.
-    const dynamicMax = control.sequenceAwareCap
-      ? curSqnc >= control.sequenceAwareCap.threshold
-        ? control.sequenceAwareCap.atOrAbove
-        : control.sequenceAwareCap.below
-      : control.max
+  const updCntrVl = (control: ResStateControl, rawValue: boolean | number | string) => {
+    const dynamicMax = control.kind === 'number' ? getResNumMax(runtime, control) : control.max
 
     onRtPdt((prev) => {
       const nextControls = {
@@ -249,6 +261,16 @@ export function Resonator({
 
       if (control.kind === 'toggle') {
         nextControls[control.key] = Boolean(rawValue)
+      } else if (control.kind === 'select') {
+        const option = getCntrPtns(control, {
+          ...prev,
+          state: {
+            ...prev.state,
+            controls: nextControls,
+          },
+        }).find((candidate) => String(normResCntrOpt(candidate).value) === String(rawValue))
+
+        nextControls[control.key] = option ? normResCntrOpt(option).value : rawValue
       } else {
         const numericRaw = typeof rawValue === 'number' ? rawValue : Number(rawValue)
         const min = control.min ?? 0
@@ -261,7 +283,7 @@ export function Resonator({
         // false so stacks/selects stay valid.
         for (const key of control.resets) {
           const target = cntrByKey[key]
-          nextControls[key] = target ? getCntrNctvV(target, {
+          nextControls[key] = target?.kind === 'toggle' && exclusiveCntrKeys.has(key) ? false : target ? getCntrNctvV(target, {
             ...prev,
             state: {
               ...prev.state,
@@ -306,18 +328,18 @@ export function Resonator({
   }
 
   const getCntrVl = (control: ResStateControl): boolean | number | string | undefined =>
-    runtime.state.controls[control.key]
+    viewRuntime.state.controls[control.key]
 
   const getCntrDsbl = (control: ResStateControl): boolean =>
     Boolean(
       (control.disabledWhen
-        ? runtime.state.controls[control.disabledWhen.key] === control.disabledWhen.equals
+        ? viewRuntime.state.controls[control.disabledWhen.key] === control.disabledWhen.equals
         : false)
-      || !ctrlEnabled(runtime, control),
+      || !ctrlEnabled(viewRuntime, control),
     )
 
   const getCntrVsbl = (control: ResStateControl): boolean =>
-    ctrlVisible(runtime, control)
+    ctrlVisible(viewRuntime, control)
 
   const getSqncCntrS = (control: ResStateControl) => {
     const controlValue = getCntrVl(control)
@@ -326,6 +348,17 @@ export function Resonator({
       return {
         label: control.label,
         active: Boolean(controlValue),
+      }
+    }
+
+    if (control.kind === 'select') {
+      const option = getCntrPtns(control, viewRuntime)
+        .map((entry) => normResCntrOpt(entry))
+        .find((entry) => String(entry.value) === String(controlValue))
+
+      return {
+        label: `${control.label}: ${option?.label ?? String(controlValue ?? getCntrNctvV(control, viewRuntime))}`,
+        active: isCntrVsblAc(control, controlValue),
       }
     }
 
@@ -375,9 +408,11 @@ export function Resonator({
     }
 
     if (control.kind === 'select') {
-      const optionsList = getCntrPtns(control, runtime)
-      const selectValue = Number(controlValue ?? control.min ?? 0)
-      const isActive = selectValue > 0
+      const optionsList = getCntrPtns(control, viewRuntime).map((option) => normResCntrOpt(option))
+      const firstOption = optionsList[0]
+      const rawSelectValue = controlValue ?? control.defaultValue ?? control.min ?? firstOption?.value ?? 0
+      const selectValue = typeof rawSelectValue === 'boolean' ? String(rawSelectValue) : rawSelectValue
+      const isActive = String(selectValue) !== String(control.min ?? 0)
       return (
         <div key={control.key} className={['state-control-field', isDisabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
           <label className={['state-control-desc toggle-row', options?.className, isActive ? 'is-active' : '', isDisabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
@@ -386,8 +421,8 @@ export function Resonator({
               value={selectValue}
               disabled={isDisabled}
               options={optionsList.map((option) => ({
-                value: option,
-                label: String(option),
+                value: option.value,
+                label: option.label,
               }))}
               onChange={(nextValue) => updCntrVl(control, nextValue)}
             />
@@ -397,11 +432,7 @@ export function Resonator({
       )
     }
 
-    const dynamicMax = control.sequenceAwareCap
-      ? runtime.base.sequence >= control.sequenceAwareCap.threshold
-        ? control.sequenceAwareCap.atOrAbove
-        : control.sequenceAwareCap.below
-      : control.max
+    const dynamicMax = getResNumMax(runtime, control)
 
     const stored = Number(controlValue ?? control.min ?? 0)
     const scaledValue = getScldVl(control, stored)
@@ -430,6 +461,30 @@ export function Resonator({
     )
   }
 
+  const updModeVl = (controlKey: string, value: string) => {
+    onRtPdt((prev) => {
+      const nextControls = {
+        ...prev.state.controls,
+        [controlKey]: value,
+      }
+      const nextRuntime = {
+        ...prev,
+        state: {
+          ...prev.state,
+          controls: nextControls,
+        },
+      }
+
+      return {
+        ...nextRuntime,
+        state: {
+          ...nextRuntime.state,
+          controls: normResRtCnt(nextRuntime, nextControls),
+        },
+      }
+    })
+  }
+
   const tglTrcNode = (nodeId: string) => {
     onRtPdt((prev) => {
       const nextActNds = {
@@ -447,40 +502,27 @@ export function Resonator({
     })
   }
 
+  const getMxdRt = (targetSequence: number) =>
+    maxResRt(runtime, details, { targetSequence })
+
   const handleMax = () => {
-    onRtPdt((prev) => {
-      const nextActNds = details
-        ? Object.fromEntries(details.traceNodes.map((node) => [node.id, true]))
-        : prev.base.traceNodes.activeNodes
-
-      const nextSkllLvls = {
-        ...prev.base.skillLevels,
-      }
-
-      for (const tab of sldrSkllTabs) {
-        nextSkllLvls[tab] = 10
-      }
-
-      return {
-        ...prev,
-        base: {
-          ...prev.base,
-          level: 90,
-          skillLevels: nextSkllLvls,
-          traceNodes: details ? cmptTrcNodeB(details, nextActNds) : prev.base.traceNodes,
-        },
-      }
-    })
+    onRtPdt((prev) => maxResRt(prev, details, { targetSequence: prev.base.sequence }))
   }
+
+  const maxRuntime = getMxdRt(runtime.base.sequence)
 
   const allTrcNdsAct = details
     ? details.traceNodes.every((node) => runtime.base.traceNodes.activeNodes[node.id])
     : true
 
+  const controlsMaxed = Object.entries(maxRuntime.state.controls)
+    .every(([key, value]) => sameRtVal(runtime.state.controls[key], value))
+
   const maxedSkills =
     runtime.base.level === 90 &&
     sldrSkllTabs.every((tab) => runtime.base.skillLevels[tab] >= 10) &&
-    allTrcNdsAct
+    allTrcNdsAct &&
+    controlsMaxed
 
   const mdlPrtlTgt = mainPortal()
 
@@ -857,6 +899,81 @@ export function Resonator({
       />
 
       <div className="inherent-skills-box">
+        {getResModeGroups(details).map((group) => {
+          const modeValue = String(viewRuntime.state.controls[group.controlKey] ?? group.defaultValue)
+          const hasNone = group.modes.some((mode) => mode.id === 'none')
+          const modeItems = group.modes.filter((mode) => mode.id !== 'none')
+          const noMode = hasNone && modeValue === 'none'
+          const modeInitial = (label: string) => label.trim().slice(0, 1).toUpperCase() || 'M'
+
+          return (
+            <div key={group.id} className={['pane-section res-mode-panel', noMode ? 'is-empty' : ''].filter(Boolean).join(' ')}>
+              <div className="res-mode-top">
+                <h4>{group.label}</h4>
+                {hasNone ? (
+                  <button
+                    type="button"
+                    className={['res-mode-clear', noMode ? 'is-active' : ''].filter(Boolean).join(' ')}
+                    aria-pressed={noMode}
+                    onClick={() => updModeVl(group.controlKey, 'none')}
+                  >
+                    {noMode ? 'No mode' : 'Clear'}
+                  </button>
+                ) : null}
+              </div>
+              <div className="res-mode-list" role="radiogroup" aria-label={group.label}>
+                {noMode ? <p className="res-mode-empty">No resonance mode selected.</p> : null}
+                {modeItems.map((mode) => {
+                  const active = mode.id === modeValue
+
+                  return (
+                    <div
+                      key={`${group.id}-${mode.id}`}
+                      className={[
+                        'res-mode-entry',
+                        mode.icon ? 'has-icon' : 'no-icon',
+                        active ? 'is-active' : 'is-compact',
+                      ].filter(Boolean).join(' ')}
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={0}
+                      onClick={() => updModeVl(group.controlKey, mode.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          updModeVl(group.controlKey, mode.id)
+                        }
+                      }}
+                    >
+                      <span className="res-mode-glyph" aria-hidden="true">
+                        {mode.icon ? (
+                          <img src={mode.icon} alt="" onError={withDefIconM} />
+                        ) : (
+                          <span>{modeInitial(mode.label)}</span>
+                        )}
+                      </span>
+                      <div className="res-mode-copy">
+                        <div className="res-mode-name">
+                          <span>{mode.label}</span>
+                          {active ? <span className="res-mode-now">Active</span> : null}
+                        </div>
+                        {active && mode.body ? (
+                          <RichDscr
+                            description={mode.body}
+                            accentColor={curSldrClr}
+                            className="res-mode-body"
+                            xtrKywr={mrgDscrKywr(details?.descriptionKeywords, mode.keywords)}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+
         <div className="resonator-strip__head">
           <span className="weapon-effect__sigil" aria-hidden="true" />
           <span className="panel-overline">Inherent Skills</span>
@@ -865,8 +982,10 @@ export function Resonator({
         <div className="inherent-skills">
           {details?.inherentSkills.map((inherent) => {
             const locked = runtime.base.level < inherent.unlockLevel
-            const control = inherent.control
-            const statusLabel = locked ? 'Locked' : control ? 'Configurable' : 'Passive'
+            const controls = getResInherentControls(details, inherent)
+            const vsblCntr = controls.filter((control) => getCntrVsbl(control))
+            const footerCtrls = locked ? controls : vsblCntr
+            const statusLabel = locked ? 'Locked' : vsblCntr.length > 0 ? 'Configurable' : 'Passive'
 
             return (
               <article
@@ -894,9 +1013,10 @@ export function Resonator({
                   />
                 </div>
 
-                {(control || locked) && (
+                {(footerCtrls.length > 0 || locked) && (
                   <div className="sequence-card-footer inherent-skill-footer">
-                    {control ? viewCntrFld(control, { disabled: locked, className: 'inherent-skill-control' }) : null}
+                    {footerCtrls.map((control) =>
+                      viewCntrFld(control, { disabled: locked, className: 'inherent-skill-control' }))}
                     {locked ? <span className="inherent-lock">Unlocks at Lv. {inherent.unlockLevel}</span> : null}
                   </div>
                 )}
@@ -949,11 +1069,11 @@ export function Resonator({
         )}
 
         {details?.statePanels.map((panel) => {
-          if (!resVisible(runtime, panel.visibleWhen)) {
+          if (!resVisible(viewRuntime, panel.unlockWhen)) {
             return null
           }
 
-          const vsblCntr = panel.controls.filter((control) => getCntrVsbl(control))
+          const vsblCntr = getResPanelControls(details, panel).filter((control) => getCntrVsbl(control))
           if (vsblCntr.length === 0) {
             return null
           }
@@ -986,8 +1106,9 @@ export function Resonator({
             {details.resonanceChains
               .filter((entry) => entry.index <= runtime.base.sequence)
               .map((entry) => {
-                const sqncCntr = getRsnnChnCn(entry)
-                const sqncCntrStts = sqncCntr
+                const sqncCntr = getResChainControls(details, entry)
+                const vsblSqncCntr = sqncCntr.filter((control) => getCntrVsbl(control))
+                const sqncCntrStts = vsblSqncCntr
                   .map((control) => ({
                     control,
                     status: getSqncCntrS(control),
@@ -1023,9 +1144,9 @@ export function Resonator({
                       />
                     </div>
 
-                    {sqncCntr.length > 0 && (
+                    {vsblSqncCntr.length > 0 && (
                       <div className="sequence-card-footer">
-                        {sqncCntr.map((control) => viewCntrFld(control, {
+                        {vsblSqncCntr.map((control) => viewCntrFld(control, {
                             disabled: runtime.base.sequence < entry.index,
                             className: 'sequence-toggle-row',
                           }))}

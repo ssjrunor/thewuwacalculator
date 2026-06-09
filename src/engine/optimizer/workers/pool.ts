@@ -150,25 +150,30 @@ let activeRunId: number | null = null
 // the active run context is shared by the pool, but actual reuse happens
 // inside each worker once its first task lands.
 let actRunCtx: OptPoolRunCt | null = null
-// the theory combo producer is kept warm across runs so it hydrates game data
-// only once (it caches that internally). torn down in rstOptWrkrPo / cnclActOptWr.
-let thryProducer: Worker | null = null
+// the theory combo producers are kept warm across runs so they hydrate game
+// data only once each (cached internally). multiple producers shard the
+// (set-plan, main-row) unit space so combo generation, the dominant cost of a
+// theory run, parallelizes across CPU cores instead of serializing on one
+// thread while the GPU sits idle. torn down in rstOptWrkrPo / cnclActOptWr.
+let thryProducers: Worker[] = []
 
-function ensThryProd(): Worker {
-  if (thryProducer) {
-    return thryProducer
+// ensure at least `count` warm producer workers exist; returns the first
+// `count` of them.
+function ensThryProds(count: number): Worker[] {
+  while (thryProducers.length < count) {
+    thryProducers.push(new Worker(
+        new URL('@/engine/optimizer/workers/theoryProducer.worker.ts', import.meta.url),
+        { type: 'module' },
+    ))
   }
-
-  thryProducer = new Worker(
-      new URL('@/engine/optimizer/workers/theoryProducer.worker.ts', import.meta.url),
-      { type: 'module' },
-  )
-  return thryProducer
+  return thryProducers.slice(0, count)
 }
 
 function stopThryProd(): void {
-  thryProducer?.terminate()
-  thryProducer = null
+  for (const producer of thryProducers) {
+    producer.terminate()
+  }
+  thryProducers = []
 }
 
 function hasShrdRryBf(): boolean {
@@ -924,11 +929,24 @@ async function runThryBtcWr(
             : shrPckdTgtSk(execution),
       }
 
-  let producer: Worker | null = null
-  // detaches this run's listeners from the warm producer worker; set once the
-  // producer path wires them up. invoked in finally so the shared worker is
+  // detaches this run's listeners from the warm producer workers; set once the
+  // producer path wires them up. invoked in finally so the shared workers are
   // left clean regardless of how the run exits.
   let detachProducer: (() => void) | null = null
+
+  // theory production (combo enumeration) is the dominant cost of a GPU run and
+  // is embarrassingly parallel over (set-plan, main-row) units, so shard it
+  // across CPU cores. CPU-backend runs already saturate cores with evaluation
+  // workers, so they keep a single producer to avoid oversubscription.
+  //
+  // use as many producers as the CPU worker budget allows: finishing the
+  // generation sooner is what matters. (on thermally constrained machines the
+  // total combos/sec is capped by the power envelope regardless of producer
+  // count, so fewer-but-longer-running producers only sustain the load and
+  // throttle harder; more producers that finish faster is never worse.)
+  const producerCount = (useGpu && !lowMmryMode && totalCombos >= MIN_PAR_COMBOS)
+      ? Math.min(WORKER_COUNT.cpu, stmtJobs)
+      : 1
 
   try {
     if (workerCount <= 0) {
@@ -943,10 +961,10 @@ async function runThryBtcWr(
           hooks,
       )
     } else {
-      // reuse the warm producer worker across runs; its game-data hydration
+      // reuse the warm producer workers across runs; their game-data hydration
       // persists. per-run message listeners are added/removed below so the
-      // shared worker stays clean between runs.
-      producer = ensThryProd()
+      // shared workers stay clean between runs.
+      const producers = ensThryProds(producerCount)
 
       const rsblBtchLngt = effBatch * 5
       const inFlight = new Set<Promise<void>>()
@@ -955,8 +973,11 @@ async function runThryBtcWr(
         combos: Int32Array
         comboCount: number
         lockMainIdx: number
+        src: Worker
       }> = []
-      let producerDone = false
+      // number of producers still streaming; production is finished only when
+      // every shard has reported done and the queue has drained.
+      let producersRemaining = producers.length
       let producerError: Error | null = null
       let pendingResolve: (() => void) | null = null
       let genCmbs = 0
@@ -972,60 +993,80 @@ async function runThryBtcWr(
         }
       }
 
-      const onMessage = (event: MessageEvent<OptThryProdOu>) => {
-        const msg = event.data
-        if (msg.runId !== runId) {
-          return
-        }
+      // wire one producer's message/error listeners, tagging batches with their
+      // source worker so returned reuse buffers go back to the right producer.
+      const detachers: Array<() => void> = []
+      for (const producer of producers) {
+        const onMessage = (event: MessageEvent<OptThryProdOu>) => {
+          const msg = event.data
+          if (msg.runId !== runId) {
+            return
+          }
 
-        if (msg.type === 'theoryBatch') {
-          batchQueue.push({
-            combos: msg.combos,
-            comboCount: msg.comboCount,
-            lockMainIdx: msg.lockMainIdx,
-          })
+          if (msg.type === 'theoryBatch') {
+            batchQueue.push({
+              combos: msg.combos,
+              comboCount: msg.comboCount,
+              lockMainIdx: msg.lockMainIdx,
+              src: producer,
+            })
+            wake()
+            return
+          }
+
+          if (msg.type === 'theoryProducerDone') {
+            producersRemaining -= 1
+            wake()
+            return
+          }
+
+          producerError = new Error(msg.message)
           wake()
-          return
         }
 
-        if (msg.type === 'theoryProducerDone') {
-          producerDone = true
+        const onError = (event: ErrorEvent) => {
+          producerError = new Error(event.message || 'Theory producer worker failed unexpectedly')
           wake()
-          return
         }
 
-        producerError = new Error(msg.message)
-        wake()
+        producer.addEventListener('message', onMessage)
+        producer.addEventListener('error', onError)
+        detachers.push(() => {
+          producer.removeEventListener('message', onMessage)
+          producer.removeEventListener('error', onError)
+        })
       }
 
-      const onError = (event: ErrorEvent) => {
-        producerError = new Error(event.message || 'Theory producer worker failed unexpectedly')
-        wake()
-      }
-
-      producer.addEventListener('message', onMessage)
-      producer.addEventListener('error', onError)
-      const localProd = producer
       detachProducer = () => {
-        localProd.removeEventListener('message', onMessage)
-        localProd.removeEventListener('error', onError)
+        for (const detach of detachers) {
+          detach()
+        }
       }
 
-      const startMsg: OptThryProdIn = {
-        type: 'startTheoryProducer',
-        runId,
-        payload,
-        batchSize: effBatch,
+      const cancelAllProducers = () => {
+        const cancelMsg: OptThryProdIn = {
+          type: 'cancelTheoryProducer',
+          runId,
+        }
+        for (const producer of producers) {
+          producer.postMessage(cancelMsg)
+        }
       }
-      producer.postMessage(startMsg)
+
+      producers.forEach((producer, index) => {
+        const startMsg: OptThryProdIn = {
+          type: 'startTheoryProducer',
+          runId,
+          payload,
+          batchSize: effBatch,
+          shard: { index, count: producers.length },
+        }
+        producer.postMessage(startMsg)
+      })
 
       while (true) {
         if (activeRunId !== runId || hooks.isCancelled?.()) {
-          const cancelMsg: OptThryProdIn = {
-            type: 'cancelTheoryProducer',
-            runId,
-          }
-          producer.postMessage(cancelMsg)
+          cancelAllProducers()
           break
         }
 
@@ -1034,7 +1075,7 @@ async function runThryBtcWr(
         }
 
         if (batchQueue.length === 0) {
-          if (producerDone) {
+          if (producersRemaining <= 0) {
             break
           }
           await new Promise<void>((resolve) => {
@@ -1046,12 +1087,8 @@ async function runThryBtcWr(
         const batch = batchQueue.shift()!
         const rmnnCmbs = totalCombos - genCmbs
         if (rmnnCmbs <= 0) {
-          // tell the producer we're done; drain its trailing messages.
-          const cancelMsg: OptThryProdIn = {
-            type: 'cancelTheoryProducer',
-            runId,
-          }
-          producer.postMessage(cancelMsg)
+          // tell the producers we're done; drain their trailing messages.
+          cancelAllProducers()
           break
         }
 
@@ -1059,7 +1096,7 @@ async function runThryBtcWr(
         genCmbs += comboCount
         jobsSent += 1
 
-        const localProducer = producer
+        const localProducer = batch.src
         const jobPromise = (useGpu ? runGpuBtc : runTgtCpuBtc)(
             runId,
             batch.combos,

@@ -206,12 +206,18 @@ export interface SkillDef {
   tuneRuptureCritDmg?: number
   negativeEffectCritRate?: number
   negativeEffectCritDmg?: number
+  stackMode?: 'fixedMax'
+  stackMax?: number
   levelSource?: SkillLevelSrc | null
   visible?: boolean
   visibleWhen?: CondExpr
   skillTypeWhen?: Array<{
     when: CondExpr
     skillType: SkillTypeKey[]
+  }>
+  skillVariantWhen?: Array<{
+    when: CondExpr
+    patch: SkillVariantPatch
   }>
   hits: Array<{
     label?: string
@@ -221,6 +227,8 @@ export interface SkillDef {
   hitTable?: SkillHitTable[]
   fixedMv?: number
 }
+
+export type SkillVariantPatch = Partial<Omit<SkillDef, 'id' | 'skillVariantWhen'>>
 
 export interface SkillCalcResult {
   normal: number

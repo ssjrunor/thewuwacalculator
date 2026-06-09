@@ -84,6 +84,7 @@ export function mkTgtGpuSttc(payload: TargetGpuState): string {
     `index:${hashTypdRry(payload.comboIndexMap)}`,
     `binom:${hashTypdRry(payload.comboBinom)}`,
     `locked:${hashTypdRry(payload.lockMainCands)}`,
+    `wpn:${payload.weaponOverlays ? hashTypdRry(payload.weaponOverlays) : '0'}`,
   ].join('|')
 }
 
@@ -110,6 +111,8 @@ export function makeTargetGpu(
     comboBinom: payload.comboBinom,
     lockMainReq: payload.lockMainReq,
     lockMainCands: payload.lockMainCands,
+    weaponOverlays: payload.weaponOverlays,
+    weaponCount: payload.weaponCount,
   }
 }
 

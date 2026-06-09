@@ -18,7 +18,7 @@ import {
   getTeamTgtPt,
 } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
-import { evalSourceState } from '@/modules/calculator/model/sourceEval.ts'
+import { evalSrcStt } from '@/modules/calculator/model/sourceEval.ts'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
 import { withDefIconM } from '@/shared/lib/imageFallback'
 import { RichDscr } from '@/shared/ui/RichDescription'
@@ -46,11 +46,11 @@ function mkTeamTgtSel(props: {
   }
 
   const options = getTeamTgtPt(actRt, srcRt.id, mode)
-  const currentValue = getSelTrgt(sttWnrKey)
+  const curVal = getSelTrgt(sttWnrKey)
   const fllbVl = options[0]?.value ?? ''
   const selVl =
-    typeof currentValue === 'string' && options.some((option) => option.value === currentValue)
-      ? currentValue
+    typeof curVal === 'string' && options.some((option) => option.value === curVal)
+      ? curVal
       : fllbVl
 
   return (
@@ -88,7 +88,7 @@ function EchoSetBnsCa({
 
   const vsblStts = useMemo(() => {
     return listStatesFor('echoSet', String(setId)).filter((state) =>
-      evalSourceState(runtime, runtime, state, actRt),
+      evalSrcStt(runtime, runtime, state, actRt),
     )
   }, [actRt, runtime, setId])
 
@@ -272,7 +272,7 @@ export function RtMainEchoPn({
     }
 
     return listStatesFor(mainEchoSrc.type, mainEchoSrc.id).filter((state) =>
-      evalSourceState(runtime, runtime, state, actRt),
+      evalSrcStt(runtime, runtime, state, actRt),
     )
   }, [actRt, mainEchoSrc, runtime])
 

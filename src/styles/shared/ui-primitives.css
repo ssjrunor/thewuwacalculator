@@ -154,7 +154,6 @@
   color: var(--text, #1b2435);
   border: var(--ui-surface-border);
   border-radius: var(--ui-surface-radius);
-
   box-shadow: var(--ui-surface-shadow);
 }
 
@@ -757,20 +756,8 @@ input[type='range']::-moz-range-thumb:hover {
   font-size: 0.84rem;
   font-weight: 600;
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cb-bg) 28%, var(--item-border));
-  transition: background 200ms ease, box-shadow 200ms ease;
+  transition: background 300ms ease, box-shadow 300ms ease;
 }
-
-/* {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
-  border-radius: 0.95rem;
-  background: color-mix(in srgb, var(--item-bg) 96%, transparent);
-  align-items: center;
-}*/
 
 .toggle-row:has(input[type='checkbox']:checked),
 .toggle-row.is-active,
@@ -1142,6 +1129,7 @@ label.is-disabled {
   line-height: 1.4;
   font-size: 0.9rem;
   white-space: unset;
+  transition: color 0.3s ease;
   cursor: initial;
 }
 
@@ -1259,7 +1247,7 @@ label.is-disabled {
   margin-top: 0;
   position: relative;
   display: grid;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
   border-radius: var(--ui-panel-card-radius);
   padding: var(--ui-panel-card-padding);
   box-shadow: var(--ui-panel-card-shadow);

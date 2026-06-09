@@ -15,6 +15,7 @@ import {
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects.ts'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
+import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
 import type {
   OptBagResult,
   OptRawResult,
@@ -51,6 +52,38 @@ export function plchRslt(): OptDisplayRow {
     costs: null,
     sets: [],
     mainEchoIcon: null,
+    weaponIcon: null,
+    weaponName: null,
+  }
+}
+
+// resolve the chosen weapon (id, icon, name) for one result, if weapon search
+// produced one. raw theory bag results carry an index into the run's weaponIds;
+// materialized theory results carry the resolved weaponId directly.
+function weaponDisplay(
+    entry: OptBagResult | LegOptRsltEn | TheoryResult | TheoryResultRow,
+    payload: PrepOptPay | null,
+): { weaponIcon: string | null; weaponName: string | null } {
+  let weaponId: string | null = null
+
+  if (entry && typeof entry === 'object' && 'weaponId' in entry && entry.weaponId) {
+    weaponId = entry.weaponId
+  } else if (
+      entry && typeof entry === 'object' && 'weapon' in entry &&
+      typeof entry.weapon === 'number' && entry.weapon >= 0 &&
+      payload && 'weaponIds' in payload && payload.weaponIds
+  ) {
+    weaponId = payload.weaponIds[entry.weapon] ?? null
+  }
+
+  if (!weaponId) {
+    return { weaponIcon: null, weaponName: null }
+  }
+
+  const weapon = getWpnById(weaponId)
+  return {
+    weaponIcon: weapon?.icon ?? null,
+    weaponName: weapon?.name ?? null,
   }
 }
 
@@ -202,6 +235,7 @@ function dsplRowFor(
   ctx: RsltDsplCtx,
 ): OptDisplayRow {
   const { invChsByUid, optResultEchoes: ptmzRsltChs, optResultData: ptmzRsltPyld } = ctx
+  const weapon = weaponDisplay(entry, ptmzRsltPyld)
 
   if (isThryPay(ptmzRsltPyld) && isRawThry(entry)) {
     const summary = isBagRslt(entry)
@@ -212,6 +246,7 @@ function dsplRowFor(
       costs: summary.costs,
       sets: summary.sets,
       mainEchoIcon: summary.mainEchoIcon,
+      ...weapon,
       stats: evalThryRsltS(ptmzRsltPyld, entry),
     }
   }
@@ -223,6 +258,7 @@ function dsplRowFor(
       costs: summary.costs,
       sets: summary.sets,
       mainEchoIcon: summary.mainEchoIcon,
+      ...weapon,
       stats: entry.stats ?? null,
     }
   }
@@ -235,6 +271,7 @@ function dsplRowFor(
       costs: summary.costs,
       sets: summary.sets,
       mainEchoIcon: summary.mainEchoIcon,
+      ...weapon,
       stats: entry.stats ?? null,
     }
   }
@@ -250,6 +287,7 @@ function dsplRowFor(
     costs: summary.costs,
     sets: summary.sets,
     mainEchoIcon: summary.mainEchoIcon,
+    ...weapon,
     stats: ptmzRsltPyld
       ? evalOptBagcz(ptmzRsltPyld, entry)
       : null,

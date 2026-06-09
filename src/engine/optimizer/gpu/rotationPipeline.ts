@@ -13,6 +13,13 @@ import {
 // cache the layout/pipeline so shader setup only happens once per session
 let cchdRotLyt: GPUBindGroupLayout | null = null
 let cchdRotPpln: GPUComputePipeline | null = null
+let cchdRotBatchPpln: GPUComputePipeline | null = null
+
+// theory batch runs one combo per thread so every combo gets its own candidate
+// slot. inventory uses the default multi-cycle pipeline, where one thread keeps
+// only the best of its window, since its combo space is far too large to emit one
+// candidate each.
+const BATCH_CYCLES = 1
 
 export async function getRotGpuPpl(device: GPUDevice): Promise<{
   layout: GPUBindGroupLayout
@@ -85,4 +92,23 @@ export async function getRotGpuPpl(device: GPUDevice): Promise<{
     layout: cchdRotLyt,
     pipeline: cchdRotPpln,
   }
+}
+
+// batch (theory) pipeline: one combo per thread (CYCLES_PER_INVOCATION = 1) so
+// every combo produces its own candidate. shares the default bind-group layout.
+export async function getRotBatchPpl(device: GPUDevice): Promise<GPUComputePipeline> {
+  if (cchdRotBatchPpln) {
+    return cchdRotBatchPpln
+  }
+
+  const { layout } = await getRotGpuPpl(device)
+  cchdRotBatchPpln = await mkChckCmptPp({
+    device,
+    label: 'optimizer-rebuild-rotation-pipeline-batch',
+    layout,
+    code: rotShdrCode,
+    constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
+  })
+
+  return cchdRotBatchPpln
 }

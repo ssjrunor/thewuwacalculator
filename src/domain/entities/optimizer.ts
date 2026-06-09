@@ -33,11 +33,16 @@ export interface OptSets {
   allowedSets: OptSetChoice
   mainStatFilter: string[]
   selectedBonus: string | null
+  // inventory mode only: hide echoes equipped by other resonators.
+  excludeEquipped: boolean
+  // theory mode only: search the best weapon per build and show it as a column.
+  includeWeapons: boolean
   statConstraints: Record<string, OptStatCstr>
 }
 
 export interface OptContext {
   resonatorId: ResonatorId
   runtime: ResRuntime
+  sourceRuntimeSig: string
   settings: OptSets
 }

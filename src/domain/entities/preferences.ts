@@ -9,6 +9,7 @@ export interface UiPrefs {
   updateToast: boolean
   recommendedMenuItems: boolean
   showUnquantifiedOverviewStates: boolean
+  maxResOnInit: boolean
 }
 
 export const DEF_UI_PREFS: UiPrefs = {
@@ -16,4 +17,5 @@ export const DEF_UI_PREFS: UiPrefs = {
   updateToast: true,
   recommendedMenuItems: false,
   showUnquantifiedOverviewStates: false,
+  maxResOnInit: true,
 }

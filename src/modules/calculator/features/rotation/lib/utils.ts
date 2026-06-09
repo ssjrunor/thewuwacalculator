@@ -18,7 +18,7 @@ import type {
     RtChng,
     SourceState
 } from "@/domain/gameData/contracts.ts";
-import {evalSourceState} from "@/modules/calculator/model/sourceEval.ts";
+import {evalSrcStt} from "@/modules/calculator/model/sourceEval.ts";
 import {listStatesFor} from "@/domain/services/gameDataService.ts";
 import {getMainEchoS} from "@/domain/services/runtimeSourceService.ts";
 import {countEchoSets} from "@/engine/pipeline/buildCombatContext.ts";
@@ -98,7 +98,7 @@ export function listRotMemSt(
                 continue
             }
 
-            if (!evalSourceState(memRt, memRt, state, actRt)) {
+            if (!evalSrcStt(memRt, memRt, state, actRt)) {
                 continue
             }
 

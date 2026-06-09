@@ -537,11 +537,11 @@ describe('simulation pipeline', () => {
     const baseline = withoutWeapon(makeResRuntime(seed))
     const absolution = withoutWeapon(makeResRuntime(seed))
     absolution.base.level = 70
-    absolution.state.controls['resonator:1506:absolution:active'] = true
+    absolution.state.controls['resonator:1506:mode:value'] = 'absolution'
     absolution.state.combat.spectroFrazzle = 1
 
     const confession = withoutWeapon(makeResRuntime(seed))
-    confession.state.controls['resonator:1506:confession:active'] = true
+    confession.state.controls['resonator:1506:mode:value'] = 'confession'
     confession.state.controls['resonator:1506:attentive_heart:active'] = true
 
     const sequence = withoutWeapon(makeResRuntime(seed))
@@ -806,7 +806,7 @@ describe('simulation pipeline', () => {
     const targetRuntime = makeResRuntime(targetSeed)
 
     activeRuntime.build.team = [activeSeed.id, phoebeSeed.id, targetSeed.id]
-    phoebeRuntime.state.controls['resonator:1506:confession:active'] = true
+    phoebeRuntime.state.controls['resonator:1506:mode:value'] = 'confession'
     phoebeRuntime.state.controls['resonator:1506:attentive_heart:active'] = true
     const runtimesById = {
       [activeSeed.id]: activeRuntime,
@@ -903,12 +903,12 @@ describe('simulation pipeline', () => {
     const secondPhoebeRuntime = makeResRuntime(phoebeSeed)
     const shorekeeperRuntime = makeResRuntime(shorekeeperSeed)
 
-    phoebeRuntime.state.controls['resonator:1506:confession:active'] = true
+    phoebeRuntime.state.controls['resonator:1506:mode:value'] = 'confession'
     phoebeRuntime.state.controls['resonator:1506:attentive_heart:active'] = true
 
-    expect(secondPhoebeRuntime.state.controls['resonator:1506:confession:active']).toBe(false)
+    expect(secondPhoebeRuntime.state.controls['resonator:1506:mode:value']).toBe('none')
     expect(secondPhoebeRuntime.state.controls['resonator:1506:attentive_heart:active']).toBe(false)
-    expect(shorekeeperRuntime.state.controls['resonator:1506:confession:active']).toBeUndefined()
+    expect(shorekeeperRuntime.state.controls['resonator:1506:mode:value']).toBeUndefined()
     expect(shorekeeperRuntime.state.controls['resonator:1505:inner_stellarealm:active']).toBe(false)
   })
 
@@ -925,7 +925,7 @@ describe('simulation pipeline', () => {
 
     const teamMemberRuntimeView = mkDefTeamMem(teammateSeed)
     teamMemberRuntimeView.base.sequence = 2
-    teamMemberRuntimeView.state.controls['resonator:1506:confession:active'] = true
+    teamMemberRuntimeView.state.controls['resonator:1506:mode:value'] = 'confession'
 
     const teammateRuntime = matTeamMemRt(
       teammateSeed,
@@ -937,7 +937,7 @@ describe('simulation pipeline', () => {
     expect(teammateRuntime.base.level).toBe(90)
     expect(teammateRuntime.base.skillLevels.normalAttack).toBe(10)
     expect(teammateRuntime.build.team).toEqual(activeRuntime.build.team)
-    expect(teammateRuntime.state.controls['resonator:1506:confession:active']).toBe(true)
+    expect(teammateRuntime.state.controls['resonator:1506:mode:value']).toBe('confession')
   })
 
   it('applies post-stats formulas from final assembled stats instead of the raw working pool', () => {

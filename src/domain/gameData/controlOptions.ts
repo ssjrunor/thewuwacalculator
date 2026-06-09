@@ -5,15 +5,45 @@
 */
 
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
-import type { ResStateControl } from '@/domain/entities/resonator'
+import type {
+  ResControlOption,
+  ResControlOptionValue,
+  ResStateControl,
+} from '@/domain/entities/resonator'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { SourceState, SrcSttPtn } from '@/domain/gameData/contracts'
+import { getResStateControls } from '@/domain/gameData/resonatorStateGraph'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import { evalCond } from '@/engine/effects/evaluator'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+type ResResolvedControlOption = {
+  value: ResControlOptionValue
+  label: string
+}
+
+export function normResCntrOpt(
+  option: ResControlOptionValue | ResControlOption,
+): ResResolvedControlOption {
+  if (typeof option === 'object') {
+    return {
+      value: option.id,
+      label: option.label,
+    }
+  }
+
+  return {
+    value: option,
+    label: String(option),
+  }
+}
+
+function sameSelectValue(left: unknown, right: unknown): boolean {
+  return String(left) === String(right)
 }
 
 export function mkResCntrScp(runtime: ResRuntime) {
@@ -49,7 +79,7 @@ export function mkResCntrScp(runtime: ResRuntime) {
 export function resResCntrPt(
   runtime: ResRuntime,
   control: ResStateControl,
-): number[] {
+): Array<ResControlOptionValue | ResControlOption> {
   const scope = mkResCntrScp(runtime)
 
   for (const optionSet of control.optionsWhen ?? []) {
@@ -70,21 +100,41 @@ export function resResCntrPt(
 export function getResCntrNc(
   control: ResStateControl,
   runtime?: ResRuntime,
-): boolean | number {
-  if (control.defaultValue !== undefined) {
-    return control.defaultValue
-  }
-
+): boolean | number | string {
   if (control.kind === 'toggle') {
-    return false
+    return control.defaultValue ?? false
   }
 
   if (control.kind === 'select') {
-    const firstOption = runtime ? resResCntrPt(runtime, control)[0] : control.options?.[0]
-    return control.min ?? firstOption ?? 0
+    const options = runtime ? resResCntrPt(runtime, control) : control.options
+    const defaultValue = control.defaultValue
+    if (
+      defaultValue !== undefined
+      && (!options?.length || options.some((option) => sameSelectValue(normResCntrOpt(option).value, defaultValue)))
+    ) {
+      return defaultValue
+    }
+
+    const firstOption = options?.[0]
+    return firstOption === undefined ? control.min ?? '' : normResCntrOpt(firstOption).value
   }
 
-  return control.min ?? 0
+  return control.defaultValue ?? control.min ?? 0
+}
+
+export function getResNumMax(
+  runtime: ResRuntime,
+  control: Pick<ResStateControl, 'max' | 'maxWhen'>,
+): number | undefined {
+  const scope = mkResCntrScp(runtime)
+
+  for (const entry of control.maxWhen ?? []) {
+    if (evalCond(entry.when, scope)) {
+      return entry.max
+    }
+  }
+
+  return control.max
 }
 
 export function normResRtCnt(
@@ -96,13 +146,25 @@ export function normResRtCnt(
     return controls
   }
 
-  const vlblCntr = [
-    ...details.statePanels.flatMap((panel) => panel.controls),
-    ...details.resonanceChains.flatMap((entry) => entry.controls ?? []),
-  ]
+  const vlblCntr = getResStateControls(details)
 
   const nextControls = { ...controls }
   let changed = false
+
+  for (const control of vlblCntr) {
+    if (nextControls[control.key] !== undefined) {
+      continue
+    }
+
+    nextControls[control.key] = getResCntrNc(control, {
+      ...runtime,
+      state: {
+        ...runtime.state,
+        controls: nextControls,
+      },
+    })
+    changed = true
+  }
 
   for (const control of vlblCntr) {
     const scpdRt = {
@@ -111,6 +173,18 @@ export function normResRtCnt(
         ...runtime.state,
         controls: nextControls,
       },
+    }
+
+    const unavailable = !evalCond(control.visibleWhen, mkResCntrScp(scpdRt))
+      || !(control.controlDependencies ?? []).every((controlKey) => Boolean(nextControls[controlKey]))
+
+    if (unavailable) {
+      const nctvVl = getResCntrNc(control, scpdRt)
+      if (nextControls[control.key] !== nctvVl) {
+        nextControls[control.key] = nctvVl
+        changed = true
+      }
+      continue
     }
 
     if (control.disabledWhen && nextControls[control.disabledWhen.key] === control.disabledWhen.equals) {
@@ -124,9 +198,9 @@ export function normResRtCnt(
 
     if (control.kind === 'select') {
       const options = resResCntrPt(scpdRt, control)
-      const currentValue = Number(nextControls[control.key] ?? Number.NaN)
+      const currentValue = nextControls[control.key]
 
-      if (!options.includes(currentValue)) {
+      if (!options.some((option) => sameSelectValue(normResCntrOpt(option).value, currentValue))) {
         nextControls[control.key] = getResCntrNc(control, scpdRt)
         changed = true
       }
@@ -135,11 +209,7 @@ export function normResRtCnt(
 
     if (control.kind === 'number') {
       const min = control.min ?? 0
-      const max = control.sequenceAwareCap
-        ? runtime.base.sequence >= control.sequenceAwareCap.threshold
-          ? control.sequenceAwareCap.atOrAbove
-          : control.sequenceAwareCap.below
-        : control.max
+      const max = getResNumMax(scpdRt, control)
 
       const numericValue = Number(nextControls[control.key] ?? min)
       const boundedValue = max == null
@@ -230,11 +300,19 @@ export function getSrcSttNct(
   actRt: ResRuntime = tgtRt,
 ): boolean | number | string {
   if (state.kind === 'toggle') {
-    return false
+    return state.defaultValue ?? false
   }
 
   if (state.kind === 'select') {
-    return state.defaultValue ?? sourceOptions(srcRt, tgtRt, state, actRt)[0]?.id ?? ''
+    const options = sourceOptions(srcRt, tgtRt, state, actRt)
+    if (
+      state.defaultValue !== undefined
+      && (!options.length || options.some((option) => sameSelectValue(option.id, state.defaultValue)))
+    ) {
+      return state.defaultValue
+    }
+
+    return options[0]?.id ?? ''
   }
 
   return state.defaultValue ?? state.min ?? 0

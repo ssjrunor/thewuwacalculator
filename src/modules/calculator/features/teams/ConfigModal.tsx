@@ -8,6 +8,9 @@ import { Settings2, Swords } from 'lucide-react'
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime.ts'
 import { cloneEchoLdt, type InventoryEntry } from '@/domain/entities/inventoryStorage.ts'
 import type { SourceState } from '@/domain/gameData/contracts.ts'
+import { getResStateControls } from '@/domain/gameData/resonatorStateGraph'
+import { initWpnStts } from '@/domain/state/sourceStateInit.ts'
+import { useAppStore } from '@/domain/state/store.ts'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
 import { listStatesFor, listOwnersFor } from '@/domain/services/gameDataService.ts'
 import { applyCscdRst, getStateTeamTag, getTeamTgtPt, isSourceVisible } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
@@ -152,13 +155,13 @@ export function ConfigModal({
   setSelTgt: setSelTrgt,
   onClose,
 }: TeamMemCnfgM) {
+  const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const [selBldId, setSelBldId] = useState<string>('')
 
   const vlblCntr = useMemo(() => [
-    // teammate state controls include both normal panels and resonance-chain controls because cascade resets can cross
-    // those groups.
-    ...member.statePanels.flatMap((panel) => panel.controls),
-    ...member.resonanceChains.flatMap((entry) => entry.controls ?? []),
+    // teammate state controls include normal panels, modes, inherents, and resonance-chain controls because cascade
+    // resets can cross those groups.
+    ...getResStateControls(member),
   ], [member])
 
   const cscdRtUpd: RtUpdHnd = useCallback((updater) => {
@@ -234,37 +237,23 @@ export function ConfigModal({
     const selected = weapons.find((w) => w.id === nextWeaponId)
     if (!selected) return
     const stats = weaponStatsAt(selected, 90)
-    const newWpnStts = listStatesFor('weapon', nextWeaponId)
 
     onRtPdt((prev) => {
-      const nextControls = { ...prev.state.controls }
-      // clear old weapon states before adding defaults so stale passive toggles cannot survive a weapon swap.
-      if (prev.build.weapon.id && !isNoWeaponId(prev.build.weapon.id)) {
-        const oldPrefix = `weapon:${prev.build.weapon.id}:`
-        for (const key of Object.keys(nextControls)) {
-          if (key.startsWith(oldPrefix)) {
-            delete nextControls[key]
-          }
-        }
-      }
-      // apply new weapon state defaults because some passives are on by default when the weapon is equipped.
-      for (const state of newWpnStts) {
-        if (state.defaultValue !== undefined) {
-          const controlKey = state.path.replace(/^runtime\.state\.controls\./, '')
-          nextControls[controlKey] = state.defaultValue
-        }
-      }
-
-      return {
+      const nextRuntime = {
         ...prev,
         build: {
           ...prev.build,
           weapon: { id: selected.id, level: 90, rank: 1, baseAtk: stats.atk },
         },
-        state: { ...prev.state, controls: nextControls },
       }
+
+      return initWpnStts(nextRuntime, {
+        weaponId: selected.id,
+        prevWpnId: prev.build.weapon.id,
+        maxed: maxWpnOnInit,
+      })
     })
-  }, [weapons, onRtPdt])
+  }, [maxWpnOnInit, weapons, onRtPdt])
 
   const onRankChng = useCallback((rank: number) => {
     const nextRank = Math.max(1, Math.min(5, Math.round(rank)))
@@ -286,29 +275,8 @@ export function ConfigModal({
       const mkWpnStts = wpnMtchType && buildWeapon
         ? weaponStatsAt(buildWeapon, 90)
         : null
-      let nextControls = prev.state.controls
 
-      if (wpnMtchType && mkWpnId) {
-        nextControls = { ...prev.state.controls }
-
-        if (prev.build.weapon.id && !isNoWeaponId(prev.build.weapon.id)) {
-          const oldPrefix = `weapon:${prev.build.weapon.id}:`
-          for (const key of Object.keys(nextControls)) {
-            if (key.startsWith(oldPrefix)) {
-              delete nextControls[key]
-            }
-          }
-        }
-
-        for (const state of listStatesFor('weapon', mkWpnId)) {
-          if (state.defaultValue !== undefined) {
-            const controlKey = state.path.replace(/^runtime\.state\.controls\./, '')
-            nextControls[controlKey] = state.defaultValue
-          }
-        }
-      }
-
-      return {
+      const nextRuntime = {
         ...prev,
         build: {
           ...prev.build,
@@ -323,13 +291,17 @@ export function ConfigModal({
             : prev.build.weapon,
           echoes: cloneEchoLdt(selMk.build.echoes),
         },
-        state: {
-          ...prev.state,
-          controls: nextControls,
-        },
       }
+
+      return wpnMtchType && mkWpnId
+        ? initWpnStts(nextRuntime, {
+          weaponId: mkWpnId,
+          prevWpnId: prev.build.weapon.id,
+          maxed: maxWpnOnInit,
+        })
+        : nextRuntime
     })
-  }, [member.weaponType, onRtPdt, selMk])
+  }, [maxWpnOnInit, member.weaponType, onRtPdt, selMk])
 
   if (!visible) {
     return null

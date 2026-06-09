@@ -10,11 +10,13 @@ import { cloneSntSet, type SntSetConds } from '@/domain/entities/sonataSetCondit
 import type { RandGnrtSets, RandGnrtSetP, WeaponPlanSet } from '@/domain/entities/suggestions.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
+import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils.ts'
 import { fmtCmpcNmbr, fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
 import { getQppdEchoC, sortByCost } from '@/modules/calculator/features/echoes/lib/echoes.ts'
 
 export type { SuggsViewMod } from '@/domain/entities/suggestions.ts'
+export { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 
 export const ROT_TGT_VL = '__rotation__'
 
@@ -133,37 +135,6 @@ export function strnSrtdRcrd(record: Record<string, unknown>): string {
       `${key}:${typeof value === 'object' && value != null ? JSON.stringify(value) : String(value)}`
     ))
     .join('||')
-}
-
-// serialize the active runtime fields that affect suggestion output
-export function runtimeSig(runtime: ResRuntime): string {
-  return JSON.stringify({
-    id: runtime.id,
-    base: runtime.base,
-    build: {
-      weapon: runtime.build.weapon,
-      team: runtime.build.team,
-      echoes: runtime.build.echoes.map((echo) => (
-        echo
-          ? {
-            uid: echo.uid,
-            id: echo.id,
-            set: echo.set,
-            mainEcho: echo.mainEcho,
-            mainStats: echo.mainStats,
-            substats: Object.entries(echo.substats).sort(([left], [right]) => left.localeCompare(right)),
-          }
-          : null
-      )),
-    },
-    state: {
-      controls: Object.entries(runtime.state.controls).sort(([left], [right]) => left.localeCompare(right)),
-      manualBuffs: runtime.state.manualBuffs,
-      combat: runtime.state.combat,
-    },
-    rotation: runtime.rotation,
-    teamRuntimes: runtime.teamRuntimes,
-  })
 }
 
 // serialize enemy settings that affect the suggestion engine

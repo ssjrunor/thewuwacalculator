@@ -267,7 +267,6 @@ export function getBuildSig(build: SavedBuildSnap): string {
     build.weapon.id ?? '',
     build.weapon.level,
     build.weapon.rank,
-    build.weapon.baseAtk,
     getEchoLdtSi(build.echoes),
   ].join('::')
 

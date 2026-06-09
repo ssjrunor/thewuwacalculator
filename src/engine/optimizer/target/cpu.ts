@@ -50,12 +50,12 @@ import {
   DMG_VULN,
   TOGGLES,
   MAIN_FIRST,
+  WEAPON_OVERLAY_SLOTS,
+  WEAPON_OVERLAY_STRIDE,
+  ECHO_STAT_STRIDE,
+  MAIN_BUFF_LEN,
+  SET_SLOT_COUNT,
 } from '@/engine/optimizer/config/constants.ts'
-
-// encoded row sizes used by the optimizer buffers
-const STATS_PER_ECHO = 20
-const MAIN_BUFF_SIZE = 18
-const SET_SLOTS = 33
 
 // offsets for the packed per-echo stat rows
 const STAT_ATK_PCT = 0
@@ -94,8 +94,8 @@ const MAIN_ELECTRO = 11
 const MAIN_ER = 12
 const MAIN_ECHO_SKILL = 13
 const MAIN_COORD = 14
-// see encode/echoes.ts for the layout; these three slots cover top_stat
-// contributions (cr/cd/dmgBonus) that previously fell on the floor.
+// see encode/echoes.ts for the layout; these three slots carry the main echo's
+// top_stat contributions (cr/cd/dmgBonus).
 const MAIN_CR = 15
 const MAIN_CD = 16
 const MAIN_DMG_BNS = 17
@@ -281,8 +281,10 @@ function prprTgtCpuCt(context: Float32Array): PrepTgtCpuCt {
   return prepared
 }
 
-// build the raw combo stat vector and per-set unique-kind counts for one 5-echo combo
-function mkCmbBaseStt(
+// build the raw combo stat vector and per-set unique-kind counts for one 5-echo
+// combo. depends only on the combo, so a caller evaluating one combo against
+// many contexts/weapons can build it once and pass it to evalTgtCpuCmPrepped.
+export function mkCmbBaseStt(
     scratch: CpuScratch,
     stats: Float32Array,
     sets: Uint8Array,
@@ -299,15 +301,15 @@ function mkCmbBaseStt(
 
   for (let comboIndex = 0; comboIndex < comboIds.length; comboIndex += 1) {
     const echoIndex = comboIds[comboIndex]
-    const statsBase = echoIndex * STATS_PER_ECHO
+    const statsBase = echoIndex * ECHO_STAT_STRIDE
 
     // add the current echo's packed stat row into the combo base vector
-    for (let offset = 0; offset < STATS_PER_ECHO; offset += 1) {
+    for (let offset = 0; offset < ECHO_STAT_STRIDE; offset += 1) {
       base[offset] += stats[statsBase + offset]
     }
 
     const setId = sets[echoIndex]
-    if (setId < 0 || setId >= SET_SLOTS) {
+    if (setId < 0 || setId >= SET_SLOT_COUNT) {
       continue
     }
 
@@ -336,8 +338,9 @@ function mkCmbBaseStt(
   return tchdSetCnt
 }
 
-// clear only the touched set slots so the scratch buffer can be reused cheaply
-function clrCmbSetStt(scratch: CpuScratch, tchdSetCnt: number): void {
+// clear only the touched set slots so the scratch buffer can be reused cheaply.
+// exported alongside mkCmbBaseStt so callers that aggregate once can also clear once.
+export function clrCmbSetStt(scratch: CpuScratch, tchdSetCnt: number): void {
   for (let index = 0; index < tchdSetCnt; index += 1) {
     const setId = scratch.tchdSetIds[index]
     scratch.setCounts[setId] = 0
@@ -345,13 +348,13 @@ function clrCmbSetStt(scratch: CpuScratch, tchdSetCnt: number): void {
   }
 }
 
-export function evalTgtCpuCm(options: {
+// evaluate one combo against one context. the combo's echo-stat aggregate
+// (scratch.baseCmbVctr + scratch.setCounts) must already be built by mkCmbBaseStt;
+// the same aggregate serves every context and weapon for that combo.
+export function evalTgtCpuCmPrepped(options: {
   context: Float32Array
-  stats: Float32Array
   setConstLut: Float32Array
   mainEchoBuffs: Float32Array
-  sets: Uint8Array
-  kinds: Uint16Array
   constraints: Float32Array
   comboIds: Int32Array
   lockMainIdx: number
@@ -359,11 +362,8 @@ export function evalTgtCpuCm(options: {
 }): { damage: number; mainIndex: number } | null {
   const {
     context,
-    stats,
     setConstLut,
     mainEchoBuffs: mainEchoBuffs,
-    sets,
-    kinds,
     constraints,
     comboIds,
     lockMainIdx: lockMainNdx,
@@ -371,7 +371,6 @@ export function evalTgtCpuCm(options: {
   } = options
 
   const prepared = prprTgtCpuCt(context)
-  const tchdSetCnt = mkCmbBaseStt(scratch, stats, sets, kinds, comboIds)
   const base = scratch.baseCmbVctr
   const setCounts = scratch.setCounts
 
@@ -423,7 +422,7 @@ export function evalTgtCpuCm(options: {
           ? lockMainNdx
           : comboIds[index]
 
-    const mainBase = mainIndex * MAIN_BUFF_SIZE
+    const mainBase = mainIndex * MAIN_BUFF_LEN
     const finalER = finalERBase + mainEchoBuffs[mainBase + MAIN_ER]
 
     // set 14 conditional er threshold bonus
@@ -514,7 +513,8 @@ export function evalTgtCpuCm(options: {
             prepared.defMult *
             prepared.dmgReduction *
             prepared.dmgBonus *
-            prepared.dmgAmplify
+            prepared.dmgAmplify *
+            prepared.aux0
 
         const critRate = Math.max(0, Math.min(1, prepared.critRate))
         const critDmg = prepared.critDmg
@@ -602,12 +602,102 @@ export function evalTgtCpuCm(options: {
     }
   }
 
-  clrCmbSetStt(scratch, tchdSetCnt)
-
   return bestMainIndex >= 0
       ? {
         damage: bestDamage,
         mainIndex: bestMainIndex,
       }
+      : null
+}
+
+// evaluate one combo against one context, aggregating the combo's echo stats
+// first. single-shot entry point for evaluating one combo in isolation.
+export function evalTgtCpuCm(options: {
+  context: Float32Array
+  stats: Float32Array
+  setConstLut: Float32Array
+  mainEchoBuffs: Float32Array
+  sets: Uint8Array
+  kinds: Uint16Array
+  constraints: Float32Array
+  comboIds: Int32Array
+  lockMainIdx: number
+  scratch: CpuScratch
+}): { damage: number; mainIndex: number } | null {
+  const tchdSetCnt = mkCmbBaseStt(
+      options.scratch,
+      options.stats,
+      options.sets,
+      options.kinds,
+      options.comboIds,
+  )
+  const result = evalTgtCpuCmPrepped(options)
+  clrCmbSetStt(options.scratch, tchdSetCnt)
+  return result
+}
+
+// compose W full packed contexts from a shared base context and the per-weapon
+// stat overlays. only WEAPON_OVERLAY_SLOTS differ per weapon; everything else
+// (set mask, scaling, enemy, archetype, meta) is weapon-invariant and copied
+// from base. built once per run, then reused across every combo.
+export function composeWeaponContexts(
+    base: Float32Array,
+    overlays: Float32Array,
+    count: number,
+): Float32Array[] {
+  const out: Float32Array[] = []
+  for (let w = 0; w < count; w += 1) {
+    out.push(composeOneWeaponContext(base, overlays, w))
+  }
+  return out
+}
+
+// the base context with just one weapon's overlay applied, used to recompute a
+// single result's display stats against the weapon the search chose for it.
+export function composeOneWeaponContext(
+    base: Float32Array,
+    overlays: Float32Array,
+    weaponIndex: number,
+): Float32Array {
+  const ctx = base.slice()
+  const overlayBase = weaponIndex * WEAPON_OVERLAY_STRIDE
+  for (let s = 0; s < WEAPON_OVERLAY_STRIDE; s += 1) {
+    ctx[WEAPON_OVERLAY_SLOTS[s]!] = overlays[overlayBase + s]!
+  }
+  return ctx
+}
+
+// evaluate one combo against every weapon context and keep the best, returning
+// the winning weapon index alongside damage + main echo. the CPU reference for
+// the GPU max-over-weapons reduction.
+export function evalTgtCpuCmWeapons(options: {
+  weaponContexts: Float32Array[]
+  stats: Float32Array
+  setConstLut: Float32Array
+  mainEchoBuffs: Float32Array
+  sets: Uint8Array
+  kinds: Uint16Array
+  constraints: Float32Array
+  comboIds: Int32Array
+  lockMainIdx: number
+  scratch: CpuScratch
+}): { damage: number; mainIndex: number; weaponIndex: number } | null {
+  const { weaponContexts, ...rest } = options
+
+  let bestDamage = 0
+  let bestMainIndex = -1
+  let bestWeapon = -1
+
+  for (let w = 0; w < weaponContexts.length; w += 1) {
+    const evaluated = evalTgtCpuCm({ context: weaponContexts[w]!, ...rest })
+    if (evaluated && evaluated.damage > bestDamage) {
+      bestDamage = evaluated.damage
+      bestMainIndex = evaluated.mainIndex
+      bestWeapon = w
+    }
+  }
+
+  return bestWeapon >= 0
+      ? { damage: bestDamage, mainIndex: bestMainIndex, weaponIndex: bestWeapon }
       : null
 }

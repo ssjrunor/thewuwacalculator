@@ -10,8 +10,12 @@ import type { ResRuntime, WeaponState } from '@/domain/entities/runtime'
 import type { UnifiedBuffPool, SkillDef } from '@/domain/entities/stats'
 import type { GenWpn } from '@/domain/entities/weapon'
 import type { WeaponPlanSet, WpnStCfg } from '@/domain/entities/suggestions'
-import { isStdWpn } from '@/domain/entities/weapon'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
+import {
+  resolveWeaponRank,
+  weaponRarityVisible,
+  weaponStatsAt,
+} from '@/domain/services/weaponPlan'
 import { listStatesFor } from '@/domain/services/gameDataService'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
@@ -37,19 +41,6 @@ interface WpnStat {
   statVal: number
 }
 
-// standard weapon rank is resolved before rarity rank; visibility still remains rarity-gated.
-function resRank(wpn: GenWpn, input: PrepWeaponPlan): number {
-  const def = wpn.rarity === 5 ? 1 : 5
-  const raw = isStdWpn(wpn.id)
-      ? input.settings.stdRank ?? def
-      : input.settings.ranks[String(wpn.rarity)] ?? def
-  return Math.max(1, Math.min(5, Math.round(raw)))
-}
-
-function canUseWpn(wpn: GenWpn, input: PrepWeaponPlan): boolean {
-  return input.settings.visible[String(wpn.rarity)] ?? false
-}
-
 // choose which passive variants are part of the active search space.
 function resModes(input: PrepWeaponPlan): WpnMode[] {
   if (input.settings.mode === 'default') return ['default']
@@ -70,44 +61,8 @@ function resParams(wpn: GenWpn, rank: number): string[] {
   return wpn.passive.params.map((group) => group[ndx] ?? '')
 }
 
-// resolve level-scaled weapon stats with a nearest-level fallback
-function wpnStatsAt(wpn: GenWpn, lvl: number): WpnStat {
-  const hit = wpn.statsByLevel[lvl]
-  if (hit) {
-    return {
-      atk: hit.atk,
-      statVal: hit.secondaryStatValue,
-    }
-  }
-
-  const lvls = Object.keys(wpn.statsByLevel)
-      .map(Number)
-      .filter((val) => Number.isFinite(val))
-      .sort((a, b) => a - b)
-
-  const near = lvls.reduce(
-      (prev, cur) => (Math.abs(cur - lvl) < Math.abs(prev - lvl) ? cur : prev),
-      lvls[0] ?? lvl,
-  )
-  const fb = wpn.statsByLevel[near]
-
-  return {
-    atk: fb?.atk ?? wpn.baseAtk,
-    statVal: fb?.secondaryStatValue ?? wpn.statValue,
-  }
-}
-
 function resWpnStat(wpn: GenWpn, input: PrepWeaponPlan): WpnStat {
-  const stats = wpnStatsAt(wpn, input.level)
-
-  if (wpn.id === input.curWpn.id && input.curWpn.level === input.level) {
-    return {
-      ...stats,
-      atk: input.curWpn.baseAtk,
-    }
-  }
-
-  return stats
+  return weaponStatsAt(wpn, input.level)
 }
 
 // resolve the authored default value for one passive state
@@ -277,7 +232,7 @@ function prepWpnFx(
   const wpnSt: WeaponState = {
     id: wpn.id,
     level: input.level,
-    rank: resRank(wpn, input),
+    rank: resolveWeaponRank(wpn, input.settings),
     baseAtk: stats.atk,
   }
   const rt = mkCandRt(ctx.runtime, wpnSt, ctrls)
@@ -434,7 +389,7 @@ function scoreWpn(
     rarity: wpn.rarity,
     icon: wpn.icon,
     level: input.level,
-    rank: resRank(wpn, input),
+    rank: resolveWeaponRank(wpn, input.settings),
     baseAtk: stats.atk,
     statKey: wpn.statKey,
     statValue: stats.statVal,
@@ -442,7 +397,7 @@ function scoreWpn(
     controls: ctrls,
     pssvName: wpn.passive.name,
     pssvDesc: wpn.passive.desc,
-    params: resParams(wpn, resRank(wpn, input)),
+    params: resParams(wpn, resolveWeaponRank(wpn, input.settings)),
   }
 }
 
@@ -455,7 +410,7 @@ export function runPrepWpn(
   const tgtMode = resTgtMode(input)
 
   for (const wpn of listWpnsByTy(input.weaponType)) {
-    if (!canUseWpn(wpn, input)) {
+    if (!weaponRarityVisible(wpn, input.settings)) {
       continue
     }
 

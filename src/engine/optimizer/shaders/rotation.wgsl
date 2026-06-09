@@ -59,6 +59,10 @@ const NEG_INF: f32 = -1.0e30;
 const INV_100: f32 = 0.01;  // precomputed 1/100 for repeated percent math
 const COMBO_MODE_BATCH: u32 = 3u;
 
+// weapon search packs the chosen weapon index into the candidate's high bits
+// (must match WEAPON_INDEX_SHIFT in constants.ts).
+const WEAPON_INDEX_SHIFT_C: u32 = 27u;
+
 // skill type bit masks packed into skillId
 const SKILL_BASIC:      u32 = 1u << 0u;
 const SKILL_HEAVY:      u32 = 1u << 1u;
@@ -141,7 +145,10 @@ struct RotationMeta {
     // number of rotation contexts and float stride of each one
     ctxCount: u32,
     ctxStride: u32,
-    _pad0: u32,
+    // weapon search candidate count. 0 disables weapon search (single context
+    // set); >0 means rotationContexts holds weaponCount back-to-back context
+    // sets and evaluation keeps the best weapon per combo.
+    weaponCount: u32,
     _pad1: u32,
 };
 
@@ -253,6 +260,9 @@ struct ComboEval {
 
     // which of the 5 combo positions was chosen as main
     mainPos: u32,
+
+    // which candidate weapon produced this best (0 when weapon search is off)
+    weapon: u32,
 };
 
 // unrank a combinadic index into 5 sorted combo positions
@@ -946,21 +956,20 @@ fn loadRotationParams(ctxIndex: u32) -> Params {
 fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
     let ctxCount = rotationMeta.ctxCount;
     if (ctxCount == 0u) {
-        return ComboEval(0.0, 0u);
+        return ComboEval(0.0, 0u, 0u);
     }
 
     let base = buildEchoBase(echoIds);
     if (base.totalCost > decodeComboMaxCost(params)) {
-        return ComboEval(0.0, 0u);
+        return ComboEval(0.0, 0u, 0u);
     }
 
-    // total weighted damage per possible main position
-    var totals: array<f32, 5>;
-    totals[0] = 0.0;
-    totals[1] = 0.0;
-    totals[2] = 0.0;
-    totals[3] = 0.0;
-    totals[4] = 0.0;
+    // weapon search evaluates the combo against weaponCount context sets and
+    // keeps the best weapon; weaponCount == 0 means a single (base) context set.
+    let weaponN: u32 = max(1u, rotationMeta.weaponCount);
+
+    // weights live after all weapon context sets, shared across weapons.
+    let weightBase: u32 = weaponN * ctxCount * rotationMeta.ctxStride;
 
     let lockedIndex: i32 = decodeLockedIndex(params);
     let batchMainFirst = decodeComboMode(params) == COMBO_MODE_BATCH;
@@ -1036,72 +1045,88 @@ fn computeRotationForEchoIds(echoIds: array<i32, 5>) -> ComboEval {
     }
 
     if (validCount == 0u) {
-        return ComboEval(0.0, 0u);
+        return ComboEval(0.0, 0u, 0u);
     }
 
-    // apply unconditional set rows once
+    // apply unconditional set rows once (weapon/context-independent)
     var sonataBase = applySetEffectsBase(base);
 
-    // loop across all contexts, recomputing only what depends on that context
-    for (var c: u32 = 0u; c < ctxCount; c = c + 1u) {
-        let weight = rotationContexts[rotationMeta.ctxCount * rotationMeta.ctxStride + c];
-        if (weight == 0.0) {
-            continue;
-        }
-
-        let p = loadRotationParams(c);
-        let skillId: u32 = p.skillId;
-        let skillMask: u32 = skillMaskFromSkillId(skillId);
-        let elementId: u32 = elementFromSkillId(skillId);
-        let setRuntimeMask = decodeSetRuntimeMask(p);
-
-        var sonata = sonataBase;
-        applySetEffectsConditional(&sonata, base.setCount, skillMask, setRuntimeMask);
-        let pre = buildPreMain(p, sonata, skillMask, elementId);
-
-        for (var mainPos: u32 = 0u; mainPos < 5u; mainPos = mainPos + 1u) {
-            if (mainOk[mainPos] == 0u) {
-                continue;
-            }
-
-            let avg = evalMainPos(
-                pre,
-                base.setCount,
-                setRuntimeMask,
-                mainAtkPRatio[mainPos],
-                mainAtkF[mainPos],
-                mainER[mainPos],
-                mainElem0[mainPos],
-                mainElem1[mainPos],
-                mainType0[mainPos],
-                mainType1[mainPos],
-                mainCR[mainPos],
-                mainCD[mainPos],
-                mainDmgBns[mainPos]
-            );
-            if (avg == NEG_INF) {
-                continue;
-            }
-
-            totals[mainPos] = totals[mainPos] + avg * weight;
-        }
-    }
-
-    // choose the best main position for this combo
-    var best: f32 = NEG_INF;
+    var bestOverall: f32 = NEG_INF;
     var bestMain: u32 = 0u;
-    for (var i: u32 = 0u; i < 5u; i = i + 1u) {
-        if (totals[i] > best) {
-            best = totals[i];
-            bestMain = i;
+    var bestWeapon: u32 = 0u;
+
+    // evaluate each candidate weapon's full context set and keep the best.
+    for (var w: u32 = 0u; w < weaponN; w = w + 1u) {
+        let ctxOffset = w * ctxCount;
+
+        // total weighted damage per possible main position for this weapon
+        var totals: array<f32, 5>;
+        totals[0] = 0.0;
+        totals[1] = 0.0;
+        totals[2] = 0.0;
+        totals[3] = 0.0;
+        totals[4] = 0.0;
+
+        // loop across all contexts, recomputing only what depends on that context
+        for (var c: u32 = 0u; c < ctxCount; c = c + 1u) {
+            let weight = rotationContexts[weightBase + c];
+            if (weight == 0.0) {
+                continue;
+            }
+
+            let p = loadRotationParams(ctxOffset + c);
+            let skillId: u32 = p.skillId;
+            let skillMask: u32 = skillMaskFromSkillId(skillId);
+            let elementId: u32 = elementFromSkillId(skillId);
+            let setRuntimeMask = decodeSetRuntimeMask(p);
+
+            var sonata = sonataBase;
+            applySetEffectsConditional(&sonata, base.setCount, skillMask, setRuntimeMask);
+            let pre = buildPreMain(p, sonata, skillMask, elementId);
+
+            for (var mainPos: u32 = 0u; mainPos < 5u; mainPos = mainPos + 1u) {
+                if (mainOk[mainPos] == 0u) {
+                    continue;
+                }
+
+                let avg = evalMainPos(
+                    pre,
+                    base.setCount,
+                    setRuntimeMask,
+                    mainAtkPRatio[mainPos],
+                    mainAtkF[mainPos],
+                    mainER[mainPos],
+                    mainElem0[mainPos],
+                    mainElem1[mainPos],
+                    mainType0[mainPos],
+                    mainType1[mainPos],
+                    mainCR[mainPos],
+                    mainCD[mainPos],
+                    mainDmgBns[mainPos]
+                );
+                if (avg == NEG_INF) {
+                    continue;
+                }
+
+                totals[mainPos] = totals[mainPos] + avg * weight;
+            }
+        }
+
+        // choose the best main position for this weapon, then track best weapon
+        for (var i: u32 = 0u; i < 5u; i = i + 1u) {
+            if (totals[i] > bestOverall) {
+                bestOverall = totals[i];
+                bestMain = i;
+                bestWeapon = w;
+            }
         }
     }
 
-    if (best <= 0.0) {
-        return ComboEval(0.0, 0u);
+    if (bestOverall <= 0.0) {
+        return ComboEval(0.0, 0u, 0u);
     }
 
-    return ComboEval(best, bestMain);
+    return ComboEval(bestOverall, bestMain, bestWeapon);
 }
 
 // workgroup-local buffers used for top-k reduction
@@ -1137,6 +1162,7 @@ fn main(
     var best: f32 = NEG_INF;
     var bestIndex: u32 = 0u;
     var bestMain: u32 = 0u;
+    var bestWeapon: u32 = 0u;
 
     if (baseIndex < comboCount) {
         var idx: u32 = baseIndex;
@@ -1162,6 +1188,7 @@ fn main(
                 best = eval.dmg;
                 bestIndex = idx;
                 bestMain = eval.mainPos;
+                bestWeapon = eval.weapon;
             }
 
             idx = idx + 1u;
@@ -1193,8 +1220,15 @@ fn main(
 
     if (batchMode) {
         if (best > 0.0) {
-            let mainPos = bestMain & 7u;
-            let packedIdx = (mainPos << 29u) | bestIndex;
+            // weapon search packs the chosen weapon in the high bits (theory
+            // batch pins the main at slot 0, freeing them); otherwise the main
+            // position goes in the top 3 bits as usual.
+            var packedIdx: u32;
+            if (rotationMeta.weaponCount > 0u) {
+                packedIdx = (bestWeapon << WEAPON_INDEX_SHIFT_C) | bestIndex;
+            } else {
+                packedIdx = ((bestMain & 7u) << 29u) | bestIndex;
+            }
             candidates[laneIndex] = Candidate(best, packedIdx);
         } else {
             candidates[laneIndex] = Candidate(0.0, 0u);

@@ -294,7 +294,7 @@
   display: grid;
   gap: 0.55rem;
   padding: 0.72rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 14%, var(--item-border, var(--border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
   border-radius: 1.15rem;
   background:
     radial-gradient(ellipse at 12% 18%, color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 3%, transparent) 0%, transparent 52%),

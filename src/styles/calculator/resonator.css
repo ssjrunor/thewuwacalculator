@@ -288,6 +288,7 @@
   height: 1rem;
   object-fit: contain;
   opacity: 0.7;
+  transition: filter 300ms ease;
 }
 
 .resonator-pane-v2 .res-load--squad .res-load__cap { display: none; }
@@ -641,6 +642,7 @@
   border-width: 1px;
   border-color: color-mix(in srgb, var(--muted) 42%, var(--item-border));
   background: color-mix(in srgb, var(--muted) 5%, var(--box-bg));
+  transition: border-color 300ms ease, background 300ms ease, color 300ms ease;
   box-shadow: none;
   color: color-mix(in srgb, var(--muted) 80%, var(--text));
 }
@@ -819,9 +821,9 @@
   z-index: 0;
   pointer-events: none;
   transition:
-    border-color 220ms ease,
-    background 260ms ease,
-    box-shadow 220ms ease;
+    border-color 300ms ease,
+    background 300ms ease,
+    box-shadow 300ms ease;
 }
 
 .resonator-avatar-button:hover .resonator-avatar-button__frame,
@@ -1987,6 +1989,292 @@
 
 .resonator-pane-v2 .sequence-card-status.active {
   box-shadow: 0 0 0.5rem color-mix(in srgb, var(--resonator-accent) 28%, transparent);
+}
+
+.res-mode-panel {
+  --mode-accent: var(--resonator-accent);
+  --mode-ease: cubic-bezier(0.2, 0.72, 0.18, 1);
+  display: grid;
+}
+
+.res-mode-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.res-mode-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.8rem;
+  min-height: 1.72rem;
+  padding: 0.2rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--muted) 34%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--muted) 82%, var(--text));
+  font-size: 0.8rem;
+  font-weight: 820;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 240ms var(--mode-ease),
+    color 240ms var(--mode-ease),
+    background-color 240ms var(--mode-ease);
+}
+
+.res-mode-clear:hover,
+.res-mode-clear.is-active {
+  border-color: color-mix(in srgb, var(--mode-accent) 56%, var(--item-border));
+  background: color-mix(in srgb, var(--mode-accent) 9%, transparent);
+  color: color-mix(in srgb, var(--mode-accent) 60%, var(--text));
+}
+
+.res-mode-list {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.res-mode-empty {
+  margin: 0.1rem 0 0.25rem 4.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.res-mode-entry {
+  display: grid;
+  grid-template-columns: 3.65rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.88rem;
+  width: 100%;
+  padding: 0.1rem 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 68%, var(--muted));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  transition:
+    color 280ms var(--mode-ease),
+    transform 280ms var(--mode-ease);
+}
+
+.res-mode-entry.is-compact {
+  align-items: center;
+  color: color-mix(in srgb, var(--text) 58%, var(--muted));
+}
+
+.res-mode-entry:hover,
+.res-mode-entry:focus-visible,
+.res-mode-entry.is-active {
+  color: var(--text);
+}
+
+.res-mode-entry:focus-visible .res-mode-glyph {
+  outline: 2px solid color-mix(in srgb, var(--mode-accent) 64%, transparent);
+  outline-offset: 3px;
+}
+
+.res-mode-entry:hover {
+  transform: translateX(2px);
+}
+
+.res-mode-entry:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.res-mode-glyph {
+  display: grid;
+  place-items: center;
+  width: 3.15rem;
+  height: 3.15rem;
+  margin-top: 0.1rem;
+  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--box-bg) 80%, transparent);
+  color: color-mix(in srgb, var(--muted) 86%, var(--mode-accent));
+  transition:
+    width 320ms var(--mode-ease),
+    height 320ms var(--mode-ease),
+    margin-top 320ms var(--mode-ease),
+    border-color 280ms var(--mode-ease),
+    color 280ms var(--mode-ease),
+    opacity 280ms var(--mode-ease),
+    transform 320ms var(--mode-ease),
+    background-color 280ms var(--mode-ease);
+}
+
+.res-mode-glyph img {
+  width: 2.24rem;
+  height: 2.24rem;
+  object-fit: contain;
+  transition:
+    width 320ms var(--mode-ease),
+    height 320ms var(--mode-ease),
+    filter 300ms var(--mode-ease);
+}
+
+.app-shell:not(.dark-text) .res-mode-glyph img {
+  filter: invert(1);
+}
+
+.res-mode-glyph > span {
+  font-family: var(--display-font);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.res-mode-copy {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+  padding: 0.2rem 0 0.78rem 0.9rem;
+  border-left: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+  transition:
+    padding 320ms var(--mode-ease),
+    border-left-color 280ms var(--mode-ease);
+}
+
+.res-mode-entry.is-compact .res-mode-copy {
+  padding-block: 0.08rem;
+  border-left-color: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+
+.res-mode-entry:last-child .res-mode-copy {
+  padding-bottom: 0.2rem;
+}
+
+.res-mode-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  justify-content: space-between;
+  color: color-mix(in srgb, currentColor 90%, var(--mode-accent));
+  font-size: 0.98rem;
+  font-weight: 850;
+  line-height: 1.12;
+  transition:
+    color 280ms var(--mode-ease),
+    font-size 320ms var(--mode-ease);
+}
+
+.res-mode-now {
+  color: color-mix(in srgb, var(--mode-accent) 70%, var(--text));
+  font-size: 0.58rem;
+  font-weight: 820;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  animation: res-mode-badge-in 260ms var(--mode-ease) both;
+}
+
+.res-mode-body.rich-description.main-echo-description.guides {
+  padding: 0;
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+  font-size: 0.86rem;
+  line-height: 1.45;
+  transform-origin: top left;
+  animation: res-mode-body-in 340ms var(--mode-ease) both;
+}
+
+.res-mode-entry.is-active .res-mode-glyph {
+  border-color: color-mix(in srgb, var(--mode-accent) 72%, var(--text));
+  background: color-mix(in srgb, var(--mode-accent) 14%, var(--box-bg));
+  color: color-mix(in srgb, var(--mode-accent) 76%, var(--text));
+  transform: scale(1.08);
+}
+
+.res-mode-entry.is-compact .res-mode-glyph {
+  width: 2.8rem;
+  height: 2.8rem;
+  margin-top: 0;
+  opacity: 0.76;
+}
+
+.res-mode-entry.is-compact .res-mode-glyph img {
+  width: 1.98rem;
+  height: 1.98rem;
+}
+
+.res-mode-entry.is-active .res-mode-copy {
+  border-left-color: color-mix(in srgb, var(--mode-accent) 62%, transparent);
+}
+
+.res-mode-entry.is-active .res-mode-name {
+  color: color-mix(in srgb, var(--mode-accent) 46%, var(--text));
+  font-size: 1.08rem;
+}
+
+.res-mode-entry.is-compact .res-mode-name {
+  justify-content: flex-start;
+  color: inherit;
+  font-size: 0.9rem;
+}
+
+.res-mode-entry.is-active .res-mode-body.rich-description.main-echo-description.guides {
+  color: var(--text);
+}
+
+@keyframes res-mode-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.28rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes res-mode-badge-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .res-mode-clear,
+  .res-mode-entry,
+  .res-mode-glyph,
+  .res-mode-glyph img,
+  .res-mode-copy,
+  .res-mode-name {
+    transition-duration: 0.01ms;
+  }
+
+  .res-mode-now,
+  .res-mode-body.rich-description.main-echo-description.guides {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .res-mode-entry {
+    grid-template-columns: 3.2rem minmax(0, 1fr);
+    gap: 0.68rem;
+  }
+
+  .res-mode-glyph {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+
+  .res-mode-empty {
+    margin-left: 3.88rem;
+  }
 }
 
 .toggle-row span,

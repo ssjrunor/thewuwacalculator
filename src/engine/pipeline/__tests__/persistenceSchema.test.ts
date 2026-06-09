@@ -5,8 +5,11 @@ import {
   DEF_RES_ID,
   makeAppState,
   makeResProfile,
+  makeTeamMember,
   initAppState,
 } from '@/domain/state/defaults'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
+import { getResModeGroups } from '@/domain/gameData/resonatorStateGraph'
 import { makeInvEcho } from '@/domain/entities/inventoryStorage'
 import { getResonatorById } from '@/domain/services/catalogService'
 import {
@@ -25,7 +28,13 @@ import {
   parsePersisted,
   saveAppState,
 } from '@/infra/persistence/storage'
-import liveSnapshotRaw from '../../../../live-app-snapshot.json?raw'
+
+const liveSnapshotLoaders = import.meta.glob('../../../../prod-app.json', {
+  query: '?raw',
+  import: 'default',
+}) as Record<string, () => Promise<string>>
+
+const loadLiveSnapshot = liveSnapshotLoaders['../../../../prod-app.json']
 
 describe('persistedAppStateSchema', () => {
   beforeEach(() => {
@@ -151,7 +160,8 @@ describe('persistedAppStateSchema', () => {
     expect(parsed.ui.entranceAnimations).toBe(false)
   })
 
-  it('parses the current live app snapshot', () => {
+  it.runIf(Boolean(loadLiveSnapshot))('parses the current live app snapshot', async () => {
+    const liveSnapshotRaw = await loadLiveSnapshot()
     const parsed = parsePersisted(liveSnapshotRaw)
 
     expect(parsed.version).toBe(22)
@@ -159,6 +169,39 @@ describe('persistedAppStateSchema', () => {
     expect(parsed.ui.itemFreq).toBeTruthy()
     expect(parsed.calculator.weaponSuggests).toBeTruthy()
     expect(Object.keys(parsed.calculator.profiles).length).toBeGreaterThan(0)
+
+    for (const [resonatorId, profile] of Object.entries(parsed.calculator.profiles)) {
+      for (const group of getResModeGroups(getResDtlsBy()[resonatorId])) {
+        expect(profile.runtime.local.controls[group.controlKey], `${resonatorId} ${group.controlKey}`).not.toBeUndefined()
+      }
+    }
+  })
+
+  it('hydrates missing state graph mode controls into persisted profiles', () => {
+    const activeSeed = getResonatorById('1210')
+    const teammateSeed = getResonatorById('1211')
+    if (!activeSeed || !teammateSeed) {
+      throw new Error('missing state graph mode fixtures')
+    }
+
+    const state = makeAppState()
+    const profile = makeResProfile(activeSeed)
+
+    profile.runtime.team = [activeSeed.id, teammateSeed.id, null]
+    profile.runtime.teamRuntimes = [makeTeamMember(teammateSeed), null]
+    delete profile.runtime.local.controls['resonator:1210:mode:value']
+    delete profile.runtime.local.controls['team:1211:resonator:1211:mode:value']
+
+    state.calculator.session.activeResonatorId = activeSeed.id
+    state.calculator.profiles = {
+      [activeSeed.id]: profile,
+    }
+
+    const parsed = parsePersisted(JSON.stringify(state))
+    const controls = parsed.calculator.profiles[activeSeed.id]?.runtime.local.controls
+
+    expect(controls?.['resonator:1210:mode:value']).toBe('tune_rupture')
+    expect(controls?.['team:1211:resonator:1211:mode:value']).toBe('fusion_burst')
   })
 
   it('writes the current persistence slices when saving persisted state', () => {

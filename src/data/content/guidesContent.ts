@@ -162,6 +162,67 @@ const article = (
 
 export const gdCtgr: GuideCategory[] = [
   {
+    id: 'resonators',
+    title: 'Resonators',
+    summary: 'How resonator progression, sequences, kit modes, status controls, and the Max button shape the active runtime.',
+    aliases: ['Resonator', 'Characters', 'Character'],
+    articles: [
+      article(
+        'resonator-progression-and-kit-state',
+        'Progression and Kit State',
+        'What the resonator pane owns beyond just picking a character.',
+        section(
+          'The resonator runtime',
+          paragraph(
+            'The resonator surface owns the active character identity and the character-side pieces of the runtime: level, skill levels, resonance chain, trace nodes, and kit state controls. Those choices feed damage rows, rotations, suggestions, optimizer evaluation, team summaries, and overview readouts.'
+          ),
+          definitions(
+            ['Level and skills', 'The normal progression values used by scaling and skill multipliers.'],
+            ['Resonance chain', 'The active sequence level, which can unlock or change kit effects and available controls.'],
+            ['Trace nodes', 'Passive progression nodes that add stats or enable kit effects when active.'],
+            ['Kit state control', 'A visible control for a resonator-owned stack, toggle, mode, or mutually exclusive state.']
+          ),
+          note('If a damage result changes after editing the resonator pane, the rest of the app is usually just reflecting that new runtime state.'),
+        ),
+        section(
+          'Mode and status controls',
+          paragraph(
+            'Some resonators have states that are too important to hide behind a silent default. When a resonator supports an explicit resonance mode or special status, the app surfaces that choice as a visible mode/status control so the active scenario is clear before anything calculates from it.'
+          ),
+          definitions(
+            ['Mode control', 'A mutually exclusive choice such as which form, stance, or resonance mode the runtime should evaluate.'],
+            ['Status toggle', 'An on/off or stack style control for a state that may or may not be active in the current scenario.'],
+            ['Visible assumption', 'A scenario choice shown in the UI instead of being guessed silently by the calculator.']
+          ),
+          warningList(
+            'If a newer kit has several possible states, check its visible mode/status controls before trusting the result.',
+            'Changing modes can change which follow-up controls matter, because some states only exist inside one mode.',
+            'A selected mode is part of the runtime, so rotations, suggestions, optimizer, and team calculations all read it.'
+          ),
+        ),
+      ),
+      article(
+        'resonator-max-button',
+        'The Max Button',
+        'What the resonator Max action fills in and what it does not promise.',
+        section(
+          'What Max does',
+          paragraph(
+            'The resonator Max button is broader than a level shortcut. It maxes the normal progression pieces, then resolves the strongest authored runtime states for that resonator under the current sequence.'
+          ),
+          bullets(
+            'Sets resonator level to 90 and skill levels to 10.',
+            'Turns on available trace nodes.',
+            'Fills supported resonator mode/status controls to their max or preferred max state.',
+            'Respects mutually exclusive mode groups instead of trying to turn impossible states on together.',
+            'Uses the current sequence when deciding which sequence-gated controls can be maxed.'
+          ),
+          note('Max is a ceiling helper. It is useful for quickly setting up a high-output scenario, but it is still worth reviewing the visible controls if you want to model a specific real rotation.'),
+        ),
+      ),
+    ],
+  },
+  {
     id: 'rotations',
     title: 'Rotations',
     summary: 'How authored rotation structure becomes execution, totals, inspection contexts, and saved records.',
@@ -838,15 +899,27 @@ export const gdCtgr: GuideCategory[] = [
         section(
           'Inventory mode',
           paragraph(
-            'In Inventory mode the optimizer searches your real bag entries. Every result row must be buildable from filtered inventory echoes that survive the current rules, set allowances, main stat restrictions, and cost limits. Theorymax mode swaps this candidate pool out for the full catalog and is covered in its own article.'
+            'In Inventory mode the optimizer searches your real bag entries. Every result row must be buildable from filtered inventory echoes that survive the current rules, set allowances, main stat restrictions, ownership rules, and cost limits. Theorymax mode swaps this candidate pool out for the full catalog and is covered in its own article.'
           ),
           definitions(
             ['Filtered inventory', 'The inventory echoes still eligible after current rule filters are applied.'],
             ['Combination count', 'The number of legal loadout combinations that remain after filtering and main echo constraints.'],
             ['Locked main echo', 'A forced main echo choice that remains in the search even if later filters are aggressive.'],
-            ['Keep percent filter', 'A weight based pruning pass that keeps only the strongest slice of echoes for direct mode search.']
+            ['Keep percent filter', 'A weight based pruning pass that keeps only the strongest slice of echoes for direct mode search.'],
+            ['Exclude equipped', 'An Inventory mode switch that removes echoes currently equipped by other resonators from the candidate pool.']
           ),
           note('The keep percent filter is an Inventory-mode pruning shortcut for direct target search. Rotation mode keeps the full filtered pool because a simple direct weight prune is less reliable there. Theorymax does not use keep percent at all.'),
+        ),
+        section(
+          'Avoiding borrowed gear',
+          paragraph(
+            'Exclude equipped is for account-realistic searches. If you already have echoes assigned to other resonators and do not want this optimizer run to steal them, turn it on before starting the run.'
+          ),
+          bullets(
+            'The current optimizer resonator can still use its own equipped echoes.',
+            'Turning the switch off returns to the old behavior where every inventory echo can compete, even if another build is already using it.'
+          ),
+          note('If you are trying to find the absolute strongest arrangement across your whole bag, leave Exclude equipped off. If you are trying to improve one build without disturbing the rest of your roster, turn it on.'),
         ),
       ),
       article(
@@ -927,7 +1000,7 @@ export const gdCtgr: GuideCategory[] = [
         section(
           'A different question',
           paragraph(
-            'Inventory mode answers a practical question: out of the echoes you actually own, which loadout hits the hardest right now. Theorymax answers a planning question: if you kept the substats you are already wearing but were free to change the echo itself, the set, the cost, and the main stat at each slot, where would those substats do the most damage. The substats stay yours. Everything else is up for grabs.'
+            'Inventory mode answers a practical question: out of the echoes you actually own, which loadout hits the hardest right now. Theorymax answers a planning question: if you kept the substats you are already wearing but were free to change the echo itself, the set, the cost, and the main stat at each slot, where would those substats do the most damage. The substats stay yours. Echo identity, set, cost, main stat, and optionally weapon choice are up for grabs.'
           ),
           comparison(
             'Inventory',
@@ -935,19 +1008,37 @@ export const gdCtgr: GuideCategory[] = [
             ['What it picks from', 'Echoes in your bag right now', 'Any echo from the catalog that fits your filters'],
             ['Your substats', 'Whatever the picked bag echo has', 'The substats you are wearing today, kept slot for slot'],
             ['Main stat, set, echo identity', 'Whatever the bag echo brings', 'The mode chooses what works best for your target'],
+            ['Weapon', 'Uses the current optimizer weapon setup', 'Uses the equipped weapon unless Include weapons is turned on'],
             ['What you can equip', 'Right away from your bag', 'Only after farming the echoes the result is asking for']
           ),
           note('Theorymax is anchored to the echoes you have equipped. Empty slots are skipped, and the substats at each slot are the ones currently on your build. It is a ceiling for the rolls you already have, not a wishlist over perfect rolls.'),
         ),
         section(
+          'Include weapons',
+          paragraph(
+            'Theorymax has an Include weapons switch. When it is off, Theorymax uses the weapon already assigned to the optimizer runtime. When it is on, each candidate can also search compatible weapons and keep the weapon that scores best for that exact build.'
+          ),
+          definitions(
+            ['Equipped weapon mode', 'The result answers the echo ceiling question while holding your current weapon fixed.'],
+            ['Include weapons mode', 'The result answers the echo ceiling question and the weapon ceiling question together.'],
+            ['Weapon column', 'A result column shown when weapon search is active so you can see which weapon the row selected.']
+          ),
+          warningList(
+            'Weapon-aware Theorymax is a bigger ceiling question than normal Theorymax. A winning row may depend on a weapon you are not currently using.',
+            'The selected weapon is part of the result interpretation. If you compare it against an Inventory run with a fixed weapon, remember that both the echoes and the weapon may have changed.',
+            'Applying a weapon-aware Theorymax result can update the runtime weapon and its evaluated passive state so the preview/live build matches what was scored.'
+          ),
+        ),
+        section(
           'How to read a result',
           paragraph(
-            'A Theorymax row tells you: this is the echo identity, this is the set, this is the main stat at each slot, and your current substats placed into that build would output this damage. Click a row to preview the full build in the inspection pane just like with Inventory results. The substats you see in the preview are the ones from your equipped slots, only the slot, set, and main stat changed.'
+            'A Theorymax row tells you: this is the echo identity, this is the set, this is the main stat at each slot, and your current substats placed into that build would output this damage. If Include weapons is on, the row also shows the weapon chosen for that build. Click a row to preview the full build in the inspection pane just like with Inventory results. The substats you see in the preview are the ones from your equipped slots, only the slot, set, main stat, and maybe weapon changed.'
           ),
           bullets(
             'The set badges show the set plan the ceiling wants.',
             'The cost number is the total cost of the assembled five slots, capped at 12.',
             'The main echo icon is the catalog echo Theorymax wants in your main slot.',
+            'The weapon icon appears when Include weapons is active and shows the weapon selected for that result.',
             'The damage column is what your current substats would do in that build.'
           ),
         ),
@@ -991,7 +1082,7 @@ export const gdCtgr: GuideCategory[] = [
         section(
           'Applying a Theorymax result',
           paragraph(
-            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries — they only exist in your runtime state. Your bag is untouched.'
+            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries — they only exist in your runtime state. Your bag is untouched. If the result came from Include weapons mode, the chosen weapon and the passive state the search evaluated are applied with it.'
           ),
           comparison(
             'Sim',
@@ -1003,7 +1094,8 @@ export const gdCtgr: GuideCategory[] = [
           warningList(
             'Applying Theorymax to Live will change the damage shown in your normal calculator until you swap back. This is the ceiling showing up everywhere, not your real build.',
             'Theorymax echoes do not save to your bag automatically. Your previous build is still in your bag, ready to be re-equipped.',
-            'If you change something the search depends on — allowed sets, main stat filter, or set conditionals — re-run Theorymax before trusting the old results.'
+            'If Include weapons was on, the applied build can change weapon state as well as echo state.',
+            'If you change something the search depends on — allowed sets, main stat filter, set conditionals, or weapon-search settings — re-run Theorymax before trusting the old results.'
           ),
         ),
       ),

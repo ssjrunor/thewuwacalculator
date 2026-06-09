@@ -24,6 +24,7 @@ import type { AttributeKey } from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { SlotId } from '@/domain/entities/session'
+import { wpnAtkAt } from '@/domain/state/weaponState'
 
 // echo stat keys that should be routed into elemental damage bonus buckets
 const TTRBECHOSTAT = new Set<string>([
@@ -223,7 +224,10 @@ export function mkSrcPreStts(input: GrphCmbtCtxN): Record<string, FinalStats> {
     fnlSttsById[participant.resonatorId] = calcFinalStats(
         participant.baseStats,
         preStatsPool,
-        participant.runtime.build.weapon.baseAtk,
+        wpnAtkAt(
+            participant.runtime.build.weapon.id,
+            participant.runtime.build.weapon.level,
+        ),
     )
   }
 
@@ -288,7 +292,7 @@ export function makeCombatEnv(input: GrphCmbtCtxN): CombatContext {
   const preSttsFnlSt = calcFinalStats(
       baseStats,
       preStatsPool,
-      runtime.build.weapon.baseAtk,
+      wpnAtkAt(runtime.build.weapon.id, runtime.build.weapon.level),
   )
 
   // second pass: effects that need the already-computed final stats
@@ -310,7 +314,7 @@ export function makeCombatEnv(input: GrphCmbtCtxN): CombatContext {
   const finalStats = calcFinalStats(
       baseStats,
       ffctDjstPool,
-      runtime.build.weapon.baseAtk,
+      wpnAtkAt(runtime.build.weapon.id, runtime.build.weapon.level),
   )
 
   const context = {

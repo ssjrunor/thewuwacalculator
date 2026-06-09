@@ -23,6 +23,7 @@ import type {
   TheoryResultRow,
 } from '@/engine/optimizer/types.ts'
 import { evalTarget } from '@/engine/optimizer/target/evaluate.ts'
+import { composeOneWeaponContext } from '@/engine/optimizer/target/cpu.ts'
 import { fillOptBagRs } from '@/engine/optimizer/results/collector.ts'
 import { packRotation } from '@/engine/optimizer/payloads/rotationPayload.ts'
 import { packTargetSkill } from '@/engine/optimizer/payloads/targetPayload.ts'
@@ -80,6 +81,7 @@ function getThryXct(payload: ThryPay): ThryXct {
 function evalOptBagRs(
   execution: PackedSkill,
   result: OptBagResult,
+  contextOverride?: Float32Array,
 ): OptResultStats | null {
   const comboIds = fillOptBagRs(new Int32Array(5), result)
   const mainIndex = comboIds[0] ?? -1
@@ -88,7 +90,7 @@ function evalOptBagRs(
   }
 
   return evalTarget({
-    context: execution.context,
+    context: contextOverride ?? execution.context,
     stats: execution.stats,
     setConstLut: execution.setConstLut,
     mainEchoBuffs: execution.mainEchoBuffs,
@@ -100,10 +102,28 @@ function evalOptBagRs(
   })?.stats ?? null
 }
 
-// recompute the display-context stat summary for one rotation-mode result row
+// the display context to use for one rotation result row. weapon search recorded
+// the chosen weapon per build, so its own display context (not the equipped
+// weapon's) is used so the stat columns match the result's damage.
+function rotWeaponDisplay(
+  execution: PckdRotXctnP,
+  result: OptBagResult,
+): Float32Array | undefined {
+  const weaponIdx = 'weapon' in result ? (result.weapon ?? -1) : -1
+  const display = execution.weaponDisplayContexts
+  const stride = execution.contextStride
+  if (weaponIdx >= 0 && display && (execution.weaponCount ?? 0) > weaponIdx) {
+    return display.subarray(weaponIdx * stride, (weaponIdx + 1) * stride)
+  }
+  return undefined
+}
+
+// recompute the display-context stat summary for one rotation-mode result row.
+// displayOverride lets weapon search supply the chosen weapon's display context.
 function evalRotRsltS(
   execution: PckdRotXctnP,
   result: OptBagResult,
+  displayOverride?: Float32Array,
 ): OptResultStats | null {
   const comboIds = fillOptBagRs(new Int32Array(5), result)
   const mainIndex = comboIds[0] ?? -1
@@ -112,7 +132,7 @@ function evalRotRsltS(
   }
 
   return evalTarget({
-    context: execution.displayContext,
+    context: displayOverride ?? execution.displayContext,
     stats: execution.stats,
     setConstLut: execution.setConstLut,
     mainEchoBuffs: execution.mainEchoBuffs,
@@ -397,9 +417,18 @@ export function evalThryRsltS(
   }
 
   const execution = getThryXct(payload)
-  return execution.mode === 'rotation'
-      ? evalRotRsltS(execution, result)
-      : evalOptBagRs(execution, result)
+  if (execution.mode === 'rotation') {
+    return evalRotRsltS(execution, result, rotWeaponDisplay(execution, result))
+  }
+
+  // weapon search: recompute stats against the weapon the search chose for this
+  // build, not the equipped one, so the stat columns match the result's damage.
+  const weaponIdx = 'weapon' in result ? (result.weapon ?? -1) : -1
+  const overlays = execution.weaponOverlays
+  const weaponCtx = weaponIdx >= 0 && overlays && (execution.weaponCount ?? 0) > weaponIdx
+      ? composeOneWeaponContext(execution.context, overlays, weaponIdx)
+      : undefined
+  return evalOptBagRs(execution, result, weaponCtx)
 }
 
 // materialize compact theory rows only after ranking has already happened
@@ -419,6 +448,12 @@ export function matThryRslts(
       continue
     }
 
+    // map the best-weapon index (bag results only) back to its catalog id.
+    const weaponIdx = 'ids' in result ? -1 : (result.weapon ?? -1)
+    const weaponId = weaponIdx >= 0
+        ? (payload.weaponIds?.[weaponIdx] ?? null)
+        : null
+
     finalized.push({
       damage: result.damage,
       uids: echoes.map((echo) => echo.uid),
@@ -426,8 +461,9 @@ export function matThryRslts(
       stats: 'ids' in result
           ? result.stats
           : (execution.mode === 'rotation'
-            ? evalRotRsltS(execution, result)
+            ? evalRotRsltS(execution, result, rotWeaponDisplay(execution, result))
             : evalOptBagRs(execution, result)),
+      weaponId,
     })
 
     if (finalized.length >= maxItems) {

@@ -15,7 +15,15 @@ export const ROT_GPU_JOB = 10_000_000
 export const ECHOES_PER_SET = 5
 export const SET_SLOT_COUNT = 33
 export const CTX_FLOATS = 36
-export const STAT_STRIDE = 30
+// ECHO_STAT_STRIDE is the live search encoding (encode/echoes.ts and the
+// target/rotation cpu evaluators + gpu shaders read it): echo-rollable stats
+// plus the per-element and per-skill-type damage-bonus buckets.
+//
+// FULL_STAT_STRIDE is the wider damage-stat vector spanning the global STAT_*
+// index space (amplify, shreds, dmg vulnerability, etc.). it backs the combo
+// scratch vectors and the cpu reference evaluator (cpu/computeDamage).
+export const ECHO_STAT_STRIDE = 20
+export const FULL_STAT_STRIDE = 30
 export const MAIN_BUFF_LEN = 18
 export const MAIN_FIRST = -2
 
@@ -77,14 +85,22 @@ export const GPU_THEORY_JOB = 1_000_000
 export const OPT_WG_SIZE = 256
 export const CYCLES_PER_CALL = 32
 
-// reduction fan-in used by target.wgsl and reduceCandidates.wgsl
-// this must stay synchronized with the shader constants.
-export const OPT_RDC_K = 8
-
 // GPU rotation execution tuning
 export const ROT_WG_SIZE = 512
 export const ROT_CYCLES = 16
-export const ROT_REDUCE_K = 8
+
+// per-workgroup reduction fan-in. must stay synchronized with REDUCE_K in
+// target.wgsl, rotation.wgsl, and reduceCandidates.wgsl.
+export const GPU_REDUCE_K = 8
+export const OPT_RDC_K = GPU_REDUCE_K
+
+// combo-mode flag passed to the batch shaders (COMBO_MODE_BATCH).
+export const GPU_COMBO_MODE_BATCH = 3
+
+// upper bound on candidates read back to the cpu before the gpu reduce pass
+// runs. below this, every emitted candidate is read back and the cpu collector
+// selects the exact top-k; the lossy gpu reduction only runs above it.
+export const GPU_BATCH_MAX_READBACK = 1 << 21
 
 // packed optimizer context offsets
 // these constants define the meaning of each float slot in the packed context array
@@ -137,3 +153,35 @@ export const OPT_LOGGING = false //Boolean(import.meta.env?.DEV)
 
 // below this threshold, parallel overhead may outweigh the benefit
 export const MIN_PAR_COMBOS = 20_000
+
+export const WEAPON_OVERLAY_SLOTS = [
+  BASE_ATK,
+  FINAL_ATK,
+  FINAL_HP,
+  FINAL_DEF,
+  BASE_ER,
+  CRIT_RATE,
+  CRIT_DMG,
+  DMG_BNS,
+  DMG_AMP,
+  MV,
+  FLAT_DMG,
+  AUX0,
+  RES_MUL,
+  DEF_MUL,
+  DMG_RED,
+  DMG_VULN,
+] as const
+export const WEAPON_OVERLAY_STRIDE = WEAPON_OVERLAY_SLOTS.length
+
+// packed candidate rank carries the chosen weapon in the high bits when weapon
+// search is active (theory batch mode pins the main echo at slot 0, freeing the
+// main-position bits). 5 bits -> up to 31 weapon candidates.
+export const WEAPON_INDEX_SHIFT = 27
+export const WEAPON_INDEX_BITS = 5
+export const MAX_WEAPON_CANDIDATES = (1 << WEAPON_INDEX_BITS) - 1
+
+// decode masks for the packed candidate rank when weapon search is active:
+// the low bits hold the combo rank, the high bits the chosen weapon index.
+export const WEAPON_RANK_MASK = (1 << WEAPON_INDEX_SHIFT) - 1
+export const WEAPON_BIT_MASK = (1 << WEAPON_INDEX_BITS) - 1

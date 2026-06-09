@@ -8,9 +8,12 @@ import { getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects.ts'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
-import { isNoWeaponId } from '@/domain/entities/runtime.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
-import { listStatesFor } from '@/domain/services/gameDataService.ts'
+import {
+  apWpnStts,
+  clrSrcCtrls,
+  type RtCtlMap,
+} from '@/domain/state/sourceStateInit.ts'
 import { makeTeamMember } from '@/domain/state/defaults.ts'
 import { matTeamMemFr } from '@/domain/state/runtimeMaterialization.ts'
 import { seedRsntById } from '@/modules/calculator/features/resonator/lib/seedData.ts'
@@ -23,8 +26,6 @@ export type PrvwTgt =
 
 export type OpSlot = 'active' | 0 | 1
 export type OpEchoTarget = 'filter' | 0 | 1
-
-export const RT_CNTR_PRFX = 'runtime.state.controls.'
 
 // keep the idle progress object in one place so the stage can reset consistently.
 export function mkMptyPrgr(): import('@/engine/optimizer/types').OptPrgr {
@@ -188,36 +189,21 @@ export function makeOpSlot(
 
 // remove any persisted weapon state keys tied to a weapon before swapping it out.
 export function clrWpnSttCnt(
-  controls: Record<string, boolean | number | string>,
+  controls: RtCtlMap,
   weaponId: string | null,
   prefix = '',
 ) {
-  if (!weaponId || isNoWeaponId(weaponId)) {
-    return
-  }
-
-  const targetPrefix = `${prefix}weapon:${weaponId}:`
-  for (const key of Object.keys(controls)) {
-    if (key.startsWith(targetPrefix)) {
-      delete controls[key]
-    }
-  }
+  clrSrcCtrls(controls, { type: 'weapon', id: weaponId }, prefix)
 }
 
 // seed default state values for a freshly selected weapon.
 export function applyWpnSttD(
-  controls: Record<string, boolean | number | string>,
+  controls: RtCtlMap,
   weaponId: string,
   prefix = '',
+  runtime?: ResRuntime,
+  maxed = false,
 ) {
-  for (const state of listStatesFor('weapon', weaponId)) {
-    if (state.defaultValue === undefined) {
-      continue
-    }
-
-    const controlKey = state.path.startsWith(RT_CNTR_PRFX)
-      ? state.path.slice(RT_CNTR_PRFX.length)
-      : state.controlKey
-    controls[`${prefix}${controlKey}`] = state.defaultValue
-  }
+  if (!runtime) return
+  apWpnStts(controls, runtime, weaponId, { prefix, maxed })
 }

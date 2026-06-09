@@ -56,6 +56,7 @@ interface MkPrefGrpsAr {
   setPdtTst: (checked: boolean) => void
   setRcmmMenyu: (checked: boolean) => void
   setShowNqng6: (checked: boolean) => void
+  setMaxResInit: (checked: boolean) => void
   setHaveHist: (checked: boolean) => void
   setHistMax: (value: HistoryMax) => void
   setCmpcInv: (checked: boolean) => void
@@ -129,6 +130,7 @@ export function mkPrefGrps({
   setPdtTst: setPdtTst,
   setRcmmMenyu: setRcmmMenuT,
   setShowNqng6: setShowNqntV,
+  setMaxResInit,
   setHaveHist: setHaveHstr,
   setHistMax: setHstrMax,
   setCmpcInv: setCmpcInv,
@@ -216,6 +218,13 @@ export function mkPrefGrps({
           description: 'Show all enabled overview states even when they do not add a numeric value.',
           checked: ui.preferences.showUnquantifiedOverviewStates,
           onChange: setShowNqntV,
+        },
+        {
+          kind: 'toggle',
+          label: 'Max Resonators on Init',
+          description: 'Initialize newly added or reset resonators at max level, skills, traces, sequence, and default max states.',
+          checked: ui.preferences.maxResOnInit,
+          onChange: setMaxResInit,
         },
       ],
     },

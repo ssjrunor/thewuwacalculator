@@ -265,6 +265,48 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `loops, context menus, clipboard, batch editing, guides, and other new stuff 〜⁠(⁠꒪⁠꒳⁠꒪⁠)⁠〜`,
   },
+  {
+    date: '09/06/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.4 got a much more real pass now.</strong> <strong>Lucilla</strong>'s, <strong>Lucy</strong>'s, and <strong>Rebecca</strong>'s kit logic have been updated, and the rest of the 3.4 assets/data are in too.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Resonance modes and special statuses are also much more explicit now. Resonators that need a real <strong>mode/status switch</strong> now show one directly, so stuff like mode forms, special gear states, and kit assumptions are less "i hope the calculator knows what i mean" and more actual buttons you can look at.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Default rotations</strong> got another pass as well. <strong>Denia</strong>'s preset rotation was updated, and <strong>Lucy</strong> / <strong>Rebecca</strong> now have starting rotations too.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>Theory optimizer</strong> can now include weapons in the search, so theory max results can pick a weapon instead of being glued to whatever was already equipped. Inventory optimizer also has an <strong>Exclude equipped</strong> toggle now, for when you do not want it casually borrowing echoes from another resonator's build like it pays rent there.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>Max</strong> button got smarter too. It now fills in more of the relevant modes, states, weapon passives, and other kit switches instead of only doing the obvious level/trace stuff and leaving you to clean up the rest.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          There are a lot of smaller cleanup pieces underneath this, but the short version is: newer kits should feel less half-wired, optimizer setup should be less annoying, and the app should be better at making its assumptions visible.
+        `,
+      },
+    ],
+    shortDesc: `3.4 live updated (and other stuff)~! (〜^∇^)〜`,
+  },
 ]
 
 export const ltstCurChngE =

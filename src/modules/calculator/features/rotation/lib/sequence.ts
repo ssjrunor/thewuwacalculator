@@ -106,11 +106,7 @@ function getFeatCtnLb(
   node: Extract<RotationNode, { type: 'feature' }>,
   meta: ReturnType<typeof featureMeta>,
 ): string {
-  if (meta?.skill?.tab === 'negativeEffect') {
-    return meta.skill.label
-  }
-
-  return meta?.feature.label ?? meta?.skill?.label ?? node.featureId
+  return meta?.skill?.label ?? meta?.feature.label ?? node.featureId
 }
 
 const NEGFFCTKEYSE = new Set<string>(NEG_EFFECT_KEYS)

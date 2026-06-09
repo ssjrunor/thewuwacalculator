@@ -30,6 +30,10 @@ export interface OptDisplayRow {
   costs: number[] | null
   sets: OptDsplSetEn[]
   mainEchoIcon: string | null
+  // best weapon for this build when weapon search is active (theory mode), else
+  // null. surfaced as its own column, mirroring the main echo.
+  weaponIcon: string | null
+  weaponName: string | null
 }
 
 interface OptRowPrps {
@@ -37,6 +41,8 @@ interface OptRowPrps {
   baseDamage?: number
   base?: boolean
   rotationMode?: boolean
+  // render the weapon column (theory weapon search active)
+  showWeapon?: boolean
   selected?: boolean
   onClick?: () => void
 }
@@ -54,10 +60,11 @@ export function Row({
   baseDamage,
   base = false,
   rotationMode = false,
+  showWeapon = false,
   selected = false,
   onClick,
   }: OptRowPrps) {
-  const { stats, costs, sets, mainEchoIcon, damage } = result
+  const { stats, costs, sets, mainEchoIcon, weaponIcon, weaponName, damage } = result
   const diff =
     base || !baseDamage || baseDamage <= 0
       ? '100.00'
@@ -129,6 +136,22 @@ export function Row({
           <span className="opt-result-row__placeholder">...</span>
         )}
       </div>
+      {showWeapon ? (
+        <div className="opt-result-row__col opt-result-row__col--weapon">
+          {weaponIcon ? (
+            <img
+              src={weaponIcon}
+              alt={weaponName ?? 'weapon'}
+              title={weaponName ?? undefined}
+              className="opt-result-row__weapon-icon"
+              loading="lazy"
+              onError={withDefIconM}
+            />
+          ) : (
+            <span className="opt-result-row__placeholder">—</span>
+          )}
+        </div>
+      ) : null}
       <div className="opt-result-row__col opt-result-row__col--cost">{viewCostCombo()}</div>
       <div className="opt-result-row__col">{renderStat(stats?.atk, (value) => Math.floor(value).toString())}</div>
       <div className="opt-result-row__col">{renderStat(stats?.hp, (value) => Math.floor(value).toString())}</div>

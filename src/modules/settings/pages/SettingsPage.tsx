@@ -91,6 +91,7 @@ export function SettingsPage() {
   const setUpdTst = useAppStore((state) => state.setUpdToast)
   const setRcmmMenuT = useAppStore((state) => state.setRecMenus)
   const setShowNqntV = useAppStore((state) => state.setUnqOvr)
+  const setMaxResInit = useAppStore((state) => state.setMaxResInit)
   const setCmpcInv = useAppStore((state) => state.setCmpInv)
   const setSeeQppd = useAppStore((state) => state.setSeeEqp)
   const setHaveHist = useAppStore((state) => state.setHistOn)
@@ -141,6 +142,7 @@ export function SettingsPage() {
     setPdtTst: setUpdTst,
     setRcmmMenyu: setRcmmMenuT,
     setShowNqng6: setShowNqntV,
+    setMaxResInit,
     setHaveHist: setHaveHist,
     setHistMax: setHistMax,
     setCmpcInv: setCmpcInv,

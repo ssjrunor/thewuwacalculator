@@ -6,7 +6,7 @@
 
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { RandGnrtSets, WeaponPlanSet } from '@/domain/entities/suggestions'
-import type { ResRuntime, ResSeed, EchoInstance, WeaponState } from '@/domain/entities/runtime'
+import type { ResRuntime, ResSeed, EchoInstance } from '@/domain/entities/runtime'
 import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
 import type { FinalStats, UnifiedBuffPool, ResBaseStats, SkillDef } from '@/domain/entities/stats'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
@@ -94,7 +94,6 @@ export interface PrepWeaponPlan {
   weaponType: number
   level: number
   rank: number
-  curWpn: WeaponState
   settings: WeaponPlanSet
   topK?: number
 }

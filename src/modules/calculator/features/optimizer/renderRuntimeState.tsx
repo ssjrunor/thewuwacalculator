@@ -14,8 +14,9 @@ import {
   setSourceState,
   type RtUpdHnd,
 } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
-import { resolveSourceStateOptions as sourceOptions } from '@/modules/calculator/model/sourceEval.ts'
+import { srcSttOpts as sourceOptions } from '@/modules/calculator/model/sourceEval.ts'
 import { getStateText } from '@/modules/calculator/model/sourceStateDisplay'
+import { getSrcSttNct } from '@/domain/gameData/controlOptions'
 
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -57,11 +58,12 @@ export function viewRtStt(
   const tgtRt = options?.tgtRt ?? runtime
   const actRt = options?.actRt ?? tgtRt
   const display = getStateText(state)
-  const currentValue = readRtPath(tgtRt, state.path)
+  const curVal = readRtPath(tgtRt, state.path)
   const isEnabled = isSrcSttOn(srcRt, tgtRt, state, actRt)
+  const resolvedValue = curVal ?? getSrcSttNct(srcRt, tgtRt, state, actRt)
 
   if (state.kind === 'toggle') {
-    const checked = toBoolean(currentValue ?? state.defaultValue, false)
+    const checked = toBoolean(resolvedValue, false)
     return (
       <div
         key={state.controlKey}
@@ -94,7 +96,7 @@ export function viewRtStt(
     const min = Math.max(0, Math.floor(state.min ?? 0))
     const defaultStack = toNumber(state.defaultValue, min)
     const max = Math.max(min, Math.floor(state.max ?? defaultStack))
-    const stackValue = toNumber(currentValue ?? state.defaultValue, min)
+    const stackValue = toNumber(resolvedValue, min)
     return (
       <div
         key={state.controlKey}
@@ -125,7 +127,7 @@ export function viewRtStt(
 
   if (state.kind === 'select') {
     const selPtns = sourceOptions(srcRt, tgtRt, state, actRt)
-    const selVl = String(currentValue ?? state.defaultValue ?? selPtns[0]?.id ?? '')
+    const selVl = String(resolvedValue)
     const isActive = toNumber(selVl, 0) > 0
     return (
       <div
@@ -155,7 +157,7 @@ export function viewRtStt(
 
   const min = state.min ?? 0
   const max = state.max
-  const numericValue = toNumber(currentValue ?? state.defaultValue, min)
+  const numericValue = toNumber(resolvedValue, min)
   return (
     <div
       key={state.controlKey}

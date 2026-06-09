@@ -7,6 +7,7 @@ import type { SyntheticEvent as SyntVnt } from 'react'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { ResStateControl } from '@/domain/entities/resonator.ts'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
+import { getResStateGroups } from '@/domain/gameData/resonatorStateGraph.ts'
 import {
   getResCntrNc,
   getSrcSttNct,
@@ -18,7 +19,7 @@ import { getResonator } from '@/modules/calculator/features/resonator/lib/resona
 import { listFfctForO, listStatesFor } from '@/domain/services/gameDataService.ts'
 import {
   evalSrcSttOn,
-  evalSourceState,
+  evalSrcStt,
 } from '@/modules/calculator/model/sourceEval.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 
@@ -66,7 +67,9 @@ export function setSourceState(
         nextRuntime = writeRtPath(
           nextRuntime,
           resetState.path,
-          getSrcSttNct(scpdSrcRt, scpdTgtRt, resetState, scpdActRt),
+          resetState.kind === 'toggle' && resetState.groupId
+            ? false
+            : getSrcSttNct(scpdSrcRt, scpdTgtRt, resetState, scpdActRt),
         )
       }
     }
@@ -81,7 +84,7 @@ export function isSourceVisible(
   state: SourceState,
   actRt: ResRuntime = tgtRt,
 ): boolean {
-  return evalSourceState(srcRt, tgtRt, state, actRt)
+  return evalSrcStt(srcRt, tgtRt, state, actRt)
 }
 
 export function isSrcSttOn(
@@ -272,7 +275,7 @@ export function getTeamTgtPt(
 export function getCntrNctvV(
   control: ResStateControl,
   runtime?: ResRuntime,
-): boolean | number {
+): boolean | number | string {
   return getResCntrNc(control, runtime)
 }
 
@@ -284,6 +287,10 @@ export function applyCscdRst(
 ): Record<string, boolean | number | string> {
   const result = { ...nextControls }
   const cntrByKey = Object.fromEntries(allControls.map((c) => [c.key, c]))
+  const exclusiveCntrKeys = new Set(
+    getResStateGroups(getResDtlsBy()[runtime.id])
+      .flatMap((group) => group.members ?? []),
+  )
 
   for (const key of Object.keys(result)) {
     if (result[key] === prevControls[key]) continue
@@ -292,7 +299,9 @@ export function applyCscdRst(
     if (control.kind === 'toggle' && result[key] === true && control.resets?.length) {
       for (const resetKey of control.resets) {
         const target = cntrByKey[resetKey]
-        result[resetKey] = target
+        result[resetKey] = target?.kind === 'toggle' && exclusiveCntrKeys.has(resetKey)
+          ? false
+          : target
           ? getResCntrNc(target, {
             ...runtime,
             state: {

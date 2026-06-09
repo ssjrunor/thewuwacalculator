@@ -6,6 +6,7 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { resResCntrPt } from '@/domain/gameData/controlOptions.ts'
+import type { ResControlOption, ResControlOptionValue } from '@/domain/entities/resonator.ts'
 import type { ResonatorSkillTabKey as SkillTabKey, ResonatorStateControl as ResStateControl } from '@/modules/calculator/features/resonator/lib/resonator.ts'
 
 export const skllLblMap: Record<SkillTabKey, string> = {
@@ -64,7 +65,7 @@ export function preloadImage(src: string): Promise<void> {
 export function getCntrPtns(
   control: ResStateControl,
   runtime: ResRuntime,
-): number[] {
+): Array<ResControlOptionValue | ResControlOption> {
   return resResCntrPt(runtime, control)
 }
 

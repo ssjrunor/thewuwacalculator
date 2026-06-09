@@ -17,7 +17,7 @@ import type {
   SourceState,
 } from '@/domain/gameData/contracts'
 import type { SkillDef } from '@/domain/entities/stats'
-import { prmCompSrcPk } from '@/engine/effects/evaluator'
+import { prmCompSrcPk, prmCompSttEx } from '@/engine/effects/evaluator'
 
 const NO_OWNERS: SrcOwnDef[] = []
 const NO_EFFECTS: EffectDef[] = []
@@ -40,7 +40,11 @@ export function makeSourceKey(source: DataSrcRef): string {
 }
 
 // build the full game data registry from source packages
-export function mkGameDataRe(sources: SrcPkg[]): GameDataReg {
+export function mkGameDataRe(
+  sources: SrcPkg[],
+  options: { resonatorStatesById?: Record<string, SourceState[]> } = {},
+): GameDataReg {
+  const resonatorStatesById = options.resonatorStatesById ?? {}
   const sourcesByKey: Record<string, SrcPkg> = {}
   const wnrsBySrcKey: Record<string, SrcOwnDef[]> = {}
   const ownersByKey: Record<string, SrcOwnDef> = {}
@@ -108,7 +112,14 @@ export function mkGameDataRe(sources: SrcPkg[]): GameDataReg {
       runtimePostStats: rtPostStts,
       skill,
     }
-    sttsBySrcKey[key] = source.states ?? NO_STATES
+    const states = source.states?.length
+      ? source.states
+      : source.source.type === 'resonator'
+        ? resonatorStatesById[source.source.id] ?? NO_STATES
+        : NO_STATES
+
+    prmCompSttEx(states)
+    sttsBySrcKey[key] = states
     condsBySrcKe[key] = source.conditions ?? NO_CONDS
     featsBySrcKe[key] = source.features ?? NO_FEATS
     rttnBySrcKey[key] = source.rotations ?? NO_ROTS
@@ -132,7 +143,13 @@ export function mkGameDataRe(sources: SrcPkg[]): GameDataReg {
   }
 
   for (const source of sources) {
-    for (const state of source.states ?? []) {
+    const states = source.states?.length
+      ? source.states
+      : source.source.type === 'resonator'
+        ? resonatorStatesById[source.source.id] ?? NO_STATES
+        : NO_STATES
+
+    for (const state of states) {
       if (!ownersByKey[state.ownerKey]) {
         throw new Error(`unknown state owner key: ${state.ownerKey}`)
       }

@@ -111,6 +111,7 @@ export function preserveToggles(existing?: OptSets | null): Partial<OptSets> {
     lowMemoryMode: existing.lowMemoryMode,
     resultsLimit: existing.resultsLimit,
     keepPercent: existing.keepPercent,
+    excludeEquipped: existing.excludeEquipped,
     targetMode: existing.targetMode,
     rotationMode: existing.rotationMode,
   }

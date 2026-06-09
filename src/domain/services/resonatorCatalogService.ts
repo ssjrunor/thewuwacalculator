@@ -44,6 +44,8 @@ export function getResGameDa(resonatorId: string): Resonator | null {
     spriteFaceScale: catalog.spriteFaceScale,
     traceNodes: catalog.traceNodes ?? details.traceNodes,
     skillsByTab: details.skillsByTab,
+    stateGraph: details.stateGraph,
+    modeGroups: details.modeGroups,
     statePanels: details.statePanels,
     inherentSkills: details.inherentSkills,
     resonanceChains: details.resonanceChains,

@@ -89,12 +89,14 @@ export function mkRotFeatMet(
       const skill = member.skills.find((entry) => entry.id === feature.skillId)
       const skillResult = skill ? resolveSkill(member.runtime, skill) : null
       const negFfctCmbtK = getNegFfctCm(skillResult?.archetype)
-      const fixedStacks = negFfctCmbtK
-        ? getNegFfctEn(member.runtime, negFfctCmbtK)?.stackMode === 'fixedMax'
-        : false
+      const fixedStacks = skillResult?.stackMode === 'fixedMax' || (
+        negFfctCmbtK
+          ? getNegFfctEn(member.runtime, negFfctCmbtK)?.stackMode === 'fixedMax'
+          : false
+      )
 
       lookup[feature.id] = {
-        label: skillResult?.tab === 'negativeEffect' ? skillResult.label : feature.label,
+        label: skillResult?.label ?? feature.label,
         skillId: feature.skillId,
         tab: skillResult?.tab ?? skill?.tab ?? 'feature',
         archetype: skillResult?.archetype ?? skill?.archetype,

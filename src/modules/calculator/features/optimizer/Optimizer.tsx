@@ -10,7 +10,8 @@ import type {RotationNode} from '@/domain/gameData/contracts'
 import {DEF_SET_COND} from '@/domain/entities/sonataSetConditionals'
 import type { EchoInstance, ResRuntime, TeamMemRt } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
-import { makeTeamMember } from '@/domain/state/defaults'
+import { makeTeamMember, maxRtInit } from '@/domain/state/defaults'
+import { initWpnStts, maxWpnRt } from '@/domain/state/sourceStateInit'
 import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { useAppModal, useAppMdlVl } from '@/shared/ui/useAppModal.ts'
@@ -23,8 +24,12 @@ import {getEchoSttsSrc} from '@/data/gameData/catalog/echoStats'
 import {getResCatByI, getResDtlsBy} from '@/data/gameData/resonators/resonatorDataStore'
 import {getWpnsById} from '@/data/gameData/weapons/weaponDataStore'
 import {getEchoById, listEchoes} from '@/domain/services/echoCatalogService'
+import {getEchoSetDe} from '@/data/gameData/echoSets/effects'
+import {weaponEquipState} from '@/engine/optimizer/context/weaponOverlays.ts'
+import {getWpnById} from '@/domain/services/weaponCatalogService'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
-import {makeRuntimeMap} from '@/domain/state/runtimeAdapters'
+import {makeRuntimeMap, mkRtFromProf} from '@/domain/state/runtimeAdapters'
+import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 import {useAppStore} from '@/domain/state/store'
 import {
   selActResId,
@@ -32,6 +37,7 @@ import {
   selEnemyProf,
   selOptCtx,
 } from '@/domain/state/selectors'
+import { mkInvEchoSgB } from '@/domain/state/inventoryUsage.ts'
 import {compOptPay} from '@/engine/optimizer/compiler'
 import {deriveOptSets} from '@/engine/optimizer/config/defaultSettings.ts'
 import {applyKeepPrc, makeStatWeights} from '@/engine/optimizer/search/filtering.ts'
@@ -54,11 +60,13 @@ import {
 } from '@/modules/calculator/features/controls/SetConditional.tsx'
 import {ResPckr as ResPckrMdl} from '@/modules/calculator/features/resonator/Picker.tsx'
 import {CharPtnsPnl} from '@/modules/calculator/features/optimizer/ResonatorOptionsPanel.tsx'
+import {WeaponConfig} from '@/modules/calculator/features/suggesstions/WeaponConfig.tsx'
+import {SuggsMdl} from '@/modules/calculator/features/suggesstions/Parts.tsx'
 import { TeamPanel } from '@/modules/calculator/features/optimizer/TeamPanel.tsx'
 import {
   mkMateCntr,
   teamRuntime,
-} from '@/modules/calculator/features/optimizer/lib/teamRuntime.ts'
+} from '@/domain/state/teamRuntime'
 import {ControlBox} from '@/modules/calculator/features/optimizer/ControlBox.tsx'
 import {
   type OptDisplayRow,
@@ -141,8 +149,19 @@ export function Optimizer() {
       : []
   ))
   const invEchoEnts = useAppStore((state) => state.calculator.inventoryEchoes)
+  const optProfiles = useAppStore((state) => state.calculator.profiles)
   const invRttn = useAppStore((state) => state.calculator.inventoryRotations)
   const optCpuHintSe = useAppStore((state) => state.ui.optimizerCpuHintSeen)
+  const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
+  const optLiveSourceSig = useAppStore((state) => {
+    const context = state.calculator.optimizerContext
+    if (!context || context.resonatorId !== state.calculator.session.activeResonatorId) {
+      return null
+    }
+
+    const liveRuntime = mkRtFromProf(state.calculator, context.resonatorId)
+    return liveRuntime ? runtimeSig(liveRuntime) : null
+  })
   const ensureOptimizer = useAppStore((state) => state.ensureOptimizer)
   const syncOptCtxTo = useAppStore((state) => state.syncOptRt)
   const setOptCpuHin = useAppStore((state) => state.setOptHint)
@@ -153,6 +172,7 @@ export function Optimizer() {
   const swtcToRes = useAppStore((state) => state.swRes)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
   const startOpt = useAppStore((state) => state.startOpt)
+  const weaponSuggests = useAppStore((state) => state.calculator.weaponSuggests)
   const cnclOpt = useAppStore((state) => state.cnclOpt)
   const clrOptRslts = useAppStore((state) => state.clrOptRslt)
   const optResId = optimizer?.resonatorId ?? actResId
@@ -187,8 +207,6 @@ export function Optimizer() {
   )
   const [pageIndex, setPageIndex] = useState(0)
   const [selNdx, setActiveIndex] = useState(0)
-  // SQL-style result view: filter (WHERE) + sort (ORDER BY) over the result
-  // array. default criteria render the array as-is (identity, zero overhead).
   const [viewCriteria, setViewCriteria] = useState<ResultViewCriteria>(DEFAULT_VIEW_CRITERIA)
   // whether the filter/sort controls are expanded; opening them arms the facet
   // pass so the dropdowns can list the echoes/sets/plans present.
@@ -218,10 +236,12 @@ export function Optimizer() {
   const uiModal = useAppMdlVl<ReactNode>()
   const rulesModal = useAppModal()
   const setCondsMdl = useAppModal()
+  const wpnCondMdl = useAppModal()
   const quickPickModal = useAppMdlVl<number>()
   const mainEchoPckr = useAppMdlVl<OpEchoTarget>()
   const resPckr = useAppMdlVl<OpSlot>()
   const weaponPicker = useAppMdlVl<OpSlot>()
+  const staleLiveToastKey = useRef<string | null>(null)
 
   const mdlPrtlTgt = mainPortal()
 
@@ -324,13 +344,13 @@ export function Optimizer() {
   const rslvEchoPlns = mateEchoPlan.plans
   const nvldMateMain = mateEchoPlan.invalidMainEchoes
 
-  const reset = () => {
+  const reset = useCallback(() => {
     clrOptRslts()
     setPageIndex(0)
     setActiveIndex(0)
     setPrvwTrgt({ kind: 'base' })
     setProgress(mkMptyPrgr())
-  }
+  }, [clrOptRslts])
 
   const openUiModal = (content: ReactNode) => {
     uiModal.show(content)
@@ -516,9 +536,21 @@ export function Optimizer() {
     }))
   }, [comboOptions, optSets, updOptSets])
 
+  const optInvEchoE = useMemo(() => {
+    if (isThryMode || !optSets?.excludeEquipped || !optResId) {
+      return invEchoEnts
+    }
+
+    const invEchoSg = mkInvEchoSgB(optProfiles)
+    return invEchoEnts.filter(({ echo }) => {
+      const owners = invEchoSg[echo.uid] ?? []
+      return !owners.some((owner) => owner.resonatorId !== optResId)
+    })
+  }, [invEchoEnts, isThryMode, optProfiles, optResId, optSets?.excludeEquipped])
+
   const fltrRuleEcho = useMemo(() => {
     if (!optSets) {
-      return invEchoEnts
+      return optInvEchoE
     }
 
     const llwdSetIds = optSetIdSet(optSets.allowedSets)
@@ -528,13 +560,13 @@ export function Optimizer() {
         .filter((value): value is string => Boolean(value)),
     )
 
-    return invEchoEnts.filter(({ echo }) => {
+    return optInvEchoE.filter(({ echo }) => {
       if (llwdSetIds.size > 0 && !llwdSetIds.has(echo.set)) {
         return false
       }
       return !(llwdMainStat.size > 0 && !llwdMainStat.has(echo.mainStats.primary.key));
     })
-  }, [invEchoEnts, optSets])
+  }, [optInvEchoE, optSets])
 
   const allEchoes = useMemo(() => listEchoes(), [])
 
@@ -753,12 +785,17 @@ export function Optimizer() {
     }
 
     const summary = smmrEchoLdt(effectRuntime.build.echoes)
+    const baseWeapon = effectRuntime.build.weapon.id
+      ? getWpnById(effectRuntime.build.weapon.id)
+      : null
 
     return {
       damage: bslnVltn?.damage ?? 0,
       costs: summary.costs,
       sets: summary.sets,
       mainEchoIcon: summary.mainEchoIcon,
+      weaponIcon: baseWeapon?.icon ?? null,
+      weaponName: baseWeapon?.name ?? null,
       stats: bslnVltn?.stats ?? null,
     }
   })()
@@ -875,6 +912,48 @@ export function Optimizer() {
       optResultData: optResultData,
     })
   }, [invChsByUid, optResults, optResultData, optResultEchoes, pageOrigIndices])
+
+  // log the first page of results in detail once per completed run, so the top
+  // builds can be inspected in the console without paging through the UI.
+  const loggedRunRef = useRef<unknown>(null)
+  useEffect(() => {
+    if (!optResults || optResults.length === 0 || loggedRunRef.current === optResults) {
+      return
+    }
+    loggedRunRef.current = optResults
+
+    const count = Math.min(rsltsPerPage, optResults.length)
+    const firstPage = getRowsAt({
+      optResults,
+      indices: Array.from({ length: count }, (_, i) => i),
+      invChsByUid,
+      optResultEchoes,
+      optResultData,
+    })
+
+    const detail = firstPage.map((row, i) => ({
+      rank: i + 1,
+      damage: Math.floor(row.damage || 0),
+      sets: row.sets.map((s) => `${getEchoSetDe(s.id)?.name ?? s.id} (${s.count}pc)`).join(' + ') || '—',
+      cost: row.costs?.join('-') ?? '—',
+      weapon: row.weaponName ?? '—',
+      atk: row.stats ? Math.floor(row.stats.atk) : null,
+      hp: row.stats ? Math.floor(row.stats.hp) : null,
+      def: row.stats ? Math.floor(row.stats.def) : null,
+      er: row.stats ? Number(row.stats.er.toFixed(1)) : null,
+      cr: row.stats ? Number(row.stats.cr.toFixed(1)) : null,
+      cd: row.stats ? Number(row.stats.cd.toFixed(1)) : null,
+      bonus: row.stats ? Number(row.stats.bonus.toFixed(1)) : null,
+      amp: row.stats ? Number(row.stats.amp.toFixed(1)) : null,
+    }))
+
+    /* eslint-disable no-console */
+    console.groupCollapsed(`[optimizer] first page — top ${count} of ${optResults.length} results`)
+    console.table(detail)
+    console.log('full display rows:', firstPage)
+    console.groupEnd()
+    /* eslint-enable no-console */
+  }, [optResults, invChsByUid, optResultEchoes, optResultData])
 
   // display positions in the current view satisfying the find predicates: the
   // rows the jump steps through (without hiding anything).
@@ -1059,7 +1138,29 @@ export function Optimizer() {
     setPrvwTrgt({ kind: 'base' })
   }
 
-  function applyOptRslt(index: number) {
+  // resolve the searched weapon for a result, if weapon search produced one.
+  // raw theory results carry an index into the run's weaponIds; materialized
+  // results carry the resolved id directly.
+  function rsltWeaponId(index: number): string | null {
+    const entry = optResults[index] as
+      | { weaponId?: string; weapon?: number }
+      | undefined
+    if (!entry) {
+      return null
+    }
+    if (typeof entry.weaponId === 'string' && entry.weaponId) {
+      return entry.weaponId
+    }
+    const ids = optResultData && 'weaponIds' in optResultData
+      ? (optResultData as { weaponIds?: string[] }).weaponIds
+      : undefined
+    if (typeof entry.weapon === 'number' && entry.weapon >= 0 && Array.isArray(ids)) {
+      return ids[entry.weapon] ?? null
+    }
+    return null
+  }
+
+  function applyOptRslt(index: number, markSourceSynced = false) {
     const nextEchoes = rsltLdt({
       optResults: optResults,
       index,
@@ -1071,15 +1172,28 @@ export function Optimizer() {
       return
     }
 
+    const weaponId = rsltWeaponId(index)
+
     // apply into optimizer state first so preview and follow-up equip actions
-    // keep reading from the same normalized result payload.
-    updOptRt((runtime) => ({
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: nextEchoes,
-      },
-    }))
+    // keep reading from the same normalized result payload. when weapon search
+    // picked a weapon, equip it with the exact state the search evaluated (level,
+    // rank, max passives) so the equipped build reproduces the result's damage.
+    updOptRt((runtime) => {
+      const equip = weaponId
+        ? weaponEquipState(weaponId, runtime.build.weapon.level, weaponSuggests)
+        : null
+      return {
+        ...runtime,
+        build: {
+          ...runtime.build,
+          echoes: nextEchoes,
+          ...(equip ? { weapon: { ...runtime.build.weapon, ...equip.weapon } } : {}),
+        },
+        ...(equip
+          ? { state: { ...runtime.state, controls: { ...runtime.state.controls, ...equip.controls } } }
+          : {}),
+      }
+    }, markSourceSynced ? { sourceRuntimeSig: runtimeSig } : undefined)
   }
 
   function applyOptResult(index: number) {
@@ -1094,19 +1208,30 @@ export function Optimizer() {
       return
     }
 
-    applyOptRslt(index)
+    applyOptRslt(index, true)
 
     if (!optResId) {
       return
     }
 
-    updResRt(optResId, (runtime) => ({
-      ...runtime,
-      build: {
-        ...runtime.build,
-        echoes: nextEchoes,
-      },
-    }))
+    const weaponId = rsltWeaponId(index)
+
+    updResRt(optResId, (runtime) => {
+      const equip = weaponId
+        ? weaponEquipState(weaponId, runtime.build.weapon.level, weaponSuggests)
+        : null
+      return {
+        ...runtime,
+        build: {
+          ...runtime.build,
+          echoes: nextEchoes,
+          ...(equip ? { weapon: { ...runtime.build.weapon, ...equip.weapon } } : {}),
+        },
+        ...(equip
+          ? { state: { ...runtime.state, controls: { ...runtime.state.controls, ...equip.controls } } }
+          : {}),
+      }
+    })
 
     if (actResId !== optResId) {
       swtcToRes(optResId)
@@ -1121,13 +1246,20 @@ export function Optimizer() {
     }
   }
 
-  const vsblHdrTtls = useMemo(() => {
-    if (!rotationMode) {
-      return HEADER_TITLES
-    }
+  const showWeapon = isThryMode && (optSets?.includeWeapons ?? false)
 
-    return HEADER_TITLES.filter((title) => title !== 'Ʃ BNS%' && title !== 'Ʃ AMP%')
-  }, [rotationMode])
+  const vsblHdrTtls = useMemo(() => {
+    const base = rotationMode
+      ? HEADER_TITLES.filter((title) => title !== 'Ʃ BNS%' && title !== 'Ʃ AMP%')
+      : HEADER_TITLES
+    if (!showWeapon) {
+      return base
+    }
+    // insert the weapon column right after "Main", mirroring the row layout
+    const mainIdx = base.indexOf('Main')
+    const at = mainIdx >= 0 ? mainIdx + 1 : 1
+    return [...base.slice(0, at), 'Weapon', ...base.slice(at)]
+  }, [rotationMode, showWeapon])
 
   const pageItems = useMemo(() => {
     const items: Array<number | string> = []
@@ -1286,24 +1418,32 @@ export function Optimizer() {
 
     updOptRt((prev) => {
       if (slot === 'active') {
-        const nextControls = { ...prev.state.controls }
-        clrWpnSttCnt(nextControls, prev.build.weapon.id)
-        applyWpnSttD(nextControls, selWpn.id)
-        const stats = weaponStatsAt(selWpn, prev.build.weapon.level)
-
-        return {
+        const nextLevel = maxResOnInit ? 90 : prev.build.weapon.level
+        const stats = weaponStatsAt(selWpn, nextLevel)
+        const nextRuntime = {
           ...prev,
           build: {
             ...prev.build,
             weapon: {
               ...prev.build.weapon,
               id: selWpn.id,
+              level: nextLevel,
               baseAtk: stats.atk,
               rank: 1,
             },
           },
+        }
+        const initializedRuntime = maxResOnInit
+          ? maxWpnRt(nextRuntime, { targetRank: 1 })
+          : nextRuntime
+        const nextControls = { ...initializedRuntime.state.controls }
+        clrWpnSttCnt(nextControls, prev.build.weapon.id)
+        applyWpnSttD(nextControls, selWpn.id, '', initializedRuntime, maxResOnInit)
+
+        return {
+          ...initializedRuntime,
           state: {
-            ...prev.state,
+            ...initializedRuntime.state,
             controls: nextControls,
           },
         }
@@ -1323,18 +1463,20 @@ export function Optimizer() {
       const resolvedRuntime = currentRuntime?.id === memberId
         ? currentRuntime
         : makeTeamMember(seed)
-      const curRt = matTeamMemFr(
+      const materialRuntime = matTeamMemFr(
         seed,
         resolvedRuntime,
         prev.state.controls,
         prev.state.combat,
         prev.build.team,
       )
-      const nextControls = { ...curRt.state.controls }
-      clrWpnSttCnt(nextControls, curRt.build.weapon.id)
-      applyWpnSttD(nextControls, selWpn.id)
+      const curRt = maxResOnInit && currentRuntime?.id !== memberId
+        ? maxRtInit(materialRuntime)
+        : currentRuntime?.id !== memberId
+          ? initWpnStts(materialRuntime, { maxed: false })
+          : materialRuntime
       const stats = weaponStatsAt(selWpn, curRt.build.weapon.level)
-      const nextRuntime: ResRuntime = {
+      const runtimeWithWeapon: ResRuntime = {
         ...curRt,
         build: {
           ...curRt.build,
@@ -1345,8 +1487,17 @@ export function Optimizer() {
             rank: 1,
           },
         },
+      }
+      const initializedRuntime = maxResOnInit
+        ? maxWpnRt(runtimeWithWeapon, { targetRank: 1 })
+        : runtimeWithWeapon
+      const nextControls = { ...initializedRuntime.state.controls }
+      clrWpnSttCnt(nextControls, curRt.build.weapon.id)
+      applyWpnSttD(nextControls, selWpn.id, '', initializedRuntime, maxResOnInit)
+      const nextRuntime: ResRuntime = {
+        ...initializedRuntime,
         state: {
-          ...curRt.state,
+          ...initializedRuntime.state,
           controls: nextControls,
         },
       }
@@ -1370,7 +1521,7 @@ export function Optimizer() {
         ids: [selWpn.id],
       })
     }
-  }, [bumpPickerFreq, selWpnPckroe, updOptRt])
+  }, [bumpPickerFreq, maxResOnInit, selWpnPckroe, updOptRt])
 
   const applyOptMate = useCallback((slotIndex: 0 | 1, resonatorId: string) => {
     updOptRt((prev) => {
@@ -1383,13 +1534,16 @@ export function Optimizer() {
       const nextTeam = [...prev.build.team] as typeof prev.build.team
       nextTeam[slotIndex + 1] = resonatorId
 
-      const nextRuntime = matTeamMemFr(
+      const materialRuntime = matTeamMemFr(
         nextSeed,
         makeTeamMember(nextSeed),
         prev.state.controls,
         prev.state.combat,
         nextTeam,
       )
+      const nextRuntime = maxResOnInit
+        ? maxRtInit(materialRuntime)
+        : initWpnStts(materialRuntime, { maxed: false })
       const currentRuntime = prev.teamRuntimes[slotIndex]
       const memberIdsClear = Array.from(
         new Set([currentRuntime?.id, curMemId].filter((value): value is string => Boolean(value))),
@@ -1497,7 +1651,7 @@ export function Optimizer() {
       next[slotIndex] = null
       return next
     })
-  }, [setEchoPlans, updOptRt])
+  }, [maxResOnInit, setEchoPlans, updOptRt])
 
   const rmMateMainEc = useCallback((slotIndex: 0 | 1) => {
     setEchoPlans((prev) => {
@@ -1582,6 +1736,7 @@ export function Optimizer() {
       selectedTargets: activeTarget,
       setConds: optSetConds,
       rotTms: selRotTms,
+      weaponPlan: weaponSuggests,
     }, {
       onProgress: (nextProgress) => {
         setProgress(nextProgress)
@@ -1589,9 +1744,9 @@ export function Optimizer() {
     })
   }
 
-  function handleReset() {
+  const handleReset = useCallback(() => {
     reset()
-  }
+  }, [reset])
 
   const onTgtModeChn = useCallback((value: 'skill' | 'combo') => {
     const nextRotMode = value === 'combo'
@@ -1603,9 +1758,9 @@ export function Optimizer() {
     if (rotationMode !== nextRotMode) {
       reset()
     }
-  }, [rotationMode, updOptSets])
+  }, [reset, rotationMode, updOptSets])
 
-  function onSyncLive() {
+  const onSyncLive = useCallback(() => {
     if (isLoading) {
       return
     }
@@ -1613,7 +1768,38 @@ export function Optimizer() {
     syncOptCtxTo(optResId ?? undefined)
     setEchoPlans([null, null])
     reset()
-  }
+  }, [isLoading, optResId, reset, setEchoPlans, syncOptCtxTo])
+
+  useEffect(() => {
+    if (!optimizer || optimizer.resonatorId !== actResId || !optLiveSourceSig) {
+      return
+    }
+
+    const sourceSig = optimizer.sourceRuntimeSig || runtimeSig(optimizer.runtime)
+    if (sourceSig === optLiveSourceSig) {
+      staleLiveToastKey.current = null
+      return
+    }
+
+    const toastKey = `${optimizer.resonatorId}:${sourceSig}:${optLiveSourceSig}`
+    if (staleLiveToastKey.current === toastKey) {
+      return
+    }
+
+    staleLiveToastKey.current = toastKey
+    showToast({
+      content: 'Live change(s) detected.',
+      variant: 'warning',
+      position: 'top-right',
+      duration: 6000,
+      action: isLoading
+        ? undefined
+        : {
+          label: 'Sync',
+          onClick: onSyncLive,
+        },
+    })
+  }, [actResId, isLoading, onSyncLive, optLiveSourceSig, optimizer, showToast])
 
   function handleHalt() {
     cnclOpt()
@@ -1831,6 +2017,17 @@ export function Optimizer() {
         }}
       />
 
+      <SuggsMdl
+        {...wpnCondMdl}
+        title="Config - Weapon Search"
+        onClose={wpnCondMdl.hide}
+        xtrClssName="suggestions-modal--mid"
+      >
+        {effectRuntime ? (
+          <WeaponConfig runtime={effectRuntime} seed={activeSeed} lockMaxMode />
+        ) : null}
+      </SuggsMdl>
+
       <ContextTrigger
         asChild
         ariaLabel="Optimizer actions"
@@ -1867,6 +2064,9 @@ export function Optimizer() {
                 allowedSets={optSets?.allowedSets ?? {1: [], 3: [], 5: [] }}
                 mainStatFilter={isThryMode ? thryMFltr.mainStatFilter : optSets?.mainStatFilter ?? []}
                 mainStatRdly={isThryMode}
+                isTheory={isThryMode}
+                excludeEquipped={optSets?.excludeEquipped ?? false}
+                includeWeapons={optSets?.includeWeapons ?? false}
                 selBonus={isThryMode ? thryMFltr.selectedBonus : optSets?.selectedBonus ?? null}
                 statCstrs={optSets?.statConstraints ?? {}}
                 optRt={optRt}
@@ -1894,6 +2094,7 @@ export function Optimizer() {
                 onOptRtPdt={updOptRt}
                 onOpenMainEcho={openMainEcho}
                 onOpenSetCond={setCondsMdl.show}
+                onOpenWpnCond={wpnCondMdl.show}
                 onClrMainEyq={() => {
                   updOptSets((settings) => ({
                     ...settings,
@@ -1912,6 +2113,18 @@ export function Optimizer() {
                     mainStatFilter: settings.mainStatFilter.includes(value)
                       ? settings.mainStatFilter.filter((entry) => entry !== value)
                       : [...settings.mainStatFilter, value],
+                  }))
+                }}
+                onToggleExcludeEquipped={(value) => {
+                  updOptSets((settings) => ({
+                    ...settings,
+                    excludeEquipped: value,
+                  }))
+                }}
+                onToggleWeapons={(value) => {
+                  updOptSets((settings) => ({
+                    ...settings,
+                    includeWeapons: value,
                   }))
                 }}
                 onPickBonus={(value) => {
@@ -1988,7 +2201,7 @@ export function Optimizer() {
                 onFindStep={onFindStep}
               />
             ) : null}
-            <div className="results-container" data-mode={targetMode}>
+            <div className="results-container" data-mode={targetMode} data-weapon={showWeapon ? '1' : undefined}>
                 <div
                   className={`opt-results-header${rslvPrvwTgt.kind === 'base' ? ' is-selected' : ''}`}
                   onClick={showBasePrvw}
@@ -2013,6 +2226,7 @@ export function Optimizer() {
                     base
                     baseDamage={baseResult.damage}
                     rotationMode={rotationMode}
+                    showWeapon={showWeapon}
                     onClick={showBasePrvw}
                   />
                 </div>
@@ -2028,6 +2242,7 @@ export function Optimizer() {
                           result={result}
                           baseDamage={baseResult.damage}
                           rotationMode={rotationMode}
+                          showWeapon={showWeapon}
                           selected={selPrvwNdx === index}
                           onClick={() => showRsltPrvw(index)}
                         />

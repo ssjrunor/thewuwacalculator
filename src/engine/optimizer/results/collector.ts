@@ -402,6 +402,10 @@ export class OptResultSet {
   private readonly heapI2: Int32Array
   private readonly heapI3: Int32Array
   private readonly heapI4: Int32Array
+  // best-weapon index carried alongside each build (-1 when no weapon search).
+  // a payload column, not part of the dedup key (a build's identity is its echo
+  // set; the weapon is the optimizer's choice for that build).
+  private readonly heapWeapon: Int32Array
   private heapLen = 0
   private static readonly PRUNE_TRIGGER_MULTIPLIER = 8
 
@@ -417,6 +421,7 @@ export class OptResultSet {
     this.heapI2 = new Int32Array(this.k)
     this.heapI3 = new Int32Array(this.k)
     this.heapI4 = new Int32Array(this.k)
+    this.heapWeapon = new Int32Array(this.k).fill(-1)
   }
 
   get size(): number {
@@ -424,7 +429,7 @@ export class OptResultSet {
   }
 
   push(entry: OptBagResult): void {
-    this.push5(entry.damage, entry.i0, entry.i1, entry.i2, entry.i3, entry.i4)
+    this.push5(entry.damage, entry.i0, entry.i1, entry.i2, entry.i3, entry.i4, entry.weapon ?? -1)
   }
 
   push5(
@@ -434,6 +439,7 @@ export class OptResultSet {
     i2: number,
     i3: number,
     i4: number,
+    weapon = -1,
   ): void {
     if (damage <= 0) {
       return
@@ -445,11 +451,11 @@ export class OptResultSet {
     }
 
     this.bestDamageBySet.recordDamage(i0, i1, i2, i3, i4, damage)
-    this.pushHeap(damage, i0, i1, i2, i3, i4)
+    this.pushHeap(damage, i0, i1, i2, i3, i4, weapon)
     this.mybPrnBestDm()
   }
 
-  pushRdrdCmb(damage: number, comboIds: Int32Array, mainIndex: number): void {
+  pushRdrdCmb(damage: number, comboIds: Int32Array, mainIndex: number, weapon = -1): void {
     if (mainIndex < 0) {
       return
     }
@@ -494,10 +500,10 @@ export class OptResultSet {
       return
     }
 
-    this.push5(damage, mainIndex, i1, i2, i3, i4)
+    this.push5(damage, mainIndex, i1, i2, i3, i4, weapon)
   }
 
-  pushMainFrst(damage: number, comboIds: Int32Array): void {
+  pushMainFrst(damage: number, comboIds: Int32Array, weapon = -1): void {
     this.push5(
         damage,
         comboIds[0],
@@ -505,6 +511,7 @@ export class OptResultSet {
         comboIds[2],
         comboIds[3],
         comboIds[4],
+        weapon,
     )
   }
 
@@ -517,6 +524,7 @@ export class OptResultSet {
     i2: number,
     i3: number,
     i4: number,
+    weapon: number,
   ): void {
     this.heapDmg[slot] = damage
     this.heapI0[slot] = i0
@@ -524,6 +532,7 @@ export class OptResultSet {
     this.heapI2[slot] = i2
     this.heapI3[slot] = i3
     this.heapI4[slot] = i4
+    this.heapWeapon[slot] = weapon
   }
 
   // swap two heap slots across all parallel arrays.
@@ -534,6 +543,7 @@ export class OptResultSet {
     const x2 = this.heapI2[a]; this.heapI2[a] = this.heapI2[b]; this.heapI2[b] = x2
     const x3 = this.heapI3[a]; this.heapI3[a] = this.heapI3[b]; this.heapI3[b] = x3
     const x4 = this.heapI4[a]; this.heapI4[a] = this.heapI4[b]; this.heapI4[b] = x4
+    const xw = this.heapWeapon[a]; this.heapWeapon[a] = this.heapWeapon[b]; this.heapWeapon[b] = xw
   }
 
   private pushHeap(
@@ -543,10 +553,11 @@ export class OptResultSet {
     i2: number,
     i3: number,
     i4: number,
+    weapon: number,
   ): void {
     if (this.heapLen < this.k) {
       const slot = this.heapLen
-      this.setHeapSlot(slot, damage, i0, i1, i2, i3, i4)
+      this.setHeapSlot(slot, damage, i0, i1, i2, i3, i4, weapon)
       this.heapLen += 1
       this.siftHeapUp(slot)
       return
@@ -558,7 +569,7 @@ export class OptResultSet {
       return
     }
 
-    this.setHeapSlot(0, damage, i0, i1, i2, i3, i4)
+    this.setHeapSlot(0, damage, i0, i1, i2, i3, i4, weapon)
     this.siftHeapDown(0)
   }
 
@@ -643,6 +654,7 @@ export class OptResultSet {
       const i3 = this.heapI3[slot]
       const i4 = this.heapI4[slot]
       const damage = this.heapDmg[slot]
+      const weapon = this.heapWeapon[slot]
 
       const curDmg = this.bestDamageBySet.getDamage(i0, i1, i2, i3, i4)
       if (curDmg == null || curDmg !== damage || seen.getDamage(i0, i1, i2, i3, i4) != null) {
@@ -650,7 +662,7 @@ export class OptResultSet {
       }
 
       seen.recordDamage(i0, i1, i2, i3, i4, damage)
-      out.push({ damage, i0, i1, i2, i3, i4 })
+      out.push(weapon >= 0 ? { damage, i0, i1, i2, i3, i4, weapon } : { damage, i0, i1, i2, i3, i4 })
 
       if (out.length >= maxItems) {
         break

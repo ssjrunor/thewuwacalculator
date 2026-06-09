@@ -64,6 +64,7 @@ async function runProducer(
     runId: number,
     payload: import('@/engine/optimizer/types.ts').PrepTheoryTarget | import('@/engine/optimizer/types.ts').PrepTheoryRot,
     batchSize: number,
+    shard?: { index: number; count: number },
 ): Promise<void> {
   const t0 = performance.now()
   let generated = 0
@@ -72,6 +73,7 @@ async function runProducer(
   const iterator = gnrtThryCpuCm({
     payload,
     batchSize,
+    shard,
     borrowBuffer: (length) => {
       while (freeBuffers.length > 0) {
         const buffer = freeBuffers.pop()!
@@ -135,6 +137,7 @@ async function startRun(
     runId: number,
     payload: import('@/engine/optimizer/types.ts').PrepTheoryTarget | import('@/engine/optimizer/types.ts').PrepTheoryRot,
     batchSize: number,
+    shard?: { index: number; count: number },
 ): Promise<void> {
   if (!gameDataReady) {
     if (payload.staticData) {
@@ -145,7 +148,7 @@ async function startRun(
     gameDataReady = true
   }
 
-  await runProducer(runId, payload, batchSize)
+  await runProducer(runId, payload, batchSize, shard)
 }
 
 scope.onmessage = (event: MessageEvent<OptThryProdIn>) => {
@@ -182,10 +185,11 @@ scope.onmessage = (event: MessageEvent<OptThryProdIn>) => {
     mode: message.payload.mode,
     theoryTotal: message.payload.theoryTotal,
     batchSize: message.batchSize,
+    shard: message.shard,
     gameDataReady,
   })
 
-  void startRun(message.runId, message.payload, message.batchSize).catch((error) => {
+  void startRun(message.runId, message.payload, message.batchSize, message.shard).catch((error) => {
     errorOpt('[optimizer:theory-producer] error', {
       runId: message.runId,
       error: error instanceof Error ? error.message : String(error),

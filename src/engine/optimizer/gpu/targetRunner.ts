@@ -7,25 +7,33 @@
 */
 
 import tgtShdrCode from '@/engine/optimizer/shaders/target.wgsl?raw'
+import wpnShdrCode from '@/engine/optimizer/shaders/weaponSearch.wgsl?raw'
 import {
   mkChckBindGr,
   mkChckCmptPp,
   ensureGpuBuffer,
   GPU_CAND_STRIDE,
   readCandBffr,
+  sortCnddByDm,
   toGpuPldView,
   writeGpuBffr,
   type ReusableBuffer,
 } from '@/engine/optimizer/gpu/common.ts'
+import { mkNdxMapXcld, mkJobCmbNdxn } from '@/engine/optimizer/combos/jobIndex.ts'
 import { dispCmptPass } from '@/engine/optimizer/gpu/dispatch.ts'
 import { runRdcPassIf } from '@/engine/optimizer/gpu/reduce.ts'
 import { getGpuDevice } from '@/engine/optimizer/gpu/getDevice.ts'
 import {
   CYCLES_PER_CALL,
-  OPT_RDC_K,
+  GPU_BATCH_MAX_READBACK,
+  GPU_COMBO_MODE_BATCH,
+  GPU_REDUCE_K,
   OPT_WG_SIZE,
+  WEAPON_BIT_MASK,
+  WEAPON_RANK_MASK,
+  WEAPON_INDEX_SHIFT,
+  WEAPON_OVERLAY_STRIDE,
 } from '@/engine/optimizer/config/constants.ts'
-import type { ComboIndex } from '@/engine/optimizer/combos/combinadic.ts'
 import { nrnkCmbnInto } from '@/engine/optimizer/combos/combinadic.ts'
 import {
   OptResultSet,
@@ -111,6 +119,14 @@ interface TgtGpuSttcSt {
 
   // tracks which locked-main mapping is currently uploaded to comboIndexMapBuffer
   actLockMaiok: number
+
+  // weapon search state (only set when the static payload carries overlays).
+  // weaponMode swaps in the weapon pipeline + a 14-binding bind group that adds
+  // the overlay storage buffer and the weapon-meta uniform.
+  weaponMode: boolean
+  weaponCount: number
+  weaponOverlayBuf: GPUBuffer | null
+  weaponMetaBuf: GPUBuffer | null
 }
 
 // minimal payload slice needed after initialization
@@ -133,7 +149,6 @@ type TgtGpuRtPay = Pick<
 const MAINPOSSHFT = 29
 const MAINPOSMASK = 0x7
 const RANK_MASK = 0x1FFFFFFF
-const GPU_COMBO_BITS = 3
 const BTCWGSIZE = 512
 
 // context combo count is limited by the packed rank field width
@@ -142,6 +157,89 @@ const MAX_CTX_COMBOS = RANK_MASK + 1
 // cached pipeline objects shared across target gpu runs
 let cachedPipeline: GPUComputePipeline | null = null
 let cachedLayout: GPUBindGroupLayout | null = null
+
+// cached weapon-search pipeline + its 14-binding layout
+let cachedWpnPipeline: GPUComputePipeline | null = null
+let cachedWpnLayout: GPUBindGroupLayout | null = null
+
+// theory (explicit-batch) pipeline variants: one combo per thread instead of
+// CYCLES_PER_CALL. theory emits combos in damage-clustered producer order, so
+// the default mini-batch reduction (best of 32 contiguous combos per thread)
+// silently drops most of a cluster's top builds before they ever reach the
+// collector; one combo per thread surfaces every combo as its own candidate,
+// matching the cpu path. inventory keeps CYCLES_PER_CALL (its combo space is
+// far larger and its combinadic order is not damage-clustered).
+const BATCH_CYCLES = 1
+let cachedBatchPipeline: GPUComputePipeline | null = null
+let cachedWpnBatchPipeline: GPUComputePipeline | null = null
+
+// the batch pipeline matching the active mode (weapon or plain), reusing the
+// same bind-group layout as the default-cycle pipeline.
+async function getBatchPipeline(
+    device: GPUDevice,
+    weaponMode: boolean,
+): Promise<GPUComputePipeline> {
+  if (weaponMode) {
+    if (!cachedWpnBatchPipeline) {
+      const { layout } = await getWeaponPipeline(device)
+      cachedWpnBatchPipeline = await mkChckCmptPp({
+        device,
+        label: 'optimizer-weapon-pipeline-batch',
+        layout,
+        code: wpnShdrCode,
+        constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
+      })
+    }
+    return cachedWpnBatchPipeline
+  }
+  if (!cachedBatchPipeline) {
+    const { layout } = await getPipeline(device)
+    cachedBatchPipeline = await mkChckCmptPp({
+      device,
+      label: 'optimizer-target-pipeline-batch',
+      layout,
+      code: tgtShdrCode,
+      constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
+    })
+  }
+  return cachedBatchPipeline
+}
+
+// lazily compile and cache the weapon-search shader pipeline. its layout is the
+// target layout plus bindings 12 (weapon meta uniform) and 13 (overlays).
+async function getWeaponPipeline(device: GPUDevice): Promise<{ layout: GPUBindGroupLayout; pipeline: GPUComputePipeline }> {
+  if (cachedWpnPipeline && cachedWpnLayout) {
+    return { layout: cachedWpnLayout, pipeline: cachedWpnPipeline }
+  }
+
+  cachedWpnLayout = await mkChckBindGr(device, 'optimizer-weapon-layout', [
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+    { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 6, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 7, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+    { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 9, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+    { binding: 10, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 11, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
+    { binding: 12, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+    // weapon overlays are a uniform (not storage) so the layout stays within the
+    // 10 storage-buffer per-stage limit.
+    { binding: 13, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+  ])
+
+  cachedWpnPipeline = await mkChckCmptPp({
+    device,
+    label: 'optimizer-weapon-pipeline',
+    layout: cachedWpnLayout,
+    code: wpnShdrCode,
+  })
+
+  return { layout: cachedWpnLayout, pipeline: cachedWpnPipeline }
+}
 
 // singleton target gpu state for the current initialized payload
 let targetGpuState: TgtGpuSttcSt | null = null
@@ -207,6 +305,8 @@ function dstrTgtGpuSt(): void {
   targetGpuState.statCstrsBsy.destroy()
   targetGpuState.echoKindIdrr.destroy()
   targetGpuState.cmbBnmBffr.destroy()
+  targetGpuState.weaponOverlayBuf?.destroy()
+  targetGpuState.weaponMetaBuf?.destroy()
 
   targetGpuState = null
 }
@@ -228,66 +328,6 @@ function makeStoreBuffer(device: GPUDevice, data: ArrayBuffer | ArrayBufferView<
   return buffer
 }
 
-// rebuild the effective combo index map when a different locked main echo is used
-function mkNdxMapXcld(payload: TgtGpuRtPay, lockedMainIndex: number): Int32Array {
-  const indexMap = new Int32Array(payload.costs.length - 1)
-  let cursor = 0
-
-  for (let index = 0; index < payload.costs.length; index += 1) {
-    if (index === lockedMainIndex) {
-      continue
-    }
-
-    indexMap[cursor] = index
-    cursor += 1
-  }
-
-  return indexMap
-}
-
-// build the combinadic indexing view used to unrank combos for this job
-function mkJobCmbNdxn(payload: TgtGpuRtPay, lockedMainIndex: number): ComboIndex {
-  // unlocked jobs can use the original indexing directly
-  if (!payload.lockMainReq || lockedMainIndex < 0) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: -1,
-    }
-  }
-
-  const frstLckdMain = payload.lockMainCands[0] ?? -1
-
-  // if this job matches the default locked-main mapping, reuse the original buffers
-  if (lockedMainIndex === frstLckdMain) {
-    return {
-      comboN: payload.comboN,
-      comboK: payload.comboK,
-      totalCombos: payload.totalCombos,
-      indexMap: payload.comboIndexMap,
-      binom: payload.comboBinom,
-      lockedIndex: lockedMainIndex,
-    }
-  }
-
-  // otherwise derive an alternate candidate map that excludes the current locked main
-  return {
-    comboN: payload.comboN,
-    comboK: payload.comboK,
-    totalCombos: payload.totalCombos,
-    indexMap: mkNdxMapXcld(payload, lockedMainIndex),
-    binom: payload.comboBinom,
-    lockedIndex: lockedMainIndex,
-  }
-}
-
-// gpu readback returns unsorted candidates, so sort strongest-first before decoding
-function sortCnddByDm(candidates: Array<{ damage: number; rank: number }>): void {
-  candidates.sort((left, right) => right.damage - left.damage)
-}
 
 // create or reuse the bind group for the currently active job buffers
 function getBindGroup(
@@ -309,46 +349,56 @@ function getBindGroup(
     return state.bindGroup as GPUBindGroup
   }
 
+  const entries: GPUBindGroupEntry[] = [
+    // 0: encoded echo stat rows
+    { binding: 0, resource: { buffer: state.echoSttsBffr } },
+
+    // 1: set lookup table
+    { binding: 1, resource: { buffer: state.setCnstLutns } },
+
+    // 2: set id per echo
+    { binding: 2, resource: { buffer: state.echoSetsBffr } },
+
+    // 3: combo index map
+    { binding: 3, resource: { buffer: state.comboMapBox } },
+
+    // 4: per-job patched context
+    { binding: 4, resource: { buffer: contextBuffer } },
+
+    // 5: echo costs
+    { binding: 5, resource: { buffer: state.echoCstsBffr } },
+
+    // 6: main echo bonus rows
+    { binding: 6, resource: { buffer: state.mainEchoBuff } },
+
+    // 7: constraints uniform
+    { binding: 7, resource: { buffer: statCstrsBff } },
+
+    // 8: echo kind ids
+    { binding: 8, resource: { buffer: state.echoKindIdrr } },
+
+    // 9: output candidate buffer
+    { binding: 9, resource: { buffer: candidateBuffer } },
+
+    // 10: combinadic binomial table
+    { binding: 10, resource: { buffer: state.cmbBnmBffr } },
+
+    // 11: explicit combo rows for theory gpu batch mode
+    { binding: 11, resource: { buffer: comboBuffer } },
+  ]
+
+  // weapon mode adds the meta uniform (12) and overlay storage (13)
+  if (state.weaponMode && state.weaponMetaBuf && state.weaponOverlayBuf) {
+    entries.push(
+        { binding: 12, resource: { buffer: state.weaponMetaBuf } },
+        { binding: 13, resource: { buffer: state.weaponOverlayBuf } },
+    )
+  }
+
   state.bindGroup = state.device.createBindGroup({
-    label: 'optimizer-target-bind-group',
+    label: state.weaponMode ? 'optimizer-weapon-bind-group' : 'optimizer-target-bind-group',
     layout: state.layout,
-    entries: [
-      // 0: encoded echo stat rows
-      { binding: 0, resource: { buffer: state.echoSttsBffr } },
-
-      // 1: set lookup table
-      { binding: 1, resource: { buffer: state.setCnstLutns } },
-
-      // 2: set id per echo
-      { binding: 2, resource: { buffer: state.echoSetsBffr } },
-
-      // 3: combo index map
-      { binding: 3, resource: { buffer: state.comboMapBox } },
-
-      // 4: per-job patched context
-      { binding: 4, resource: { buffer: contextBuffer } },
-
-      // 5: echo costs
-      { binding: 5, resource: { buffer: state.echoCstsBffr } },
-
-      // 6: main echo bonus rows
-      { binding: 6, resource: { buffer: state.mainEchoBuff } },
-
-      // 7: constraints uniform
-      { binding: 7, resource: { buffer: statCstrsBff } },
-
-      // 8: echo kind ids
-      { binding: 8, resource: { buffer: state.echoKindIdrr } },
-
-      // 9: output candidate buffer
-      { binding: 9, resource: { buffer: candidateBuffer } },
-
-      // 10: combinadic binomial table
-      { binding: 10, resource: { buffer: state.cmbBnmBffr } },
-
-      // 11: explicit combo rows for theory gpu batch mode
-      { binding: 11, resource: { buffer: comboBuffer } },
-    ],
+    entries,
   })
 
   state.bindGroupBuffer = {
@@ -376,7 +426,39 @@ export async function initTgtGpu(payload: TargetGpuState): Promise<void> {
   dstrTgtGpuSt()
 
   const device = await getGpuDevice()
-  const { layout, pipeline } = await getPipeline(device)
+
+  // weapon search swaps in the weapon pipeline + overlay/meta buffers when the
+  // static payload carries overlays; otherwise the plain target pipeline runs.
+  const weaponCount = payload.weaponOverlays && (payload.weaponCount ?? 0) > 0
+      ? (payload.weaponCount ?? 0)
+      : 0
+  const weaponMode = weaponCount > 0
+  const { layout, pipeline } = weaponMode
+      ? await getWeaponPipeline(device)
+      : await getPipeline(device)
+
+  // weapon overlays live in a fixed-size uniform buffer (128 vec4s == 32 weapons
+  // x 16 floats == 2048 bytes), matching the shader's array<vec4<f32>, 128>.
+  const weaponOverlayBuf = weaponMode && payload.weaponOverlays
+      ? (() => {
+        const buffer = device.createBuffer({
+          size: 128 * 16,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        })
+        device.queue.writeBuffer(buffer, 0, toGpuPldView(payload.weaponOverlays))
+        return buffer
+      })()
+      : null
+  const weaponMetaBuf = weaponMode
+      ? (() => {
+        const buffer = device.createBuffer({
+          size: 16,
+          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        })
+        device.queue.writeBuffer(buffer, 0, new Uint32Array([weaponCount, WEAPON_OVERLAY_STRIDE, 0, 0]))
+        return buffer
+      })()
+      : null
 
   targetGpuState = {
     device,
@@ -449,6 +531,11 @@ export async function initTgtGpu(payload: TargetGpuState): Promise<void> {
     actLockMaiok: payload.lockMainReq
         ? (payload.lockMainCands[0] ?? -1)
         : -1,
+
+    weaponMode,
+    weaponCount,
+    weaponOverlayBuf,
+    weaponMetaBuf,
   }
 }
 
@@ -512,7 +599,7 @@ export async function runTgtGpuJob(
     // workgroup/candidate sizing for this subjob
     const callCnt = Math.ceil(subJobCount / CYCLES_PER_CALL)
     const wgCnt = Math.ceil(callCnt / OPT_WG_SIZE)
-    const candCnt = wgCnt * OPT_RDC_K
+    const candCnt = wgCnt * GPU_REDUCE_K
 
     const candidateBuffer = ensureGpuBuffer(
         state.device,
@@ -541,15 +628,16 @@ export async function runTgtGpuJob(
       },
     })
 
-    // reduce on gpu only when readback would exceed the candidate budget.
-    // the search shader already emits local top-k winners per workgroup.
-    const rdBkLmt = Math.max(OPT_RDC_K, job.jobResultLimit * OPT_RDC_K)
+    // read all per-workgroup candidates back (up to the cap) and let the cpu
+    // collector select the exact top-k. the gpu reduce pass only runs when the
+    // candidate count exceeds the cap.
+    const rdBkLmt = Math.max(GPU_REDUCE_K, Math.min(GPU_BATCH_MAX_READBACK, candCnt))
     const rdbcTgt = await runRdcPassIf({
       device: state.device,
       candidateBuffer: candidateBuffer,
       candCnt: candCnt,
       maxReadback: rdBkLmt,
-      reduceK: OPT_RDC_K,
+      reduceK: GPU_REDUCE_K,
       reuse: state.reduceReuse,
     })
 
@@ -568,7 +656,7 @@ export async function runTgtGpuJob(
     sortCnddByDm(candidates)
 
     // only unrank an oversampled prefix of the gpu candidates
-    const subJobCandLm = Math.max(1, job.jobResultLimit * OPT_RDC_K)
+    const subJobCandLm = Math.max(1, job.jobResultLimit * GPU_REDUCE_K)
     let pushed = 0
 
     for (const candidate of candidates) {
@@ -615,7 +703,7 @@ export async function runTgtGpuBtc(
     comboCount: job.comboCount,
     comboBaseIndex: 0,
     lockEchoIdx: job.lockMainIdx,
-    comboMode: GPU_COMBO_BITS,
+    comboMode: GPU_COMBO_MODE_BATCH,
   })
 
   const contextBuffer = ensureGpuBuffer(
@@ -625,7 +713,11 @@ export async function runTgtGpuBtc(
       GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   )
 
-  const wgCnt = Math.ceil(job.comboCount / Math.max(1, BTCWGSIZE * CYCLES_PER_CALL))
+  // theory runs one combo per thread (BATCH_CYCLES), so dispatch enough threads
+  // to cover every combo and emit one candidate each. this must match the
+  // CYCLES_PER_INVOCATION override compiled into the batch pipeline below.
+  const batchPipeline = await getBatchPipeline(state.device, state.weaponMode)
+  const wgCnt = Math.ceil(job.comboCount / Math.max(1, BTCWGSIZE * BATCH_CYCLES))
   const candCnt = wgCnt * BTCWGSIZE
   if (candCnt <= 0) {
     return []
@@ -649,7 +741,7 @@ export async function runTgtGpuBtc(
 
   await dispCmptPass({
     device: state.device,
-    pipeline: state.pipeline,
+    pipeline: batchPipeline,
     bindGroup,
     wrkgCnt: wgCnt,
     bfrDsptBtch: (wgBase) => {
@@ -658,13 +750,17 @@ export async function runTgtGpuBtc(
     },
   })
 
-  const rdBkLmt = Math.max(OPT_RDC_K, job.jobResultLimit * OPT_RDC_K)
+  // with one combo per thread, every combo is its own candidate; read them all
+  // back (up to the cap) so the cpu collector, not the lossy gpu reduction,
+  // selects the top-k. only fall back to reduction for runs whose candidate
+  // count exceeds the cap.
+  const rdBkLmt = Math.max(GPU_REDUCE_K, Math.min(GPU_BATCH_MAX_READBACK, candCnt))
   const rdbcTgt = await runRdcPassIf({
     device: state.device,
     candidateBuffer: candidateBuffer,
     candCnt: candCnt,
     maxReadback: rdBkLmt,
-    reduceK: OPT_RDC_K,
+    reduceK: GPU_REDUCE_K,
     reuse: state.reduceReuse,
   })
 
@@ -683,13 +779,16 @@ export async function runTgtGpuBtc(
 
   const collector = new OptResultSet(job.jobResultLimit)
   const comboIds = new Int32Array(5)
-  const candLmt = Math.max(1, job.jobResultLimit * OPT_RDC_K)
+  const candLmt = Math.max(1, job.jobResultLimit * GPU_REDUCE_K)
   let pushed = 0
 
   for (const candidate of candidates) {
     const packedRank = candidate.rank >>> 0
-    const mainPos = (packedRank >>> MAINPOSSHFT) & MAINPOSMASK
-    const comboIndex = packedRank & RANK_MASK
+    // weapon mode packs the weapon index in the high bits and pins the main at
+    // slot 0; the plain path packs the main position in the top 3 bits.
+    const mainPos = state.weaponMode ? 0 : ((packedRank >>> MAINPOSSHFT) & MAINPOSMASK)
+    const weapon = state.weaponMode ? ((packedRank >>> WEAPON_INDEX_SHIFT) & WEAPON_BIT_MASK) : -1
+    const comboIndex = state.weaponMode ? (packedRank & WEAPON_RANK_MASK) : (packedRank & RANK_MASK)
     if (comboIndex >= job.comboCount) {
       continue
     }
@@ -702,7 +801,7 @@ export async function runTgtGpuBtc(
     comboIds[4] = job.combosBatch[base + 4] ?? -1
 
     const mainIndex = comboIds[mainPos] ?? -1
-    collector.pushRdrdCmb(candidate.damage, comboIds, mainIndex)
+    collector.pushRdrdCmb(candidate.damage, comboIds, mainIndex, weapon)
 
     pushed += 1
     if (pushed >= candLmt) {

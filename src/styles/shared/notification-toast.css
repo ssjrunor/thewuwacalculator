@@ -74,7 +74,7 @@
   pointer-events: auto;
   position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.65rem;
   padding: 0.72rem 0.85rem;
   border: 1px solid color-mix(in srgb, var(--toast-accent, var(--accent, #6b7cff)) 18%, var(--toast-border, var(--border, rgba(27, 36, 53, 0.14))));
@@ -206,8 +206,6 @@
   padding-top: 0.12rem;
   opacity: 0;
 }
-
-
 
 .toast-item__action {
   flex-shrink: 0;

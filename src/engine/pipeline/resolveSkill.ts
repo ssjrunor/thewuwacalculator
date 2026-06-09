@@ -97,6 +97,25 @@ function resCondSkllT(runtime: ResRuntime, skill: SkillDef): SkillDef['skillType
   return skill.skillType
 }
 
+function resSkllVrnt(runtime: ResRuntime, skill: SkillDef): SkillDef {
+  if (!skill.skillVariantWhen || skill.skillVariantWhen.length === 0) {
+    return skill
+  }
+
+  const scope = getRtSkllEva(runtime)
+
+  for (const entry of skill.skillVariantWhen) {
+    if (evalCond(entry.when, scope)) {
+      return {
+        ...skill,
+        ...entry.patch,
+      }
+    }
+  }
+
+  return skill
+}
+
 // determine whether a skill should be exposed for the current runtime state
 // this respects both a hard visible=false flag and an optional visibleWhen condition
 export function isSkllVsbl(runtime: ResRuntime, skill: SkillDef): boolean {
@@ -123,45 +142,49 @@ export function isSkllVsbl(runtime: ResRuntime, skill: SkillDef): boolean {
 // this applies visibility, level-scaled multiplier/flat/fixed values,
 // expands hit tables if present, and finally applies manual skill overrides
 export function resolveSkill(runtime: ResRuntime, skill: SkillDef): SkillDef {
-  const visible = isSkllVsbl(runtime, skill)
-  const skillType = resCondSkllT(runtime, skill)
-  const levelIndex = resLvlNdx(runtime, skill)
-  const negFfctKey = skill.tab === 'negativeEffect' ? getNegFfctCm(skill.archetype) : null
+  const rslvSkll = resSkllVrnt(runtime, skill)
+  const visible = isSkllVsbl(runtime, rslvSkll)
+  const skillType = resCondSkllT(runtime, rslvSkll)
+  const levelIndex = resLvlNdx(runtime, rslvSkll)
+  const stackKey = rslvSkll.stackMode === 'fixedMax' ? getNegFfctCm(rslvSkll.archetype) : null
+  const stackMax = stackKey ? getNegFfctEn(runtime, stackKey)?.max : undefined
+  const negFfctKey = rslvSkll.tab === 'negativeEffect' ? getNegFfctCm(rslvSkll.archetype) : null
   const label = negFfctKey
     ? (() => {
       const rslvLbl = getNegFfctEn(runtime, negFfctKey)?.label
       if (!rslvLbl) {
-        return skill.label
+        return rslvSkll.label
       }
 
       // Preserve authored named skills like "Fine Snow: Glacio Bite" and only
       // relabel the generic catalog placeholder skill such as "Glacio Chafe".
-      return skill.label === getNegFfctqf(negFfctKey)
+      return rslvSkll.label === getNegFfctqf(negFfctKey)
         ? rslvLbl
-        : skill.label
+        : rslvSkll.label
     })()
-    : skill.label
+    : rslvSkll.label
 
   // resolve scalar values from their level tables, falling back to base values
-  const multiplier = resTblVl(skill.multiplierValues, levelIndex, skill.multiplier)
-  const flat = resTblVl(skill.flatValues, levelIndex, skill.flat)
-  const fixedDmg = resTblVl(skill.fixedDmgValues, levelIndex, skill.fixedDmg ?? 0)
+  const multiplier = resTblVl(rslvSkll.multiplierValues, levelIndex, rslvSkll.multiplier)
+  const flat = resTblVl(rslvSkll.flatValues, levelIndex, rslvSkll.flat)
+  const fixedDmg = resTblVl(rslvSkll.fixedDmgValues, levelIndex, rslvSkll.fixedDmg ?? 0)
 
   // if the skill has no hit table, keep the resolved scalar values directly
-  if (!skill.hitTable || skill.hitTable.length === 0) {
+  if (!rslvSkll.hitTable || rslvSkll.hitTable.length === 0) {
     return applyMnlSkll({
-      ...skill,
+      ...rslvSkll,
       label,
       visible,
       skillType,
       multiplier,
       flat,
       fixedDmg,
+      stackMax,
     }, runtime.state.manualBuffs)
   }
 
   // otherwise expand every hit row into its resolved multiplier for this level
-  const hits = skill.hitTable.map((hit) => ({
+  const hits = rslvSkll.hitTable.map((hit) => ({
     label: hit.label,
     count: hit.count,
     multiplier: hit.values[levelIndex] ?? hit.values[hit.values.length - 1] ?? 0,
@@ -169,7 +192,7 @@ export function resolveSkill(runtime: ResRuntime, skill: SkillDef): SkillDef {
 
   // recompute the aggregate multiplier from the resolved hit entries
   return applyMnlSkll({
-    ...skill,
+    ...rslvSkll,
     label,
     visible,
     skillType,
@@ -177,5 +200,6 @@ export function resolveSkill(runtime: ResRuntime, skill: SkillDef): SkillDef {
     fixedDmg,
     multiplier: sumHits({ hits }),
     hits,
+    stackMax,
   }, runtime.state.manualBuffs)
 }

@@ -8,6 +8,11 @@ import type { CSSProperties as CssProps } from 'react'
 import { Star, Zap } from 'lucide-react'
 import type { PickFreqWeapon } from '@/domain/entities/appState'
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime.ts'
+import {
+  initWpnStts,
+  maxWpnRt,
+  wpnSttsMaxed,
+} from '@/domain/state/sourceStateInit.ts'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
 import { listOwnersFor, listStatesFor } from '@/domain/services/gameDataService.ts'
 import { getResonator, WPNTYPETOKEY } from '@/modules/calculator/features/resonator/lib/resonator.ts'
@@ -54,6 +59,7 @@ function StatIcon({ statKey }: { statKey: string }) {
 
 export function Weapon({ runtime, onRtPdt: onRtPdt }: CalcWpnPaneP) {
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
+  const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const resonator = getResonator(runtime.id)
   const weaponType = resonator?.weaponType ?? 4
   const weaponKey = (
@@ -96,26 +102,41 @@ export function Weapon({ runtime, onRtPdt: onRtPdt }: CalcWpnPaneP) {
 
   const hasStrcDesc = Boolean(weaponOwner?.description || weaponStates.some((s) => s.description))
 
-  const isMaxed = currentLevel === 90 && currentRank === 5
+  const isMaxed = currentLevel === 90 && wpnSttsMaxed(runtime)
 
   const onWpnSel = (weaponId: string) => {
     const selected = weapons.find((weapon) => weapon.id === weaponId)
     if (!selected) return
 
-    const stats = weaponStatsAt(selected, currentLevel)
+    const nextLevel = maxWpnOnInit ? 90 : currentLevel
+    const stats = weaponStatsAt(selected, nextLevel)
 
-    onRtPdt((prev) => ({
-      ...prev,
-      build: {
-        ...prev.build,
-        weapon: {
-          ...prev.build.weapon,
-          id: selected.id,
-          baseAtk: stats.atk,
-          rank: 1,
+    onRtPdt((prev) => {
+      const nextRuntime = {
+        ...prev,
+        build: {
+          ...prev.build,
+          weapon: {
+            ...prev.build.weapon,
+            id: selected.id,
+            level: nextLevel,
+            baseAtk: stats.atk,
+            rank: 1,
+          },
         },
-      },
-    }))
+      }
+
+      return maxWpnOnInit
+        ? maxWpnRt(nextRuntime, {
+          targetRank: 1,
+          prevWpnId: prev.build.weapon.id,
+        })
+        : initWpnStts(nextRuntime, {
+          weaponId: selected.id,
+          prevWpnId: prev.build.weapon.id,
+          maxed: false,
+        })
+    })
     bumpPickerFreq({
       bucket: 'weapon',
       weaponType: weaponKey,
@@ -165,26 +186,26 @@ export function Weapon({ runtime, onRtPdt: onRtPdt }: CalcWpnPaneP) {
   const handleMax = () => {
     if (weaponDef) {
       const stats = weaponStatsAt(weaponDef, 90)
-      onRtPdt((prev) => ({
+      onRtPdt((prev) => maxWpnRt({
         ...prev,
         build: {
           ...prev.build,
           weapon: {
             ...prev.build.weapon,
             level: 90,
-            rank: 5,
+            rank: currentRank,
             baseAtk: stats.atk,
           },
         },
-      }))
+      }, { targetRank: currentRank }))
     } else {
-      onRtPdt((prev) => ({
+      onRtPdt((prev) => maxWpnRt({
         ...prev,
         build: {
           ...prev.build,
-          weapon: { ...prev.build.weapon, level: 90, rank: 5 },
+          weapon: { ...prev.build.weapon, level: 90, rank: currentRank },
         },
-      }))
+      }, { targetRank: currentRank }))
     }
   }
 

@@ -7,15 +7,6 @@
     min-width: 420px;
   }
 
-  .overview-mosaic {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "portrait portrait"
-      "stats    stats"
-      "equip    rotation"
-      "echoes   echoes";
-  }
-
   .overview-cell--echoes {
     grid-row: auto;
     grid-template-rows: none;
@@ -24,6 +15,12 @@
 
   .character-overview-content {
     flex-direction: column;
+  }
+
+  .overview-resonator-rail {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
   }
 
   .overview-resonator-strip {
@@ -213,16 +210,6 @@
     align-items: flex-start;
   }
 
-  .overview-mosaic {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "portrait"
-      "stats"
-      "equip"
-      "rotation"
-      "echoes";
-  }
-
   .overview-cell--echoes {
     grid-row: auto;
     grid-template-rows: none;
@@ -265,5 +252,17 @@
   .char-menu-toolbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 500px) {
+  .overview-mosaic {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "portrait"
+      "stats"
+      "equip"
+      "rotation"
+      "echoes";
   }
 }

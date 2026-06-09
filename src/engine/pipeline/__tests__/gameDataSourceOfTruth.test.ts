@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { getResonatorById, listResonators } from '@/domain/services/catalogService'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { listEffectsFor, listSkillsFor, listSources, listStatesFor } from '@/domain/services/gameDataService'
-import { makeResRuntime } from '@/domain/state/defaults'
+import { makeResRuntime, makeTeamMember } from '@/domain/state/defaults'
 import { applySkllDat } from '@/engine/effects/dataEffects'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 
@@ -61,8 +61,16 @@ describe('game-data source of truth', () => {
     const hyvatiaEffects = listEffectsFor('echo', '6000189')
     const glommothStates = listStatesFor('echo', '6000195')
     const glommothEffects = listEffectsFor('echo', '6000195')
+    const adamSkills = listSkillsFor('echo', '6000201')
+    const adamEffects = listEffectsFor('echo', '6000201')
+    const genericResonator = getResonatorById('1506')
+    const lucy = getResonatorById('1511')
+    const rebecca = getResonatorById('1308')
 
     expect(echoSources.length).toBeGreaterThan(100)
+    if (!genericResonator || !lucy || !rebecca) {
+      throw new Error('missing resonator data for Adam Smasher echo visibility')
+    }
     expect(crownlessSkills.find((skill) => skill.id === 'echo:6000090:skill:1')?.label).toBe('Nightmare: Crownless')
     expect(crownlessSkills.find((skill) => skill.id === 'echo:6000090:skill:1')?.tab).toBe('echoAttacks')
     expect(dreamlessStates.find((state) => state.controlKey === 'echo:6000053:main:active')?.label).toBe('Enable?')
@@ -86,6 +94,112 @@ describe('game-data source of truth', () => {
     expect(fallacyEffects.find((effect) => effect.id === 'echo:6000060:effect:toggle:self')?.targetScope).toBe('self')
     expect(fallacyEffects.find((effect) => effect.id === 'echo:6000060:effect:toggle:teamWide')?.targetScope).toBe('teamWide')
     expect(geocheloneEffects.find((effect) => effect.id === 'echo:390080005:effect:teamwide-buff')?.targetScope).toBe('teamWide')
+    expect(adamSkills.map((skill) => ({
+      label: skill.label,
+      element: skill.element,
+      multiplier: skill.multiplier,
+      hits: skill.hits,
+      visibleWhen: skill.visibleWhen,
+    }))).toEqual([
+      {
+        label: 'Reminiscence - Nightmare: Adam Smasher',
+        element: 'physical',
+        multiplier: 1.6416,
+        hits: [{ count: 16, multiplier: 0.1026 }],
+        visibleWhen: {
+          type: 'not',
+          value: {
+            type: 'or',
+            values: [
+              { type: 'eq', from: 'sourceRuntime', path: 'id', value: '1511' },
+              { type: 'eq', from: 'sourceRuntime', path: 'id', value: '1308' },
+            ],
+          },
+        },
+      },
+      {
+        label: 'Reminiscence - Nightmare: Adam Smasher',
+        element: 'spectro',
+        multiplier: 2.736,
+        hits: [{ count: 1, multiplier: 2.736 }],
+        visibleWhen: { type: 'eq', from: 'sourceRuntime', path: 'id', value: '1511' },
+      },
+      {
+        label: 'Reminiscence - Nightmare: Adam Smasher',
+        element: 'electro',
+        multiplier: 2.736,
+        hits: [{ count: 16, multiplier: 0.171 }],
+        visibleWhen: { type: 'eq', from: 'sourceRuntime', path: 'id', value: '1308' },
+      },
+    ])
+    expect(adamEffects.find((effect) => effect.id === 'echo:6000201:effect:lucy-rebecca')?.operations)
+      .toEqual([{ type: 'add_top_stat', stat: 'critRate', value: { type: 'const', value: 15 } }])
+    const visibleAdamSkillIds = (resonatorId: string) => {
+      const resonator = getResonatorById(resonatorId)
+      if (!resonator) {
+        throw new Error(`missing resonator ${resonatorId}`)
+      }
+
+      const runtime = makeResRuntime(resonator)
+      return adamSkills
+        .filter((skill) => resolveSkill(runtime, skill).visible)
+        .map((skill) => skill.id)
+    }
+    expect(visibleAdamSkillIds(genericResonator.id)).toEqual(['echo:6000201:skill:1'])
+    expect(visibleAdamSkillIds(lucy.id)).toEqual(['echo:6000201:skill:2'])
+    expect(visibleAdamSkillIds(rebecca.id)).toEqual(['echo:6000201:skill:3'])
+  })
+
+  it('hydrates authored enemy debuff sources for Adam Smasher variants', () => {
+    for (const enemyId of ['340000290', '340000291']) {
+      const states = listStatesFor('enemy', enemyId)
+      const effects = listEffectsFor('enemy', enemyId)
+      const hackShifting = states.find((state) => state.controlKey === `enemy:${enemyId}:hackShifting`)
+      const hackVulnerability = effects.find((effect) => effect.id === `enemy:${enemyId}:hack-vuln`)
+      const shiftingVulnerability = effects.find((effect) => effect.id === `enemy:${enemyId}:hack-shifting-vuln`)
+
+      expect(hackShifting).toMatchObject({
+        label: 'Hack - Shifting',
+        kind: 'toggle',
+        path: 'enemy.status.hackShifting',
+        defaultValue: false,
+        description: 'When inflicted with Hack - Shifting, Nightmare: Adam Smasher deals 20% more Total DMG for 15s.',
+      })
+      expect(hackVulnerability).toMatchObject({
+        label: 'Hack Vulnerability',
+        trigger: 'runtime',
+        stage: 'preStats',
+        description: 'He takes 60% more Total Hack DMG.',
+        operations: [
+          {
+            type: 'add_skilltype_mod',
+            skillType: ['hack'],
+            mod: 'dmgVuln',
+            value: { type: 'const', value: 60 },
+          },
+        ],
+      })
+      expect(hackVulnerability).not.toHaveProperty('condition')
+      expect(shiftingVulnerability).toMatchObject({
+        label: 'Hack - Shifting Vulnerability',
+        trigger: 'runtime',
+        stage: 'preStats',
+        condition: {
+          type: 'truthy',
+          from: 'context',
+          path: 'enemy.status.hackShifting',
+        },
+        operations: [
+          {
+            type: 'add_top_stat',
+            stat: 'dmgVuln',
+            value: { type: 'const', value: 20 },
+          },
+        ],
+      })
+      expect(effects.flatMap((effect) => effect.operations).some((operation) => operation.type === 'add_immunity'))
+        .toBe(false)
+    }
   })
 
   it('emits teamwide and incoming-resonator echo-set scopes from the set source definitions', () => {
@@ -322,8 +436,8 @@ describe('game-data source of truth', () => {
     deniaS3Runtime.base.sequence = 3
     deniaS3Runtime.state.controls['resonator:1211:dark_cores:value'] = 5
 
-    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:fusion_burst_mode:active')?.label)
-      .toBe('Fusion Burst')
+    expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:mode:value')?.options?.map((option) => option.label))
+      .toEqual(['Fusion Burst', 'Tune Strain'])
     expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:entropy_shift:active')?.label)
       .toBe('Entropy Shift')
     expect(deniaStates.find((state) => state.controlKey === 'resonator:1211:dark_cores:value')?.label)
@@ -338,22 +452,20 @@ describe('game-data source of truth', () => {
         options: ['0', '1', '2', '3', '4', '5'].map((value) => ({ id: value, label: value })),
       },
     ])
-    expect(denia.resonanceChains.find((chain) => chain.index === 2)?.controls?.map((control) => control.key))
+    expect(denia.resonanceChains.find((chain) => chain.index === 2)?.stateKeys)
       .toEqual(['sequence:1211:s2:active', 'sequence:1211:s2:stacks'])
-    expect(denia.inherentSkills.find((skill) => skill.unlockLevel === 70)?.control).toMatchObject({
-      key: 'inherent:1211:lvl70:off_tune_overcap',
-      kind: 'number',
-    })
+    expect(denia.inherentSkills.find((skill) => skill.unlockLevel === 70)?.stateKeys)
+      .toEqual(['inherent:1211:lvl70:off_tune_overcap'])
     expect(deniaStates.find((state) => state.controlKey === 'inherent:1211:lvl70:off_tune_overcap')).toMatchObject({
       label: 'Off-Tune over 100%',
       kind: 'number',
       max: 50,
-      controlDependencies: ['resonator:1211:tune_strain_mode:active', 'resonator:1211:entropy_shift:active'],
+      requires: ['resonator:1211:mode:value', 'resonator:1211:entropy_shift:active'],
     })
     expect(deniaStates.find((state) => state.controlKey === 'sequence:1211:s2:stacks')).toMatchObject({
       label: 'Degenerate Voidmatter',
       kind: 'select',
-      controlDependencies: ['sequence:1211:s2:active'],
+      requires: ['sequence:1211:s2:active'],
     })
 
     expect(deniaSkills.find((skill) => skill.id === '1211105')?.skillType)
@@ -402,20 +514,62 @@ describe('game-data source of truth', () => {
       listStatesFor('resonator', '1506').map((state) => [state.controlKey, state]),
     )
 
-    expect(aemeathStates['resonator:1210:fusion_trail:value']?.controlDependencies)
-      .toEqual(['resonator:1210:fusion_burst_mode:active'])
-    expect(aemeathStates['inherent:1210:lvl70:stacks']?.controlDependencies)
-      .toEqual(['resonator:1210:tune_rupture_mode:active', 'resonator:1210:fusion_burst_mode:active'])
-    expect(aemeathStates['team:1210:silent_protection_trigger:active']?.controlDependencies)
+    expect(aemeathStates['resonator:1210:fusion_trail:value']?.requires)
+      .toEqual(['resonator:1210:mode:value'])
+    expect(aemeathStates['resonator:1210:fusion_trail:value'])
+      .toMatchObject({
+        kind: 'number',
+        defaultValue: 0,
+        max: 30,
+        maxValue: 60,
+        visibleWhen: {
+          type: 'eq',
+          from: 'sourceRuntime',
+          path: 'state.controls.resonator:1210:mode:value',
+          value: 'fusion_burst',
+        },
+        enabledWhen: {
+          type: 'eq',
+          from: 'sourceRuntime',
+          path: 'state.controls.resonator:1210:mode:value',
+          value: 'fusion_burst',
+        },
+        maxWhen: [{ when: { type: 'gte', from: 'sourceRuntime', path: 'base.sequence', value: 6 }, max: 60 }],
+      })
+    expect(aemeathStates['resonator:1210:fusion_trail:value']?.disabledReason)
+      .toBe('Available while in Fusion Burst')
+    expect(aemeathStates['resonator:1210:rupturous_trail:value'])
+      .toMatchObject({
+        kind: 'select',
+        visibleWhen: {
+          type: 'eq',
+          from: 'sourceRuntime',
+          path: 'state.controls.resonator:1210:mode:value',
+          value: 'tune_rupture',
+        },
+        enabledWhen: {
+          type: 'eq',
+          from: 'sourceRuntime',
+          path: 'state.controls.resonator:1210:mode:value',
+          value: 'tune_rupture',
+        },
+      })
+    expect(aemeathStates['inherent:1210:lvl70:stacks']?.requires)
+      .toEqual(['resonator:1210:mode:value'])
+    expect(aemeathStates['inherent:1210:lvl70:stacks']?.visibleWhen)
+      .toEqual({ type: 'gte', from: 'sourceRuntime', path: 'base.level', value: 70 })
+    expect(aemeathStates['inherent:1210:lvl70:stacks']?.enabledWhen)
+      .toEqual({ type: 'lt', from: 'sourceRuntime', path: 'base.sequence', value: 3 })
+    expect(aemeathStates['team:1210:silent_protection_trigger:active']?.requires)
       .toEqual(['team:1210:silent_protection:active'])
-    expect(deniaStates['team:1211:unfinished_lies:active']?.controlDependencies)
-      .toEqual(['resonator:1211:fusion_burst_mode:active', 'resonator:1211:tune_strain_mode:active'])
-    expect(deniaStates['team:1211:unfinished_lies_trigger:active']?.controlDependencies)
-      .toEqual(['team:1211:unfinished_lies:active', 'resonator:1211:tune_strain_mode:active'])
-    expect(deniaStates['inherent:1211:lvl70:off_tune_overcap']?.controlDependencies)
-      .toEqual(['resonator:1211:tune_strain_mode:active', 'resonator:1211:entropy_shift:active'])
-    expect(phoebeStates['sequence:1506:s2:boat_adrift']?.controlDependencies)
-      .toEqual(['resonator:1506:confession:active'])
+    expect(deniaStates['team:1211:unfinished_lies:active']?.requires)
+      .toEqual(['resonator:1211:mode:value'])
+    expect(deniaStates['team:1211:unfinished_lies_trigger:active']?.requires)
+      .toEqual(['team:1211:unfinished_lies:active', 'resonator:1211:mode:value'])
+    expect(deniaStates['inherent:1211:lvl70:off_tune_overcap']?.requires)
+      .toEqual(['resonator:1211:mode:value', 'resonator:1211:entropy_shift:active'])
+    expect(phoebeStates['sequence:1506:s2:boat_adrift']?.requires)
+      .toEqual(['resonator:1506:mode:value'])
   })
 
   it('derives resonator base stats from generated resonator data', () => {
@@ -471,12 +625,17 @@ describe('game-data source of truth', () => {
     expect(skillsById['1506030']?.skillType).toEqual(['heavyAtk'])
     expect(skillsById['1506031']?.skillType).toEqual(['resonanceSkill'])
 
-    expect(statesByKey['resonator:1506:absolution:active']?.ownerKey).toBe('resonator:1506:absolution')
-    expect(statesByKey['resonator:1506:confession:active']?.ownerKey).toBe('resonator:1506:confession')
-    expect(statesByKey['resonator:1506:attentive_heart:active']?.enabledWhen).toEqual({
-      type: 'truthy',
-      from: 'sourceRuntime',
-      path: 'state.controls.resonator:1506:confession:active',
+    expect(statesByKey['resonator:1506:mode:value']).toMatchObject({
+      ownerKey: 'resonator:1506:mode',
+      options: [
+        expect.objectContaining({ id: 'none', label: 'None' }),
+        expect.objectContaining({ id: 'absolution', label: 'Absolution' }),
+        expect.objectContaining({ id: 'confession', label: 'Confession' }),
+      ],
+    })
+    expect(statesByKey['resonator:1506:attentive_heart:active']).toMatchObject({
+      requires: ['resonator:1506:mode:value'],
+      disabledReason: 'Available while in Confession',
     })
     expect(statesByKey['sequence:1506:s4:active']?.ownerKey).toBe('sequence:1506:s4')
     expect(statesByKey['sequence:1506:s5:active']?.ownerKey).toBe('sequence:1506:s5')
@@ -498,7 +657,14 @@ describe('game-data source of truth', () => {
       value: 4,
     })
 
-    expect(resonator.states).toHaveLength(7)
+    expect(resonator.states.map((state) => state.controlKey)).toEqual([
+      'resonator:1506:mode:value',
+      'resonator:1506:attentive_heart:active',
+      'sequence:1506:s2:boat_adrift',
+      'sequence:1506:s4:active',
+      'sequence:1506:s5:active',
+      'sequence:1506:s6:active',
+    ])
     expect(listEffectsFor('resonator', '1506', 'runtime')).not.toEqual([])
     expect(listEffectsFor('resonator', '1506', 'skill')).not.toEqual([])
   })
@@ -510,14 +676,15 @@ describe('game-data source of truth', () => {
     }
 
     const crownPanel = resonator.statePanels.find((panel) => panel.id === 'crown-of-wills')
-    const crownControl = crownPanel?.controls[0]
+    const statesByKey = Object.fromEntries(resonator.states.map((state) => [state.controlKey, state]))
+    const crownState = statesByKey['resonator:1306:crown_of_wills:stacks']
 
-    expect(crownControl).toMatchObject({
-      key: 'resonator:1306:crown_of_wills:stacks',
+    expect(crownPanel?.stateKeys).toEqual(['resonator:1306:crown_of_wills:stacks'])
+    expect(crownState).toMatchObject({
+      controlKey: 'resonator:1306:crown_of_wills:stacks',
       kind: 'select',
-      target: 'controls',
     })
-    expect(crownControl).not.toHaveProperty('path')
+    expect(crownState?.path).toBe('runtime.state.controls.resonator:1306:crown_of_wills:stacks')
   })
 
   it('emits final Lupa skill typing and team-aware state data', () => {
@@ -529,7 +696,6 @@ describe('game-data source of truth', () => {
     const skillsById = Object.fromEntries(resonator.skills.map((skill) => [skill.id, skill]))
     const statesByKey = Object.fromEntries(resonator.states.map((state) => [state.controlKey, state]))
     const packHuntPanel = resonator.statePanels.find((panel) => panel.id === 'pack-hunt')
-    const packHuntControls = Object.fromEntries((packHuntPanel?.controls ?? []).map((control) => [control.key, control]))
 
     expect(skillsById['1207011']?.skillType).toEqual(['heavyAtk'])
     expect(skillsById['1207024']?.skillType).toEqual(['resonanceLiberation'])
@@ -544,14 +710,10 @@ describe('game-data source of truth', () => {
     expect(statesByKey['sequence:1207:s2:stacks']?.displayScope).toBe('team')
     expect(statesByKey['sequence:1207:s3:active']?.displayScope).toBe('team')
     expect(statesByKey['inherent:1207:lvl70:stacks']?.displayScope).toBe('team')
-    expect(packHuntControls['team:1207:pack_hunt:active']?.label).toBe('Enable')
-    expect(packHuntControls['team:1207:pack_hunt:active']?.enabledWhen).toBeUndefined()
-    expect(packHuntControls['team:1207:pack_hunt:stacks']?.disabledWhen).toEqual({
-      target: 'controls',
-      key: 'team:1207:pack_hunt:active',
-      equals: false,
-    })
-    expect(packHuntControls['team:1207:pack_hunt:stacks']?.disabledReason).toBe(
+    expect(packHuntPanel?.stateKeys).toEqual(['team:1207:pack_hunt:active', 'team:1207:pack_hunt:stacks'])
+    expect(statesByKey['team:1207:pack_hunt:active']?.label).toBe('Pack Hunt')
+    expect(statesByKey['team:1207:pack_hunt:active']?.requires).toBeUndefined()
+    expect(statesByKey['team:1207:pack_hunt:stacks']?.disabledReason).toBe(
       'Requires Pack Hunt to be active.',
     )
   })
@@ -568,21 +730,83 @@ describe('game-data source of truth', () => {
   it('hydrates saved default rotations authored by direct skill ids', () => {
     const hiyuki = getResonatorById('1108')
     const denia = getResonatorById('1211')
+    const rebecca = getResonatorById('1308')
     const buling = getResonatorById('1307')
     const luuk = getResonatorById('1510')
+    const lucy = getResonatorById('1511')
 
-    if (!hiyuki || !denia || !buling || !luuk) {
+    if (!hiyuki || !denia || !rebecca || !buling || !luuk || !lucy) {
       throw new Error('missing authored default rotation resonator')
     }
 
     expect(hiyuki.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(denia.rotations[0]?.items.length).toBeGreaterThan(0)
+    expect(rebecca.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(buling.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(luuk.rotations[0]?.items.length).toBeGreaterThan(0)
+    expect(lucy.rotations[0]?.items.length).toBeGreaterThan(0)
 
     expect(hiyuki.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1108028')?.multiplier).toBe(3)
-    expect(denia.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1211401')?.multiplier).toBe(7)
+    expect(
+      denia.rotations[0]?.items.map((item) =>
+        item.type === 'feature' ? item.featureId : null,
+      ),
+    ).toEqual([
+      'damage:1211301',
+      'damage:1211004',
+      'damage:1211101',
+      'damage:1211201',
+      'damage:1211008',
+      'damage:1211009',
+      'damage:1211008',
+      'damage:1211009',
+      'damage:1211104',
+      'damage:1211105',
+      'damage:1211202',
+    ])
+    expect(
+      rebecca.rotations[0]?.items.map((item) =>
+        item.type === 'feature' ? item.featureId : null,
+      ),
+    ).toEqual([
+      'damage:1411035',
+      'damage:1411009',
+      'damage:1411010',
+      'damage:1411011',
+      'damage:1411023',
+      'damage:1411026',
+      'damage:1411028',
+      'damage:1411029',
+      'damage:1411030',
+      'damage:1411031',
+      'damage:1308:outro',
+    ])
     expect(luuk.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1510:outro')?.multiplier).toBe(1)
+    expect(
+      lucy.rotations[0]?.items.map((item) =>
+        item.type === 'feature' ? item.featureId : null,
+      ),
+    ).toEqual([
+      'damage:1511036',
+      'damage:1511024',
+      'damage:1511124',
+      'damage:1511025',
+      'damage:1511002',
+      'damage:1511003',
+      'damage:1511004',
+      'damage:1511026',
+      'damage:1511011',
+      'damage:1511012',
+      'damage:1511013',
+      'damage:1511014',
+      'damage:1511016',
+      'damage:1511017',
+      'damage:1511028',
+      'damage:1511029',
+      'damage:1511030',
+      'damage:1511031',
+      'damage:1511032',
+    ])
   })
 
 
@@ -787,11 +1011,8 @@ describe('game-data source of truth', () => {
     })
 
     expect(buling.states.find((state) => state.controlKey === 'team:1307:thunder_spell_yin_and_yang:active')?.label).toBe('Thunder Spell - Yin and Yang')
-    expect(buling.states.find((state) => state.controlKey === 'sequence:1307:s6:active')?.enabledWhen).toEqual({
-      type: 'truthy',
-      from: 'sourceRuntime',
-      path: 'state.controls.team:1307:thunder_spell_heaven_earth_mind:active',
-    })
+    expect(buling.states.find((state) => state.controlKey === 'sequence:1307:s6:active')?.requires)
+      .toEqual(['team:1307:thunder_spell_heaven_earth_mind:active'])
     expect(buling.skills.find((skill) => skill.id === '1307023')?.skillType).toEqual(['resonanceLiberation'])
     expect(buling.skills.find((skill) => skill.id === '1307031')?.skillType).toEqual(['resonanceLiberation'])
   })
@@ -840,10 +1061,11 @@ describe('game-data source of truth', () => {
   it('emits authored override behavior for 1209, 1210, 1509, and 1510', () => {
     const mornye = getResonatorById('1209')
     const aemeath = getResonatorById('1210')
+    const chisa = getResonatorById('1508')
     const lynae = getResonatorById('1509')
     const luuk = getResonatorById('1510')
 
-    if (!mornye || !aemeath || !lynae || !luuk) {
+    if (!mornye || !aemeath || !chisa || !lynae || !luuk) {
       throw new Error('missing generated resonator data for focused override checks')
     }
 
@@ -870,11 +1092,8 @@ describe('game-data source of truth', () => {
     expect(mornyeSkills['1209028']?.skillType).toEqual(['resonanceLiberation'])
     expect(mornyeSkills['1209:boundedness-healing']?.archetype).toBe('healing')
     expect(mornyeSkills['1209:high-syntony-field-healing']?.archetype).toBe('healing')
-    expect(mornyeStates['team:1209:entropic_morning:active']?.enabledWhen).toEqual({
-      type: 'truthy',
-      from: 'sourceRuntime',
-      path: 'state.controls.resonator:1209:interfered_marker:active',
-    })
+    expect(mornyeStates['team:1209:entropic_morning:active']?.requires)
+      .toEqual(['resonator:1209:interfered_marker:active'])
     expect(mornyeRuntimeEffects.some((effect) => effect.id === '1209:interfered-marker')).toBe(true)
     expect(mornyeSkillEffects.some((effect) => effect.id === '1209:s4:high-syntony-field-healing')).toBe(true)
 
@@ -884,16 +1103,137 @@ describe('game-data source of truth', () => {
     expect(aemeathSkills['1210108']?.skillType).toEqual(['resonanceLiberation'])
     expect(aemeathSkills['1210601']?.skillType).toEqual(['resonanceLiberation'])
     expect(aemeathSkills['1210602']?.skillType).toEqual(['resonanceLiberation'])
-    expect(aemeathStates['resonator:1210:tune_rupture_mode:active']).toBeTruthy()
-    expect(aemeathStates['resonator:1210:fusion_burst_mode:active']).toBeTruthy()
-    expect(aemeathStates['team:1210:silent_protection:active']).toBeTruthy()
-    expect(aemeathStates['team:1210:silent_protection_trigger:active']?.enabledWhen).toEqual({
-      type: 'truthy',
-      from: 'sourceRuntime',
-      path: 'state.controls.team:1210:silent_protection:active',
+    expect(aemeathSkills['1210:negative-effect:seraphic-duet:fusion-burst']).toBeUndefined()
+    expect(aemeathSkills['1210604']).toMatchObject({
+      label: 'Seraphic Duet: Tune Rupture',
+      tab: 'forteCircuit',
+      skillType: ['tuneRupture'],
+      archetype: 'tuneRupture',
+      element: 'fusion',
+      visibleWhen: {
+        type: 'eq',
+        from: 'sourceRuntime',
+        path: 'state.controls.resonator:1210:mode:value',
+        value: 'tune_rupture',
+      },
     })
+    expect(aemeathSkills['1210604']?.skillVariantWhen?.[0]).toMatchObject({
+      patch: {
+        label: 'Seraphic Duet: Fusion Burst',
+        skillType: ['fusionBurst'],
+        archetype: 'fusionBurst',
+        stackMode: 'fixedMax',
+        levelSource: null,
+        visibleWhen: {
+          type: 'eq',
+          from: 'sourceRuntime',
+          path: 'state.controls.resonator:1210:mode:value',
+          value: 'fusion_burst',
+        },
+      },
+    })
+    expect(aemeathStates['resonator:1210:mode:value']?.options?.map((option) => option.label))
+      .toEqual(['Tune Rupture', 'Fusion Burst'])
+    expect(aemeathStates['resonator:1210:rupturous_trail:value']?.options?.map((option) => option.id))
+      .toEqual(['0', '10', '20', '30'])
+    expect(aemeathStates['team:1210:silent_protection:active']).toBeTruthy()
+    expect(aemeathStates['team:1210:silent_protection_trigger:active']?.requires)
+      .toEqual(['team:1210:silent_protection:active'])
     expect(aemeathRuntimeEffects.some((effect) => effect.id === '1210:outro:base' && effect.targetScope === 'otherTeammates')).toBe(true)
     expect(aemeathSkillEffects.some((effect) => effect.id === '1210:s6:tune-rupture-crit-dmg')).toBe(true)
+    expect([
+      '1210:fusion-burst-mode:multiplier',
+      '1210:fusion-trail:multiplier',
+      '1210:s2:fusion-trail:multiplier',
+    ].map((id) => aemeathSkillEffects.find((effect) => effect.id === id)?.operations[0])).toEqual([
+      expect.objectContaining({
+        type: 'add_skill_multiplier',
+        match: { skillIds: ['1210604'] },
+      }),
+      expect.objectContaining({
+        type: 'add_skill_multiplier',
+        match: { skillIds: ['1210604'] },
+      }),
+      expect.objectContaining({
+        type: 'add_skill_multiplier',
+        match: { skillIds: ['1210604'] },
+      }),
+    ])
+    expect([
+      '1210:s6:fusion-burst-crit-rate',
+      '1210:s6:fusion-burst-crit-dmg',
+    ].map((id) => {
+      const effect = aemeathRuntimeEffects.find((entry) => entry.id === id)
+      return {
+        targetScope: effect?.targetScope,
+        operation: effect?.operations[0],
+      }
+    })).toEqual([
+      {
+        targetScope: 'active',
+        operation: expect.objectContaining({
+          type: 'add_negative_effect_mod',
+          negativeEffect: 'fusionBurst',
+          mod: 'critRate',
+          value: { type: 'const', value: 80 },
+        }),
+      },
+      {
+        targetScope: 'active',
+        operation: expect.objectContaining({
+          type: 'add_negative_effect_mod',
+          negativeEffect: 'fusionBurst',
+          mod: 'critDmg',
+          value: { type: 'const', value: 175 },
+        }),
+      },
+    ])
+
+    const ruptureTrailEffect = aemeathSkillEffects.find((effect) => effect.id === '1210:rupture-mode:seraphic-duet-bonus')
+    expect(ruptureTrailEffect?.operations[0]).toMatchObject({
+      type: 'add_skill_hit_multiplier',
+      hitIndex: 0,
+      match: { skillIds: ['1210604'] },
+    })
+
+    const aemeathTuneRuntime = makeResRuntime(aemeath)
+    aemeathTuneRuntime.state.controls['resonator:1210:mode:value'] = 'tune_rupture'
+    aemeathTuneRuntime.state.controls['resonator:1210:rupturous_trail:value'] = 30
+    const duetTuneRupture = resolveSkill(aemeathTuneRuntime, aemeathSkills['1210604'])
+
+    expect(duetTuneRupture.label).toBe('Seraphic Duet: Tune Rupture')
+    expect(duetTuneRupture.tab).toBe('forteCircuit')
+    expect(duetTuneRupture.archetype).toBe('tuneRupture')
+    expect(duetTuneRupture.stackMode).toBeUndefined()
+    expect(duetTuneRupture.visible).toBe(true)
+    expect(applySkllDat(aemeathTuneRuntime, duetTuneRupture).multiplier).toBeCloseTo(1.75)
+
+    const aemeathRuntime = makeResRuntime(aemeath)
+    aemeathRuntime.base.sequence = 2
+    aemeathRuntime.state.combat.fusionBurst = 3
+    aemeathRuntime.state.controls['resonator:1210:mode:value'] = 'fusion_burst'
+    aemeathRuntime.state.controls['resonator:1210:stardust_resonance:active'] = true
+    aemeathRuntime.state.controls['resonator:1210:fusion_trail:value'] = 3
+    const genericFusionBurst = resolveSkill(aemeathRuntime, aemeathSkills['1210:negative-effect:fusion-burst'])
+    const duetFusionBurst = resolveSkill(aemeathRuntime, aemeathSkills['1210604'])
+
+    expect(duetFusionBurst.label).toBe('Seraphic Duet: Fusion Burst')
+    expect(duetFusionBurst.tab).toBe('forteCircuit')
+    expect(duetFusionBurst.archetype).toBe('fusionBurst')
+    expect(duetFusionBurst.stackMode).toBe('fixedMax')
+    expect(duetFusionBurst.stackMax).toBe(10)
+    expect(duetFusionBurst.visible).toBe(true)
+    expect(applySkllDat(aemeathRuntime, genericFusionBurst).multiplier).toBe(1)
+    expect(applySkllDat(aemeathRuntime, duetFusionBurst).multiplier).toBeCloseTo(5.45)
+
+    const aemeathChisaRuntime = makeResRuntime(aemeath)
+    aemeathChisaRuntime.build.team = [aemeath.id, chisa.id, null]
+    aemeathChisaRuntime.teamRuntimes = [makeTeamMember(chisa), null]
+    aemeathChisaRuntime.state.controls['team:1508:team:1508:unraveling_law_zero:active'] = true
+    aemeathChisaRuntime.state.controls['resonator:1210:mode:value'] = 'fusion_burst'
+    const duetFusionBurstWithChisa = resolveSkill(aemeathChisaRuntime, aemeathSkills['1210604'])
+
+    expect(duetFusionBurstWithChisa.stackMax).toBe(13)
 
     expect(lynaeStates['team:1509:hit_the_road:active']).toBeTruthy()
     expect(lynaeStates['team:1509:vanishing_point:active']?.visibleWhen).toEqual({
@@ -956,8 +1296,7 @@ describe('game-data source of truth', () => {
       state: {
         ...makeResRuntime(lucilla).state,
         controls: {
-          'resonator:1109:glacio_chafe_mode:active': true,
-          'resonator:1109:echo_mode:active': false,
+          'resonator:1109:mode:value': 'glacio_chafe',
         },
       },
     }
@@ -966,40 +1305,38 @@ describe('game-data source of truth', () => {
       state: {
         ...makeResRuntime(lucilla).state,
         controls: {
-          'resonator:1109:glacio_chafe_mode:active': false,
-          'resonator:1109:echo_mode:active': true,
+          'resonator:1109:mode:value': 'echo',
         },
       },
     }
 
-    expect(lucillaStates['resonator:1109:glacio_chafe_mode:active']?.defaultValue).toBe(false)
-    expect(lucillaStates['resonator:1109:echo_mode:active']).toBeTruthy()
-    expect(lucillaPanels['glacio-chafe-mode']?.controls.map((control) => control.key))
-      .toEqual(['resonator:1109:glacio_chafe_mode:active'])
-    expect(lucillaPanels['echo-mode']?.controls.map((control) => control.key))
-      .toEqual(['resonator:1109:echo_mode:active'])
-    expect(lucillaPanels['glacio-chafe-mode']?.body).toContain('Clear As Day')
-    expect(lucillaPanels['glacio-chafe-mode']?.body).toContain('Montage')
-    expect(lucillaPanels['echo-mode']?.body).toContain('Echo Skill DMG Amplification')
+    expect(lucillaStates['resonator:1109:mode:value'])
+      .toMatchObject({ kind: 'select', defaultValue: 'glacio_chafe', maxValue: 'echo' })
+    expect(lucillaStates['resonator:1109:zoom:stacks'])
+      .toMatchObject({ kind: 'select', maxValue: '4' })
+    expect(lucillaStates['resonator:1109:zoom:stacks']?.options)
+      .toHaveLength(5)
+    expect(lucillaPanels['clear-as-day']?.stateKeys)
+      .toEqual(['resonator:1109:clear_as_day:active'])
+    expect(lucillaPanels.zoom?.stateKeys)
+      .toEqual(['resonator:1109:zoom:stacks'])
+    expect(lucillaPanels.montage?.stateKeys)
+      .toEqual(['team:1109:montage:active'])
+    expect(lucillaPanels['clear-as-day']?.body).toContain('Basic Attack DMG Bonus')
+    expect(lucillaPanels.zoom?.body).toContain('stack up to 4 times')
+    expect(lucillaPanels.montage?.body).toContain('Echo Skill DMG Amplification')
     expect(lucilla.statePanels.some((panel) => panel.id === 'slow-motion')).toBe(false)
-    expect(lucilla.inherentSkills.find((skill) => skill.name === 'Slow Motion')?.control?.key)
-      .toBe('inherent:1109:lvl50:active')
-    expect(lucilla.inherentSkills.find((skill) => skill.name === 'Slow Motion')?.control?.enabledWhen)
-      .toMatchObject({ type: 'or' })
-    expect(lucillaStates['resonator:1109:clear_as_day:active']?.enabledWhen).toMatchObject({ type: 'or' })
-    expect(lucillaStates['team:1109:montage:active']?.enabledWhen).toMatchObject({ type: 'or' })
+    expect(lucilla.inherentSkills.find((skill) => skill.name === 'Slow Motion')?.stateKeys)
+      .toEqual(['inherent:1109:lvl50:active'])
+    expect(lucillaStates['inherent:1109:lvl50:active']).toBeTruthy()
+    expect(lucillaStates['resonator:1109:clear_as_day:active']).toBeTruthy()
+    expect(lucillaStates['team:1109:montage:active']).toBeTruthy()
     expect(lucillaRuntimeEffects.find((effect) => effect.id === '1109:clear-as-day:basic')?.condition)
       .toMatchObject({
         type: 'and',
         values: [
           { type: 'truthy', path: 'state.controls.resonator:1109:clear_as_day:active' },
-          {
-            type: 'and',
-            values: [
-              { type: 'truthy', path: 'state.controls.resonator:1109:glacio_chafe_mode:active' },
-              { type: 'not', value: { type: 'truthy', path: 'state.controls.resonator:1109:echo_mode:active' } },
-            ],
-          },
+          { type: 'eq', path: 'state.controls.resonator:1109:mode:value', value: 'glacio_chafe' },
         ],
       })
     expect(resolveSkill(lucillaGlacioRuntime, lucillaSkills['1109013']).skillType).toEqual(['basicAtk'])
@@ -1007,11 +1344,11 @@ describe('game-data source of truth', () => {
     expect(lucillaSkills['1109014']?.skillType).toEqual(['basicAtk'])
     expect(lucillaRuntimeEffects.some((effect) => effect.id === '1109:slow-motion:glacio-res')).toBe(true)
     expect(lucillaRuntimeEffects.some((effect) => effect.id === '1109:montage:echo-amplify' && effect.targetScope === 'activeOther')).toBe(true)
-    expect(lucilla.resonanceChains.find((chain) => chain.index === 1)?.controls?.[0]?.key)
+    expect(lucilla.resonanceChains.find((chain) => chain.index === 1)?.stateKeys?.[0])
       .toBe('sequence:1109:s1:active')
-    expect(lucilla.resonanceChains.find((chain) => chain.index === 4)?.controls?.[0]?.key)
+    expect(lucilla.resonanceChains.find((chain) => chain.index === 4)?.stateKeys?.[0])
       .toBe('sequence:1109:s4:stacks')
-    expect(lucilla.resonanceChains.find((chain) => chain.index === 6)?.controls?.[0]?.key)
+    expect(lucilla.resonanceChains.find((chain) => chain.index === 6)?.stateKeys?.[0])
       .toBe('sequence:1109:s6:stacks')
     expect(lucillaStates['sequence:1109:s1:active']?.visibleWhen).toMatchObject({ type: 'gte', value: 1 })
     expect(lucillaStates['sequence:1109:s4:stacks']?.kind).toBe('select')
@@ -1042,10 +1379,12 @@ describe('game-data source of truth', () => {
 
     expect(lucyStates['resonator:1511:algorithm_compaction:active']).toBeTruthy()
     expect(lucyStates['resonator:1511:sql:active']?.controlDependencies).toEqual(['resonator:1511:algorithm_compaction:active'])
-    expect(lucyPanels['algorithm-compaction']?.controls.map((control) => control.key))
+    expect(lucyPanels['algorithm-compaction']?.stateKeys)
       .toEqual(['resonator:1511:algorithm_compaction:active'])
+    expect(lucyPanels['algorithm-compaction']?.body).toContain('65%')
     expect(lucyPanels.sql?.body).toContain('Heavy Attack - Multi-threading')
-    expect(lucyPanels.sql?.controls.map((control) => control.key)).toEqual(['resonator:1511:sql:active'])
+    expect(lucyPanels.sql?.body).toContain('270%')
+    expect(lucyPanels.sql?.stateKeys).toEqual(['resonator:1511:sql:active'])
     expect(lucyPanels['spoofing-program-cyberware-malfunction']?.body)
       .toBe('Requires 4 RAM. Marked targets take 5% increased damage for 30s.')
     expect(lucyStates['team:1511:cyberware_malfunction:active']?.description)
@@ -1053,10 +1392,10 @@ describe('game-data source of truth', () => {
     expect(lucyStates['team:1511:countermeasure_program:active']).toBeTruthy()
     expect(lucyStates['team:1511:countermeasure_program_outgoing:active']).toBeTruthy()
     expect(lucy.statePanels.some((panel) => panel.id === 'network-backdoor')).toBe(false)
-    expect(lucy.inherentSkills.find((skill) => skill.name === 'Function Cracking')?.control?.key)
-      .toBe('inherent:1511:lvl70:active')
+    expect(lucy.inherentSkills.find((skill) => skill.name === 'Function Cracking')?.stateKeys)
+      .toEqual(['inherent:1511:lvl70:active'])
     expect(lucySkills['1511011']?.skillType).toEqual(['heavyAtk'])
-    expect(lucySkills['1511028']?.skillType).toEqual(['heavyAtk'])
+    expect(lucySkills['1511028']?.skillType).toEqual(['resonanceLiberation'])
     expect(lucySkills['1511031'])
       .toMatchObject({ skillType: ['hack'], archetype: 'hack', aggregationType: 'damage' })
     expect(lucySkills['1511038'])
@@ -1077,20 +1416,21 @@ describe('game-data source of truth', () => {
         path: 'base.sequence',
         value: 5,
       })
-    expect(lucy.resonanceChains.find((chain) => chain.index === 1)?.controls?.[0]?.key)
+    expect(lucy.resonanceChains.find((chain) => chain.index === 1)?.stateKeys?.[0])
       .toBe('sequence:1511:s1:intro_atk')
-    expect(lucy.resonanceChains.find((chain) => chain.index === 3)?.controls?.[0]?.key)
+    expect(lucy.resonanceChains.find((chain) => chain.index === 3)?.stateKeys?.[0])
       .toBe('sequence:1511:s3:override_cast')
-    expect(lucy.resonanceChains.find((chain) => chain.index === 4)?.controls?.[0]?.key)
+    expect(lucy.resonanceChains.find((chain) => chain.index === 4)?.stateKeys?.[0])
       .toBe('sequence:1511:s4:hack_shifting')
     expect(lucy.resonanceChains.find((chain) => chain.index === 5)).toBeTruthy()
-    expect(lucy.resonanceChains.find((chain) => chain.index === 6)?.controls?.[0]?.key)
+    expect(lucy.resonanceChains.find((chain) => chain.index === 6)?.stateKeys?.[0])
       .toBe('sequence:1511:s6:hack_target')
     const sqlMultiThreading = lucySkillEffects.find((effect) => effect.id === '1511:sql:multi-threading')
     expect(sqlMultiThreading?.operations[0])
       .toMatchObject({
         type: 'scale_skill_multiplier',
         match: { skillIds: ['1511017'] },
+        value: { value: 3.7 },
       })
     expect(sqlMultiThreading?.condition?.type)
       .toBe('and')
@@ -1103,6 +1443,7 @@ describe('game-data source of truth', () => {
       .toMatchObject({
         type: 'scale_skill_multiplier',
         match: { skillIds: ['1511017'] },
+        value: { value: 6.6 },
       })
     expect(lucySkillEffects.find((effect) => effect.id === '1511:s3:override')?.operations[0])
       .toMatchObject({ type: 'scale_skill_multiplier', match: { skillIds: ['1511028', '1511032'] } })
@@ -1134,8 +1475,53 @@ describe('game-data source of truth', () => {
       ]))
     expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:s4:hack-shifting')?.operations[0])
       .toMatchObject({ type: 'add_attribute_mod', attribute: 'all', mod: 'dmgBonus', value: { value: 20 } })
-    expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:s6:heavy-attack-vulnerability')?.operations[0])
-      .toMatchObject({ type: 'add_skilltype_mod', skillType: 'heavyAtk', mod: 'dmgVuln', value: { value: 60 } })
+    expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:network-backdoor'))
+      .toMatchObject({
+        targetScope: 'teamWide',
+        condition: {
+          type: 'and',
+          values: expect.arrayContaining([
+            { type: 'gte', from: 'sourceRuntime', path: 'base.level', value: 70 },
+            {
+              type: 'or',
+              values: expect.arrayContaining([
+                { type: 'eq', from: 'targetRuntime', path: 'id', value: '1511' },
+                { type: 'eq', from: 'targetRuntime', path: 'id', value: '1308' },
+              ]),
+            },
+          ]),
+        },
+        operations: expect.arrayContaining([
+          expect.objectContaining({ type: 'add_skill_multiplier', match: { skillIds: ['1511038', '1511031', '1411098'] } }),
+        ]),
+      })
+    expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:network-backdoor:rebecca')).toBeUndefined()
+    const networkBackdoorTwoStacks = lucyRuntimeEffects.find((effect) => effect.id === '1511:network-backdoor:2-stacks')
+    expect(networkBackdoorTwoStacks?.targetScope).toBe('teamWide')
+    expect(networkBackdoorTwoStacks?.operations)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'add_skill_multiplier',
+          match: { skillIds: ['1511038', '1511031', '1411098'] },
+          value: expect.objectContaining({ value: 0.05 }),
+        }),
+      ]))
+    expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:network-backdoor:rebecca:2-stacks')).toBeUndefined()
+    expect(lucyRuntimeEffects.find((effect) => effect.id === '1511:s6:heavy-attack-vulnerability')?.operations)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'add_skilltype_mod',
+          skillType: 'heavyAtk',
+          mod: 'dmgVuln',
+          value: expect.objectContaining({ value: 40 }),
+        }),
+        expect.objectContaining({
+          type: 'add_skilltype_mod',
+          skillType: 'hack',
+          mod: 'dmgVuln',
+          value: expect.objectContaining({ value: 60 }),
+        }),
+      ]))
 
     const rebeccaSkills = Object.fromEntries(rebecca.skills.map((skill) => [skill.id, skill]))
     const rebeccaStates = Object.fromEntries(rebecca.states.map((state) => [state.controlKey, state]))
@@ -1147,16 +1533,21 @@ describe('game-data source of truth', () => {
     expect(rebecca.inherentSkills.map((skill) => skill.name)).toEqual(["Tag, You're It!", 'Left an Opening!'])
     expect(rebecca.statePanels.some((panel) => panel.id === 'tag-youre-it')).toBe(false)
     expect(rebecca.statePanels.some((panel) => panel.id === 'left-an-opening')).toBe(false)
-    expect(rebecca.inherentSkills.find((skill) => skill.name === "Tag, You're It!")?.control?.key)
-      .toBe('inherent:1308:lvl50:stacks')
-    expect(rebecca.inherentSkills.find((skill) => skill.name === 'Left an Opening!')?.control?.key)
-      .toBe('inherent:1308:lvl70:active')
+    expect(rebecca.inherentSkills.find((skill) => skill.name === "Tag, You're It!")?.stateKeys)
+      .toEqual(['inherent:1308:lvl50:stacks'])
+    expect(rebeccaStates['inherent:1308:lvl50:hack_shifting'])
+      .toMatchObject({
+        displayScope: 'team',
+        description: expect.stringContaining('Tune Break Boost is increased by 30'),
+      })
+    expect(rebecca.inherentSkills.find((skill) => skill.name === 'Left an Opening!')?.stateKeys)
+      .toEqual(['inherent:1308:lvl70:active'])
     expect(rebeccaStates['resonator:1308:huntress:active']?.defaultValue).toBe(true)
-    expect(switchGearsPanel?.controls.map((control) => control.key)).toEqual([
+    expect(switchGearsPanel?.stateKeys).toEqual([
       'resonator:1308:huntress:active',
       'resonator:1308:guts:active',
     ])
-    expect(bothModesPanel?.controls.map((control) => control.key)).toEqual([
+    expect(bothModesPanel?.stateKeys).toEqual([
       'resonator:1308:a_girl_gets_what_she_wants:active',
     ])
     expect(rebeccaStates['resonator:1308:huntress:active']?.resets).toEqual([
@@ -1180,27 +1571,38 @@ describe('game-data source of truth', () => {
           { type: 'not', value: { type: 'truthy', path: 'state.controls.resonator:1308:a_girl_gets_what_she_wants:active' } },
         ],
       })
+    expect(rebeccaRuntimeEffects.find((effect) => effect.id === '1308:tag-youre-it:hack-shifting'))
+      .toMatchObject({
+        targetScope: 'teamWide',
+        operations: [
+          {
+            type: 'add_top_stat',
+            stat: 'tuneBreakBoost',
+            value: { value: 30 },
+          },
+        ],
+      })
     expect(rebeccaStates['team:1308:overlimit:stacks']?.controlDependencies).toEqual(['team:1308:good_choom:active'])
+    expect(rebeccaStates['team:1308:good_choom:active']?.description)
+      .toContain('15% All DMG Amplification')
+    expect(rebeccaStates['team:1308:overlimit:stacks']?.description)
+      .toContain('up to 35%')
     expect(rebeccaSkills['1411004']?.skillType).toEqual(['basicAtk'])
-    expect(rebeccaSkills['1411026']?.skillType).toEqual(['heavyAtk'])
-    expect(rebeccaSkills['1411027']?.skillType).toEqual(['heavyAtk'])
+    expect(rebeccaSkills['1411026']?.skillType).toEqual(['basicAtk'])
+    expect(rebeccaSkills['1411027']?.skillType).toEqual(['basicAtk'])
+    expect(rebeccaSkills['1308:outro']?.multiplier).toBe(0.025)
+    expect(rebeccaSkills['1308:outro']?.hits).toEqual([{ count: 1, multiplier: 0.025 }])
     expect(rebeccaSkills['1308:s6:additional-basic-attack'])
       .toMatchObject({ multiplier: 9, skillType: ['basicAtk'] })
-    expect(rebecca.resonanceChains.find((chain) => chain.index === 2)?.controls?.map((control) => control.key))
+    expect(rebecca.resonanceChains.find((chain) => chain.index === 2)?.stateKeys)
       .toEqual(['sequence:1308:s2:intro_liberation', 'sequence:1308:s2:hack_shifting'])
-    expect(rebecca.resonanceChains.find((chain) => chain.index === 5)?.controls?.[0]?.key)
+    expect(rebecca.resonanceChains.find((chain) => chain.index === 5)?.stateKeys?.[0])
       .toBe('sequence:1308:s5:hack_shifting')
     expect(rebeccaStates['sequence:1308:s2:intro_liberation']?.displayScope).toBe('team')
     expect(rebeccaStates['sequence:1308:s2:hack_shifting']?.displayScope).toBe('team')
-    expect(rebecca.statePanels.find((panel) => panel.id === 'good-choom')?.controls[0]?.enabledWhen)
-      .toMatchObject({ type: 'truthy', from: 'context', path: 'team.presenceById.1511' })
-    expect(rebeccaStates['team:1308:modded_mk31_fortified:active']?.enabledWhen)
-      .toMatchObject({
-        type: 'and',
-        values: expect.arrayContaining([
-          { type: 'truthy', from: 'context', path: 'team.presenceById.1511' },
-        ]),
-      })
+    expect(rebecca.statePanels.find((panel) => panel.id === 'good-choom')?.stateKeys)
+      .toContain('team:1308:modded_mk31_fortified:active')
+    expect(rebeccaStates['team:1308:modded_mk31_fortified:active']).toBeTruthy()
     expect(rebeccaRuntimeEffects.find((effect) => effect.id === '1308:overlimit:lucy')?.operations[0])
       .toMatchObject({
         type: 'add_skilltype_mod',

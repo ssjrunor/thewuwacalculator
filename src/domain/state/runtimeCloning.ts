@@ -22,6 +22,12 @@ import type {
   WeaponState,
 } from '@/domain/entities/runtime'
 import type { AttributeKey, BaseStatBuff, ModBuff } from '@/domain/entities/stats'
+import {
+  catTmWpnAtk,
+  catWpnAtk,
+} from '@/domain/state/weaponState'
+
+const TEAM_WPN_LVL = 90
 
 function cloneBaseSta(buff: BaseStatBuff): BaseStatBuff {
   return {
@@ -108,12 +114,7 @@ export function cloneCmbtStt(combat: CombatState): CombatState {
 }
 
 export function cloneWpnMkSt(weapon: WeaponState): WeaponState {
-  return {
-    id: weapon.id,
-    level: weapon.level,
-    rank: weapon.rank,
-    baseAtk: weapon.baseAtk,
-  }
+  return catWpnAtk(weapon)
 }
 
 export function cloneRotation(rotation: RotationState): RotationState {
@@ -163,11 +164,7 @@ export function cloneTeamMem(teamMember: TeamMemRt): TeamMemRt {
       sequence: teamMember.base.sequence,
     },
     build: {
-      weapon: {
-        id: teamMember.build.weapon.id,
-        rank: teamMember.build.weapon.rank,
-        baseAtk: teamMember.build.weapon.baseAtk,
-      },
+      weapon: catTmWpnAtk(teamMember.build.weapon, TEAM_WPN_LVL),
       echoes: cloneEchoLdt(teamMember.build.echoes),
     },
     manualBuffs: cloneBuffs(teamMember.manualBuffs),

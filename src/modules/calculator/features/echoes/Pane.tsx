@@ -36,7 +36,7 @@ import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtim
 import { CnfrMdl } from '@/shared/ui/ConfirmationModal.tsx'
 import { useAppModal, useAppMdlVl } from '@/shared/ui/useAppModal.ts'
 import { useCnfr } from '@/app/hooks/useConfirmation.ts'
-import { evalSourceState } from '@/modules/calculator/model/sourceEval.ts'
+import { evalSrcStt } from '@/modules/calculator/model/sourceEval.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { IoArchive } from 'react-icons/io5'
@@ -113,7 +113,7 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
 
     // main echo runtime states are shown only when their source visibility passes for the current runtime.
     return listStatesFor(mainEchoSrc.type, mainEchoSrc.id).filter((state) =>
-        evalSourceState(runtime, runtime, state),
+        evalSrcStt(runtime, runtime, state),
     )
   }, [mainEchoSrc, runtime])
 

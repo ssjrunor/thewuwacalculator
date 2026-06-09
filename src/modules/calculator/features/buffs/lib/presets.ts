@@ -30,6 +30,7 @@ import { makeTeamComp } from '@/domain/gameData/teamComposition.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService.ts'
 import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
+import { wpnAtkAt } from '@/domain/state/weaponState.ts'
 import { evalForm } from '@/engine/effects/evaluator.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'
 import { countEchoSets, mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext.ts'
@@ -308,7 +309,11 @@ function makeScope(
   const baseStats = baseStatsFor(runtime)
   const pool: UnifiedBuffPool = baseStats ? mkRtBaseBuff(runtime) : mkNfdBuffPoo()
   const finalStats: FinalStats | undefined = baseStats
-    ? calcFinalStats(baseStats, pool, runtime.build.weapon.baseAtk)
+    ? calcFinalStats(
+        baseStats,
+        pool,
+        wpnAtkAt(runtime.build.weapon.id, runtime.build.weapon.level),
+    )
     : undefined
   const echoSetCounts = {
     ...countEchoSets(runtime.build.echoes),

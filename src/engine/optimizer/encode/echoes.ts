@@ -13,6 +13,7 @@ import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { AttributeKey, FinalStats, ResBaseStats, SkillTypeKey } from '@/domain/entities/stats.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import { evalCond, evalForm } from '@/engine/effects/evaluator.ts'
+import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants.ts'
 import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
 
 export type TgtScpMode = 'self' | 'ally'
@@ -36,19 +37,15 @@ export interface EncEchoRows {
 
 type MainStatVctr = Float32Array
 
-// packed row sizes
-// STATS_PER_ECHO is the raw stat vector length used during optimizer search
-// MAIN_BUFFS_PER_ECHO is the per-main-echo bonus row length
-const STATS_PER_ECHO = 20
-const MAIN_BUFF_SIZE = 18
 
 // main-echo bonus vector offsets
 // these are not full stat vectors. they only represent the subset of bonuses
 // that can come specifically from choosing an echo as the active main echo.
 //
-// IMPORTANT: this layout is mirrored in target/cpu.ts, target/evaluate.ts,
-// compiler/theory.ts (MAIN_STRIDE), and the WGSL shaders' BUFFS_PER_ECHO.
-// any new slot here has to be added in all five files in lock-step.
+// IMPORTANT: the row width is the shared MAIN_BUFF_LEN, but this offset layout
+// is mirrored in target/cpu.ts, target/evaluate.ts, compiler/theory.ts, and the
+// WGSL shaders' BUFFS_PER_ECHO. any new slot here has to be added in all of them
+// in lock-step.
 const MAIN_ATK_PCT = 0
 const MAINATKFLAT = 1
 const MAIN_BASIC = 2
@@ -64,10 +61,9 @@ const MAIN_ELECTRO = 11
 const MAIN_ER = 12
 const MAIN_ECHO_SKILL = 13
 const MAIN_COORD = 14
-// slots 15-17 carry top_stat contributions that previously fell on the
-// floor: cr/cd from echoes like 6000201 (Adam Smasher's Lucy/Rebecca
-// passive) and a generic dmgBonus pool from echoes like 390080005
-// (Bell-Borne Geochelone Shielded).
+// slots 15-17 carry top_stat contributions: cr/cd from echoes like 6000201
+// (Adam Smasher's Lucy/Rebecca passive) and a generic dmgBonus pool from echoes
+// like 390080005 (Bell-Borne Geochelone Shielded).
 const MAIN_CR = 15
 const MAIN_CD = 16
 const MAIN_DMG_BNS = 17
@@ -268,11 +264,9 @@ function addMainOp(
     return
   }
 
-  // every top-stat contribution that has a slot in the main-buff vector
-  // lands here. previously only energyRegen was routed and the rest fell
-  // through silently; that is how 6000201's +15% crit rate and
-  // 390080005's conditional dmg bonus stopped showing up in the
-  // optimizer/suggestions paths.
+  // every top-stat contribution that has a slot in the main-buff vector lands
+  // here, including cr/cd (e.g. 6000201's +15% crit rate) and the generic
+  // dmgBonus pool (e.g. 390080005's conditional dmg bonus), not just energyRegen.
   if (operation.type === 'add_top_stat') {
     if (operation.stat === 'energyRegen') {
       vector[MAIN_ER] += value
@@ -611,13 +605,13 @@ export function encEchoRows(
     _slct: OptTargetSkill,
     mode: TgtScpMode = 'self',
 ): EncEchoRows {
-  const stats = new Float32Array(echoes.length * STATS_PER_ECHO)
+  const stats = new Float32Array(echoes.length * ECHO_STAT_STRIDE)
   const sets = new Uint8Array(echoes.length)
   const costs = new Uint8Array(echoes.length)
 
   for (let index = 0; index < echoes.length; index += 1) {
     const echo = echoes[index]
-    const vector = stats.subarray(index * STATS_PER_ECHO, (index + 1) * STATS_PER_ECHO)
+    const vector = stats.subarray(index * ECHO_STAT_STRIDE, (index + 1) * ECHO_STAT_STRIDE)
 
     if (mode === 'self') {
       // primary and secondary main stats are treated like normal row stats
@@ -656,7 +650,7 @@ export function mkMainEchoRo(options: {
   mode?: TgtScpMode
 }): Float32Array {
   const { echoes, runtime, sourceBaseStats: srcBaseStats, sourceFinals: srcFnlStats, selectedSkill: selectedSkill, mode = 'self' } = options
-  const out = new Float32Array(echoes.length * MAIN_BUFF_SIZE)
+  const out = new Float32Array(echoes.length * MAIN_BUFF_LEN)
   const gameData = getGameData()
 
   // build team context once and reuse it for every echo row
@@ -700,7 +694,7 @@ export function mkMainEchoRo(options: {
       sourceFinalStats: srcFnlStats,
     }
 
-    const vector = out.subarray(index * MAIN_BUFF_SIZE, (index + 1) * MAIN_BUFF_SIZE)
+    const vector = out.subarray(index * MAIN_BUFF_LEN, (index + 1) * MAIN_BUFF_LEN)
 
     for (const effect of effects) {
       // skip effects that do not target the requested optimizer scope
@@ -738,7 +732,7 @@ export function mkGnrcMainEc(options: {
   mode?: TgtScpMode
 }): Float32Array {
   const { echoes, runtime, sourceBaseStats: srcBaseStats, sourceFinals: srcFnlStats, mode = 'self' } = options
-  const out = new Float32Array(echoes.length * MAIN_BUFF_SIZE)
+  const out = new Float32Array(echoes.length * MAIN_BUFF_LEN)
   const gameData = getGameData()
 
   // shared team metadata reused across all rows
@@ -778,7 +772,7 @@ export function mkGnrcMainEc(options: {
       sourceFinalStats: srcFnlStats,
     }
 
-    const vector = out.subarray(index * MAIN_BUFF_SIZE, (index + 1) * MAIN_BUFF_SIZE)
+    const vector = out.subarray(index * MAIN_BUFF_LEN, (index + 1) * MAIN_BUFF_LEN)
 
     for (const effect of effects) {
       if (!shldApplyToT(effect.targetScope, mode)) {

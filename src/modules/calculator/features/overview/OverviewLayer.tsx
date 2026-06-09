@@ -3,7 +3,7 @@
   Description: Renders the overview layer surface for the calculator overview flow.
 */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties as CssProps, SyntheticEvent as SyntVnt } from 'react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
@@ -60,6 +60,7 @@ import {
 import {Copy, Scissors, Trash2} from 'lucide-react'
 import { useSel } from '@/modules/calculator/lib/sel.tsx'
 import { getOvDashCtx, getOvPillCtx, getOvStgCtx } from '@/modules/calculator/features/overview/lib/ctx.tsx'
+import { AttributeNavigator, type AttrGroup } from '@/modules/calculator/features/overview/AttributeNavigator.tsx'
 
 // renders the overview modal that surfaces alternate resonators and detailed stats.
 interface VrvwLyrPrps {
@@ -163,6 +164,28 @@ export function VrvwLyr({
         }),
     [runtimesById],
   )
+
+  // visibleRes is sorted by attribute, so groups are contiguous runs we can fold
+  // into anchors for the elemental spine navigator.
+  const attrGroups = useMemo<AttrGroup[]>(() => {
+    const groups: AttrGroup[] = []
+    for (const entry of visibleRes) {
+      const last = groups[groups.length - 1]
+      if (last && last.attribute === entry.attribute) {
+        last.count += 1
+      } else {
+        groups.push({
+          attribute: entry.attribute,
+          accent: entry.accent,
+          firstId: entry.id,
+          count: 1,
+        })
+      }
+    }
+    return groups
+  }, [visibleRes])
+
+  const stripElRef = useRef<HTMLElement | null>(null)
 
   const [selResId, setSelResId] = useState<string | null>(
     actResId ?? visibleRes[0]?.id ?? null,
@@ -714,6 +737,16 @@ export function VrvwLyr({
     items: resSelTms,
     acts: resSelCtns,
   })
+
+  // keep the selection surface ref intact while also tracking the strip element
+  // so the attribute spine can drive its scroll position.
+  const surfaceRef = resSel.surfaceProps.ref
+  const setStripRef = useCallback((el: HTMLElement | null) => {
+    stripElRef.current = el
+    if (typeof surfaceRef === 'function') {
+      surfaceRef(el)
+    }
+  }, [surfaceRef])
   const stgCtxMenuTm = useMemo(() => getOvStgCtx({
     canDelAll: visibleRes.length > 0,
     onPaste: () => {
@@ -962,10 +995,17 @@ export function VrvwLyr({
           </div>
 
           <div className="character-overview-content">
+            <div className="overview-resonator-rail">
+            <AttributeNavigator
+                groups={attrGroups}
+                stripRef={stripElRef}
+                onImageError={onImageError}
+            />
             <nav
                 className="overview-resonator-strip"
                  aria-label="Resonator browser"
                  {...resSel.surfaceProps}
+                 ref={setStripRef}
             >
               {visibleRes.length > 0 ? (
                 visibleRes.map(({ id, name, resonator, runtime: resRt, accent }, i) => {
@@ -992,6 +1032,7 @@ export function VrvwLyr({
                             onClick={() => setSelResId(id)}
                             onClickCapture={resSel.buildClickCapture(id)}
                             aria-pressed={isSelSel}
+                            data-res-id={id}
                             data-inspected={isInspected ? 'true' : undefined}
                             data-selected={isSelSel ? 'true' : undefined}
                             data-selection-focus-item="true"
@@ -1032,6 +1073,7 @@ export function VrvwLyr({
                 <div className="placeholder">No initialized resonator runtimes.</div>
               )}
             </nav>
+            </div>
 
             <ContextTrigger
               asChild

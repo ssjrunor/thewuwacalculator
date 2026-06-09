@@ -17,6 +17,7 @@ import { runResSmlt } from '@/engine/pipeline'
 import { mkPrepWpnSu, resSuggDmg } from '@/engine/suggestions/shared'
 import { runPrepWpn } from '@/engine/suggestions/weapon-suggestion/compute'
 import { isStdWpn } from '@/domain/entities/weapon'
+import { weaponStatsAt } from '@/domain/services/weaponPlan'
 
 // build one equipped echo so the packed evaluator has a concrete loadout to score.
 function mkEcho() {
@@ -92,7 +93,10 @@ describe('weapon suggestions', () => {
     expect(out[1]?.mode).toBe('max')
     expect(out.some((entry) => Object.keys(entry.controls).length > 0)).toBe(true)
     const curEnt = out.find((entry) => entry.weaponId === startWpnId && entry.mode === 'default')
-    expect(curEnt?.baseAtk).toBe(rt.build.weapon.baseAtk)
+    const curWpn = listWpnsByTy(seed.weaponType).find((wpn) => wpn.id === startWpnId)
+    expect(curWpn).toBeTruthy()
+    const curStats = curWpn ? weaponStatsAt(curWpn, rt.build.weapon.level) : null
+    expect(curEnt?.baseAtk).toBe(curStats?.atk)
     expect(curEnt?.damage).toBeCloseTo(resSuggDmg(sim, {
       runtime: rt,
       seed,

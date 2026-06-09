@@ -13,7 +13,7 @@ import { makeEnemy, makeOptSets, makeResRuntime } from '@/domain/state/defaults.
 import { listChsByCos, listEchoes } from '@/domain/services/echoCatalogService.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
 import { compOptPay } from '@/engine/optimizer/compiler'
-import { MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants.ts'
+import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants.ts'
 import { matThryEcho, matThryRslts } from '@/engine/optimizer/results/materialize.ts'
 import { gnrtThryCpuCm } from '@/engine/optimizer/target/theoryBatches.ts'
 import { runOptWithWr } from '@/engine/optimizer/workers/pool.ts'
@@ -24,7 +24,7 @@ import { initEchoCat } from '@/data/gameData/catalog/echoes.ts'
 import { listEffects } from '@/domain/gameData/registry.ts'
 import { getGameData } from '@/data/gameData'
 
-const STAT_STRIDE = 20
+const STAT_STRIDE = ECHO_STAT_STRIDE
 const MAIN_STRIDE = MAIN_BUFF_LEN
 const LUCY = '1511'
 const TARGET_MAIN_ECHO = '6000201'

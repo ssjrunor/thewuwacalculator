@@ -11,56 +11,107 @@ const ENEMY_DATA_URL = '/data/enemies.json'
 
 interface RawEnemyCatE {
   Id?: number | string
+  id?: number | string
   Name?: string
+  name?: string
   Desc?: string
+  desc?: string
   DescOpen?: string
+  descOpen?: string
   Class?: number
-  Element?: number | null
-  ElementArray?: number[]
+  class?: number
+  Element?: RawEnemyElem
+  element?: RawEnemyElem
+  ElementArray?: RawEnemyElem[]
+  elementArray?: RawEnemyElem[]
+  ElementIdArray?: RawEnemyElem[]
+  elementIdArray?: RawEnemyElem[]
   Icon?: string
+  icon?: string
   baseData?: {
     res?: Partial<Record<string, number>>
   }
 }
 
+type RawEnemyElem =
+    | number
+    | string
+    | null
+    | undefined
+    | {
+      Id?: number | string | null
+      id?: number | string | null
+    }
+
 let enemyCatPrms: Promise<EnemyCatEnt[]> | null = null
 
 // normalize a raw numeric element into a valid enemy element id
-function toEnemyElemI(value: number | null | undefined): EnemyElemId | null {
+function toEnemyElemI(value: RawEnemyElem): EnemyElemId | null {
   if (value == null) {
     return null
   }
 
-  if (value >= 0 && value <= 6) {
-    return value as EnemyElemId
+  const rawValue =
+      typeof value === 'object'
+        ? value.Id ?? value.id
+        : value
+  if (rawValue == null || (typeof rawValue === 'string' && rawValue.trim().length === 0)) {
+    return null
+  }
+
+  const elemId = Number(rawValue)
+
+  if (Number.isInteger(elemId) && elemId >= 0 && elemId <= 6) {
+    return elemId as EnemyElemId
   }
 
   return null
 }
 
+function toEnemyElemArr(values: RawEnemyElem[] | undefined): EnemyElemId[] {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  return values
+      .map((value) => toEnemyElemI(value))
+      .filter((value): value is EnemyElemId => value !== null)
+}
+
 // normalize one raw enemy catalog entry into the app shape
 function normEnemyCat(entry: RawEnemyCatE): EnemyCatEnt | null {
-  const enemyId = String(entry.Id ?? '').trim()
-  const enemyName = String(entry.Name ?? '').trim()
-  const enemyClass = Number(entry.Class ?? 0)
+  const enemyId = String(entry.Id ?? entry.id ?? '').trim()
+  const enemyName = String(entry.Name ?? entry.name ?? '').trim()
+  const enemyClass = Number(entry.Class ?? entry.class ?? 0)
 
   if (!enemyId || !enemyName || !isEnemyClssI(enemyClass)) {
     return null
   }
 
+  const element = toEnemyElemI(entry.Element ?? entry.element)
+  const elementArray = toEnemyElemArr(
+    entry.ElementArray ??
+        entry.elementArray ??
+        entry.ElementIdArray ??
+        entry.elementIdArray,
+  )
+  const icon = entry.Icon ?? entry.icon
+
   return {
     id: enemyId,
     name: enemyName,
-    description: String(entry.Desc ?? '').trim(),
-    descriptionOpen: String(entry.DescOpen ?? '').trim(),
+    description: String(entry.Desc ?? entry.desc ?? '').trim(),
+    descriptionOpen: String(entry.DescOpen ?? entry.descOpen ?? '').trim(),
     class: enemyClass as EnemyClassId,
-    element: toEnemyElemI(entry.Element),
-    elementArray: Array.isArray(entry.ElementArray)
-        ? entry.ElementArray
-            .map((value) => toEnemyElemI(value))
-            .filter((value): value is EnemyElemId => value !== null)
-        : [],
-    icon: typeof entry.Icon === 'string' && entry.Icon.trim().length > 0 ? entry.Icon : null,
+    element,
+    elementArray: elementArray.length > 0
+      ? elementArray
+      : element == null
+        ? []
+        : [element],
+    icon: typeof icon === 'string' && icon.trim().length > 0
+      ? icon.trim()
+      : null,
     resistances: normEnemyRes(entry.baseData?.res),
   }
 }
@@ -111,7 +162,10 @@ export function fltrEnemyCat(
         search.length === 0 ||
         entry.name.toLowerCase().includes(search) ||
         entry.id.includes(search)
-    const mtchElem = options?.element == null || entry.element === options.element
+    const mtchElem =
+        options?.element == null ||
+        entry.element === options.element ||
+        entry.elementArray.includes(options.element)
     const matchesClass = options?.enemyClass == null || entry.class === options.enemyClass
 
     return mtchSrch && mtchElem && matchesClass

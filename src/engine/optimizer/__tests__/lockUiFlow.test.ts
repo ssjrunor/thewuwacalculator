@@ -30,7 +30,7 @@ describe('main-echo lock store roundtrip', () => {
     expect(before?.resonatorId).toBe(LUCY)
     expect(before?.settings.lockedMainEchoId).toBeNull()
 
-    // simulate the EchoPicker onSelect → updOptSets path
+    // simulate the EchoPicker onSelect -> updOptSets path
     useAppStore.getState().updOptSets((settings) => ({
       ...settings,
       lockedMainEchoId: TARGET,

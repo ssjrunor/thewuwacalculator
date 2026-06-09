@@ -10,6 +10,7 @@ import {
   cloneEchoFor,
   cloneEchoLdt,
 } from '@/domain/entities/inventoryStorage'
+import { initWpnStts } from '@/domain/state/sourceStateInit'
 import { useAppStore } from '@/domain/state/store'
 import { selActRt, selInvSg } from '@/domain/state/selectors'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
@@ -27,6 +28,7 @@ export function InvLyr() {
   const setInvOpen = useAppStore((state) => state.setInvOpen)
   const setInvEchoSr = useAppStore((state) => state.setInvEchoQ)
   const runtime = useAppStore(selActRt)
+  const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const invSg = useAppStore(selInvSg)
   const updActResRt = useAppStore((state) => state.updActRt)
   const clnpNvldInvC = useAppStore((state) => state.cleanInvEcho)
@@ -150,14 +152,24 @@ export function InvLyr() {
             const savedWeapon = entry.build.weapon.id ? getWpnById(entry.build.weapon.id) : null
             const wpnTypeMtch = !seed || !savedWeapon || savedWeapon.weaponType === seed.weaponType
 
-            updActResRt((prev) => ({
-              ...prev,
-              build: {
-                ...prev.build,
-                ...(wpnTypeMtch ? { weapon: { ...entry.build.weapon } } : {}),
-                echoes: cloneEchoLdt(entry.build.echoes),
-              },
-            }))
+            updActResRt((prev) => {
+              const nextRuntime = {
+                ...prev,
+                build: {
+                  ...prev.build,
+                  ...(wpnTypeMtch ? { weapon: { ...entry.build.weapon } } : {}),
+                  echoes: cloneEchoLdt(entry.build.echoes),
+                },
+              }
+
+              return wpnTypeMtch
+                ? initWpnStts(nextRuntime, {
+                  weaponId: entry.build.weapon.id,
+                  prevWpnId: prev.build.weapon.id,
+                  maxed: maxWpnOnInit,
+                })
+                : nextRuntime
+            })
 
             if (!wpnTypeMtch) {
               useTstStr.getState().show({

@@ -493,7 +493,7 @@ function calcLevelDamage(
   const bnsMltp =
       (1 + finalStats.amplify / 100) *
       (1 + formulaSkillType.dmgBonus / 100) *
-      (kind === 'tuneRupture' ? (1 + finalStats.tbb / 100) : 1)
+      (1 + finalStats.tbb / 100)
 
   const hits = resolveHits(skill, skill.tuneRuptureScale ?? 16)
   const lvlScale = getTuneLevel(level)
@@ -531,8 +531,11 @@ function calcNegEffect(
     archetype: Extract<SkillDef['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>,
     ddtnStck = 0,
 ): DamageResult {
+  const stackCount = skill.stackMode === 'fixedMax'
+      ? skill.stackMax ?? getNegEffectDef(archetype)
+      : stacks
   // no stacks means no damage instance
-  if (stacks <= 0 && ddtnStck <= 0) {
+  if (stackCount <= 0 && ddtnStck <= 0) {
     return makeZeroResult(skill)
   }
 
@@ -589,7 +592,7 @@ function calcNegEffect(
 
   // base per-stack damage is provided by the negative-effect formula helper
   const perStackBase =
-      getNegBase(archetype, level, stacks, { fixedMv: skill.fixedMv }) +
+      getNegBase(archetype, level, stackCount, { fixedMv: skill.fixedMv }) +
       (archetype === 'electroFlare' ? getNegBase(archetype, level, ddtnStck, { fixedMv: skill.fixedMv }) : 0)
 
   const hits = resolveHits(skill, 1)

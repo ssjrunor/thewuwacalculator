@@ -4,7 +4,7 @@
 */
 
 import { useMemo } from 'react'
-import { ChevronDown, Crosshair, Cpu, Image, Info, Lock, X } from 'lucide-react'
+import { ChevronDown, Crosshair, Cpu, Image, Info, Lock, Sword, X } from 'lucide-react'
 import type { OptSetChoice, OptStatCstr } from '@/domain/entities/optimizer'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { SelectOption, SelectGroup } from '@/shared/ui/LiquidSelect'
@@ -51,6 +51,11 @@ interface ResPtnsPnl {
   allowedSets: OptSetChoice
   mainStatFilter: string[]
   mainStatRdly: boolean
+  // theory mode: main-stat filters do not apply, so that slot becomes the
+  // weapon-search toggle instead.
+  isTheory: boolean
+  excludeEquipped: boolean
+  includeWeapons: boolean
   selBonus: string | null
   statCstrs: Record<string, OptStatCstr>
   optRt: ResRuntime | null
@@ -63,9 +68,12 @@ interface ResPtnsPnl {
   onSyncLive: () => void
   onOpenMainEcho: () => void
   onOpenSetCond: () => void
+  onOpenWpnCond: () => void
   onClrMainEyq: () => void
   onLlwdSetsxi: (value: OptSetChoice) => void
   onToggleMain: (value: string) => void
+  onToggleExcludeEquipped: (value: boolean) => void
+  onToggleWeapons: (value: boolean) => void
   onPickBonus: (value: string) => void
   onClrAllFltr: () => void
   onStatLmtCdd: (statKey: string, field: 'minTotal' | 'maxTotal', value: string) => void
@@ -91,6 +99,9 @@ export function CharPtnsPnl({
   allowedSets,
   mainStatFilter: mainStatFilter,
   mainStatRdly,
+  isTheory,
+  excludeEquipped,
+  includeWeapons,
   selBonus: selectedBonus,
   statCstrs: statCnst,
   optRt: optRuntime,
@@ -103,9 +114,12 @@ export function CharPtnsPnl({
   onSyncLive,
   onOpenMainEcho: onOpenMainEcho,
   onOpenSetCond: onOpenSetCon,
+  onOpenWpnCond,
   onClrMainEyq: onClrMainEch,
   onLlwdSetsxi: onLlwdSetsCh,
   onToggleMain: onTgglMainSt,
+  onToggleExcludeEquipped,
+  onToggleWeapons,
   onPickBonus,
   onClrAllFltr: onClrAllFltr,
   onStatLmtCdd: onStatLmtChn,
@@ -357,20 +371,54 @@ export function CharPtnsPnl({
               </div>
 
               <div className="co-field">
-                <span className="co-field__label">Allowed Sets</span>
-                <AllowedSets
-                  selIdsByPc={allowedSets}
-                  onChange={onLlwdSetsCh}
-                />
+                {!isTheory ? (
+                    <>
+                      <span className="co-field__label">Sonata Sets</span>
+                      <div className="co-conds-split">
+                        <div className="co-conds-half">
+                          <AllowedSets
+                            selIdsByPc={allowedSets}
+                            onChange={onLlwdSetsCh}
+                          />
+                        </div>
+                        <div className="co-conds-half">
+                          <button type="button" className="co-chip" onClick={onOpenSetCon}>
+                            Conditionals
+                            <ChevronDown size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                ) : (
+                  <>
+                    <span className="co-field__label">Allowed Sets</span>
+                    <AllowedSets
+                      selIdsByPc={allowedSets}
+                      onChange={onLlwdSetsCh}
+                    />
+                  </>
+                )}
               </div>
 
-              <div className="co-field">
-                <span className="co-field__label">Conditionals</span>
-                <button type="button" className="co-chip" onClick={onOpenSetCon}>
-                  Set Conditionals
-                  <ChevronDown size={12} />
-                </button>
-              </div>
+              {isTheory && includeWeapons && (
+                <div className="co-field">
+                  <span className="co-field__label">Conditionals</span>
+                  <div className="co-conds-split">
+                    <div className="co-conds-half">
+                      <button type="button" className="co-chip" onClick={onOpenSetCon}>
+                        Sonata Sets
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                    <div className="co-conds-half">
+                      <button type="button" className="co-chip" onClick={onOpenWpnCond}>
+                        Weapons
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className={`co-field${mainStatRdly ? ' is-disabled' : ''}`}>
                 <div className="co-tile__head">
@@ -415,6 +463,58 @@ export function CharPtnsPnl({
                   })}
                 </div>
               </div>
+
+              {isTheory ? (
+                <div className="co-field co-field--weapon">
+                  <span className="co-field__label">Weapon Search</span>
+                  <button
+                    type="button"
+                    className={`co-wpn-toggle${includeWeapons ? ' is-on' : ''}`}
+                    role="switch"
+                    aria-checked={includeWeapons}
+                    onClick={() => onToggleWeapons(!includeWeapons)}
+                  >
+                    <span className="co-wpn-toggle__body">
+                      <Sword size={14} className="co-wpn-toggle__glyph" />
+                      <span className="co-wpn-toggle__text">
+                        <span className="co-wpn-toggle__title">Include weapons</span>
+                        <span className="co-wpn-toggle__hint">
+                          {includeWeapons ? 'Finding the best weapon per build' : 'Uses the equipped weapon'}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="co-wpn-toggle__track" aria-hidden="true">
+                      <span className="co-wpn-toggle__thumb" />
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="co-field co-field--weapon">
+                    <span className="co-field__label">Inventory Search</span>
+                    <button
+                      type="button"
+                      className={`co-wpn-toggle${excludeEquipped ? ' is-on' : ''}`}
+                      role="switch"
+                      aria-checked={excludeEquipped}
+                      onClick={() => onToggleExcludeEquipped(!excludeEquipped)}
+                    >
+                      <span className="co-wpn-toggle__body">
+                        <Lock size={14} className="co-wpn-toggle__glyph" />
+                        <span className="co-wpn-toggle__text">
+                          <span className="co-wpn-toggle__title">Exclude equipped</span>
+                          <span className="co-wpn-toggle__hint">
+                            {excludeEquipped ? 'Skips echoes used by other resonators' : 'Uses every inventory echo'}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="co-wpn-toggle__track" aria-hidden="true">
+                        <span className="co-wpn-toggle__thumb" />
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
 
             <section className="co-tile co-tile--stats">

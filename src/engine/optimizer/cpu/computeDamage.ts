@@ -26,7 +26,7 @@ import {
   ARCH_TUNE,
   ECHOES_PER_SET,
   MAIN_BUFF_LEN,
-  STAT_STRIDE,
+  FULL_STAT_STRIDE,
   STAT_AMPLIFY,
   STAT_ATK_FLAT,
   STAT_ATK_PCT,
@@ -203,9 +203,9 @@ function mkBaseCmbVct(
   // sum all encoded stats from the 5 chosen echoes
   for (let index = 0; index < ECHOES_PER_SET; index += 1) {
     const echoIndex = comboIds[index]
-    const statsBase = echoIndex * STAT_STRIDE
+    const statsBase = echoIndex * FULL_STAT_STRIDE
 
-    for (let offset = 0; offset < STAT_STRIDE; offset += 1) {
+    for (let offset = 0; offset < FULL_STAT_STRIDE; offset += 1) {
       comboVector[offset] += stats[statsBase + offset]
     }
   }
@@ -386,7 +386,8 @@ function evalPckdCtxD(
           defMult *
           (1 + dmgVulnPct / 100) *
           (1 + dmgBnsPct / 100) *
-          (1 + amplifyPct / 100)
+          (1 + amplifyPct / 100) *
+          (1 + tuneBrkBstPc / 100)
 
       const crit = normal * context[contextOffset + OPTCTXTUNERP]
 

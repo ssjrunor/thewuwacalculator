@@ -33,6 +33,7 @@ import {
 import { makeSkillDamage } from '@/engine/formulas/damage.ts'
 import { isSkillImmune } from '@/engine/formulas/immunity.ts'
 import { mergeSkillType, makeModBuff } from '@/engine/resolvers/buffPool.ts'
+import { getNegEffectDef } from '@/domain/gameData/negativeEffects.ts'
 
 // convert enemy resistance percent into the actual damage multiplier
 function resistMult(enemyResPct: number): number {
@@ -186,7 +187,7 @@ function makeLevelScale(options: {
     dmgVuln,
     dmgBonus: finalStats.skillType[kind].dmgBonus,
     amplify: finalStats.amplify,
-    tuneBreakBoost: kind === 'tuneRupture' ? finalStats.tbb : 0,
+    tuneBreakBoost: finalStats.tbb,
     critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
     critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
   }
@@ -470,11 +471,21 @@ export function makeOptContext(options: {
     negEfxCritoo: negFfctCritR,
     negEfxCritsa: negFfctCritD,
 
-    combatSpectro: combatState?.spectroFrazzle ?? combatState?.spctFrzz ?? 0,
-    combatAero: combatState?.aeroErosion ?? 0,
-    combatFusion: combatState?.fusionBurst ?? 0,
-    combatGlacio: combatState?.glacioChafe ?? 0,
-    combatElectro: combatState?.electroFlare ?? 0,
+    combatSpectro: skill.stackMode === 'fixedMax' && skill.archetype === 'spectroFrazzle'
+      ? skill.stackMax ?? getNegEffectDef('spectroFrazzle')
+      : combatState?.spectroFrazzle ?? combatState?.spctFrzz ?? 0,
+    combatAero: skill.stackMode === 'fixedMax' && skill.archetype === 'aeroErosion'
+      ? skill.stackMax ?? getNegEffectDef('aeroErosion')
+      : combatState?.aeroErosion ?? 0,
+    combatFusion: skill.stackMode === 'fixedMax' && skill.archetype === 'fusionBurst'
+      ? skill.stackMax ?? getNegEffectDef('fusionBurst')
+      : combatState?.fusionBurst ?? 0,
+    combatGlacio: skill.stackMode === 'fixedMax' && skill.archetype === 'glacioChafe'
+      ? skill.stackMax ?? getNegEffectDef('glacioChafe')
+      : combatState?.glacioChafe ?? 0,
+    combatElectro: skill.stackMode === 'fixedMax' && skill.archetype === 'electroFlare'
+      ? skill.stackMax ?? getNegEffectDef('electroFlare')
+      : combatState?.electroFlare ?? 0,
     combatElecRage: combatState?.electroRage ?? 0,
   }
 }

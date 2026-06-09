@@ -19,6 +19,7 @@
   --shadow: 0 12px 28px rgba(17, 33, 66, 0.16);
   min-height: 100%;
   color: var(--text);
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .app-shell::before {
@@ -687,6 +688,7 @@ body.split-resizing * {
   display: grid;
   grid-template-columns: 1fr 5rem 5rem 5rem;
   padding: 0.5rem 0.75rem;
+  transition: background 0.3s ease;
 }
 
 .stat-row:nth-child(even) {

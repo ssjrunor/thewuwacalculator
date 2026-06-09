@@ -61,6 +61,7 @@ body {
   font-family: var(--body-font);
   color: var(--text, #1b2435);
   background: var(--bg, #eef2f9);
+  transition: background 0.3s ease;
 }
 
 body.context-menu-touch-hold-active,

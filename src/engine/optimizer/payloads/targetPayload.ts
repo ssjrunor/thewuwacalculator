@@ -72,6 +72,12 @@ export function packTargetSkill(
     stats: prepared.stats,
     setConstLut: prepared.setConstLut,
     mainEchoBuffs: prepared.mainEchoBuffs,
+
+    // weapon search overlays (theory mode); carried so the gpu static payload
+    // and cpu execution payload both pick up weapon mode.
+    weaponOverlays: prepared.weaponOverlays,
+    weaponCount: prepared.weaponCount,
+    weaponIds: prepared.weaponIds,
   }
 }
 

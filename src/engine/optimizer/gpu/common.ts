@@ -133,8 +133,11 @@ export async function mkChckCmptPp(options: {
   layout: GPUBindGroupLayout
   code: string
   entryPoint?: string
+  // pipeline-override constant values (WGSL `override` declarations), e.g. to
+  // compile a lower CYCLES_PER_INVOCATION variant of the same shader.
+  constants?: Record<string, number>
 }): Promise<GPUComputePipeline> {
-  const { device, label, layout, code, entryPoint = 'main' } = options
+  const { device, label, layout, code, entryPoint = 'main', constants } = options
 
   // create the shader module first so we can inspect compiler diagnostics
   const module = device.createShaderModule({ label: `${label}:shader`, code })
@@ -157,6 +160,7 @@ export async function mkChckCmptPp(options: {
     compute: {
       module,
       entryPoint,
+      ...(constants ? { constants } : {}),
     },
   })
 
@@ -218,4 +222,9 @@ export async function readCandBffr(
   readBuffer.unmap()
 
   return { results, reuse }
+}
+
+// candidates are read back unsorted; sort strongest-first before decoding.
+export function sortCnddByDm<T extends { damage: number }>(candidates: T[]): void {
+  candidates.sort((left, right) => right.damage - left.damage)
 }

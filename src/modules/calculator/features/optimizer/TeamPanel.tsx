@@ -5,7 +5,8 @@
 
 import { useCallback, useMemo } from 'react'
 import { isNoWeaponId, type ResRuntime, type TeamMemRt } from '@/domain/entities/runtime'
-import { MAX_RES_LVL, makeTeamMember } from '@/domain/state/defaults'
+import { MAX_RES_LVL, makeTeamMember, maxRtInit } from '@/domain/state/defaults'
+import { initWpnStts } from '@/domain/state/sourceStateInit'
 import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
 import type { EchoDef } from '@/domain/entities/catalog'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
@@ -26,7 +27,8 @@ import {
 } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 import { getEchoById } from '@/domain/services/echoCatalogService'
-import { evalSourceState } from '@/modules/calculator/model/sourceEval.ts'
+import { useAppStore } from '@/domain/state/store'
+import { evalSrcStt } from '@/modules/calculator/model/sourceEval.ts'
 import { getStateText } from '@/modules/calculator/model/sourceStateDisplay'
 import { getResonator } from '@/modules/calculator/features/resonator/lib/resonator.ts'
 import { getWeapon, withDefWpnMg, weaponStatsAt } from '@/modules/calculator/features/weapons/lib/weapon.ts'
@@ -35,7 +37,7 @@ import { withDefEchoMg, withDefIconM, withDefResMg } from '@/shared/lib/imageFal
 import type { OptSetChoice } from '@/domain/entities/optimizer'
 import type { RandGnrtSetP } from '@/domain/entities/suggestions'
 import { getRandSetCn } from '@/modules/calculator/features/suggesstions/lib/suggestions.ts'
-import { mkMateCntr, teamRuntime } from './lib/teamRuntime.ts'
+import { mkMateCntr, teamRuntime } from '@/domain/state/teamRuntime'
 import { viewRtStt } from './renderRuntimeState'
 import { AllowedSets } from './AllowedSets.tsx'
 
@@ -155,7 +157,7 @@ function fltrSttsForC(
   return fltrSrcSttsW(
     states,
     (state) => getSttFfctTg(state).some((scope) => allowedScopes.includes(scope)),
-    (state) => evalSourceState(runtime, runtime, state, actRt),
+    (state) => evalSrcStt(runtime, runtime, state, actRt),
   )
 }
 
@@ -459,8 +461,6 @@ function OptEchoSetCard({
               }
             }
           }}
-          resetLabel="Any Set"
-          resetMeta="No active set focus"
           triggerClass="co-set-dropdown__trigger--card"
           viewTrggCntn={() => (
             <div className="opt-team__set-card opt-team__set-card--empty">
@@ -552,8 +552,6 @@ function OptEchoSetCard({
                       onAddSetPref(setPrefSlot, rplcSetId)
                     }
                   }}
-                  resetLabel="Any Set"
-                  resetMeta="No active set focus"
                   triggerClass="co-set-dropdown__trigger--icon"
                   viewTrggCntn={() => (
                     <div className="opt-team__set-icon-wrap">
@@ -662,8 +660,6 @@ function OptEchoSetCard({
               }
             }
           }}
-          resetLabel="Any Set"
-          resetMeta="No active set focus"
           triggerClass="co-set-dropdown__trigger--card"
           viewTrggCntn={() => (
             <div className="opt-team__set-card opt-team__set-card--empty">
@@ -702,7 +698,7 @@ function OptEchoSetSt({
     return null
   }
 
-  const currentValue = runtime.state?.controls?.[getEchoSetCn(setDef.id, sourceState.id)]
+  const curVal = runtime.state?.controls?.[getEchoSetCn(setDef.id, sourceState.id)]
   const isEnabled = isSrcSttOn(runtime, runtime, sourceState, actRt)
   const display = getStateText(sourceState)
   const perStep = stateEntry.perStep ?? []
@@ -713,7 +709,7 @@ function OptEchoSetSt({
   const isToggle = stckLikeEnts.every((entry, index) => entry.value === stateEntry.max[index].value)
 
   if (isToggle) {
-    const checked = typeof currentValue === 'boolean' ? currentValue : Boolean(currentValue)
+    const checked = typeof curVal === 'boolean' ? curVal : Boolean(curVal)
 
     return (
       <div
@@ -740,8 +736,8 @@ function OptEchoSetSt({
     const max = Math.round(
       Math.max(...perStep.map((entry, index) => stateEntry.max[index].value / entry.value)),
     )
-    const stepValue = typeof currentValue === 'number' && Number.isFinite(currentValue)
-      ? currentValue
+    const stepValue = typeof curVal === 'number' && Number.isFinite(curVal)
+      ? curVal
       : min
 
     return (
@@ -785,8 +781,8 @@ function OptEchoSetSt({
   const max = Math.round(
     Math.max(...stckLikeEnts.map((entry, index) => stateEntry.max[index].value / entry.value)),
   )
-  const stackValue = typeof currentValue === 'number' && Number.isFinite(currentValue)
-    ? currentValue
+  const stackValue = typeof curVal === 'number' && Number.isFinite(curVal)
+    ? curVal
     : min
 
   return (
@@ -1106,6 +1102,7 @@ function OptMateCard({
 }: MateCardProps) {
   const member = useMemo(() => getResonator(memberId), [memberId])
   const seed = useMemo(() => getResSeedBy(memberId), [memberId])
+  const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const invalidMainEcho = useMemo(
     () => (invalidMainId ? getEchoById(invalidMainId) : null),
     [invalidMainId],
@@ -1121,14 +1118,20 @@ function OptMateCard({
       ? compactRuntime
       : makeTeamMember(seed)
 
-    return matTeamMemFr(
+    const materialRuntime = matTeamMemFr(
       seed,
       resolvedRuntime,
       actRt.state.controls,
       actRt.state.combat,
       actRt.build.team,
     )
-  }, [actRt, memberId, seed, slotIndex])
+
+    return maxResOnInit && compactRuntime?.id !== memberId
+      ? maxRtInit(materialRuntime)
+      : compactRuntime?.id !== memberId
+        ? initWpnStts(materialRuntime, { maxed: false })
+        : materialRuntime
+  }, [actRt, maxResOnInit, memberId, seed, slotIndex])
 
   const updMateRt = useCallback<RtUpdHnd>((updater) => {
     onRtPdt((prev) => {
@@ -1147,13 +1150,18 @@ function OptMateCard({
         ? currentRuntime
         : makeTeamMember(nextSeed)
 
-      const materialRuntime = matTeamMemFr(
+      const rawMaterialRuntime = matTeamMemFr(
         nextSeed,
         resolvedRuntime,
         prev.state.controls,
         prev.state.combat,
         prev.build.team,
       )
+      const materialRuntime = maxResOnInit && currentRuntime?.id !== nextMemberId
+        ? maxRtInit(rawMaterialRuntime)
+        : currentRuntime?.id !== nextMemberId
+          ? initWpnStts(rawMaterialRuntime, { maxed: false })
+          : rawMaterialRuntime
       const nextRuntime = updater(materialRuntime)
       const nextTeamRuns = [...prev.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
       nextTeamRuns[slotIndex] = teamRuntime(nextRuntime)
@@ -1171,7 +1179,7 @@ function OptMateCard({
         teamRuntimes: nextTeamRuns,
       }
     })
-  }, [onRtPdt, slotIndex])
+  }, [maxResOnInit, onRtPdt, slotIndex])
 
   if (!member || !mateRt) {
     return (

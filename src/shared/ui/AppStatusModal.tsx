@@ -9,7 +9,7 @@ import { AppModal } from '@/shared/ui/AppModal'
 import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
-  lastUpdated: '31/05/2026',
+  lastUpdated: '09/06/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [
@@ -18,30 +18,27 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    '(ᵕ • ᴗ •) i actually started writing this up about 20 days ago which, at the time, was like 13 days after i started working on some of these. So basically, i\'ve been at this for over a month... sigh...',
-    'okay so i added a WHOLE bunch of stuff, like batch editing (on most items), loops in rotations, new saved rotation metadata like note and duration (and in turn dps),' +
-    ' new suggestions and optimizer feature and more~ (See the changelog for more details)',
-    'Denia\'s default/preset rotation is still built on my intuition (which generally sucks but it is what it is).'
+    '(ᵕ • ᴗ •) the 3.4 stuff got a proper cleanup pass this time. Lucilla, Lucy and Rebecca should be much closer to their live versions now instead of sitting in that awkward beta-data corner.',
+    'There are also actual mode/status buttons now for resonators that need them, the max button is smarter, theory optimizer can look at weapons, and inventory optimizer can stop stealing equipped echoes if you ask it nicely.',
+    'Denia\'s default/preset rotation was updated, and Lucy / Rebecca have starter rotations now too. They are still presets, not holy text, but they should save some setup time.'
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
-    { title: 'Enemies',    status: 'wip' as const,  desc: 'I\'m still very much tired so this will be fully updated later.' },
+    { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies supported.' },
   ],
   recentChanges: [
-    'I HAVE FINALLY REDONE THE GUIDES SYSTEM (somewhat). Only the general guides in the guides page for now... but it\'s still something.',
-    "You can now play with loops in rotations, more on that in the changelog/guides.",
-    "The app has it's own context menus now, it's on by default but you can toggle it off in the app settings.",
-    "Speaking of toggling stuff off in the app settings, there're more preferences if you'd like to see for yourself",
-    "With the arrival of duration metadata for saved rotations, you can now see the dps of a rotation in the saved rotation list (and can sort by dps as well).",
-    "There's a new compact look for echoes in the inventory, you can toggle this in the app settings.",
-    "Weapon suggestions... yay...",
-    "A new optimizer mode... yippee...",
-    "There are other stuff but not too major. :)"
+    'Lucilla, Lucy and Rebecca kit effects were updated from beta behavior to their live behavior.',
+    'Resonance modes/statuses are explicit toggles now for resonators that support them.',
+    'Denia\'s default rotation was updated, and Lucy / Rebecca have default rotations now.',
+    'Theory-max optimizer can include weapons in the search now.',
+    'Inventory optimizer has an exclude-equipped option, so it can leave other builds alone.',
+    'The max button now fills in more kit states, modes and weapon/source settings.',
+    'The rest of the 3.4 assets/data were added too.'
   ],
   knownIssues: [
-    "there's not really anything atm. :)"
+    "nothing huge known right now, but the new 3.4 kit/optimizer stuff is fresh enough that weird edge cases would not shock me. :)"
   ]
 }
 

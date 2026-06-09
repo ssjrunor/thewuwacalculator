@@ -54,6 +54,13 @@ export interface TargetGpuState {
   // locked-main configuration
   lockMainReq: boolean
   lockMainCands: Int32Array
+
+  // weapon search (optional): when present the gpu uses the weapon-search
+  // kernel, scoring each combo against every overlay and packing the best
+  // weapon index into the candidate. weaponOverlays is weaponCount rows of
+  // WEAPON_OVERLAY_STRIDE floats.
+  weaponOverlays?: Float32Array
+  weaponCount?: number
 }
 
 // gpu target workers emit the same compact bag-result references used elsewhere
@@ -104,7 +111,7 @@ export interface OptTaskRunRo {
   btstPay?: PckdRotXctnP
 }
 
-// rotation gpu batch jobs mirror target batch mode for theory rotation search.
+// rotation gpu batch job: an explicit combo batch evaluated for theory rotation search.
 export interface OptTaskRunRB {
   type: 'runRotationGpuBatch'
   runId: number
@@ -171,6 +178,10 @@ export interface OptThryProdSt {
   runId: number
   payload: PrepTheoryTarget | PrepTheoryRot
   batchSize: number
+  // optional shard assignment so multiple producer workers can split the
+  // (set-plan, main-row) unit space and generate disjoint combo subsets in
+  // parallel. omitted (or count <= 1) means this producer emits the full space.
+  shard?: { index: number; count: number }
 }
 
 // hand a reusable Int32Array buffer back to the producer worker so it can

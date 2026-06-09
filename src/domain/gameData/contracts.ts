@@ -70,14 +70,21 @@ export interface SourceState {
   controlKey: string
   path: string
   resets?: string[]
+  requires?: string[]
+  groupId?: string
   controlDependencies?: string[]
   displayScope?: 'self' | 'team' | 'both'
   kind: 'toggle' | 'stack' | 'number' | 'select'
   defaultValue?: boolean | number | string
+  maxValue?: boolean | number | string
   min?: number
   max?: number
   options?: SrcSttPtn[]
   optionsWhen?: SrcSttCondPt[]
+  maxWhen?: Array<{
+    when: CondExpr
+    max: number
+  }>
   description?: string
   disabledReason?: string
   visibleWhen?: CondExpr
@@ -320,6 +327,7 @@ export interface CondDef {
   kind: 'toggle' | 'stack' | 'number' | 'select'
   description?: string
   defaultValue?: boolean | number | string
+  maxValue?: boolean | number | string
   min?: number
   max?: number
   options?: SrcSttPtn[]

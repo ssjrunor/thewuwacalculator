@@ -20,7 +20,7 @@ import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph'
 import { makeEnemy } from '@/domain/state/defaults'
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
-import { buildSourceStateScope as mkSrcSttScp } from '@/modules/calculator/model/sourceEval.ts'
+import { mkSrcSttScp as mkSrcSttScp } from '@/modules/calculator/model/sourceEval.ts'
 import { ffctTrgtRt } from '@/engine/effects/targetScope'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import type { CombatContext } from '@/engine/pipeline/types'
@@ -264,7 +264,7 @@ function targetUsesTopStat(target: SkillStateSummaryTarget, stat: string): boole
         stat === 'defIgnore' ||
         stat === 'defShred' ||
         stat === 'dmgVuln' ||
-        (target.skill.archetype === 'tuneRupture' && stat === 'tuneBreakBoost')
+        stat === 'tuneBreakBoost'
     )
   }
 
@@ -453,25 +453,26 @@ function makeEvalScope(context: EffectContext) {
 // detect whether a source state is currently active by reading its runtime path
 function isSttAct(state: SourceState, tgtRt: ResRuntime): boolean {
   const rawValue = readRtPath(tgtRt, state.path)
+  const valueWithDefault = rawValue ?? state.defaultValue
 
   // toggles are active only when explicitly true
   if (state.kind === 'toggle') {
-    return rawValue === true
+    return valueWithDefault === true
   }
 
   // selects are active when they differ from the default/empty state
   if (state.kind === 'select') {
-    const value = rawValue == null ? '' : String(rawValue)
+    const value = valueWithDefault == null ? '' : String(valueWithDefault)
     const defaultValue = state.defaultValue == null ? '' : String(state.defaultValue)
     return value !== '' && value !== defaultValue
   }
 
   // numeric/stack states are active when finite and different from default and zero
   const numericValue =
-      typeof rawValue === 'number'
-          ? rawValue
-          : typeof rawValue === 'string'
-              ? Number(rawValue)
+      typeof valueWithDefault === 'number'
+          ? valueWithDefault
+          : typeof valueWithDefault === 'string'
+              ? Number(valueWithDefault)
               : 0
   const defaultValue =
       typeof state.defaultValue === 'number'
@@ -796,6 +797,10 @@ function ownIsVsbl(owner: SrcOwnDef, context: EffectContext): boolean {
 
 // determine whether a source state should appear in the current summary context
 function sttIsVsbl(state: SourceState, context: EffectContext): boolean {
+  if (!(state.requires ?? state.controlDependencies ?? []).every((controlKey) => Boolean(context.sourceRuntime.state.controls[controlKey]))) {
+    return false
+  }
+
   const stateScope = mkSrcSttScp(
       context.sourceRuntime,
       context.targetRuntime,

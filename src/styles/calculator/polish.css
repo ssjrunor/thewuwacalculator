@@ -1,7 +1,6 @@
 .toolbar,
 .sidebar,
 .calculator-hero,
-.calculator-workspace,
 .stats-box,
 .damage-box,
 .calculator-mode-panel,
@@ -12,8 +11,9 @@
 .echo-row,
 .rotation-row,
 .soft-empty {
-  background: color-mix(in srgb, var(--text) 3%, transparent);
+  background: color-mix(in srgb, var(--text) 1%, transparent);
   backdrop-filter: none;
+  transition: background 300ms ease;
 }
 
 .toolbar-icon-button,
@@ -135,7 +135,7 @@ button:hover {
   pointer-events: none;
   transition:
     transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 220ms ease;
+    opacity 220ms ease, background 300ms ease;
   z-index: 0;
 }
 
@@ -198,6 +198,7 @@ button:hover {
   inset: 0.18rem -0.08rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--item-bg) 82%, transparent);
+  transition: background 300ms ease;
 }
 
 .toolbar-group::after {

@@ -6,18 +6,15 @@
 import { cloneElement, isValidElement as isVldElem, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HTMLAttributes as HtmlAttrs } from 'react'
 import type { EnemyProfile, PickFreqWeapon } from '@/domain/entities/appState.ts'
-import type { RandGnrtSets, RandGnrtSetP, WeaponPlanSet, WpnStCfg } from '@/domain/entities/suggestions.ts'
+import type { RandGnrtSets, RandGnrtSetP, WeaponPlanSet } from '@/domain/entities/suggestions.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
-import type { SourceState } from '@/domain/gameData/contracts.ts'
-import type { GenWpn } from '@/domain/entities/weapon.ts'
 import { cloneEchoLdt } from '@/domain/entities/inventoryStorage.ts'
 import { DEF_SET_COND } from '@/domain/entities/sonataSetConditionals.ts'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { getWpnById, listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
-import { listStatesFor } from '@/domain/services/gameDataService.ts'
-import { isStdWpn } from '@/domain/entities/weapon.ts'
+import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
 import { selActTgtSlc } from '@/domain/state/selectors.ts'
+import { initWpnStts } from '@/domain/state/sourceStateInit.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
@@ -74,9 +71,6 @@ import { WPNTYPETOKEY } from '@/modules/calculator/features/resonator/lib/resona
 import { resPssvPrms, weaponStatsAt, withDefWpnMg } from '@/modules/calculator/features/weapons/lib/weapon.ts'
 import { EchoPicker } from '@/modules/calculator/features/echoes/Picker.tsx'
 import { SetCond } from '@/modules/calculator/features/controls/SetConditional.tsx'
-import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
-import { isSourceVisible } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
-import { resolveSourceStateOptions as sourceOptions } from '@/modules/calculator/model/sourceEval.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
@@ -84,6 +78,7 @@ import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { EchoGrid, mkEchoGridTm } from '@/shared/ui/EchoGrid.tsx'
 import { SuggsMdl } from '@/modules/calculator/features/suggesstions/Parts.tsx'
+import { WeaponConfig } from '@/modules/calculator/features/suggesstions/WeaponConfig.tsx'
 import {
   targetOpts,
   type SuggTgtPtn,
@@ -92,7 +87,7 @@ import { runCchdSuggJ } from '@/modules/calculator/features/suggesstions/lib/run
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { useEchoSrfcM } from '@/modules/calculator/features/echoes/lib/useEchoSurfaceMenu.tsx'
 import { qpEchoAtSlot } from '@/modules/calculator/features/echoes/lib/equip.ts'
-import { Copy, Search } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { useSel } from '@/modules/calculator/lib/sel.tsx'
 import AppLdrVrly from "@/shared/ui/AppLoaderOverlay.tsx";
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
@@ -109,75 +104,19 @@ interface WpnCard {
   plans: WeaponEntry[]
 }
 
-const WPN_RARS = [5, 4, 3, 2, 1] as const
 
-type WpnCfgView = 'search' | 'states'
-
-interface WpnStRow {
-  wpn: GenWpn
-  rt: ResRuntime
-  states: SourceState[]
-}
 
 // resolve the rank used for a visible weapon candidate
 // standard weapon rank overrides rarity rank, matching the suggestion engine.
-function getWpnRank(wpn: GenWpn, settings: WeaponPlanSet): number {
-  const def = wpn.rarity === 5 ? 1 : 5
-  const raw = isStdWpn(wpn.id)
-    ? settings.stdRank ?? def
-    : settings.ranks[String(wpn.rarity)] ?? def
-  return Math.max(1, Math.min(5, Math.round(raw)))
-}
 
 // keep passive-state config scoped to weapons that are actually in the search space.
-function canUseWpn(wpn: GenWpn, settings: WeaponPlanSet): boolean {
-  return settings.visible[String(wpn.rarity)] ?? false
-}
 
 // resolve the normal max for a state control
 // sparse config only stores values that differ from this authored max.
-function stDefMax(
-    state: SourceState,
-    opts: Array<{ id: string }> = state.options ?? [],
-): boolean | number | string {
-  if (state.kind === 'toggle') return true
-  if (state.kind === 'stack' || state.kind === 'number') return state.max ?? state.defaultValue ?? state.min ?? 0
-  return state.defaultValue ?? opts[0]?.id ?? ''
-}
 
 // coerce a user-edited max value back into the source state's valid range.
-function clnStMax(
-    state: SourceState,
-    value: boolean | number | string,
-    opts: Array<{ id: string }> = state.options ?? [],
-): boolean | number | string {
-  if (state.kind === 'toggle') return true
-  if (state.kind === 'stack' || state.kind === 'number') {
-    const num = Number(value)
-    if (!Number.isFinite(num)) return stDefMax(state, opts)
-    const min = state.min ?? 0
-    const max = state.max ?? num
-    return Math.max(min, Math.min(max, num))
-  }
-
-  const str = String(value)
-  return opts.some((option) => option.id === str) ? str : stDefMax(state, opts)
-}
 
 // detect whether a sparse state config still has any meaningful override.
-function hasStCfg(config?: WpnStCfg): boolean {
-  return config?.off === true || config?.max !== undefined
-}
-
-// clear equipped weapon controls before applying a suggestion result
-// the selected candidate will write back only the controls it actually uses.
-function clrWpnCtrls(
-    controls: Record<string, boolean | number | string>,
-): Record<string, boolean | number | string> {
-  return Object.fromEntries(
-      Object.entries(controls).filter(([key]) => !key.startsWith('weapon:')),
-  )
-}
 
 export function Suggestions({
   runtime,
@@ -197,9 +136,6 @@ export function Suggestions({
   const [rnnnSetPlns, setRnnnSetPl] = useState(false)
   const [rnnnWpns, setRnnnWpns] = useState(false)
   const [rnnnRand, setRnnnRand] = useState(false)
-  const [wpnCfgView, setWpnCfgVw] = useState<WpnCfgView>('search')
-  const [wpnStQuery, setWpnStQuery] = useState('')
-  const [wpnStRarFlt, setWpnStRarFlt] = useState<number | 'all'>('all')
 
   const inspectModal = useAppModal()
   const setCnfgMdl = useAppModal()
@@ -213,9 +149,9 @@ export function Suggestions({
   const weaponSuggests = useAppStore((state) => state.calculator.weaponSuggests)
   const suggsMap = useAppStore((state) => state.calculator.suggestionsByResonatorId)
   const updActResSug = useAppStore((state) => state.updActSuggs)
-  const updWpnSuggs = useAppStore((state) => state.updWpnSuggs)
   const updActResRt = useAppStore((state) => state.updActRt)
   const updActResSet = useAppStore((state) => state.updActConds)
+  const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
   const setConds = useAppStore((state) => (
     state.calculator.profiles[runtime.id]?.runtime.local.setConditionals ?? DEF_SET_COND
@@ -241,115 +177,6 @@ export function Suggestions({
   const didHydrSetCo = useRef(false)
   const portalTarget = mainPortal()
   const activeSeed = useMemo(() => getResSeedBy(runtime.id), [runtime.id])
-  const stdWpns = useMemo(
-    () => activeSeed ? listWpnsByTy(activeSeed.weaponType).filter((wpn) => isStdWpn(wpn.id)) : [],
-    [activeSeed],
-  )
-  const wpnStRows = useMemo<WpnStRow[]>(() => {
-    if (!activeSeed) {
-      return []
-    }
-
-    return listWpnsByTy(activeSeed.weaponType)
-        .filter((wpn) => canUseWpn(wpn, wpnSets))
-        .map((wpn) => {
-          const rank = getWpnRank(wpn, wpnSets)
-          const stats = weaponStatsAt(wpn, runtime.build.weapon.level)
-          const candRt: ResRuntime = {
-            ...runtime,
-            build: {
-              ...runtime.build,
-              weapon: {
-                id: wpn.id,
-                level: runtime.build.weapon.level,
-                rank,
-                baseAtk: stats.atk,
-              },
-            },
-          }
-          const states = listStatesFor('weapon', wpn.id).filter((state) =>
-            isSourceVisible(candRt, candRt, state),
-          )
-
-          return { wpn, rt: candRt, states }
-        })
-        .filter((row) => row.states.length > 0)
-  }, [activeSeed, runtime, wpnSets])
-
-  const filteredWpnStRows = useMemo(() => {
-    const term = wpnStQuery.trim().toLowerCase()
-    return wpnStRows.filter((row) => {
-      if (wpnStRarFlt !== 'all' && row.wpn.rarity !== wpnStRarFlt) return false
-      if (term && !row.wpn.name.toLowerCase().includes(term)) return false
-      return true
-    })
-  }, [wpnStRows, wpnStQuery, wpnStRarFlt])
-
-  const wpnStToggleStats = useMemo(() => {
-    let total = 0
-    let checked = 0
-    for (const row of filteredWpnStRows) {
-      for (const state of row.states) {
-        total += 1
-        if (wpnSets.states[row.wpn.id]?.[state.controlKey]?.off !== true) {
-          checked += 1
-        }
-      }
-    }
-    return {
-      total,
-      checked,
-      allChecked: total > 0 && checked === total,
-      someChecked: checked > 0 && checked < total,
-    }
-  }, [filteredWpnStRows, wpnSets.states])
-
-  const wpnStGlobalRef = useRef<HTMLInputElement | null>(null)
-  useEffect(() => {
-    if (wpnStGlobalRef.current) {
-      wpnStGlobalRef.current.indeterminate = wpnStToggleStats.someChecked
-    }
-  }, [wpnStToggleStats.someChecked])
-
-  const applyAllVisibleStates = useCallback((checked: boolean) => {
-    updWpnSuggs((state) => {
-      const prev = {
-        ...DEFWPNSETS,
-        ...state,
-        ranks: { ...DEFWPNSETS.ranks, ...(state.ranks ?? {}) },
-        visible: { ...DEFWPNSETS.visible, ...(state.visible ?? {}) },
-        stdRank: state.stdRank ?? DEFWPNSETS.stdRank,
-        states: state.states ?? DEFWPNSETS.states,
-      }
-      const states = structuredClone(prev.states)
-      for (const row of filteredWpnStRows) {
-        const wpnCfg = { ...(states[row.wpn.id] ?? {}) }
-        for (const stateDef of row.states) {
-          const cur = { ...(wpnCfg[stateDef.controlKey] ?? {}) }
-          if (checked) {
-            delete cur.off
-          } else {
-            cur.off = true
-          }
-          if (Object.keys(cur).length > 0) {
-            wpnCfg[stateDef.controlKey] = cur
-          } else {
-            delete wpnCfg[stateDef.controlKey]
-          }
-        }
-        if (Object.keys(wpnCfg).length > 0) {
-          states[row.wpn.id] = wpnCfg
-        } else {
-          delete states[row.wpn.id]
-        }
-      }
-      return { ...prev, states }
-    })
-  }, [filteredWpnStRows, updWpnSuggs])
-
-  const wpnStProgressPct = wpnStToggleStats.total > 0
-    ? `${(wpnStToggleStats.checked / wpnStToggleStats.total) * 100}%`
-    : '0%'
   const resName = activeSeed?.name ?? runtime.id
   const allEchoes = useMemo(() => listEchoes(), [])
   const setCondsSig = useMemo(
@@ -382,82 +209,7 @@ export function Suggestions({
     }))
   }, [updActResSug])
 
-  const updWpnSets = useCallback((patch: Partial<WeaponPlanSet>) => {
-    // weapon suggestion settings are global because weapon ranks and visibility should carry across resonators.
-    updWpnSuggs((state) => {
-      const prev = {
-        ...DEFWPNSETS,
-        ...state,
-        ranks: {
-          ...DEFWPNSETS.ranks,
-          ...(state.ranks ?? {}),
-        },
-        visible: {
-          ...DEFWPNSETS.visible,
-          ...(state.visible ?? {}),
-        },
-        stdRank: state.stdRank ?? DEFWPNSETS.stdRank,
-        states: state.states ?? DEFWPNSETS.states,
-      }
 
-      return {
-        ...prev,
-        ...patch,
-        ranks: {
-          ...prev.ranks,
-          ...(patch.ranks ?? {}),
-        },
-        visible: {
-          ...prev.visible,
-          ...(patch.visible ?? {}),
-        },
-        states: patch.states ?? prev.states,
-      }
-    })
-  }, [updWpnSuggs])
-
-  const updWpnSt = useCallback((
-      wpnId: string,
-      cntrKey: string,
-      mkNext: (config: WpnStCfg) => WpnStCfg,
-  ) => {
-    updWpnSuggs((state) => {
-      const prev = {
-        ...DEFWPNSETS,
-        ...state,
-        ranks: {
-          ...DEFWPNSETS.ranks,
-          ...(state.ranks ?? {}),
-        },
-        visible: {
-          ...DEFWPNSETS.visible,
-          ...(state.visible ?? {}),
-        },
-        stdRank: state.stdRank ?? DEFWPNSETS.stdRank,
-        states: state.states ?? DEFWPNSETS.states,
-      }
-      const states = structuredClone(prev.states)
-      const wpnCfg = { ...(states[wpnId] ?? {}) }
-      const nextCfg = mkNext({ ...(wpnCfg[cntrKey] ?? {}) })
-
-      if (hasStCfg(nextCfg)) {
-        wpnCfg[cntrKey] = nextCfg
-      } else {
-        delete wpnCfg[cntrKey]
-      }
-
-      if (Object.keys(wpnCfg).length > 0) {
-        states[wpnId] = wpnCfg
-      } else {
-        delete states[wpnId]
-      }
-
-      return {
-        ...prev,
-        states,
-      }
-    })
-  }, [updWpnSuggs])
 
   const targetOptions = useMemo<SuggTgtPtn[]>(
     () => targetOpts(runtime.id, simulation),
@@ -880,33 +632,44 @@ export function Suggestions({
       WPNTYPETOKEY[activeSeed?.weaponType ?? 4] ?? 'gauntlets'
     ) as PickFreqWeapon
 
-    updActResRt((curRt) => ({
-      ...curRt,
-      build: {
-        ...curRt.build,
-        weapon: {
-          ...curRt.build.weapon,
-          id: plan.weaponId,
-          level: plan.level,
-          rank: plan.rank,
-          baseAtk: plan.baseAtk,
+    updActResRt((curRt) => {
+      const nextRuntime = {
+        ...curRt,
+        build: {
+          ...curRt.build,
+          weapon: {
+            ...curRt.build.weapon,
+            id: plan.weaponId,
+            level: plan.level,
+            rank: plan.rank,
+            baseAtk: plan.baseAtk,
+          },
         },
-      },
-      state: {
-        ...curRt.state,
-        controls: {
-          ...clrWpnCtrls(curRt.state.controls),
-          ...plan.controls,
+      }
+      const initialized = initWpnStts(nextRuntime, {
+        weaponId: plan.weaponId,
+        prevWpnId: curRt.build.weapon.id,
+        maxed: maxWpnOnInit,
+      })
+
+      return {
+        ...initialized,
+        state: {
+          ...initialized.state,
+          controls: {
+            ...initialized.state.controls,
+            ...plan.controls,
+          },
         },
-      },
-    }))
+      }
+    })
 
     bumpPickerFreq({
       bucket: 'weapon',
       weaponType: wpnKey,
       ids: [plan.weaponId],
     })
-  }, [activeSeed?.weaponType, bumpPickerFreq, updActResRt])
+  }, [activeSeed?.weaponType, bumpPickerFreq, maxWpnOnInit, updActResRt])
 
   const echoSrfcMenu = useEchoSrfcM({
     clpbSrcResId: runtime.id,
@@ -1923,396 +1686,7 @@ export function Suggestions({
         onClose={wpnCnfgMdl.hide}
         xtrClssName="suggestions-modal--mid"
       >
-        <div className="wpncfg">
-          <header className="wpncfg__header">
-            <div className="wpncfg__tabs" role="tablist" aria-label="Weapon config view">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={wpnCfgView === 'search'}
-                className={`wpncfg__tab${wpnCfgView === 'search' ? ' is-active' : ''}`}
-                onClick={() => setWpnCfgVw('search')}
-              >
-                <span className="wpncfg__tab-cap">01</span>
-                <span className="wpncfg__tab-label">Search</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={wpnCfgView === 'states'}
-                className={`wpncfg__tab${wpnCfgView === 'states' ? ' is-active' : ''}`}
-                onClick={() => setWpnCfgVw('states')}
-              >
-                <span className="wpncfg__tab-cap">02</span>
-                <span className="wpncfg__tab-label">Passives</span>
-              </button>
-            </div>
-            {wpnCfgView === 'search' ? (
-              <div className="wpncfg__header-meta">
-                {wpnSets.mode === 'both'
-                  ? `Both · ranked by ${wpnSets.target}`
-                  : wpnSets.mode}
-              </div>
-            ) : (
-              <label className="ssc-global-row wpncfg__global">
-                <input
-                  ref={wpnStGlobalRef}
-                  type="checkbox"
-                  className="ssc-native-checkbox"
-                  checked={wpnStToggleStats.allChecked}
-                  disabled={wpnStToggleStats.total === 0}
-                  onChange={(event) => applyAllVisibleStates(event.target.checked)}
-                />
-                <span className="ssc-checkmark">
-                  <svg className="ssc-checkmark-icon" width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
-                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <svg className="ssc-dash-icon" width="10" height="2" viewBox="0 0 10 2" fill="none" aria-hidden="true">
-                    <path d="M1 1H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </span>
-                <span className="ssc-toggle-label">Toggle all visible</span>
-                <span className="ssc-count-display">{wpnStToggleStats.checked} / {wpnStToggleStats.total}</span>
-                <span className="ssc-progress-track" aria-hidden="true">
-                  <span className="ssc-progress-fill" style={{ width: wpnStProgressPct }} />
-                </span>
-              </label>
-            )}
-          </header>
-
-          {wpnCfgView === 'search' ? (
-            <div className="wpncfg__body" key="search">
-              <section className="wpncfg__card">
-                <div className="wpncfg__card-head">
-                  <span className="wpncfg__card-cap">Mode</span>
-                </div>
-                <div className="wpncfg__seg-row">
-                  <span className="wpncfg__seg-label">Search for…</span>
-                  <div className="wpncfg__seg">
-                    <button
-                      type="button"
-                      className={`wpncfg__seg-btn${wpnSets.mode === 'default' ? ' is-active' : ''}`}
-                      onClick={() => updWpnSets({ mode: 'default', target: 'default' })}
-                    >
-                      Default
-                    </button>
-                    <button
-                      type="button"
-                      className={`wpncfg__seg-btn${wpnSets.mode === 'max' ? ' is-active' : ''}`}
-                      onClick={() => updWpnSets({ mode: 'max', target: 'max' })}
-                    >
-                      Max
-                    </button>
-                    <button
-                      type="button"
-                      className={`wpncfg__seg-btn${wpnSets.mode === 'both' ? ' is-active' : ''}`}
-                      onClick={() => updWpnSets({ mode: 'both' })}
-                    >
-                      Both
-                    </button>
-                  </div>
-                </div>
-                {wpnSets.mode === 'both' && (
-                  <div className="wpncfg__seg-row">
-                    <span className="wpncfg__seg-label">Rank by…</span>
-                    <div className="wpncfg__seg">
-                      <button
-                        type="button"
-                        className={`wpncfg__seg-btn${wpnSets.target === 'default' ? ' is-active' : ''}`}
-                        onClick={() => updWpnSets({ target: 'default' })}
-                      >
-                        Default
-                      </button>
-                      <button
-                        type="button"
-                        className={`wpncfg__seg-btn${wpnSets.target === 'max' ? ' is-active' : ''}`}
-                        onClick={() => updWpnSets({ target: 'max' })}
-                      >
-                        Max
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              {stdWpns.length > 0 && (
-                <section className="wpncfg__card">
-                  <div className="wpncfg__card-head">
-                    <span className="wpncfg__card-cap">Standard Weapons</span>
-                    <span className="wpncfg__card-sub">{stdWpns.map((wpn) => wpn.name).join(' · ')}</span>
-                  </div>
-                  <div className="wpncfg__rank-strip">
-                    {[1, 2, 3, 4, 5].map((rank) => (
-                      <button
-                        key={`std-rank-${rank}`}
-                        type="button"
-                        className={`wpncfg__rank-btn${wpnSets.stdRank === rank ? ' is-active' : ''}`}
-                        onClick={() => updWpnSets({ stdRank: rank })}
-                      >
-                        R{rank}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              <section className="wpncfg__card">
-                <div className="wpncfg__card-head">
-                  <span className="wpncfg__card-cap">Rarity Rules</span>
-                </div>
-                <div className="wpncfg__rarity-grid">
-                  {WPN_RARS.map((rarity) => {
-                    const rarKey = String(rarity)
-                    const showWpn = wpnSets.visible[rarKey] ?? false
-                    const rankVal = wpnSets.ranks[rarKey] ?? (rarity === 5 ? 1 : 5)
-                    return (
-                      <div
-                        key={`wpn-rar-${rarity}`}
-                        className={`wpncfg__rarity-cell rarity-${rarity}${showWpn ? '' : ' is-off'}`}
-                      >
-                        <header className="wpncfg__rarity-head">
-                          <span className="wpncfg__rarity-stars">{'★'.repeat(rarity)}</span>
-                          <button
-                            type="button"
-                            className={`wpncfg__pill${showWpn ? ' is-active' : ''}`}
-                            onClick={() => updWpnSets({ visible: { [rarKey]: !showWpn } })}
-                          >
-                            {showWpn ? 'On' : 'Off'}
-                          </button>
-                        </header>
-                        <div className="wpncfg__rank-strip">
-                          {[1, 2, 3, 4, 5].map((rank) => (
-                            <button
-                              key={`wpn-rank-${rarity}-${rank}`}
-                              type="button"
-                              className={`wpncfg__rank-btn${rankVal === rank ? ' is-active' : ''}`}
-                              disabled={!showWpn}
-                              onClick={() => updWpnSets({ ranks: { [rarKey]: rank } })}
-                            >
-                              R{rank}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
-              <footer className="wpncfg__footer">
-                <button
-                  type="button"
-                  className="wpncfg__reset"
-                  onClick={() => updWpnSets(DEFWPNSETS)}
-                >
-                  ↺ Reset to defaults
-                </button>
-              </footer>
-            </div>
-          ) : (
-            <div className="wpncfg__body" key="states">
-              {wpnStRows.length === 0 ? (
-                <div className="wpncfg__empty">No configurable weapon passives in the current search space.</div>
-              ) : (
-                <>
-                  <div className="ssc-toolbar wpncfg__toolbar">
-                    <div className="ssc-tabs">
-                      <button
-                        type="button"
-                        className={`ssc-tab${wpnStRarFlt === 'all' ? ' active' : ''}`}
-                        onClick={() => setWpnStRarFlt('all')}
-                      >
-                        All
-                      </button>
-                      {WPN_RARS.map((rar) => (
-                        <button
-                          key={`chip-${rar}`}
-                          type="button"
-                          className={`ssc-tab${wpnStRarFlt === rar ? ' active' : ''}`}
-                          onClick={() => setWpnStRarFlt(rar)}
-                        >
-                          {rar}★
-                        </button>
-                      ))}
-                    </div>
-                    <div className="rotation-saved-filters__search">
-                      <Search size={13} className="rotation-saved-filters__search-icon" />
-                      <input
-                        type="text"
-                        value={wpnStQuery}
-                        onChange={(event) => setWpnStQuery(event.target.value)}
-                        placeholder="Search weapons…"
-                        className="rotation-saved-filters__search-input"
-                        aria-label="Filter weapons"
-                      />
-                    </div>
-                  </div>
-
-                  {filteredWpnStRows.length === 0 ? (
-                    <div className="wpncfg__empty">No matching weapons.</div>
-                  ) : (
-                    <div className="wpncfg__weapons">
-                      {filteredWpnStRows.map(({ wpn, rt, states }) => {
-                        const rank = getWpnRank(wpn, wpnSets)
-                        const params = resPssvPrms(wpn.passive.params, rank)
-                        const onCount = states.filter((state) => {
-                          const cfg = wpnSets.states[wpn.id]?.[state.controlKey]
-                          return cfg?.off !== true
-                        }).length
-                        const counterClass = onCount === 0
-                          ? 'wpncfg__weapon-counter'
-                          : onCount === states.length
-                            ? 'wpncfg__weapon-counter is-full'
-                            : 'wpncfg__weapon-counter is-partial'
-                        return (
-                          <article
-                            key={`wpn-state-${wpn.id}`}
-                            className={`wpncfg__weapon rarity-${wpn.rarity}`}
-                          >
-                            <header className="wpncfg__weapon-head">
-                              <span className="wpncfg__weapon-frame">
-                                <img
-                                  src={wpn.icon}
-                                  alt={wpn.name}
-                                  className="wpncfg__weapon-icon"
-                                  onError={withDefWpnMg}
-                                />
-                              </span>
-                              <div className="wpncfg__weapon-title">
-                                <span className="wpncfg__weapon-name">{wpn.name}</span>
-                                <span className="wpncfg__weapon-sub">
-                                  {wpn.passive.name || 'Passive'} · R{rank}
-                                </span>
-                              </div>
-                              <span className={counterClass}>
-                                {onCount}/{states.length}
-                              </span>
-                            </header>
-                            <ul className="wpncfg__states">
-                              {states.map((state) => {
-                                const cfg = wpnSets.states[wpn.id]?.[state.controlKey]
-                                const isOn = cfg?.off !== true
-                                const opts = state.kind === 'select'
-                                  ? sourceOptions(rt, rt, state)
-                                  : []
-                                const defMax = stDefMax(state, opts)
-                                const maxVal = cfg?.max === undefined
-                                  ? defMax
-                                  : clnStMax(state, cfg.max, opts)
-
-                                const toggleStateOff = () => {
-                                  updWpnSt(wpn.id, state.controlKey, (cur) => {
-                                    const next = { ...cur }
-                                    if (isOn) {
-                                      next.off = true
-                                    } else {
-                                      delete next.off
-                                    }
-                                    return next
-                                  })
-                                }
-
-                                return (
-                                  <li
-                                    key={state.controlKey}
-                                    className={`wpncfg__state${isOn ? ' is-on' : ''}`}
-                                  >
-                                    <div
-                                      className="wpncfg__state-row"
-                                      role="checkbox"
-                                      aria-checked={isOn}
-                                      tabIndex={0}
-                                      onClick={toggleStateOff}
-                                      onKeyDown={(event) => {
-                                        if (event.key === ' ' || event.key === 'Enter') {
-                                          event.preventDefault()
-                                          toggleStateOff()
-                                        }
-                                      }}
-                                    >
-                                      <span className="wpncfg__checkmark">
-                                        <svg className="wpncfg__checkmark-icon" width="9" height="7" viewBox="0 0 9 7" fill="none" aria-hidden="true">
-                                          <path d="M1 3.5L3 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                      </span>
-                                      <div className="wpncfg__state-body">
-                                        {state.description ? (
-                                          <RichDscr
-                                            description={state.description}
-                                            params={params}
-                                            className="wpncfg__state-desc"
-                                          />
-                                        ) : (
-                                          <span className="wpncfg__state-desc">{state.label}</span>
-                                        )}
-                                      </div>
-                                      {isOn && state.kind !== 'toggle' ? (
-                                        <span
-                                          className="wpncfg__state-input"
-                                          onClick={(event) => event.stopPropagation()}
-                                          onKeyDown={(event) => event.stopPropagation()}
-                                        >
-                                          {state.kind === 'select' ? (
-                                            <LiquidSelect
-                                              value={String(maxVal)}
-                                              options={opts.map((option) => ({
-                                                value: option.id,
-                                                label: option.label,
-                                              }))}
-                                              onChange={(nextValue) => {
-                                                updWpnSt(wpn.id, state.controlKey, (cur) => {
-                                                  const next = { ...cur }
-                                                  const clean = clnStMax(state, String(nextValue), opts)
-                                                  if (clean === defMax) delete next.max
-                                                  else next.max = clean
-                                                  return next
-                                                })
-                                              }}
-                                            />
-                                          ) : (
-                                            <NumberInput
-                                              value={Number(maxVal)}
-                                              min={state.min ?? 0}
-                                              max={state.max}
-                                              step={state.kind === 'stack' ? 1 : 0.1}
-                                              onChange={(nextValue) => {
-                                                updWpnSt(wpn.id, state.controlKey, (cur) => {
-                                                  const next = { ...cur }
-                                                  const clean = clnStMax(state, nextValue, opts)
-                                                  if (clean === defMax) delete next.max
-                                                  else next.max = clean
-                                                  return next
-                                                })
-                                              }}
-                                            />
-                                          )}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  </li>
-                                )
-                              })}
-                            </ul>
-                          </article>
-                        )
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-
-              <footer className="wpncfg__footer">
-                <button
-                  type="button"
-                  className="wpncfg__reset"
-                  onClick={() => updWpnSets({ states: {} })}
-                >
-                  ↺ Reset passive states
-                </button>
-              </footer>
-            </div>
-          )}
-        </div>
+        <WeaponConfig runtime={runtime} seed={activeSeed} />
       </SuggsMdl>
 
       <SuggsMdl

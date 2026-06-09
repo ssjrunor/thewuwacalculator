@@ -479,7 +479,6 @@ export function mkPrepWpnSu(
     weaponType: input.seed.weaponType,
     level: input.runtime.build.weapon.level,
     rank: input.runtime.build.weapon.rank,
-    curWpn: input.runtime.build.weapon,
     settings: input.weapon,
     topK: input.topK,
   }

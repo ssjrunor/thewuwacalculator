@@ -24,7 +24,8 @@ import type {
 import { compTgtRun } from '@/engine/optimizer/compiler/target.ts'
 import { compRotRun } from '@/engine/optimizer/compiler/rotation.ts'
 import { countTheory } from '@/engine/optimizer/search/counting.ts'
-import { cntThryEmt } from '@/engine/optimizer/target/theoryBatches.ts'
+import { buildWeaponOverlays } from '@/engine/optimizer/context/weaponOverlays.ts'
+import { cntThryEmt, buildSlotReps } from '@/engine/optimizer/target/theoryBatches.ts'
 import { optSetIdSet } from '@/engine/optimizer/config/allowedSets.ts'
 import {
   encEchoRows,
@@ -34,6 +35,8 @@ import {
 import {
   ARCH_DAMAGE,
   ARCHETYPE,
+  ECHO_STAT_STRIDE,
+  MAIN_BUFF_LEN,
   SCALING_ATK,
   SCALING_DEF,
   SCALING_ER,
@@ -42,8 +45,6 @@ import {
 } from '@/engine/optimizer/config/constants.ts'
 
 const ELEMBNSKEYS = new Set(['aero', 'glacio', 'fusion', 'spectro', 'havoc', 'electro'])
-const STAT_STRIDE = 20
-const MAIN_STRIDE = 18
 const STAT_ATK_P = 0
 const STAT_ATK_F = 1
 const STAT_HP_P = 2
@@ -520,13 +521,13 @@ function mkCntrMasks(payload: PrepTheoryTarget | PrepTheoryRot): {
 } {
   if (hasActCstr(payload.constraints)) {
     return {
-      statMask: allMask(STAT_STRIDE),
-      mainMask: allMask(MAIN_STRIDE),
+      statMask: allMask(ECHO_STAT_STRIDE),
+      mainMask: allMask(MAIN_BUFF_LEN),
     }
   }
 
-  const statMask = emptyMask(STAT_STRIDE)
-  const mainMask = emptyMask(MAIN_STRIDE)
+  const statMask = emptyMask(ECHO_STAT_STRIDE)
+  const mainMask = emptyMask(MAIN_BUFF_LEN)
 
   if (payload.mode === 'theoryRotation') {
     for (let index = 0; index < payload.contextCount; index += 1) {
@@ -600,19 +601,19 @@ function prnThryRows<T extends PrepTheoryTarget | PrepTheoryRot>(
   const outRows: TheoryRow[] = []
   const costs = new Uint8Array(rows.length)
   const sets = new Uint8Array(rows.length)
-  const stats = new Float32Array(rows.length * STAT_STRIDE)
-  const mains = new Float32Array(rows.length * MAIN_STRIDE)
+  const stats = new Float32Array(rows.length * ECHO_STAT_STRIDE)
+  const mains = new Float32Array(rows.length * MAIN_BUFF_LEN)
   const keepSet = statMask.some(Boolean) || mainMask.some(Boolean)
 
   function copyPacked(dst: number, src: number): void {
     costs[dst] = encoded.costs[src] ?? 0
     sets[dst] = encoded.sets[src] ?? 0
 
-    for (let offset = 0; offset < STAT_STRIDE; offset += 1) {
-      stats[dst * STAT_STRIDE + offset] = encoded.stats[src * STAT_STRIDE + offset] ?? 0
+    for (let offset = 0; offset < ECHO_STAT_STRIDE; offset += 1) {
+      stats[dst * ECHO_STAT_STRIDE + offset] = encoded.stats[src * ECHO_STAT_STRIDE + offset] ?? 0
     }
-    for (let offset = 0; offset < MAIN_STRIDE; offset += 1) {
-      mains[dst * MAIN_STRIDE + offset] = mainEchoBuffs[src * MAIN_STRIDE + offset] ?? 0
+    for (let offset = 0; offset < MAIN_BUFF_LEN; offset += 1) {
+      mains[dst * MAIN_BUFF_LEN + offset] = mainEchoBuffs[src * MAIN_BUFF_LEN + offset] ?? 0
     }
   }
 
@@ -622,9 +623,9 @@ function prnThryRows<T extends PrepTheoryTarget | PrepTheoryRot>(
       continue
     }
 
-    const statSig = sigRow(encoded.stats, index * STAT_STRIDE, statMask)
+    const statSig = sigRow(encoded.stats, index * ECHO_STAT_STRIDE, statMask)
     const mainSig = row.mainOk
-        ? sigRow(mainEchoBuffs, index * MAIN_STRIDE, mainMask)
+        ? sigRow(mainEchoBuffs, index * MAIN_BUFF_LEN, mainMask)
         : ''
     const key = [
       row.slot,
@@ -670,10 +671,12 @@ function prnThryRows<T extends PrepTheoryTarget | PrepTheoryRot>(
 
   // walk the (dedupe-free) combo space once on this thread to derive the exact
   // count the producer will emit. cntThryEmt mirrors gnrtThryCpuCm's loop
-  // structure with no per-combo allocation, so it completes in ms and makes
-  // the progress denominator exact from t=0 instead of relying on the looser
-  // countTheory upper bound.
-  const exactTtl = cntThryEmt(outRows)
+  // structure with no per-combo allocation, so it completes in ms and gives an
+  // exact progress denominator from t=0 (countTheory only gives a looser upper
+  // bound). the same slot-equivalence reps the producer uses for
+  // canonicalization are passed so the count matches the emitted set.
+  const slotReps = payload.profs ? buildSlotReps(payload.profs) : null
+  const exactTtl = cntThryEmt(outRows, slotReps)
 
   return {
     ...payload,
@@ -685,8 +688,8 @@ function prnThryRows<T extends PrepTheoryTarget | PrepTheoryRot>(
     lockMainCands: Int32Array.from(outRows
         .map((row, index) => row.mainOk ? index : -1)
         .filter((index) => index >= 0)),
-    stats: stats.slice(0, outRows.length * STAT_STRIDE),
-    mainEchoBuffs: mains.slice(0, outRows.length * MAIN_STRIDE),
+    stats: stats.slice(0, outRows.length * ECHO_STAT_STRIDE),
+    mainEchoBuffs: mains.slice(0, outRows.length * MAIN_BUFF_LEN),
     theoryTotal: exactTtl,
     theoryRows: outRows,
   }
@@ -764,6 +767,14 @@ export function compThryTgt(input: OptStartPay): PrepTheoryTarget {
     invChs: [],
   })
 
+  // weapon search: score each build against every visible weapon and tag it
+  // with the best. weapons
+  // are a context axis, so the combo space (theory.rows) is unchanged, only
+  // evaluation gains the weapon overlay loop.
+  const weapons = input.settings.includeWeapons
+      ? buildWeaponOverlays(input)
+      : null
+
   const payload: PrepTheoryTarget = {
     ...base,
     mode: 'theoryTarget',
@@ -775,6 +786,9 @@ export function compThryTgt(input: OptStartPay): PrepTheoryTarget {
     mainFltr: [...input.settings.mainStatFilter],
     selBonus: input.settings.selectedBonus,
     theoryRows: [],
+    weaponOverlays: weapons?.overlays,
+    weaponCount: weapons?.count,
+    weaponIds: weapons?.weaponIds,
   }
 
   return applyTheoryRows(payload, input, theory.echoes, theory.rows)
@@ -786,10 +800,15 @@ export function compThryRot(input: OptStartPay): PrepTheoryRot {
   const profs = mkThryProfs(input)
   const cats = mkThryCats(input)
   const theory = mkThryRows(input, cats)
-  const base = compRotRun({
-    ...input,
-    invChs: [],
-  })
+  // weapon search is a theory-mode feature; opt the rotation compiler into
+  // building per-weapon context sets when includeWeapons is on.
+  const base = compRotRun(
+      {
+        ...input,
+        invChs: [],
+      },
+      { weaponSearch: true },
+  )
 
   const payload: PrepTheoryRot = {
     ...base,

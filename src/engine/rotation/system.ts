@@ -22,7 +22,7 @@ import type { SkillAggType, SkillDef } from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import { makeRuntimeCat } from '@/domain/services/runtimeSourceService'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
-import { getNegFfctCm } from '@/domain/gameData/negativeEffects'
+import { getNegFfctCm, getNegFfctEn } from '@/domain/gameData/negativeEffects'
 import { readRtPath, writeBjctPat, writeRtPath } from '@/domain/gameData/runtimePath'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { cloneSlotRml } from '@/domain/state/defaults'
@@ -1266,6 +1266,7 @@ function runFeatNode(
   // - explicit node changes that already modify stack state
   // - multi-instance repeated evaluation with stack decay
   const negFfctCmbtK = getNegFfctCm(scaledSkill.archetype)
+  const stckFxd = scaledSkill.stackMode === 'fixedMax'
   const hasTtchNegFf = negFfctCmbtK
     ? (node.changes ?? []).some((change) => chngTrgtNegF(change, negFfctCmbtK))
     : false
@@ -1292,12 +1293,16 @@ function runFeatNode(
   const wghtRslt = scaleResult(
     negFfctCmbtK
       ? (() => {
-        const startStacks = negFfctStckV ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
-        const stackSeries = mkNegFfctStc(
-          startStacks,
-          negFfctNstn,
-          negFfctStblW,
-        )
+        const startStacks = stckFxd
+          ? scaledSkill.stackMax ?? getNegFfctEn(participant.runtime, negFfctCmbtK)?.max ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
+          : negFfctStckV ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
+        const stackSeries = stckFxd
+          ? [startStacks]
+          : mkNegFfctStc(
+            startStacks,
+            negFfctNstn,
+            negFfctStblW,
+          )
 
         if (stackSeries.length === 0) {
           return calcSkillDamage(
@@ -2038,7 +2043,7 @@ function vstFeatRows(
         rows.push({
           id: item.id,
           featureId: feature.id,
-          label: skillResult.tab === 'negativeEffect' ? skillResult.label : feature.label,
+          label: skillResult.label,
           tab: skillResult.tab,
           multiplier: nodeState.multiplier,
           enabled: nodeState.enabled,

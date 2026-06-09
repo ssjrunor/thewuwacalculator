@@ -1,17 +1,18 @@
 .editor-console {
-  --editor-bg: rgba(17, 17, 17, 0.31);
-  --editor-text: var(--text-primary, #eaeaea);
-  --editor-muted: var(--text-muted, #8b8b8b);
-  --editor-line-number: var(--text-faint, #6f6f6f);
+  --editor-bg: rgb(255 255 255 / 0.31);
+  --editor-text: var(--text, #eaeaea);
+  --editor-muted: var(--muted, #8b8b8b);
+  --editor-line-number: var(--muted, #6f6f6f);
 
   --editor-keyword: var(--accent, #7c9cff);
   --editor-string: var(--success, #7fdc8a);
-  --editor-number: var(--warning, #f0b35f);
-  --editor-comment: var(--text-muted, #7b8190);
-  --editor-type: var(--info, #66c7ff);
-  --editor-property: var(--text-primary, #d8d8d8);
-  --editor-accent: var(--accent-2, #c084fc);
-
+  --editor-type: var(--avg, #66c7ff);
+  --editor-number: #a16207;
+  --editor-comment: #64748b;
+  --editor-property: #7e22ce;
+  --editor-accent: #be123c;
+  --editor-operator: #1e293b;
+  --editor-result: #047857;
   border-radius: 1rem;
   overflow: hidden;
   background: var(--editor-bg);
@@ -27,9 +28,10 @@
   background-color: transparent !important;
 }
 
-.editor-console--formula {
-  --editor-text: color-mix(in srgb, var(--text-primary, #eaeaea) 90%, #d7eef5 10%);
-  --editor-muted: color-mix(in srgb, var(--text-muted, #8b8b8b) 70%, #9fb7bf 30%);
+.dark-text .editor-console {
+  --editor-bg: rgba(17, 17, 17, 0.31);
+  --editor-text: color-mix(in srgb, var(--text, #eaeaea) 90%, #d7eef5 10%);
+  --editor-muted: color-mix(in srgb, var(--muted, #8b8b8b) 70%, #9fb7bf 30%);
   --editor-number: #b5cea8;
   --editor-comment: #6a9955;
   --editor-property: #9cdcfe;

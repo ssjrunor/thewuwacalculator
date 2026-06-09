@@ -119,7 +119,7 @@ var<uniform> params : Params;
 // encoded layout constants
 const STATS_VEC4S_PER_ECHO : u32 = 5u;
 const ECHOS_PER_COMBO: u32 = 5u;
-// kept in sync with MAINBFFSPERE / MAIN_STRIDE in encode/echoes.ts,
+// kept in sync with MAIN_BUFF_LEN (config/constants.ts), used by encode/echoes.ts,
 // target/cpu.ts, target/evaluate.ts, and compiler/theory.ts. slots 15-17
 // carry top_stat contributions (cr/cd/dmgBonus).
 const BUFFS_PER_ECHO : u32 = 18u;

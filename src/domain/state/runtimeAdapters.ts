@@ -29,6 +29,7 @@ import {
   matRtFromPro,
   matTeamMemFr,
 } from '@/domain/state/runtimeMaterialization'
+import { maxEchoIfChg } from '@/domain/state/sourceStateInit'
 import {
   cloneBuffs,
   cloneRotation,
@@ -36,6 +37,7 @@ import {
   cloneTrcNode,
   cloneWpnMkSt,
 } from '@/domain/state/runtimeCloning'
+import { catTmWpnAtk } from '@/domain/state/weaponState'
 
 export interface WorkRtBndl {
   actResId: string | null
@@ -420,11 +422,7 @@ export function mkTeamMemRtV(
       sequence: tmr.base.sequence,
     },
     build: {
-      weapon: {
-        id: tmr.build.weapon.id,
-        rank: tmr.build.weapon.rank,
-        baseAtk: tmr.build.weapon.baseAtk,
-      },
+      weapon: catTmWpnAtk(tmr.build.weapon, 90),
       echoes: tmr.build.echoes,
     },
     state: {
@@ -471,22 +469,20 @@ function applyTeam(
 
   const slotIndex = findTeamRtSl(calculator, resonatorId)
   if (slotIndex === null) return calculator
+  const previousTmr = (actProf.runtime.teamRuntimes ?? [null, null])[slotIndex]
+  const nextRuntime = maxEchoIfChg(runtime, previousTmr?.build.echoes)
 
   // build updated compact team member runtime
   const updatedTmr: TeamMemRt = {
     id: resonatorId,
     base: {
-      sequence: runtime.base.sequence,
+      sequence: nextRuntime.base.sequence,
     },
     build: {
-      weapon: {
-        id: runtime.build.weapon.id,
-        rank: runtime.build.weapon.rank,
-        baseAtk: runtime.build.weapon.baseAtk,
-      },
-      echoes: runtime.build.echoes,
+      weapon: catTmWpnAtk(nextRuntime.build.weapon, 90),
+      echoes: nextRuntime.build.echoes,
     },
-    manualBuffs: cloneBuffs(runtime.state.manualBuffs),
+    manualBuffs: cloneBuffs(nextRuntime.state.manualBuffs),
   }
 
   // update team runtimes array
@@ -504,7 +500,7 @@ function applyTeam(
       nextControls[key] = value
     }
   }
-  for (const [key, value] of Object.entries(runtime.state.controls)) {
+  for (const [key, value] of Object.entries(nextRuntime.state.controls)) {
     nextControls[`${prefix}${key}`] = value
   }
 
@@ -587,6 +583,7 @@ export function applyRtToCal(
   // active resonator writes directly into its own profile
   const nrmlRtTeam = normProfTeam(runtime.id, runtime.build.team)
   const xstnRt = calculator.profiles[resonatorId]?.runtime
+  const nextRuntime = maxEchoIfChg(runtime, xstnRt?.build.echoes)
 
   const fllbRt = {
     progression: {
@@ -596,14 +593,14 @@ export function applyRtToCal(
       traceNodes: makeTraceNode(),
     },
     build: {
-      weapon: runtime.build.weapon,
-      echoes: runtime.build.echoes,
+      weapon: nextRuntime.build.weapon,
+      echoes: nextRuntime.build.echoes,
     },
-    local: mkLclSttFrom(runtime.state, xstnRt?.local),
+    local: mkLclSttFrom(nextRuntime.state, xstnRt?.local),
     routing: cloneSlotRml(xstnRt?.routing),
     team: nrmlRtTeam,
-    rotation: cloneRotation(runtime.rotation),
-    teamRuntimes: rcncTeamRntm(nrmlRtTeam, runtime.teamRuntimes ?? [null, null]),
+    rotation: cloneRotation(nextRuntime.rotation),
+    teamRuntimes: rcncTeamRntm(nrmlRtTeam, nextRuntime.teamRuntimes ?? [null, null]),
   }
 
   const nextProfiles = {
@@ -616,22 +613,22 @@ export function applyRtToCal(
       runtime: {
         ...(xstnRt ?? fllbRt),
         progression: {
-          level: runtime.base.level,
-          sequence: runtime.base.sequence,
-          skillLevels: cloneSkllLvl(runtime.base.skillLevels),
-          traceNodes: cloneTrcNode(runtime.base.traceNodes),
+          level: nextRuntime.base.level,
+          sequence: nextRuntime.base.sequence,
+          skillLevels: cloneSkllLvl(nextRuntime.base.skillLevels),
+          traceNodes: cloneTrcNode(nextRuntime.base.traceNodes),
         },
         build: {
-          weapon: cloneWpnMkSt(runtime.build.weapon),
-          echoes: runtime.build.echoes,
+          weapon: cloneWpnMkSt(nextRuntime.build.weapon),
+          echoes: nextRuntime.build.echoes,
         },
-        local: mkLclSttFrom(runtime.state, xstnRt?.local),
+        local: mkLclSttFrom(nextRuntime.state, xstnRt?.local),
         routing: cloneSlotRml(xstnRt?.routing),
         team: nrmlRtTeam,
-        rotation: cloneRotation(runtime.rotation),
+        rotation: cloneRotation(nextRuntime.rotation),
         teamRuntimes: rcncTeamRntm(
             nrmlRtTeam,
-            runtime.teamRuntimes ?? xstnRt?.teamRuntimes ?? [null, null],
+            nextRuntime.teamRuntimes ?? xstnRt?.teamRuntimes ?? [null, null],
         ),
       },
     },

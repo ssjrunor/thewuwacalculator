@@ -58,7 +58,7 @@
   margin: 0 auto;
   padding: 0.26rem 0.5rem 0.26rem 0.28rem;
   text-align: left;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 8%, var(--item-border));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
   border-radius: 999px;
   background: var(--item-bg);
   cursor: pointer;
@@ -75,8 +75,11 @@
   box-shadow: -3px 3px 8px color-mix(in srgb, black 12%, transparent);
 }
 
-.set-plan-card.selected {
+.set-plan-card.selected,
+.main-stat-card.selected,
+.weapon-sugg-card.selected {
   border-color: color-mix(in srgb, var(--resonator-accent) 48%, var(--item-border));
+  transform: translateX(4px);
 }
 
 .set-plan-rank {
@@ -204,12 +207,13 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 8%, var(--item-border));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
   background: var(--item-bg);
   transition:
     border-color 0.3s ease,
     transform 0.3s ease,
-    box-shadow 0.3s ease;
+    box-shadow 0.3s ease,
+    background 0.3s ease;
   align-self: center;
   width: calc(100% - 30px);
 }
@@ -1469,7 +1473,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.65rem 0.8rem 0.75rem;
+  padding: 0.5rem 0.8rem;
   border-radius: 0.85rem;
   background: color-mix(in srgb, var(--resonator-accent) 4%, var(--inner-bg));
   border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--item-border));

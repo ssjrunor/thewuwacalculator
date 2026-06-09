@@ -3,7 +3,7 @@
   Description: Renders the allowed sets surface for the calculator optimizer flow.
 */
 
-import { Check, ChevronDown } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '@/domain/state/store'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -13,10 +13,11 @@ import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 
 const MENUCLSDURMS = 180
-const MENUMAXHGHT = 320
+const MENUMAXHGHT = 430
 const MENUMINHGHT = 96
 const VWPR_PDDN = 20
 const MENU_OFFSET = 8
+const SET_MENU_MIN_W = 540
 const VRLYPRTLSLCT =
   '.app-modal-overlay, .char-menu-overlay'
 
@@ -25,8 +26,6 @@ interface LlwdSetDrpdP {
   onChange: (nextSelIdsBy: OptSetChoice) => void
   triggerClass?: string
   viewTrggCntn?: (args: { summaryLabel: string; open: boolean }) => ReactNode
-  resetLabel?: string
-  resetMeta?: string
 }
 
 type PieceCount = 1 | 3 | 5
@@ -44,8 +43,6 @@ export function AllowedSets({
   onChange,
   triggerClass: triggerClass,
   viewTrggCntn: rndrTrggCntn,
-  resetLabel = 'All Sets',
-  resetMeta = 'No set restriction',
 }: LlwdSetDrpdP) {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
@@ -100,7 +97,7 @@ export function AllowedSets({
   const optionGroups = useMemo(
     () => ([
       {
-        label: '5-Piece Sets',
+        label: '5pc',
         pieceCount: 5 as PieceCount,
         options: ECHO_SET_DEFS
           .filter((set) => set.setMax === 5)
@@ -111,7 +108,7 @@ export function AllowedSets({
           })),
       },
       {
-        label: '3-Piece Sets',
+        label: '3pc',
         pieceCount: 3 as PieceCount,
         options: ECHO_SET_DEFS
           .filter((set) => set.setMax === 3)
@@ -122,7 +119,7 @@ export function AllowedSets({
           })),
       },
       {
-        label: '1-Piece Sets',
+        label: '1pc',
         pieceCount: 1 as PieceCount,
         options: ECHO_SET_DEFS
           .filter((set) => set.setMax === 1)
@@ -135,6 +132,48 @@ export function AllowedSets({
     ]),
     [],
   )
+
+  const selectedTotal = useMemo(
+    () => selIdsByPc[1].length + selIdsByPc[3].length + selIdsByPc[5].length,
+    [selIdsByPc],
+  )
+
+  const isReset = selectedTotal === 0
+
+  const clearPc = useCallback((pieceCount: PieceCount) => {
+    onChange({
+      ...selIdsByPc,
+      [pieceCount]: [],
+    })
+  }, [onChange, selIdsByPc])
+
+  const setAll = useCallback(() => {
+    onChange({
+      1: optionGroups.find((group) => group.pieceCount === 1)?.options.map((set) => set.id) ?? [],
+      3: optionGroups.find((group) => group.pieceCount === 3)?.options.map((set) => set.id) ?? [],
+      5: optionGroups.find((group) => group.pieceCount === 5)?.options.map((set) => set.id) ?? [],
+    })
+  }, [onChange, optionGroups])
+
+  const invPc = useCallback((pieceCount: PieceCount) => {
+    const group = optionGroups.find((entry) => entry.pieceCount === pieceCount)
+    if (!group) {
+      return []
+    }
+
+    const selected = new Set(selIdsByPc[pieceCount])
+    return group.options
+      .map((set) => set.id)
+      .filter((id) => !selected.has(id))
+  }, [optionGroups, selIdsByPc])
+
+  const invertAll = useCallback(() => {
+    onChange({
+      1: invPc(1),
+      3: invPc(3),
+      5: invPc(5),
+    })
+  }, [invPc, onChange])
 
   const rslvPrtlTgt =
     // render inside the nearest app/modal overlay when possible so dropdown z-order follows the surface that opened it.
@@ -170,7 +209,10 @@ export function AllowedSets({
     const openUpward = spaceBelow < 220 && spaceAbove > spaceBelow
     const vlblSpc = openUpward ? spaceAbove : spaceBelow
     const rslvMaxHght = Math.max(MENUMINHGHT, Math.min(MENUMAXHGHT, vlblSpc))
-    const width = Math.min(rect.width, window.innerWidth - VWPR_PDDN * 2)
+    const width = Math.min(
+      Math.max(rect.width, SET_MENU_MIN_W),
+      window.innerWidth - VWPR_PDDN * 2,
+    )
     const left = Math.min(
       Math.max(VWPR_PDDN, rect.left),
       Math.max(VWPR_PDDN, window.innerWidth - VWPR_PDDN - width),
@@ -293,63 +335,87 @@ export function AllowedSets({
               }
             }}
           >
-            <button
-              type="button"
-              className={`co-skill-select__option co-set-dropdown__item co-set-dropdown__item--reset${
-                selIdsByPc[1].length === 0 && selIdsByPc[3].length === 0 && selIdsByPc[5].length === 0 ? ' selected is-active' : ''
-              }`}
-              onClick={() => {
-              onChange({1: [],  3: [], 5: [] })
-            }}
-            onMouseDown={(event) => event.preventDefault()}
-          >
-            <span className="co-skill-select__option-label co-set-dropdown__copy">
-              <span className="co-set-dropdown__name">{resetLabel}</span>
-              <span className="co-set-dropdown__meta">{resetMeta}</span>
-            </span>
-            <span className="co-skill-select__option-check co-set-dropdown__check" aria-hidden="true">
-              <Check size={14} />
-            </span>
-          </button>
+            <div className="co-set-dropdown__cmds" aria-label="Allowed set commands">
+              <button
+                type="button"
+                className={`co-set-dropdown__cmd${isReset ? ' is-active' : ''}`}
+                onClick={() => onChange({1: [], 3: [], 5: [] })}
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                Any
+              </button>
+              <button
+                type="button"
+                className="co-set-dropdown__cmd"
+                onClick={setAll}
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className="co-set-dropdown__cmd"
+                onClick={invertAll}
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                Invert
+              </button>
+            </div>
 
-            {optionGroups.map((group) => (
-              <div key={group.pieceCount} className="co-skill-select__group">
-                <div className="co-skill-select__group-label" aria-hidden="true">
-                  {group.label}
-                </div>
-                <div className="co-set-dropdown__list">
-                  {group.options.map((set) => {
-                    const selected = selIdsByPc[group.pieceCount].includes(set.id)
-                    return (
-                      <button
-                        key={`${group.pieceCount}-${set.id}`}
-                        type="button"
-                        className={`co-skill-select__option co-set-dropdown__item${selected ? ' selected is-active' : ''}`}
-                        onClick={() => {
-                          const current = selIdsByPc[group.pieceCount]
-                          const next = selected
-                            ? current.filter((id) => id !== set.id)
-                            : [...current, set.id].sort((left, right) => left - right)
-                          onChange({
-                            ...selIdsByPc,
-                            [group.pieceCount]: next,
-                          })
-                        }}
-                        onMouseDown={(event) => event.preventDefault()}
-                      >
-                        <span className="co-skill-select__option-label co-set-dropdown__copy">
-                          <img src={set.icon} alt="" className="co-set-dropdown__icon" onError={withDefIconM} />
-                          <span className="co-set-dropdown__name">{set.name}</span>
-                        </span>
-                        <span className="co-skill-select__option-check co-set-dropdown__check" aria-hidden="true">
-                          <Check size={14} />
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+            <div className="co-set-dropdown__board">
+              {optionGroups.map((group) => (
+                <section key={group.pieceCount} className="co-set-dropdown__col">
+                  <header className="co-set-dropdown__col-head">
+                    <span>{group.label}</span>
+                    <span className="co-set-dropdown__group-actions">
+                      <span className="co-set-dropdown__group-count">
+                        {selIdsByPc[group.pieceCount].length}/{group.options.length}
+                      </span>
+                      {selIdsByPc[group.pieceCount].length > 0 ? (
+                        <button
+                          type="button"
+                          aria-label={`Clear ${group.label}`}
+                          onClick={() => clearPc(group.pieceCount)}
+                          onMouseDown={(event) => event.preventDefault()}
+                        >
+                          <X size={10} />
+                        </button>
+                      ) : null}
+                    </span>
+                  </header>
+                  <div className="co-set-dropdown__stack">
+                    {group.options.map((set) => {
+                      const selected = selIdsByPc[group.pieceCount].includes(set.id)
+                      return (
+                        <button
+                          key={`${group.pieceCount}-${set.id}`}
+                          type="button"
+                          className={`co-set-dropdown__tile${selected ? ' selected is-active' : ''}`}
+                          onClick={() => {
+                            const current = selIdsByPc[group.pieceCount]
+                            const next = selected
+                              ? current.filter((id) => id !== set.id)
+                              : [...current, set.id].sort((left, right) => left - right)
+                            onChange({
+                              ...selIdsByPc,
+                              [group.pieceCount]: next,
+                            })
+                          }}
+                          onMouseDown={(event) => event.preventDefault()}
+                        >
+                          <span className="co-set-dropdown__tile-icon" aria-hidden="true">
+                            <img src={set.icon} alt="" className="co-set-dropdown__icon" onError={withDefIconM} />
+                          </span>
+                          <span className="co-set-dropdown__tile-name">{set.name}</span>
+                          <span className="co-set-dropdown__tile-dot" aria-hidden="true" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+
           </div>,
           rslvPrtlTgt,
         )

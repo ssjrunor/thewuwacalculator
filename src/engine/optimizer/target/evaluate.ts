@@ -46,17 +46,15 @@ import {
   SKILL_ID,
   DMG_VULN,
   TOGGLES,
+  ECHO_STAT_STRIDE,
+  MAIN_BUFF_LEN,
+  SET_SLOT_COUNT,
 } from '@/engine/optimizer/config/constants.ts'
 import {
   applySetVec as applySetF,
   SETRTTGLALL,
   SETRTTGLST14,
 } from '@/engine/optimizer/encode/sets.ts'
-
-// packed row sizes used by the evaluator
-const STATS_PER_ECHO = 20
-const MAIN_BUFF_SIZE = 18
-const SET_SLOTS = 33
 
 // popcount helper for set bitmasks used to track unique echo kinds per set
 function countOneBits(x: number): number {
@@ -158,13 +156,13 @@ function mkCmbSetCnts(
     kinds: Uint16Array,
     comboIds: Int32Array,
 ): Uint8Array {
-  const setCounts = new Uint8Array(SET_SLOTS)
-  const setMask = new Uint32Array(SET_SLOTS)
+  const setCounts = new Uint8Array(SET_SLOT_COUNT)
+  const setMask = new Uint32Array(SET_SLOT_COUNT)
 
   for (let index = 0; index < comboIds.length; index += 1) {
     const echoIndex = comboIds[index]
     const setId = sets[echoIndex]
-    if (setId < 0 || setId >= SET_SLOTS) {
+    if (setId < 0 || setId >= SET_SLOT_COUNT) {
       continue
     }
 
@@ -173,7 +171,7 @@ function mkCmbSetCnts(
     setMask[setId] |= bit
   }
 
-  for (let setId = 0; setId < SET_SLOTS; setId += 1) {
+  for (let setId = 0; setId < SET_SLOT_COUNT; setId += 1) {
     setCounts[setId] = countOneBits(setMask[setId])
   }
 
@@ -204,7 +202,7 @@ function mkBaseStts(stats: Float32Array, comboIds: Int32Array) {
 
   for (let index = 0; index < comboIds.length; index += 1) {
     const echoIndex = comboIds[index]
-    const base = echoIndex * STATS_PER_ECHO
+    const base = echoIndex * ECHO_STAT_STRIDE
 
     atkP += stats[base]
     atkF += stats[base + 1]
@@ -361,7 +359,7 @@ export function evalTarget(options: {
       selSetElemBn(base, setBonus, prepared.elementIdx) +
       selSkllTypeB(base, setBonus, prepared.skillMask)
 
-  const mainBase = mainIndex * MAIN_BUFF_SIZE
+  const mainBase = mainIndex * MAIN_BUFF_LEN
   const mainAtkP = mainEchoBuffs[mainBase]
   const mainAtkF = mainEchoBuffs[mainBase + 1]
   const mainER = mainEchoBuffs[mainBase + 12]
@@ -453,7 +451,8 @@ export function evalTarget(options: {
           prepared.defMult *
           prepared.dmgReduction *
           prepared.dmgBonus *
-          prepared.dmgAmplify
+          prepared.dmgAmplify *
+          prepared.aux0
 
       const critRate = Math.max(0, Math.min(1, prepared.critRate))
       const critDmg = prepared.critDmg

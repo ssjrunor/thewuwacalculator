@@ -151,7 +151,8 @@ export function EnemyPicker({
 
   const items = useMemo(() => {
     return enemies.map((entry) => {
-      const attributeKey = entry.element != null ? ENEMY_ELEM_ATTR[entry.element] : null
+      const element = entry.element ?? entry.elementArray[0] ?? null
+      const attributeKey = element != null ? ENEMY_ELEM_ATTR[element] : null
       const isSelected = entry.id === selNmyId
 
       return {
@@ -185,7 +186,7 @@ export function EnemyPicker({
                   style={attributeKey === 'physical' ? { filter: 'grayscale(1) brightness(0.6)' } : undefined}
                   onError={withDefIconM}
                 />
-                {ENEMY_ELEM_TXT[entry.element!]}
+                {ENEMY_ELEM_TXT[element!]}
               </span>
             ) : null}
           </>
