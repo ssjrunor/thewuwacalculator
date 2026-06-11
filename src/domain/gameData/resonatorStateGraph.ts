@@ -117,6 +117,48 @@ export function getResPanelControls(details: ResDtls | null | undefined, panel: 
   return getResStateControls(details, panel.stateKeys ?? panel.controls?.map((control) => control.key) ?? [])
 }
 
+function getAttachedKeys(details: ResDtls): Set<string> {
+  const keys = new Set<string>()
+
+  for (const group of getResModeGroups(details)) {
+    keys.add(group.controlKey)
+  }
+
+  for (const panel of details.statePanels) {
+    for (const key of panel.stateKeys ?? panel.controls?.map((control) => control.key) ?? []) {
+      keys.add(key)
+    }
+  }
+
+  for (const inherent of details.inherentSkills) {
+    for (const key of inherent.stateKeys ?? (inherent.control ? [inherent.control.key] : [])) {
+      keys.add(key)
+    }
+  }
+
+  for (const chain of details.resonanceChains) {
+    for (const key of chain.stateKeys ?? chain.controls?.map((control) => control.key) ?? []) {
+      keys.add(key)
+    }
+  }
+
+  return keys
+}
+
+export function getLooseResCtrls(details: ResDtls | null | undefined): ResStateControl[] {
+  if (!details) {
+    return EMPTY_CONTROLS
+  }
+
+  const attachedKeys = getAttachedKeys(details)
+
+  return getResStateControls(details)
+    .filter((control) =>
+      !attachedKeys.has(control.key)
+      && control.displayScope !== 'team',
+    )
+}
+
 export function getResInherentControls(details: ResDtls | null | undefined, inherent: ResDtls['inherentSkills'][number]): ResStateControl[] {
   return getResStateControls(details, inherent.stateKeys ?? (inherent.control ? [inherent.control.key] : []))
 }

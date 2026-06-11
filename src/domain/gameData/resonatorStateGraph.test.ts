@@ -4,6 +4,7 @@ import { maxResRt } from '@/domain/gameData/resonatorMax'
 import { normResCntrOpt, normResRtCnt, resResCntrPt } from '@/domain/gameData/controlOptions'
 import {
   getResChainControls,
+  getLooseResCtrls,
   getResModeGroups,
   getResStateControls,
 } from '@/domain/gameData/resonatorStateGraph'
@@ -321,6 +322,51 @@ describe('resonator state graph runtime behavior', () => {
     expect(s6Maxed.state.controls[controlKey]).toBe(60)
   })
 
+  it('keeps Aemeath Rupturous Trail select cap sequence-aware', () => {
+    const details = getResDtlsBy()['1210']
+    const controlKey = 'resonator:1210:rupturous_trail:value'
+    const control = getResStateControls(details).find((entry) => entry.key === controlKey)
+    const node = details.stateGraph?.nodes.find((entry) => entry.key === controlKey)
+    if (!control || !node) {
+      throw new Error('missing Aemeath Rupturous Trail fixture')
+    }
+
+    expect(control.kind).toBe('select')
+    expect(node.maxValue).toBe('60')
+    expect(resResCntrPt(runtimeFor('1210'), control).map((option) => String(normResCntrOpt(option).value))).toEqual([
+      '0',
+      '10',
+      '20',
+      '30',
+    ])
+
+    const baseRuntime = runtimeFor('1210')
+    const s6Runtime = {
+      ...baseRuntime,
+      base: {
+        ...baseRuntime.base,
+        sequence: 6,
+      },
+    }
+    expect(resResCntrPt(s6Runtime, control).map((option) => String(normResCntrOpt(option).value))).toEqual([
+      '0',
+      '10',
+      '20',
+      '30',
+      '40',
+      '50',
+      '60',
+    ])
+
+    const s0Maxed = maxResRt(runtimeFor('1210'), details, { targetSequence: 0 })
+    expect(s0Maxed.state.controls['resonator:1210:mode:value']).toBe('tune_rupture')
+    expect(s0Maxed.state.controls[controlKey]).toBe('30')
+
+    const s6Maxed = maxResRt(runtimeFor('1210'), details, { targetSequence: 6 })
+    expect(s6Maxed.state.controls['resonator:1210:mode:value']).toBe('tune_rupture')
+    expect(s6Maxed.state.controls[controlKey]).toBe('60')
+  })
+
   it('keeps Phoebe defaulted to none and hides confession-only states outside confession', () => {
     const details = getResDtlsBy()['1506']
     const runtime = runtimeFor('1506')
@@ -442,5 +488,14 @@ describe('resonator state graph runtime behavior', () => {
 
     expect(tuneStrainControls).toContain('resonator:1211:shattered_hours:active')
     expect(tuneStrainControls).toContain('inherent:1211:lvl70:off_tune_overcap')
+  })
+
+  it('surfaces loose non-team graph controls for the active resonator pane', () => {
+    const deniaLoose = getLooseResCtrls(getResDtlsBy()['1211']).map((control) => control.key)
+    const aemeathLoose = getLooseResCtrls(getResDtlsBy()['1210']).map((control) => control.key)
+
+    expect(deniaLoose).toContain('resonator:1211:shattered_hours:active')
+    expect(aemeathLoose).not.toContain('team:1210:silent_protection:active')
+    expect(aemeathLoose).not.toContain('team:1210:silent_protection_trigger:active')
   })
 })

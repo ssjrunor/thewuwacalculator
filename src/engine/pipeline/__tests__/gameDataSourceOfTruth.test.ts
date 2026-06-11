@@ -1134,8 +1134,12 @@ describe('game-data source of truth', () => {
     })
     expect(aemeathStates['resonator:1210:mode:value']?.options?.map((option) => option.label))
       .toEqual(['Tune Rupture', 'Fusion Burst'])
-    expect(aemeathStates['resonator:1210:rupturous_trail:value']?.options?.map((option) => option.id))
-      .toEqual(['0', '10', '20', '30'])
+    expect(aemeathStates['resonator:1210:rupturous_trail:value']?.optionsWhen?.map((optionSet) =>
+      optionSet.options.map((option) => option.id),
+    )).toEqual([
+      ['0', '10', '20', '30'],
+      ['0', '10', '20', '30', '40', '50', '60'],
+    ])
     expect(aemeathStates['team:1210:silent_protection:active']).toBeTruthy()
     expect(aemeathStates['team:1210:silent_protection_trigger:active']?.requires)
       .toEqual(['team:1210:silent_protection:active'])
@@ -1207,6 +1211,14 @@ describe('game-data source of truth', () => {
     expect(duetTuneRupture.stackMode).toBeUndefined()
     expect(duetTuneRupture.visible).toBe(true)
     expect(applySkllDat(aemeathTuneRuntime, duetTuneRupture).multiplier).toBeCloseTo(1.75)
+
+    const aemeathS6TuneRuntime = makeResRuntime(aemeath)
+    aemeathS6TuneRuntime.base.sequence = 6
+    aemeathS6TuneRuntime.state.controls['resonator:1210:mode:value'] = 'tune_rupture'
+    aemeathS6TuneRuntime.state.controls['resonator:1210:rupturous_trail:value'] = 60
+    const duetS6TuneRupture = resolveSkill(aemeathS6TuneRuntime, aemeathSkills['1210604'])
+
+    expect(applySkllDat(aemeathS6TuneRuntime, duetS6TuneRupture).multiplier).toBeCloseTo(2.95)
 
     const aemeathRuntime = makeResRuntime(aemeath)
     aemeathRuntime.base.sequence = 2
