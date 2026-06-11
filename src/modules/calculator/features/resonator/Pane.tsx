@@ -19,6 +19,7 @@ import {maxResRt} from '@/domain/gameData/resonatorMax'
 import {
   getResChainControls,
   getResInherentControls,
+  getLooseResCtrls,
   getResModeGroups,
   getResPanelControls,
   getResStateControls,
@@ -510,6 +511,9 @@ export function Resonator({
   }
 
   const maxRuntime = getMxdRt(runtime.base.sequence)
+  const looseCtrls = details
+    ? getLooseResCtrls(details).filter((control) => getCntrVsbl(control))
+    : []
 
   const allTrcNdsAct = details
     ? details.traceNodes.every((node) => runtime.base.traceNodes.activeNodes[node.id])
@@ -1093,6 +1097,21 @@ export function Resonator({
             </div>
           )
         })}
+
+        {looseCtrls.length > 0 ? (
+          <div className="pane-section">
+            <h4>Additional States</h4>
+            <div className="stack">
+              {looseCtrls.map((control) => (
+                <div key={control.key} className="resonator-extra-state">
+                  <div className="sequence-card-footer inherent-skill-footer">
+                    {viewCntrFld(control)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {details && runtime.base.sequence > 0 && (
