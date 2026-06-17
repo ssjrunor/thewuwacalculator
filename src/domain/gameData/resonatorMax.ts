@@ -104,7 +104,7 @@ function sameRtVal(
 }
 
 function getSkillTabs(details: ResDtls): Array<Exclude<SkillTabKey, 'outroSkill'>> {
-  return SKILL_TABS.filter((tab) => details.skillTabs.includes(tab))
+  return SKILL_TABS.filter((tab) => Boolean(details.skillsByTab[tab]))
 }
 
 function controlVisible(runtime: ResRuntime, control: ResStateControl): boolean {

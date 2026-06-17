@@ -6,6 +6,7 @@
 
 import { lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
+import { Navigate } from 'react-router-dom'
 import { RouteChrome } from '@/shared/ui/RouteChrome'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
 
@@ -48,7 +49,10 @@ export const rootRoutes = [
     path: '/',
     element: <RouteChrome />,
     children: [
-      { index: true, element: viewLazyRt(<CalcPage />) },
+      { index: true, element: <Navigate to="/calculator" replace /> },
+      { path: 'calculator', element: viewLazyRt(<CalcPage surface="calculator" />) },
+      { path: 'calculator/optimizer', element: viewLazyRt(<CalcPage surface="optimizer" />) },
+      { path: 'calculator/overview', element: viewLazyRt(<CalcPage surface="overview" />) },
       { path: 'settings', element: viewLazyRt(<SettingsPage />) },
       { path: 'info', element: viewLazyRt(<InfoPage />) },
       { path: 'guides', element: viewLazyRt(<GuidesPage />) },

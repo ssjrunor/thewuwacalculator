@@ -15,7 +15,6 @@ import type { EchoDef } from '@/domain/entities/catalog'
 import type { ResSeed } from '@/domain/entities/runtime'
 import type { ResDtls } from '@/domain/entities/resonator'
 import type { GenWpn } from '@/domain/entities/weapon'
-import { mkWpnSrcs } from '@/data/gameData/weapons/effects'
 import { initResCat, initResDtls } from '@/data/gameData/resonators/resonatorDataStore'
 import { initWpnData } from '@/data/gameData/weapons/weaponDataStore'
 
@@ -76,6 +75,7 @@ export async function initGameData(): Promise<void> {
         resSrcs,
         echoSources,
         enemySources,
+        weaponSources,
         weaponData,
         resCat,
         resDtls,
@@ -88,6 +88,7 @@ export async function initGameData(): Promise<void> {
           fetch('/data/resonator-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
           fetch('/data/echo-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
           fetch('/data/enemy-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
+          fetch('/data/weapon-sources.json').then((r) => r.json() as Promise<SrcPkg[]>),
           fetch('/data/weapon-data.json').then((r) => r.json() as Promise<GenWpn[]>),
           fetch('/data/resonator-catalog.json').then((r) => r.json() as Promise<ResSeed[]>),
           fetch('/data/resonator-details.json').then((r) => r.json() as Promise<Record<string, ResDtls>>),
@@ -109,7 +110,7 @@ export async function initGameData(): Promise<void> {
         ...resSrcs,
         ...echoSources,
         ...enemySources,
-        ...mkWpnSrcs(weaponData),
+        ...weaponSources,
         ...sntSetSrcs,
       ]
 

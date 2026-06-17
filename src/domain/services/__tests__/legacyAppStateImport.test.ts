@@ -108,7 +108,7 @@ describe('legacy app-state import', () => {
     expect(result.snapshot.version).toBe(22)
     expect(result.snapshot.ui.theme).toBe('dark')
     expect(result.snapshot.ui.leftPaneView).toBe('resonators')
-    expect(result.snapshot.ui.mainMode).toBe('optimizer')
+    expect(result.snapshot.ui).not.toHaveProperty('mainMode')
     expect(result.snapshot.calculator.session.activeResonatorId).toBe('1102')
 
     expect(Object.keys(result.snapshot.calculator.profiles)).toEqual(['1102'])

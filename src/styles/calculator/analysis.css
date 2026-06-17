@@ -30,9 +30,7 @@
   --ui-surface-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 5px 10px rgba(15, 23, 42, 0.08);
-  /*
-  overflow: hidden;
-  */
+
 }
 
 .resonator-settings-skills {
@@ -252,8 +250,7 @@
 
 .damage-grid tbody th,
 .damage-grid tbody td {
-  padding: 0.5rem 0;
-
+  padding: 0.35rem 0;
 }
 
 .damage-grid tbody th {

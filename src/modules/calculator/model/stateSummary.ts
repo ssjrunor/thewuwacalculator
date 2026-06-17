@@ -815,10 +815,12 @@ function sttIsVsbl(state: SourceState, context: EffectContext): boolean {
   return evalCond(state.enabledWhen, stateScope)
 }
 
-// build an effect runtime context for a specific source runtime relative to the active runtime
+// build an effect runtime context for a specific source runtime relative to the
+// target runtime being inspected and the current active runtime.
 function buildContext(
     srcRt: ResRuntime,
-    actRt: ResRuntime,
+    targetRt: ResRuntime,
+    activeRt: ResRuntime,
     runtimesById: Record<string, ResRuntime>,
     selTrgtByOwn: Record<string, string | null>,
     graph: CombatGraph | null,
@@ -827,7 +829,7 @@ function buildContext(
 ): EffectContext {
   const prepCtx = prepCntxByRe[srcRt.id] ?? null
   const teamMemIds = Array.from(
-      new Set([actRt.id, ...actRt.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
+      new Set([activeRt.id, ...activeRt.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
   )
   const sourceSeed = prepCtx ? null : getResSeedBy(srcRt.id)
 
@@ -838,10 +840,10 @@ function buildContext(
   // otherwise build a transient graph so we can still resolve combat context for teammates
   const trnsGrph = !srcPart && sourceSeed
       ? makeCombatGraph({
-        actRt: actRt,
+        actRt: activeRt,
         partRts: runtimesById,
         targetsByRes: {
-          [actRt.id]: selTrgtByOwn,
+          [activeRt.id]: selTrgtByOwn,
         },
       })
       : null
@@ -871,10 +873,10 @@ function buildContext(
     },
     sourceRuntime: srcRt,
     sourceFinalStats: cmbtCtx?.finalStats,
-    targetRuntime: actRt,
-    activeRuntime: actRt,
-    targetRuntimeId: actRt.id,
-    activeResonatorId: actRt.id,
+    targetRuntime: targetRt,
+    activeRuntime: activeRt,
+    targetRuntimeId: targetRt.id,
+    activeResonatorId: activeRt.id,
     teamMemberIds: teamMemIds,
     team: makeTeamComp(teamMemIds),
     echoSetCounts: countEchoSets(srcRt.build.echoes),
@@ -921,6 +923,7 @@ export function mkVrvwSttSmm(
     options: {
       cntxByResId?: Record<string, CombatContext>
       enemyProfile?: ReturnType<typeof makeEnemy>
+      activeRuntime?: ResRuntime | null
       showNqntStts?: boolean
       skillTarget?: SkillStateSummaryTarget | null
     } = {},
@@ -928,6 +931,9 @@ export function mkVrvwSttSmm(
   if (!actRt) {
     return []
   }
+
+  const targetRt = actRt
+  const activeRt = options.activeRuntime ?? targetRt
 
   // use explicit target overrides when given, otherwise try to pull them from the active graph participant
   const actPart = graph?.participants[graph.activeSlotId]
@@ -939,11 +945,13 @@ export function mkVrvwSttSmm(
 
   // include the active resonator and all non-empty teammates as sources
   const sourceIds = Array.from(
-      new Set([actRt.id, ...actRt.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
+      new Set([activeRt.id, ...activeRt.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
   )
 
   const groups = sourceIds.flatMap((sourceId) => {
-    const srcRt = runtimesById[sourceId] ?? (sourceId === actRt.id ? actRt : null)
+    const srcRt =
+        runtimesById[sourceId]
+        ?? (sourceId === targetRt.id ? targetRt : sourceId === activeRt.id ? activeRt : null)
     const srcRes = getResSeedBy(sourceId)
 
     if (!srcRt || !srcRes) {
@@ -952,7 +960,8 @@ export function mkVrvwSttSmm(
 
     const context = buildContext(
         srcRt,
-        actRt,
+        targetRt,
+        activeRt,
         runtimesById,
         selTrgtByOwn,
         graph,

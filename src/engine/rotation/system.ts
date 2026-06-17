@@ -14,11 +14,16 @@ import type {
   RotVl,
   RtChng,
 } from '@/domain/gameData/contracts'
+import {
+  getRotFormulaStatKey,
+  type RotFormulaStatKey,
+  type RotFormulaStats,
+} from '@/domain/gameData/rotationFormulaStats'
 import type { CombatGraph } from '@/domain/entities/combatGraph'
 import { findCombatPart, rbldCmbtPart } from '@/domain/state/combatGraph'
 import type { ResRuntime, ResSeed, RotationView } from '@/domain/entities/runtime'
 import type { SlotId } from '@/domain/entities/session'
-import type { SkillAggType, SkillDef } from '@/domain/entities/stats'
+import type { AttrBuffs, FinalStats, ModBuff, SkillAggType, SkillDef, SkillTypeBuffs } from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import { makeRuntimeCat } from '@/domain/services/runtimeSourceService'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
@@ -128,6 +133,7 @@ export interface RotNspcEnt {
   loopRunCnts?: Record<string, number>
   runtimeById?: Record<string, ResRuntime>
   selectedTargetsByRuntimeId?: Record<string, Record<string, string | null>>
+  activeResonatorId?: string
   enemy?: EnemyProfile
 }
 
@@ -159,6 +165,12 @@ interface RotVrlyStt {
 
   // temporary enemy writes shared across the run
   enemyPaths: Record<string, RotVrlyVl>
+
+  // temporary active-resonator selection used by active/activeOther effect scopes
+  activeResonatorId?: string
+
+  // formula-stat writes apply only inside later rotation feature calculations
+  formulaStats: RotFormulaStats
 }
 
 export interface PrepRotNvrn {
@@ -243,7 +255,7 @@ function withLoopNspc(
 // materialized graph only for feature rows so normal rotation execution stays unchanged.
 function withFeatNspc(
   state: RotationExec,
-): Pick<RotNspcEnt, 'runtimeById' | 'selectedTargetsByRuntimeId' | 'enemy'> {
+): Pick<RotNspcEnt, 'runtimeById' | 'selectedTargetsByRuntimeId' | 'activeResonatorId' | 'enemy'> {
   const graph = state.overlay.version === 0 ? getBaseGraph(state) : getMatGrph(state)
   const runtimeById: Record<string, ResRuntime> = {}
   const selectedTargetsByRuntimeId: Record<string, Record<string, string | null>> = {}
@@ -258,6 +270,7 @@ function withFeatNspc(
   return {
     runtimeById,
     selectedTargetsByRuntimeId,
+    activeResonatorId: getActResId(state),
     enemy: getActEnemy(state),
   }
 }
@@ -266,7 +279,7 @@ function withFeatNspc(
 // otherwise return the same state untouched
 function ppndNspcEnt(
   state: RotationExec,
-  entry: Omit<RotNspcEnt, 'loopRuns' | 'loopRunCnts' | 'runtimeById' | 'selectedTargetsByRuntimeId' | 'enemy'>,
+  entry: Omit<RotNspcEnt, 'loopRuns' | 'loopRunCnts' | 'runtimeById' | 'selectedTargetsByRuntimeId' | 'activeResonatorId' | 'enemy'>,
 ): RotationExec {
   if (!state.nspcNtrs) {
     return state
@@ -369,7 +382,7 @@ function shldRunRotNo(
 
   const scpResId = resNodeResId(state, node, fallbackResId)
   const participant = getPart(state, scpResId)
-  const actRt = getPrmrRt(state) ?? participant?.runtime
+  const actRt = getActRt(state) ?? participant?.runtime
   if (!participant || !actRt) {
     return false
   }
@@ -384,6 +397,125 @@ function shldRunRotNo(
       getActEnemy(state),
     ),
   )
+}
+
+function sumSkillHits(skill: Pick<SkillDef, 'hits'>): number {
+  return skill.hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0)
+}
+
+function addSkillMv(skill: SkillDef, value: number): SkillDef {
+  const delta = value / 100
+  if (delta === 0 || skill.multiplier <= 0) {
+    return skill
+  }
+
+  if (skill.hits.length === 0) {
+    return {
+      ...skill,
+      multiplier: skill.multiplier + delta,
+    }
+  }
+
+  const scale = (skill.multiplier + delta) / skill.multiplier
+  const hits = skill.hits.map((hit) => ({
+    ...hit,
+    multiplier: hit.multiplier * scale,
+  }))
+
+  return {
+    ...skill,
+    multiplier: sumSkillHits({ hits }),
+    hits,
+  }
+}
+
+function scaleSkillMv(skill: SkillDef, value: number): SkillDef {
+  const scale = 1 + value / 100
+  if (scale === 1) {
+    return skill
+  }
+
+  if (skill.hits.length === 0) {
+    return {
+      ...skill,
+      multiplier: skill.multiplier * scale,
+    }
+  }
+
+  const hits = skill.hits.map((hit) => ({
+    ...hit,
+    multiplier: hit.multiplier * scale,
+  }))
+
+  return {
+    ...skill,
+    multiplier: sumSkillHits({ hits }),
+    hits,
+  }
+}
+
+function applyFormulaMv(skill: SkillDef, formula: RotFormulaStats): SkillDef {
+  const mvAdd = formula.mvAdd ?? 0
+  const mvScale = formula.mvScale ?? 0
+
+  if (mvAdd === 0 && mvScale === 0) {
+    return skill
+  }
+
+  const scale = 1 + mvScale / 100
+
+  if (isNegFfctArch(skill.archetype) && typeof skill.fixedMv === 'number') {
+    return {
+      ...skill,
+      fixedMv: (skill.fixedMv + mvAdd) * scale,
+    }
+  }
+
+  if ((skill.archetype === 'tuneRupture' || skill.archetype === 'hack') && skill.hits.length === 0) {
+    const current = skill.tuneRuptureScale ?? 16
+    return {
+      ...skill,
+      tuneRuptureScale: (current + mvAdd) * scale,
+    }
+  }
+
+  return scaleSkillMv(addSkillMv(skill, mvAdd), mvScale)
+}
+
+function applyFormulaToSkill(skill: SkillDef, formula: RotFormulaStats): SkillDef {
+  let nextSkill = applyFormulaMv(skill, formula)
+
+  if ((formula.fixedDmg ?? 0) !== 0) {
+    nextSkill = {
+      ...nextSkill,
+      fixedDmg: (nextSkill.fixedDmg ?? 0) + (formula.fixedDmg ?? 0),
+    }
+  }
+
+  if ((formula.fixedMv ?? 0) !== 0 && isNegFfctArch(nextSkill.archetype)) {
+    nextSkill = {
+      ...nextSkill,
+      fixedMv: (nextSkill.fixedMv ?? 0) + (formula.fixedMv ?? 0),
+    }
+  }
+
+  if (nextSkill.archetype === 'tuneRupture') {
+    return {
+      ...nextSkill,
+      tuneRuptureCritRate: (nextSkill.tuneRuptureCritRate ?? 0) + (formula.critRate ?? 0) / 100,
+      tuneRuptureCritDmg: (nextSkill.tuneRuptureCritDmg ?? 1) + (formula.critDmg ?? 0) / 100,
+    }
+  }
+
+  if (isNegFfctArch(nextSkill.archetype)) {
+    return {
+      ...nextSkill,
+      negativeEffectCritRate: (nextSkill.negativeEffectCritRate ?? 0) + (formula.critRate ?? 0) / 100,
+      negativeEffectCritDmg: (nextSkill.negativeEffectCritDmg ?? 1) + (formula.critDmg ?? 0) / 100,
+    }
+  }
+
+  return nextSkill
 }
 
 // scale either the flat multiplier or each hit entry depending on the skill form
@@ -408,7 +540,7 @@ function scaleSkill(skill: SkillDef, multiplier: number): SkillDef {
 
   return {
     ...skill,
-    multiplier: hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0),
+    multiplier: sumSkillHits({ hits }),
     hits,
   }
 }
@@ -533,6 +665,8 @@ function mkRotStt(
       rtPthsByRejq: {},
       routingPaths: {},
       enemyPaths: {},
+      activeResonatorId: undefined,
+      formulaStats: {},
     },
     rslvRtCch: {},
     mtrlGrphVrsn: -1,
@@ -561,6 +695,119 @@ function cloneRotation(state: RotationExec): RotationExec {
 // fetch the runtime of the primary slot for current state
 function getPrmrRt(state: RotationExec): ResRuntime | null {
   return getRslvPartR(state, state.environment.prmrResId)
+}
+
+// active-targeted effects resolve through the combat graph, but rotations can
+// temporarily move the active slot without mutating the user's saved team setup.
+function getActResId(state: RotationExec): string {
+  return state.overlay.activeResonatorId ?? state.environment.prmrResId
+}
+
+function getActRt(state: RotationExec): ResRuntime | null {
+  return getRslvPartR(state, getActResId(state)) ?? getPrmrRt(state)
+}
+
+function getRotFormula(state: RotationExec, key: RotFormulaStatKey): number {
+  const value = state.overlay.formulaStats[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function hasRotFormulaStats(state: RotationExec): boolean {
+  return Object.values(state.overlay.formulaStats).some((value) => Number.isFinite(value) && value !== 0)
+}
+
+function cloneModBuffs<T extends Record<string, ModBuff>>(buffs: T): T {
+  return Object.fromEntries(
+    Object.entries(buffs).map(([key, value]) => [key, { ...value }]),
+  ) as T
+}
+
+function cloneFinalStats(finalStats: FinalStats): FinalStats {
+  return {
+    ...finalStats,
+    atk: { ...finalStats.atk },
+    hp: { ...finalStats.hp },
+    def: { ...finalStats.def },
+    attribute: cloneModBuffs(finalStats.attribute) as AttrBuffs,
+    skillType: cloneModBuffs(finalStats.skillType) as SkillTypeBuffs,
+    negativeEffect: Object.fromEntries(
+      Object.entries(finalStats.negativeEffect).map(([key, value]) => [key, { ...value }]),
+    ) as FinalStats['negativeEffect'],
+    immunities: finalStats.immunities
+      ? {
+        all: finalStats.immunities.all,
+        elements: [...finalStats.immunities.elements],
+        skillTypes: [...finalStats.immunities.skillTypes],
+        negativeEffects: [...finalStats.immunities.negativeEffects],
+      }
+      : undefined,
+  }
+}
+
+function isNegFfctArch(archetype: SkillDef['archetype']): boolean {
+  return Boolean(getNegFfctCm(archetype))
+}
+
+function addBaseFormulaStats(finalStats: FinalStats, formula: RotFormulaStats): void {
+  finalStats.atk.final += finalStats.atk.base * ((formula.atkPercent ?? 0) / 100) + (formula.atkFlat ?? 0)
+  finalStats.hp.final += finalStats.hp.base * ((formula.hpPercent ?? 0) / 100) + (formula.hpFlat ?? 0)
+  finalStats.def.final += finalStats.def.base * ((formula.defPercent ?? 0) / 100) + (formula.defFlat ?? 0)
+  finalStats.energyRegen += formula.energyRegen ?? 0
+  finalStats.healingBonus += formula.healingBonus ?? 0
+  finalStats.shieldBonus += formula.shieldBonus ?? 0
+  finalStats.amplify += formula.dmgAmp ?? 0
+  finalStats.dmgVuln += formula.dmgVuln ?? 0
+  finalStats.tbb += formula.tuneBreakBoost ?? 0
+  finalStats.special += formula.special ?? 0
+  finalStats.flatDmg += formula.flatDmg ?? 0
+  finalStats.attribute.all.resShred += formula.resIgnore ?? 0
+}
+
+function addFormulaDmgBonus(finalStats: FinalStats, skill: SkillDef, value: number): void {
+  if (value === 0) {
+    return
+  }
+
+  if (skill.archetype === 'skillDamage') {
+    finalStats.dmgBonus += value
+    return
+  }
+
+  if (skill.archetype === 'tuneRupture' || skill.archetype === 'hack') {
+    finalStats.skillType[skill.archetype].dmgBonus += value
+    return
+  }
+
+  if (isNegFfctArch(skill.archetype)) {
+    for (const skillType of skill.skillType) {
+      if (skillType !== 'all') {
+        finalStats.skillType[skillType].dmgBonus += value
+      }
+    }
+  }
+}
+
+function applyFormulaToStats(
+  finalStats: FinalStats,
+  skill: SkillDef,
+  formula: RotFormulaStats,
+): FinalStats {
+  const nextStats = cloneFinalStats(finalStats)
+  addBaseFormulaStats(nextStats, formula)
+
+  if (skill.archetype === 'skillDamage') {
+    nextStats.critRate += formula.critRate ?? 0
+    nextStats.critDmg += formula.critDmg ?? 0
+  }
+
+  if (isNegFfctArch(skill.archetype)) {
+    nextStats.defShred += formula.defIgnore ?? 0
+  } else {
+    nextStats.defIgnore += formula.defIgnore ?? 0
+  }
+
+  addFormulaDmgBonus(nextStats, skill, formula.dmgBonus ?? 0)
+  return nextStats
 }
 
 // choose the resonator id a node should operate on
@@ -702,8 +949,10 @@ function getMatGrph(state: RotationExec): CombatGraph {
   }
 
   const baseGraph = getBaseGraph(state)
+  const activeSlotId = findCombatPart(baseGraph, getActResId(state)) ?? baseGraph.activeSlotId
   const nextGraph: CombatGraph = {
     ...baseGraph,
+    activeSlotId,
     participants: {
       ...baseGraph.participants,
     },
@@ -821,6 +1070,44 @@ function writeRotVrly(
   path: string,
   value: RotVrlyVl,
 ): RotationExec {
+  const nrmlPath = path.replace(/^runtime\./, '')
+  const formulaKey = getRotFormulaStatKey(path)
+
+  if (formulaKey) {
+    const nextValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
+
+    return {
+      ...state,
+      overlay: {
+        ...state.overlay,
+        version: state.overlay.version + 1,
+        formulaStats: {
+          ...state.overlay.formulaStats,
+          [formulaKey]: nextValue,
+        },
+      },
+    }
+  }
+
+  if (nrmlPath === 'rotation.activeResonatorId') {
+    const activeResonatorId =
+      typeof value === 'string' && findCombatPart(getBaseGraph(state), value)
+        ? value
+        : state.environment.prmrResId
+
+    return {
+      ...state,
+      overlay: {
+        ...state.overlay,
+        version: state.overlay.version + 1,
+        activeResonatorId,
+      },
+      rslvRtCch: {},
+      mtrlGrphVrsn: -1,
+      mtrlGrph: null,
+    }
+  }
+
   if (isEnemySttsP(path)) {
     return {
       ...state,
@@ -864,8 +1151,6 @@ function writeRotVrly(
       mtrlGrph: null,
     }
   }
-
-  const nrmlPath = path.replace(/^runtime\./, '')
 
   if (nrmlPath.startsWith('state.controls.')) {
     return {
@@ -1021,6 +1306,23 @@ function applyRtChng(
   fallbackResId: string,
 ): RotationExec {
   const tgtResId = change.resonatorId ?? fallbackResId
+  const formulaKey = getRotFormulaStatKey(change.path)
+
+  if (formulaKey) {
+    const nextValue =
+      change.type === 'add'
+        ? getRotFormula(state, formulaKey) + change.value
+        : change.type === 'toggle'
+          ? Number(change.value ?? true)
+          : Number(change.value)
+
+    return writeRotVrly(
+      state,
+      tgtResId,
+      change.path,
+      Number.isFinite(nextValue) ? nextValue : 0,
+    )
+  }
 
   if (isEnemySttsP(change.path) || isEnemyCmbtP(change.path)) {
     let nextValue: string | number | boolean
@@ -1092,6 +1394,15 @@ function readRtChngVl(
   change: RtChng,
   fallbackResId: string,
 ): string | number | boolean | undefined {
+  const formulaKey = getRotFormulaStatKey(change.path)
+  if (formulaKey) {
+    return getRotFormula(state, formulaKey)
+  }
+
+  if (change.path.replace(/^runtime\./, '') === 'rotation.activeResonatorId') {
+    return getActResId(state)
+  }
+
   if (isEnemySttsP(change.path) || isEnemyCmbtP(change.path)) {
     return readPathValue(getActEnemy(state), getEnemyPath(change.path)) as string | number | boolean | undefined
   }
@@ -1207,11 +1518,11 @@ function runFeatNode(
   }
 
   const { participant, feature } = featureData
-  const prmrRt = getPrmrRt(lclFeatStt) ?? participant.runtime
+  const actRt = getActRt(lclFeatStt) ?? participant.runtime
   const featureScope = buildScope(
     participant.runtime,
     feature.source,
-    prmrRt,
+    actRt,
     participant.runtime,
     getActEnemy(lclFeatStt),
   )
@@ -1224,7 +1535,7 @@ function runFeatNode(
     })
   }
 
-  const nodeState = resFeatNodeS(prmrRt, node)
+  const nodeState = resFeatNodeS(actRt, node)
   if (!nodeState.enabled) {
     return ppndNspcEnt(lclFeatStt, {
       nodeId: node.id,
@@ -1258,7 +1569,13 @@ function runFeatNode(
   }
 
   const ftrdSkll = slcSkllForFe(skillResult, feature)
-  const scaledSkill = scaleSkill(ftrdSkll, nodeState.multiplier)
+  const formulaSkill = hasRotFormulaStats(lclFeatStt)
+    ? applyFormulaToSkill(ftrdSkll, lclFeatStt.overlay.formulaStats)
+    : ftrdSkll
+  const scaledSkill = scaleSkill(formulaSkill, nodeState.multiplier)
+  const formulaFinalStats = hasRotFormulaStats(lclFeatStt)
+    ? applyFormulaToStats(participant.context.finalStats, scaledSkill, lclFeatStt.overlay.formulaStats)
+    : participant.context.finalStats
 
   // negative-effect skills depend on stack count in combat state
   // this block supports:
@@ -1306,7 +1623,7 @@ function runFeatNode(
 
         if (stackSeries.length === 0) {
           return calcSkillDamage(
-            participant.context.finalStats,
+            formulaFinalStats,
             scaledSkill,
             participant.context.enemy,
             participant.runtime.base.level,
@@ -1319,7 +1636,7 @@ function runFeatNode(
 
         return stackSeries.reduce<ReturnType<typeof calcSkillDamage> | null>((total, stackValue) => {
           const nextResult = calcSkillDamage(
-            participant.context.finalStats,
+            formulaFinalStats,
             scaledSkill,
             participant.context.enemy,
             participant.runtime.base.level,
@@ -1331,7 +1648,7 @@ function runFeatNode(
 
           return total ? mrgDmgRslts(total, nextResult) : nextResult
         }, null) ?? calcSkillDamage(
-          participant.context.finalStats,
+          formulaFinalStats,
           scaledSkill,
           participant.context.enemy,
           participant.runtime.base.level,
@@ -1339,7 +1656,7 @@ function runFeatNode(
         )
       })()
       : calcSkillDamage(
-        participant.context.finalStats,
+        formulaFinalStats,
         scaledSkill,
         participant.context.enemy,
         participant.runtime.base.level,
@@ -1450,7 +1767,8 @@ function runRptNode(
   const scpResId = resNodeResId(state, node, fallbackResId)
   const participant = getPart(state, scpResId)
   const rotRt = getPrmrRt(state)
-  if (!participant || !rotRt) {
+  const actRt = getActRt(state) ?? rotRt
+  if (!participant || !rotRt || !actRt) {
     return ppndNspcEnt(state, {
       nodeId: node.id,
       nodeType: node.type,
@@ -1466,7 +1784,7 @@ function runRptNode(
         participant.runtime,
         { type: 'resonator', id: participant.seed.id },
         getRptNodeTm(rotRt, node),
-        rotRt,
+        actRt,
         participant.runtime,
         getActEnemy(state),
       ),

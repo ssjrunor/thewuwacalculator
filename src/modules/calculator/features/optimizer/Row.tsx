@@ -148,7 +148,7 @@ export function Row({
               onError={withDefIconM}
             />
           ) : (
-            <span className="opt-result-row__placeholder">—</span>
+            <span className="opt-result-row__placeholder">-</span>
           )}
         </div>
       ) : null}

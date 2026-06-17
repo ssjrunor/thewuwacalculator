@@ -42,20 +42,24 @@ describe('route context menu undo/redo builders', () => {
       throw new Error('expected array submenus')
     }
 
-    undoSubmenu[1]?.type !== 'separator' && undoSubmenu[1]?.onSelect?.({
-      data: null,
-      eventTarget: null,
-      clientX: 0,
-      clientY: 0,
-      close: vi.fn(),
-    })
-    redoSubmenu[0]?.type !== 'separator' && redoSubmenu[0]?.onSelect?.({
-      data: null,
-      eventTarget: null,
-      clientX: 0,
-      clientY: 0,
-      close: vi.fn(),
-    })
+    if (undoSubmenu[1]?.type !== 'separator') {
+      undoSubmenu[1]?.onSelect?.({
+        data: null,
+        eventTarget: null,
+        clientX: 0,
+        clientY: 0,
+        close: vi.fn(),
+      })
+    }
+    if (redoSubmenu[0]?.type !== 'separator') {
+      redoSubmenu[0]?.onSelect?.({
+        data: null,
+        eventTarget: null,
+        clientX: 0,
+        clientY: 0,
+        close: vi.fn(),
+      })
+    }
 
     expect(onUndoTo).toHaveBeenCalledWith(1)
     expect(onRedoTo).toHaveBeenCalledWith(0)

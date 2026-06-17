@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Validates the max-state-path enumerator against real resonator
-               data — confirming the divergence classifier yields the expected
+               data, confirming the divergence classifier yields the expected
                number of distinct maximal state configurations per resonator.
 */
 

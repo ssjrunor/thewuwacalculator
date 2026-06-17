@@ -36,18 +36,6 @@
   opacity: 0.75;
 }
 
-.toolbar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 3.75rem;
-  padding: 0 1rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--toolbar-bg);
-  backdrop-filter: blur(10px);
-}
-
 .layout {
   display: flex;
   flex-direction: column;
@@ -58,208 +46,6 @@
 
 .layout.collapsed-mode {
   overflow-y: auto;
-}
-
-.toolbar-icon-button {
-  width: 3rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-  transition: ease all 0.3s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.toolbar-icon-button:focus,
-.toolbar-icon-button:active,
-.toolbar-icon-button:hover {
-  background-color: transparent;
-}
-
-.toolbar-icon-button:active {
-  scale: 1;
-}
-
-.toolbar-icon-button img {
-  object-fit: contain;
-  transition: filter 0.3s ease, transform 0.3s ease;
-}
-
-.toolbar-title {
-  flex: 1;
-  padding-left: 3rem;
-  text-align: center;
-  margin: 0;
-  font-size: 0.96rem;
-  letter-spacing: 0.03em;
-}
-
-.hamburger-button {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.75rem;
-  height: 1.375rem;
-  border: none;
-  background: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  outline: none;
-  box-shadow: none;
-  transition: transform 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.hamburger-button span {
-  width: 100%;
-  height: 0.25rem;
-  border-radius: 0.125rem;
-  transition: all 0.3s ease;
-}
-
-.hamburger-button.open span:nth-child(1) {
-  transform: translateY(0.625rem) rotate(45deg);
-}
-
-.hamburger-button.open span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger-button.open span:nth-child(3) {
-  transform: translateY(-0.5rem) rotate(-45deg);
-}
-
-.horizontal-layout {
-  display: flex;
-  height: calc(100vh - 3.75rem);
-}
-
-.sidebar {
-  width: 13.75rem;
-  height: 100%;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  transition: width 0.3s ease;
-  backdrop-filter: blur(10px);
-}
-
-.sidebar.collapsed {
-  width: 3.75rem;
-  min-width: 3.75rem;
-}
-
-.sidebar-content,
-.sidebar-footer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-}
-
-.sidebar-button,
-.sidebar-sub-button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 3.75rem auto;
-  align-items: center;
-  height: 3rem;
-  border: none;
-  margin: 0;
-  padding: 0;
-  text-align: left;
-  background: none;
-  color: var(--text);
-  outline: none;
-  box-shadow: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 300ms ease, grid-template-columns 0.2s ease;
-  text-decoration: none;
-  overflow: visible;
-}
-
-.sidebar-button:focus,
-.sidebar-button:active,
-.sidebar-sub-button:focus,
-.sidebar-sub-button:active {
-  background-color: transparent;
-  outline: none;
-  box-shadow: none;
-}
-
-.sidebar-button:hover,
-.sidebar-sub-button:hover {
-  background: var(--hover);
-}
-
-.sidebar-button.selected,
-.sidebar-button.active {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--text);
-}
-
-.icon-slot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  height: 3rem;
-}
-
-.sidebar-button .icon-slot svg,
-.sidebar-sub-button .icon-slot svg {
-  transition: transform 0.3s ease, color 0.3s ease;
-}
-
-.sidebar-button .icon-slot svg {
-  will-change: transform;
-}
-
-.icon-slot img {
-  display: block;
-  user-select: none;
-}
-
-.sidebar-button:hover .icon-slot svg,
-.sidebar-sub-button:hover .icon-slot svg {
-  color: var(--accent);
-}
-
-.sidebar-button:hover .changelog-icon {
-  transform: rotate(-10deg);
-  transition: transform 0.2s ease;
-}
-
-.sidebar-button:hover .help-icon {
-  transform: scale(1.15) rotate(10deg);
-}
-
-.sidebar-button.discord:hover {
-  color: #5865f2;
-}
-
-.sidebar-button.discord:hover .discord-icon {
-  transform: scale(1.12) rotate(6deg);
-  filter: drop-shadow(0 0 4px rgba(88, 101, 242, 0.6));
-}
-
-.discord-icon {
-  transition: ease all 0.3s;
 }
 
 @keyframes rotate-shake {
@@ -284,63 +70,6 @@
   }
 }
 
-.reset-icon {
-  transition: transform 0.2s ease;
-}
-
-.sidebar-button.reset:hover {
-  color: #e53935;
-}
-
-.sidebar-button.reset:hover .reset-icon {
-  animation: rotate-shake 0.6s ease-in-out;
-  color: #e53935 !important;
-}
-
-.theme-toggle-icon {
-  position: relative;
-}
-
-.theme-toggle-icon svg {
-  position: absolute;
-  transition: transform 0.4s ease, opacity 0.4s ease;
-}
-
-.theme-toggle-icon .icon-sun,
-.theme-toggle-icon .icon-moon {
-  transition: color 0.3s ease, transform 0.3s ease;
-}
-
-.theme-toggle-icon .icon-sun {
-  opacity: 1;
-  transform: rotate(0deg);
-}
-
-.theme-toggle-icon .icon-moon {
-  opacity: 0;
-  transform: rotate(90deg);
-}
-
-.dark .theme-toggle-icon .icon-sun,
-.dark-alt .theme-toggle-icon .icon-sun,
-.cosmic-rainbow .theme-toggle-icon .icon-sun,
-.scarlet-nebula .theme-toggle-icon .icon-sun,
-.emerald-forest .theme-toggle-icon .icon-sun,
-.graphite-pop .theme-toggle-icon .icon-sun {
-  opacity: 0;
-  transform: rotate(90deg);
-}
-
-.dark .theme-toggle-icon .icon-moon,
-.dark-alt .theme-toggle-icon .icon-moon,
-.cosmic-rainbow .theme-toggle-icon .icon-moon,
-.scarlet-nebula .theme-toggle-icon .icon-moon,
-.emerald-forest .theme-toggle-icon .icon-moon,
-.graphite-pop .theme-toggle-icon .icon-moon {
-  opacity: 1;
-  transform: rotate(0deg);
-}
-
 @keyframes spin360 {
   from {
     transform: rotate(0deg);
@@ -349,12 +78,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-.sidebar-sub-button:hover .settings-icon,
-.sidebar-button:hover .settings-icon {
-  transform: scale(1.15);
-  animation: spin360 5s linear infinite;
 }
 
 @keyframes iconPulse {
@@ -371,106 +94,30 @@
   }
 }
 
-.sidebar-button:hover .theme-toggle-icon .icon-sun {
-  color: #facc15 !important;
-  animation: iconPulse 0.6s ease-in-out;
-}
-
-.sidebar-button:hover .theme-toggle-icon .icon-moon {
-  color: #7970da !important;
-  animation: iconPulse 0.6s ease-in-out;
-}
-
-.sidebar-button:active .icon-slot svg {
-  transform: scale(0.95) rotate(0deg);
-}
-
-.label-slot {
-  display: flex;
-  align-items: center;
-  padding-left: 0.5rem;
-  font-size: 1rem;
-  overflow: visible;
-  max-width: 11.25rem;
-  transition: max-width 0.3s ease;
-}
-
-.label-text {
-  white-space: nowrap;
-  overflow: hidden;
-  display: inline-block;
-  font-weight: 700;
-  opacity: 1;
-  transform: translateX(0);
-  transition: opacity 0.9s ease, transform 0.3s ease;
-}
-
-.sidebar.collapsed .sidebar-button,
-.sidebar.collapsed .sidebar-sub-button {
-  grid-template-columns: 3.75rem 0;
-}
-
-.sidebar.collapsed .label-slot {
-  max-width: 0;
-}
-
-.sidebar.collapsed .label-text {
-  opacity: 0;
-  transform: translateX(-0.625rem);
-}
-
-.sidebar-dropdown {
-  overflow: hidden;
-  max-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-radius: 0 0 0.5rem 0.5rem;
-  transition: max-height 0.3s ease;
-}
-
-.sidebar-dropdown.open {
-  max-height: 18.75rem;
-}
-
-.sidebar-toolbar {
-  display: flex;
-  flex-direction: column;
-}
-
 .main-content {
   flex: 1;
   height: 100%;
   min-height: 0;
   overflow: auto;
   padding: 0;
+  border-top-left-radius: 1rem;
+  border-top: 1px solid var(--chrome-line);
+  border-left: 1px solid var(--chrome-line);
   transition: all 0.3s ease;
 }
 
 .mobile-overlay {
   position: fixed;
-  top: 3.75rem;
+  top: 3rem;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  border-top: 1px solid var(--chrome-line);
   z-index: 999;
   opacity: 0;
-  backdrop-filter: blur(1px);
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.light-text .mobile-overlay {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-  background:
-          linear-gradient(90deg, rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.08) 28%, transparent 60%);
   backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  transition: opacity 360ms ease;
-
+  pointer-events: none;
+  transition: opacity 300ms ease 100ms;
 }
 
 .mobile-overlay.visible {

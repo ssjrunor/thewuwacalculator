@@ -36,43 +36,6 @@
 }
 
 @media (max-width: 1070px) {
-  .sidebar {
-    position: absolute;
-    top: 3.75rem;
-    left: 0;
-    z-index: 1000;
-
-    opacity: 0;
-    transform: translate3d(-1.25rem, 0, 0) scale(0.985);
-    transform-origin: left center;
-    pointer-events: none;
-    will-change: transform, opacity, filter;
-
-    backdrop-filter: blur(6px) saturate(1.35);
-    -webkit-backdrop-filter: blur(24px) saturate(1.35);
-
-    border-right: 1px solid rgb(255 255 255 / 0.14);
-    box-shadow:
-            0 0 0 1px rgb(255 255 255 / 0.04) inset,
-            0 24px 60px rgba(0, 0, 0, 0.15),
-            0 8px 20px rgb(0 0 0 / 0.18);
-
-    transition:
-            transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
-            opacity 360ms ease,
-            filter 360ms ease;
-  }
-
-  .toolbar {
-    z-index: 1000;
-  }
-
-  .sidebar.open {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    pointer-events: auto;
-  }
-
   .main-content {
     height: auto;
   }
@@ -82,7 +45,7 @@
   .calculator-workspace,
   .calculator-stage--workspace {
     overflow: auto;
-    max-height: calc(100vh - 3.75rem);
+    max-height: calc(100vh - 3rem);
   }
 
   .mode-toolbar {
@@ -173,7 +136,6 @@
   .toolbar-title {
     font-size: 0.84rem;
     padding-left: 2.2rem;
-    text-align: left;
   }
 
   .timeline-row {
@@ -255,7 +217,164 @@
   }
 }
 
+@media (max-width: 567px) {
+  .horizontal-layout {
+    --sidebar-expanded-width: 12.5rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
+  }
+
+  .app-shell:has(.sidebar.open) .toolbar {
+    background: var(--bg);
+    z-index: 1000;
+  }
+
+  .app-shell:has(.sidebar.open) .main-content {
+    border-color: transparent;
+  }
+
+  .main-content {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .mobile-overlay {
+    position: relative;
+    inset: auto;
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    height: auto;
+    align-self: stretch;
+    justify-self: stretch;
+    z-index: 2;
+  }
+
+  .mobile-overlay.visible,
+  .mobile-overlay.closing {
+    z-index: 2;
+  }
+
+  .sidebar.open .sidebar-rail-divider::before {
+    right: 0;
+  }
+
+  .sidebar.open {
+    width: var(--sidebar-expanded-width);
+    min-width: var(--sidebar-expanded-width);
+    flex-basis: var(--sidebar-expanded-width);
+    z-index: 1000;
+    background: var(--bg);
+    border-color: var(--chrome-line);
+    padding-right: 1rem;
+  }
+
+  .sidebar {
+    position: relative;
+    grid-column: 1;
+    grid-row: 1;
+    width: var(--sidebar-collapsed-width);
+    min-width: var(--sidebar-collapsed-width);
+    height: auto;
+    flex-basis: var(--sidebar-collapsed-width);
+    padding-right: 0;
+    z-index: 3;
+    border-right: 1px solid transparent;
+    pointer-events: auto;
+    transition:
+      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      min-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      flex-basis 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      padding-right 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      background 300ms ease,
+      border-color 300ms ease;
+  }
+
+  .sidebar:not(.open) .sidebar-rail-divider {
+    padding: 0.3rem 0 0;
+  }
+
+  .sidebar:not(.open) .sidebar-rail-divider span,
+  .sidebar:not(.open) .label-text,
+  .sidebar:not(.open) .sidebar-rail-chevron {
+    opacity: 0;
+  }
+
+  .sidebar:not(.open) .sidebar-rail-divider span {
+    max-height: 0;
+  }
+
+  .sidebar:not(.open) .label-slot {
+    max-width: 0;
+    padding-left: 0;
+  }
+
+  .sidebar:not(.open) .sidebar-button,
+  .sidebar:not(.open) .sidebar-sub-button {
+    grid-template-columns: var(--sidebar-collapsed-width) 0;
+  }
+}
+
 @media (max-width: 500px) {
+  .horizontal-layout {
+    display: flex;
+  }
+
+  .main-content {
+    grid-column: auto;
+    grid-row: auto;
+    border-top-left-radius: 0;
+    border-left: unset;
+  }
+
+  .mobile-overlay {
+    position: fixed;
+    inset: auto;
+    top: 3rem;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    grid-column: auto;
+    grid-row: auto;
+    z-index: 999;
+  }
+
+  .mobile-overlay.visible,
+  .mobile-overlay.closing {
+    z-index: 999;
+  }
+
+  .sidebar {
+    position: absolute;
+    grid-column: auto;
+    grid-row: auto;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--sidebar-expanded-width);
+    min-width: var(--sidebar-expanded-width);
+    height: auto;
+    flex-basis: var(--sidebar-expanded-width);
+    padding-right: 1rem;
+    opacity: 0;
+    transform: translate3d(-1.25rem, 0, 0) scale(0.985);
+    transform-origin: left center;
+    pointer-events: none;
+    will-change: transform, opacity, filter;
+    transition:
+      transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 360ms ease,
+      filter 360ms ease;
+  }
+
+  .sidebar.open {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    pointer-events: auto;
+  }
+
   .overview-mosaic {
     grid-template-columns: 1fr;
     grid-template-areas:

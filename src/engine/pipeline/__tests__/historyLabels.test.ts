@@ -139,20 +139,9 @@ describe('history labels', () => {
     expect(useAppStore.getState().undoHist()[0]?.label).toBe('Updated Layout')
   })
 
-  it('records a single pane-change action when returning from another mode', () => {
-    useAppStore.getState().setMainMode('optimizer')
-    useAppStore.setState((state) => ({
-      ...state,
-      history: {
-        past: [],
-        future: [],
-        isRestoring: false,
-      },
-    }))
-
+  it('records a single pane-change action when opening a calculator pane', () => {
     useAppStore.getState().openLeftView('echoes')
 
-    expect(useAppStore.getState().ui.mainMode).toBe('default')
     expect(useAppStore.getState().ui.leftPaneView).toBe('echoes')
     expect(useAppStore.getState().undoHist().map((entry) => entry.label)).toEqual(['Opened Echoes Pane'])
   })

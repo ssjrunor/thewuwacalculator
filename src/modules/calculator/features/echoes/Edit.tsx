@@ -250,7 +250,7 @@ export function Edit({
                   value={mainStatKey}
                   options={Object.entries(primaryOptions).map(([key, value]) => ({
                     value: key,
-                    label: `${fmtStatKey(key)} — ${fmtStatValue(key, value)}`,
+                    label: `${fmtStatKey(key)} - ${fmtStatValue(key, value)}`,
                   }))}
                   onChange={(key) => setMainStatK(key)}
                   ariaLabel="Primary main stat"

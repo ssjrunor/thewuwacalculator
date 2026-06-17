@@ -6,6 +6,7 @@
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime'
+import { getRotFormulaPath, ROT_FORMULA_STAT_DEFS } from '@/domain/gameData/rotationFormulaStats'
 import { makeSourceCat } from '@/domain/services/runtimeSourceService'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 import { getNegFfctCm, getNegFfctEn } from '@/domain/gameData/negativeEffects'
@@ -161,6 +162,53 @@ export function mkRotCondChc(
   runtime: ResRuntime,
   enemyId?: string,
 ): CondChoice[] {
+  const activeChoice: CondChoice[] = visibleMember.length > 0
+    ? [{
+      id: 'rotation:active-resonator',
+      resonatorId: 'rotation',
+      resName: 'Rotation',
+      sourceName: 'Overrides',
+      label: 'Active Resonator',
+      description: 'Switch which team member active-targeted effects treat as active during this rotation.',
+      changeTarget: 'rotation',
+      state: {
+        id: 'rotation:active-resonator',
+        label: 'Active Resonator',
+        source: { type: 'resonator', id: runtime.id },
+        ownerKey: 'rotation:active',
+        controlKey: 'rotation.activeResonatorId',
+        path: 'runtime.rotation.activeResonatorId',
+        kind: 'select' as const,
+        options: visibleMember.map((member) => ({
+          id: member.id,
+          label: member.name,
+        })),
+        defaultValue: runtime.id,
+        description: 'Switch which team member active-targeted effects treat as active during this rotation.',
+      },
+    }]
+    : []
+  const formulaChoices: CondChoice[] = ROT_FORMULA_STAT_DEFS.map((definition) => ({
+    id: `rotation:formula:${definition.key}`,
+    resonatorId: 'rotation',
+    resName: 'Rotation',
+    sourceName: 'Overrides',
+    label: definition.label,
+    description: definition.description,
+    changeTarget: 'rotation',
+    state: {
+      id: `rotation:formula:${definition.key}`,
+      label: definition.label,
+      source: { type: 'resonator', id: runtime.id },
+      ownerKey: 'rotation:formula',
+      controlKey: `rotation.formula.${definition.key}`,
+      path: getRotFormulaPath(definition.key),
+      kind: 'number' as const,
+      defaultValue: 0,
+      description: definition.description,
+    },
+  }))
+
   const memChcs = visibleMember.flatMap((member) => {
     const stateChoices = member.states.map((state) => mkCondChc(member, state))
 
@@ -211,5 +259,5 @@ export function mkRotCondChc(
     return [...stateChoices, ...tgtChcs]
   })
 
-  return [...memChcs, ...enemyChoices(runtime, enemyId)]
+  return [...activeChoice, ...formulaChoices, ...memChcs, ...enemyChoices(runtime, enemyId)]
 }

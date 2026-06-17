@@ -997,6 +997,11 @@ export function Rotation({runtime, runtimesById, simulation, onRtPdt: onRtPdt}: 
           ],
         },
       }
+    const activeResonatorId = stateEntry?.activeResonatorId ?? runtime.id
+    const activeRuntime =
+      snapshotRuntimes[activeResonatorId]
+      ?? (activeResonatorId === runtime.id ? runtime : runtimesById[activeResonatorId])
+      ?? targetRuntime
 
     return mkVrvwSttSmm(
       targetRuntime,
@@ -1004,12 +1009,14 @@ export function Rotation({runtime, runtimesById, simulation, onRtPdt: onRtPdt}: 
         ...runtimesById,
         ...snapshotRuntimes,
         [runtime.id]: snapshotRuntimes[runtime.id] ?? runtime,
+        [activeRuntime.id]: activeRuntime,
         [targetRuntime.id]: targetRuntime,
       },
       null,
       stateEntry?.selectedTargetsByRuntimeId?.[targetRuntime.id] ?? null,
       {
         enemyProfile: snapshotEnemy,
+        activeRuntime,
         skillTarget: {
           resonatorId: member.id,
           skill,

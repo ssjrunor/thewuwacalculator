@@ -24,7 +24,6 @@ import {getEchoSttsSrc} from '@/data/gameData/catalog/echoStats'
 import {getResCatByI, getResDtlsBy} from '@/data/gameData/resonators/resonatorDataStore'
 import {getWpnsById} from '@/data/gameData/weapons/weaponDataStore'
 import {getEchoById, listEchoes} from '@/domain/services/echoCatalogService'
-import {getEchoSetDe} from '@/data/gameData/echoSets/effects'
 import {weaponEquipState} from '@/engine/optimizer/context/weaponOverlays.ts'
 import {getWpnById} from '@/domain/services/weaponCatalogService'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
@@ -241,7 +240,7 @@ export function Optimizer() {
   const mainEchoPckr = useAppMdlVl<OpEchoTarget>()
   const resPckr = useAppMdlVl<OpSlot>()
   const weaponPicker = useAppMdlVl<OpSlot>()
-  const staleLiveToastKey = useRef<string | null>(null)
+  const staleCheckedFor = useRef<string | null>(null)
 
   const mdlPrtlTgt = mainPortal()
 
@@ -352,9 +351,9 @@ export function Optimizer() {
     setProgress(mkMptyPrgr())
   }, [clrOptRslts])
 
-  const openUiModal = (content: ReactNode) => {
+  const openUiModal = useCallback((content: ReactNode) => {
     uiModal.show(content)
-  }
+  }, [uiModal])
 
   const closeUiModal = () => {
     uiModal.hide()
@@ -713,6 +712,8 @@ export function Optimizer() {
     effectRuntime,
     isThryMode,
     optResId,
+    optSets?.enableGpu,
+    optSets?.lockedMainEchoId,
     runOptSets,
     qppdChs.length,
     rotationMode,
@@ -913,48 +914,6 @@ export function Optimizer() {
     })
   }, [invChsByUid, optResults, optResultData, optResultEchoes, pageOrigIndices])
 
-  // log the first page of results in detail once per completed run, so the top
-  // builds can be inspected in the console without paging through the UI.
-  const loggedRunRef = useRef<unknown>(null)
-  useEffect(() => {
-    if (!optResults || optResults.length === 0 || loggedRunRef.current === optResults) {
-      return
-    }
-    loggedRunRef.current = optResults
-
-    const count = Math.min(rsltsPerPage, optResults.length)
-    const firstPage = getRowsAt({
-      optResults,
-      indices: Array.from({ length: count }, (_, i) => i),
-      invChsByUid,
-      optResultEchoes,
-      optResultData,
-    })
-
-    const detail = firstPage.map((row, i) => ({
-      rank: i + 1,
-      damage: Math.floor(row.damage || 0),
-      sets: row.sets.map((s) => `${getEchoSetDe(s.id)?.name ?? s.id} (${s.count}pc)`).join(' + ') || '—',
-      cost: row.costs?.join('-') ?? '—',
-      weapon: row.weaponName ?? '—',
-      atk: row.stats ? Math.floor(row.stats.atk) : null,
-      hp: row.stats ? Math.floor(row.stats.hp) : null,
-      def: row.stats ? Math.floor(row.stats.def) : null,
-      er: row.stats ? Number(row.stats.er.toFixed(1)) : null,
-      cr: row.stats ? Number(row.stats.cr.toFixed(1)) : null,
-      cd: row.stats ? Number(row.stats.cd.toFixed(1)) : null,
-      bonus: row.stats ? Number(row.stats.bonus.toFixed(1)) : null,
-      amp: row.stats ? Number(row.stats.amp.toFixed(1)) : null,
-    }))
-
-    /* eslint-disable no-console */
-    console.groupCollapsed(`[optimizer] first page — top ${count} of ${optResults.length} results`)
-    console.table(detail)
-    console.log('full display rows:', firstPage)
-    console.groupEnd()
-    /* eslint-enable no-console */
-  }, [optResults, invChsByUid, optResultEchoes, optResultData])
-
   // display positions in the current view satisfying the find predicates: the
   // rows the jump steps through (without hiding anything).
   const findMatches = useMemo<number[]>(() => {
@@ -1023,8 +982,7 @@ export function Optimizer() {
       return
     }
     jumpToFind(findMatches.find((pos) => pos > findPos) ?? findMatches[0])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [findPreds, findMatches])
+  }, [findPreds, findMatches, findPos, jumpToFind])
   // display position of the selected row within the view.
   const glblSelNdx = pageStart + selNdx
   const rslvPrvwTgt = useMemo<PrvwTgt>(() => {
@@ -1134,9 +1092,9 @@ export function Optimizer() {
     acts: prvwSelCtns,
   })
 
-  const showBasePrvw = () => {
+  const showBasePrvw = useCallback(() => {
     setPrvwTrgt({ kind: 'base' })
-  }
+  }, [])
 
   // resolve the searched weapon for a result, if weapon search produced one.
   // raw theory results carry an index into the run's weaponIds; materialized
@@ -1575,7 +1533,7 @@ export function Optimizer() {
       slot: slotIndex === 0 ? 'teammate1' : 'teammate2',
       ids: [resonatorId],
     })
-  }, [bumpPickerFreq, setEchoPlans, updOptRt])
+  }, [bumpPickerFreq, maxResOnInit, setEchoPlans, updOptRt])
 
   const addSetPref = useCallback((slotIndex: 0 | 1, setId: number) => {
     setEchoPlans((prev) => {
@@ -1651,7 +1609,7 @@ export function Optimizer() {
       next[slotIndex] = null
       return next
     })
-  }, [maxResOnInit, setEchoPlans, updOptRt])
+  }, [setEchoPlans, updOptRt])
 
   const rmMateMainEc = useCallback((slotIndex: 0 | 1) => {
     setEchoPlans((prev) => {
@@ -1669,9 +1627,9 @@ export function Optimizer() {
     })
   }, [optRt, setEchoPlans])
 
-  const openResPckr = (slot: OpSlot = 'active') => {
+  const openResPckr = useCallback((slot: OpSlot = 'active') => {
     resPckr.show(slot)
-  }
+  }, [resPckr])
 
   const clsResPckr = () => {
     resPckr.hide()
@@ -1702,7 +1660,7 @@ export function Optimizer() {
   const success = optStts === 'done'
   const cancelled = optStts === 'cancelled'
 
-  function onRunOpt() {
+  const onRunOpt = useCallback(() => {
     if (!optimizer || !runOptSets || pndnCombos) {
       return
     }
@@ -1742,7 +1700,22 @@ export function Optimizer() {
         setProgress(nextProgress)
       },
     })
-  }
+  }, [
+    activeTarget,
+    enemyProfile,
+    fltrInvEchoE,
+    openUiModal,
+    optCpuHintSe,
+    optSetConds,
+    optimizer,
+    pndnCombos,
+    runOptSets,
+    selRotTms,
+    setOptCpuHin,
+    showBasePrvw,
+    startOpt,
+    weaponSuggests,
+  ])
 
   const handleReset = useCallback(() => {
     reset()
@@ -1775,18 +1748,16 @@ export function Optimizer() {
       return
     }
 
+    if (staleCheckedFor.current === optimizer.resonatorId) {
+      return
+    }
+    staleCheckedFor.current = optimizer.resonatorId
+
     const sourceSig = optimizer.sourceRuntimeSig || runtimeSig(optimizer.runtime)
     if (sourceSig === optLiveSourceSig) {
-      staleLiveToastKey.current = null
       return
     }
 
-    const toastKey = `${optimizer.resonatorId}:${sourceSig}:${optLiveSourceSig}`
-    if (staleLiveToastKey.current === toastKey) {
-      return
-    }
-
-    staleLiveToastKey.current = toastKey
     showToast({
       content: 'Live change(s) detected.',
       variant: 'warning',
@@ -1801,9 +1772,9 @@ export function Optimizer() {
     })
   }, [actResId, isLoading, onSyncLive, optLiveSourceSig, optimizer, showToast])
 
-  function handleHalt() {
+  const handleHalt = useCallback(() => {
     cnclOpt()
-  }
+  }, [cnclOpt])
 
   const optCtxMenuTm = useMemo(() => getOptCtx({
     pane: menu.calculator.optimizer.pane,
@@ -1851,6 +1822,7 @@ export function Optimizer() {
     onRunOpt,
     onSyncLive,
     onTgtModeChn,
+    isThryMode,
     isLoading,
     isSprite,
     menu.calculator.optimizer,
@@ -1860,6 +1832,7 @@ export function Optimizer() {
     optSets?.targetSkillId,
     pndnCombos,
     reset,
+    setIsSprite,
     skillGroups,
     targetMode,
     updOptSets,

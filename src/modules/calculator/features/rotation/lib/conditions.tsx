@@ -113,7 +113,9 @@ export function fmtCondChng(change: RtChng, choice?: CondChoice | null): string 
 
   if (change.type === 'set') {
     if (typeof change.value === 'number' && !Number.isNaN(change.value)) {
-      return `${choice.label} at ${fmtSttVl(choice.state, change.value)} stack${(change.value ?? 0) !== 1 ? 's' : ''}`
+      return choice.state.kind === 'stack'
+        ? `${choice.label} at ${fmtSttVl(choice.state, change.value)} stack${(change.value ?? 0) !== 1 ? 's' : ''}`
+        : `Set ${choice.label} to ${fmtSttVl(choice.state, change.value)}`
     }
     if (typeof change.value === 'boolean') {
       return `${choice.label} ${change.value ? 'active' : 'inactive'}`
@@ -144,6 +146,10 @@ function flttWhenCond(condition: CondExpr | undefined): CondExpr[] {
 function fmtWhenCondS(choice: CondChoice | null, condition: Extract<CondExpr, { path: string }>): string {
   if (!choice) {
     return condition.path
+  }
+
+  if (choice.changeTarget === 'rotation') {
+    return choice.label
   }
 
   const owner = choice.sourceName || choice.resName
@@ -231,10 +237,10 @@ export function getCondChoice(
     return null
   }
 
-  // enemy changes are globally scoped, while resonator changes need the owning resonator id to avoid matching a
-  // teammate state with the same path.
+  // enemy and rotation-level changes are globally scoped, while resonator changes need the owning resonator id to
+  // avoid matching a teammate state with the same path.
   return choices.find((choice) => {
-    if (choice.changeTarget === 'enemy') {
+    if (choice.changeTarget === 'enemy' || choice.changeTarget === 'rotation') {
       return choice.state.path === change.path
     }
 
@@ -311,7 +317,7 @@ export function serFeatCondD(
         path: choice.state.path,
         value: Number.isFinite(value) ? value : 0,
       }
-      if (choice.changeTarget !== 'enemy') {
+      if (!choice.changeTarget || choice.changeTarget === 'runtime') {
         change.resonatorId = choice.resonatorId
       }
       changes.push(change)
@@ -323,7 +329,7 @@ export function serFeatCondD(
       path: choice.state.path,
       value: row.value,
     }
-    if (choice.changeTarget !== 'enemy') {
+    if (!choice.changeTarget || choice.changeTarget === 'runtime') {
       change.resonatorId = choice.resonatorId
     }
     changes.push(change)
@@ -342,7 +348,12 @@ export function mkRotCondNod(
   return {
     id: options.id ?? makeNodeId('rotation:condition'),
     type: 'condition',
-    resonatorId: change.resonatorId ?? choice?.resonatorId ?? options.fallbackResId,
+    resonatorId:
+      choice?.changeTarget === 'rotation'
+        ? undefined
+        : change.resonatorId
+          ?? (choice && (!choice.changeTarget || choice.changeTarget === 'runtime') ? choice.resonatorId : undefined)
+          ?? options.fallbackResId,
     label: choice?.label,
     enabled: options.enabled ?? true,
     changes: [change],
@@ -350,6 +361,10 @@ export function mkRotCondNod(
 }
 
 export function fmtCondChcLb(choice: CondChoice): string {
+  if (choice.changeTarget === 'rotation') {
+    return choice.label
+  }
+
   if (!choice.sourceName || choice.label === choice.sourceName || choice.label.startsWith(`${choice.sourceName} `)) {
     return choice.label
   }
@@ -365,7 +380,7 @@ export function mkCondChc(
     label?: string
     description?: string
     dscrPrms?: Array<string | number>
-    changeTarget?: 'runtime' | 'enemy'
+    changeTarget?: 'runtime' | 'enemy' | 'rotation'
   },
 ): CondChoice {
   const display = getStateText(state)

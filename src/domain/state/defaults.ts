@@ -1123,7 +1123,6 @@ export function makeAppState(
       preferences: DEF_UI_PREFS,
       leftPaneView,
       suggsViewMode: 'mainStats',
-      mainMode: 'default',
       showSubHits: false,
       compactInv: false,
       seeEquipped: true,

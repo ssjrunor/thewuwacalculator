@@ -256,6 +256,10 @@ describe('game-data source of truth', () => {
     const forgedDwarfStarEffects = listEffectsFor('weapon', '21050076')
     const frostburnStates = listStatesFor('weapon', '21020086')
     const frostburnEffects = listEffectsFor('weapon', '21020086')
+    const azureStates = listStatesFor('weapon', '21020096')
+    const azureEffects = listEffectsFor('weapon', '21020096')
+    const dewStates = listStatesFor('weapon', '21050096')
+    const dewEffects = listEffectsFor('weapon', '21050096')
 
     expect(forgedDwarfStarStates.find((state) => state.controlKey === 'weapon:21050076:passive:ult')?.label)
       .toBe('Res. Liberation DMG')
@@ -269,6 +273,26 @@ describe('game-data source of truth', () => {
       skillType: 'glacioChafe',
       mod: 'amplify',
     })
+
+    expect(azureStates.find((state) => state.controlKey === 'weapon:21020096:passive:havoc_bane')?.label)
+      .toBe('Heavy ATK Amp + DEF Ignore')
+    expect(azureEffects.find((effect) => effect.id === 'weapon:21020096:heavy')?.operations).toEqual([
+      expect.objectContaining({
+        type: 'add_skilltype_mod',
+        skillType: 'heavyAtk',
+        mod: 'amplify',
+      }),
+      expect.objectContaining({
+        type: 'add_skilltype_mod',
+        skillType: 'heavyAtk',
+        mod: 'defIgnore',
+      }),
+    ])
+
+    expect(dewStates.find((state) => state.controlKey === 'weapon:21050096:passive:kingfisher')?.label)
+      .toBe('Kingfisher')
+    expect(dewEffects.find((effect) => effect.id === 'weapon:21050096:team-atk')?.targetScope)
+      .toBe('teamWide')
   })
 
   it('hydrates authored resonator negative-effect source metadata from overrides', () => {
@@ -641,9 +665,6 @@ describe('game-data source of truth', () => {
     expect(statesByKey['sequence:1506:s5:active']?.ownerKey).toBe('sequence:1506:s5')
     expect(statesByKey['sequence:1506:s6:active']?.ownerKey).toBe('sequence:1506:s6')
     expect(statesByKey['sequence:1506:s2:boat_adrift']?.displayScope).toBe('team')
-    expect(resonator.inherentSkills.find((entry) => entry.unlockLevel === 50)?.ownerKey).toBe('inherent:1506:lvl50')
-    expect(resonator.inherentSkills.find((entry) => entry.unlockLevel === 70)?.ownerKey).toBe('inherent:1506:lvl70')
-    expect(resonator.resonanceChains.find((entry) => entry.index === 4)?.ownerKey).toBe('sequence:1506:s4')
     expect(resonator.owners.find((owner) => owner.ownerKey === 'inherent:1506:lvl70')?.unlockWhen).toEqual({
       type: 'gte',
       from: 'sourceRuntime',
@@ -675,7 +696,8 @@ describe('game-data source of truth', () => {
       throw new Error('missing resonator 1306')
     }
 
-    const crownPanel = resonator.statePanels.find((panel) => panel.id === 'crown-of-wills')
+    const crownPanel = resonator.statePanels.find((panel) =>
+      panel.stateKeys.includes('resonator:1306:crown_of_wills:stacks'))
     const statesByKey = Object.fromEntries(resonator.states.map((state) => [state.controlKey, state]))
     const crownState = statesByKey['resonator:1306:crown_of_wills:stacks']
 
@@ -695,7 +717,8 @@ describe('game-data source of truth', () => {
 
     const skillsById = Object.fromEntries(resonator.skills.map((skill) => [skill.id, skill]))
     const statesByKey = Object.fromEntries(resonator.states.map((state) => [state.controlKey, state]))
-    const packHuntPanel = resonator.statePanels.find((panel) => panel.id === 'pack-hunt')
+    const packHuntPanel = resonator.statePanels.find((panel) =>
+      panel.stateKeys.includes('team:1207:pack_hunt:active'))
 
     expect(skillsById['1207011']?.skillType).toEqual(['heavyAtk'])
     expect(skillsById['1207024']?.skillType).toEqual(['resonanceLiberation'])
@@ -728,25 +751,45 @@ describe('game-data source of truth', () => {
   })
 
   it('hydrates saved default rotations authored by direct skill ids', () => {
+    const suisui = getResonatorById('1110')
     const hiyuki = getResonatorById('1108')
     const denia = getResonatorById('1211')
     const rebecca = getResonatorById('1308')
     const buling = getResonatorById('1307')
     const luuk = getResonatorById('1510')
     const lucy = getResonatorById('1511')
+    const xuanling = getResonatorById('1610')
 
-    if (!hiyuki || !denia || !rebecca || !buling || !luuk || !lucy) {
+    if (!suisui || !hiyuki || !denia || !rebecca || !buling || !luuk || !lucy || !xuanling) {
       throw new Error('missing authored default rotation resonator')
     }
 
+    expect(suisui.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(hiyuki.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(denia.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(rebecca.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(buling.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(luuk.rotations[0]?.items.length).toBeGreaterThan(0)
     expect(lucy.rotations[0]?.items.length).toBeGreaterThan(0)
+    expect(xuanling.rotations[0]?.items.length).toBeGreaterThan(0)
 
     expect(hiyuki.rotations[0]?.items.find((item): item is Extract<typeof item, { type: 'feature' }> => item.type === 'feature' && item.featureId === 'damage:1108028')?.multiplier).toBe(3)
+    expect(
+      suisui.rotations[0]?.items.map((item) =>
+        item.type === 'feature' ? item.featureId : null,
+      ),
+    ).toEqual([
+      'damage:11100101',
+      'damage:11100102',
+      'damage:11100103',
+      'damage:11100104',
+      'damage:11100202',
+      'damage:11100601',
+      'damage:11100701',
+      'damage:11100702',
+      'damage:11100703',
+      'damage:11100704',
+    ])
     expect(
       denia.rotations[0]?.items.map((item) =>
         item.type === 'feature' ? item.featureId : null,
@@ -806,6 +849,21 @@ describe('game-data source of truth', () => {
       'damage:1511030',
       'damage:1511031',
       'damage:1511032',
+    ])
+    expect(
+      xuanling.rotations[0]?.items.map((item) =>
+        item.type === 'feature' ? item.featureId : null,
+      ),
+    ).toEqual([
+      'damage:16100625',
+      'damage:16100324',
+      'damage:16100707',
+      'damage:16100327',
+      'damage:16100713',
+      'damage:16100715',
+      'damage:16100716',
+      'damage:16100717',
+      'damage:16100718',
     ])
   })
 
@@ -1058,6 +1116,33 @@ describe('game-data source of truth', () => {
     expect(luuk.skills.find((skill) => skill.id === '1510020')?.archetype).toBe('skillDamage')
   })
 
+  it('classifies Yangyang: Xuanling Forte attacks as Heavy Attack damage', () => {
+    const xuanling = getResonatorById('1610')
+
+    if (!xuanling) {
+      throw new Error('missing Yangyang: Xuanling resonator data')
+    }
+
+    const skills = Object.fromEntries(xuanling.skills.map((skill) => [skill.id, skill]))
+    const forteHeavyIds = [
+      '16100705',
+      '16100707',
+      '16100713',
+      '16100715',
+      '16100716',
+      '16100717',
+      '16100718',
+      '16100720',
+      '16100721',
+      '16100722',
+      '16100723',
+    ]
+
+    expect(forteHeavyIds.map((id) => skills[id]?.skillType)).toEqual(
+      forteHeavyIds.map(() => ['heavyAtk']),
+    )
+  })
+
   it('emits authored override behavior for 1209, 1210, 1509, and 1510', () => {
     const mornye = getResonatorById('1209')
     const aemeath = getResonatorById('1210')
@@ -1300,7 +1385,9 @@ describe('game-data source of truth', () => {
 
     const lucillaSkills = Object.fromEntries(lucilla.skills.map((skill) => [skill.id, skill]))
     const lucillaStates = Object.fromEntries(lucilla.states.map((state) => [state.controlKey, state]))
-    const lucillaPanels = Object.fromEntries(lucilla.statePanels.map((panel) => [panel.id, panel]))
+    const lucillaPanelByState = Object.fromEntries(
+      lucilla.statePanels.flatMap((panel) => panel.stateKeys.map((key) => [key, panel])),
+    )
     const lucillaRuntimeEffects = listEffectsFor('resonator', '1109', 'runtime')
     const lucillaSkillEffects = listEffectsFor('resonator', '1109', 'skill')
     const lucillaGlacioRuntime = {
@@ -1328,16 +1415,16 @@ describe('game-data source of truth', () => {
       .toMatchObject({ kind: 'select', maxValue: '4' })
     expect(lucillaStates['resonator:1109:zoom:stacks']?.options)
       .toHaveLength(5)
-    expect(lucillaPanels['clear-as-day']?.stateKeys)
+    expect(lucillaPanelByState['resonator:1109:clear_as_day:active']?.stateKeys)
       .toEqual(['resonator:1109:clear_as_day:active'])
-    expect(lucillaPanels.zoom?.stateKeys)
+    expect(lucillaPanelByState['resonator:1109:zoom:stacks']?.stateKeys)
       .toEqual(['resonator:1109:zoom:stacks'])
-    expect(lucillaPanels.montage?.stateKeys)
+    expect(lucillaPanelByState['team:1109:montage:active']?.stateKeys)
       .toEqual(['team:1109:montage:active'])
-    expect(lucillaPanels['clear-as-day']?.body).toContain('Basic Attack DMG Bonus')
-    expect(lucillaPanels.zoom?.body).toContain('stack up to 4 times')
-    expect(lucillaPanels.montage?.body).toContain('Echo Skill DMG Amplification')
-    expect(lucilla.statePanels.some((panel) => panel.id === 'slow-motion')).toBe(false)
+    expect(lucillaPanelByState['resonator:1109:clear_as_day:active']?.body).toContain('Basic Attack DMG Bonus')
+    expect(lucillaPanelByState['resonator:1109:zoom:stacks']?.body).toContain('stack up to 4 times')
+    expect(lucillaPanelByState['team:1109:montage:active']?.body).toContain('Echo Skill DMG Amplification')
+    expect(lucilla.statePanels.some((panel) => panel.title === 'Slow Motion')).toBe(false)
     expect(lucilla.inherentSkills.find((skill) => skill.name === 'Slow Motion')?.stateKeys)
       .toEqual(['inherent:1109:lvl50:active'])
     expect(lucillaStates['inherent:1109:lvl50:active']).toBeTruthy()
@@ -1385,25 +1472,27 @@ describe('game-data source of truth', () => {
 
     const lucySkills = Object.fromEntries(lucy.skills.map((skill) => [skill.id, skill]))
     const lucyStates = Object.fromEntries(lucy.states.map((state) => [state.controlKey, state]))
-    const lucyPanels = Object.fromEntries(lucy.statePanels.map((panel) => [panel.id, panel]))
+    const lucyPanelByState = Object.fromEntries(
+      lucy.statePanels.flatMap((panel) => panel.stateKeys.map((key) => [key, panel])),
+    )
     const lucyRuntimeEffects = listEffectsFor('resonator', '1511', 'runtime')
     const lucySkillEffects = listEffectsFor('resonator', '1511', 'skill')
 
     expect(lucyStates['resonator:1511:algorithm_compaction:active']).toBeTruthy()
     expect(lucyStates['resonator:1511:sql:active']?.controlDependencies).toEqual(['resonator:1511:algorithm_compaction:active'])
-    expect(lucyPanels['algorithm-compaction']?.stateKeys)
+    expect(lucyPanelByState['resonator:1511:algorithm_compaction:active']?.stateKeys)
       .toEqual(['resonator:1511:algorithm_compaction:active'])
-    expect(lucyPanels['algorithm-compaction']?.body).toContain('65%')
-    expect(lucyPanels.sql?.body).toContain('Heavy Attack - Multi-threading')
-    expect(lucyPanels.sql?.body).toContain('270%')
-    expect(lucyPanels.sql?.stateKeys).toEqual(['resonator:1511:sql:active'])
-    expect(lucyPanels['spoofing-program-cyberware-malfunction']?.body)
+    expect(lucyPanelByState['resonator:1511:algorithm_compaction:active']?.body).toContain('65%')
+    expect(lucyPanelByState['resonator:1511:sql:active']?.body).toContain('Heavy Attack - Multi-threading')
+    expect(lucyPanelByState['resonator:1511:sql:active']?.body).toContain('270%')
+    expect(lucyPanelByState['resonator:1511:sql:active']?.stateKeys).toEqual(['resonator:1511:sql:active'])
+    expect(lucyPanelByState['team:1511:cyberware_malfunction:active']?.body)
       .toBe('Requires 4 RAM. Marked targets take 5% increased damage for 30s.')
     expect(lucyStates['team:1511:cyberware_malfunction:active']?.description)
       .toBe('Requires 4 RAM. Marked targets take 5% increased damage for 30s.')
     expect(lucyStates['team:1511:countermeasure_program:active']).toBeTruthy()
     expect(lucyStates['team:1511:countermeasure_program_outgoing:active']).toBeTruthy()
-    expect(lucy.statePanels.some((panel) => panel.id === 'network-backdoor')).toBe(false)
+    expect(lucy.statePanels.some((panel) => panel.title === 'Network Backdoor')).toBe(false)
     expect(lucy.inherentSkills.find((skill) => skill.name === 'Function Cracking')?.stateKeys)
       .toEqual(['inherent:1511:lvl70:active'])
     expect(lucySkills['1511011']?.skillType).toEqual(['heavyAtk'])
@@ -1539,12 +1628,15 @@ describe('game-data source of truth', () => {
     const rebeccaStates = Object.fromEntries(rebecca.states.map((state) => [state.controlKey, state]))
     const rebeccaRuntimeEffects = listEffectsFor('resonator', '1308', 'runtime')
     const rebeccaSkillEffects = listEffectsFor('resonator', '1308', 'skill')
-    const switchGearsPanel = rebecca.statePanels.find((panel) => panel.id === 'switch-gears')
-    const bothModesPanel = rebecca.statePanels.find((panel) => panel.id === 'a-girl-gets-what-she-wants')
+    const rebeccaPanelByState = Object.fromEntries(
+      rebecca.statePanels.flatMap((panel) => panel.stateKeys.map((key) => [key, panel])),
+    )
+    const switchGearsPanel = rebeccaPanelByState['resonator:1308:huntress:active']
+    const bothModesPanel = rebeccaPanelByState['resonator:1308:a_girl_gets_what_she_wants:active']
 
     expect(rebecca.inherentSkills.map((skill) => skill.name)).toEqual(["Tag, You're It!", 'Left an Opening!'])
-    expect(rebecca.statePanels.some((panel) => panel.id === 'tag-youre-it')).toBe(false)
-    expect(rebecca.statePanels.some((panel) => panel.id === 'left-an-opening')).toBe(false)
+    expect(rebecca.statePanels.some((panel) => panel.title === "Tag, You're It!")).toBe(false)
+    expect(rebecca.statePanels.some((panel) => panel.title === 'Left an Opening!')).toBe(false)
     expect(rebecca.inherentSkills.find((skill) => skill.name === "Tag, You're It!")?.stateKeys)
       .toEqual(['inherent:1308:lvl50:stacks'])
     expect(rebeccaStates['inherent:1308:lvl50:hack_shifting'])
@@ -1612,7 +1704,7 @@ describe('game-data source of truth', () => {
       .toBe('sequence:1308:s5:hack_shifting')
     expect(rebeccaStates['sequence:1308:s2:intro_liberation']?.displayScope).toBe('team')
     expect(rebeccaStates['sequence:1308:s2:hack_shifting']?.displayScope).toBe('team')
-    expect(rebecca.statePanels.find((panel) => panel.id === 'good-choom')?.stateKeys)
+    expect(rebeccaPanelByState['team:1308:modded_mk31_fortified:active']?.stateKeys)
       .toContain('team:1308:modded_mk31_fortified:active')
     expect(rebeccaStates['team:1308:modded_mk31_fortified:active']).toBeTruthy()
     expect(rebeccaRuntimeEffects.find((effect) => effect.id === '1308:overlimit:lucy')?.operations[0])

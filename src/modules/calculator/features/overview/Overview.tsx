@@ -4,6 +4,7 @@
 */
 
 import { Suspense, lazy, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/domain/state/store.ts'
 import {
   selActResId,
@@ -22,6 +23,7 @@ const LazyCalcVrvw = lazy(async () => ({
 
 // renders the overview modal stage under a suspense boundary so main bounds stay fast.
 export function Overview() {
+  const navigate = useNavigate()
   const profilesById = useAppStore((state) => state.calculator.profiles)
   const actResId = useAppStore(selActResId)
   const enemyProfile = useAppStore(selEnemyProf)
@@ -32,7 +34,6 @@ export function Overview() {
     partRtsById: partRntmById,
     initRtsById: ntlzRntmById,
   } = useAppStore(selVrvwDrvd)
-  const setMainMode = useAppStore((state) => state.setMainMode)
 
   const activeSeed = actResId ? seedRsntById[actResId] ?? null : null
   const simulation = useMemo(
@@ -64,7 +65,7 @@ export function Overview() {
         <LazyCalcVrvw
           actResId={actResId}
           enemyProfile={enemyProfile}
-          onClose={() => setMainMode('default')}
+          onClose={() => navigate('/calculator')}
           vrvwSttSmmr={vrvwSttSmmr}
           rtngSlctBytf={rtngSlctByRe}
           runtime={runtime}

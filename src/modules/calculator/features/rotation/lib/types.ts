@@ -139,7 +139,7 @@ export interface CondChoice {
   description?: string
   dscrPrms?: Array<string | number>
   state: SourceState
-  changeTarget?: 'runtime' | 'enemy'
+  changeTarget?: 'runtime' | 'enemy' | 'rotation'
 }
 
 export interface FeatureMeta {

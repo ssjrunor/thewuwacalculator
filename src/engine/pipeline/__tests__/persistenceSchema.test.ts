@@ -160,6 +160,18 @@ describe('persistedAppStateSchema', () => {
     expect(parsed.ui.entranceAnimations).toBe(false)
   })
 
+  it('strips legacy main mode from snapshot exports', () => {
+    const state = makeAppState() as unknown as Record<string, unknown>
+    state.ui = {
+      ...(state.ui as Record<string, unknown>),
+      mainMode: 'optimizer',
+    }
+
+    const parsed = parsePersisted(JSON.stringify(state))
+
+    expect(parsed.ui).not.toHaveProperty('mainMode')
+  })
+
   it.runIf(Boolean(loadLiveSnapshot))('parses the current live app snapshot', async () => {
     const liveSnapshotRaw = await loadLiveSnapshot()
     const parsed = parsePersisted(liveSnapshotRaw)
@@ -230,7 +242,7 @@ describe('persistedAppStateSchema', () => {
     saveAppState(state, { domains: ['ui.layout'] })
 
     const layoutSlice = JSON.parse(localStorage.getItem(APPSTOREUILY) ?? '{}')
-    expect(layoutSlice.ui.mainMode).toBe(state.ui.mainMode)
+    expect(layoutSlice.ui).not.toHaveProperty('mainMode')
     expect(localStorage.getItem(APPSTOREINVR)).toBeNull()
     expect(errorSpy).not.toHaveBeenCalled()
   })

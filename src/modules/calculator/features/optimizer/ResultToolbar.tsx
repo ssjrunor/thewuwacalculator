@@ -358,7 +358,7 @@ export function ResultToolbar({
                   <ChevronLeft size={14} />
                 </button>
                 <span className="opt-qc__step-count">
-                  {findPreds.length === 0 ? '—' : findMatchCount === 0 ? '0' : `${findMatchIndex || '–'}/${findMatchCount}`}
+                  {findPreds.length === 0 ? '-' : findMatchCount === 0 ? '0' : `${findMatchIndex || '-'}/${findMatchCount}`}
                 </span>
                 <button
                   type="button"

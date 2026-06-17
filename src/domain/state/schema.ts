@@ -14,6 +14,16 @@ import {
 } from '@/domain/entities/themes'
 import { mnlBffsSchm } from '@/domain/state/manualBuffsSchema'
 
+function stripLegacyMainMode(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+
+  const rest = { ...value as Record<string, unknown> }
+  delete rest.mainMode
+  return rest
+}
+
 // shared base stat buff shape
 const baseStatBuff = z.object({
   percent: z.number(),
@@ -764,8 +774,7 @@ const uiPersistSchema = z.object({
     'rotations',
     'suggestions',
   ]),
-  suggsViewMode: z.enum(['mainStats', 'setPlans', 'weapons', 'random']).default('mainStats'),
-  mainMode: z.enum(['default', 'optimizer', 'overview']),
+  suggsViewMode: z.enum(['mainStats', 'setPlans', 'weapons', 'random', 'substats']).default('mainStats'),
   showSubHits: z.boolean(),
   compactInv: z.boolean().default(false),
   seeEquipped: z.boolean().default(true),
@@ -802,7 +811,7 @@ export const prssUiPprnSc = z.object({
 export const prssUiLytSch = z.object({
   preferences: uiPersistSchema.shape.preferences,
   leftPaneView: uiPersistSchema.shape.leftPaneView,
-  mainMode: uiPersistSchema.shape.mainMode,
+  suggsViewMode: uiPersistSchema.shape.suggsViewMode,
   showSubHits: uiPersistSchema.shape.showSubHits,
   compactInv: uiPersistSchema.shape.compactInv,
   seeEquipped: uiPersistSchema.shape.seeEquipped,
@@ -879,7 +888,7 @@ export const prssCalcInvR = z.object({
 function makePersistSchema(version: typeof APP_STATE_VER) {
   return z.object({
     version: z.literal(version),
-    ui: uiPersistSchema,
+    ui: z.preprocess(stripLegacyMainMode, uiPersistSchema),
     calculator: z.object({
       ...prssCalcPrfl.shape,
       ...prssCalcInvS.shape,
@@ -898,7 +907,7 @@ export const prssUiPprnSl = z.object({
 
 export const prssUiLytSlc = z.object({
   version: z.literal(APP_STATE_VER),
-  ui: prssUiLytSch,
+  ui: z.preprocess(stripLegacyMainMode, prssUiLytSch),
 }).strict()
 
 export const prssUiSvdRoh = z.object({

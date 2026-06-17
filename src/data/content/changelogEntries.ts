@@ -307,6 +307,36 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `3.4 live updated (and other stuff)~! (〜^∇^)〜`,
   },
+  {
+    date: '17/06/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.5 beta support</strong> has started with <strong>Suisui</strong> and <strong>Yangyang: Xuanling</strong> added to the calculator.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The new 3.5 beta weapons <strong>Azure of Heaven</strong> and <strong>Dew Imbiber</strong> are also available.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The Echoes pane also has a new <strong>Quick Setup</strong> flow. It can forge a loadout from a chosen echo count, main stats and costs, repeated substat templates, sonata plan, and main echo choice, while filling anything left open with valid random picks.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Rotation editing got a cleaner <strong>Add Conditions</strong> pass too. Feature rows can carry their own setup changes now, including formula-level stat edits, so rotations can model "this hit happens after this temporary state" without needing extra loose condition nodes everywhere.
+        `,
+      },
+    ],
+    shortDesc: `3.5 beta, echo quick setup, and rotation conditions stuff~! (〜^∇^)〜`,
+  },
 ]
 
 export const ltstCurChngE =

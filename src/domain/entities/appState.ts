@@ -131,7 +131,6 @@ export interface UiState {
   preferences: UiPrefs
   leftPaneView: LeftPaneView
   suggsViewMode: SuggsViewMod
-  mainMode: 'default' | 'optimizer' | 'overview'
   showSubHits: boolean
   compactInv: boolean
   seeEquipped: boolean

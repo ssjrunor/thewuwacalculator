@@ -30,7 +30,7 @@ export function CookieBanner({ visible, open, closing, onAccept }: CkBnnrPrps) {
       </div>
       <div className="cookie-banner__body">
         <p className="cookie-banner__text">
-          Cookies are used for basic analytics only — nothing personal, nothing sold.{' '}
+          Cookies are used for basic analytics only, nothing personal, nothing sold.{' '}
           <button
             type="button"
             className="cookie-banner__link"

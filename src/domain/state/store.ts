@@ -262,7 +262,6 @@ export interface AppStore extends PersistedState {
   setSugView: (view: SuggsViewMod) => void
   setLeftView: (view: LeftPaneView) => void
   openLeftView: (view: LeftPaneView) => void
-  setMainMode: (mode: 'default' | 'optimizer' | 'overview') => void
   setSubHits: (enabled: boolean) => void
   setCmpInv: (enabled: boolean) => void
   setSeeEqp: (enabled: boolean) => void
@@ -399,7 +398,7 @@ export interface AppStore extends PersistedState {
 // main zustand store
 const ntlPrssStt = mkNtlAppStt()
 const ntlInvHydr =
-    ntlPrssStt.ui.mainMode === 'optimizer'
+    (typeof window !== 'undefined' && window.location.pathname === '/calculator/optimizer')
     || INV_LEFT_PANES.has(ntlPrssStt.ui.leftPaneView)
 
 export const useAppStore = create<AppStore>((set, get) => {
@@ -969,7 +968,7 @@ export const useAppStore = create<AppStore>((set, get) => {
     }
 
     persistedSet(['ui.layout'], (state) => {
-      if (state.ui.mainMode === 'default' && state.ui.leftPaneView === leftPaneView) {
+      if (state.ui.leftPaneView === leftPaneView) {
         return state
       }
 
@@ -977,37 +976,10 @@ export const useAppStore = create<AppStore>((set, get) => {
         ...state,
         ui: {
           ...state.ui,
-          mainMode: 'default',
           leftPaneView,
         },
       }
     }, { historyLabel: mkLeftPaneVi(leftPaneView) })
-  },
-
-  setMainMode: (mainMode) => {
-    if (mainMode === 'optimizer') {
-      get().ensInvHydr()
-    }
-
-    persistedSet(['ui.layout', 'calculator.optimizerContext'], (state) => ({
-      ...state,
-      ui: {
-        ...state.ui,
-        mainMode,
-      },
-      calculator: {
-        ...state.calculator,
-        optimizerContext: mainMode === 'optimizer'
-            ? getSyncOptCt(state)
-            : state.calculator.optimizerContext,
-      },
-    }), {
-      historyLabel: mainMode === 'optimizer'
-        ? 'Opened Optimizer'
-        : mainMode === 'overview'
-          ? 'Opened Overview'
-          : 'Returned to Calculator',
-    })
   },
 
   setSubHits: (showSubHits) => {

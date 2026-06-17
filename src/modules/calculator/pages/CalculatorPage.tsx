@@ -15,6 +15,8 @@ import { Calculator } from '@/modules/calculator/features/main/Calculator.tsx'
 import { CalcProv } from '@/modules/calculator/features/main/lib/ctx.tsx'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
 
+export type CalcSurface = 'calculator' | 'optimizer' | 'overview'
+
 const LazyCalcOptS = lazy(async () => ({
   default: (await import('@/modules/calculator/features/optimizer/Optimizer.tsx')).Optimizer,
 }))
@@ -23,10 +25,13 @@ const LazyCalcVrgz = lazy(async () => ({
   default: (await import('@/modules/calculator/features/overview/Overview.tsx')).Overview,
 }))
 
-// orchestrates the calculator shell, stage routing, and theme accent around the main.
-export function CalcPage() {
+interface CalcPageProps {
+  surface?: CalcSurface
+}
+
+// orchestrates the calculator shell, route-selected stage, and theme accent around the main.
+export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
   const layoutRef = useRef<HTMLDivElement | null>(null)
-  const ui = useAppStore((state) => state.ui)
   const actResId = useAppStore(selActResId)
   const hasActProf = useAppStore((state) => {
     const resonatorId = state.calculator.session.activeResonatorId
@@ -118,17 +123,17 @@ export function CalcPage() {
       <div ref={layoutRef} className={`layout ${isCllpMode ? 'collapsed-mode' : ''}`}>
         <Inventory />
 
-        {ui.mainMode === 'optimizer' ? (
+        {surface === 'optimizer' ? (
           <Suspense fallback={<AppLdrVrly mode="centered" text="Loading optimizer..." />}>
             <LazyCalcOptS />
           </Suspense>
         ) : null}
-        {ui.mainMode === 'overview' ? (
+        {surface === 'overview' ? (
           <Suspense fallback={<AppLdrVrly mode="centered" text="Loading overview..." />}>
             <LazyCalcVrgz />
           </Suspense>
         ) : null}
-        {ui.mainMode === 'default' ? <Calculator isCllpMode={isCllpMode} /> : null}
+        {surface === 'calculator' ? <Calculator isCllpMode={isCllpMode} /> : null}
 
         <ResQBbbl />
       </div>

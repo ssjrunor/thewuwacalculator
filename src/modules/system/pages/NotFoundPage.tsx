@@ -21,7 +21,7 @@ export function NotFoundPage() {
           className="not-found-gif"
         />
 
-        <button type="button" className="page-back-btn" title={'Calculator'} onClick={() => navigate('/')}>
+        <button type="button" className="page-back-btn" title={'Calculator'} onClick={() => navigate('/calculator')}>
           <TbGoGame size={14} />
         </button>
       </div>

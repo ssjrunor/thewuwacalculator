@@ -81,7 +81,7 @@ describe('buildResultView ordering', () => {
   })
 })
 
-describe('facetMatches — comprehensive predicates', () => {
+describe('facetMatches - comprehensive predicates', () => {
   const facet = mkFacet({
     damage: 100000,
     mainId: '6000201',

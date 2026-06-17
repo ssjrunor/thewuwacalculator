@@ -18,27 +18,24 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    '(ᵕ • ᴗ •) the 3.4 stuff got a proper cleanup pass this time. Lucilla, Lucy and Rebecca should be much closer to their live versions now instead of sitting in that awkward beta-data corner.',
-    'There are also actual mode/status buttons now for resonators that need them, the max button is smarter, theory optimizer can look at weapons, and inventory optimizer can stop stealing equipped echoes if you ask it nicely.',
-    'Denia\'s default/preset rotation was updated, and Lucy / Rebecca have starter rotations now too. They are still presets, not holy text, but they should save some setup time.'
+    'I tried my best, added 3.5 beta stuff and even preset rotations to the best of my understanding. Electro rover hasn\'t been added yet',
+    'I have some stuff in the works *wink* *wink* *nudge* *nudge* ◕⩊◕.',
+    'Lucy / Rebecca have their Prydwen rotations now too so no more of my nonsense haha...',
+    'okay i lied... more of my nonsense... i added preset rotations for Suisui and Yangyang: Xuanling crafted from my intuition ofc.'
   ],
   coverage: [
-    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
+    { title: 'Resonators', status: 'wip' as const,  desc: 'No electro rover :(.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
-    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets included.' },
-    { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies supported.' },
+    { title: 'Echoes',     status: 'wip' as const,  desc: 'All but 3.5 echoes and sonata sets included.' },
+    { title: 'Enemies',    status: 'wip' as const,  desc: 'All but 3.5 enemies supported.' },
   ],
   recentChanges: [
-    'Lucilla, Lucy and Rebecca kit effects were updated from beta behavior to their live behavior.',
-    'Resonance modes/statuses are explicit toggles now for resonators that support them.',
-    'Denia\'s default rotation was updated, and Lucy / Rebecca have default rotations now.',
-    'Theory-max optimizer can include weapons in the search now.',
-    'Inventory optimizer has an exclude-equipped option, so it can leave other builds alone.',
-    'The max button now fills in more kit states, modes and weapon/source settings.',
-    'The rest of the 3.4 assets/data were added too.'
+    'You can setup echoes faster now with the quick-setup/forge thingy.',
+    'More conditions in the rotation conditions editor!',
+    'YANGYANG ... SUISUI.',
   ],
   knownIssues: [
-    "nothing huge known right now, but the new 3.4 kit/optimizer stuff is fresh enough that weird edge cases would not shock me. :)"
+    "asides from the missing beta stuff i pointed out... nothing crazy right now :)"
   ]
 }
 
@@ -134,7 +131,7 @@ export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsM
         ))}
 
         <div className="app-status-changes">
-          <div className="app-status-panel__eyebrow">Recent Changes</div>
+          <div className="app-status-panel__eyebrow">Recent Changes / Updates</div>
           {STATUS_DATA.recentChanges.map((entry, i) => (
             <div key={i} className={`app-status-item app-status-item--${i + 1}`}>
               <span className="app-status-item__marker" aria-hidden="true">›</span>

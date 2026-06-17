@@ -167,11 +167,7 @@ export function TreeNode({
   const selected = selectedIds.has(node.id)
   const condChc =
     node.type === 'condition'
-      ? condChoices.find(
-        (choice) =>
-          choice.resonatorId === (node.changes[0]?.resonatorId ?? node.resonatorId) &&
-          choice.state.path === node.changes[0]?.path,
-      )
+      ? getCondChoice(condChoices, node.changes[0], node.resonatorId)
       : null
   const nodeWhen = 'when' in node ? node.when : undefined
   const whenCondChps = fmtWhenCondL(nodeWhen?.condition, condChoices)

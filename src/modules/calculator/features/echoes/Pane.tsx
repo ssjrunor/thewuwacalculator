@@ -12,6 +12,7 @@ import {
   Save,
   Scissors,
   Trash2,
+  Wand2,
 } from 'lucide-react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import { areMkSnpsQvl, areEchoNstnQ, cloneEchoLdt } from '@/domain/entities/inventoryStorage.ts'
@@ -22,6 +23,7 @@ import { getMainEchoS } from '@/domain/services/runtimeSourceService.ts'
 import { selActTgtSlc } from '@/domain/state/selectors.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { Edit } from '@/modules/calculator/features/echoes/Edit.tsx'
+import { QuickSetup } from '@/modules/calculator/features/echoes/QuickSetup.tsx'
 import { Parser } from '@/modules/calculator/features/echoes/Parser.tsx'
 import {
   mkDefEchoNst,
@@ -120,6 +122,7 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
   const pickerModal = useAppMdlVl<number>()
   const editModal = useAppMdlVl<number>()
   const parserModal = useAppModal()
+  const quickSetupModal = useAppModal()
   const pickerSlot = pickerModal.value
   const editSlot = editModal.value
 
@@ -767,6 +770,15 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
 
             <div className="echoes-pane-summary">
               <div className="echo-toolbar" role="group" aria-label="Echo build actions">
+                <button
+                    type="button"
+                    className="echo-tool echo-tool--accent"
+                    onClick={quickSetupModal.show}
+                >
+                  <Wand2 size={15} aria-hidden="true" />
+                  <span className="echo-tool__label">Forge</span>
+                </button>
+
                 <button type="button" className="echo-tool" onClick={onMprtEcho}>
                   <FileImage size={15} aria-hidden="true" />
                   <span className="echo-tool__label">Import</span>
@@ -1080,6 +1092,31 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
                   onClose={parserModal.hide}
               />
           ) : null}
+          {quickSetupModal.visible ? (
+              <QuickSetup
+                  visible={quickSetupModal.visible}
+                  open={quickSetupModal.open}
+                  closing={quickSetupModal.closing}
+                  portalTarget={mdlPrtlTgt}
+                  currentEchoes={runtime.build.echoes}
+                  onClose={quickSetupModal.hide}
+                  onGenerate={(echoes) => {
+                    onRtPdt((prev) => ({
+                      ...prev,
+                      build: { ...prev.build, echoes },
+                    }))
+
+                    showToast({
+                      content: 'Build conjured~! ✦(ゝ｡∂)',
+                      variant: 'success',
+                      duration: 3000,
+                    })
+
+                    quickSetupModal.hide()
+                  }}
+              />
+          ) : null}
+
 
           <CnfrMdl
               visible={confirmation.visible}

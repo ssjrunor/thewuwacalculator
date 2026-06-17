@@ -15,7 +15,7 @@ export interface AppMdlStt {
 }
 
 export type AppModalTone = 'info' | 'danger'
-export type AppModalSize = 'regular' | 'wide'
+export type AppModalSize = 'regular' | 'wide' | 'x-wide'
 
 interface AppMdlClss {
   contentClass: string
@@ -80,6 +80,8 @@ function getVarClss(
       return { contentClass: 'app-modal-panel buff-preset-panel' }
     case 'echo-edit':
       return { contentClass: 'app-modal-panel echo-edit-panel' }
+    case 'echo-quick-setup':
+      return { contentClass: 'app-modal-panel echo-quick-setup-panel' }
     case 'echo-parser':
       return { contentClass: `app-modal-panel echo-parser-panel ${parserView ?? 'single'}` }
     case 'skills':
@@ -92,7 +94,7 @@ function getVarClss(
       return {
         contentClass: [
           'app-modal-panel skills-modal-content rotation-editor-modal',
-          size === 'wide' ? 'rotation-editor-modal--wide' : '',
+          size === 'wide' ? 'rotation-editor-modal--wide' : size === 'x-wide' ? 'rotation-editor-modal--x-wide' : '',
         ].filter(Boolean).join(' '),
       }
     case 'feature-conditions':

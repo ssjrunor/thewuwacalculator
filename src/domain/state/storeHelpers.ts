@@ -51,7 +51,7 @@ export function mkNtlAppStt(): PersistedState {
 
   const baseState = loadPrssAppS({ includeInventory: false }) ?? makeAppState()
   if (
-    baseState.ui.mainMode === 'optimizer'
+    window.location.pathname === '/calculator/optimizer'
     || INV_LEFT_PANES.has(baseState.ui.leftPaneView)
   ) {
     return loadPrssAppS({ includeInventory: true }) ?? baseState

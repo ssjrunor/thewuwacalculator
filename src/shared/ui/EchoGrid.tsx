@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 import type { HTMLAttributes as HtmlAttrs, MouseEventHandler as MsVntHnd, ReactNode } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { getEchoById } from '@/domain/services/echoCatalogService'
@@ -22,7 +20,7 @@ export interface EchoCardPrps {
 }
 
 export interface EchoGridPrps {
-  selection: any
+  selection: { surfaceProps?: HtmlAttrs<HTMLDivElement> }
   echoes: Array<EchoInstance | null>
   variant?: EchoCardVar
   showSubstats?: boolean

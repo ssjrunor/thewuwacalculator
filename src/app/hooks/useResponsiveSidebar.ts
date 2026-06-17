@@ -22,8 +22,8 @@ function getNtlMblStt(defaultWidth: number): boolean {
 }
 
 export function useRspnSdbr({
-                                       mblBp: mblBp = 1070,
-                                       defaultWidth = 700,
+                                       mblBp: mblBp = 568,
+                                       defaultWidth = 568,
                                        closeDelayMs = 400,
                                      }: RspnSdbrPtns = {}) {
   const [hambOpen, setHambOpen] = useState(false)

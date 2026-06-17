@@ -10,6 +10,7 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   SlidersHorizontal as SldrHrzn,
   RotateCcw,
+  ChevronDown as ChvrnDwn,
 } from 'lucide-react'
 import { useAppStore } from '@/domain/state/store'
 import { selActResId } from '@/domain/state/selectors'
@@ -37,6 +38,7 @@ import { RtMenuProv, useRtChrmMen } from '@/shared/context-menu/RouteCtx.tsx'
 import { isDtblVntTgt } from '@/shared/lib/isEditableEventTarget'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
 
+const ROUTE_CHROME_MOBILE_BP = 568
 const CHNGTSTSTORE = 'seen-changelog-version'
 let chngTstShwn = false
 
@@ -80,7 +82,7 @@ function RtChrmCntn() {
     isMobile,
     isOverlayVisible: isOvrVis,
     isOverlayClosing: isOvrCls,
-  } = useRspnSdbr()
+  } = useRspnSdbr({ mblBp: ROUTE_CHROME_MOBILE_BP, defaultWidth: ROUTE_CHROME_MOBILE_BP })
 
   useEffect(() => {
     if (!ui.preferences.updateToast || chngTstShwn || !ltstCurChngE?.shortDesc) {
@@ -109,9 +111,8 @@ function RtChrmCntn() {
 
   useEffect(() => {
     const onResize = () => {
-      // narrow screens keep navigation in the header while desktop has room for
-      // sidebar-owned toolbar actions.
-      setMoveTlbrT(window.innerWidth < 900)
+      // narrow screens move calculator toolbar actions into the sidebar.
+      setMoveTlbrT(window.innerWidth < ROUTE_CHROME_MOBILE_BP)
     }
 
     onResize()
@@ -119,7 +120,10 @@ function RtChrmCntn() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const isCalcRt = location.pathname === '/'
+  const isCalcRt = location.pathname === '/calculator' || location.pathname.startsWith('/calculator/')
+  const isCalcHomeRt = location.pathname === '/calculator'
+  const isOptRt = location.pathname === '/calculator/optimizer'
+  const isVrvwRt = location.pathname === '/calculator/overview'
 
   const isNvgtLinkAc = (to: string) => (
     to === location.pathname || (to !== '/' && location.pathname.startsWith(`${to}/`))
@@ -128,6 +132,16 @@ function RtChrmCntn() {
   const navigateTo = (to: string) => {
     rtChrmMenu.actions.navigateTo(to)
     setShowDrpd(false)
+    if (isMobile) {
+      setHambOpen(false)
+    }
+  }
+
+  const openCalcPane = (view: typeof rtChrmMenu.clclVws[number]) => {
+    if (!isCalcHomeRt) {
+      rtChrmMenu.actions.navigateTo('/calculator')
+    }
+    openLeftPane(view.key)
     if (isMobile) {
       setHambOpen(false)
     }
@@ -177,6 +191,18 @@ function RtChrmCntn() {
   }, [actVar, ui.backgroundTextMode, ui.blurMode, ui.entranceAnimations, ui.theme])
 
   const themeTglLbl = ui.theme === 'dark' ? 'Dawn' : 'Dusk'
+  const sidebarClass = [
+    'sidebar',
+    isMobile
+      ? hambOpen
+        ? 'open'
+        : ''
+      : hambOpen
+        ? 'expanded'
+        : 'collapsed',
+  ]
+    .filter(Boolean)
+    .join(' ')
   const rtCtxMenuTms = useMemo(
     () => rtChrmMenu.builders.routeChrome.bttmSec(),
     [rtChrmMenu.builders.routeChrome],
@@ -249,7 +275,7 @@ function RtChrmCntn() {
         {isCalcRt && !moveTlbrToSd ? (
           <div className="toolbar-group">
             {rtChrmMenu.clclVws.map((view, index) => {
-              const isActive = ui.mainMode === 'default' && ui.leftPaneView === view.key
+              const isActive = isCalcHomeRt && ui.leftPaneView === view.key
 
               return (
                 <button
@@ -261,7 +287,7 @@ function RtChrmCntn() {
                   title={view.label}
                   style={{ '--toolbar-index': index } as CssProps}
                   onClick={() => {
-                    openLeftPane(view.key)
+                    openCalcPane(view)
                   }}
                 >
                   <span className="toolbar-icon-shell" aria-hidden="true">
@@ -285,39 +311,39 @@ function RtChrmCntn() {
 
       <div className="horizontal-layout">
         <aside
-          className={`sidebar ${
-            isMobile ? (hambOpen ? 'open' : '') : hambOpen ? 'expanded' : 'collapsed'
-          }`}
+          className={sidebarClass}
         >
           <div className="sidebar-content">
             <button
               type="button"
-              className={showDropdown ? 'sidebar-button active' : 'sidebar-button'}
+              className={showDropdown ? 'sidebar-button route-nav-trigger open' : 'sidebar-button route-nav-trigger'}
               onClick={() => setShowDrpd((prev) => !prev)}
               aria-expanded={showDropdown}
               aria-controls="route-navigation-dropdown"
             >
               <div className="icon-slot">
-                <Thewuwacalculator width={24} height={24} aria-hidden="true" />
+                <Thewuwacalculator width={20} height={20} aria-hidden="true" />
               </div>
               <div className="label-slot">
                 <span className="label-text">Pages</span>
+                <ChvrnDwn size={16} className="sidebar-rail-chevron" aria-hidden="true" />
               </div>
             </button>
 
             <div
               id="route-navigation-dropdown"
-              className={showDropdown ? 'sidebar-dropdown open' : 'sidebar-dropdown'}
+              className={showDropdown ? 'sidebar-dropdown route-nav-dropdown open' : 'sidebar-dropdown route-nav-dropdown'}
             >
-              {rtChrmMenu.pageLinks.map(({ to, label, Icon, iconClssName: iconClssName }) => (
+              {rtChrmMenu.pageLinks.map(({ to, label, Icon, iconClssName: iconClssName }, index) => (
                 <button
                   key={to}
                   type="button"
                   className={isNvgtLinkAc(to) ? 'sidebar-sub-button selected' : 'sidebar-sub-button'}
+                  style={{ '--nav-index': index } as CssProps}
                   onClick={() => navigateTo(to)}
                 >
                   <div className="icon-slot">
-                    <Icon size={24} className={iconClssName} />
+                    <Icon size={20} className={iconClssName} />
                   </div>
                   <div className="label-slot">
                     <span className="label-text">{label}</span>
@@ -328,25 +354,26 @@ function RtChrmCntn() {
 
             {isCalcRt ? (
               <>
+                <div className="sidebar-rail-divider" aria-hidden="true">
+                  <span>Workspace</span>
+                </div>
+
                 {moveTlbrToSd ? (
                   <div className="sidebar-toolbar">
                     {rtChrmMenu.clclVws.map((view) => (
                       <button
                         key={view.key}
                         type="button"
-                        className={ui.leftPaneView === view.key ? 'sidebar-button active' : 'sidebar-button'}
+                        className={isCalcHomeRt && ui.leftPaneView === view.key ? 'sidebar-button active' : 'sidebar-button'}
                         onClick={() => {
-                          openLeftPane(view.key)
-                          if (isMobile) {
-                            setHambOpen(false)
-                          }
+                          openCalcPane(view)
                         }}
                       >
                         <div className="icon-slot">
                           <img
                             src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
                             alt={view.label}
-                            style={{ maxWidth: '24px', maxHeight: '24px', minWidth: '24px', minHeight: '24px' }}
+                            style={{ width: '20px', height: '20px' }}
                             loading="lazy"
                           />
                         </div>
@@ -369,7 +396,7 @@ function RtChrmCntn() {
                   }}
                 >
                   <div className="icon-slot">
-                    <GiSchoolBag size={24} />
+                    <GiSchoolBag size={20} />
                   </div>
                   <div className="label-slot">
                     <span className="label-text">Inventory</span>
@@ -378,11 +405,11 @@ function RtChrmCntn() {
 
                 <button
                   type="button"
-                  className={ui.mainMode === 'optimizer' ? 'sidebar-button selected' : 'sidebar-button'}
+                  className={isOptRt ? 'sidebar-button selected' : 'sidebar-button'}
                   onClick={() => rtChrmMenu.actions.tgglOpt()}
                 >
                   <div className="icon-slot">
-                    <FaMicrochip size={24} />
+                    <FaMicrochip size={20} />
                   </div>
                   <div className="label-slot">
                     <span className="label-text">Optimizer</span>
@@ -391,11 +418,11 @@ function RtChrmCntn() {
 
                 <button
                   type="button"
-                  className={ui.mainMode === 'overview' ? 'sidebar-button selected' : 'sidebar-button'}
+                  className={isVrvwRt ? 'sidebar-button selected' : 'sidebar-button'}
                   onClick={() => rtChrmMenu.actions.tgglVrvw()}
                 >
                   <div className="icon-slot">
-                    <BsPrsnVcrd size={24} />
+                    <BsPrsnVcrd size={20} />
                   </div>
                   <div className="label-slot">
                     <span className="label-text">Overview</span>
@@ -413,7 +440,7 @@ function RtChrmCntn() {
                   }}
                 >
                   <div className="icon-slot">
-                    <RxCtvtLog size={24} />
+                    <RxCtvtLog size={20} />
                   </div>
                   <div className="label-slot">
                     <span className="label-text">Status</span>
@@ -422,6 +449,10 @@ function RtChrmCntn() {
               </>
             ) : null}
 
+            <div className="sidebar-rail-divider" aria-hidden="true">
+              <span>Display</span>
+            </div>
+
             {ui.theme !== 'background' ? (
               <button
                 type="button"
@@ -429,8 +460,8 @@ function RtChrmCntn() {
                 onClick={() => setTheme(ui.theme === 'dark' ? 'light' : 'dark')}
               >
                 <div className="icon-slot theme-toggle-icon">
-                  <FaSun className="icon-sun" size={24} />
-                  <RiMoonClrFil className="icon-moon" size={24} />
+                  <FaSun className="icon-sun" size={20} />
+                  <RiMoonClrFil className="icon-moon" size={20} />
                 </div>
                 <div className="label-slot">
                   <span className="label-text">{themeTglLbl}</span>
@@ -443,7 +474,7 @@ function RtChrmCntn() {
                 onClick={() => setBlurMode(!ui.blurMode)}
               >
                 <div className="icon-slot">
-                  <SldrHrzn size={24} />
+                  <SldrHrzn size={20} />
                 </div>
                 <div className="label-slot">
                   <span className="label-text">Blur {ui.blurMode ? 'On' : 'Off'}</span>
@@ -453,6 +484,10 @@ function RtChrmCntn() {
           </div>
 
           <div className="sidebar-footer">
+            <div className="sidebar-rail-divider" aria-hidden="true">
+              <span>Session</span>
+            </div>
+
             <button
               type="button"
               className="sidebar-button"
@@ -468,7 +503,7 @@ function RtChrmCntn() {
               }}
             >
               <div className="icon-slot">
-                <RiHeartsFill size={24} />
+                <RiHeartsFill size={20} />
               </div>
               <div className="label-slot">
                 <span className="label-text">Say Hi~!</span>
@@ -502,7 +537,7 @@ function RtChrmCntn() {
                 onClick={rtChrmMenu.actions.rstActRes}
               >
                 <div className="icon-slot">
-                  <RotateCcw size={24} className="reset-icon" />
+                  <RotateCcw size={20} className="reset-icon" />
                 </div>
                 <div className="label-slot">
                   <span className="label-text">Reset</span>

@@ -54,10 +54,10 @@ describe('persistence domain routing', () => {
     expect(consumePersist()).toEqual(['ui.appearance'])
   })
 
-  it('marks layout and optimizer context when switching to optimizer mode', () => {
-    useAppStore.getState().setMainMode('optimizer')
+  it('marks only optimizer context when syncing the optimizer route state', () => {
+    useAppStore.getState().ensureOptimizer()
 
-    expect(consumePersist()).toEqual(['ui.layout', 'calculator.optimizerContext'])
+    expect(consumePersist()).toEqual(['calculator.optimizerContext'])
   })
 
   it('marks session and layout domains for enemy updates', () => {

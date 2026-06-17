@@ -15,8 +15,10 @@ describe('persistedSchema', () => {
     const profile = state.calculator.profiles[resonatorId]
     expect(profile).toBeDefined()
 
-    const raw = structuredClone(state) as any
-    raw.calculator.profiles[resonatorId].runtime.build.weapon.baseAtk = 12345
+    type LegacyWeapon = typeof profile.runtime.build.weapon & { baseAtk?: number }
+    const raw = structuredClone(state)
+    const rawProfile = raw.calculator.profiles[resonatorId]
+    ;(rawProfile.runtime.build.weapon as LegacyWeapon).baseAtk = 12345
     raw.calculator.inventoryBuilds.push({
       id: 'legacy-build',
       name: 'Legacy Build',
@@ -24,11 +26,11 @@ describe('persistedSchema', () => {
       resonatorName: 'Legacy',
       build: {
         weapon: {
-          id: raw.calculator.profiles[resonatorId].runtime.build.weapon.id,
+          id: rawProfile.runtime.build.weapon.id,
           level: 90,
           rank: 1,
           baseAtk: 12345,
-        },
+        } as LegacyWeapon,
         echoes: [null, null, null, null, null],
       },
       createdAt: 1,
@@ -58,15 +60,23 @@ describe('persistedSchema', () => {
       updatedAt: 1,
     })
 
-    const parsed = persistedSchema.parse(raw) as any
+    const parsed = persistedSchema.parse(raw)
+    const parsedProfile = parsed.calculator.profiles[resonatorId]
+    const parsedBuild = parsed.calculator.inventoryBuilds[0]
+    const parsedRotation = parsed.calculator.inventoryRotations[0]
+    const parsedMember = parsedRotation?.summary?.members?.[0]
+    expect(parsedProfile).toBeDefined()
+    expect(parsedBuild).toBeDefined()
+    expect(parsedRotation).toBeDefined()
+    expect(parsedMember).toBeDefined()
 
-    expect(parsed.calculator.profiles[resonatorId].runtime.build.weapon.baseAtk).toBeUndefined()
-    expect(parsed.calculator.inventoryBuilds[0].build.weapon.baseAtk).toBeUndefined()
-    expect(parsed.calculator.inventoryBuilds[0].resonatorName).toBeUndefined()
-    expect(parsed.calculator.inventoryRotations[0].resonatorName).toBeUndefined()
-    expect(parsed.calculator.inventoryRotations[0].summary.members[0].name).toBeUndefined()
+    expect(parsedProfile?.runtime.build.weapon).not.toHaveProperty('baseAtk')
+    expect(parsedBuild?.build.weapon).not.toHaveProperty('baseAtk')
+    expect(parsedBuild).not.toHaveProperty('resonatorName')
+    expect(parsedRotation).not.toHaveProperty('resonatorName')
+    expect(parsedMember).not.toHaveProperty('name')
 
-    const hydrated = initAppState(parsed)
+    const hydrated = initAppState(parsed as unknown as Parameters<typeof initAppState>[0])
     expect(hydrated.calculator.profiles[resonatorId].runtime.build.weapon.baseAtk).toBeGreaterThan(0)
     expect(hydrated.calculator.inventoryBuilds[0].resonatorName).toBe(seed!.name)
     expect(hydrated.calculator.inventoryRotations[0].resonatorName).toBe(seed!.name)

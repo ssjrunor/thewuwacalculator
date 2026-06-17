@@ -111,7 +111,7 @@ function makeLayout(state: PersistedState) {
     ui: {
       preferences: state.ui.preferences,
       leftPaneView: state.ui.leftPaneView,
-      mainMode: state.ui.mainMode,
+      suggsViewMode: state.ui.suggsViewMode,
       showSubHits: state.ui.showSubHits,
       compactInv: state.ui.compactInv,
       seeEquipped: state.ui.seeEquipped,

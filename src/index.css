@@ -5,4 +5,5 @@
 @import './styles/calculator-workspace.css';
 @import './styles/calculator/weapon.css';
 @import './styles/pages/pages.css';
+@import 'styles/chrome.css';
 @import './styles/responsive.css';

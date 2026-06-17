@@ -7,6 +7,16 @@
 import type { ResDtls } from '@/domain/entities/resonator'
 import type { ResSeed } from '@/domain/entities/runtime'
 
+const SKILL_TABS = [
+  'normalAttack',
+  'resonanceSkill',
+  'forteCircuit',
+  'resonanceLiberation',
+  'introSkill',
+  'outroSkill',
+  'tuneBreak',
+] as const
+
 let catalogCache: ResSeed[] = []
 let catByIdCch: Record<string, ResSeed> = {}
 let dtlsByIdCch: Record<string, ResDtls> = {}
@@ -17,7 +27,19 @@ export function initResCat(catalog: ResSeed[]): void {
 }
 
 export function initResDtls(details: Record<string, ResDtls>): void {
-  dtlsByIdCch = details
+  dtlsByIdCch = Object.fromEntries(
+    Object.entries(details).map(([id, detail]) => [
+      id,
+      {
+        ...detail,
+        skillTabs: SKILL_TABS.filter((tab) => Boolean(detail.skillsByTab[tab])),
+        statePanels: detail.statePanels ?? [],
+        inherentSkills: detail.inherentSkills ?? [],
+        resonanceChains: detail.resonanceChains ?? [],
+        traceNodes: detail.traceNodes ?? catByIdCch[id]?.traceNodes ?? [],
+      },
+    ]),
+  )
 }
 
 export function getResCat(): ResSeed[] {

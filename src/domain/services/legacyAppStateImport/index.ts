@@ -70,8 +70,6 @@ function resLegUi(
   const nextLeftPane = coerceString(controls.leftPaneView)
   const sortKey = coerceString(controls.sortKey)
   const sortOrder = coerceString(controls.sortOrder)
-  const showOpt = crcBln(controls.showOptimizer) ?? false
-  const showCharVrvw = crcBln(controls.showCharacterOverview) ?? false
 
   return {
     ...baseUi,
@@ -88,7 +86,6 @@ function resLegUi(
     bodyFontUrl: coerceString(controls.userBodyFontURL) ?? baseUi.bodyFontUrl,
     blurMode: coerceString(controls['user-blur-mode']) === 'off' ? false : baseUi.blurMode,
     leftPaneView: (nextLeftPane && LEGACY_LEFT[nextLeftPane]) || baseUi.leftPaneView,
-    mainMode: showCharVrvw ? 'overview' : showOpt ? 'optimizer' : 'default',
     showSubHits: crcBln(controls.showSubHits) ?? baseUi.showSubHits,
     savedRotationPreferences: {
       ...baseUi.savedRotationPreferences,

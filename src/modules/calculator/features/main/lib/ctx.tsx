@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 /*
   Author: Runor Ewhro
   Description: Binds calculator-wide menu builders, modal state, and shared

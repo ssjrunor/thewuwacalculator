@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 /*
   Author: Runor Ewhro
   Description: Implements the floating context-menu renderer, including portal
@@ -379,6 +377,48 @@ export function ContextMenu<TData = unknown>({
     }
   }, [])
 
+  const getPrfrFltnS = useCallback((
+    triggerRect: DOMRect,
+    fltnWdth: number,
+    prfrSide: MenuPanelSide,
+  ): MenuPanelSide => {
+    const rghtFitsWith = triggerRect.right <= window.innerWidth
+    const leftFitsWith = triggerRect.left >= 0
+    const rghtFitsCur =
+      triggerRect.right + fltnWdth + vwprPddn <= window.innerWidth
+    const leftFitsCur =
+      triggerRect.left - fltnWdth - vwprPddn >= 0
+
+    if (prfrSide === 'right') {
+      if (rghtFitsCur) return 'right'
+      if (leftFitsCur) return 'left'
+      if (rghtFitsWith) return 'right'
+      if (leftFitsWith) return 'left'
+      return rghtFitsCur || !leftFitsCur ? 'right' : 'left'
+    }
+
+    if (leftFitsCur) return 'left'
+    if (rghtFitsCur) return 'right'
+    if (leftFitsWith) return 'left'
+    if (rghtFitsWith) return 'right'
+    return leftFitsCur || !rghtFitsCur ? 'left' : 'right'
+  }, [vwprPddn])
+
+  const mkPnlRect = useCallback((
+    left: number,
+    widthValue: number,
+  ): DOMRect => ({
+    x: left,
+    y: 0,
+    width: widthValue,
+    height: 0,
+    top: 0,
+    right: left + widthValue,
+    bottom: 0,
+    left,
+    toJSON: () => ({}),
+  }) as DOMRect, [])
+
   const measureMenu = useCallback(() => {
     // root placement chooses the side that leaves room for first-level
     // submenus, not just the side that fits the root panel.
@@ -452,6 +492,8 @@ export function ContextMenu<TData = unknown>({
     controller.clientX,
     controller.clientY,
     resolveTimers.length,
+    getPrfrFltnS,
+    mkPnlRect,
     vwprPddn,
     width,
   ])
@@ -472,48 +514,6 @@ export function ContextMenu<TData = unknown>({
 
     return sbmnLyts[panelLevel - 1]?.childSide ?? 'right'
   }, [menuSide, sbmnLyts])
-
-  const getPrfrFltnS = useCallback((
-    triggerRect: DOMRect,
-    fltnWdth: number,
-    prfrSide: MenuPanelSide,
-  ): MenuPanelSide => {
-    const rghtFitsWith = triggerRect.right <= window.innerWidth
-    const leftFitsWith = triggerRect.left >= 0
-    const rghtFitsCur =
-      triggerRect.right + fltnWdth + vwprPddn <= window.innerWidth
-    const leftFitsCur =
-      triggerRect.left - fltnWdth - vwprPddn >= 0
-
-    if (prfrSide === 'right') {
-      if (rghtFitsCur) return 'right'
-      if (leftFitsCur) return 'left'
-      if (rghtFitsWith) return 'right'
-      if (leftFitsWith) return 'left'
-      return rghtFitsCur || !leftFitsCur ? 'right' : 'left'
-    }
-
-    if (leftFitsCur) return 'left'
-    if (rghtFitsCur) return 'right'
-    if (leftFitsWith) return 'left'
-    if (rghtFitsWith) return 'right'
-    return leftFitsCur || !rghtFitsCur ? 'left' : 'right'
-  }, [vwprPddn])
-
-  const mkPnlRect = useCallback((
-    left: number,
-    widthValue: number,
-  ): DOMRect => ({
-    x: left,
-    y: 0,
-    width: widthValue,
-    height: 0,
-    top: 0,
-    right: left + widthValue,
-    bottom: 0,
-    left,
-    toJSON: () => ({}),
-  }) as DOMRect, [])
 
   const getChldPnlPl = useCallback((
     parentPath: string[],
@@ -759,6 +759,7 @@ export function ContextMenu<TData = unknown>({
 
   useEffect(() => {
     if (!controller.isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       clrMenuTreeS()
       return
     }

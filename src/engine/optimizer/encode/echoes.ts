@@ -127,7 +127,7 @@ function buildKindIds(echoes: EchoInstance[]): Uint16Array {
 
 // add one main stat or substat into the encoded per-echo stat vector
 // only keys used by the optimizer vector layout are recognized here
-function addEchoStat(vector: Float32Array, statKey: string, value: number): void {
+export function addEchoStat(vector: Float32Array, statKey: string, value: number): void {
   if (!value) {
     return
   }

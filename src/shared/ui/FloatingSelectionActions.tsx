@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 /*
   Author: Runor Ewhro
   Description: Hosts app-wide floating selection actions so features can

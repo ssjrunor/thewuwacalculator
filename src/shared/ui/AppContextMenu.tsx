@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 /*
   Author: Runor Ewhro
   Description: Coordinates the app-wide context-menu surface by merging local

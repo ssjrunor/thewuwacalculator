@@ -25,7 +25,7 @@ export interface RtCalcView {
 }
 
 export const rtNavLnks: RouteNavLink[] = [
-  { to: '/', label: 'Calculator', Icon: TbGoGame },
+  { to: '/calculator', label: 'Calculator', Icon: TbGoGame },
   { to: '/settings', label: 'Settings', Icon: GiPokecog, iconClssName: 'settings-icon' },
   { to: '/info', label: 'Info', Icon: FaInfo },
   { to: '/guides', label: 'Guides', Icon: FaQuestion, iconClssName: 'help-icon' },

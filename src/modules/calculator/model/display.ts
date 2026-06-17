@@ -4,30 +4,21 @@
                colors, and weapon type text.
 */
 
-import type { AttributeKey } from '@/domain/entities/stats'
-import type {EnemyElemId} from "@/domain/entities/enemy.ts";
+import type { EnemyElemId } from '@/domain/entities/enemy'
+import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
+
+export { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 
 export type WeaponTypeId = 1 | 2 | 3 | 4 | 5
 
-// attribute colors are reused anywhere an element needs a quick ui accent.
-export const ATTR_COLORS: Record<AttributeKey, string> = {
-  aero: '#51ffb3',
-  glacio: '#40aefa',
-  spectro: '#f8e56c',
-  fusion: '#f0734d',
-  electro: '#b46aff',
-  havoc: '#e649a6',
-  physical: '#8c8c8c'
-}
-
 export const ATTR_ID_COLORS: Record<EnemyElemId, string> = {
-  0: '#8c8c8c',
-  1: '#3ebde3',
-  2: '#c5344f',
-  3: '#a70dd1',
-  4: '#0fcda0',
-  5: '#d0b33f',
-  6: '#ac0960'
+  0: ATTR_COLORS.physical,
+  1: ATTR_COLORS.glacio,
+  2: ATTR_COLORS.fusion,
+  3: ATTR_COLORS.electro,
+  4: ATTR_COLORS.aero,
+  5: ATTR_COLORS.spectro,
+  6: ATTR_COLORS.havoc,
 }
 
 export const WPNTYPELBLS: Record<number, string> = {

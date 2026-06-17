@@ -377,7 +377,7 @@ export const gdCtgr: GuideCategory[] = [
       article(
         'rotation-conditions-and-when-rules',
         'Conditions and When Rules',
-        'How node gating, loop targeted rules, and inspection contexts interact.',
+        'How node gating, feature setup changes, loop targeted rules, and inspection contexts interact.',
         section(
           'What when rules do',
           paragraph(
@@ -409,6 +409,42 @@ export const gdCtgr: GuideCategory[] = [
             'If a node appears to stop running after loop edits, inspect its when rules first.',
             'Short loop chips in the editor refer to the loop that actually covers that node, not every loop in the rotation.',
             'A disabled node and a filtered out node look similar in totals, but they are different authoring states.'
+          ),
+        ),
+        section(
+          'Feature-level conditions',
+          paragraph(
+            'A feature row can carry setup changes directly. These changes apply to that feature evaluation path before the feature is calculated, which is useful when one hit needs a temporary stack, toggle, enemy status, or formula override that does not deserve a separate visible condition node in the tree.'
+          ),
+          definitions(
+            ['Condition node', 'A standalone rotation node that mutates runtime or enemy state for later nodes.'],
+            ['Feature condition', 'A setup change attached to one feature row and evaluated with that feature.'],
+            ['Formula stat', 'A formula-local adjustment such as MV Add, MV Scale, fixed damage, damage bonus, vulnerability, or similar values under the Formula Stats browser entry.']
+          ),
+          comparison(
+            'Condition node',
+            'Feature condition',
+            ['Best for', 'State that should affect several later nodes', 'State that only belongs to one feature row'],
+            ['Tree visibility', 'Appears as its own node in the rotation tree', 'Lives inside the feature editor'],
+            ['Typical examples', 'Turn on a stance before a combo, add an enemy status for a window', 'Make one hit guaranteed crit, add formula MV to one hit, consume a one-hit stack']
+          ),
+          note('Use feature conditions for local setup. Use condition nodes when the state should remain visible as a step in the authored rotation and affect more than one following row.'),
+        ),
+        section(
+          'Adding condition changes',
+          paragraph(
+            'The conditions editor uses the same condition picker model for normal runtime values, enemy values, and formula stats. The browser chooses what path to edit, then the directive card controls how the value is applied.'
+          ),
+          steps(
+            ['Choose a target', 'Open Add Conditions from a feature or condition editor and pick the runtime, enemy, or Formula Stats entry you want to change.'],
+            ['Pick the operation', 'Use the directive card to set, add, scale, or otherwise apply the value according to the available operation for that path.'],
+            ['Scope it with when rules if needed', 'If the feature sits inside loops, use when rules when the change should only exist for specific loop runs.'],
+            ['Inspect the result', 'Use the damage row inspection context to verify that the expected run or feature sees the changed value.']
+          ),
+          warningList(
+            'Formula stats are per-row overlays, not permanent manual buffs.',
+            'Feature-attached conditions should not be used to hide major rotation steps that users need to understand later.',
+            'If two attached changes write the same path, the later directive in that feature setup is the one that wins for that path.'
           ),
         ),
       ),
@@ -580,6 +616,49 @@ export const gdCtgr: GuideCategory[] = [
             ['Active set bonus', 'A set effect that becomes available once the equipped counts satisfy its threshold.']
           ),
           note('Set logic uses the selected set ids on the equipped echoes. Suggestions that rewrite set plans are changing those set assignments, not inventing extra hidden set pieces.'),
+        ),
+      ),
+      article(
+        'echo-quick-setup',
+        'Quick Setup Forge',
+        'How the Echoes pane can generate a valid loadout from partial choices.',
+        section(
+          'What Quick Setup builds',
+          paragraph(
+            'Quick Setup is a loadout forge for the active resonator. It can generate between one and five equipped echoes from the pieces you specify, then fills the missing parts with valid random choices.'
+          ),
+          definitions(
+            ['Echo count', 'How many equipped echo slots the generated loadout should contain. If the current build has no echoes, the modal starts at five.'],
+            ['Main stat slot', 'A chosen cost and primary main stat for one generated echo. Empty slots are filled randomly.'],
+            ['Substat template', 'A reusable set of up to five substats that can be copied onto one or more generated echoes.'],
+            ['Multiplier', 'How many echoes should receive that substat template. Template multipliers can add up to the echo count, and any remaining echoes get random substats.'],
+            ['Sonata plan', 'The set-piece plan Quick Setup should try to satisfy while choosing echo definitions and set ids.'],
+            ['Main echo', 'The desired catalog echo for the first slot. If it cannot fit the current plan, Quick Setup treats it like an unset main echo and picks a valid one instead.']
+          ),
+          note('Quick Setup writes real echo instances into the active build. It is not a preview layer, so generated stats, sets, and main echo state immediately feed the rest of the calculator.'),
+        ),
+        section(
+          'How starting values are chosen',
+          paragraph(
+            'The modal starts from the current echo build instead of a blank template. Existing main stats, costs, set plan, main echo, and substat patterns are read from the equipped echoes so you can adjust the current build rather than rebuild it from zero.'
+          ),
+          bullets(
+            'Existing substat sets are deduped by their stat keys; order does not matter.',
+            'Repeated matching substat sets become one template with a higher multiplier.',
+            'Adding a new substat template duplicates the previous template when one exists.',
+            'Clear All removes the authored choices so the next generated loadout is mostly random within the remaining rules.'
+          ),
+        ),
+        section(
+          'Validity and random filling',
+          paragraph(
+            'Quick Setup only generates legal echo arrangements. The chosen echo count, cost choices, set plan, and main echo choice are considered together before the final loadout is produced.'
+          ),
+          warningList(
+            'An invalid main echo is shown as invalid in the picker, but generation still continues by selecting a random valid main echo.',
+            'If a main stat, substat template, or set plan slot is left empty, that part is intentionally random-filled.',
+            'The generated build is not bag constrained. It creates usable echo instances for the runtime rather than selecting saved inventory entries.'
+          ),
         ),
       ),
       article(
@@ -1068,7 +1147,7 @@ export const gdCtgr: GuideCategory[] = [
               'Run Theorymax next. The top result is your ceiling for the substats you are wearing.',
             ],
             [
-              'A small gap between the two means farming more echoes will not move your damage much. A large gap usually points at one specific change: a different main echo, a different set, or one main stat — that would unlock the rest.',
+              'A small gap between the two means farming more echoes will not move your damage much. A large gap usually points at one specific change: a different main echo, a different set, or one main stat, that would unlock the rest.',
             ],
           ),
           steps(
@@ -1082,7 +1161,7 @@ export const gdCtgr: GuideCategory[] = [
         section(
           'Applying a Theorymax result',
           paragraph(
-            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries — they only exist in your runtime state. Your bag is untouched. If the result came from Include weapons mode, the chosen weapon and the passive state the search evaluated are applied with it.'
+            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries, they only exist in your runtime state. Your bag is untouched. If the result came from Include weapons mode, the chosen weapon and the passive state the search evaluated are applied with it.'
           ),
           comparison(
             'Sim',
@@ -1095,7 +1174,7 @@ export const gdCtgr: GuideCategory[] = [
             'Applying Theorymax to Live will change the damage shown in your normal calculator until you swap back. This is the ceiling showing up everywhere, not your real build.',
             'Theorymax echoes do not save to your bag automatically. Your previous build is still in your bag, ready to be re-equipped.',
             'If Include weapons was on, the applied build can change weapon state as well as echo state.',
-            'If you change something the search depends on — allowed sets, main stat filter, set conditionals, or weapon-search settings — re-run Theorymax before trusting the old results.'
+            'If you change something the search depends on allowed sets, main stat filter, set conditionals, or weapon-search settings, re-run Theorymax before trusting the old results.'
           ),
         ),
       ),

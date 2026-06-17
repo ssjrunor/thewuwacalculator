@@ -24,7 +24,9 @@ import {AppModal} from "@/shared/ui/AppModal.tsx";
 import {MdlClsBttn} from "@/shared/ui/ModalCloseButton.tsx";
 import {LiquidSelect, type SelectOption, type SelectGroup} from "@/shared/ui/LiquidSelect.tsx";
 import {Expandable} from "@/shared/ui/Expandable.tsx";
-import {Minus, Play, Plus, RotateCcw, Search, Square, Trash2, X} from "lucide-react";
+import {Crosshair, Hash, Layers, List, Minus, Play, Plus, Repeat, RotateCcw, Search, Sparkles, Square, ToggleRight, Trash2, X} from "lucide-react";
+import type {LucideIcon} from "lucide-react";
+import {getResById} from "@/domain/services/resonatorCatalogService.ts";
 import {RichDscr} from "@/shared/ui/RichDescription.tsx";
 import {
   makeNegDraft,
@@ -49,6 +51,78 @@ import {withDefIconM} from "@/shared/lib/imageFallback.ts";
 
 type WhenView = 'edit' | 'loop' | 'states'
 
+function getCondGroupKey(choice: CondChoice): string {
+  if (choice.changeTarget === 'rotation') {
+    return `rotation:${choice.sourceName || 'Rotation'}`
+  }
+
+  return `${choice.resonatorId}:${choice.sourceName}`
+}
+
+function getCondGroupLabel(choice: CondChoice): string {
+  if (choice.changeTarget === 'rotation') {
+    return choice.sourceName || 'Rotation Setup'
+  }
+
+  return choice.sourceName === choice.resName
+    ? choice.resName
+    : `${choice.resName} · ${choice.sourceName}`
+}
+
+type CondTarget = 'resonator' | 'enemy' | 'rotation'
+type CondKind = 'toggle' | 'select' | 'stack' | 'number'
+
+function getCondTarget(choice: CondChoice): CondTarget {
+  if (choice.changeTarget === 'enemy') {
+    return 'enemy'
+  }
+  if (choice.changeTarget === 'rotation') {
+    return 'rotation'
+  }
+  return 'resonator'
+}
+
+const COND_KIND_META: Record<CondKind, { label: string; Icon: LucideIcon }> = {
+  toggle: { label: 'Toggle', Icon: ToggleRight },
+  stack: { label: 'Stacks', Icon: Layers },
+  number: { label: 'Value', Icon: Hash },
+  select: { label: 'Option', Icon: List },
+}
+
+const COND_KIND_ORDER: CondKind[] = ['toggle', 'stack', 'number', 'select']
+
+// the source rail groups choices by their owner (a teammate, the enemy, or the rotation itself) one level coarser than
+// the per-buff-source grouping the browser uses.
+function getCondOwnerKey(choice: CondChoice): string {
+  const target = getCondTarget(choice)
+  if (target === 'enemy') {
+    return 'enemy'
+  }
+  if (target === 'rotation') {
+    return 'rotation'
+  }
+  return choice.resonatorId
+}
+
+function getCondOwnerLabel(choice: CondChoice): string {
+  const target = getCondTarget(choice)
+  if (target === 'enemy') {
+    return 'Enemy'
+  }
+  if (target === 'rotation') {
+    return 'Rotation'
+  }
+  return choice.resName
+}
+
+function isFormulaChoice(choice: CondChoice | null | undefined): boolean {
+  return choice?.state.ownerKey === 'rotation:formula'
+}
+
+function getBrowserChoiceLabel(choice: CondChoice): string {
+  return isFormulaChoice(choice) ? 'Modifiers' : fmtCondChcLb(choice)
+}
+
 export function ModalFrame({
                              visible,
                              open,
@@ -66,7 +140,7 @@ export function ModalFrame({
   closing?: boolean
   portalTarget: HTMLElement | null
   title: string
-  width?: 'regular' | 'wide'
+  width?: 'regular' | 'wide' | 'x-wide'
   bodyClssName?: string
   onClose: () => void
   children: React.ReactNode
@@ -113,6 +187,7 @@ export function Condition({
                             visible,
                             open,
                             closing = false,
+                            portalTarget,
                             choices,
                             ntlChng: initChng,
                             featureLabel,
@@ -136,6 +211,10 @@ export function Condition({
   const [rows, setRows] = useState<FeatCondDrft[]>([])
   const [activeRowId, setActRowId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [kindFilter, setKindFilter] = useState<CondKind | 'all'>('all')
+  // the source rail doubles as the primary filter: 'all' browses every owner, otherwise the browser is scoped to one
+  // teammate / enemy / rotation owner key.
+  const [ownerFilter, setOwnerFilter] = useState<string>('all')
 
   useEffect(() => {
     if (!visible) {
@@ -145,40 +224,137 @@ export function Condition({
     // reopen from serialized runtime changes every time the modal becomes visible so abandoned draft edits never leak
     // into the next condition edit session.
     const nextRows = initChng.map((change) => makeFeatCond(change, choices, makeNodeId))
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRows(nextRows)
-    setActRowId(nextRows[0]?.id ?? null)
+    setActRowId(null)
     setQuery('')
+    setKindFilter('all')
+    setOwnerFilter('all')
   }, [choices, initChng, visible])
 
-  const activeRow = rows.find((row) => row.id === activeRowId) ?? null
   const nrmlQry = query.trim().toLowerCase()
-  const fltrChcs = useMemo(() => {
-    // search across display labels and source names because feature conditions are usually remembered by buff source
-    // rather than by their raw state path.
-    if (!nrmlQry) {
-      return choices
+
+  // only surface the kind facet values that actually exist so the segmented control never shows dead options.
+  const availableKinds = useMemo(() => {
+    const present = new Set(choices.map((choice) => choice.state.kind as CondKind))
+    return COND_KIND_ORDER.filter((kind) => present.has(kind))
+  }, [choices])
+  const browserChoiceCount = useMemo(() => {
+    let formulaSeen = false
+    let count = 0
+
+    for (const choice of choices) {
+      if (isFormulaChoice(choice)) {
+        if (!formulaSeen) {
+          formulaSeen = true
+          count += 1
+        }
+        continue
+      }
+      count += 1
     }
 
-    return choices.filter((choice) =>
-      [
+    return count
+  }, [choices])
+
+  // the rail enumerates every owner in first-seen order, each carrying its own state count plus the avatar (resonator)
+  // or icon kind (enemy / rotation) the badge should render.
+  const owners = useMemo(() => {
+    type Owner = { key: string; label: string; kind: CondTarget; profile: string; count: number }
+    const list: Owner[] = []
+    const byKey = new Map<string, Owner>()
+    const countedFormulaOwners = new Set<string>()
+    for (const choice of choices) {
+      const key = getCondOwnerKey(choice)
+      let owner = byKey.get(key)
+      if (!owner) {
+        const kind = getCondTarget(choice)
+        owner = {
+          key,
+          label: getCondOwnerLabel(choice),
+          kind,
+          profile: kind === 'resonator' ? (getResById(choice.resonatorId)?.profile ?? '') : '',
+          count: 0,
+        }
+        byKey.set(key, owner)
+        list.push(owner)
+      }
+      if (isFormulaChoice(choice)) {
+        if (countedFormulaOwners.has(key)) {
+          continue
+        }
+        countedFormulaOwners.add(key)
+      }
+      owner.count += 1
+    }
+    return list
+  }, [choices])
+
+  const fltrChcs = useMemo(() => {
+    const choiceMatchesFilters = (choice: CondChoice) => {
+      if (ownerFilter !== 'all' && getCondOwnerKey(choice) !== ownerFilter) {
+        return false
+      }
+      if (kindFilter !== 'all' && choice.state.kind !== kindFilter) {
+        return false
+      }
+      if (!nrmlQry) {
+        return true
+      }
+      return [
         choice.label,
         choice.sourceName,
         choice.resName,
         fmtCondChcLb(choice),
-      ].some((value) => value.toLowerCase().includes(nrmlQry)),
-    )
-  }, [choices, nrmlQry])
+        getBrowserChoiceLabel(choice),
+      ].some((value) => value.toLowerCase().includes(nrmlQry))
+    }
+
+    // the rail scopes by owner, the segmented control by state shape, and the search across labels and source names
+    // states are usually remembered by their buff source rather than their raw path.
+    const filtered: CondChoice[] = []
+    let formulaRepresentative: CondChoice | null = null
+    let formulaMatches = false
+
+    for (const choice of choices) {
+      if (isFormulaChoice(choice)) {
+        formulaRepresentative ??= choice
+        formulaMatches ||= choiceMatchesFilters(choice)
+        continue
+      }
+      if (choiceMatchesFilters(choice)) {
+        filtered.push(choice)
+      }
+    }
+
+    if (!formulaRepresentative || !formulaMatches) {
+      return filtered
+    }
+
+    const insertIndex = choices.findIndex(isFormulaChoice)
+    const nonFormulaBefore = choices
+      .slice(0, Math.max(0, insertIndex))
+      .filter((choice) => !isFormulaChoice(choice) && choiceMatchesFilters(choice))
+      .length
+    return [
+      ...filtered.slice(0, nonFormulaBefore),
+      formulaRepresentative,
+      ...filtered.slice(nonFormulaBefore),
+    ]
+  }, [choices, kindFilter, nrmlQry, ownerFilter])
+  const filtersActive = ownerFilter !== 'all' || kindFilter !== 'all' || nrmlQry.length > 0
+  const clearFilters = () => {
+    setQuery('')
+    setKindFilter('all')
+    setOwnerFilter('all')
+  }
   const grpdChcs = useMemo(() => {
     const groups: Array<{ key: string; label: string; choices: CondChoice[] }> = []
     const groupByKey = new Map<string, { key: string; label: string; choices: CondChoice[] }>()
 
     // preserve first-seen order while still collecting states under their resonator/source heading.
     for (const choice of fltrChcs) {
-      const key = `${choice.resonatorId}:${choice.sourceName}`
-      const label = choice.sourceName === choice.resName
-        ? choice.resName
-        : `${choice.resName} · ${choice.sourceName}`
+      const key = getCondGroupKey(choice)
+      const label = getCondGroupLabel(choice)
       let group = groupByKey.get(key)
       if (!group) {
         group = { key, label, choices: [] }
@@ -191,57 +367,62 @@ export function Condition({
     return groups
   }, [fltrChcs])
 
+  // map every attached choice to its row id so browser tiles can show as engaged and toggle off without a second pass.
+  const attachedByChoice = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of rows) {
+      if (row.choiceId && !map.has(row.choiceId)) {
+        map.set(row.choiceId, row.id)
+      }
+    }
+    return map
+  }, [rows])
+  const formulaOptions = useMemo<SelectOption<string>[]>(
+    () => choices
+      .filter(isFormulaChoice)
+      .map((choice) => ({ value: choice.id, label: choice.label })),
+    [choices],
+  )
+
   const updateRow = (rowId: string, updater: (row: FeatCondDrft) => FeatCondDrft) => {
     setRows((current) => current.map((row) => (row.id === rowId ? updater(row) : row)))
-  }
-
-  const addRow = () => {
-    const nextRow = mkFeatCondDr(choices[0], 'set', makeNodeId)
-    setRows((current) => [...current, nextRow])
-    setActRowId(nextRow.id)
   }
 
   const removeRow = (rowId: string) => {
     setRows((current) => {
       const nextRows = current.filter((row) => row.id !== rowId)
       if (activeRowId === rowId) {
-        setActRowId(nextRows[0]?.id ?? null)
+        setActRowId(null)
       }
       return nextRows
     })
   }
 
-  const selChcForAct = (choice: CondChoice) => {
-    if (!activeRow) {
-      // choosing from the picker with no selected row creates a row immediately; this keeps the picker usable as an
-      // add flow instead of forcing the plus button first.
-      const nextRow = mkFeatCondDr(choice, 'set', makeNodeId)
-      setRows((current) => [...current, nextRow])
-      setActRowId(nextRow.id)
-      return
+  const toggleChoice = (choice: CondChoice) => {
+    // tiles act as a live multi-select: a state already in the directive set toggles back out, otherwise it appends.
+    if (!isFormulaChoice(choice)) {
+      const existingRowId = attachedByChoice.get(choice.id)
+      if (existingRowId) {
+        removeRow(existingRowId)
+        return
+      }
     }
 
-    updateRow(activeRow.id, (row) => {
-      const action = normFeatCond(row.action, choice)
-      return {
-        ...row,
-        action,
-        choiceId: choice.id,
-        value: action === 'add' ? 1 : makeCondValue(choice.state),
-      }
-    })
+    const nextRow = mkFeatCondDr(choice, 'set', makeNodeId)
+    setRows((current) => [...current, nextRow])
+    setActRowId(nextRow.id)
   }
 
   const viewRowVlFld = (row: FeatCondDrft, choice: CondChoice | undefined) => {
     if (!choice) {
-      return <span className="feature-conditions-row__missing">Select a state</span>
+      return <span className="cnv-card__missing">Select a state</span>
     }
 
     if (row.action === 'add') {
       return (
         <input
           type="number"
-          className="resonator-level-input feature-conditions-row__value"
+          className="resonator-level-input cnv-card__value-input"
           step={choice.state.kind === 'stack' ? 1 : 0.1}
           value={typeof row.value === 'number' ? row.value : Number(row.value) || 0}
           onChange={(event) => {
@@ -267,178 +448,21 @@ export function Condition({
     return null
   }
 
+  const visibleCount = grpdChcs.reduce((total, group) => total + group.choices.length, 0)
+  const scoped = ownerFilter !== 'all'
+
   return (
-    <AppModal
-      state={{visible, open, closing}}
-      variant="feature-conditions"
-      ariaLabel="Set feature conditions"
+    <ModalFrame
+      visible={visible}
+      open={open}
+      closing={closing}
+      portalTarget={portalTarget}
+      title={featureLabel}
+      width="x-wide"
+      bodyClssName="rotation-editor-modal-body--conditions"
       onClose={onClose}
-    >
-      <div className="feature-conditions-root">
-        <div className="feature-conditions-header">
-          <div>
-            <span className="feature-conditions-eyebrow">{eyebrow}</span>
-            <h2 className="feature-conditions-title">{featureLabel}</h2>
-          </div>
-          <MdlClsBttn onClick={onClose} />
-        </div>
-
-        <div className="feature-conditions-body">
-          <section className="feature-conditions-panel feature-conditions-panel--rows">
-            <div className="feature-conditions-panel-head">
-              <span>Attached Conditions</span>
-              <button
-                type="button"
-                className="block-icon-button"
-                title="Add condition"
-                onClick={addRow}
-                disabled={choices.length === 0}
-              >
-                <Plus size={15} />
-              </button>
-            </div>
-
-            <div className="feature-conditions-row-list">
-              {rows.length === 0 ? (
-                <div className="soft-empty feature-conditions-empty">
-                  {emptyText}
-                </div>
-              ) : (
-                rows.map((row, rowIndex) => {
-                  const choice = choices.find((entry) => entry.id === row.choiceId)
-                  const canAdd = choice ? isNmrcCondSt(choice.state) : false
-                  const action = normFeatCond(row.action, choice)
-                  const isActive = activeRowId === row.id
-                  const hasDscr = Boolean(choice?.description)
-
-                  return (
-                    <article
-                      key={row.id}
-                      className={`feature-conditions-row${isActive ? ' active' : ''}${isActive && hasDscr ? ' expanded' : ''}`}
-                      onClick={() => setActRowId(row.id)}
-                    >
-                      <div className="feature-conditions-row__top">
-                        <button
-                          type="button"
-                          className="feature-conditions-row__state"
-                          onClick={() => setActRowId(row.id)}
-                        >
-                          <span className="feature-conditions-row__index">#{rowIndex + 1}</span>
-                          <strong>{choice ? fmtCondChcLb(choice) : 'Select a state'}</strong>
-                        </button>
-                        <button
-                          type="button"
-                          className="block-icon-button delete"
-                          title="Remove condition"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            removeRow(row.id)
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-
-                      <div className="feature-conditions-row__controls">
-                        <div className="feature-conditions-action-toggle" aria-label="Condition action">
-                          <button
-                            type="button"
-                            className={action === 'set' ? 'active' : ''}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              updateRow(row.id, (current) => ({
-                                ...current,
-                                action: 'set',
-                                value: choice ? makeCondValue(choice.state) : true,
-                              }))
-                            }}
-                          >
-                            Set
-                          </button>
-                          <button
-                            type="button"
-                            className={action === 'add' ? 'active' : ''}
-                            disabled={!canAdd}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              updateRow(row.id, (current) => ({
-                                ...current,
-                                action: 'add',
-                                value: 1,
-                              }))
-                            }}
-                          >
-                            Add
-                          </button>
-                        </div>
-                        {viewRowVlFld({ ...row, action }, choice)}
-                      </div>
-
-                      {isActive && choice?.description ? (
-                        <div
-                          className="feature-conditions-row__description"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <RichDscr description={choice.description} params={choice.dscrPrms} />
-                        </div>
-                      ) : null}
-                    </article>
-                  )
-                })
-              )}
-            </div>
-          </section>
-
-          <section className="feature-conditions-panel feature-conditions-panel--picker">
-            <div className="feature-conditions-panel-head">
-              <div className="feature-conditions-panel-head__head">
-                <span>State Picker</span>
-                <small>{activeRow ? 'Editing selected row' : 'Choose a state to add'}</small>
-              </div>
-              <div className="feature-conditions-search">
-                <Search size={14} />
-                <input
-                  type="search"
-                  value={query}
-                  placeholder="Search states"
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="feature-conditions-picker-list">
-              {choices.length === 0 ? (
-                <div className="soft-empty feature-conditions-empty">
-                  No states are available for this rotation.
-                </div>
-              ) : grpdChcs.length === 0 ? (
-                <div className="soft-empty feature-conditions-empty">
-                  No states match that search.
-                </div>
-              ) : (
-                grpdChcs.map((group) => (
-                  <div key={group.key} className="feature-conditions-choice-group">
-                    <span className="feature-conditions-choice-group__label">{group.label}</span>
-                    <div className="feature-conditions-choice-grid">
-                      {group.choices.map((choice) => (
-                        <button
-                          key={choice.id}
-                          type="button"
-                          className={activeRow?.choiceId === choice.id ? 'feature-conditions-choice active' : 'feature-conditions-choice'}
-                          onClick={() => selChcForAct(choice)}
-                        >
-                          <strong>{fmtCondChcLb(choice)}</strong>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="feature-conditions-footer">
+      footer={(
+        <>
           <button type="button" className="rotation-button clear" onClick={onClose}>
             Cancel
           </button>
@@ -449,9 +473,288 @@ export function Condition({
           >
             Save
           </button>
-        </div>
+        </>
+      )}
+    >
+      <div className="cnv">
+        <aside className="cnv__rail" aria-label="Filter by source">
+          <button
+            type="button"
+            className={`cnv-node${ownerFilter === 'all' ? ' is-active' : ''}`}
+            onClick={() => setOwnerFilter('all')}
+          >
+            <span className="cnv-node__badge" aria-hidden>
+              <Sparkles size={14} />
+            </span>
+            <span className="cnv-node__label">All</span>
+            <span className="cnv-node__count">{browserChoiceCount}</span>
+          </button>
+          {owners.map((owner) => (
+            <button
+              key={owner.key}
+              type="button"
+              className={`cnv-node${ownerFilter === owner.key ? ' is-active' : ''}`}
+              onClick={() => setOwnerFilter((current) => (current === owner.key ? 'all' : owner.key))}
+              title={owner.label}
+            >
+              <span className="cnv-node__badge" aria-hidden>
+                {owner.kind === 'resonator' ? (
+                  <img
+                    className="cnv-node__avatar"
+                    src={owner.profile || '/assets/default.webp'}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={withDefIconM}
+                  />
+                ) : owner.kind === 'enemy' ? (
+                  <Crosshair size={14} />
+                ) : (
+                  <Repeat size={14} />
+                )}
+              </span>
+              <span className="cnv-node__label">{owner.label}</span>
+              <span className="cnv-node__count">{owner.count}</span>
+            </button>
+          ))}
+        </aside>
+
+        <section className="cnv__browser">
+          <header className="cnv__browser-head">
+            <div className="cnv__search">
+              <Search size={14} aria-hidden />
+              <input
+                type="search"
+                value={query}
+                placeholder="Search states, sources…"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  className="cnv__search-clear"
+                  aria-label="Clear search"
+                  onClick={() => setQuery('')}
+                >
+                  <X size={13} />
+                </button>
+              ) : null}
+            </div>
+            {availableKinds.length > 1 ? (
+              <div className="cnv__kinds" role="group" aria-label="Filter by type">
+                <button
+                  type="button"
+                  className={`cnv__kind${kindFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setKindFilter('all')}
+                >
+                  All
+                </button>
+                {availableKinds.map((kind) => {
+                  const KindIcon = COND_KIND_META[kind].Icon
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={`cnv__kind${kindFilter === kind ? ' is-active' : ''}`}
+                      title={COND_KIND_META[kind].label}
+                      onClick={() => setKindFilter((current) => (current === kind ? 'all' : kind))}
+                    >
+                      <KindIcon size={12} aria-hidden />
+                      {COND_KIND_META[kind].label}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
+          </header>
+
+          <div className="cnv__browser-list">
+            {choices.length === 0 ? (
+              <div className="cnv__empty">
+                <span className="cnv__empty-glyph" aria-hidden>∅</span>
+                <p>No states are available for this rotation.</p>
+              </div>
+            ) : grpdChcs.length === 0 ? (
+              <div className="cnv__empty">
+                <span className="cnv__empty-glyph" aria-hidden>⌕</span>
+                <p>No states match your filters.</p>
+                {filtersActive ? (
+                  <button type="button" className="cnv__empty-reset" onClick={clearFilters}>
+                    Reset filters
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              grpdChcs.map((group) => (
+                <div key={group.key} className="cnv-grp">
+                  <div className="cnv-grp__head">
+                    <span className="cnv-grp__label">
+                      {scoped ? group.choices[0]?.sourceName ?? group.label : group.label}
+                    </span>
+                    <span className="cnv-grp__rule" aria-hidden />
+                    <span className="cnv-grp__count">{group.choices.length}</span>
+                  </div>
+                  <div className="cnv-grp__tiles">
+                    {group.choices.map((choice) => {
+                      const kindMeta = COND_KIND_META[choice.state.kind as CondKind]
+                      const KindIcon = kindMeta.Icon
+                      const isOn = !isFormulaChoice(choice) && attachedByChoice.has(choice.id)
+                      return (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          className={`cnv-tile${isOn ? ' is-on' : ''}`}
+                          aria-pressed={isOn}
+                          onClick={() => toggleChoice(choice)}
+                        >
+                          <span className="cnv-tile__glyph" title={kindMeta.label} aria-hidden>
+                            <KindIcon size={13} />
+                          </span>
+                          <span className="cnv-tile__label">{getBrowserChoiceLabel(choice)}</span>
+                          <span className="cnv-tile__mark" aria-hidden>{isOn ? '✓' : '+'}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <footer className="cnv__browser-foot">
+            <span>
+              {filtersActive
+                ? `${visibleCount} of ${browserChoiceCount} entries`
+                : `${browserChoiceCount} entries available`}
+            </span>
+          </footer>
+        </section>
+
+        <aside className="cnv__tray">
+          <header className="cnv__tray-head">
+            <span className="cnv__tray-heading">
+              <span className="cnv__tray-kicker">{eyebrow}</span>
+              <span className="cnv__tray-title">Directives</span>
+            </span>
+            <span className="cnv__tray-count">{rows.length}</span>
+          </header>
+
+          <div className="cnv__tray-list">
+            {rows.length === 0 ? (
+              <div className="cnv__tray-empty">
+                <span className="cnv__tray-empty-glyph" aria-hidden>⊹</span>
+                <p>{emptyText}</p>
+              </div>
+            ) : (
+              rows.map((row, rowIndex) => {
+                const choice = choices.find((entry) => entry.id === row.choiceId)
+                const canAdd = choice ? isNmrcCondSt(choice.state) : false
+                const action = normFeatCond(row.action, choice)
+                // numeric controls (stacks / formula stats / add) get a compact field; toggles & selects fill the row.
+                const numericValue = !!choice
+                  && (action === 'add' || choice.state.kind === 'number' || choice.state.kind === 'stack')
+                const expanded = activeRowId === row.id
+                const hasDscr = Boolean(choice?.description)
+                const kindMeta = choice ? COND_KIND_META[choice.state.kind as CondKind] : null
+                const KindIcon = kindMeta?.Icon ?? null
+
+                return (
+                  <article
+                    key={row.id}
+                    className={`cnv-card${expanded ? ' is-expanded' : ''}`}
+                    style={{ animationDelay: `${Math.min(rowIndex, 12) * 32}ms` }}
+                  >
+                    <div className="cnv-card__head">
+                      <span className="cnv-card__index" aria-hidden>{String(rowIndex + 1).padStart(2, '0')}</span>
+                      {kindMeta && KindIcon ? (
+                        <span className="cnv-card__kind" title={kindMeta.label} aria-hidden>
+                          <KindIcon size={12} />
+                        </span>
+                      ) : null}
+                      <strong className="cnv-card__name">
+                        {choice ? getBrowserChoiceLabel(choice) : 'Select a state'}
+                      </strong>
+                      <button
+                        type="button"
+                        className="cnv-card__remove"
+                        title="Remove directive"
+                        aria-label="Remove directive"
+                        onClick={() => removeRow(row.id)}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+
+                    <div className="cnv-card__controls">
+                      <div className="cnv-card__verb" aria-label="Condition action">
+                        <button
+                          type="button"
+                          className={action === 'set' ? 'is-active' : ''}
+                          onClick={() => updateRow(row.id, (current) => ({
+                            ...current,
+                            action: 'set',
+                            value: choice ? makeCondValue(choice.state) : true,
+                          }))}
+                        >
+                          Set
+                        </button>
+                        <button
+                          type="button"
+                          className={action === 'add' ? 'is-active' : ''}
+                          disabled={!canAdd}
+                          onClick={() => updateRow(row.id, (current) => ({
+                            ...current,
+                            action: 'add',
+                            value: 1,
+                          }))}
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="cnv-card__row">
+                        {isFormulaChoice(choice) && formulaOptions.length > 0 ? (
+                          <LiquidSelect
+                            value={row.choiceId}
+                            options={formulaOptions}
+                            onChange={(nextChoiceId) => {
+                              updateRow(row.id, (current) => ({
+                                ...current,
+                                choiceId: nextChoiceId,
+                              }))
+                            }}
+                            ariaLabel="Modifier"
+                          />
+                        ) : null}
+                        <div className={`cnv-card__value${numericValue ? ' cnv-card__value--num' : ''}`}>
+                          {viewRowVlFld({ ...row, action }, choice)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {hasDscr ? (
+                      <button
+                        type="button"
+                        className={`cnv-card__info${expanded ? ' is-open' : ''}`}
+                        aria-expanded={expanded}
+                        onClick={() => setActRowId(expanded ? null : row.id)}
+                      >
+                        {expanded ? 'Hide details' : 'Details'}
+                      </button>
+                    ) : null}
+
+                    {expanded && choice?.description ? (
+                      <div className="cnv-card__desc">
+                        <RichDscr description={choice.description} params={choice.dscrPrms} />
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })
+            )}
+          </div>
+        </aside>
       </div>
-    </AppModal>
+    </ModalFrame>
   )
 }
 
@@ -724,6 +1027,7 @@ export function Loop({
         runs: 1,
         isNew: true,
       }]
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRows(nextRows)
     setActClrRow(nextRows[0]?.id ?? null)
     setCstmClrOp(false)
@@ -1148,7 +1452,7 @@ function WhenRungTcm({
       <div className="rotation-when-rung__skipped">
         <span className="rotation-when-rung__glyph rotation-when-rung__glyph--muted" aria-hidden>⌖</span>
         <span className="rotation-when-rung__skipped-text">
-          {hasCondition ? 'Skipped — condition false' : 'Not executed'}
+          {hasCondition ? 'Skipped - condition false' : 'Not executed'}
         </span>
       </div>
     )
@@ -1270,10 +1574,8 @@ export function When({
     const groupByKey = new Map<string, { key: string; label: string; options: SelectOption<string>[] }>()
     const ordered: { key: string; label: string; options: SelectOption<string>[] }[] = []
     for (const choice of choices) {
-      const key = `${choice.resonatorId}:${choice.sourceName}`
-      const groupLabel = choice.sourceName === choice.resName
-        ? choice.resName
-        : `${choice.resName} · ${choice.sourceName}`
+      const key = getCondGroupKey(choice)
+      const groupLabel = getCondGroupLabel(choice)
       let group = groupByKey.get(key)
       if (!group) {
         group = { key, label: groupLabel, options: [] }
@@ -1733,7 +2035,7 @@ export function When({
                         </div>
                       ) : (
                         <div className="rotation-when-loop__timeline rotation-when-loop__timeline--empty">
-                          <span>Unbounded — type the runs below.</span>
+                          <span>Unbounded - type the runs below.</span>
                         </div>
                       )}
                     </div>

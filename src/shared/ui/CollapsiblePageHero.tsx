@@ -194,7 +194,7 @@ function FloatingHero({
     const parts: string[] = []
     if (typeof eyebrow === 'string') parts.push(eyebrow)
     if (typeof title === 'string') parts.push(title)
-    return `Scroll to top — ${parts.join(' · ')}`.trim()
+    return `Scroll to top: ${parts.join(' · ')}`.trim()
   })()
 
   return (

@@ -151,7 +151,7 @@ export interface ResStateGraph {
 }
 
 export interface ResSttPnl {
-  id: string
+  id?: string
   title: string
   body: string
   param?: Array<string | number>
@@ -162,14 +162,11 @@ export interface ResSttPnl {
 }
 
 export interface ResSkllMltp {
-  id: string
   label: string
   values: string[]
 }
 
 export interface ResSkllPnl {
-  id: string
-  type: string
   name: string
   desc: string
   param: string[]
@@ -211,7 +208,6 @@ export type ResNegFfcthn =
   | ResNegFfctBh
 
 export interface ResNhrnSkll {
-  id: string
   ownerKey?: string
   name: string
   desc: string
@@ -254,7 +250,7 @@ export interface ResMenuEnt {
 }
 
 export interface ResDtls {
-  skillTabs: SkillTabKey[]
+  skillTabs?: SkillTabKey[]
   skillsByTab: Partial<Record<SkillTabKey, ResSkllPnl>>
   stateGraph?: ResStateGraph
   modeGroups?: ResModeGroup[]

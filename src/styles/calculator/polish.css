@@ -1,5 +1,3 @@
-.toolbar,
-.sidebar,
 .calculator-hero,
 .stats-box,
 .damage-box,
@@ -16,7 +14,6 @@
   transition: background 300ms ease;
 }
 
-.toolbar-icon-button,
 .calculator-overview-pill,
 .calculator-hero-pill,
 .danger-btn {
@@ -87,7 +84,7 @@
   box-shadow: none;
 }
 
-:is(.toolbar-icon-button, .sidebar-button, .sidebar-sub-button, .resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn, .trace-icon) {
+:is(.resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn, .trace-icon) {
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -117,7 +114,7 @@ button:hover {
   outline: none !important;
 }
 
-:is(.toolbar-icon-button, .sidebar-button, .sidebar-sub-button, .resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn)::before {
+:is(.resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .view-toggle-button, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn)::before {
   content: '';
   position: absolute;
   inset: -20% auto -20% -42%;
@@ -140,9 +137,6 @@ button:hover {
 }
 
 :is(
-  .toolbar-icon-button,
-  .sidebar-button,
-  .sidebar-sub-button,
   .resonator-avatar-button,
   .char-menu-item,
   .ui-pill-button,
@@ -159,9 +153,6 @@ button:hover {
 }
 
 :is(
-  .toolbar-icon-button,
-  .sidebar-button,
-  .sidebar-sub-button,
   .resonator-avatar-button,
   .char-menu-item,
   .rarity-chip,
@@ -174,230 +165,6 @@ button:hover {
 ) > * {
   position: relative;
   z-index: 1;
-}
-
-.toolbar-group {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.72rem;
-  padding: 0.1rem 0.4rem;
-  isolation: isolate;
-  animation: toolbar-group-settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.toolbar-group::before,
-.toolbar-group::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.toolbar-group::before {
-  inset: 0.18rem -0.08rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--item-bg) 82%, transparent);
-  transition: background 300ms ease;
-}
-
-.toolbar-group::after {
-  inset: 0;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 12%, var(--box-border));
-  border-radius: 999px;
-  opacity: 0.56;
-  transform: scaleX(0.985);
-  transition:
-    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 260ms ease;
-}
-
-.toolbar-group:is(:hover, :focus-within)::after {
-  opacity: 0.78;
-  transform: scaleX(1);
-}
-
-.toolbar-group > * {
-  position: relative;
-  z-index: 1;
-}
-
-.toolbar-icon-button {
-  width: 3rem;
-  height: 3rem;
-  padding: 0.28rem;
-  border: none;
-  border-radius: 1.15rem;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  overflow: visible;
-  isolation: auto;
-  transform-origin: 50% 50%;
-  animation: toolbar-icon-settle 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--toolbar-index, 0) * 42ms);
-}
-
-.toolbar-icon-button::before {
-  content: none !important;
-}
-
-.toolbar-icon-shell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  isolation: isolate;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent) 14%, var(--box-border));
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--item-bg) 95%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 0.65rem 1.3rem rgba(15, 23, 42, 0.08);
-  transition:
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 320ms ease;
-}
-
-.toolbar-icon-shell::before,
-.toolbar-icon-shell::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-}
-
-.toolbar-icon-shell::before {
-  inset: 0;
-  background: rgba(255, 255, 255, 0.03);
-  z-index: 0;
-}
-
-.toolbar-icon-shell::after {
-  inset: -12%;
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: inherit;
-  opacity: 0.18;
-  transform: scale(0.9);
-  transition:
-    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 260ms ease;
-  z-index: 0;
-}
-
-.toolbar-icon-liquid {
-  position: absolute;
-  border-radius: 999px;
-  pointer-events: none;
-  filter: blur(8px);
-  opacity: 0.56;
-  z-index: 0;
-  transition:
-    opacity 260ms ease,
-    filter 320ms ease;
-}
-
-.toolbar-icon-liquid--primary {
-  width: 1.65rem;
-  height: 1rem;
-  background: rgba(255, 255, 255, 0.3);
-  animation: toolbar-icon-liquid-float 8.4s ease-in-out infinite;
-  animation-delay: calc(var(--toolbar-index, 0) * -0.55s);
-}
-
-.toolbar-icon-liquid--secondary {
-  width: 1.18rem;
-  height: 0.78rem;
-  background: rgba(255, 255, 255, 0.18);
-  animation: toolbar-icon-liquid-float-alt 10.2s ease-in-out infinite;
-  animation-delay: calc(var(--toolbar-index, 0) * -0.82s);
-}
-
-.toolbar-icon-button .toolbar-icon-image {
-  position: relative;
-  z-index: 1;
-  width: 1.52rem;
-  height: 1.52rem;
-  min-width: 1.52rem;
-  min-height: 1.52rem;
-  object-fit: contain;
-  filter: drop-shadow(0 0.2rem 0.45rem rgba(15, 23, 42, 0.12));
-  transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.toolbar-icon-button:hover,
-.toolbar-icon-button:focus-visible {
-  transform: none;
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-}
-
-.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-shell {
-  transform: translateY(-2px) scale(1.04);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 1rem 2rem rgba(15, 23, 42, 0.12);
-}
-
-.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-shell::after {
-  opacity: 0.44;
-  transform: scale(1);
-}
-
-.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-image {
-  transform: translateY(-1px) scale(1.09);
-}
-
-.toolbar-icon-button:is(:hover, :focus-visible) .toolbar-icon-liquid {
-  opacity: 0.74;
-  filter: blur(9px);
-}
-
-.toolbar-icon-button:active .toolbar-icon-shell {
-  transform: scale(0.985);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 0.55rem 1.1rem rgba(15, 23, 42, 0.08);
-}
-
-.toolbar-icon-button.active .toolbar-icon-shell {
-  border-color: color-mix(in srgb, var(--resonator-accent) 22%, var(--box-border));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 0 1px color-mix(in srgb, var(--resonator-accent) 12%, transparent),
-    0 0.8rem 1.7rem rgba(15, 23, 42, 0.11);
-}
-
-.toolbar-icon-button.active .toolbar-icon-shell::after {
-  opacity: 0.46;
-  transform: scale(0.98);
-}
-
-.toolbar-icon-button.active .toolbar-icon-image {
-  transform: translateY(-1px) scale(1.05);
-}
-
-.toolbar-icon-button.active .toolbar-icon-liquid {
-  opacity: 0.66;
-}
-
-.toolbar-group:is(:hover, :focus-within) .toolbar-icon-button:not(:is(:hover, :focus-visible, .active)) .toolbar-icon-shell {
-  transform: translateY(1px) scale(0.985);
-}
-
-.toolbar-group:is(:hover, :focus-within) .toolbar-icon-button:not(:is(:hover, :focus-visible, .active)) .toolbar-icon-image {
-  transform: scale(0.96);
-}
-
-.sidebar-button:is(:hover, :focus-visible),
-.sidebar-sub-button:is(:hover, :focus-visible) {
-  border-color: color-mix(in srgb, var(--resonator-accent) 24%, var(--box-border));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0.8rem 1.5rem color-mix(in srgb, var(--resonator-accent) 10%, transparent);
 }
 
 .resonator-avatar-button.rarity-1,
@@ -747,52 +514,6 @@ button:hover {
   }
 }
 
-@keyframes toolbar-icon-liquid-float {
-  0%,
-  100% {
-    transform: translate(-0.56rem, -0.42rem) scale(0.98) rotate(-12deg);
-  }
-
-  50% {
-    transform: translate(-0.16rem, -0.62rem) scale(1.06) rotate(2deg);
-  }
-}
-
-@keyframes toolbar-icon-liquid-float-alt {
-  0%,
-  100% {
-    transform: translate(0.46rem, 0.38rem) scale(1.02) rotate(10deg);
-  }
-
-  50% {
-    transform: translate(0.18rem, 0.1rem) scale(0.92) rotate(-6deg);
-  }
-}
-
-@keyframes toolbar-group-settle {
-  from {
-    opacity: 0;
-    transform: translateY(0.35rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes toolbar-icon-settle {
-  from {
-    opacity: 0;
-    transform: translateY(0.4rem) scale(0.94);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 .calculator-route .skills-settings .skill-info-button {
   position: absolute;
   top: 0.7rem;
@@ -893,36 +614,4 @@ button:hover {
 
 .frosted-aurora .calculator-route input[type='range'] {
   box-shadow: 0 0.45rem 0.85rem rgba(15, 23, 42, 0.08);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .main-content::before,
-  .main-content::after {
-    animation: none;
-  }
-
-  .toolbar-icon-button,
-  .sidebar-button,
-  .sidebar-sub-button,
-  .char-menu-item,
-  .ui-pill-button,
-  .chip,
-  .danger-btn {
-    transition: none;
-  }
-
-  .toolbar-icon-shell,
-  .toolbar-icon-shell::after,
-  .toolbar-icon-button .toolbar-icon-image {
-    transition: none;
-  }
-
-  .toolbar-group,
-  .toolbar-icon-button {
-    animation: none;
-  }
-
-  .toolbar-icon-liquid {
-    animation: none;
-  }
 }

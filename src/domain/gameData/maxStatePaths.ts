@@ -126,7 +126,7 @@ export function enumerateMaxStatePaths(
 
   const divergences = maxStateDivergences(details, options)
 
-  // cartesian product over divergence branches — steer at each diverging step.
+  // cartesian product over divergence branches, steer at each diverging step.
   let combos: Array<Record<string, string>> = [{}]
   for (const divergence of divergences) {
     combos = combos.flatMap((combo) =>

@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import type { ResSeed } from '@/domain/entities/runtime'
+import { makeEchoUid, type ResSeed } from '@/domain/entities/runtime'
 import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
 import { getResonatorById } from '@/domain/services/catalogService'
 import { nspcResRot, runResSmlt } from '@/engine/pipeline'
+
+function makeMainEcho(id: string, set = 4) {
+  return {
+    uid: makeEchoUid(),
+    id,
+    set,
+    mainEcho: true,
+    mainStats: {
+      primary: { key: 'critRate', value: 22 },
+      secondary: { key: 'atkFlat', value: 150 },
+    },
+    substats: {},
+  }
+}
 
 const seed: ResSeed = {
   id: 'test-resonator',
@@ -152,6 +166,57 @@ describe('rotation system', () => {
     expect(result.perSkill[3]?.avg).toBeCloseTo((result.perSkill[0]?.avg ?? 0) * 0.5)
     expect(result.total.avg).toBeCloseTo((result.perSkill[0]?.avg ?? 0) * 3.5)
     expect(runtime.state.manualBuffs.quick.critRate).toBe(0)
+  })
+
+  it('applies formula stat conditions only to later feature rows', () => {
+    const runtime = makeResRuntime(seed)
+    runtime.rotation.personalItems = [
+      {
+        id: 'feature-before',
+        type: 'feature',
+        featureId: 'damage:test-skill',
+        multiplier: 1,
+        enabled: true,
+      },
+      {
+        id: 'set-flat-dmg',
+        type: 'condition',
+        changes: [{
+          type: 'set',
+          path: 'runtime.rotation.formula.flatDmg',
+          value: 100,
+        }],
+      },
+      {
+        id: 'feature-after-set',
+        type: 'feature',
+        featureId: 'damage:test-skill',
+        multiplier: 1,
+        enabled: true,
+      },
+      {
+        id: 'add-flat-dmg',
+        type: 'condition',
+        changes: [{
+          type: 'add',
+          path: 'runtime.rotation.formula.flatDmg',
+          value: 100,
+        }],
+      },
+      {
+        id: 'feature-after-add',
+        type: 'feature',
+        featureId: 'damage:test-skill',
+        multiplier: 1,
+        enabled: true,
+      },
+    ]
+
+    const result = runResSmlt(runtime, seed, makeEnemy())
+
+    expect(result.perSkill).toHaveLength(3)
+    expect(result.perSkill[1]?.avg).toBeGreaterThan(result.perSkill[0]?.avg ?? 0)
+    expect(result.perSkill[2]?.avg).toBeGreaterThan(result.perSkill[1]?.avg ?? 0)
   })
 
   it('runs loop segments and tags loop totals by loop id', () => {
@@ -754,6 +819,47 @@ describe('rotation system', () => {
     expect(runtime.state.combat.spectroFrazzle).toBe(0)
   })
 
+  it('applies formula MV conditions to negative-effect features', () => {
+    const baselineRuntime = makeResRuntime(negativeEffectSeed)
+    baselineRuntime.rotation.personalItems = [
+      {
+        id: 'frazzle-baseline',
+        type: 'feature',
+        featureId: spectroFrazzleFeatureId,
+        multiplier: 1,
+        negativeEffectStacks: 1,
+        enabled: true,
+      },
+    ]
+
+    const runtime = makeResRuntime(negativeEffectSeed)
+    runtime.rotation.personalItems = [
+      {
+        id: 'scale-mv',
+        type: 'condition',
+        changes: [{
+          type: 'set',
+          path: 'runtime.rotation.formula.mvScale',
+          value: 100,
+        }],
+      },
+      {
+        id: 'frazzle-scaled',
+        type: 'feature',
+        featureId: spectroFrazzleFeatureId,
+        multiplier: 1,
+        negativeEffectStacks: 1,
+        enabled: true,
+      },
+    ]
+
+    const baselineResult = runResSmlt(baselineRuntime, negativeEffectSeed, makeEnemy())
+    const result = runResSmlt(runtime, negativeEffectSeed, makeEnemy())
+
+    expect(result.perSkill).toHaveLength(1)
+    expect(result.perSkill[0]?.avg).toBeGreaterThan(baselineResult.perSkill[0]?.avg ?? 0)
+  })
+
   it('can execute teammate features with the teammate runtime instead of the active runtime', () => {
     const activeSeed = getResonatorById('1506')
     const teammateSeed = getResonatorById('1412')
@@ -795,6 +901,69 @@ describe('rotation system', () => {
     expect(lowLevelResult.rotations.team.entries[0]?.resonatorId).toBe(teammateSeed.id)
     expect(lowLevelResult.rotations.team.entries[0]?.resonatorName).toBe(teammateSeed.name)
     expect(highLevelResult.rotations.team.total.avg).toBeGreaterThan(lowLevelResult.rotations.team.total.avg)
+  })
+
+  it('can switch the active resonator for active-targeted rotation effects', () => {
+    const sourceSeed = getResonatorById('1506')
+    const defaultTargetSeed = getResonatorById('1208')
+    const switchedTargetSeed = getResonatorById('1412')
+
+    expect(sourceSeed).toBeTruthy()
+    expect(defaultTargetSeed).toBeTruthy()
+    expect(switchedTargetSeed).toBeTruthy()
+
+    if (!sourceSeed || !defaultTargetSeed || !switchedTargetSeed || switchedTargetSeed.features.length === 0) {
+      return
+    }
+
+    const makeSourceRuntime = (switchActive: boolean) => {
+      const sourceRuntime = makeResRuntime(sourceSeed)
+      sourceRuntime.build.team = [sourceSeed.id, defaultTargetSeed.id, switchedTargetSeed.id]
+      sourceRuntime.build.echoes[0] = makeMainEcho('6000052')
+      sourceRuntime.state.controls['echo:6000052:main:active'] = true
+      sourceRuntime.rotation.view = 'team'
+      sourceRuntime.rotation.teamItems = [
+        ...(switchActive
+          ? [{
+            id: 'switch-active',
+            type: 'condition' as const,
+            changes: [{
+              type: 'set' as const,
+              path: 'runtime.rotation.activeResonatorId',
+              value: switchedTargetSeed.id,
+            }],
+            enabled: true,
+          }]
+          : []),
+        {
+          id: 'switched-target-feature',
+          type: 'feature' as const,
+          resonatorId: switchedTargetSeed.id,
+          featureId: switchedTargetSeed.features[0].id,
+          multiplier: 1,
+          enabled: true,
+        },
+      ]
+
+      return sourceRuntime
+    }
+
+    const team: [string, string, string] = [sourceSeed.id, defaultTargetSeed.id, switchedTargetSeed.id]
+    const defaultTargetRuntime = makeResRuntime(defaultTargetSeed)
+    defaultTargetRuntime.build.team = [...team]
+    const switchedTargetRuntime = makeResRuntime(switchedTargetSeed)
+    switchedTargetRuntime.build.team = [...team]
+    const teammateRuntimes = {
+      [defaultTargetSeed.id]: defaultTargetRuntime,
+      [switchedTargetSeed.id]: switchedTargetRuntime,
+    }
+
+    const baselineResult = runResSmlt(makeSourceRuntime(false), sourceSeed, makeEnemy(), teammateRuntimes)
+    const switchedResult = runResSmlt(makeSourceRuntime(true), sourceSeed, makeEnemy(), teammateRuntimes)
+
+    expect(baselineResult.rotations.team.entries[0]?.resonatorId).toBe(switchedTargetSeed.id)
+    expect(switchedResult.rotations.team.entries[0]?.resonatorId).toBe(switchedTargetSeed.id)
+    expect(switchedResult.rotations.team.total.avg).toBeGreaterThan(baselineResult.rotations.team.total.avg)
   })
 
   it('supports per-entry negative effect stack overrides on feature nodes', () => {

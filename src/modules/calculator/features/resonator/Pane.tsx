@@ -993,7 +993,7 @@ export function Resonator({
 
             return (
               <article
-                key={inherent.id}
+                key={inherent.ownerKey ?? `inherent-${inherent.unlockLevel}-${inherent.name}`}
                 className={
                   locked
                     ? 'pane-section inherent-skill locked'
@@ -1083,7 +1083,7 @@ export function Resonator({
           }
 
           return (
-            <div key={panel.id} className="pane-section">
+            <div key={panel.id ?? `${panel.title}-${panel.stateKeys.join(':')}`} className="pane-section">
               <h4>{panel.title}</h4>
               <RichDscr
                 description={panel.body}

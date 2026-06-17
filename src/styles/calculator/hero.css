@@ -262,7 +262,7 @@
   animation: none;
 }
 
-/* -- Attribute navigator: an elemental spine that scrolls the strip by attribute -- */
+
 .attr-spine {
   position: relative;
   display: flex;
@@ -279,7 +279,7 @@
   z-index: 1;
 }
 
-/* hairline threading the icon centers together */
+
 .attr-spine::before {
   content: '';
   position: absolute;
@@ -291,7 +291,7 @@
   background: color-mix(in srgb, var(--muted) 20%, transparent);
 }
 
-/* a point of elemental light that glides to and glows behind the active group */
+
 .attr-spine::after {
   content: '';
   position: absolute;

@@ -33,6 +33,7 @@ describe('initializeGameData', () => {
         case '/data/resonator-sources.json':
         case '/data/echo-sources.json':
         case '/data/enemy-sources.json':
+        case '/data/weapon-sources.json':
         case '/data/weapon-data.json':
         case '/data/resonator-catalog.json':
         case '/data/echo-catalog.json':
@@ -64,7 +65,7 @@ describe('initializeGameData', () => {
         initializeGameData(),
       ])
 
-      expect(fetchMock).toHaveBeenCalledTimes(10)
+      expect(fetchMock).toHaveBeenCalledTimes(11)
       expect(() => getGameData()).not.toThrow()
     } finally {
       globalThis.fetch = previousFetch

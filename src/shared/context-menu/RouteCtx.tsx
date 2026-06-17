@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-features */
-
 /*
   Author: Runor Ewhro
   Description: Provides route-chrome menu builders and route-level actions
@@ -59,9 +57,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   const appStatus = useAppModal()
   const showToast = useTstStr((state) => state.show)
   const {
-    ui,
-    setMainMode,
     setInventoryOpen: setInvOpen,
+    ensureInventoryHydrated: ensInvHydr,
     resetResonator: rstRes,
     undo,
     redo,
@@ -73,9 +70,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     historyFuture: hstrFtr,
   } = useAppStore(
     useShallow((state) => ({
-      ui: state.ui,
-      setMainMode: state.setMainMode,
       setInventoryOpen: state.setInvOpen,
+      ensureInventoryHydrated: state.ensInvHydr,
       resetResonator: state.resetRes,
       undo: state.undo,
       redo: state.redo,
@@ -103,25 +99,20 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   }, [navigate])
 
   const openInv = useCallback(() => {
-    if (location.pathname !== '/') {
-      navigate('/')
+    if (location.pathname !== '/calculator') {
+      navigate('/calculator')
     }
     setInvOpen(true)
   }, [location.pathname, navigate, setInvOpen])
 
   const tglOpt = useCallback(() => {
-    if (location.pathname !== '/') {
-      navigate('/')
-    }
-    setMainMode(ui.mainMode === 'optimizer' ? 'default' : 'optimizer')
-  }, [location.pathname, navigate, setMainMode, ui.mainMode])
+    ensInvHydr()
+    navigate(location.pathname === '/calculator/optimizer' ? '/calculator' : '/calculator/optimizer')
+  }, [ensInvHydr, location.pathname, navigate])
 
   const tglVrvw = useCallback(() => {
-    if (location.pathname !== '/') {
-      navigate('/')
-    }
-    setMainMode(ui.mainMode === 'overview' ? 'default' : 'overview')
-  }, [location.pathname, navigate, setMainMode, ui.mainMode])
+    navigate(location.pathname === '/calculator/overview' ? '/calculator' : '/calculator/overview')
+  }, [location.pathname, navigate])
 
   const openStatus = useCallback(() => {
     appStatus.show()
@@ -166,8 +157,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onNavigate: navigateTo,
       }),
       actions: () => routeCtxBuilder.routeChrome.actions({
-        optAct: ui.mainMode === 'optimizer',
-        vrvwAct: ui.mainMode === 'overview',
+        optAct: location.pathname === '/calculator/optimizer',
+        vrvwAct: location.pathname === '/calculator/overview',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
         onTgglVrvw: tglVrvw,
@@ -189,8 +180,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onRedo: redo,
         onUndoTo: undoTo,
         onRedoTo: redoTo,
-        optAct: ui.mainMode === 'optimizer',
-        vrvwAct: ui.mainMode === 'overview',
+        optAct: location.pathname === '/calculator/optimizer',
+        vrvwAct: location.pathname === '/calculator/overview',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
         onTgglVrvw: tglVrvw,
@@ -210,8 +201,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onRedo: redo,
         onUndoTo: undoTo,
         onRedoTo: redoTo,
-        optAct: ui.mainMode === 'optimizer',
-        vrvwAct: ui.mainMode === 'overview',
+        optAct: location.pathname === '/calculator/optimizer',
+        vrvwAct: location.pathname === '/calculator/overview',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
         onTgglVrvw: tglVrvw,
@@ -237,7 +228,7 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     undo,
     undoHistory,
     undoTo,
-    ui.mainMode,
+    location.pathname,
   ])
 
   const value = useMemo<RtCtxVl>(() => ({

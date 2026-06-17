@@ -50,7 +50,7 @@ export function SkillData({
       ? actSkllTab
       : requestedTab && details?.skillsByTab[requestedTab]
         ? requestedTab
-        : (details?.skillTabs[0] ?? actSkllTab)
+        : ((details?.skillTabs ?? [])[0] ?? actSkllTab)
 
   const modalSkill = details?.skillsByTab[rslvActSkllT] ?? null
   const tabLevel =
@@ -107,8 +107,8 @@ export function SkillData({
               {modalSkill.multipliers.length > 0 ? (
                 <table className="multipliers-table">
                   <tbody>
-                    {modalSkill.multipliers.map((multiplier) => (
-                      <tr key={multiplier.id} className="multiplier-row">
+                    {modalSkill.multipliers.map((multiplier, index) => (
+                      <tr key={`${multiplier.label}-${index}`} className="multiplier-row">
                         <td className="multiplier-label">{multiplier.label}</td>
                         <td className="multiplier-value">
                           {mltpNdx >= 0 ? multiplier.values[mltpNdx] ?? 'N/A' : 'N/A'}

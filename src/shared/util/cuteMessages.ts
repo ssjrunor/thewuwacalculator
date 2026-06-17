@@ -17,7 +17,7 @@ const cuteMessages = [
   "Hold the phone! (╯✧▽✧)╯ It’s {userName}! Everything stops now because YOU are the main event! ＼(＾▽＾)／ YIPPEEE!! (งˆ▽ˆ)ง",
   "A friendly wave for {userName}! ヾ(・ω・*)ノ May your cookies be fresh and your internet fast! (≧∇≦)/ So glad you’re here~!",
   "Look who popped in! {userName}! (ﾉ≧∀≦)ﾉ Time to party~!! Ｏ(≧∇≦)Ｏ I even baked a digital cake just for you~ ヽ(〃＾▽＾〃)ﾉ",
-  "I was just thinking about you, {userName}! (ღ✪v✪) Coincidence?! Nope—destiny!! (つ✧ω✧)つ",
+  "I was just thinking about you, {userName}! (ღ✪v✪) Coincidence?! Nope... destiny!! (つ✧ω✧)つ",
   "The stars aligned and delivered {userName} to my screen~ ☆彡 You’re the best! Don’t let anyone tell you otherwise!! (≧◡≦)/",
   "Oh happy day!! ヾ(＠^▽^＠)ﾉ {userName} has graced us with their presence~ Time to buckle up and have some fun!! ヽ(＾Д＾)ﾉ",
   "Is that {userName} I see? (o_O) You’re looking radiant today~ ✧(>o<)✧ Thanks for brightening this little corner of the web~ (´▽`ʃ♡ƪ)",

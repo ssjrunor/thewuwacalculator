@@ -138,7 +138,7 @@ export function AttributeNavigator({ groups, stripRef, onImageError }: Attribute
             type="button"
             className="attr-spine-dot"
             aria-current={index === active ? 'true' : undefined}
-            aria-label={`${label} — ${group.count} ${group.count === 1 ? 'resonator' : 'resonators'}`}
+            aria-label={`${label} - ${group.count} ${group.count === 1 ? 'resonator' : 'resonators'}`}
             title={label}
             onClick={() => goTo(index)}
           >

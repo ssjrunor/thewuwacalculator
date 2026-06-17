@@ -188,7 +188,9 @@ function hasFontBoldC(tag: string): boolean {
 // strip incoming bold markup and normalize it to the app's highlight spans
 function strpNjctMrkp(text: string): string {
   // first normalize line breaks to literal newlines so we can rebuild them cleanly later
-  const normalized = text.replace(/(?:<br\s*\/?>\s*)+/gi, '\n')
+  const normalized = text
+      .replace(/\bcolor=(?:Highlight|Title|Ice|Fire|Thunder|Wind|Light|Dark|Normal)>/gi, '<span class="highlight">')
+      .replace(/(?:<br\s*\/?>\s*)+/gi, '\n')
   const tagRegex = /<\/?[^>]+>/gi
   const spanStack: boolean[] = []
   let result = ''

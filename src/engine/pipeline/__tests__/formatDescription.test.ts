@@ -25,6 +25,16 @@ describe('formatDescription', () => {
     expect(result).not.toContain('<')
   })
 
+  it('cleans stale Nanoka color tag residue', () => {
+    const result = fmtDscrText(
+      'While casting this skill, consume all color=Highlight>Stillness</span> and enter color=Highlight>Cleansing Rain</span>.',
+    )
+
+    expect(result).toBe('While casting this skill, consume all Stillness and enter Cleansing Rain.')
+    expect(result).not.toContain('color=Highlight>')
+    expect(result).not.toContain('</span>')
+  })
+
   it('highlights element phrases and custom keywords using the original text rules', () => {
     const result = fmtDscr(
       'Gain Aero DMG Bonus and reduce Aero RES by 10% during Judgment Tempest.',
