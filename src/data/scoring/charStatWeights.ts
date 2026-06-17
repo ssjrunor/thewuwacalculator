@@ -45,6 +45,7 @@ const charStatWght: Record<string, Record<string, number>> = {
   '1602': { atkPercent: 1, atkFlat: 0.75, critRate: 1, critDmg: 1, heavyAtk: 0.5, resonanceLiberation: 0.25, havoc: 1 },
   '1608': { atkPercent: 1, atkFlat: 0.75, critRate: 1, critDmg: 1, resonanceSkill: 0.75, havoc: 1 },
   '1606': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, heavyAtk: 1, havoc: 1 },
+  '1610': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, heavyAtk: 1, havoc: 1 },
   '1604': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 0.5, resonanceSkill: 0.5, resonanceLiberation: 0.5, havoc: 1 },
   '1605': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 0.5, resonanceSkill: 0.5, resonanceLiberation: 0.5, havoc: 1 },
   '1601': { defPercent: 1, defFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 0.5, resonanceLiberation: 0.5, havoc: 1 },
