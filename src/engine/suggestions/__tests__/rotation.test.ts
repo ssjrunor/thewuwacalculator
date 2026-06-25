@@ -5,6 +5,9 @@ import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
 import { applyPersRot } from '@/engine/optimizer/rotation/runtime'
 import { runResSmlt } from '@/engine/pipeline'
 import { mkRotSuggCtx } from '@/engine/suggestions/shared'
+import { getSetRowFfs, SETCNSTLUTST } from '@/engine/optimizer/encode/sets'
+
+const setCol = (name: typeof SETCNSTLUTST[number]) => SETCNSTLUTST.indexOf(name)
 
 describe('rotation suggestions', () => {
   it('ignores loop run counts when building rotation contexts', () => {
@@ -79,5 +82,41 @@ describe('rotation suggestions', () => {
 
     expect(context?.contextCount).toBe(1)
     expect(context ? Array.from(context.contextWeight) : []).toEqual([1])
+  })
+
+  it('includes set atMax effects in suggestion contexts', () => {
+    const seed = getResSeedBy('1506')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = makeResRuntime(seed)
+    runtime.base.level = 90
+    const enemy = makeEnemy()
+    const simulation = runResSmlt(
+      runtime,
+      seed,
+      enemy,
+      makeRuntimeMap(runtime),
+    )
+    const context = mkRotSuggCtx({
+      runtime,
+      seed,
+      enemy,
+      runtimesById: {},
+      selectedTargets: {},
+      tgtFeatId: null,
+      rotationMode: true,
+      topK: 10,
+    }, simulation)
+    expect(context).toBeTruthy()
+    if (!context) {
+      return
+    }
+
+    const row = getSetRowFfs(35, 4)
+    expect(context.setConstLut[row + setCol('critRate')]).toBe(20)
+    expect(context.setConstLut[row + setCol('fusion')]).toBe(15)
   })
 })

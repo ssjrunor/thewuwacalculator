@@ -399,6 +399,55 @@ describe('optimizer engine', () => {
     expect(setRows[row + setCol('fusion')]).toBeGreaterThan(10)
   })
 
+  it('encodes set atMax effects into static optimizer rows', () => {
+    const seed = getResSeedBy('1210')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = makeResRuntime(seed)
+    runtime.state.controls['echoSet:35:bonus:netherRoadStacks'] = 0
+
+    const enabledRows = buildSetRows(runtime, DEF_SET_COND)
+    const disabledRows = buildSetRows(runtime, withSntSet(DEF_SET_COND, [
+      { setId: 35, partKey: 'netherRoadStacks', checked: false },
+    ]))
+    const row = getSetRowFfs(35, 4)
+
+    expect(enabledRows[row + setCol('critRate')]).toBe(20)
+    expect(enabledRows[row + setCol('fusion')]).toBe(15)
+    expect(disabledRows[row + setCol('critRate')]).toBe(0)
+    expect(disabledRows[row + setCol('fusion')]).toBe(0)
+  })
+
+  it('adds dynamic set atMax rows only when the runtime state is maxed', () => {
+    const seed = getResSeedBy('1210')
+    expect(seed).toBeTruthy()
+    if (!seed) {
+      return
+    }
+
+    const runtime = makeResRuntime(seed)
+    const dynamicStateParts = [{ setId: 35, partKey: 'netherRoadStacks' }]
+    const row = getSetRowFfs(35, 4)
+
+    runtime.state.controls['echoSet:35:bonus:netherRoadStacks'] = 3
+    const partial = buildSetRows(runtime, DEF_SET_COND, { dynamicStateParts })
+    expect(partial[row + setCol('critRate')]).toBe(15)
+    expect(partial[row + setCol('fusion')]).toBe(0)
+
+    runtime.state.controls['echoSet:35:bonus:netherRoadStacks'] = 4
+    const maxed = buildSetRows(runtime, DEF_SET_COND, { dynamicStateParts })
+    expect(maxed[row + setCol('critRate')]).toBe(20)
+    expect(maxed[row + setCol('fusion')]).toBe(15)
+
+    runtime.state.controls['echoSet:35:bonus:netherRoadStacks'] = 0
+    const inactive = buildSetRows(runtime, DEF_SET_COND, { dynamicStateParts })
+    expect(inactive[row + setCol('critRate')]).toBe(0)
+    expect(inactive[row + setCol('fusion')]).toBe(0)
+  })
+
   it('omits disabled set conditional rows from the optimizer LUT', () => {
     const seed = getResSeedBy('1210')
     expect(seed).toBeTruthy()

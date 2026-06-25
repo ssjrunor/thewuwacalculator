@@ -29,5 +29,8 @@
   { "id": 29, "name": "Sound of True Name", "icon": "/assets/sonata-icons/soundOfTrueName.webp" },
   { "id": 30, "name": "Wishes of Quiet Snowfall", "icon": "/assets/sonata-icons/wishesOfQuietSnowfall.webp" },
   { "id": 31, "name": "Reel of Spliced Memories", "icon": "/assets/sonata-icons/reelOfSplicedMemories.webp" },
-  { "id": 32, "name": "Shadow of Shattered Dreams", "icon": "/assets/sonata-icons/shadowOfShatteredDreams.webp"}
+  { "id": 32, "name": "Shadow of Shattered Dreams", "icon": "/assets/sonata-icons/shadowOfShatteredDreams.webp"},
+  { "id": 33, "name": "Song of Feathered Trace", "icon": "/assets/sonata-icons/songOfFeatheredTrace.webp" },
+  { "id": 34, "name": "Heart of Evil's Purge", "icon": "/assets/sonata-icons/heartOfEvilsPurge.webp" },
+  { "id": 35, "name": "Lamp of Nether Road", "icon": "/assets/sonata-icons/lampOfNetherRoad.webp" }
 ]

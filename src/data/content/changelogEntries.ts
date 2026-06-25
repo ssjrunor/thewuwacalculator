@@ -337,6 +337,30 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `3.5 beta, echo quick setup, and rotation conditions stuff~! (〜^∇^)〜`,
   },
+  {
+    date: '24/06/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.5 beta support</strong> continues with <strong>Suisui</strong> and <strong>Yangyang: Xuanling</strong> 3.5.3 changes added to the calculator and... <strong>Rover: Aero</strong> added to the calculator.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The new 3.5 beta echoes and sonata sets are also available.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Check out the notes i left~ :P
+        `,
+      }
+    ],
+    shortDesc: `More 3.5.3 beta stuff~! (〜^∇^)〜`,
+  },
 ]
 
 export const ltstCurChngE =

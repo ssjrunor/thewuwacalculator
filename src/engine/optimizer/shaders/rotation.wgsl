@@ -159,7 +159,7 @@ var<uniform> rotationMeta: RotationMeta;
 const STATS_VEC4S_PER_ECHO : u32 = 5u;
 const ECHOS_PER_COMBO: u32 = 5u;
 const BUFFS_PER_ECHO : u32 = 18u;
-const SET_SLOTS : u32 = 33u; // supports set ids 0..32 inclusive
+const SET_SLOTS : u32 = 36u; // supports set ids 0..35 inclusive
 const SET_CONST_LUT_BUCKETS: u32 = 5u;
 const SET_CONST_LUT_ROW_STRIDE: u32 = 23u;
 

@@ -144,7 +144,7 @@ const ECHOS_PER_COMBO: u32 = 5u;
 // target/cpu.ts, target/evaluate.ts, and compiler/theory.ts. slots 15-17
 // carry top_stat contributions (cr/cd/dmgBonus).
 const BUFFS_PER_ECHO : u32 = 18u;
-const SET_SLOTS : u32 = 33u; // supports set ids 0..32 inclusive
+const SET_SLOTS : u32 = 36u; // supports set ids 0..35 inclusive
 const SET_CONST_LUT_BUCKETS: u32 = 5u;
 const SET_CONST_LUT_ROW_STRIDE: u32 = 23u;
 

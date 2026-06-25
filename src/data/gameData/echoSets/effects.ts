@@ -29,6 +29,8 @@ type StateEntry = {
   perStack?: Buff[]
   perStep?: Buff[]
   max: Buff[]
+  atMax?: Buff[]
+  requiresMax?: string
 }
 
 export interface SetPart {
@@ -41,6 +43,7 @@ export interface SetPart {
 export interface SetDef {
   id: number
   name: string
+  type?: 'utility'
   setMax: 1 | 3 | 5
   desc: {
     onePiece?: string
@@ -175,6 +178,15 @@ function truthyCond(setId: number, stateId: string): CondExpr {
   }
 }
 
+function eqCtrl(setId: number, stateId: string, value: number | boolean): CondExpr {
+  return {
+    type: 'eq',
+    from: 'sourceRuntime',
+    path: `state.controls.${controlKey(setId, stateId)}`,
+    value,
+  }
+}
+
 // require that the runtime has at least the given set count equipped
 function setGte(setId: number, min: number): CondExpr {
   return {
@@ -188,6 +200,32 @@ function setGte(setId: number, min: number): CondExpr {
 // combine multiple conditions with logical and
 function andCond(...values: CondExpr[]): CondExpr {
   return { type: 'and', values }
+}
+
+function stateMaxVal(state: StateEntry): number | boolean {
+  const perStep = state.perStep ?? state.perStack ?? state.max
+  const isToggle = perStep.every((step, index) => step.value === state.max[index].value)
+
+  if (isToggle) {
+    return true
+  }
+
+  return Math.round(
+    Math.max(...perStep.map((step, index) => state.max[index].value / step.value)),
+  )
+}
+
+function stateReq(def: SetDef, state: StateEntry): CondExpr | undefined {
+  if (!state.requiresMax) {
+    return undefined
+  }
+
+  const required = def.states[state.requiresMax]
+  if (!required) {
+    throw new Error(`${def.name} state requires missing state: ${state.requiresMax}`)
+  }
+
+  return eqCtrl(def.id, state.requiresMax, stateMaxVal(required))
 }
 
 // create a base stat add operation
@@ -373,10 +411,26 @@ function mkSetPkg(def: SetDef): SrcPkg {
     const perStep = state.perStep ?? state.perStack ?? state.max
     const isToggle = perStep.every((ps, index) => ps.value === state.max[index].value)
     const part = def.parts.find((entry) => entry.key === stateId)
+    const requirement = stateReq(def, state)
+    const effectCond = (active: CondExpr) => andCond(
+      setGte(def.id, pieceReq),
+      active,
+      ...(requirement ? [requirement] : []),
+    )
 
     // toggle state: one on/off control that grants the full max values
     if (isToggle) {
-      states.push(makeToggle(def.id, stateId, part?.label ?? stateId, part?.description ?? part?.trigger))
+      const sourceState = makeToggle(
+        def.id,
+        stateId,
+        part?.label ?? stateId,
+        part?.description ?? part?.trigger,
+      )
+      if (requirement && state.requiresMax) {
+        sourceState.enabledWhen = requirement
+        sourceState.controlDependencies = [controlKey(def.id, state.requiresMax)]
+      }
+      states.push(sourceState)
 
       for (const [targetScope, buffs] of grpBffsByScp(state.max)) {
         effects.push(
@@ -385,7 +439,7 @@ function mkSetPkg(def: SetDef): SrcPkg {
             stateId,
             part?.label ?? stateId,
             buffs.map((buff) => pathOp(buff.path, constVal(buff.value))),
-            andCond(setGte(def.id, pieceReq), truthyCond(def.id, stateId)),
+            effectCond(truthyCond(def.id, stateId)),
             targetScope,
             part?.description,
           ),
@@ -394,13 +448,20 @@ function mkSetPkg(def: SetDef): SrcPkg {
     } else {
       // stack/step state: derive the maximum reachable value from the step and max values.
       // perStep is still rendered like a stack control for now, but it stays distinct in data.
-      const maxStacks = Math.round(
-        Math.max(...perStep.map((ps, index) => state.max[index].value / ps.value)),
-      )
+      const maxStacks = stateMaxVal(state) as number
 
-      states.push(
-        mkStckStt(def.id, stateId, part?.label ?? stateId, maxStacks, part?.description ?? part?.trigger),
+      const sourceState = mkStckStt(
+        def.id,
+        stateId,
+        part?.label ?? stateId,
+        maxStacks,
+        part?.description ?? part?.trigger,
       )
+      if (requirement && state.requiresMax) {
+        sourceState.enabledWhen = requirement
+        sourceState.controlDependencies = [controlKey(def.id, state.requiresMax)]
+      }
+      states.push(sourceState)
 
       // group per-stack/max pairs by scope so we can generate one effect per scope
       const pairsByScope = new Map<
@@ -435,12 +496,26 @@ function mkSetPkg(def: SetDef): SrcPkg {
                 clamp(mul(readCtrl(def.id, stateId), constVal(perStack.value)), max.value),
               ),
             ),
-            andCond(setGte(def.id, pieceReq), truthyCond(def.id, stateId)),
+            effectCond(truthyCond(def.id, stateId)),
             targetScope,
             part?.description,
           ),
         )
       }
+    }
+
+    for (const [targetScope, buffs] of grpBffsByScp(state.atMax ?? [])) {
+      effects.push(
+        makeEffect(
+          def.id,
+          `${stateId}:max`,
+          `${part?.label ?? stateId} Max Stacks`,
+          buffs.map((buff) => pathOp(buff.path, constVal(buff.value))),
+          andCond(setGte(def.id, pieceReq), eqCtrl(def.id, stateId, stateMaxVal(state))),
+          targetScope,
+          part?.description,
+        ),
+      )
     }
   }
 

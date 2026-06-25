@@ -9,7 +9,7 @@ import { AppModal } from '@/shared/ui/AppModal'
 import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 
 const STATUS_DATA = {
-  lastUpdated: '09/06/2026',
+  lastUpdated: '24/06/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [
@@ -18,24 +18,21 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    'I tried my best, added 3.5 beta stuff and even preset rotations to the best of my understanding. Electro rover hasn\'t been added yet',
-    'I have some stuff in the works *wink* *wink* *nudge* *nudge* ◕⩊◕.',
-    'Lucy / Rebecca have their Prydwen rotations now too so no more of my nonsense haha...',
-    'okay i lied... more of my nonsense... i added preset rotations for Suisui and Yangyang: Xuanling crafted from my intuition ofc.'
+    'I added Rover: Electro and their support rotation as their preset rotation.',
+    'I added the new echoes and sonata sets. Enemies don\'t seem to have an description even in the cn localized data so there\'s not much use in adding them yet UwU.',
+    'I STILL have some stuff in the works... *wink* *wink* *nudge* *nudge* ◕⩊◕.',
   ],
   coverage: [
-    { title: 'Resonators', status: 'wip' as const,  desc: 'No electro rover :(.' },
+    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
-    { title: 'Echoes',     status: 'wip' as const,  desc: 'All but 3.5 echoes and sonata sets included.' },
+    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets supported.' },
     { title: 'Enemies',    status: 'wip' as const,  desc: 'All but 3.5 enemies supported.' },
   ],
   recentChanges: [
-    'You can setup echoes faster now with the quick-setup/forge thingy.',
-    'More conditions in the rotation conditions editor!',
-    'YANGYANG ... SUISUI.',
+    'r-rover....',
   ],
   knownIssues: [
-    "asides from the missing beta stuff i pointed out... nothing crazy right now :)"
+    "asides the missing game assets... nothing crazy right now :P"
   ]
 }
 

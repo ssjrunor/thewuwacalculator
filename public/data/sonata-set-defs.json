@@ -319,6 +319,7 @@
   },
   {
     "id": 7,
+    "type": "utility",
     "name": "Rejuvenating Glow",
     "setMax": 5,
     "desc": {
@@ -365,6 +366,7 @@
   },
   {
     "id": 8,
+    "type": "utility",
     "name": "Moonlit Clouds",
     "setMax": 5,
     "desc": {
@@ -621,6 +623,7 @@
   },
   {
     "id": 12,
+    "type": "utility",
     "name": "Midnight Veil",
     "setMax": 5,
     "desc": {
@@ -670,6 +673,7 @@
   },
   {
     "id": 13,
+    "type": "utility",
     "name": "Empyrean Anthem",
     "setMax": 5,
     "desc": {
@@ -772,6 +776,7 @@
   },
   {
     "id": 16,
+    "type": "utility",
     "name": "Gusts of Welkin",
     "setMax": 5,
     "desc": {
@@ -883,6 +888,7 @@
   },
   {
     "id": 18,
+    "type": "utility",
     "name": "Flaming Clawprint",
     "setMax": 5,
     "desc": {
@@ -1030,6 +1036,7 @@
   },
   {
     "id": 21,
+    "type": "utility",
     "name": "Law of Harmony",
     "setMax": 3,
     "desc": {
@@ -1217,6 +1224,7 @@
   },
   {
     "id": 24,
+    "type": "utility",
     "name": "Pact of Neonlight Leap",
     "setMax": 5,
     "desc": {
@@ -1293,6 +1301,7 @@
   },
   {
     "id": 25,
+    "type": "utility",
     "name": "Halo of Starry Radiance",
     "setMax": 5,
     "desc": {
@@ -1390,6 +1399,7 @@
         ]
       },
       "gildedRevelationBasicBuff": {
+        "requiresMax": "gildedRevelationStacks",
         "max": [
           {
             "value": 40,
@@ -1479,6 +1489,7 @@
   },
   {
     "id": 28,
+    "type": "utility",
     "name": "Chromatic Foam",
     "setMax": 5,
     "desc": {
@@ -1602,6 +1613,7 @@
   },
   {
     "id": 30,
+    "type": "utility",
     "name": "Wishes of Quiet Snowfall",
     "setMax": 5,
     "desc": {
@@ -1685,6 +1697,7 @@
   },
   {
     "id": 31,
+    "type": "utility",
     "name": "Reel of Spliced Memories",
     "setMax": 5,
     "desc": {
@@ -1767,6 +1780,222 @@
         "label": "1pc Basic/Heavy Buff",
         "trigger": "Triggered by Inflicting Hack - Shifting.",
         "description": "Inflicting Hack - Shifting on the target grants 35% Basic Attack DMG Bonus and Heavy Attack DMG Bonus for 15s."
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "name": "Song of Feathered Trace",
+    "type": "utility",
+    "setMax": 5,
+    "desc": {
+      "twoPiece": "Energy Regen + 10%",
+      "fivePiece": "Upon inflicting Havoc Bane, gain Xuanling's Feather, which grants a 20% increase in Crit. Rate and 35% increase in Heavy Attack DMG Bonus to the Resonator, lasting 15s.\nUpon inflicting Glacio Chafe, gain Chongming's Feather, which grants a 0.1% increase in ATK to Resonators in the team for every 1% of the Resonator's Energy Regen, up to 25%, lasting 10s."
+    },
+    "twoPiece": [
+      {
+        "value": 10,
+        "path": [
+          "energyRegen"
+        ]
+      }
+    ],
+    "fivePiece": null,
+    "states": {
+      "xuanlingsFeather": {
+        "max": [
+          {
+            "value": 20,
+            "path": [
+              "critRate"
+            ]
+          },
+          {
+            "value": 35,
+            "path": [
+              "skillType",
+              "heavyAtk",
+              "dmgBonus"
+            ]
+          }
+        ]
+      },
+      "chongmingsFeather": {
+        "max": []
+      }
+    },
+    "parts": [
+      {
+        "key": "twoPiece",
+        "label": "Energy Regen + 10%",
+        "trigger": "Always active at 2pc.",
+        "description": "Energy Regen + 10%"
+      },
+      {
+        "key": "xuanlingsFeather",
+        "label": "Xuanling's Feather",
+        "trigger": "Triggered by inflicting Havoc Bane.",
+        "description": "Upon inflicting Havoc Bane, gain Xuanling's Feather, which grants a 20% increase in Crit. Rate and 35% increase in Heavy Attack DMG Bonus to the Resonator, lasting 15s."
+      },
+      {
+        "key": "chongmingsFeather",
+        "label": "Chongming's Feather",
+        "trigger": "Triggered by inflicting Glacio Chafe.",
+        "description": "Upon inflicting Glacio Chafe, gain Chongming's Feather, which grants a 0.1% increase in ATK to Resonators in the team for every 1% of the Resonator's Energy Regen, up to 25%, lasting 10s."
+      }
+    ],
+    "extraEffects": [
+      {
+        "id": "chongmings-feather-atk",
+        "label": "Chongming's Feather ATK Bonus",
+        "targetScope": "teamWide",
+        "condition": {
+          "type": "truthy",
+          "from": "sourceRuntime",
+          "path": "state.controls.echoSet:33:bonus:chongmingsFeather"
+        },
+        "operations": [
+          {
+            "type": "add_base_stat",
+            "stat": "atk",
+            "field": "percent",
+            "value": {
+              "type": "clamp",
+              "max": 25,
+              "value": {
+                "type": "mul",
+                "values": [
+                  {
+                    "type": "read",
+                    "from": "sourceFinalStats",
+                    "path": "energyRegen",
+                    "default": 100
+                  },
+                  {
+                    "type": "const",
+                    "value": 0.1
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "name": "Heart of Evil's Purge",
+    "setMax": 5,
+    "desc": {
+      "twoPiece": "Aero DMG + 10%",
+      "fivePiece": "Inflicting Tune Strain - Shifting increases Crit. DMG by 20% and Aero DMG Bonus 30% for 15s."
+    },
+    "twoPiece": [
+      {
+        "value": 10,
+        "path": [
+          "attribute",
+          "aero",
+          "dmgBonus"
+        ]
+      }
+    ],
+    "fivePiece": null,
+    "states": {
+      "evilPurge5pc": {
+        "max": [
+          {
+            "value": 20,
+            "path": [
+              "critDmg"
+            ]
+          },
+          {
+            "value": 30,
+            "path": [
+              "attribute",
+              "aero",
+              "dmgBonus"
+            ]
+          }
+        ]
+      }
+    },
+    "parts": [
+      {
+        "key": "twoPiece",
+        "label": "Aero DMG + 10%",
+        "trigger": "Always active at 2pc.",
+        "description": "Aero DMG + 10%"
+      },
+      {
+        "key": "evilPurge5pc",
+        "label": "5pc Crit. DMG and Aero DMG Buff",
+        "trigger": "Triggered by inflicting Tune Strain - Shifting.",
+        "description": "Inflicting Tune Strain - Shifting increases Crit. DMG by 20% and Aero DMG Bonus 30% for 15s."
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "name": "Lamp of Nether Road",
+    "setMax": 5,
+    "desc": {
+      "twoPiece": "HP + 10%",
+      "fivePiece": "Upon gaining a Shield, gain 5% increase in Crit. Rate for 5, max 4 stacks. This effect can be triggered every 0.5s. At max stacks, gain 15% Fusion DMG Bonus."
+    },
+    "twoPiece": [
+      {
+        "value": 10,
+        "path": [
+          "hpPercent"
+        ]
+      }
+    ],
+    "fivePiece": null,
+    "states": {
+      "netherRoadStacks": {
+        "perStack": [
+          {
+            "value": 5,
+            "path": [
+              "critRate"
+            ]
+          }
+        ],
+        "max": [
+          {
+            "value": 20,
+            "path": [
+              "critRate"
+            ]
+          }
+        ],
+        "atMax": [
+          {
+            "value": 15,
+            "path": [
+              "attribute",
+              "fusion",
+              "dmgBonus"
+            ]
+          }
+        ]
+      }
+    },
+    "parts": [
+      {
+        "key": "twoPiece",
+        "label": "HP + 10%",
+        "trigger": "Always active at 2pc.",
+        "description": "HP + 10%"
+      },
+      {
+        "key": "netherRoadStacks",
+        "label": "5pc Crit. Rate Stacks",
+        "trigger": "Triggered by gaining a Shield.",
+        "description": "5% Crit. Rate (4 Stacks Max)."
       }
     ]
   }

@@ -5,7 +5,7 @@
                optimizer evaluation.
 */
 
-import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
+import { ECHO_SET_DEFS, getEchoSetCn } from '@/data/gameData/echoSets/effects'
 import {
   getSntSetOn,
   isSntSetCon,
@@ -14,7 +14,8 @@ import {
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 
 // hard limit for set ids that can be encoded in optimizer buffers
-export const SETCNSTLUTSE = 33
+// must stay equal to SET_SLOT_COUNT and the shaders' SET_SLOTS (covers ids 0..35)
+export const SETCNSTLUTSE = 36
 
 // number of piece-count buckets stored per set:
 // 0-piece, 1-piece, 2-piece, 3-piece, and 5-piece style buckets
@@ -116,6 +117,15 @@ type SetRule = {
 
 type SetDef = (typeof ECHO_SET_DEFS)[number]
 
+export type DynamicSetStatePart = {
+  setId: number
+  partKey: string
+}
+
+export type BuildSetRowsOptions = {
+  dynamicStateParts?: readonly DynamicSetStatePart[]
+}
+
 // manual overrides for set definitions whose runtime behavior cannot be
 // taken directly from the generic builder logic
 const SETCNSTRULEV: Record<number, readonly SetRule[]> = Object.freeze({
@@ -149,6 +159,13 @@ function getLutStatFo(path: string[]): string | null {
   return LUTPATHTOSTA[path.join('|')] ?? null
 }
 
+function maxStateEntries(state: SetDef['states'][string]) {
+  return [
+    ...(Array.isArray(state.max) ? state.max : []),
+    ...(Array.isArray(state.atMax) ? state.atMax : []),
+  ]
+}
+
 // determine the piece requirement for one set definition part
 function getPartMinPc(def: SetDef, partKey: string): number {
   if (partKey === 'onePiece') return 1
@@ -179,9 +196,11 @@ function getPartEnts(def: SetDef, partKey: string) {
     return []
   }
 
-  // prefer max values if present because optimizer rows want the final triggered contribution
-  if (Array.isArray(state.max) && state.max.length > 0) {
-    return state.max
+  // prefer max values because normal optimizer rows assume triggered set states
+  // are maxed. Max-only bonuses are part of that static maxed contribution.
+  const maxedEntries = maxStateEntries(state)
+  if (maxedEntries.length > 0) {
+    return maxedEntries
   }
 
   if (Array.isArray(state.perStep) && state.perStep.length > 0) {
@@ -195,9 +214,11 @@ function getPartEnts(def: SetDef, partKey: string) {
   return []
 }
 
-// derive one optimizer rule from a named set part
-function mkRuleFromPa(def: SetDef, partKey: string): SetRule | null {
-  const entries = getPartEnts(def, partKey)
+function mkRuleFromEntries(
+    def: SetDef,
+    partKey: string,
+    entries: Array<{ value: number; path: string[]; targetScope?: string }>,
+): SetRule | null {
   if (!entries.length) {
     return null
   }
@@ -232,6 +253,86 @@ function mkRuleFromPa(def: SetDef, partKey: string): SetRule | null {
   }
 
   return hasMppdStat ? Object.freeze(rule) : null
+}
+
+// derive one optimizer rule from a named set part
+function mkRuleFromPa(def: SetDef, partKey: string): SetRule | null {
+  return mkRuleFromEntries(def, partKey, getPartEnts(def, partKey))
+}
+
+function isSetCtrlOn(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0
+  if (typeof value === 'string') return value.length > 0
+  return false
+}
+
+function setStateMaxVal(state: SetDef['states'][string]): number | boolean {
+  const perStep = state.perStep ?? state.perStack ?? state.max
+  const isToggle = perStep.every((step, index) => step.value === state.max[index].value)
+
+  if (isToggle) {
+    return true
+  }
+
+  return Math.round(
+    Math.max(...perStep.map((step, index) => state.max[index].value / step.value)),
+  )
+}
+
+function reqStateMet(
+    def: SetDef,
+    state: SetDef['states'][string],
+    controls: ResRuntime['state']['controls'],
+): boolean {
+  if (!state.requiresMax) {
+    return true
+  }
+
+  const required = def.states[state.requiresMax]
+  if (!required) {
+    return false
+  }
+
+  return controls[getEchoSetCn(def.id, state.requiresMax)] === setStateMaxVal(required)
+}
+
+function mkRuleFromStateCtrl(
+    def: SetDef,
+    partKey: string,
+    controls: ResRuntime['state']['controls'],
+): SetRule | null {
+  const state = def.states?.[partKey as keyof typeof def.states]
+  if (!state || !reqStateMet(def, state, controls)) {
+    return null
+  }
+
+  const value = controls[getEchoSetCn(def.id, partKey)]
+  if (!isSetCtrlOn(value)) {
+    return null
+  }
+
+  const perStep = state.perStep ?? state.perStack ?? state.max
+  const isToggle = perStep.every((step, index) => step.value === state.max[index].value)
+  const stacks = typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 1
+  const entries = isToggle
+    ? state.max
+    : perStep.map((step, index) => {
+      const max = state.max[index]
+      return {
+        value: Math.min(step.value * stacks, max.value),
+        path: step.path,
+        targetScope: step.targetScope ?? max.targetScope,
+      }
+    })
+  const maxValue = setStateMaxVal(state)
+  const maxOnlyEntries = value === maxValue && Array.isArray(state.atMax)
+    ? state.atMax
+    : []
+
+  return mkRuleFromEntries(def, partKey, [...entries, ...maxOnlyEntries])
 }
 
 // merge auto-derived rules with any manual overrides
@@ -362,13 +463,16 @@ export function getSetRowFfs(setId: number, countBucket: number): number {
 // each row already includes the cumulative contribution of all rules whose minPieces
 // requirement is satisfied by that bucket threshold.
 export function buildSetRows(
-    _runtime: ResRuntime,
+    runtime: ResRuntime,
     setConds?: SntSetConds,
+    options: BuildSetRowsOptions = {},
 ): Float32Array {
-  void _runtime
   const rulesBySet = mkRlsBySet()
   const setDataLkp = mkSetDataLkp(setConds)
   const lut = new Float32Array(SETCNSTLUTSI)
+  const dynamicParts = new Set(
+      (options.dynamicStateParts ?? []).map((part) => `${part.setId}:${part.partKey}`),
+  )
 
   for (let setId = 0; setId < SETCNSTLUTSE; setId += 1) {
     const setRules = rulesBySet[setId]
@@ -382,19 +486,28 @@ export function buildSetRows(
       const base = getSetRowFfs(setId, bucket)
 
       for (const rule of setRules) {
-        const minPieces = Number(rule.minPieces ?? 0)
+        let activeRule: SetRule | null = rule
+        if (rule.partKey && dynamicParts.has(`${setId}:${rule.partKey}`)) {
+          const def = ECHO_SET_DEFS.find((entry) => entry.id === setId)
+          activeRule = def ? mkRuleFromStateCtrl(def, rule.partKey, runtime.state.controls) : null
+        }
+        if (!activeRule) {
+          continue
+        }
+
+        const minPieces = Number(activeRule.minPieces ?? 0)
 
         // if the current bucket does not satisfy this rule's trigger requirement, skip it
         if (thrsCnt < minPieces) {
           continue
         }
 
-        if (!isSetPartOn(setDataLkp, setId, rule.partKey)) {
+        if (!isSetPartOn(setDataLkp, setId, activeRule.partKey)) {
           continue
         }
 
         // accumulate every mapped stat column for this rule into the bucket row
-        for (const [stat, rawValue] of Object.entries(rule)) {
+        for (const [stat, rawValue] of Object.entries(activeRule)) {
           if (stat === 'minPieces' || stat === 'partKey') {
             continue
           }
