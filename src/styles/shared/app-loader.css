@@ -48,8 +48,6 @@
     color: var(--loader-text, var(--text, #f2f5ff));
 }
 
-
-
 .app-loader-fallback {
     display: flex;
     flex-direction: column;
@@ -62,8 +60,6 @@
     animation: app-loader-fade-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     animation-delay: 150ms;
 }
-
-
 
 .app-loader-scrim {
     position: fixed;

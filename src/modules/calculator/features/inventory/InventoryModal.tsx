@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the inventory modal surface for the calculator inventory flow.
+  Description: renders the inventory modal surface for the calculator inventory flow.
 */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -22,7 +22,7 @@ import {
   type InvSlotFitSt,
 } from '@/modules/calculator/features/inventory/lib/inventory.ts'
 import type { InvEchoSg } from '@/domain/state/inventoryUsage.ts'
-import { fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { toTitle } from '@/shared/lib/format'
 import { hideBrknMg, withDefIconM, withDefResMg, withDefWpnMg } from '@/shared/lib/imageFallback'
 import { AppModal } from '@/shared/ui/AppModal'
@@ -275,20 +275,20 @@ function InvEchoEntCa({
 
         <div className="overview-echo-tile-stats">
           <div className="overview-echo-stat overview-echo-stat--primary">
-            <span className="overview-echo-stat-label">{fmtStatKeyLb(entry.echo.mainStats.primary.key)}</span>
-            <span className="overview-echo-stat-value">{fmtStatKeyVl(entry.echo.mainStats.primary.key, entry.echo.mainStats.primary.value)}</span>
+            <span className="overview-echo-stat-label">{formatStatKeyLabel(entry.echo.mainStats.primary.key)}</span>
+            <span className="overview-echo-stat-value">{formatStatKeyValue(entry.echo.mainStats.primary.key, entry.echo.mainStats.primary.value)}</span>
           </div>
           <div className="overview-echo-stat overview-echo-stat--secondary">
-            <span className="overview-echo-stat-label">{fmtStatKeyLb(entry.echo.mainStats.secondary.key)}</span>
-            <span className="overview-echo-stat-value">{fmtStatKeyVl(entry.echo.mainStats.secondary.key, entry.echo.mainStats.secondary.value)}</span>
+            <span className="overview-echo-stat-label">{formatStatKeyLabel(entry.echo.mainStats.secondary.key)}</span>
+            <span className="overview-echo-stat-value">{formatStatKeyValue(entry.echo.mainStats.secondary.key, entry.echo.mainStats.secondary.value)}</span>
           </div>
 
           {sbstEnts.length > 0 ? (
             <div className="overview-echo-subs">
               {sbstEnts.map(([key, value]) => (
                 <div key={key} className="overview-echo-stat overview-echo-stat--sub">
-                  <span className="overview-echo-stat-label">{fmtStatKeyLb(key)}</span>
-                  <span className="overview-echo-stat-value">{fmtStatKeyVl(key, value)}</span>
+                  <span className="overview-echo-stat-label">{formatStatKeyLabel(key)}</span>
+                  <span className="overview-echo-stat-value">{formatStatKeyValue(key, value)}</span>
                 </div>
               ))}
             </div>

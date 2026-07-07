@@ -3,12 +3,12 @@
 @import './page-design-system.css';
 @import './info.css';
 @import './changelog.css';
+@import './whatsnew.css';
 @import './guides.css';
+@import './docs.css';
 @import './not-found.css';
 @import './settings.css';
 @import './admin.css';
-
-
 
 @keyframes page-fade-up {
   from {

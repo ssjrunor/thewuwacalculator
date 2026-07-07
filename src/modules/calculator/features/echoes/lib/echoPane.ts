@@ -8,7 +8,7 @@ import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { makeEchoUid } from '@/domain/entities/runtime.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
-import { STATICONMAP } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { STAT_ICON_MAP } from '@/modules/calculator/model/statsView.ts'
 
 const STAT_LABELS: Record<string, string> = {
   hpPercent: 'HP%',
@@ -79,7 +79,7 @@ export function fmtEchoStatV(key: string, value: number): string {
 // resolve the stat icon asset used by the echo pane's mask icon
 export function getEchoStatI(key: string): string | undefined {
   const iconKey = STATICONKEYM[key]
-  return iconKey ? STATICONMAP[iconKey] : undefined
+  return iconKey ? STAT_ICON_MAP[iconKey] : undefined
 }
 
 // build a default echo instance for a picked catalog echo and slot

@@ -509,8 +509,6 @@
   display: none;
 }
 
-
-
 .floating-context-menu__preview-shell {
   width: fit-content;
   height: fit-content;
@@ -657,7 +655,6 @@
     transform: translateX(var(--ba-slide-from, -10px)) scale(0.96);
   }
 }
-
 
 :is(.no-entrance-anim, .reduce-animation) .floating-context-menu {
 

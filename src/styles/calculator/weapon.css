@@ -14,8 +14,6 @@
   object-fit: contain;
 }
 
-
-
 .weapon-stat-icon {
   display: inline-block;
   width: 14px;
@@ -131,7 +129,6 @@
   padding-top: 0;
   border-top: none;
 }
-
 
 .weapon-effect__tuning {
   position: relative;
@@ -252,7 +249,6 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-
 @media (max-width: 900px) {
   .weapon-banner__top {
     grid-template-columns: auto minmax(0, 1fr);
@@ -270,7 +266,6 @@
     justify-items: start;
   }
 }
-
 
 .weapon-pane > .resonator-strip__head,
 .weapon-pane > .weapon-banner,

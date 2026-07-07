@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the left surface for the calculator main flow.
+  Description: renders the left surface for the calculator main flow.
 */
 
 import { Suspense, lazy } from 'react'
@@ -81,6 +81,7 @@ export function Left({
         actResId={actResId}
         onRtPdt={onRtPdt}
         isDarkMode={isDarkMode}
+        prtcRntmById={partRntmById}
       />
     )
   }
@@ -101,6 +102,7 @@ export function Left({
       <Suspense fallback={<LeftPaneLdr text="Loading echoes..." />}>
         <LazyCalcChsP
           runtime={runtime}
+          prtcRntmById={partRntmById}
           onRtPdt={onRtPdt}
         />
       </Suspense>

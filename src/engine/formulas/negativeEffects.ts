@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines base damage helpers for negative-effect archetypes
+  Description: defines base damage helpers for negative-effect archetypes
                such as Spectro Frazzle, Aero Erosion, and Fusion Burst.
 */
 
@@ -51,6 +51,8 @@ function getLvlVl(currentLevel: number): number {
 export function getFsnBrstBa(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
   function getStckVl(value: number): number {
+    const lateSlope = 23285.80478599581
+
     // stack growth from 1 to 10
     if (value >= 1 && value <= 10) {
       return 8403.400535464296 + (value - 1) * 6828.894046048515
@@ -59,6 +61,11 @@ export function getFsnBrstBa(level: number, stacks: number): number {
     // stack growth from 11 to 13
     if (value >= 11 && value <= 13) {
       return 93155.28432781024 + (value - 11) * 23285.80478599581
+    }
+
+    // runtime stack extensions continue the 11-13 slope
+    if (value >= 14 && value <= 19) {
+      return 139726.89389980186 + (value - 13) * lateSlope
     }
 
     // unsupported stack counts return zero
@@ -74,6 +81,12 @@ export function getFsnBrstBa(level: number, stacks: number): number {
 export function getLctrFlrBa(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
   function getStckVl(value: number): number {
+    const lateSlope = (83170 - 55447) / 2
+
+    if (value >= 14 && value <= 19) {
+      return 83170 + (value - 13) * lateSlope
+    }
+
     switch (value) {
       case 1: return 5000;
       case 2: return 9065;
@@ -88,7 +101,7 @@ export function getLctrFlrBa(level: number, stacks: number): number {
       case 11: return 55447;
       case 12: return 69308;
       case 13: return 83170;
-      default: return 0;
+      default: return 0
     }
   }
 
@@ -101,6 +114,12 @@ export function getLctrFlrBa(level: number, stacks: number): number {
 export function getGlcChfBas(level: number, stacks: number): number {
   // resolve the base value contributed by stack count
   function getStckVl(value: number): number {
+    const lateSlope = (40753 - 27169) / 2
+
+    if (value >= 14 && value <= 19) {
+      return 40753 + (value - 13) * lateSlope
+    }
+
     switch (value) {
       case 1: return 2450;
       case 2: return 4442;
@@ -115,7 +134,7 @@ export function getGlcChfBas(level: number, stacks: number): number {
       case 11: return 27169;
       case 12: return 33961;
       case 13: return 40753;
-      default: return 0;
+      default: return 0
     }
   }
 

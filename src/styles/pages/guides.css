@@ -10,6 +10,7 @@
 .guide-search {
   position: relative;
   z-index: 20;
+  width: 100%;
   margin: 0 auto 1.25rem;
   max-width: 36rem;
 }
@@ -234,7 +235,6 @@
   }
 }
 
-
 .guide-cell-inner {
   width: 100%;
 }
@@ -258,7 +258,6 @@
 .guide-codex-reader-mode {
   display: block;
 }
-
 
 .guide-codex-index {
   display: grid;
@@ -976,7 +975,6 @@
   display: none;
 }
 
-
 .guide-reader__content {
   min-width: 0;
 }
@@ -1202,47 +1200,6 @@
   align-self: center;
   line-height: 1.65;
   color: color-mix(in srgb, var(--text) 88%, var(--muted));
-}
-
-.guide-formula {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-}
-
-.guide-formula__label {
-  display: block;
-  padding: 0.7rem 1rem 0.4rem;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.guide-formula__pre {
-  margin: 0;
-  padding: 0 1rem 0.85rem;
-  overflow-x: auto;
-}
-
-.guide-formula__pre code {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.82rem;
-  line-height: 1.7;
-  color: var(--text);
-}
-
-.guide-formula__note {
-  display: block;
-  padding: 0 1rem 0.85rem;
-  font-size: 0.82rem;
-  font-style: italic;
-  line-height: 1.55;
-  color: var(--muted);
 }
 
 .guide-example {

@@ -1,11 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: builds grouped overview summaries of active states and effects
-               across the active resonator, teammates, weapon, main echo,
-               and echo sets for the character overview panel.
+  Description: builds grouped summaries of active states and effects across
+               the active resonator, teammates, weapon, main echo, and echo
+               sets for calculator report surfaces.
 */
 
 import type { CombatGraph } from '@/domain/entities/combatGraph'
+import { getSrcSttNct } from '@/domain/gameData/controlOptions'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import { readRtPath } from '@/domain/gameData/runtimePath'
 import type {
@@ -451,9 +452,14 @@ function makeEvalScope(context: EffectContext) {
 }
 
 // detect whether a source state is currently active by reading its runtime path
-function isSttAct(state: SourceState, tgtRt: ResRuntime): boolean {
-  const rawValue = readRtPath(tgtRt, state.path)
-  const valueWithDefault = rawValue ?? state.defaultValue
+function isSttAct(state: SourceState, context: EffectContext): boolean {
+  const rawValue = readRtPath(context.sourceRuntime, state.path)
+  const valueWithDefault = rawValue ?? getSrcSttNct(
+      context.sourceRuntime,
+      context.targetRuntime,
+      state,
+      context.activeRuntime,
+  )
 
   // toggles are active only when explicitly true
   if (state.kind === 'toggle') {
@@ -915,7 +921,7 @@ function grpNdsByScp(nodes: StateNode[]): SttScpGrp[] {
 }
 
 // build the full overview summary for the active resonator plus all relevant supporting sources
-export function mkVrvwSttSmm(
+export function makeStateSummary(
     actRt: ResRuntime | null,
     runtimesById: Record<string, ResRuntime>,
     graph: CombatGraph | null = null,
@@ -924,7 +930,7 @@ export function mkVrvwSttSmm(
       cntxByResId?: Record<string, CombatContext>
       enemyProfile?: ReturnType<typeof makeEnemy>
       activeRuntime?: ResRuntime | null
-      showNqntStts?: boolean
+      showAllStates?: boolean
       skillTarget?: SkillStateSummaryTarget | null
     } = {},
 ): StateGroup[] {
@@ -1017,7 +1023,7 @@ export function mkVrvwSttSmm(
       // collect visible + currently active states under this owner
       const states = listSttsForO(owner.ownerKey)
           .filter((state) => sttIsVsbl(state, ownerContext))
-          .filter((state) => isSttAct(state, ownerContext.sourceRuntime))
+          .filter((state) => isSttAct(state, ownerContext))
 
       // collect effects that both target this runtime and pass their condition
       const effects = listFfctForO(owner.ownerKey)
@@ -1030,7 +1036,7 @@ export function mkVrvwSttSmm(
         return []
       }
 
-      if (!options.showNqntStts && states.length > 0 && effectLabels.length === 0) {
+      if (!options.showAllStates && states.length > 0 && effectLabels.length === 0) {
         return []
       }
 

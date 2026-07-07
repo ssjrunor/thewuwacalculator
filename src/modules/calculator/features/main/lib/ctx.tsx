@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Binds calculator-wide menu builders, modal state, and shared
+  Description: binds calculator-wide menu builders, modal state, and shared
                actions so split calculator panes can reuse one central context.
 */
 
@@ -204,6 +204,11 @@ export function CalcProv({
   }, [])
 
   const curResName = actResId ? seedRsntById[actResId]?.name ?? actResId : 'None'
+  const toolbarIconTheme = (
+    ui.theme === 'background'
+      ? ui.backgroundTextMode === 'dark'
+      : ui.theme === 'dark'
+  ) ? 'dark' : 'light'
   const skllDataRt = skllDataTrgt
     ? partRntmById[skllDataTrgt.resonatorId]
       ?? (actRt?.id === skllDataTrgt.resonatorId ? actRt : null)
@@ -239,7 +244,7 @@ export function CalcProv({
       label: option.label,
       icon: <img
           style={{ width: '15px', height: '15px' }}
-          src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${option.id}.png`}
+          src={`/assets/icons/${toolbarIconTheme}/${option.id}.png`}
           alt=""
           className="toolbar-icon-image"
           loading="lazy"
@@ -250,7 +255,7 @@ export function CalcProv({
         openLeftPane(option.id)
       },
     }))
-  ), [openLeftPane, ui.leftPaneView, ui.theme])
+  ), [openLeftPane, toolbarIconTheme, ui.leftPaneView])
 
   const calcMoreEnts = useMemo(() => calcBuilder.calculator.more({
     swtcToNtrs: swtcToEnts,

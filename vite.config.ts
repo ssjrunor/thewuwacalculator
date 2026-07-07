@@ -19,7 +19,10 @@ import {
 
 const crossOriginIsolationHeaders = {
   'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-  'Cross-Origin-Embedder-Policy': 'require-corp',
+  // `credentialless` keeps cross-origin isolation (SharedArrayBuffer) while
+  // allowing cross-origin images/backgrounds (e.g. imgbb uploads) to load
+  // without the host sending CORP headers, which `require-corp` would block.
+  'Cross-Origin-Embedder-Policy': 'credentialless',
 }
 
 function buildGoogleAuthEnv(mode: string): GglAuthEnv {

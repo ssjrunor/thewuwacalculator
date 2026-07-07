@@ -1,5 +1,76 @@
 
 
+.changelog-whatsnew-cta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0;
+  flex: none;
+  width: fit-content;
+  max-width: min(24rem, 100%);
+  padding: 0.85rem 1rem;
+  border-radius: 0.8rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--border));
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.changelog-whatsnew-cta:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  transform: translateY(-1px);
+}
+
+.changelog-whatsnew-cta__icon {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.55rem;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.changelog-whatsnew-cta__text {
+  display: grid;
+  gap: 0.12rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.changelog-whatsnew-cta__eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.changelog-whatsnew-cta__title {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changelog-whatsnew-cta__arrow {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.changelog-whatsnew-cta:hover .changelog-whatsnew-cta__arrow {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+
 .changelog-entry {
   display: grid;
   gap: 0.55rem;

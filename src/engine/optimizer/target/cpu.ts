@@ -11,6 +11,7 @@ import {
   applySetVec,
   SETRTTGLALL,
   SETRTTGLST14,
+  SETRTTGLST33,
 } from '@/engine/optimizer/encode/sets.ts'
 import {
   ARCH_AERO,
@@ -108,8 +109,11 @@ interface PrepTgtCpuCt {
   charId: number
   sequence: number
   toggle0: number
+  shoreInner: boolean
+  shoreSupernal: boolean
   setRtMask: number
   st14FiveOn: boolean
+  st33ChongmingOn: boolean
   baseAtk: number
   baseHp: number
   baseDef: number
@@ -175,6 +179,16 @@ function calcCritConvert(charId: number, sequence: number, critRateTotal: number
 function calcConvert(charId: number, finalER: number): number {
   if (charId !== 1412 || finalER <= 125) return 0
   return Math.min((finalER - 125) * 2, 50) / 100
+}
+
+function calcShoreCritRate(charId: number, finalER: number, innerOn: boolean): number {
+  if (charId !== 1505 || !innerOn) return 0
+  return Math.min(Math.max(0, finalER * 0.05), 12.5) / 100
+}
+
+function calcShoreCritDmg(charId: number, finalER: number, innerOn: boolean, supernalOn: boolean): number {
+  if (charId !== 1505 || !innerOn || !supernalOn) return 0
+  return Math.min(Math.max(0, finalER * 0.1), 25) / 100
 }
 
 // select the matching elemental bonus bucket from base stats + set bonus
@@ -251,8 +265,11 @@ function prprTgtCpuCt(context: Float32Array): PrepTgtCpuCt {
     charId: meta0 & 0xfff,
     sequence: (meta0 >>> 12) & 0xf,
     toggle0: (togglesBits & 1) ? 1 : 0,
+    shoreInner: (togglesBits & (1 << 1)) !== 0,
+    shoreSupernal: (togglesBits & (1 << 2)) !== 0,
     setRtMask: setRtMask,
     st14FiveOn: (setRtMask & SETRTTGLST14) !== 0,
+    st33ChongmingOn: (setRtMask & SETRTTGLST33) !== 0,
     baseAtk: context[BASE_ATK],
     baseHp: context[BASE_HP],
     baseDef: context[BASE_DEF],
@@ -389,13 +406,13 @@ export function evalTgtCpuCmPrepped(options: {
       setBonus.defF +
       prepared.finalDef
 
+  const finalERBase = prepared.baseER + base[STAT_ER] + setBonus.erSetBonus
+
   const atkBaseTerm =
       prepared.baseAtk * ((base[STAT_ATK_PCT] + setBonus.atkP) / 100) +
       base[STATATKFLAT] +
       setBonus.atkF +
       prepared.finalAtk
-
-  const finalERBase = prepared.baseER + base[STAT_ER] + setBonus.erSetBonus
 
   const critRateTotal = prepared.critRate + ((base[STATCRITRATE] + setBonus.critRate) / 100)
   let critDmgTotal = prepared.critDmg + ((base[STATCRITDMG] + setBonus.critDmg) / 100)
@@ -424,6 +441,8 @@ export function evalTgtCpuCmPrepped(options: {
 
     const mainBase = mainIndex * MAIN_BUFF_LEN
     const finalER = finalERBase + mainEchoBuffs[mainBase + MAIN_ER]
+    const set33Active = prepared.st33ChongmingOn && setCounts[33] >= 5
+    const s33AtkBonus = set33Active ? Math.min(Math.max(0, finalER * 0.1), 25) : 0
 
     // set 14 conditional er threshold bonus
     const set14Active = prepared.st14FiveOn && setCounts[14] >= 5
@@ -449,7 +468,7 @@ export function evalTgtCpuCmPrepped(options: {
     // final atk depends on the chosen main echo's atk bonuses
     let finalAtk =
         atkBaseTerm +
-        (prepared.baseAtk * (mainEchoBuffs[mainBase + MAIN_ATK_PCT] / 100)) +
+        (prepared.baseAtk * ((mainEchoBuffs[mainBase + MAIN_ATK_PCT] + s33AtkBonus) / 100)) +
         mainEchoBuffs[mainBase + MAINATKFLAT]
 
     finalAtk += calcErToAtk(prepared.charId, finalER, prepared.toggle0)
@@ -460,6 +479,13 @@ export function evalTgtCpuCmPrepped(options: {
     let mrnyDmgBns = 0
     let critRateBns = mainEchoBuffs[mainBase + MAIN_CR] / 100
     let critDmgBonus = mainEchoBuffs[mainBase + MAIN_CD] / 100
+    critRateBns += calcShoreCritRate(prepared.charId, finalER, prepared.shoreInner)
+    critDmgBonus += calcShoreCritDmg(
+        prepared.charId,
+        finalER,
+        prepared.shoreInner,
+        prepared.shoreSupernal,
+    )
 
     if (prepared.charId === 1209 && finalER > 0) {
       const erOver = Math.max(0, finalER - 100)

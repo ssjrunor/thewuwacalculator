@@ -77,7 +77,6 @@
   gap: 0.5rem;
 }
 
-
 .settings-toggle {
   display: flex;
   align-items: center;
@@ -149,6 +148,8 @@
 .settings-prefs-panel {
   display: flex;
   position: sticky;
+  overflow-y: auto;
+  height: auto;
   top: 0;
   flex-direction: column;
   gap: 0.75rem;
@@ -438,8 +439,6 @@
   background: color-mix(in srgb, var(--danger, #cc3f53) 6%, var(--surface-2));
 }
 
-
-
 .settings-dropzone {
   border: 1.5px dashed color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 0.75rem;
@@ -481,6 +480,111 @@
 
 .settings-dropzone-text strong {
   color: var(--accent);
+}
+
+.settings-dropzone--btn {
+  width: 100%;
+  background: transparent;
+  font: inherit;
+}
+
+.settings-uploads {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.settings-uploads-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.settings-uploads-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-uploads-sub {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.settings-uploads-modes {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-uploads-mode {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.settings-uploads-mode:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.settings-uploads-mode[data-on] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.settings-uploads-mode strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.settings-uploads-mode span {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.settings-uploads-key {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.settings-uploads-key > span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-uploads-key input {
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  color: var(--text);
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.settings-uploads-key a {
+  font-size: 0.74rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.settings-uploads-key a:hover {
+  text-decoration: underline;
 }
 
 .settings-textarea {
@@ -560,19 +664,22 @@
 }
 
 .settings-font-select {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 0.88rem;
-  border-radius: 0.6rem;
-  width: fit-content;
-  border: 1px solid var(--border);
+  width: min(18rem, 100%);
+  --liquid-select-radius: 0.6rem;
+  --liquid-select-accent: var(--accent);
+}
+
+.settings-font-select .liquid-select__trigger {
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
   background: var(--surface-2);
-  color: var(--text);
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6b85' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  padding: 0.25rem 2.2rem 0.25rem 0.45rem;
+}
+
+.settings-font-select .liquid-select__value {
+  min-width: 0;
+  font-family: var(--body-font);
+  font-size: 0.88rem;
 }
 
 .settings-font-stack {

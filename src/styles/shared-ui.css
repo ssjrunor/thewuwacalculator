@@ -6,6 +6,7 @@
 @import './shared/floating-context-menu.css';
 @import './shared/floating-selection-actions.css';
 @import './shared/confirmation-modal.css';
+@import './shared/image-upload-modal.css';
 @import './shared/app-status-modal.css';
 @import './shared/notification-toast.css';
 @import './shared/resonator-queue-bubble.css';

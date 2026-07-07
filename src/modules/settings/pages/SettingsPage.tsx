@@ -1,9 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the settings page.
+  Description: renders the settings page.
 */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, CSSProperties as CssProps } from 'react'
 import { useAppStore } from '@/domain/state/store'
 import { CnfrMdl } from '@/shared/ui/ConfirmationModal'
@@ -15,16 +15,20 @@ import { importLegacyApp } from '@/domain/services/legacyAppStateImport'
 import { selectPersisted } from '@/domain/state/serialization'
 import {
   applyBgColor,
+  applyBgToDoc,
   BG_PRESETS,
   dtctBgClr,
   dtctBgTxtMod,
   getBgPreset,
-  isPlddBgKey,
+  isCustomBgKey,
   resolveBg,
-  savePlddBgIm,
   switchBg,
   writeStrdBgC,
 } from '@/modules/settings/model/backgroundTheme'
+import { resolveImageRef } from '@/shared/lib/imageUpload.ts'
+import type { StoredImage } from '@/shared/lib/imageUpload.ts'
+import { useAppModal } from '@/shared/ui/useAppModal'
+import { ImageUploadModal } from '@/shared/ui/ImageUploadModal'
 import {
   BODYFONTPRST,
   applyBodyFon,
@@ -38,6 +42,7 @@ import { DATAXPRTCTNS, mkDataXprtFi, resMprtData } from '@/modules/settings/mode
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { toTitle } from '@/shared/lib/format'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
+import { LiquidSelect, type SelectOption } from '@/shared/ui/LiquidSelect'
 import {
   THEME_PREVIEW,
   THEME_BY_MODE,
@@ -90,12 +95,15 @@ export function SettingsPage() {
   const setCtxMenu = useAppStore((state) => state.setCtxMenu)
   const setUpdTst = useAppStore((state) => state.setUpdToast)
   const setRcmmMenuT = useAppStore((state) => state.setRecMenus)
-  const setShowNqntV = useAppStore((state) => state.setUnqOvr)
+  const setBenchStates = useAppStore((state) => state.setBenchStates)
   const setMaxResInit = useAppStore((state) => state.setMaxResInit)
   const setCmpcInv = useAppStore((state) => state.setCmpInv)
   const setSeeQppd = useAppStore((state) => state.setSeeEqp)
   const setHaveHist = useAppStore((state) => state.setHistOn)
   const setHistMax = useAppStore((state) => state.setHistMax)
+  const setUploadPersist = useAppStore((state) => state.setUploadPersist)
+  const setImgbbApiKey = useAppStore((state) => state.setImgbbApiKey)
+  const bgUploadModal = useAppModal()
 
   const hydrate = useAppStore((state) => state.hydrate)
   const resetState = useAppStore((state) => state.resetState)
@@ -134,6 +142,15 @@ export function SettingsPage() {
     || drftFontUrl.trim() !== ui.bodyFontUrl.trim()
   const canApplyFont = drftFontName === SYSTUIFONTNA || fontLinkVld
   const selFontIsPrs = BODYFONTPRST.includes(drftFontName as typeof BODYFONTPRST[number])
+  const fontOptions = useMemo<SelectOption<string>[]>(() => {
+    const presets = BODYFONTPRST.map((fontName) => ({
+      value: fontName,
+      label: fontName,
+    }))
+    return selFontIsPrs
+      ? presets
+      : [{ value: drftFontName, label: drftFontName }, ...presets]
+  }, [drftFontName, selFontIsPrs])
   const prefGrps = mkPrefGrps({
     ui,
     setBlurMode,
@@ -141,7 +158,7 @@ export function SettingsPage() {
     setCtxMenu,
     setPdtTst: setUpdTst,
     setRcmmMenyu: setRcmmMenuT,
-    setShowNqng6: setShowNqntV,
+    setBenchStates,
     setMaxResInit,
     setHaveHist: setHaveHist,
     setHistMax: setHistMax,
@@ -293,26 +310,21 @@ export function SettingsPage() {
     await applyBgSel(bgKey, preset.src)
   }
 
-  const onBgPld = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) {
-      return
-    }
-
+  const handleBgApply = async (result: StoredImage) => {
     try {
-      const bgKey = await savePlddBgIm(file)
-      await applyBgSel(bgKey, file)
-      showToast({
-        content: `Applied ${file.name} as the background wallpaper.`,
-        variant: 'success',
-      })
+      if (result.persisted) {
+        await applyBgSel(result.ref, result.ref)
+      } else {
+        // session: show it now without persisting the active key.
+        const resolved = await resolveImageRef(result.ref)
+        if (resolved) applyBgToDoc(resolved.url)
+      }
+      showToast({ content: 'Applied as the background wallpaper.', variant: 'success' })
     } catch (error) {
       showToast({
-        content: error instanceof Error ? error.message : 'Failed to save background image.',
+        content: error instanceof Error ? error.message : 'Failed to apply background image.',
         variant: 'error',
       })
-    } finally {
-      event.target.value = ''
     }
   }
 
@@ -527,7 +539,6 @@ export function SettingsPage() {
 
   return (
     <div className="settings page">
-      {/* ── Hero header ── */}
       <CllpPageHeyf
         eyebrow="Configuration"
         title="Settings"
@@ -609,7 +620,6 @@ export function SettingsPage() {
                 </div>
             )}
 
-            {/* Light variants */}
             <div className="settings-swatch-section">
               <div className="settings-swatch-label">Light</div>
               <div className="settings-swatch-grid">
@@ -623,7 +633,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* Dark variants */}
             <div className="settings-swatch-section">
               <div className="settings-swatch-label">Dark</div>
               <div className="settings-swatch-grid">
@@ -637,7 +646,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* Background variants */}
             <div className="settings-swatch-section">
               <div className="settings-swatch-label">Background</div>
               <div className="settings-swatch-grid">
@@ -672,7 +680,7 @@ export function SettingsPage() {
                           <span className="settings-background-card-label">{preset.label}</span>
                         </button>
                     ))}
-                    {isPlddBgKey(ui.backgroundImageKey) && bckgPrvwUrl ? (
+                    {isCustomBgKey(ui.backgroundImageKey) && bckgPrvwUrl ? (
                         <button
                             type="button"
                             className="settings-background-card settings-background-card--active"
@@ -688,18 +696,57 @@ export function SettingsPage() {
                     ) : null}
                   </div>
 
-                  <div className="settings-dropzone settings-dropzone--compact">
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={onBgPld}
-                    />
+                  <button
+                    type="button"
+                    className="settings-dropzone settings-dropzone--compact settings-dropzone--btn"
+                    onClick={() => bgUploadModal.show()}
+                  >
                     <div className="settings-dropzone-text">
                       <strong>Choose an image</strong> to replace the active wallpaper
                     </div>
-                  </div>
+                  </button>
                 </div>
             ) : null}
+
+            <div className="settings-uploads">
+              <div className="settings-uploads-head">
+                <span className="settings-uploads-title">Persist uploads</span>
+                <span className="settings-uploads-sub">Where uploaded images (wallpaper, showcase cards) are kept</span>
+              </div>
+              <div className="settings-uploads-modes">
+                <button
+                  type="button"
+                  className="settings-uploads-mode"
+                  data-on={ui.preferences.uploadPersist === 'indexeddb' ? 'true' : undefined}
+                  onClick={() => setUploadPersist('indexeddb')}
+                >
+                  <strong>This device</strong>
+                  <span>Saved in this browser. Private, persists, this browser only.</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-uploads-mode"
+                  data-on={ui.preferences.uploadPersist === 'imgbb' ? 'true' : undefined}
+                  onClick={() => setUploadPersist('imgbb')}
+                >
+                  <strong>ImgBB</strong>
+                  <span>Hosted under your key. Persists and works across devices.</span>
+                </button>
+              </div>
+              {ui.preferences.uploadPersist === 'imgbb' ? (
+                <label className="settings-uploads-key">
+                  <span>ImgBB API key</span>
+                  <input
+                    type="text"
+                    placeholder="Paste your ImgBB key"
+                    value={ui.preferences.imgbbApiKey}
+                    className="settings-font-input"
+                    onChange={(event) => setImgbbApiKey(event.target.value)}
+                  />
+                  <a href="https://imgbb.com/api" target="_blank" rel="noreferrer">Get a free key →</a>
+                </label>
+              ) : null}
+            </div>
           </section>
            <section className="page-tile page-tile--wide">
               <div className="tile-header">
@@ -711,20 +758,14 @@ export function SettingsPage() {
               </div>
 
               <div className="settings-font-stack">
-                <select
-                    className="settings-font-select"
-                    value={drftFontName}
-                    onChange={(event) => onFontPrstCh(event.target.value)}
-                >
-                  {!selFontIsPrs ? (
-                      <option value={drftFontName}>{drftFontName}</option>
-                  ) : null}
-                  {BODYFONTPRST.map((fontName) => (
-                      <option key={fontName} value={fontName}>
-                        {fontName}
-                      </option>
-                  ))}
-                </select>
+                <LiquidSelect
+                  className="settings-font-select"
+                  value={drftFontName}
+                  options={fontOptions}
+                  onChange={onFontPrstCh}
+                  ariaLabel="Body font preset"
+                  prfrPlcm="down"
+                />
 
                 <input
                     type="url"
@@ -1007,6 +1048,12 @@ export function SettingsPage() {
         variant={confirmation.variant}
         onConfirm={confirmation.onConfirm}
         onCancel={confirmation.onCancel}
+      />
+      <ImageUploadModal
+        state={bgUploadModal.dialogProps}
+        title="Background image"
+        onClose={bgUploadModal.hide}
+        onApply={handleBgApply}
       />
     </div>
   )

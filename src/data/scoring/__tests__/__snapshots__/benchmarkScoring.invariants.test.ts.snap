@@ -1,0 +1,163 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`benchmark scoring invariants > pins scoring fingerprints for representative persisted fixtures 1`] = `
+[
+  {
+    "baselineDamage": 223422.5,
+    "benchmark100": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000039",
+      "sets": [
+        "20:3",
+        "3:2",
+      ],
+      "substats": [
+        "atkFlat:2.538:473.306",
+        "atkPercent:3.784:67.752",
+        "critDmg:4.167:61.401",
+        "critRate:4.167:52.701",
+        "energyRegen:3:22.8",
+        "heavyAtk:3.784:31.753",
+        "resonanceSkill:0.783:7.271",
+      ],
+    },
+    "benchmark200": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000039",
+      "sets": [
+        "20:3",
+        "3:2",
+      ],
+      "substats": [
+        "atkFlat:3:530",
+        "atkPercent:5:94",
+        "critDmg:5:149",
+        "critRate:5:52.5",
+        "energyRegen:2:22.8",
+        "heavyAtk:5:58",
+      ],
+    },
+    "benchmarkDamage": 1464720.91,
+    "grade": "SS",
+    "percent": 110.9198,
+    "perfectionDamage": 2320615.04,
+    "userDamage": 1558183.15,
+  },
+  {
+    "baselineDamage": 10966.19,
+    "benchmark100": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000052",
+      "sets": [
+        "8:5",
+      ],
+      "substats": [
+        "atkFlat:2.784:482.147",
+        "atkPercent:3.784:67.752",
+        "basicAtk:0.783:7.271",
+        "critDmg:4.138:105.115",
+        "critRate:4.167:30.701",
+        "energyRegen:3:25.2",
+        "resonanceLiberation:2.784:25.548",
+        "resonanceSkill:0.783:7.271",
+      ],
+    },
+    "benchmark200": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000052",
+      "sets": [
+        "8:5",
+      ],
+      "substats": [
+        "atkFlat:4:590",
+        "atkPercent:5:94",
+        "critDmg:5:149",
+        "critRate:5:52.5",
+        "energyRegen:3:25.2",
+        "resonanceLiberation:3:34.8",
+      ],
+    },
+    "benchmarkDamage": 64633.86,
+    "grade": "SSS",
+    "percent": 120.8531,
+    "perfectionDamage": 102476.91,
+    "userDamage": 72525.3,
+  },
+  {
+    "baselineDamage": 19547.09,
+    "benchmark100": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000105",
+      "sets": [
+        "13:5",
+      ],
+      "substats": [
+        "atkFlat:1.784:439.591",
+        "atkPercent:3.784:67.752",
+        "basicAtk:3.784:31.753",
+        "critDmg:4.138:61.115",
+        "critRate:4.167:52.701",
+        "energyRegen:3:22.8",
+        "heavyAtk:0.783:7.271",
+        "resonanceSkill:0.783:7.271",
+      ],
+    },
+    "benchmark200": {
+      "costs": [
+        1,
+        1,
+        3,
+        3,
+        4,
+      ],
+      "mainEcho": "6000105",
+      "sets": [
+        "13:5",
+      ],
+      "substats": [
+        "atkFlat:3:530",
+        "atkPercent:5:94",
+        "basicAtk:5:58",
+        "critDmg:5:105",
+        "critRate:5:74.5",
+        "energyRegen:2:22.8",
+      ],
+    },
+    "benchmarkDamage": 174967.7,
+    "grade": "SS",
+    "percent": 111.076,
+    "perfectionDamage": 294505.91,
+    "userDamage": 188207.73,
+  },
+]
+`;

@@ -59,7 +59,6 @@
   letter-spacing: 0.04em;
 }
 
-
 .enemy-banner__rail {
   display: flex;
   flex-direction: column;
@@ -100,7 +99,7 @@
   padding: 0.2rem;
   border: 1px solid var(--item-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--inner-bg) 60%, var(--box-bg));
+  background-color: color-mix(in srgb, var(--inner-bg) 60%, transparent);
 }
 
 .enemy-toggle {
@@ -108,7 +107,7 @@
   padding: 0.3rem 0.95rem;
   border: 0;
   border-radius: 999px;
-  background: transparent;
+  background-color: transparent;
   color: var(--muted);
   font-family: var(--display-font);
   font-size: 0.64rem;
@@ -116,7 +115,7 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 180ms ease, background 180ms ease;
+  transition: color 180ms ease, background-color 180ms ease;
 }
 
 .enemy-toggle:hover:not(.is-active) {
@@ -124,10 +123,9 @@
 }
 
 .enemy-toggle.is-active {
-  background: color-mix(in srgb, var(--resonator-accent) 22%, var(--box-bg));
+  background-color: color-mix(in srgb, var(--resonator-accent) 22%, transparent);
   color: color-mix(in srgb, var(--resonator-accent) 50%, var(--text));
 }
-
 
 .enemy-strip {
   display: grid;
@@ -138,7 +136,6 @@
   display: flex;
   align-items: center;
 }
-
 
 .enemy-res {
   padding-top: 0.95rem;
@@ -220,7 +217,7 @@
   gap: 0.3rem;
   min-width: 0;
   transform-origin: left center;
-  transition: opacity 300ms ease, transform 300ms ease;
+  transition: opacity 600ms ease, transform 600ms ease;
 }
 
 .enemy-res-cell__icon {
@@ -318,8 +315,6 @@
   opacity: 0.25;
   transform: scale(0.95);
 }
-
-
 
 .enemy-res-grid .enemy-res-cell input[type='number'] {
   width: 100%;
@@ -430,7 +425,6 @@
   transform: rotate(45deg);
 }
 
-
 .stack-gauge__icon {
   width: 1.05rem;
   height: 1.05rem;
@@ -481,7 +475,6 @@
   font-weight: 700;
   color: var(--muted);
 }
-
 
 .stack-gauge__meter {
   display: grid;
@@ -556,8 +549,6 @@
   object-fit: cover;
 }
 
-
-
 @media (max-width: 520px) {
   .enemy-res-grid {
     grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
@@ -570,7 +561,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
 
 @media (max-width: 760px) {
   .enemy-banner__top {
@@ -601,7 +591,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
 
 @keyframes enemy-section-in {
   from {

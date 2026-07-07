@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the buff editor surface for the calculator buffs flow.
+  Description: renders the buff editor surface for the calculator buffs flow.
 */
 
 import type { ChangeEvent, ReactNode } from 'react'
@@ -39,6 +39,7 @@ import { usePtnlCalcC } from '@/modules/calculator/features/main/lib/ctx.tsx'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { useTstStr } from '@/shared/util/toastStore.ts'
+import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
 import {
   type BuffOption,
   DVNCTTRBPTNS,
@@ -730,12 +731,11 @@ export function BuffEditor({
     max = 999,
   ) => (
     <div className={`custom-buff-input ${suffix ? 'has-suffix' : ''}`}>
-      <input
-        type="number"
+      <NumberInput
         value={value}
-        min={0}
+        min={-max}
         max={max}
-        onChange={(event) => onChange(Number(event.target.value) || 0)}
+        onChange={onChange}
       />
       {suffix ? <span>{suffix}</span> : null}
     </div>
@@ -824,13 +824,12 @@ export function BuffEditor({
 
   const viewModVlNpt = (modifier: MnlMod) => (
     <div className={`custom-buff-input ${getModVlSfx(modifier) ? 'has-suffix' : ''}`}>
-      <input
-        type="number"
+      <NumberInput
         value={modifier.value}
-        min={0}
+        min={-getModVlMax(modifier)}
         max={getModVlMax(modifier)}
-        onChange={(event) => {
-          const nextValue = clmpMnlModVl(modifier, Number(event.target.value) || 0)
+        onChange={(value) => {
+          const nextValue = clmpMnlModVl(modifier, value)
           updateMod(modifier.id, (current) => ({
             ...current,
             value: nextValue,

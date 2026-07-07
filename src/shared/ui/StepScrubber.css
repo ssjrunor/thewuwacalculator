@@ -14,8 +14,6 @@
   pointer-events: none;
 }
 
-
-
 .step-scrubber__dots {
   position: absolute;
   inset: 0;
@@ -25,7 +23,6 @@
   pointer-events: none;
 
 }
-
 
 .step-scrubber__dots::before {
   content: '';
@@ -50,7 +47,6 @@
   transition: background 120ms ease, transform 120ms ease;
 }
 
-
 .step-scrubber__dot--near2 {
   background: color-mix(in srgb, var(--resonator-accent, var(--accent)) 28%, transparent);
 }
@@ -59,12 +55,9 @@
   background: color-mix(in srgb, var(--resonator-accent, var(--accent)) 48%, transparent);
 }
 
-
 .step-scrubber__dot--active {
   background: transparent;
 }
-
-
 
 .step-scrubber__active-label {
   position: absolute;
@@ -103,8 +96,6 @@
 
 }
 
-
-
 .step-scrubber__hover-anchor {
   position: absolute;
   z-index: 3;
@@ -113,8 +104,6 @@
   transform: translateX(-50%);
   pointer-events: none;
 }
-
-
 
 .step-scrubber__hover-tooltip {
   height: 100%;

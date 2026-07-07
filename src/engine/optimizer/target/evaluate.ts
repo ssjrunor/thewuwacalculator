@@ -54,6 +54,7 @@ import {
   applySetVec as applySetF,
   SETRTTGLALL,
   SETRTTGLST14,
+  SETRTTGLST33,
 } from '@/engine/optimizer/encode/sets.ts'
 
 // popcount helper for set bitmasks used to track unique echo kinds per set
@@ -96,6 +97,16 @@ function calcConvert(charId: number, finalER: number): number {
   return Math.min((finalER - 125) * 2, 50) / 100
 }
 
+function calcShoreCritRate(charId: number, finalER: number, innerOn: boolean): number {
+  if (charId !== 1505 || !innerOn) return 0
+  return Math.min(Math.max(0, finalER * 0.05), 12.5) / 100
+}
+
+function calcShoreCritDmg(charId: number, finalER: number, innerOn: boolean, supernalOn: boolean): number {
+  if (charId !== 1505 || !innerOn || !supernalOn) return 0
+  return Math.min(Math.max(0, finalER * 0.1), 25) / 100
+}
+
 // unpack the packed target context into a more readable object
 function mkPrepCtx(context: Float32Array) {
   if (context.length !== CTX_FLOATS) {
@@ -123,8 +134,11 @@ function mkPrepCtx(context: Float32Array) {
     sequence: (meta0 >>> 12) & 0xf,
     lockedEchoIndex: lockedPacked === 0 ? -1 : ((lockedPacked - 1) | 0),
     toggle0: (togglesBits & 1) ? 1 : 0,
+    shoreInner: (togglesBits & (1 << 1)) !== 0,
+    shoreSupernal: (togglesBits & (1 << 2)) !== 0,
     setRuntimeMask: setRtMask,
     set14FiveEnabled: (setRtMask & SETRTTGLST14) !== 0,
+    set33ChongmingEnabled: (setRtMask & SETRTTGLST33) !== 0,
     baseAtk: context[BASE_ATK],
     baseHp: context[BASE_HP],
     baseDef: context[BASE_DEF],
@@ -338,13 +352,13 @@ export function evalTarget(options: {
       setBonus.defF +
       prepared.finalDef
 
+  const finalERBase = prepared.baseER + base.er + setBonus.erSetBonus
+
   const atkBaseTerm =
       prepared.baseAtk * ((base.atkP + setBonus.atkP) / 100) +
       base.atkF +
       setBonus.atkF +
       prepared.finalAtk
-
-  const finalERBase = prepared.baseER + base.er + setBonus.erSetBonus
 
   const critRateTotal = prepared.critRate + ((base.critRate + setBonus.critRate) / 100)
   let critDmgTotal = prepared.critDmg + ((base.critDmg + setBonus.critDmg) / 100)
@@ -364,6 +378,8 @@ export function evalTarget(options: {
   const mainAtkF = mainEchoBuffs[mainBase + 1]
   const mainER = mainEchoBuffs[mainBase + 12]
   const finalER = finalERBase + mainER
+  const set33Active = prepared.set33ChongmingEnabled && setCounts[33] >= 5
+  const s33AtkBonus = set33Active ? Math.min(Math.max(0, finalER * 0.1), 25) : 0
 
   // conditional set 14 bonus only matters when enabled and the er threshold is met
   const set14Active = prepared.set14FiveEnabled && setCounts[14] >= 5
@@ -387,7 +403,7 @@ export function evalTarget(options: {
       (calcConvert(prepared.charId, finalER) * ((prepared.skillMask >>> 6) & 1))
 
   // rebuild final atk from base row + chosen main echo
-  let finalAtk = atkBaseTerm + (prepared.baseAtk * (mainAtkP / 100)) + mainAtkF
+  let finalAtk = atkBaseTerm + (prepared.baseAtk * ((mainAtkP + s33AtkBonus) / 100)) + mainAtkF
   finalAtk += calcErToAtk(prepared.charId, finalER, prepared.toggle0)
 
   // 1209 adds conditional er-based bonuses; main-echo cr/cd (slots 15/16)
@@ -396,6 +412,13 @@ export function evalTarget(options: {
   let mrnyDmgBns = 0
   let critRateBns = mainEchoBuffs[mainBase + 15] / 100
   let critDmgBonus = mainEchoBuffs[mainBase + 16] / 100
+  critRateBns += calcShoreCritRate(prepared.charId, finalER, prepared.shoreInner)
+  critDmgBonus += calcShoreCritDmg(
+      prepared.charId,
+      finalER,
+      prepared.shoreInner,
+      prepared.shoreSupernal,
+  )
   if (prepared.charId === 1209 && finalER > 0) {
     const erOver = Math.max(0, finalER - 100)
     mrnyDmgBns = Math.min(erOver * 0.25, 40) / 100

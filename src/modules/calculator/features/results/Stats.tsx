@@ -1,24 +1,24 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the stats surface for the calculator results flow.
+  Description: renders the stats surface for the calculator results flow.
 */
 
 import type { CSSProperties as CssProps } from 'react'
-import type { VrvwStatRow, VrvwSttsView } from '@/modules/calculator/features/overview/lib/stats.ts'
+import type { StatViewRow, StatsView } from '@/modules/calculator/model/statsView.ts'
 import {
-  STATICONMAP,
-  fmtDsplVl,
-} from '@/modules/calculator/features/overview/lib/stats.ts'
+  STAT_ICON_MAP,
+  formatStatValue,
+} from '@/modules/calculator/model/statsView.ts'
 
 interface CalcSttsSctn {
-  statsView: VrvwSttsView | null
+  statsView: StatsView | null
 }
 
 // surfaces the main and secondary stat breakdown from the simulation view.
 function StatsGrid({
   stats,
 }: {
-  stats: VrvwStatRow[]
+  stats: StatViewRow[]
 }) {
   return (
     <div className="stats-grid">
@@ -33,23 +33,23 @@ function StatsGrid({
               ...(stat.color ? { color: stat.color } : {}),
             }}
           >
-            {STATICONMAP[stat.label] ? (
+            {STAT_ICON_MAP[stat.label] ? (
               <div
                 className="grid-stat-icon"
                 style={{
                   '--stat-color': stat.color ?? '#999999',
-                  WebkitMaskImage: `url(${STATICONMAP[stat.label]})`,
-                  maskImage: `url(${STATICONMAP[stat.label]})`,
+                  WebkitMaskImage: `url(${STAT_ICON_MAP[stat.label]})`,
+                  maskImage: `url(${STAT_ICON_MAP[stat.label]})`,
                 } as CssProps}
               />
             ) : null}
             {stat.label}
           </div>
-          <div className="stat-value">{fmtDsplVl(stat.label, stat.base)}</div>
+          <div className="stat-value">{formatStatValue(stat.label, stat.base)}</div>
           <div className="stat-bonus">
-            {stat.bonus === 0 ? '' : `+${fmtDsplVl(stat.label, stat.bonus)}`}
+            {stat.bonus === 0 ? '' : `+${formatStatValue(stat.label, stat.bonus)}`}
           </div>
-          <div className="stat-total">{fmtDsplVl(stat.label, stat.total)}</div>
+          <div className="stat-total">{formatStatValue(stat.label, stat.total)}</div>
         </div>
       ))}
     </div>

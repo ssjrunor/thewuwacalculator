@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the shared application shell, including the toolbar,
+  Description: renders the shared application shell, including the toolbar,
                sidebar navigation, route outlet, and global overlay UI.
 */
 
@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   SlidersHorizontal as SldrHrzn,
   RotateCcw,
-  ChevronDown as ChvrnDwn,
+  ChevronDown as ChvrnDwn
 } from 'lucide-react'
 import { useAppStore } from '@/domain/state/store'
 import { selActResId } from '@/domain/state/selectors'
@@ -19,9 +19,8 @@ import { useRspnSdbr } from '@/app/hooks/useResponsiveSidebar.ts'
 import { RiHeartsFill, RiMoonClearFill as RiMoonClrFil } from 'react-icons/ri'
 import { FaSun } from 'react-icons/fa'
 import { FaMicrochip } from 'react-icons/fa6'
-import { BsPersonVcard as BsPrsnVcrd } from 'react-icons/bs'
 import { RxActivityLog as RxCtvtLog } from 'react-icons/rx'
-import { GiSchoolBag } from 'react-icons/gi'
+import { GiSchoolBag} from 'react-icons/gi'
 import { NtfcTstCntn } from '@/shared/ui/NotificationToast'
 import { CookieBanner } from '@/shared/ui/CookieBanner'
 import { useCkBnnr } from '@/app/hooks/useCookieBanner.ts'
@@ -37,6 +36,9 @@ import {
 import { RtMenuProv, useRtChrmMen } from '@/shared/context-menu/RouteCtx.tsx'
 import { isDtblVntTgt } from '@/shared/lib/isEditableEventTarget'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
+import {SiKofi} from "react-icons/si";
+import {TbPhotoStar} from "react-icons/tb";
+import {MdBubbleChart} from "react-icons/md";
 
 const ROUTE_CHROME_MOBILE_BP = 568
 const CHNGTSTSTORE = 'seen-changelog-version'
@@ -70,6 +72,7 @@ function RtChrmCntn() {
       activeResonatorId: selActResId(state),
     })),
   )
+  const benchmarkViewMode = useAppStore((state) => state.ui.preferences.benchmarkViewMode)
 
   const cookieBanner = useCkBnnr()
   const showToast = useTstStr((state) => state.show)
@@ -123,7 +126,7 @@ function RtChrmCntn() {
   const isCalcRt = location.pathname === '/calculator' || location.pathname.startsWith('/calculator/')
   const isCalcHomeRt = location.pathname === '/calculator'
   const isOptRt = location.pathname === '/calculator/optimizer'
-  const isVrvwRt = location.pathname === '/calculator/overview'
+  const isBnchRt = location.pathname === '/calculator/benchmark'
 
   const isNvgtLinkAc = (to: string) => (
     to === location.pathname || (to !== '/' && location.pathname.startsWith(`${to}/`))
@@ -191,6 +194,11 @@ function RtChrmCntn() {
   }, [actVar, ui.backgroundTextMode, ui.blurMode, ui.entranceAnimations, ui.theme])
 
   const themeTglLbl = ui.theme === 'dark' ? 'Dawn' : 'Dusk'
+  const toolbarIconTheme = (
+    ui.theme === 'background'
+      ? ui.backgroundTextMode === 'dark'
+      : ui.theme === 'dark'
+  ) ? 'dark' : 'light'
   const sidebarClass = [
     'sidebar',
     isMobile
@@ -294,7 +302,7 @@ function RtChrmCntn() {
                     <span className="toolbar-icon-liquid toolbar-icon-liquid--primary" />
                     <span className="toolbar-icon-liquid toolbar-icon-liquid--secondary" />
                     <img
-                      src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
+                      src={`/assets/icons/${toolbarIconTheme}/${view.icon}.png`}
                       alt=""
                       className="toolbar-icon-image"
                       loading="lazy"
@@ -371,7 +379,7 @@ function RtChrmCntn() {
                       >
                         <div className="icon-slot">
                           <img
-                            src={`/assets/icons/${ui.theme === 'dark' ? 'dark' : 'light'}/${view.icon}.png`}
+                            src={`/assets/icons/${toolbarIconTheme}/${view.icon}.png`}
                             alt={view.label}
                             style={{ width: '20px', height: '20px' }}
                             loading="lazy"
@@ -403,51 +411,53 @@ function RtChrmCntn() {
                   </div>
                 </button>
 
-                <button
-                  type="button"
-                  className={isOptRt ? 'sidebar-button selected' : 'sidebar-button'}
-                  onClick={() => rtChrmMenu.actions.tgglOpt()}
-                >
-                  <div className="icon-slot">
-                    <FaMicrochip size={20} />
-                  </div>
-                  <div className="label-slot">
-                    <span className="label-text">Optimizer</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className={isVrvwRt ? 'sidebar-button selected' : 'sidebar-button'}
-                  onClick={() => rtChrmMenu.actions.tgglVrvw()}
-                >
-                  <div className="icon-slot">
-                    <BsPrsnVcrd size={20} />
-                  </div>
-                  <div className="label-slot">
-                    <span className="label-text">Overview</span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="sidebar-button"
-                  onClick={() => {
-                    rtChrmMenu.actions.openStatus()
-                    if (isMobile) {
-                      setHambOpen(false)
-                    }
-                  }}
-                >
-                  <div className="icon-slot">
-                    <RxCtvtLog size={20} />
-                  </div>
-                  <div className="label-slot">
-                    <span className="label-text">Status</span>
-                  </div>
-                </button>
               </>
             ) : null}
+
+            <button
+              type="button"
+              className={isBnchRt ? 'sidebar-button selected' : 'sidebar-button'}
+              onClick={() => rtChrmMenu.actions.tgglBnch()}
+            >
+              <div className="icon-slot">
+                {benchmarkViewMode === 'showcase' ?
+                  ( <TbPhotoStar size={20} /> ) : ( <MdBubbleChart size={20} /> )}
+              </div>
+              <div className="label-slot">
+                <span className="label-text">{benchmarkViewMode === 'showcase' ? 'Showcase' : 'Benchmark'}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className={isOptRt ? 'sidebar-button selected' : 'sidebar-button'}
+              onClick={() => rtChrmMenu.actions.tgglOpt()}
+            >
+              <div className="icon-slot">
+                <FaMicrochip size={20} />
+              </div>
+              <div className="label-slot">
+                <span className="label-text">Optimizer</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className="sidebar-button"
+              onClick={() => {
+                rtChrmMenu.actions.openStatus()
+                if (isMobile) {
+                  setHambOpen(false)
+                }
+              }}
+            >
+              <div className="icon-slot">
+                <RxCtvtLog size={20} />
+              </div>
+              <div className="label-slot">
+                <span className="label-text">Status</span>
+              </div>
+            </button>
 
             <div className="sidebar-rail-divider" aria-hidden="true">
               <span>Display</span>
@@ -509,6 +519,20 @@ function RtChrmCntn() {
                 <span className="label-text">Say Hi~!</span>
               </div>
             </button>
+
+            <a
+              href="https://ko-fi.com/ssjrunor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-button kofi"
+            >
+              <div className="icon-slot">
+                <SiKofi size={20} />
+              </div>
+              <div className="label-slot">
+                <span className="label-text">Feed me...</span>
+              </div>
+            </a>
 
             <a
               href="https://discord.gg/wNaauhE4uH"

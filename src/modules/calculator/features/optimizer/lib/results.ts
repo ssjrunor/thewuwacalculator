@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Translates raw optimizer result rows into display-friendly
+  Description: translates raw optimizer result rows into display-friendly
                structures for cards, stat summaries, and equip previews.
 */
 
@@ -394,16 +394,6 @@ export function rsltLdt(args: {
     ? cloneRsltChs(resOptRsltCh(ptmzRsltChs, entry))
     : normEchoLdt([])
 }
-
-// ---------------------------------------------------------------------------
-// Result view: SQL-style facet table, filter/sort, and faceting.
-//
-// A "facet" is the lightweight, filterable/sortable identity of a result row:
-// its damage, main echo id, total echo cost, and threshold-met set plan. The
-// facet table is computed once over the full result array; filter + sort then
-// run over it to produce a `viewIndices` permutation/subset of original
-// indices the surface renders through.
-// ---------------------------------------------------------------------------
 
 export type RsltEntry = OptBagResult | LegOptRsltEn | TheoryResult | TheoryResultRow
 

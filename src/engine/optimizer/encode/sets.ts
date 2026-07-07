@@ -101,13 +101,15 @@ export const SETRTTGLST14 = 1 << 0
 export const SETRTTGLST22 = 1 << 1
 export const SET_ROT_TOGGLES = 1 << 2
 export const SETRTTGLST29 = 1 << 3
+export const SETRTTGLST33 = 1 << 4
 
 // convenience mask containing every supported runtime toggle bit
 export const SETRTTGLALL =
     SETRTTGLST14 |
     SETRTTGLST22 |
     SET_ROT_TOGGLES |
-    SETRTTGLST29
+    SETRTTGLST29 |
+    SETRTTGLST33
 
 // rule extracted from set definitions or override data
 type SetRule = {
@@ -124,6 +126,37 @@ export type DynamicSetStatePart = {
 
 export type BuildSetRowsOptions = {
   dynamicStateParts?: readonly DynamicSetStatePart[]
+}
+
+const ECHO_SET_STATE_CONTROL_RE = /^echoSet:(\d+):bonus:(.+)$/
+
+// Runtime set controls are user-editable stateful set effects. The optimizer
+// proper keeps using static maxed rows; callers that render live previews can
+// opt into these parts so display-only damage reflects the current toggle.
+export function listDynamicSetStateParts(runtime: ResRuntime): DynamicSetStatePart[] {
+  const parts: DynamicSetStatePart[] = []
+
+  for (const controlKey of Object.keys(runtime.state.controls)) {
+    const match = ECHO_SET_STATE_CONTROL_RE.exec(controlKey)
+    if (!match) {
+      continue
+    }
+
+    const setId = Number(match[1])
+    const partKey = match[2]
+    if (!Number.isFinite(setId) || !partKey) {
+      continue
+    }
+
+    const def = ECHO_SET_DEFS.find((entry) => entry.id === setId)
+    if (!def?.states?.[partKey as keyof typeof def.states]) {
+      continue
+    }
+
+    parts.push({ setId, partKey })
+  }
+
+  return parts
 }
 
 // manual overrides for set definitions whose runtime behavior cannot be
@@ -375,6 +408,22 @@ function isSetPartOn(setDataLkp: SetDataLkp, setId: number, partKey?: string): b
   return getSntSetOn(setDataLkp.conds, setId, partKey)
 }
 
+function isDynamicPart(
+    dynamicParts: ReadonlySet<string> | undefined,
+    setId: number,
+    partKey: string,
+): boolean {
+  return !!dynamicParts?.has(`${setId}:${partKey}`)
+}
+
+function isRuntimeSetPartOn(
+    runtime: ResRuntime,
+    setId: number,
+    partKey: string,
+): boolean {
+  return isSetCtrlOn(runtime.state.controls[getEchoSetCn(setId, partKey)])
+}
+
 // derive rule lists for every set id once and cache them
 function mkRlsBySet(): SetRule[][] {
   if (cchdRlsBySet) {
@@ -420,11 +469,14 @@ function mkRlsBySet(): SetRule[][] {
 
 // build runtime mask used by the optimizer evaluator
 export function makeSetMask(
-    _runtime: ResRuntime,
+    runtime: ResRuntime,
     setConds?: SntSetConds,
+    options: BuildSetRowsOptions = {},
 ): number {
-  void _runtime
   const setDataLkp = mkSetDataLkp(setConds)
+  const dynamicParts = options.dynamicStateParts
+      ? new Set(options.dynamicStateParts.map((part) => `${part.setId}:${part.partKey}`))
+      : undefined
   let mask = 0
 
   if (isSetPartOn(setDataLkp, 14, 'fivePiece')) {
@@ -438,6 +490,15 @@ export function makeSetMask(
   }
   if (isSetPartOn(setDataLkp, 29, 'soundOfTrueName5pc')) {
     mask |= SETRTTGLST29
+  }
+  if (
+    isSetPartOn(setDataLkp, 33, 'chongmingsFeather')
+    && (
+      !isDynamicPart(dynamicParts, 33, 'chongmingsFeather')
+      || isRuntimeSetPartOn(runtime, 33, 'chongmingsFeather')
+    )
+  ) {
+    mask |= SETRTTGLST33
   }
 
   return mask >>> 0

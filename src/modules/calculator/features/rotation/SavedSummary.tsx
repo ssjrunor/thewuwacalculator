@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the saved summary surface for the calculator rotation flow.
+  Description: renders the saved summary surface for the calculator rotation flow.
 */
 
 import type {InvRotEnt} from "@/domain/entities/inventoryStorage.ts";
@@ -12,7 +12,7 @@ import {
     getSvdRotDps
 } from "@/modules/calculator/features/rotation/lib/savedRotations.ts";
 import {fmtDateShrt, fmtPrcn} from "@/shared/lib/format.ts";
-import {fmtCmpcNmbr} from "@/modules/calculator/features/overview/lib/stats.ts";
+import {formatCompactNum} from "@/modules/calculator/model/statsView.ts";
 import * as React from "react";
 
 export function SavedSummary({
@@ -84,18 +84,18 @@ export function SavedSummary({
         <div className="rotation-snapshot-v2__hero-kpi">
         <span className="rotation-snapshot-v2__hero-label">AVG</span>
             <strong className="rotation-snapshot-v2__hero-value avg">
-        {fmtCmpcNmbr(avg)}
+        {formatCompactNum(avg)}
         </strong>
         </div>
 
         <div className="rotation-snapshot-v2__hero-side">
     <div className="overview-tree-leaf">
     <span className="overview-tree-leaf-label">Crit</span>
-        <strong className="overview-tree-leaf-value">{fmtCmpcNmbr(crit)}</strong>
+        <strong className="overview-tree-leaf-value">{formatCompactNum(crit)}</strong>
         </div>
         <div className="overview-tree-leaf">
     <span className="overview-tree-leaf-label">Normal</span>
-        <strong className="overview-tree-leaf-value">{fmtCmpcNmbr(normal)}</strong>
+        <strong className="overview-tree-leaf-value">{formatCompactNum(normal)}</strong>
         </div>
         </div>
         </div>
@@ -117,9 +117,9 @@ export function SavedSummary({
         </div>
 
         <div className="rotation-snapshot-v2__member-values">
-            <span>{fmtCmpcNmbr(member.contribution.normal)}</span>
-        <span>{fmtCmpcNmbr(member.contribution.crit)}</span>
-        <span className="avg">{fmtCmpcNmbr(member.contribution.avg)}</span>
+            <span>{formatCompactNum(member.contribution.normal)}</span>
+        <span>{formatCompactNum(member.contribution.crit)}</span>
+        <span className="avg">{formatCompactNum(member.contribution.avg)}</span>
         </div>
         </div>
         ))}

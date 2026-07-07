@@ -20,16 +20,12 @@
   z-index: 2;
 }
 
-
-
 .ssc-root {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
 }
-
-
 
 .ssc-header {
   padding: 1.1rem 1.25rem 0.95rem;
@@ -124,8 +120,6 @@
   outline-offset: 2px;
 }
 
-
-
 .ssc-toolbar {
   padding: 0.78rem 1.25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--picker-modal-border) 50%, transparent);
@@ -180,8 +174,6 @@
   outline-offset: 2px;
 }
 
-
-
 .ssc-sort {
   flex-shrink: 0;
 }
@@ -198,8 +190,6 @@
   font-size: 0.8rem;
   min-width: 9rem;
 }
-
-
 
 .ssc-body {
   flex: 1 1 auto;
@@ -283,7 +273,6 @@ label:has(.ssc-native-checkbox:checked)      .ssc-checkmark-icon { display: bloc
 label:has(.ssc-native-checkbox:indeterminate) .ssc-dash-icon      { display: block; }
 label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: none; }
 
-
 .ssc-part-row .ssc-checkmark {
   width: 1rem;
   height: 1rem;
@@ -326,8 +315,6 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-
-
 .ssc-empty {
   display: grid;
   place-items: center;
@@ -339,8 +326,6 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   font-size: 0.86rem;
   text-align: center;
 }
-
-
 
 .ssc-card {
   border-radius: 0.95rem;
@@ -449,8 +434,6 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   color: color-mix(in srgb, var(--picker-modal-accent) 88%, var(--picker-modal-text));
 }
 
-
-
 .ssc-parts {
   display: flex;
   flex-direction: column;
@@ -523,9 +506,6 @@ label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: non
   color: var(--picker-modal-muted);
   font-style: italic;
 }
-
-
-
 
 :is(.no-entrance-anim, .reduce-animation) .ssc-card {
   animation-duration: 0.01ms !important;

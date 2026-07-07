@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Compiles theoretical optimizer payloads by keeping equipped
+  Description: compiles theoretical optimizer payloads by keeping equipped
                substat profiles fixed while preparing catalog echo metadata
                and normal optimizer target or rotation contexts.
 */
@@ -463,7 +463,7 @@ function addNormalCtxMs(
   }
   if (
       options.scalingEr !== 0 ||
-      (options.characterId != null && [1206, 1209, 1412].includes(options.characterId))
+      (options.characterId != null && [1206, 1209, 1412, 1505].includes(options.characterId))
   ) {
     statMask[STAT_ER] = true
     mainMask[MAIN_ER] = true

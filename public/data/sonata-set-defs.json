@@ -1943,7 +1943,7 @@
     "setMax": 5,
     "desc": {
       "twoPiece": "HP + 10%",
-      "fivePiece": "Upon gaining a Shield, gain 5% increase in Crit. Rate for 5, max 4 stacks. This effect can be triggered every 0.5s. At max stacks, gain 15% Fusion DMG Bonus."
+      "fivePiece": "Upon gaining a Shield, gain 5% increase in Crit. Rate for 5s, max 4 stacks. This effect can be triggered every 0.5s. At max stacks, gain 15% Fusion DMG Bonus."
     },
     "twoPiece": [
       {
@@ -1993,9 +1993,9 @@
       },
       {
         "key": "netherRoadStacks",
-        "label": "5pc Crit. Rate Stacks",
+        "label": "5pc Crit. Rate and Fusion DMG Buff",
         "trigger": "Triggered by gaining a Shield.",
-        "description": "5% Crit. Rate (4 Stacks Max)."
+        "description": "5% Crit. Rate (4 Stacks Max). At max stacks, gain 15% Fusion DMG Bonus."
       }
     ]
   }

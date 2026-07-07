@@ -1,13 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the parser surface for the calculator echoes flow.
+  Description: renders the parser surface for the calculator echoes flow.
 */
 
 import { cloneElement, isValidElement as isVldElem, useEffect, useMemo, useRef, useState } from 'react'
 import type { HTMLAttributes as HtmlAttrs } from 'react'
-import type { EchoInstance } from '@/domain/entities/runtime.ts'
+import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { getMkScrPrcn, getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring.ts'
+import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring.ts'
 import { hideBrknMg } from '@/shared/lib/imageFallback'
 import { AppModal } from '@/shared/ui/AppModal'
 import { MdlClsBttn } from '@/shared/ui/ModalCloseButton.tsx'
@@ -21,6 +21,13 @@ import { useEchoSrfcM } from '@/modules/calculator/features/echoes/lib/useEchoSu
 import { qpEchoAtSlot } from '@/modules/calculator/features/echoes/lib/equip.ts'
 import { Copy } from 'lucide-react'
 import { useSel } from '@/modules/calculator/lib/sel.tsx'
+import { useBenchPreview } from '@/modules/calculator/model/useBuildBenchmark.ts'
+import { selActTgtSlc } from '@/domain/state/selectors.ts'
+import {
+  formatBuildBenchmarkScore as fmtBenchScore,
+  getBuildBenchmarkBadgeClass as getBenchBadgeCls,
+  getBuildBenchmarkBadgeStyle as getBenchBadgeStyle,
+} from '@/modules/calculator/model/buildBenchmarkDisplay.ts'
 
 // handles the screenshot parser workflow for batch importing echoes.
 interface EchoMgPrsrMd {
@@ -29,6 +36,8 @@ interface EchoMgPrsrMd {
   closing?: boolean
   portalTarget: HTMLElement | null
   charId: string
+  runtime: ResRuntime
+  prtcRntmById: Record<string, ResRuntime>
   curChs: Array<EchoInstance | null>
   onEquip: (echoes: Array<EchoInstance | null>) => void
   onEquipEcho: (echoes: Array<EchoInstance | null>) => void
@@ -40,12 +49,15 @@ export function Parser({
   open,
   closing = false,
   charId,
+  runtime,
+  prtcRntmById: partRntmById,
   curChs: crrnChs,
   onEquip,
   onEquipEcho,
   onClose,
 }: EchoMgPrsrMd) {
   const addEchoToInv = useAppStore((s) => s.addInvEcho)
+  const selTrgtByOwn = useAppStore(selActTgtSlc)
   const showToast = useTstStr((state) => state.show)
 
   const [view, setView] = useState<'instructions' | 'preview'>('instructions')
@@ -112,7 +124,13 @@ export function Parser({
   const scores = hasWeights
     ? parsedEchoes.map((echo) => (echo ? getEchoScrPr(charId, echo) : null))
     : null
-  const buildScore = hasWeights ? getMkScrPrcn(charId, parsedEchoes) : null
+  const hasParsedEchoes = parsedEchoes.some(Boolean)
+  const { score: buildScore } = useBenchPreview({
+    runtime: hasParsedEchoes ? runtime : null,
+    echoes: parsedEchoes,
+    runtimesById: partRntmById,
+    targetSelections: selTrgtByOwn,
+  })
   const resName = getResSeedBy(charId)?.name ?? charId
   const previewItems = useMemo(() => mkEchoGridTm({
     echoes: parsedEchoes,
@@ -193,7 +211,7 @@ export function Parser({
 
           <div className="echo-parser-body">
             <img
-              src="/assets/sample-import-image.png"
+              src="/assets/sample/sample-import-image.png"
               alt="Sample Echo Import Format"
               className="echo-parser-sample-image"
               onError={hideBrknMg}
@@ -245,8 +263,11 @@ export function Parser({
                 <p className="echo-parser-subtitle">You're about to import the following echoes:</p>
               </div>
               {buildScore !== null ? (
-                <span className="echo-parser-build-score echo-score-badge">
-                  Build Score: {buildScore.toFixed(1)}%
+                <span
+                  className={`echo-parser-build-score ${getBenchBadgeCls(buildScore)}`}
+                  style={getBenchBadgeStyle(buildScore)}
+                >
+                  Build Score: {fmtBenchScore(buildScore)}
                 </span>
               ) : null}
               <MdlClsBttn onClick={closeSelf} />

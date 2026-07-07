@@ -5,7 +5,6 @@
   filter: drop-shadow(0 16px 32px rgba(0, 0, 0, 0.32));
 }
 
-
 .radix-tooltip-content {
   transform-origin: var(--radix-tooltip-content-transform-origin);
   animation-duration: 0.22s;
@@ -111,7 +110,6 @@
   min-width: 0;
 }
 
-
 .tooltip-header {
   background: color-mix(in srgb, var(--resonator-accent, #6b7cff) 8%, rgba(255, 255, 255, 0.03));
   padding: 0.25rem 0.75rem;
@@ -126,7 +124,6 @@
   color: var(--resonator-accent, #6b7cff);
   text-transform: uppercase;
 }
-
 
 .tooltip-section {
   padding: 0.5rem 0.75rem;
@@ -145,7 +142,6 @@
   margin-bottom: 0.5rem;
 }
 
-
 .variant-formula {
   background: rgba(0, 0, 0, 0.2);
 }
@@ -160,7 +156,6 @@
   white-space: pre-wrap;
   margin: 0;
 }
-
 
 .simple-tooltip-text {
   padding: 0.6rem 0.9rem;

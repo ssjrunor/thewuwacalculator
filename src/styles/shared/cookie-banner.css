@@ -49,8 +49,6 @@
   pointer-events: none;
 }
 
-
-
 .cookie-banner__icon-wrap {
   display: flex;
   align-items: center;
@@ -63,8 +61,6 @@
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   color: var(--accent);
 }
-
-
 
 .cookie-banner__body {
   flex: 1;
@@ -96,8 +92,6 @@
   opacity: 0.75;
 }
 
-
-
 .cookie-banner__accept {
   flex-shrink: 0;
   padding: 0.4rem 0.85rem;
@@ -126,8 +120,6 @@
   transition-duration: 80ms;
 }
 
-
-
 @media (max-width: 480px) {
   .cookie-banner {
     bottom: 1rem;
@@ -136,8 +128,6 @@
     max-width: none;
   }
 }
-
-
 
 @media (prefers-reduced-motion: reduce) {
   .cookie-banner.open {

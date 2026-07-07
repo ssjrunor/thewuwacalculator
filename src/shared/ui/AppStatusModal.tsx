@@ -7,9 +7,10 @@
 import { useNavigate } from 'react-router-dom'
 import { AppModal } from '@/shared/ui/AppModal'
 import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
+import { getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 
 const STATUS_DATA = {
-  lastUpdated: '24/06/2026',
+  lastUpdated: '28/06/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [
@@ -18,9 +19,9 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    'I added Rover: Electro and their support rotation as their preset rotation.',
-    'I added the new echoes and sonata sets. Enemies don\'t seem to have an description even in the cn localized data so there\'s not much use in adding them yet UwU.',
-    'I STILL have some stuff in the works... *wink* *wink* *nudge* *nudge* ◕⩊◕.',
+    'I added LOTS of stuff, i\'d love for you to read up on those (Just click the button below).',
+    '3.5.6 update for Yangyang: Xuanling, Suisui, Rover: Electro, Azure Oath (weapon) and Firstlight\'s Herald (weapon)',
+    'Enemies still don\'t seem to have an description even in the cn localized data so there\'s not much use in adding them yet UwU.',
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
@@ -29,7 +30,11 @@ const STATUS_DATA = {
     { title: 'Enemies',    status: 'wip' as const,  desc: 'All but 3.5 enemies supported.' },
   ],
   recentChanges: [
-    'r-rover....',
+    '3.5.6 update.',
+    'Sub stat priority suggestions feature.',
+    'Scoring system revamp and a new benchmark page.',
+    'Showcase card/stuff... yeah.',
+    'A docs page for people that like reading.'
   ],
   knownIssues: [
     "asides the missing game assets... nothing crazy right now :P"
@@ -51,6 +56,9 @@ interface AppSttsMdlPr {
 
 export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsMdlPr) {
   const navigate = useNavigate()
+  const linkedWhatsNew = getLinkedWhatsNew(ltstCurChngE)
+  const latestRoute = linkedWhatsNew ? '/changelog/whatsnew' : '/changelog'
+  const latestLabel = linkedWhatsNew ? "See What's New" : 'See Changelog'
 
   return (
     <AppModal
@@ -160,9 +168,9 @@ export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsM
         <button
           type="button"
           className="confirmation-modal__btn"
-          onClick={() => { navigate('/changelog'); onClose() }}
+          onClick={() => { navigate(latestRoute); onClose() }}
         >
-          See Changelog
+          {latestLabel}
         </button>
       </div>
     </AppModal>

@@ -1,6 +1,6 @@
 /*
-  author: runor ewhro
-  description: shared helpers for reading and summarizing rotation node trees.
+  Author: Runor Ewhro
+  Description: shared helpers for reading and summarizing rotation node trees.
 */
 
 import type { RotationNode } from '@/domain/gameData/contracts.ts'

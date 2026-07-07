@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines shared suggestion engine input, result, and worker
+  Description: defines shared suggestion engine input, result, and worker
                message types for main stat, set plan, and random echo flows.
 */
 
@@ -21,8 +21,10 @@ export interface SuggestInput {
   runtimesById: Record<string, ResRuntime>
   selectedTargets: Record<string, string | null>
   setConds?: SntSetConds
+  setStateMode?: 'max' | 'resolved'
   tgtFeatId: string | null
   rotationMode: boolean
+  includeEchoAttacks?: boolean
 }
 
 export interface DrctSuggCtx {

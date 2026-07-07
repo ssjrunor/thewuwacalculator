@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Builds default and filtered main-stat pools for the
+  Description: builds default and filtered main-stat pools for the
                suggestion engine using stat weights and character rules.
 */
 
@@ -39,7 +39,7 @@ export function getDefMainSt(
 
   // explicitly force energy regen on for known characters that often need it
   const numericId = Number.parseInt(charId ?? '', 10)
-  if (numericId === 1206 || numericId === 1209 || numericId === 1412) {
+  if (numericId === 1206 || numericId === 1209 || numericId === 1412 || numericId === 1505 || numericId === 1110) {
     result.energyRegen = true
   }
 

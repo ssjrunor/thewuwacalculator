@@ -43,11 +43,6 @@ export type GuideBlock =
     text: string
   }
   | {
-    type: 'formula'
-    lines: string[]
-    note?: string
-  }
-  | {
     type: 'example'
     title: string
     setup: string[]
@@ -95,28 +90,6 @@ const definitions = (...items: Array<[string, string]>): GuideBlock => ({
   type: 'definitions',
   items: items.map(([term, description]) => ({ term, description })),
 })
-const note = (text: string, tone: 'info' | 'warning' = 'info'): GuideBlock => ({
-  type: 'note',
-  tone,
-  text,
-})
-const formula = (lines: string[], noteText?: string): GuideBlock => ({
-  type: 'formula',
-  lines,
-  note: noteText,
-})
-const example = (
-  title: string,
-  setup: string[],
-  observation: string[],
-  takeaway: string[],
-): GuideBlock => ({
-  type: 'example',
-  title,
-  setup,
-  observation,
-  takeaway,
-})
 const steps = (...items: Array<[string, string]>): GuideBlock => ({
   type: 'steps',
   items: items.map(([title, description]) => ({ title, description })),
@@ -131,16 +104,6 @@ const comparison = (
   rightLabel,
   rows: rows.map(([label, left, right]) => ({ label, left, right })),
 })
-const statTable = (...rows: Array<[string, string, string, string]>): GuideBlock => ({
-  type: 'statTable',
-  rows: rows.map(([stat, structure, meaning, surfaces]) => ({
-    stat,
-    structure,
-    meaning,
-    surfaces,
-  })),
-})
-const warningList = (...items: string[]): GuideBlock => ({ type: 'warningList', items })
 const image = (src: string, alt: string, caption: string): GuideBlock => ({
   type: 'image',
   src,
@@ -164,60 +127,44 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'resonators',
     title: 'Resonators',
-    summary: 'How resonator progression, sequences, kit modes, status controls, and the Max button shape the active runtime.',
+    summary: 'Set the active character, progression, sequence, traces, and visible kit state.',
     aliases: ['Resonator', 'Characters', 'Character'],
     articles: [
       article(
         'resonator-progression-and-kit-state',
         'Progression and Kit State',
-        'What the resonator pane owns beyond just picking a character.',
+        'Set the character-side values that damage, rotations, teams, suggestions, and optimizer runs read.',
         section(
-          'The resonator runtime',
-          paragraph(
-            'The resonator surface owns the active character identity and the character-side pieces of the runtime: level, skill levels, resonance chain, trace nodes, and kit state controls. Those choices feed damage rows, rotations, suggestions, optimizer evaluation, team summaries, and overview readouts.'
+          'Edit the active runtime',
+          steps(
+            ['Pick a resonator', 'Open the resonator pane and choose the character to edit. This changes the character attached to the live build.'],
+            ['Set progression', 'Set level, skill levels, resonance chain, and trace nodes from the visible controls.'],
+            ['Set kit state', 'Use any mode, stack, and status controls shown for that resonator. These values become part of the live scenario.'],
+            ['Review dependent panes', 'Damage rows, rotation output, team summaries, suggestions, and optimizer baselines read the same live runtime.']
           ),
           definitions(
-            ['Level and skills', 'The normal progression values used by scaling and skill multipliers.'],
-            ['Resonance chain', 'The active sequence level, which can unlock or change kit effects and available controls.'],
-            ['Trace nodes', 'Passive progression nodes that add stats or enable kit effects when active.'],
-            ['Kit state control', 'A visible control for a resonator-owned stack, toggle, mode, or mutually exclusive state.']
-          ),
-          note('If a damage result changes after editing the resonator pane, the rest of the app is usually just reflecting that new runtime state.'),
-        ),
-        section(
-          'Mode and status controls',
-          paragraph(
-            'Some resonators have states that are too important to hide behind a silent default. When a resonator supports an explicit resonance mode or special status, the app surfaces that choice as a visible mode/status control so the active scenario is clear before anything calculates from it.'
-          ),
-          definitions(
-            ['Mode control', 'A mutually exclusive choice such as which form, stance, or resonance mode the runtime should evaluate.'],
-            ['Status toggle', 'An on/off or stack style control for a state that may or may not be active in the current scenario.'],
-            ['Visible assumption', 'A scenario choice shown in the UI instead of being guessed silently by the calculator.']
-          ),
-          warningList(
-            'If a newer kit has several possible states, check its visible mode/status controls before trusting the result.',
-            'Changing modes can change which follow-up controls matter, because some states only exist inside one mode.',
-            'A selected mode is part of the runtime, so rotations, suggestions, optimizer, and team calculations all read it.'
+            ['Runtime', 'The current build, character state, team state, enemy state, and manual state used for calculations.'],
+            ['Trace node', 'A passive progression node that adds stats or enables a kit effect.'],
+            ['Kit state', 'A visible resonator-owned mode, stack, toggle, or status value.']
           ),
         ),
       ),
       article(
         'resonator-max-button',
         'The Max Button',
-        'What the resonator Max action fills in and what it does not promise.',
+        'Fill the visible resonator progression controls to their authored high state.',
         section(
-          'What Max does',
-          paragraph(
-            'The resonator Max button is broader than a level shortcut. It maxes the normal progression pieces, then resolves the strongest authored runtime states for that resonator under the current sequence.'
-          ),
+          'What Max changes',
           bullets(
-            'Sets resonator level to 90 and skill levels to 10.',
-            'Turns on available trace nodes.',
-            'Fills supported resonator mode/status controls to their max or preferred max state.',
-            'Respects mutually exclusive mode groups instead of trying to turn impossible states on together.',
-            'Uses the current sequence when deciding which sequence-gated controls can be maxed.'
+            'Sets level to 90.',
+            'Sets skill levels to 10.',
+            'Turns available trace nodes on.',
+            'Sets supported kit controls to their authored high state for the current sequence.',
+            'Keeps mutually exclusive mode groups as a single active choice.'
           ),
-          note('Max is a ceiling helper. It is useful for quickly setting up a high-output scenario, but it is still worth reviewing the visible controls if you want to model a specific real rotation.'),
+          paragraph(
+            'Max writes real live state. Edit any field after pressing it to model a lower level, lower skill level, different mode, or different stack state.'
+          ),
         ),
       ),
     ],
@@ -225,285 +172,163 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'rotations',
     title: 'Rotations',
-    summary: 'How authored rotation structure becomes execution, totals, inspection contexts, and saved records.',
+    summary: 'Author feature rows, state changes, repeats, loops, uptime blocks, and read the computed output.',
     aliases: ['Rotations', 'Rotation'],
     articles: [
       article(
         'rotation-mental-model',
-        'Rotation Mental Model',
-        'What the rotation system stores and what the simulator actually derives from it.',
+        'Draft Versus Result',
+        'Separate the rotation you edit from the output produced by the simulator.',
         section(
-          'Authored structure versus computed output',
-          paragraph(
-            'A rotation is authored state, not a frozen result. The node list stores what should execute, in what order, under which conditions, and with which loop or weighting rules. Damage, healing, shield, and contribution totals are computed later from that authored structure against the current build, team state, and enemy state.'
+          'Two layers',
+          comparison(
+            'Draft',
+            'Result',
+            ['Stores', 'Nodes, order, enabled state, loop markers, repeat counts, uptime weights, and when rules', 'Damage, healing, shield, tune, status, and contribution rows'],
+            ['Changes when', 'You edit the rotation tree', 'The tree or shared combat state changes'],
+            ['Saved by', 'Saved rotations and rotation imports', 'Rotation summaries, result views, and preview panels']
           ),
           definitions(
-            ['Authored structure', 'The nodes you keep in the editor. This includes features, conditions, repeat blocks, uptime blocks, loop markers, enabled state, and when rules.'],
-            ['Computed output', 'The execution trace, per skill results, inspection rows, and rotation totals produced when the simulator runs the authored structure.'],
-            ['Execution order', 'The simulator reads nodes in order. Earlier state changes can affect later feature rows.'],
-            ['Context', 'The active resonator build, teammate state, enemy profile, set conditionals, custom bonuses, and selected targets that exist at simulation time.']
+            ['Node', 'One editable entry in the rotation tree.'],
+            ['Execution trace', 'The ordered output produced after the simulator runs the tree.'],
+            ['Combat state', 'Build stats, team effects, enemy profile, set state, manual buffs, and temporary rotation state.']
           ),
-          comparison(
-            'Authored',
-            'Computed',
-            ['What it stores', 'Node definitions, loop markers, weights, conditions, saved metadata', 'Damage rows, healing rows, shield rows, totals, breakdowns, inspection snapshots'],
-            ['When it changes', 'When you edit the rotation itself', 'Whenever authored structure or combat context changes'],
-            ['Persistence', 'Saved rotations keep it directly', 'Saved summaries and snapshots may keep a computed view of it']
-          ),
-          note('If a result looks wrong, check authored structure first, then check shared combat context. The simulator is only answering the scenario it was given.'),
         ),
       ),
       article(
         'rotation-node-types',
-        'Node Types and Tree Structure',
-        'What each rotation node type does and why it exists.',
+        'Choose the Right Node Type',
+        'Pick the block that matches the action you are trying to model.',
         section(
-          'Core node types',
+          'Node roles',
           definitions(
-            ['Feature', 'Runs one feature definition. This is the node that usually creates damage, healing, shield, tune rupture, negative effect, or another measurable output row.'],
-            ['Condition', 'Applies runtime changes without creating a damage row by itself. This is where stack changes, toggles, enemy status updates, and similar scenario state are authored.'],
-            ['Repeat', 'Executes its child list several times. It is direct repetition, not a named loop context.'],
-            ['Uptime', 'Executes its child list inside a weighted branch. The branch contributes only by its uptime ratio.'],
-            ['Loop start and loop end', 'Create a named loop context with run counters. Loop contexts can be targeted by when rules and are used by loop aware summaries.']
+            ['Feature', 'Runs one skill, echo, support action, tune action, healing entry, shield entry, or other authored feature.'],
+            ['Condition', 'Changes runtime state without creating its own damage row.'],
+            ['Repeat', 'Runs its child nodes a fixed number of times.'],
+            ['Uptime', 'Runs its child nodes under a weighted contribution ratio.'],
+            ['Loop start and end', 'Creates named loop context with run numbers for nodes inside the loop.']
           ),
-          comparison(
-            'Repeat',
-            'Loop',
-            ['Main purpose', 'Repeat a child list a fixed number of times', 'Create named iteration context with run numbering'],
-            ['Condition targeting', 'No per run context is created', 'When rules can target specific runs'],
-            ['Summary meaning', 'Raw repeated execution', 'Loop aware summaries can normalize by total configured runs'],
-            ['Authoring helper', 'Good for compact duplication', 'Good for modeling windows, passes, or repeated phases']
-          ),
-          paragraph(
-            'Loopify is a structural helper that wraps the selected nodes with a loop start and loop end marker. It does not invent new feature behavior. It only gives the wrapped nodes a named iteration context.'
+          steps(
+            ['Add output with Feature', 'Select the feature kind, then choose the skill or action from the feature picker.'],
+            ['Add setup with Condition', 'Place the condition before the feature rows that need the state change.'],
+            ['Compact repeated actions with Repeat', 'Put the repeated nodes inside the repeat block and set the count.'],
+            ['Model a phase with Loop', 'Wrap the phase in matching loop markers and set the run count on the loop.']
           ),
         ),
       ),
       article(
         'rotation-loops-and-iteration-semantics',
-        'Loops and Iteration Semantics',
-        'How loop markers, run counts, wrap modes, and summary normalization work.',
+        'Use Loops Without Misreading Totals',
+        'Create loop windows, target individual runs, and read loop-aware totals.',
         section(
-          'What loop markers mean',
-          paragraph(
-            'A loop start defines a loop id, desc, color, and run count. A matching loop end closes that loop id inside the same sibling list. The simulator keeps track of the active run number and the total configured run count while any node inside that loop is executing.'
-          ),
+          'Loop authoring',
           definitions(
-            ['Forward loop', 'The loop end appears after the loop start. The loop body is the range between them.'],
-            ['Wrap end loop', 'The loop end appears before the loop start in the same list. The loop body wraps across the list boundary.'],
-            ['Wrap start loop', 'There is no end marker. The loop starts at the start marker, runs through the rest of the list, then stops when it returns to the start marker.'],
-            ['Loop run', 'The current numbered pass through that loop. Inspection rows and when rules can reference it directly.'],
-            ['Loop run count', 'The configured number of total runs for that loop.']
+            ['Loop id', 'The name that connects the start marker, end marker, run rules, and loop summaries.'],
+            ['Run count', 'The number of passes the loop executes.'],
+            ['Run number', 'The current pass while nodes inside the loop are executing.'],
           ),
           image(
             '/assets/guides/loop-forward.png',
             'Forward loop boundary example in the rotation editor',
-            'Forward case. The end marker appears after the start marker, so the loop body is the range between them.'
+            'Forward loop. The end marker appears after the start marker, so the loop body is the range between them.'
           ),
           image(
             '/assets/guides/loop-wrap-end.png',
             'Wrap end loop boundary example in the rotation editor',
-            'Wrap end case. The end marker appears before the start marker in the same list, so the loop body wraps across the list boundary.'
+            'Wrap end loop. The end marker appears before the start marker in the same list, so the body wraps across the list boundary.'
           ),
           image(
             '/assets/guides/loop-wrap-start.png',
             'Wrap start loop boundary example in the rotation editor',
-            'Wrap start case. There is no end marker, so the loop starts at the start marker and continues until execution returns to that marker.'
+            'Wrap start loop. There is no end marker, so the loop starts at the start marker and continues until execution returns to it.'
           ),
-        ),
-        section(
-          'How summaries treat loops',
           steps(
-            ['Execute each run', 'The simulator still emits one execution entry for each run. A loop with 3 runs creates three loop-scoped entries when the body contains one feature node.'],
-            ['Stamp loop context', 'Each entry inside the loop carries the current run number and the total configured runs for that loop. Nested loops carry more than one loop context at once.'],
-            ['Normalize loop aware totals', 'Rotation totals, contribution breakdowns, and saved loop total previews divide looped rows by their configured run counts before they are added together.'],
-            ['Keep run specific inspection', 'Run specific inspection rows still exist. Normalization is for summary interpretation, not for hiding per run execution.']
-          ),
-          example(
-            'Three run loop with one finisher',
-            [
-              'Loop A runs 3 times.',
-              'The loop body contains one feature row worth 40,000 average damage each run.',
-              'A finisher outside the loop is worth 120,000 average damage.',
-            ],
-            [
-              'The simulator emits three loop feature entries and one finisher entry.',
-              'The personal rotation total is interpreted as 40,000 from the loop window plus 120,000 from the finisher, for 160,000 average damage.',
-              'This is because the loop window is normalized by its 3 configured runs before it joins the summary.',
-            ],
-            [
-              'If the same loop had only 1 run, there would be no difference between raw and normalized totals.',
-              'If a row sits inside nested loops, the divisor multiplies across loop run counts. A row inside a 2 run outer loop and a 3 run inner loop is normalized by 6 in loop aware summary surfaces.',
-            ],
-          ),
-          warningList(
-            'Loop normalization does not mean the raw execution list disappears. The per run trace still exists.',
-            'If you are comparing summary rows to raw inspection rows, remember that the summary may be an average style view of repeated passes.',
-            'Saved loop marker totals depend on computed entries. If there is no computed run data yet, the loop inspector cannot show a meaningful total.'
+            ['Add the loop markers', 'Insert a loop start and matching loop end around the nodes that repeat.'],
+            ['Set the run count', 'Edit the loop count on the marker control.'],
+            ['Target a run', 'Open a node when rule and select the loop id plus run number.'],
+            ['Read the total', 'Loop-aware summary rows average repeated loop bodies by the configured run count. Raw inspection still shows the executed rows.']
           ),
         ),
       ),
       article(
         'rotation-repeat-and-uptime',
-        'Repeat Blocks, Uptime Blocks, and Weighting',
-        'How structural blocks differ from loop markers.',
+        'Repeat, Uptime, and Weighting',
+        'Choose direct duplication or weighted contribution.',
         section(
-          'Repeat versus uptime',
-          paragraph(
-            'Repeat blocks and uptime blocks are structural execution tools. They are not interchangeable. Repeat duplicates child execution. Uptime scales branch contribution by a ratio.'
+          'Repeat compared with uptime',
+          comparison(
+            'Repeat',
+            'Uptime',
+            ['What it does', 'Executes child nodes multiple times', 'Executes child nodes under a contribution ratio'],
+            ['Control', 'Count', 'Percent or ratio'],
+            ['Output', 'Repeated rows enter the trace', 'Weighted rows enter totals with scaled contribution'],
+            ['Common control location', 'Rotation tree repeat node', 'Rotation tree uptime node']
           ),
-          definitions(
-            ['Repeat block', 'Evaluates its child list the requested number of times. If the repeat count resolves to 0, nothing inside it contributes.'],
-            ['Uptime block', 'Evaluates its child list inside a weighted branch. A 30 percent uptime block contributes 30 percent of its branch output to totals.'],
-            ['Setup branch', 'An uptime block can apply setup items before its weighted branch items execute. This is useful when a buff needs to exist before the weighted branch is measured.']
-          ),
-          example(
-            'Repeat and uptime are not the same',
-            [
-              'A repeat block with times = 3 around a 10,000 damage feature produces 30,000 raw damage before other context changes.',
-              'An uptime block with ratio = 0.3 around a 10,000 damage feature contributes 3,000 average damage to the parent summary.',
-            ],
-            [
-              'Repeat models discrete duplication.',
-              'Uptime models partial presence inside the total window.',
-            ],
-            [
-              'Use repeat when the event actually happens several times.',
-              'Use uptime when the effect exists for part of the window and should be weighted accordingly.',
-            ],
+          steps(
+            ['Set repeat count', 'Use Repeat for actions that happen more than once in the authored sequence.'],
+            ['Set uptime ratio', 'Use Uptime for actions or effects that occupy only part of the measured window.'],
+            ['Place setup first', 'Put setup nodes before the repeated or weighted feature rows that need them.']
           ),
         ),
       ),
       article(
         'rotation-conditions-and-when-rules',
         'Conditions and When Rules',
-        'How node gating, feature setup changes, loop targeted rules, and inspection contexts interact.',
+        'Apply state changes and restrict rows to the intended execution window.',
         section(
-          'What when rules do',
-          paragraph(
-            'A when rule decides whether a node executes for the current context. That context can include normal condition logic and loop run selection. When a loop rule is missing for a covering loop, the editor treats that as all runs active for that loop.'
-          ),
+          'Condition controls',
           definitions(
-            ['Condition expression', 'The logical rule that determines whether the node should run at all.'],
-            ['Loop rule', 'A list of loop ids and allowed run numbers for that node.'],
-            ['Covering loop', 'A loop whose boundaries include the edited node. Only those loops are relevant for that node.'],
-            ['Inspection context', 'One concrete combination of loop runs such as Loop A #2/3 plus Loop B #1/2.']
-          ),
-          example(
-            'Only on the second pass',
-            [
-              'Loop A runs 3 times.',
-              'A condition node applies a crit buff only on run 2.',
-              'A feature row after it exists on all three runs.',
-            ],
-            [
-              'The feature row has three inspection contexts.',
-              'Only the Loop A #2/3 context sees the extra buff.',
-              'If no loop rule had been authored, all three runs would be active by default.',
-            ],
-            [
-              'When rules are usually needed when one pass through a loop has a different state than the others.',
-            ],
-          ),
-          warningList(
-            'If a node appears to stop running after loop edits, inspect its when rules first.',
-            'Short loop chips in the editor refer to the loop that actually covers that node, not every loop in the rotation.',
-            'A disabled node and a filtered out node look similar in totals, but they are different authoring states.'
-          ),
-        ),
-        section(
-          'Feature-level conditions',
-          paragraph(
-            'A feature row can carry setup changes directly. These changes apply to that feature evaluation path before the feature is calculated, which is useful when one hit needs a temporary stack, toggle, enemy status, or formula override that does not deserve a separate visible condition node in the tree.'
-          ),
-          definitions(
-            ['Condition node', 'A standalone rotation node that mutates runtime or enemy state for later nodes.'],
-            ['Feature condition', 'A setup change attached to one feature row and evaluated with that feature.'],
-            ['Formula stat', 'A formula-local adjustment such as MV Add, MV Scale, fixed damage, damage bonus, vulnerability, or similar values under the Formula Stats browser entry.']
-          ),
-          comparison(
-            'Condition node',
-            'Feature condition',
-            ['Best for', 'State that should affect several later nodes', 'State that only belongs to one feature row'],
-            ['Tree visibility', 'Appears as its own node in the rotation tree', 'Lives inside the feature editor'],
-            ['Typical examples', 'Turn on a stance before a combo, add an enemy status for a window', 'Make one hit guaranteed crit, add formula MV to one hit, consume a one-hit stack']
-          ),
-          note('Use feature conditions for local setup. Use condition nodes when the state should remain visible as a step in the authored rotation and affect more than one following row.'),
-        ),
-        section(
-          'Adding condition changes',
-          paragraph(
-            'The conditions editor uses the same condition picker model for normal runtime values, enemy values, and formula stats. The browser chooses what path to edit, then the directive card controls how the value is applied.'
+            ['Condition node', 'A visible state change in the rotation tree.'],
+            ['Feature condition', 'A state change attached directly to one feature row.'],
+            ['When rule', 'A filter that lets a node run only in selected loop runs or selected execution context.'],
+            ['Runtime path', 'The internal state field changed by a condition. Labels on the control describe the user-facing state.']
           ),
           steps(
-            ['Choose a target', 'Open Add Conditions from a feature or condition editor and pick the runtime, enemy, or Formula Stats entry you want to change.'],
-            ['Pick the operation', 'Use the directive card to set, add, scale, or otherwise apply the value according to the available operation for that path.'],
-            ['Scope it with when rules if needed', 'If the feature sits inside loops, use when rules when the change should only exist for specific loop runs.'],
-            ['Inspect the result', 'Use the damage row inspection context to verify that the expected run or feature sees the changed value.']
-          ),
-          warningList(
-            'Formula stats are per-row overlays, not permanent manual buffs.',
-            'Feature-attached conditions should not be used to hide major rotation steps that users need to understand later.',
-            'If two attached changes write the same path, the later directive in that feature setup is the one that wins for that path.'
+            ['Add a condition node', 'Place it before every feature row that needs the changed state.'],
+            ['Attach a feature condition', 'Open the feature row and add local setup when only that row needs the change.'],
+            ['Set a when rule', 'Select the loop id and run range that the node belongs to.'],
+            ['Inspect the row', 'Open the computed row details to confirm the active state used for that feature.']
           ),
         ),
       ),
       article(
         'rotation-live-saved-and-team-state',
-        'Live Rotations, Saved Rotations, and Team Rotations',
-        'How current state, saved state, teammate links, and import or export boundaries relate.',
+        'Live, Saved, and Team Rotation State',
+        'Load rotations without mixing up the editor, saved records, and teammate links.',
         section(
-          'State boundaries',
-          comparison(
-            'Live',
-            'Saved',
-            ['What it is', 'The current rotation attached to the active runtime', 'A persisted inventory record with metadata and optional summary or snapshot'],
-            ['When it updates', 'Immediately when the editor or combat context changes', 'Only when you save, import, edit, rename, or delete the saved record'],
-            ['Resonator scope', 'Current active resonator', 'Stored with a resonator id and resonator name'],
-            ['Load behavior', 'Already active', 'Loading can overwrite current entries and may switch the active resonator']
+          'Rotation locations',
+          definitions(
+            ['Live rotation', 'The rotation currently attached to the active resonator in the calculator.'],
+            ['Saved rotation', 'A stored rotation record that can be loaded back into live state.'],
+            ['Team rotation link', 'A teammate rotation selected by the team pane for team contribution calculations.'],
+            ['Imported rotation', 'A rotation loaded from a JSON payload or older backup format.']
           ),
-          paragraph(
-            'Team rotations are a third layer. A personal rotation belongs to one resonator. A team rotation summary adds the enabled linked teammate rotations that are selected for the active setup. Those teammate links can point at live teammate state or a saved teammate rotation entry.'
-          ),
-          note('Loading a saved rotation from another resonator is a larger state change than loading one from the active resonator. It switches resonator context and then applies the rotation.'),
-        ),
-        section(
-          'Import, export, and saved metadata',
-          bullets(
-            'Rotation JSON export keeps authored items, mode, resonator identity, duration, note, team selection, and any saved snapshot or summary that already exists on the entry.',
-            'Imported rotations are normalized into fresh node ids so they do not collide with existing editor state.',
-            'Duration and DPS are saved metadata. They do not cause extra execution by themselves.',
-            'Summary fields are descriptive. They do not replace live recomputation once the rotation is loaded back into the calculator.'
+          steps(
+            ['Edit live state', 'Change nodes in the rotation pane to change the active resonator rotation.'],
+            ['Save a copy', 'Save the current rotation before loading another record if the current draft needs to stay available.'],
+            ['Load a record', 'Loading replaces the live rotation for the selected resonator.'],
+            ['Set teammate links', 'Open team configuration and choose which saved or live teammate rotation contributes to team summaries.']
           ),
         ),
       ),
       article(
         'rotation-totals-and-breakdown-rows',
-        'Reading Rotation Totals and Breakdown Rows',
-        'How personal totals, team totals, support rows, and contribution tables should be interpreted.',
+        'Read Rotation Totals and Breakdowns',
+        'Interpret summary rows, contribution rows, and support rows from the computed trace.',
         section(
-          'Total families',
+          'Displayed output',
           definitions(
-            ['Personal rotation total', 'The active resonator only. Damage totals come from damage rows. Healing and shield are kept in separate aggregation buckets.'],
-            ['Team rotation total', 'The combined damage of the active resonator plus enabled linked teammate rotations.'],
-            ['Contributor breakdown', 'How much average damage each resonator contributes to the team total.'],
-            ['Skill type breakdown', 'How much average damage each skill family contributes inside the selected total view.'],
-            ['Support rows', 'Healing and shield totals shown beside damage summaries when those aggregation buckets are non zero.']
+            ['Normal', 'Damage with no critical hit applied.'],
+            ['Crit', 'Damage when the row crits.'],
+            ['Average', 'Expected damage after crit rate and crit damage are applied.'],
+            ['Contribution row', 'A grouped row showing how much a skill family, source, teammate, or loop section adds to the total.'],
+            ['Support row', 'Healing, shield, tune, or status output tracked outside the main damage total.']
           ),
-          example(
-            'Damage plus support in one rotation',
-            [
-              'A rotation deals 500,000 average damage, heals for 30,000, and creates 18,000 shield value.',
-            ],
-            [
-              'The damage total remains 500,000 in the main total row.',
-              'Healing and shield appear as separate support rows because they are tracked in their own aggregation buckets.',
-            ],
-            [
-              'Do not add support rows into the main damage total unless you are intentionally making your own combined utility metric.',
-            ],
+          steps(
+            ['Read top totals first', 'Start with the total and average columns for the full simulated rotation.'],
+            ['Open breakdown rows', 'Expand skill, source, teammate, and loop rows to see where the total comes from.'],
+            ['Compare loop summaries carefully', 'Loop-aware totals show repeated windows as averaged contribution; raw row details still show each executed entry.']
           ),
-          note('Normal, Crit, and Average columns are direct views of the same resolved row. Average is not a separate simulation mode.'),
         ),
       ),
     ],
@@ -511,233 +336,144 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'echoes',
     title: 'Echoes',
-    summary: 'How the active five piece loadout, bag inventory, main echo behavior, and authored echo instances work.',
-    aliases: ['Echoes'],
+    summary: 'Equip echo instances, set stats, choose the main echo, and manage set conditionals.',
+    aliases: ['Echo', 'Echoes'],
     articles: [
       article(
         'echo-loadout-rules',
         'Loadout Rules and Slot Roles',
-        'What the equipped echo surface is actually modeling.',
+        'Fill the five active echo slots and understand what each slot controls.',
         section(
-          'The active echo build',
-          paragraph(
-            'The echo pane is the active resonator loadout. It holds up to five equipped echoes and enforces the 12C total cost budget used by the rest of the app, including suggestions and optimizer flows.'
-          ),
+          'Active loadout',
           definitions(
-            ['Equipped echo', 'An echo currently attached to one of the five live loadout slots. Its main stats, secondary stat, substats, set id, and main echo flag feed the build immediately.'],
-            ['Main echo slot', 'The first equipped slot. This is the slot whose echo can expose main echo skill text and state controls.'],
-            ['Total cost', 'The combined echo cost of the equipped loadout. The shipped UI shows this against the 12C cap.'],
-            ['Legal loadout', 'A five slot arrangement that respects the app cost rules and uses real echo definitions.']
+            ['Slot', 'One of the five equipped echo positions on the active build.'],
+            ['Cost', 'The echo cost value used by loadout validation and set planning.'],
+            ['Main echo', 'The equipped echo whose active echo skill is selected for echo-skill features and main echo effects.'],
+            ['Sonata set', 'The set id on each echo. Two-piece, three-piece, and five-piece logic reads these ids.']
           ),
-          comparison(
-            'Equipped',
-            'Bag',
-            ['Affects current build', 'Yes, immediately', 'No, until equipped'],
-            ['Resonator specific', 'Only because it is attached to the current runtime', 'Shared inventory state'],
-            ['Typical use', 'Current active build', 'Reusable stock for later equip, compare, save, or optimize actions']
+          steps(
+            ['Equip an echo', 'Choose an echo instance for an empty slot or replace the current slot item.'],
+            ['Set cost and set', 'Pick the echo identity and sonata set shown on that slot.'],
+            ['Choose main echo', 'Mark the intended echo as the main echo when the active echo skill matters.'],
+            ['Check validation text', 'Read any cost, duplicate, or set messages shown by the pane.']
           ),
         ),
       ),
       article(
         'echo-instance-identity',
         'Echo Instance Identity and Inventory State',
-        'How the app distinguishes one echo instance from another.',
+        'Track the difference between a catalog echo and the actual item in your bag.',
         section(
-          'Identity and persistence',
-          paragraph(
-            'An echo instance is more than an echo id. The saved instance also carries its set assignment, main stat values, substats, main echo flag, and identity. Two copies of the same echo definition can still be different inventory entries if their authored stats are different.'
+          'Instance fields',
+          definitions(
+            ['Catalog echo', 'The base game echo identity: name, cost, element, image, and possible main stats.'],
+            ['Echo instance', 'One owned item with a selected set, main stat, substats, level, and tuning state.'],
+            ['Inventory owner', 'The build or bag location currently holding the instance.'],
+            ['Duplicate identity', 'Two items may share the same catalog echo while still being different instances.']
           ),
-          bullets(
-            'Saving an equipped echo to the bag creates or preserves a reusable inventory entry.',
-            'Removing an echo from the current loadout does not delete the inventory copy unless you explicitly remove it from the bag.',
-            'Saved builds and optimizer results reference concrete echo instances, not abstract names only.'
-          ),
-          example(
-            'Same echo definition, different instance value',
-            [
-              'You own two copies of the same 3C echo.',
-              'One has Crit Rate and Resonance Skill rolls.',
-              'The other has Energy Regen and HP percent rolls.',
-            ],
-            [
-              'They are the same echo family but not the same inventory instance.',
-              'Optimizer, score, and saved build behavior can treat them very differently.',
-            ],
-            [
-              'Whenever a result depends on your actual bag, echo identity matters as much as echo name.',
-            ],
+          steps(
+            ['Edit the equipped instance', 'Changes to level, stat rolls, set, and main stat apply to the actual equipped item.'],
+            ['Move items through inventory actions', 'Use equip, unequip, replace, and inventory modal actions to control where the instance is stored.'],
+            ['Check ownership labels', 'Inventory labels show whether an item is equipped, available, or tied to another build.']
           ),
         ),
       ),
       article(
         'echo-main-stats-and-substats',
         'Main Stats, Substats, and Roll Interpretation',
-        'How authored echo stats map into build math.',
+        'Set the stat lines that feed build totals and echo scoring.',
         section(
-          'What the editor changes',
-          paragraph(
-            'Main stat edits, set changes, and substat edits rewrite the authored echo instance itself. There is no separate preview stat mask inside the equip surface. If the value is on the echo, it is part of the active build.'
-          ),
+          'Stat controls',
           definitions(
-            ['Primary main stat', 'The build defining main stat line on that echo cost tier. This is the line most score systems weight heavily.'],
-            ['Secondary main stat', 'The fixed secondary line tied to the echo cost tier. It still contributes to total stats but is not treated as the chosen primary roll.'],
-            ['Substats', 'The secondary authored lines that usually define roll quality and specialization.'],
-            ['Roll quality', 'How strong a value is compared with the known range for that stat line.']
+            ['Main stat', 'The primary stat line on the echo. The available list depends on echo cost and slot rules.'],
+            ['Substat', 'A secondary roll line on the echo. Each substat has a stat type and value.'],
+            ['Roll value', 'The numeric value on the substat row.'],
+            ['CV', 'Crit Value. In the app it is shown as crit rate times two plus crit damage.']
           ),
-          example(
-            'Why one small edit moves several surfaces',
-            [
-              'A 4C echo is edited from ATK% to Crit Rate.',
-              'The echo keeps the same identity, set, and substats.',
-            ],
-            [
-              'Final stats change immediately.',
-              'Damage results move because crit rate changes expected value.',
-              'Echo score can also change because the character specific scoring table values the main stat differently.',
-            ],
-            [
-              'One echo edit can change damage, score, suggestions, and optimizer baselines at the same time because all of those systems read the same loadout.',
-            ],
+          steps(
+            ['Select main stat', 'Choose the stat from the slot main-stat picker.'],
+            ['Add substats', 'Fill each roll row with the stat kind and value.'],
+            ['Use normalized labels', 'Element and skill-family labels use game-facing names when available.'],
+            ['Read totals', 'Echo stat totals update the active build immediately.']
           ),
         ),
       ),
       article(
         'echo-main-echo-and-sets',
         'Main Echo Effects and Sonata Sets',
-        'How the active main echo and set counts affect runtime behavior.',
+        'Control which echo skill and set effects the build can read.',
         section(
-          'Main echo behavior',
-          paragraph(
-            'The main echo slot can expose active skill text and state controls. Some main echo definitions add a visible damage row. Others only add conditions, buffs, or options that modify later calculations.'
-          ),
+          'Echo skill and set state',
           definitions(
-            ['Main echo effect', 'The active skill or stateful effect exposed by the equipped main echo.'],
-            ['Selected set id', 'The set affiliation stored on each echo instance.'],
-            ['Active set bonus', 'A set effect that becomes available once the equipped counts satisfy its threshold.']
+            ['Main echo skill', 'The active echo action available to rotation feature rows.'],
+            ['Two-piece set', 'A set effect active when at least two equipped echoes share the set id.'],
+            ['Three-piece set', 'A set effect active when at least three equipped echoes share the set id.'],
+            ['Five-piece set', 'A set effect active when all five equipped echoes share the set id.'],
+            ['Set conditional', 'A visible control for a set effect whose state, stacks, or mode is not automatic.']
           ),
-          note('Set logic uses the selected set ids on the equipped echoes. Suggestions that rewrite set plans are changing those set assignments, not inventing extra hidden set pieces.'),
+          steps(
+            ['Assign the main echo', 'Set the main echo marker on the equipped echo that supplies the active echo skill.'],
+            ['Build set counts', 'Equip echoes with matching sonata set ids to activate the intended set parts.'],
+            ['Open set conditionals', 'Turn on stack or mode controls for set effects that expose configurable state.']
+          ),
         ),
       ),
       article(
         'echo-quick-setup',
         'Quick Setup Forge',
-        'How the Echoes pane can generate a valid loadout from partial choices.',
+        'Generate a full equipped echo loadout from selected constraints.',
         section(
-          'What Quick Setup builds',
-          paragraph(
-            'Quick Setup is a loadout forge for the active resonator. It can generate between one and five equipped echoes from the pieces you specify, then fills the missing parts with valid random choices.'
+          'Forge flow',
+          steps(
+            ['Open Quick Setup', 'Start from the echo pane quick setup action.'],
+            ['Choose set plan', 'Select the sonata set arrangement the generated loadout will use.'],
+            ['Choose main stats', 'Pick the main stat pattern for each cost slot.'],
+            ['Generate', 'The forge writes real echo instances into the active build.'],
+            ['Edit after generation', 'Adjust level, set, main stat, substats, and main echo status from the normal echo controls.']
           ),
           definitions(
-            ['Echo count', 'How many equipped echo slots the generated loadout should contain. If the current build has no echoes, the modal starts at five.'],
-            ['Main stat slot', 'A chosen cost and primary main stat for one generated echo. Empty slots are filled randomly.'],
-            ['Substat template', 'A reusable set of up to five substats that can be copied onto one or more generated echoes.'],
-            ['Multiplier', 'How many echoes should receive that substat template. Template multipliers can add up to the echo count, and any remaining echoes get random substats.'],
-            ['Sonata plan', 'The set-piece plan Quick Setup should try to satisfy while choosing echo definitions and set ids.'],
-            ['Main echo', 'The desired catalog echo for the first slot. If it cannot fit the current plan, Quick Setup treats it like an unset main echo and picks a valid one instead.']
-          ),
-          note('Quick Setup writes real echo instances into the active build. It is not a preview layer, so generated stats, sets, and main echo state immediately feed the rest of the calculator.'),
-        ),
-        section(
-          'How starting values are chosen',
-          paragraph(
-            'The modal starts from the current echo build instead of a blank template. Existing main stats, costs, set plan, main echo, and substat patterns are read from the equipped echoes so you can adjust the current build rather than rebuild it from zero.'
-          ),
-          bullets(
-            'Existing substat sets are deduped by their stat keys; order does not matter.',
-            'Repeated matching substat sets become one template with a higher multiplier.',
-            'Adding a new substat template duplicates the previous template when one exists.',
-            'Clear All removes the authored choices so the next generated loadout is mostly random within the remaining rules.'
-          ),
-        ),
-        section(
-          'Validity and random filling',
-          paragraph(
-            'Quick Setup only generates legal echo arrangements. The chosen echo count, cost choices, set plan, and main echo choice are considered together before the final loadout is produced.'
-          ),
-          warningList(
-            'An invalid main echo is shown as invalid in the picker, but generation still continues by selecting a random valid main echo.',
-            'If a main stat, substat template, or set plan slot is left empty, that part is intentionally random-filled.',
-            'The generated build is not bag constrained. It creates usable echo instances for the runtime rather than selecting saved inventory entries.'
+            ['Generated instance', 'A new equipped item created by Quick Setup.'],
+            ['Set plan', 'The requested distribution of sonata set ids across the five slots.']
           ),
         ),
       ),
       article(
         'echo-surface-totals-and-scores',
         'Echo Stats, CV, and Surface Totals',
-        'How the echo surfaces summarize the current equipped loadout.',
+        'Read the echo-only totals shown by the echo pane.',
         section(
-          'What the summary badges mean',
-          paragraph(
-            'The echo surface can summarize the equipped loadout with total stat rows, Crit Value, and build score. These are summary helpers. They do not replace the full final stat tree or damage formulas.'
-          ),
+          'Echo pane numbers',
           definitions(
-            ['Echo Stats', 'The aggregated stat lines contributed by the currently equipped echoes only.'],
-            ['CV', 'Crit Value, computed as Crit Rate x 2 plus Crit Damage. It only describes crit concentration.'],
-            ['Build score', 'A normalized score percentage across the whole equipped echo loadout using the active resonator scoring weights.']
+            ['Echo stats', 'The stat contribution from equipped echoes before non-echo build context is added.'],
+            ['Surface total', 'A summary value shown on the echo pane for the current equipped loadout.'],
+            ['Score', 'The app score assigned by the active scoring table and current target context.'],
+            ['CV', 'Crit rate times two plus crit damage from the echo stat lines.']
           ),
-          note('Use Echo Stats when you want to know what the echoes themselves contribute. Use Overview and Damage Results when you need the full final build after weapon, traces, team, enemy, and manual bonuses are included.'),
+          comparison(
+            'Echo pane',
+            'Full build output',
+            ['Stat source', 'Equipped echo instances', 'Character, weapon, echoes, team, enemy, and manual state'],
+            ['Purpose', 'Inspect echo loadout state', 'Read the complete scenario result'],
+            ['Changes from teammate state', 'No direct teammate totals', 'Yes, when team effects are active']
+          ),
         ),
       ),
       article(
         'echo-set-conditionals',
         'Set Effect Conditionals',
-        'Telling the app which set bonuses you actually use, so suggestions and optimizer rankings match your real play.',
+        'Set stacks and modes for sonata effects that expose configurable state.',
         section(
-          'What this modal is for',
-          paragraph(
-            'Most sonata sets have bonuses that only kick in under specific conditions, like a teammate role you may not run, a stack count you may not hit, or a long uptime your rotation cannot keep. By default the app assumes every part is active. This modal lets you turn off the parts that do not match how you actually play, so suggestions and optimizer rankings reflect your real damage rather than a theoretical ceiling.'
+          'Conditional controls',
+          steps(
+            ['Open the set conditional panel', 'Use the set conditional controls from the echo or build state surface.'],
+            ['Select the set part', 'Choose the set effect part shown for the active equipped sets.'],
+            ['Set stacks or mode', 'Use the visible input, select, or toggle for that effect.'],
+            ['Recheck affected output', 'Damage rows, suggestions, optimizer baselines, and summaries read the updated set state.']
           ),
-          note('Settings here only change rankings. They never delete or modify the set itself, and you can flip a part back on at any time.'),
-        ),
-        section(
-          'When you might want to turn a part off',
-          bullets(
-            'A set bonus needs a teammate type you do not bring (for example a healer or a specific element).',
-            'A bonus needs many stacks or a long uptime your rotation cannot maintain.',
-            'A bonus only triggers in conditions you skip during a real fight.',
-            'You want to see how the ranking would look without an optional bonus before farming for it.'
-          ),
-          example(
-            'Did you know?',
-            [
-              'A 5 piece set bonus triggers when a teammate uses Liberation, but you usually play solo or with a different team.',
-            ],
-            [
-              'Suggestions and the optimizer were treating that bonus as fully active, pushing the set up the ranking unfairly.',
-            ],
-            [
-              'Turning the part off drops the set toward its realistic rank for your actual team. The recommendation you see now is the one that will actually perform for you.',
-            ],
-          ),
-        ),
-        section(
-          'Using the modal',
           definitions(
-            ['Search', 'Type a set name, set id, or a phrase from a bonus description to narrow the cards.'],
-            ['Piece filter', 'Tap All, 2PC, 3PC, or 5PC to focus on one piece tier at a time.'],
-            ['Sort', 'Reorder by set id, name, or how many of the set\'s bonuses are toggleable.'],
-            ['Toggle all visible', 'The row at the top flips every bonus you can currently see on and off in one click. The dashed state means some are on and some are off inside your current filter.'],
-            ['Per part toggle', 'Each row inside a card is one set bonus. The small counter on the card header shows how many bonuses on that set are still on.']
-          ),
-          note('Bonuses that only apply to teammates are not shown here. Those belong to the other resonators in your team and you change them from each teammate\'s view.'),
-        ),
-        section(
-          'What changes when you toggle',
-          comparison(
-            'Bonus on (default)',
-            'Bonus off',
-            ['Suggestions', 'Counted in the score for set plans and weapon picks', 'Removed from the score so other sets compete fairly'],
-            ['Optimizer rows', 'Included when ranking your bag', 'Skipped, so builds that depended on it slide down the list'],
-            ['Damage on the main calculator', 'The set still works the same way in your normal damage results', 'Same as the on state, these toggles only affect ranking flows']
-          ),
-          note('Each resonator has its own list of off bonuses. A change you make on one character does not carry to another, so feel free to disable a bonus for a sub-DPS without affecting your main.'),
-        ),
-        section(
-          'Good habits',
-          bullets(
-            'Open this modal once after you settle on a team comp. Most of your toggles stay set after that.',
-            'When suggestions or optimizer ranks look surprising, check here first, a single off bonus can reshuffle the top results.',
-            'If you change teams, revisit the toggles. A bonus that was unrealistic in one team can become reliable in another.'
+            ['Automatic set effect', 'A set effect active from equipped set counts with no extra user control.'],
+            ['Configurable set effect', 'A set effect that needs a visible stack, mode, or on/off state.'],
+            ['Part', 'The two-piece, three-piece, or five-piece portion of the set definition.']
           ),
         ),
       ),
@@ -746,220 +482,193 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'suggestions',
     title: 'Suggestions',
-    summary: 'How suggestion engines choose targets, evaluate candidate recipes, and expose inspect or apply flows.',
-    aliases: ['Suggestions', 'Random Echoes'],
+    summary: 'Rank main stats, set plans, weapons, substats, and generated echoes against the selected target.',
+    aliases: ['Suggestions', 'Suggestion'],
     articles: [
       article(
         'suggestion-target-model',
-        'Target Skill and Evaluation Model',
-        'What the suggestion engines are actually optimizing.',
+        'Pick the Right Target',
+        'Choose the row or rotation that suggestion lists rank against.',
         section(
-          'The chosen target defines the answer',
-          paragraph(
-            'Suggestions do not search for a universally correct build. They rank candidates against one current evaluation target. In direct mode that target is a chosen damage feature row. In rotation mode the target is the current personal rotation damage model.'
-          ),
+          'Target controls',
           definitions(
-            ['Direct mode', 'Suggestions optimize around one eligible direct damage feature row.'],
-            ['Rotation mode', 'Suggestions optimize around the current personal rotation damage result instead of one direct skill row.'],
-            ['Weight map', 'A stat importance map derived from the current target so the engine knows which stats matter most for this scenario.'],
-            ['Current comparison', 'The delta between the candidate and the currently equipped build under the same runtime assumptions.']
+            ['Target skill', 'One selected feature row or skill family used as the ranking objective.'],
+            ['Rotation target', 'A full rotation output used as the ranking objective.'],
+            ['Current build baseline', 'The live build state used as the starting point before a candidate change is tested.'],
+            ['Candidate', 'One generated main-stat plan, set plan, weapon, substat pattern, or echo loadout being ranked.']
           ),
-          example(
-            'Same character, different target',
-            [
-              'Target A is a Resonance Skill nuke.',
-              'Target B is a rotation that includes basic attacks, liberation damage, and coordinated hits.',
-            ],
-            [
-              'Target A may push heavy skill specific or crit focused choices.',
-              'Target B may spread value across several families because the rotation contains more than one important source.',
-            ],
-            [
-              'If suggestion output changes after you switch the target, that is expected. The question you asked the engine changed.',
-            ],
+          steps(
+            ['Select the target', 'Pick the target row, skill, or rotation from the suggestion surface controls.'],
+            ['Set list options', 'Adjust rarity, set, rank, generation, or filter controls for the suggestion type.'],
+            ['Run or refresh', 'Use the surface action to rebuild the ranking after changing target or options.'],
+            ['Inspect a row', 'Open a candidate row to see the candidate state and score or damage comparison.']
           ),
         ),
       ),
       article(
         'suggestions-main-stat-recipes',
         'Main Stat Suggestions',
-        'What a main stat suggestion row represents and what it does not represent.',
+        'Rank echo main-stat combinations for the current target.',
         section(
-          'Recipe based suggestions',
-          paragraph(
-            'Main stat suggestions search legal main stat recipes under the echo cost budget. They are recipe suggestions for the current loadout, not bag constrained optimizer results.'
+          'Reading the list',
+          definitions(
+            ['Recipe', 'A five-slot main-stat pattern.'],
+            ['Locked slot', 'A slot kept at its current main stat while recipes are generated.'],
+            ['Delta', 'The candidate result compared with the current build baseline.'],
+            ['Rank row', 'One candidate recipe sorted by the selected objective.']
           ),
-          bullets(
-            'The engine explores legal main stat combinations up to the current slot count and 12C budget.',
-            'The result row tells you which main stats the engine wants on each cost tier.',
-            'Applying the result rewrites the active equipped echo state to match that recipe output.'
-          ),
-          comparison(
-            'Main stat suggestion',
-            'Optimizer result',
-            ['Inventory constrained', 'No', 'Yes'],
-            ['What it changes', 'Main stat recipe on the current loadout model', 'Concrete loadout assembled from bag entries'],
-            ['Best use', 'Learn what stat pattern the current target wants', 'Find the best real build you can equip right now']
+          steps(
+            ['Choose slot rules', 'Lock or unlock slots from the recipe controls.'],
+            ['Pick target', 'Select the target skill or rotation.'],
+            ['Review ranked recipes', 'Read the sorted rows and open a candidate to inspect its main-stat pattern.'],
+            ['Apply a recipe', 'Use the apply action to write selected main stats to the active echo slots.']
           ),
         ),
       ),
       article(
         'suggestions-set-plans',
         'Set Plan Suggestions',
-        'How suggested set plans are evaluated.',
+        'Rank sonata set distributions for the equipped slots.',
         section(
-          'Set plans change set ids, not echo identities',
-          paragraph(
-            'Set plan suggestions neutralize the current loadout set assignments, apply candidate set piece plans, then re-evaluate the same equipped echo shells under those plan choices. This isolates the value of the set plan itself.'
-          ),
+          'Plan controls',
           definitions(
-            ['Set plan', 'A compact description such as 5pc one set, or mixed partial set counts, assigned back onto the current five echo slots.'],
-            ['Base average', 'The current no plan baseline used for comparison.'],
-            ['Feasible plan', 'A plan that is valid for the current slot count and supported plan rules.']
+            ['Set plan', 'A proposed sonata set assignment across the five equipped slots.'],
+            ['Active set parts', 'The two-piece, three-piece, and five-piece effects created by the candidate plan.'],
+            ['Current plan', 'The set ids currently equipped on the active build.']
           ),
-          example(
-            'Set plan without changing substats',
-            [
-              'Two candidate plans are compared on the same current echo shells.',
-              'Only set ids change between those candidates.',
-            ],
-            [
-              'A plan can win because its set effects outperform the current plan even before any substat farming is considered.',
-            ],
-            [
-              'Read set suggestions as set logic guidance first. Use optimizer later if you want a bag constrained answer.',
-            ],
+          steps(
+            ['Select allowed sets', 'Choose which sonata sets can appear in generated plans.'],
+            ['Set target', 'Pick the skill or rotation objective.'],
+            ['Read candidates', 'Compare the ranked set plans and their score or damage deltas.'],
+            ['Apply plan', 'Write the selected set ids onto the equipped echo instances.']
           ),
         ),
       ),
       article(
         'suggestions-weapons',
         'Weapon Suggestions',
-        'Finding the weapon that best fits your current target and team, then equipping it without losing your previous weapon\'s settings.',
+        'Rank weapons and ranks for the current target.',
         section(
-          'What you are picking between',
-          paragraph(
-            'Weapon suggestions look at every weapon your character can use and rank them against the skill or rotation you are currently optimizing for. The list reads top to bottom by how much damage each weapon would give you. Your equipped weapon does not change until you press Apply on a row, so you can browse without committing to anything.'
+          'Weapon list controls',
+          definitions(
+            ['Rank', 'The weapon passive rank used for evaluation.'],
+            ['Rarity row', 'A filter and rank control group for weapons of the same rarity or source group.'],
+            ['Passive state', 'Any weapon-owned stack, mode, or toggle exposed by the app for evaluation.'],
+            ['Inspect', 'The row action that opens the candidate weapon details before applying it.']
           ),
-          note('Like the other suggestion lists, this ranking moves when you change the target skill or rotation. If you switch to a different feature row, expect the order to shuffle.'),
-        ),
-        section(
-          'Choosing a mode',
-          paragraph(
-            'The Mode setting at the top of the config decides how the app treats each weapon\'s passive when it scores them.'
-          ),
-          comparison(
-            'Default',
-            'Max',
-            ['What it asks', 'How strong is the weapon at its baseline passive', 'How strong is the weapon when its passive is fully active'],
-            ['When to use it', 'You want realistic numbers for fights where you cannot keep stacks up', 'You want the ceiling, what could this weapon do if I played it perfectly'],
-            ['What it changes', 'Uses each weapon\'s default passive value', 'Uses the maximum value you set on the Passives tab']
-          ),
-          paragraph(
-            'Both mode is a compromise, it scores every weapon twice and shows you the one that the "Rank by" picker chooses. Useful if you want a quick side-by-side without leaving the config.'
+          steps(
+            ['Choose rarity visibility', 'Turn weapon rarity groups on or off from the list controls.'],
+            ['Set ranks', 'Select the rank value for each group.'],
+            ['Set passive controls', 'Adjust visible weapon state controls for the candidates.'],
+            ['Inspect and apply', 'Open a row to review it, then apply to equip the weapon and selected rank.']
           ),
         ),
+      ),
+      article(
+        'suggestions-substat-priority',
+        'Substat Priority',
+        'Read which substats move the selected target the most from the current build.',
         section(
-          'Limiting the search by rarity',
-          paragraph(
-            'Standard weapons are the ones every account has access to. They share one rank setting because the same standard weapon plays identically on every character. The rest of the rarities each have their own row with a visibility toggle and a rank picker.'
+          'Priority tables',
+          definitions(
+            ['Gain table', 'Shows the expected change from adding more of a substat family.'],
+            ['Current value table', 'Shows the value already present on the current build.'],
+            ['Roll chunk', 'The stat increment used by the table when comparing one substat family with another.'],
+            ['Reserved stat', 'A stat the model keeps available for required Energy Regen or similar target needs.']
           ),
-          bullets(
-            'Turn a rarity Off when you have no realistic way to get those weapons. They drop out of the list entirely.',
-            'Leave a rarity On at the rank you actually have (or plan to have). Most 5 stars are R1 unless you have pulled dupes.',
-          ),
-          note('These rarity rules apply across every character, not just your current resonator. The thinking is that a weapon\'s rank does not change depending on who is holding it.'),
-        ),
-        section(
-          'The Passives tab',
-          paragraph(
-            'Some weapons have a passive that scales with stacks, stances, or a toggle. The Passives tab lets you tell the app the largest value of that state you can actually keep up during your rotation. The list only shows weapons that are currently in the search, so flipping a rarity off also hides those weapon\'s state rows.'
-          ),
-          example(
-            'Did you know?',
-            [
-              'A weapon\'s passive scales up to 4 stacks of a buff, but your rotation can only realistically keep 2 stacks active most of the time.',
-            ],
-            [
-              'Leaving the passive at its 4 stack max in Max mode credits the weapon with damage you do not actually deal.',
-              'Disabling the passive entirely throws away the 2 stacks you do get.',
-            ],
-            [
-              'Set the max to 2 instead. The weapon now competes on what you can actually sustain, not on its theoretical ceiling.',
-            ],
-          ),
-          note('Use Off when a state really does not apply to your play. Use a lower max when the state applies but the listed maximum is unrealistic.'),
-        ),
-        section(
-          'Inspect vs Apply',
-          comparison(
-            'Inspect',
-            'Apply',
-            ['What it does', 'Opens a detailed view so you can see why a weapon ranked where it did', 'Equips the weapon, sets the rank, and updates the passive controls on your build'],
-            ['Does it change my build', 'No, it is read only', 'Yes, your active weapon and its passive settings change immediately'],
-            ['Best for', 'Comparing the top few options before committing', 'Adopting the winner as your working build']
-          ),
-          paragraph(
-            'When you Apply, the app clears your previous weapon\'s passive controls before writing the new one\'s. This is on purpose, leftover toggles from your old weapon should not bleed into the new one. The new weapon goes in at the rank shown on the row, which means standard weapons use the shared rank setting rather than whatever rank you had before.'
-          ),
-        ),
-        section(
-          'Things to watch for',
-          warningList(
-            'The ranking is target specific. A weapon that wins for your skill nuke can lose for your full rotation, and vice versa.',
-            'Switching modes (Default vs Max) can reorder the list a lot when some weapons depend on hard to reach states.',
-            'If a weapon you expected to see is missing, check the rarity row... its rarity might be turned off.',
-            'Standard weapon ranks live in this config, so changing the rank here changes the rank on every standard weapon you equip from a suggestion.'
+          steps(
+            ['Select target', 'Pick the target skill or rotation.'],
+            ['Read top rows', 'Higher rows show stronger next-roll direction for the selected target.'],
+            ['Compare current value', 'Use the current value table to see which existing rolls are carrying the build.'],
+            ['Change target to rerank', 'Switching from one skill to a full rotation can change the table order.']
           ),
         ),
       ),
       article(
         'suggestions-random-generation',
         'Random Echo Generation',
-        'What the generator synthesizes and how its controls influence the result.',
+        'Generate and rank random echo loadouts under selected rules.',
         section(
-          'Synthetic loadouts',
-          paragraph(
-            'Random generation is deliberately not bag constrained. It synthesizes valid echo sets, main stats, and substats, then evaluates those generated builds against the same suggestion context used elsewhere.'
-          ),
+          'Generation controls',
           definitions(
-            ['Bias', 'How strongly the generator favors the current weight map instead of spreading probability more evenly across legal stat choices.'],
-            ['Roll quality', 'The quality band the generator samples around when it creates substats. Higher values trend closer to stronger rolls.'],
-            ['Target Energy Regen', 'A soft target that adds or replaces Energy Regen where needed until the generated set reaches the requested threshold.'],
-            ['Set preferences', 'Optional rules that force or guide the generated build toward chosen set piece counts.']
+            ['Batch', 'A group of generated loadouts evaluated together.'],
+            ['Generation rule', 'A selected limit for sets, main stats, costs, or stat families.'],
+            ['Candidate loadout', 'A complete generated five-echo build.'],
+            ['Apply generated', 'The action that writes the candidate loadout to the active build.']
           ),
-          example(
-            'Why a generated build can beat your inventory',
-            [
-              'Your current bag is missing strong Crit Rate and Energy Regen combinations.',
-              'The generator is allowed to synthesize idealized legal echoes.',
-            ],
-            [
-              'The generated build can outperform your real bag because it is answering a ceiling question, not an inventory question.',
-            ],
-            [
-              'Use random generation for expectation setting and theory, not for claiming that your current account can equip the exact result.',
-            ],
+          steps(
+            ['Set generation rules', 'Choose the allowed sets, main stats, and other limits shown by the surface.'],
+            ['Run generation', 'Start the generator and wait for ranked candidates.'],
+            ['Inspect a candidate', 'Open the candidate details to review its five echoes and score.'],
+            ['Apply selected loadout', 'Write the candidate echoes into the active build from the row action.']
           ),
         ),
       ),
       article(
         'suggestions-inspect-and-apply',
-        'Inspect, Apply, and Common Misreadings',
-        'How to treat suggestion output once it has been ranked.',
+        'Inspect and Apply',
+        'Move a ranked suggestion into the active build after reviewing the row.',
         section(
-          'Preview versus state change',
-          comparison(
-            'Inspect',
-            'Apply',
-            ['Meaning', 'Show the candidate in a readable concrete form', 'Write the candidate into active build state'],
-            ['Persistence', 'No state mutation by itself', 'Mutates current equipped state immediately'],
-            ['Best use', 'Understand why the candidate won', 'Adopt the candidate as your current working build']
+          'Row actions',
+          definitions(
+            ['Preview', 'A candidate view that shows the state before it is written to the build.'],
+            ['Apply', 'Writes the candidate change to the active live build.'],
+            ['Delta', 'The difference between the current build baseline and the candidate evaluation.'],
+            ['Baseline', 'The state of the build before the candidate is applied.']
           ),
-          warningList(
-            'A suggestion can be locally correct for the chosen target and still be wrong for another target.',
-            'A set suggestion and a main stat suggestion are not the same question, even when they appear on the same page.',
-            'Random generation answers a synthetic ceiling question. Optimizer answers a bag constrained question.'
+          steps(
+            ['Open the row', 'Inspect the candidate details from the ranked list.'],
+            ['Check what changes', 'Review the displayed weapon, echo, set, or stat fields that will be written.'],
+            ['Apply deliberately', 'Use the row apply action only for the candidate you want on the live build.'],
+            ['Save after applying', 'Create a saved record if the updated build needs to be kept as a reusable snapshot.']
+          ),
+        ),
+      ),
+    ],
+  },
+  {
+    id: 'benchmark',
+    title: 'Benchmark',
+    summary: 'Refresh the benchmark report, read target comparisons, and use the showcase view.',
+    aliases: ['Benchmark', 'Build Benchmark', 'Showcase'],
+    articles: [
+      article(
+        'benchmark-report',
+        'Benchmark Report',
+        'Read the current build against generated benchmark targets.',
+        section(
+          'Report sections',
+          definitions(
+            ['Current build', 'The live build being measured.'],
+            ['100 percent target', 'The generated target build used as the lower benchmark comparison.'],
+            ['200 percent target', 'The generated target build used as the higher benchmark comparison.'],
+            ['Per-step change', 'The table showing how one stat increment changes the selected target.'],
+            ['Current build state', 'The table showing how current stat investment is valued by the selected target.']
+          ),
+          steps(
+            ['Open Benchmark', 'Navigate to the benchmark route for the active build.'],
+            ['Refresh the report', 'Use refresh after changing the build, target, or benchmark settings.'],
+            ['Compare target cards', 'Read current, 100 percent, and 200 percent cards side by side.'],
+            ['Read stat tables', 'Use per-step rows for next-stat direction and current-state rows for existing investment.']
+          ),
+        ),
+      ),
+      article(
+        'showcase-view',
+        'Showcase View',
+        'Create a presentation card from the current benchmark context.',
+        section(
+          'Showcase controls',
+          definitions(
+            ['Showcase card', 'The presentation view built from the selected resonator, build, stats, and benchmark context.'],
+            ['Card preset', 'A saved visual layout and style set for the card.'],
+            ['Export', 'The action that copies or downloads the rendered card.']
+          ),
+          steps(
+            ['Open Showcase', 'Switch from the benchmark route into the showcase view.'],
+            ['Choose card settings', 'Select the visual preset, visible stat groups, and any card options shown.'],
+            ['Review displayed data', 'Check the resonator, weapon, echo, stat, and benchmark fields on the card.'],
+            ['Export the card', 'Use copy or download from the showcase actions.']
           ),
         ),
       ),
@@ -968,229 +677,131 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'optimizer',
     title: 'Optimizer',
-    summary: 'How the optimizer searches real inventory, prunes candidates, applies constraints, and exposes sim or live apply flows.',
-    aliases: ['Optimizer'],
+    summary: 'Select search scope, objective, constraints, engine path, and apply the result you choose.',
+    aliases: ['Optimizer', 'Optimize'],
     articles: [
       article(
         'optimizer-search-space',
-        'Search Space and Inventory Filtering',
-        'What the optimizer is allowed to search before ranking results.',
+        'Choose What the Optimizer Can Use',
+        'Define which echoes, weapons, and slots the optimizer may search.',
         section(
-          'Inventory mode',
-          paragraph(
-            'In Inventory mode the optimizer searches your real bag entries. Every result row must be buildable from filtered inventory echoes that survive the current rules, set allowances, main stat restrictions, ownership rules, and cost limits. Theorymax mode swaps this candidate pool out for the full catalog and is covered in its own article.'
-          ),
+          'Search inputs',
           definitions(
-            ['Filtered inventory', 'The inventory echoes still eligible after current rule filters are applied.'],
-            ['Combination count', 'The number of legal loadout combinations that remain after filtering and main echo constraints.'],
-            ['Locked main echo', 'A forced main echo choice that remains in the search even if later filters are aggressive.'],
-            ['Keep percent filter', 'A weight based pruning pass that keeps only the strongest slice of echoes for direct mode search.'],
-            ['Exclude equipped', 'An Inventory mode switch that removes echoes currently equipped by other resonators from the candidate pool.']
+            ['Inventory search', 'Uses echo instances from your bag under the selected filters.'],
+            ['Theory mode', 'Uses generated stat arrangements based on the active build and theory settings.'],
+            ['Include weapon', 'Adds weapon candidates to the search instead of keeping the current weapon fixed.'],
+            ['Locked slot', 'Keeps a slot fixed while other slots are searched.'],
+            ['Exclude equipped', 'Removes echoes already equipped on other builds from the candidate pool.']
           ),
-          note('The keep percent filter is an Inventory-mode pruning shortcut for direct target search. Rotation mode keeps the full filtered pool because a simple direct weight prune is less reliable there. Theorymax does not use keep percent at all.'),
-        ),
-        section(
-          'Avoiding borrowed gear',
-          paragraph(
-            'Exclude equipped is for account-realistic searches. If you already have echoes assigned to other resonators and do not want this optimizer run to steal them, turn it on before starting the run.'
+          steps(
+            ['Choose mode', 'Select inventory search or theory mode from the optimizer controls.'],
+            ['Set inventory filters', 'Pick included sets, costs, locked slots, equipped handling, and candidate limits.'],
+            ['Set weapon inclusion', 'Turn weapon inclusion on only when weapon candidates need to be ranked with echo candidates.'],
+            ['Start search', 'Run the optimizer after search scope and objective controls are set.']
           ),
-          bullets(
-            'The current optimizer resonator can still use its own equipped echoes.',
-            'Turning the switch off returns to the old behavior where every inventory echo can compete, even if another build is already using it.'
-          ),
-          note('If you are trying to find the absolute strongest arrangement across your whole bag, leave Exclude equipped off. If you are trying to improve one build without disturbing the rest of your roster, turn it on.'),
         ),
       ),
       article(
         'optimizer-targets-and-objectives',
-        'Targets, Weight Maps, and Objectives',
-        'Why the optimizer ranks one build above another.',
+        'Pick the Right Objective',
+        'Tell the optimizer which result the candidates are ranked by.',
         section(
-          'One objective at a time',
-          paragraph(
-            'Like suggestions, the optimizer ranks by one current objective. In target mode it optimizes a selected skill. In rotation mode it optimizes the selected rotation payload. The same bag can produce different winners when the objective changes.'
-          ),
+          'Objective controls',
           definitions(
-            ['Target mode', 'One selected skill or eligible row is the optimization objective.'],
-            ['Rotation mode', 'The selected rotation items become the objective instead of one direct row.'],
-            ['Weight map', 'A marginal value map estimated from the current target so filters and helpers know which stats move the selected objective most.']
+            ['Skill objective', 'Ranks candidates by one selected feature or skill result.'],
+            ['Rotation objective', 'Ranks candidates by full rotation output.'],
+            ['Combo objective', 'Ranks candidates by the configured combined target rows.'],
+            ['Base row', 'The live-build row shown beside optimizer results for comparison.']
           ),
-          example(
-            'Why a lower score echo can still be part of the top result',
-            [
-              'One echo has a better broad score but spreads value across unused stats.',
-              'Another echo has lower broad score but has the exact element or skill type bonus the selected target wants.',
-            ],
-            [
-              'The optimizer can prefer the narrower piece because it is solving the chosen objective, not a generic quality metric.',
-            ],
-            [
-              'Optimizer rank is objective specific. Echo score is broader and more human readable, but less exact for one target.',
-            ],
+          steps(
+            ['Select objective type', 'Choose skill, rotation, or combo from the objective controls.'],
+            ['Pick target rows', 'Select the skill row, rotation, or combo entries shown for that objective.'],
+            ['Review base row', 'Use the base row to compare the live build with optimizer candidates.'],
+            ['Run again after target changes', 'Target changes require a new search to update result order.']
           ),
         ),
       ),
       article(
         'optimizer-constraints-and-failures',
         'Constraints, Locked State, and No Result Cases',
-        'How constraints change the search and why a run can fail to produce a winner.',
+        'Tighten or loosen the legal candidate set.',
         section(
-          'Hard boundaries',
-          paragraph(
-            'Main echo locks, allowed sets, stat minimums, and other constraints all shrink the legal search space before ranking happens. A higher damage candidate that violates one required limit is not a valid result.'
+          'Constraint controls',
+          definitions(
+            ['Constraint', 'A rule that a candidate must satisfy before it can appear in results.'],
+            ['Minimum stat', 'A lower bound for a stat such as Energy Regen or crit rate.'],
+            ['Maximum stat', 'An upper bound for a stat.'],
+            ['Locked main stat', 'A requirement that a slot keep its current main stat.'],
+            ['No result', 'The optimizer could not find a candidate inside every selected rule.']
           ),
-          bullets(
-            'Locked main echo keeps that main echo in the search and forces the rest of the loadout around it.',
-            'Stat constraints apply to final resolved stats, not to one isolated echo row.',
-            'If the set plan or filters are impossible with the current bag, the optimizer can correctly return no valid result.'
-          ),
-          warningList(
-            'No result does not always mean the engine failed. It often means your constraints removed every legal build.',
-            'Tight Energy Regen, set, and main echo constraints can combine into an impossible search faster than expected.',
-            'If a result seems too weak, check whether stronger candidates were filtered out by a hard limit rather than by rank.'
+          steps(
+            ['Add stat limits', 'Set minimums or maximums for required stat targets.'],
+            ['Lock required state', 'Lock slots, sets, or main stats that cannot change.'],
+            ['Run the search', 'The optimizer filters illegal candidates before ranking legal ones.'],
+            ['Loosen rules if empty', 'Remove or widen constraints when no result appears.']
           ),
         ),
       ),
       article(
         'optimizer-result-rows',
         'Result Rows, Preview, and Apply Modes',
-        'How to read a ranked result and what happens when it is equipped.',
+        'Read candidate rows and choose where a candidate is written.',
         section(
-          'What a row contains',
+          'Result actions',
           definitions(
-            ['Result row', 'One ranked candidate loadout built from real inventory entries.'],
-            ['Preview', 'A concrete inspection surface that lets you see the echoes behind the rank.'],
-            ['Current delta', 'The difference between the candidate and the current optimizer baseline under the same target.'],
-            ['Base row', 'The current equipped baseline shown so candidates can be compared against something real.']
+            ['Result row', 'One legal candidate build sorted by the selected objective.'],
+            ['Preview', 'A non-written view of the candidate build and output.'],
+            ['Apply to sim', 'Writes the candidate into optimizer simulation state.'],
+            ['Apply to live', 'Writes the candidate into the normal calculator build state.'],
+            ['Delta', 'The difference between the candidate row and the displayed base row.']
           ),
-          comparison(
-            'Sim',
-            'Sim and Live',
-            ['Where it applies', 'Optimizer simulation state only', 'Optimizer simulation state and the live resonator runtime'],
-            ['Best use', 'Keep experimenting inside optimizer without touching the live build', 'Adopt the candidate into your real calculator state']
+          steps(
+            ['Open a result', 'Inspect the candidate echoes, weapon, stats, and output.'],
+            ['Preview before writing', 'Use preview to compare without changing live state.'],
+            ['Apply to sim', 'Keep experimenting in optimizer state after adopting a candidate there.'],
+            ['Apply to live', 'Move the selected candidate into the active calculator build.']
           ),
-          note('Applying a result to Sim lets you continue optimizer work in a sandbox. Applying to Sim and Live carries the result back into the normal calculator runtime and can switch to the optimizer resonator if another one is active.'),
         ),
       ),
       article(
         'optimizer-theorymax-mode',
         'Theorymax Mode',
-        'Asking the optimizer "where would my current rolls do the most damage" instead of "what is the best build out of my bag".',
+        'Search generated roll arrangements instead of owned inventory items.',
         section(
-          'A different question',
-          paragraph(
-            'Inventory mode answers a practical question: out of the echoes you actually own, which loadout hits the hardest right now. Theorymax answers a planning question: if you kept the substats you are already wearing but were free to change the echo itself, the set, the cost, and the main stat at each slot, where would those substats do the most damage. The substats stay yours. Echo identity, set, cost, main stat, and optionally weapon choice are up for grabs.'
-          ),
-          comparison(
-            'Inventory',
-            'Theorymax',
-            ['What it picks from', 'Echoes in your bag right now', 'Any echo from the catalog that fits your filters'],
-            ['Your substats', 'Whatever the picked bag echo has', 'The substats you are wearing today, kept slot for slot'],
-            ['Main stat, set, echo identity', 'Whatever the bag echo brings', 'The mode chooses what works best for your target'],
-            ['Weapon', 'Uses the current optimizer weapon setup', 'Uses the equipped weapon unless Include weapons is turned on'],
-            ['What you can equip', 'Right away from your bag', 'Only after farming the echoes the result is asking for']
-          ),
-          note('Theorymax is anchored to the echoes you have equipped. Empty slots are skipped, and the substats at each slot are the ones currently on your build. It is a ceiling for the rolls you already have, not a wishlist over perfect rolls.'),
-        ),
-        section(
-          'Include weapons',
-          paragraph(
-            'Theorymax has an Include weapons switch. When it is off, Theorymax uses the weapon already assigned to the optimizer runtime. When it is on, each candidate can also search compatible weapons and keep the weapon that scores best for that exact build.'
-          ),
+          'Theory controls',
           definitions(
-            ['Equipped weapon mode', 'The result answers the echo ceiling question while holding your current weapon fixed.'],
-            ['Include weapons mode', 'The result answers the echo ceiling question and the weapon ceiling question together.'],
-            ['Weapon column', 'A result column shown when weapon search is active so you can see which weapon the row selected.']
-          ),
-          warningList(
-            'Weapon-aware Theorymax is a bigger ceiling question than normal Theorymax. A winning row may depend on a weapon you are not currently using.',
-            'The selected weapon is part of the result interpretation. If you compare it against an Inventory run with a fixed weapon, remember that both the echoes and the weapon may have changed.',
-            'Applying a weapon-aware Theorymax result can update the runtime weapon and its evaluated passive state so the preview/live build matches what was scored.'
-          ),
-        ),
-        section(
-          'How to read a result',
-          paragraph(
-            'A Theorymax row tells you: this is the echo identity, this is the set, this is the main stat at each slot, and your current substats placed into that build would output this damage. If Include weapons is on, the row also shows the weapon chosen for that build. Click a row to preview the full build in the inspection pane just like with Inventory results. The substats you see in the preview are the ones from your equipped slots, only the slot, set, main stat, and maybe weapon changed.'
-          ),
-          bullets(
-            'The set badges show the set plan the ceiling wants.',
-            'The cost number is the total cost of the assembled five slots, capped at 12.',
-            'The main echo icon is the catalog echo Theorymax wants in your main slot.',
-            'The weapon icon appears when Include weapons is active and shows the weapon selected for that result.',
-            'The damage column is what your current substats would do in that build.'
-          ),
-        ),
-        section(
-          'What you can still constrain',
-          paragraph(
-            'All the constraints you set for Inventory mode keep working in Theorymax. Anything you exclude in settings stays excluded, so you can guide the search toward farming plans you actually care about.'
-          ),
-          bullets(
-            'Allowed sets cut the catalog before the search starts. Sets you exclude never show up in a result.',
-            'Set conditionals you turned off still get muted. The ceiling drops to the bonuses you actually trigger.',
-            'Cost stays capped at 12 across the five slots. Theorymax will not return an illegal build.',
-            'Locking a main echo forces that echo into your main slot and rebuilds the rest of the loadout around it.',
-            'The main stat filter restricts which main stats the result is allowed to ask for.'
-          ),
-          note('If Theorymax returns nothing, it usually means your filters left no legal build anywhere in the catalog, not just nothing in your bag. Loosen a constraint and try again.'),
-        ),
-        section(
-          'When Theorymax is worth running',
-          example(
-            'Did you know?',
-            [
-              'You just finished farming a fresh set of well rolled echoes and want to know if you should keep grinding for more pieces.',
-            ],
-            [
-              'Run Inventory first to set your floor, the best build out of your current bag.',
-              'Run Theorymax next. The top result is your ceiling for the substats you are wearing.',
-            ],
-            [
-              'A small gap between the two means farming more echoes will not move your damage much. A large gap usually points at one specific change: a different main echo, a different set, or one main stat, that would unlock the rest.',
-            ],
+            ['Theory mode', 'A generated search over possible roll arrangements rather than the exact bag.'],
+            ['Theory percent', 'The stat budget level used by the theory search.'],
+            ['Theory slot', 'A slot included in generated theory arrangements.'],
+            ['Theory weapon inclusion', 'A search mode where generated echo arrangements and weapon candidates are evaluated together.']
           ),
           steps(
-            ['Pick the same target', 'Use the same skill or rotation in both modes so the comparison is fair.'],
-            ['Run Inventory', 'This is your floor: the best you can equip right now.'],
-            ['Switch to Theorymax', 'Same target, same constraints. The winner here is your ceiling.'],
-            ['Look at the gap', 'Small gap means your bag is already close to ideal. Big gap means there is a specific upgrade worth farming.'],
-            ['Try focused filters', 'Lock a main echo, narrow allowed sets, or tighten main stats to see how the ceiling changes when you commit to a farming plan.']
-          ),
-        ),
-        section(
-          'Applying a Theorymax result',
-          paragraph(
-            'Apply works the same way as Inventory: choose Sim to try the build inside the optimizer sandbox, or Sim & Live to push it onto your active resonator as well. The difference is that the echoes Theorymax equips are not bag entries, they only exist in your runtime state. Your bag is untouched. If the result came from Include weapons mode, the chosen weapon and the passive state the search evaluated are applied with it.'
-          ),
-          comparison(
-            'Sim',
-            'Sim & Live',
-            ['Where the build shows up', 'Only inside the optimizer pane', 'Optimizer pane and your live calculator surfaces'],
-            ['Best use', 'Comparing the ceiling against your current build without touching your live damage results', 'Stress testing your full damage pipeline against the ceiling for the same scenario'],
-            ['Inventory impact', 'No new echoes are added to your bag', 'No new echoes are added to your bag']
-          ),
-          warningList(
-            'Applying Theorymax to Live will change the damage shown in your normal calculator until you swap back. This is the ceiling showing up everywhere, not your real build.',
-            'Theorymax echoes do not save to your bag automatically. Your previous build is still in your bag, ready to be re-equipped.',
-            'If Include weapons was on, the applied build can change weapon state as well as echo state.',
-            'If you change something the search depends on allowed sets, main stat filter, set conditionals, or weapon-search settings, re-run Theorymax before trusting the old results.'
+            ['Turn on theory mode', 'Switch the optimizer mode before setting theory controls.'],
+            ['Choose theory percent', 'Select the generated stat budget level.'],
+            ['Set slot and set rules', 'Choose which slots, sets, and main stats the generated candidates may use.'],
+            ['Run and compare', 'Read theory results against the live base row and any inventory-search results you want to compare manually.']
           ),
         ),
       ),
       article(
         'optimizer-cpu-and-gpu-paths',
-        'CPU and GPU Backends',
-        'What backend choice changes and what it does not change.',
+        'Choosing CPU or GPU',
+        'Select the execution path for optimizer searches.',
         section(
-          'Execution path, not meaning',
-          paragraph(
-            'CPU and GPU are backend choices for how the optimizer searches, batches, and evaluates combinations. They do not change what a result row means. The objective, filters, constraints, and final resolved candidate interpretation stay the same.'
+          'Engine controls',
+          comparison(
+            'CPU',
+            'GPU',
+            ['Where it runs', 'JavaScript worker path', 'WebGPU path when available in the browser'],
+            ['Availability', 'Available broadly', 'Shown only when WebGPU support is available'],
+            ['Progress', 'Reports through worker progress', 'Reports through GPU batch progress'],
+            ['Fallback', 'Can run without GPU support', 'Falls back by switching to CPU controls']
           ),
-          bullets(
-            'GPU paths can batch and reduce candidates differently for speed.',
-            'CPU paths can be easier to reason about when debugging one concrete run.',
-            'The backend can change performance and practical batch sizing without changing the user facing meaning of rank 1.'
+          steps(
+            ['Pick an engine', 'Select CPU or GPU from the optimizer engine controls.'],
+            ['Start search', 'Run the optimizer with the selected search scope.'],
+            ['Read progress', 'Use the progress text and result count to track the running search.'],
+            ['Switch engines', 'Change engine path and rerun if browser support or search size calls for a different path.']
           ),
         ),
       ),
@@ -1199,68 +810,65 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'team-effects',
     title: 'Team Effects',
-    summary: 'How teammate sourced effects change the shared combat context and team rotation totals.',
-    aliases: ['Team Buffs'],
+    summary: 'Enable teammate effects, configure exposed state, and link teammate rotations.',
+    aliases: ['Team', 'Teams', 'Teammates'],
     articles: [
       article(
         'team-effect-sources',
-        'Sources of Team Effects',
-        'Where support effects come from and what they change.',
+        'Where Team Effects Come From',
+        'Know which teammate fields can affect the active resonator.',
         section(
-          'Shared combat context',
-          paragraph(
-            'Team sourced effects are not isolated to the pane that toggled them. Once active, they become part of the shared combat context used by damage rows, suggestions, optimizer evaluation, and rotation summaries.'
-          ),
+          'Team sources',
           definitions(
-            ['Weapon effects', 'Teammate weapon passives that can modify the active resonator.'],
-            ['Echo or set effects', 'Team wide support value coming from equipped echo choices or active set bonuses.'],
-            ['Kit support effects', 'Resonator specific support logic such as shred, vulnerability, healing support, or buff windows.'],
-            ['Configurable effect', 'An effect that needs explicit user state such as stacks, toggles, or selected options before it can be resolved.']
+            ['Team slot', 'A teammate position configured beside the active resonator.'],
+            ['Team effect', 'A buff, debuff, status, or support output supplied by a teammate.'],
+            ['Source kind', 'The origin of the effect, such as resonator kit, weapon, echo, set, or manual buff.'],
+            ['Target', 'The resonator or team member receiving the effect.']
           ),
-          note('The important question is whether the effect exists in the shared runtime context, not which pane you used to author it.'),
+          steps(
+            ['Add teammate', 'Open the team pane and choose the resonator in a team slot.'],
+            ['Enable effect groups', 'Turn on the teammate effect groups shown for that slot.'],
+            ['Check target labels', 'Read active, self, and team labels to see who receives the effect.'],
+            ['Return to results', 'Damage and summary rows update from the configured team state.']
+          ),
         ),
       ),
       article(
         'team-effect-configuration',
         'Automatic Versus Configurable Effects',
-        'Why some support effects just exist and others ask for scenario input.',
+        'Set teammate effect state only where a visible control exists.',
         section(
-          'Scenario input matters',
-          bullets(
-            'Always on effects can be resolved directly from known build data.',
-            'Configurable effects expose controls because the app cannot guess stack count, mode, or target state safely.',
-            'If a teammate effect has no visible impact, check whether its prerequisite toggle or condition is still off.'
+          'Effect controls',
+          definitions(
+            ['Automatic effect', 'An effect applied from selected teammate state with no extra control.'],
+            ['Configurable effect', 'An effect with a visible rank, stack, toggle, mode, or value control.'],
+            ['Effect card', 'The UI entry showing the effect label, source, target, and controls.']
           ),
-          example(
-            'Support effect with a toggle',
-            [
-              'A teammate passive only applies after a certain combat state is reached.',
-            ],
-            [
-              'The app keeps the effect configurable instead of assuming that state is always active.',
-            ],
-            [
-              'This prevents inflated default totals and keeps optimizer or suggestion output tied to the chosen scenario.',
-            ],
+          steps(
+            ['Open team configuration', 'Select the teammate and effect group to edit.'],
+            ['Set visible controls', 'Choose stacks, modes, ranks, and toggles on configurable effect cards.'],
+            ['Leave automatic entries alone', 'Automatic entries only need their source or teammate enabled.'],
+            ['Review active summaries', 'Read the team summary to confirm which effects are currently included.']
           ),
         ),
       ),
       article(
         'team-rotation-links',
         'Linked Teammate Rotations',
-        'How teammate rotation selections feed team totals.',
+        'Attach teammate rotations to team contribution output.',
         section(
-          'Live and saved teammate links',
-          paragraph(
-            'Each enabled teammate link tells the active resonator which teammate rotation to include in team mode. That selection can point at current live teammate state or a saved teammate rotation entry.'
+          'Rotation linking',
+          definitions(
+            ['Linked rotation', 'A live or saved rotation selected for a teammate slot.'],
+            ['Team contribution', 'Output from teammate rows included in the team summary.'],
+            ['Link state', 'The selected teammate rotation and whether it is enabled.']
           ),
-          comparison(
-            'Personal total',
-            'Team total',
-            ['Included entries', 'Only the active resonator', 'Active resonator plus enabled linked teammate rotations'],
-            ['Breakdown meaning', 'Usually skill family emphasis', 'Contributor emphasis and combined skill family emphasis']
+          steps(
+            ['Open the teammate slot', 'Use the team pane configuration for the teammate.'],
+            ['Choose rotation source', 'Select live rotation or a saved rotation record.'],
+            ['Enable the link', 'Turn on the linked rotation for team contribution output.'],
+            ['Read team rows', 'Open team summaries or rotation breakdowns to see teammate contribution rows.']
           ),
-          note('If team totals look unchanged, check whether the teammate link is enabled and whether the selected teammate rotation actually contains contributing rows.'),
         ),
       ),
     ],
@@ -1268,57 +876,65 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'enemy-and-combat-state',
     title: 'Enemy and Combat State',
-    summary: 'How enemy level, resistances, Tower mode, negative effects, and enemy status fields affect calculations.',
-    aliases: ['Enemies', 'Enemy'],
+    summary: 'Pick enemy profile, resistance mode, and combat-side statuses.',
+    aliases: ['Enemy', 'Enemies', 'Combat'],
     articles: [
       article(
         'enemy-profile-basics',
         'Enemy Profile Basics',
-        'What the selected enemy controls for every combat calculation.',
+        'Set the enemy level, defense, and profile used by calculations.',
         section(
-          'Global target state',
-          paragraph(
-            'Enemy state is global calculator context. The selected enemy profile affects every row that depends on defense, resistance, class, or tracked enemy status.'
-          ),
+          'Enemy controls',
           definitions(
-            ['Enemy level', 'Used by defense resolution. Higher target levels usually reduce final damage.'],
-            ['Resistance table', 'The per attribute resistance profile used by direct damage formulas.'],
-            ['Enemy class', 'Target class metadata used by specialized paths such as tune rupture scaling.'],
-            ['Source', 'Catalog or custom. Custom enemies keep your edits as their own target profile.']
+            ['Enemy profile', 'The selected enemy template and its base combat fields.'],
+            ['Enemy level', 'The level used by defense and mitigation calculations.'],
+            ['Defense modifier', 'The enemy-side defense adjustment shown on the enemy surface.'],
+            ['Combat state', 'Enemy-side status values that rows may read during calculation.']
+          ),
+          steps(
+            ['Choose profile', 'Select the enemy from the enemy picker.'],
+            ['Set level', 'Adjust enemy level from the visible level control.'],
+            ['Set defense fields', 'Edit defense modifiers or tower fields shown by the surface.'],
+            ['Recalculate rows', 'Damage output reads the current enemy profile immediately.']
           ),
         ),
       ),
       article(
         'enemy-resistance-and-tower-mode',
         'Resistances and Tower Mode',
-        'How the app interprets catalog enemies and endgame mode.',
+        'Set element resistance and tower-style enemy fields.',
         section(
-          'Target assumptions',
-          paragraph(
-            'Catalog enemies bring a base resistance table. Tower mode then applies the app Tower of Adversity resistance interpretation on top of that base profile. A custom enemy can override the target state more directly.'
+          'Resistance fields',
+          definitions(
+            ['Resistance', 'The enemy mitigation value for an element or damage family.'],
+            ['Tower mode', 'A preset enemy configuration for tower-style scenarios.'],
+            ['Profile override', 'A field changed away from the selected enemy default.']
           ),
-          bullets(
-            'Changing Tower mode changes the target assumptions for the selected enemy profile rather than creating a separate damage formula family.',
-            'Enemy state is shared across the calculator. A new enemy profile affects damage rows, suggestions, optimizer evaluation, and rotation totals at once.',
-            'Selecting another preset preserves tracked tune strain instead of discarding that status field.'
+          steps(
+            ['Select enemy mode', 'Choose normal profile state or tower mode from the enemy controls.'],
+            ['Edit resistances', 'Change the resistance fields that apply to the target element.'],
+            ['Check override labels', 'Read any labels that show a value no longer matches the enemy default.'],
+            ['Compare output', 'Return to damage rows to see the result under the selected resistance state.']
           ),
         ),
       ),
       article(
         'enemy-negative-effects-and-status',
         'Negative Effects, Tune Strain, and Specialized State',
-        'What the extra enemy side controls mean.',
+        'Set combat statuses that specific rows may read.',
         section(
-          'Tracked status fields',
-          paragraph(
-            'The app also tracks enemy side status beyond base resistances. Negative effects such as Spectro Frazzle and Aero Erosion can feed specialized damage families. Tune strain is a tracked enemy status value from 0 to 10 that can be edited directly or changed inside rotation condition steps.'
-          ),
+          'Status fields',
           definitions(
-            ['Negative effect', 'A target side state used by specialized damage families and effect logic.'],
-            ['Tune strain', 'A tracked enemy status field preserved on the enemy profile and exposed to both the enemy surface and rotation conditions.'],
-            ['Persistence', 'These values stay active until you change them because they belong to shared combat state, not one temporary result row.']
+            ['Negative effect', 'An enemy-side status applied by a skill, echo, set, weapon, or manual entry.'],
+            ['Tune strain', 'A specialized status field used by tune-related rows.'],
+            ['Specialized state', 'A named combat state path surfaced only for rows that support it.']
           ),
-          note('If changing a tracked status does not move a particular row, that row probably does not read that status path. Not every damage family uses every enemy side field.'),
+          steps(
+            ['Open status controls', 'Use the enemy or combat state panel that exposes the status.'],
+            ['Set stacks or value', 'Enter the active stack count, value, or toggle state.'],
+            ['Run the relevant row', 'Only rows that read that status path will change.'],
+            ['Clear state', 'Return the control to its neutral value when the status is not part of the scenario.']
+          ),
         ),
       ),
     ],
@@ -1326,92 +942,84 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'custom-bonuses',
     title: 'Custom Bonuses',
-    summary: 'How manual quick buffs and scoped custom modifiers enter the shared buff pool.',
-    aliases: ['Custom Buffs', 'Custom Bonuses'],
+    summary: 'Add manual modifiers, choose scope, and import preset modifiers from game data.',
+    aliases: ['Custom Buffs', 'Manual Buffs', 'Buffs', 'Bonuses'],
     articles: [
       article(
         'custom-bonus-purpose',
         'What a Custom Bonus Represents',
-        'Why custom bonuses exist and when to use them.',
+        'Create a manual modifier that is not already handled by a visible built-in control.',
         section(
-          'Purpose',
-          paragraph(
-            'Custom bonuses are the manual override layer for scenarios the default data model does not already express. They are appropriate when the effect is real for your scenario but should not be hard coded into the base resonator, weapon, or echo data.'
-          ),
+          'Manual entry fields',
           definitions(
-            ['Quick buff', 'A direct top level stat entry such as ATK percent, Crit Rate, or Healing Bonus.'],
-            ['Modifier', 'A scoped authored bonus that targets a base stat, top stat, attribute bucket, skill type bucket, or one named skill or tab.'],
-            ['Scope', 'The level at which the modifier applies inside the formula tree.']
+            ['Manual buff', 'A user-created modifier entry added to the runtime.'],
+            ['Modifier', 'One stat, damage, resistance, amp, or specialized effect applied by the entry.'],
+            ['Source label', 'The text used to identify where the manual entry came from.'],
+            ['Enabled state', 'Whether the manual entry is currently included in calculations.']
+          ),
+          steps(
+            ['Open custom buffs', 'Use the custom buffs surface for the active build or team context.'],
+            ['Add an entry', 'Create a manual buff and name the source clearly.'],
+            ['Add modifiers', 'Choose each modifier type, stat, target, and value.'],
+            ['Toggle the entry', 'Turn the entry on or off from the manual buff list.']
           ),
         ),
       ),
       article(
         'custom-bonus-scope',
-        'Scope and Formula Placement',
-        'Why the same number can mean very different things depending on scope.',
+        'Choose the Right Buff Type',
+        'Set who receives the manual modifier.',
         section(
-          'Scope controls where the number lands',
-          comparison(
-            'Global',
-            'Scoped',
-            ['Typical effect', 'Changes many rows at once', 'Changes only matching rows'],
-            ['Examples', 'ATK percent, Crit Rate, DMG Bonus', 'Aero damage bonus, Resonance Skill bonus, one specific skill modifier'],
-            ['Troubleshooting', 'Check the number if totals look too high everywhere', 'Check the scope if only one family moved']
+          'Buff type labels',
+          definitions(
+            ['Active', 'Applies to the active resonator result being calculated.'],
+            ['Self', 'Applies to the source resonator itself.'],
+            ['Team', 'Applies to teammates or group-facing targets. Other specialized scopes are grouped under this label in preset browsing.']
           ),
-          bullets(
-            'Base stat modifiers feed the core ATK, HP, or DEF calculation before later damage modifiers are applied.',
-            'Top stat modifiers change scalar bonus paths like damage bonus, amplify, vulnerability, or tune break boost.',
-            'Attribute and skill type modifiers only apply when the current row matches that attribute or skill family.',
-            'Skill scoped modifiers are the narrowest. They only affect the matched skill id or tab rule.'
+          steps(
+            ['Pick the type first', 'Choose Active, Self, or Team before adding modifiers.'],
+            ['Set modifier target', 'For damage or skill-family modifiers, select the element or skill family from the modifier row.'],
+            ['Review list labels', 'The manual buff row shows the target and source so the receiving side is clear.']
           ),
         ),
       ),
       article(
         'custom-bonus-presets',
         'Quick Imports with Presets',
-        'How to quickly add game-accurate buffs without manual entry.',
+        'Create manual buff entries from game-data preset effects.',
         section(
-          'Automated Imports',
-          paragraph(
-            'Instead of manually entering every stat and scope, you can use Presets to import effects directly from the game data catalog. This is especially useful for representing buffs from teammate weapons, echo sets, or main echo skills.'
+          'Preset catalog',
+          definitions(
+            ['Preset', 'A game-data buff source that can be converted into one or more manual modifiers.'],
+            ['Source kind', 'The preset origin: echo, set, weapon, or resonator source.'],
+            ['Buff type filter', 'The Active, Self, or Team filter in the preset modal.'],
+            ['Selected effect', 'A preset modifier row selected for import.']
           ),
-          paragraph(
-            'You can find the Presets tool in the Advanced Modifiers section of the optimizer. Look for the sparkle icon next to the "Add" button.'
-          ),
-          bullets(
-            'Source Filters: Narrow down choices by Echoes, Sonata Sets, or Weapons.',
-            'Target Filters: Filter by who receives the buff (Self, Active Resonator, or the whole Team).',
-            'Configurable Controls: Adjust refinement levels, stacks, or state toggles before importing.',
-          ),
-          note(
-            'Once imported, a preset becomes a standard manual modifier. You can still edit its numbers or change its scope if your scenario requires a custom variation.'
+          steps(
+            ['Open presets', 'Use the preset button in the custom buffs header.'],
+            ['Filter the catalog', 'Filter by source kind, buff type, search text, or weapon rank controls shown by the modal.'],
+            ['Select entries', 'Click each preset modifier row that needs to become a manual buff entry.'],
+            ['Add selected', 'Confirm the modal action to create the selected manual buff entries.'],
+            ['Edit after import', 'Adjust values, labels, enabled state, or scope from the manual buff list.']
           ),
         ),
       ),
       article(
-        'custom-bonus-examples-and-pitfalls',
-        'Examples and Common Pitfalls',
-        'How to reason about custom bonus output.',
+        'custom-bonus-entry-review',
+        'Check Manual Entries',
+        'Review manual buffs after adding or importing them.',
         section(
-          'Worked examples',
-          example(
-            'Global ATK percent versus Resonance Skill bonus',
-            [
-              'A global ATK percent modifier increases base ability for every ATK scaling skill.',
-              'A Resonance Skill damage bonus only affects rows whose skill type matches Resonance Skill.',
-            ],
-            [
-              'The ATK percent modifier usually moves more than one surface at once.',
-              'The skill type modifier is narrower and usually easier to isolate in the formula view.',
-            ],
-            [
-              'If the wrong rows moved, the scope was probably broader than intended.',
-            ],
+          'Entry review',
+          steps(
+            ['Check duplicates', 'Look for manual entries that duplicate built-in resonator, weapon, set, echo, or team controls already enabled.'],
+            ['Check value type', 'Percent modifiers and flat modifiers appear as separate modifier kinds.'],
+            ['Check target family', 'Element, skill type, damage bonus, resistance, and amp fields target different calculation paths.'],
+            ['Check enabled state', 'Disabled manual entries stay in the list but do not affect output.']
           ),
-          warningList(
-            'Custom bonuses stack with everything else already in the build. They are not replacement values.',
-            'A narrow skill scoped modifier can look ineffective if you are inspecting a different row than the one it targets.',
-            'If a manual value seems too strong, inspect whether it was placed on a global top stat instead of an attribute or skill specific scope.'
+          definitions(
+            ['Flat value', 'A direct numeric addition to the selected stat path.'],
+            ['Percent value', 'A percentage modifier for the selected stat or damage path.'],
+            ['Target family', 'The element, skill type, damage family, or stat path selected on a modifier row.']
           ),
         ),
       ),
@@ -1420,293 +1028,104 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'damage-results',
     title: 'Damage Results',
-    summary: 'How to read direct rows, support rows, sub hits, formulas, and rotation summaries.',
-    aliases: ['Damage & Scaling', 'Damage'],
+    summary: 'Read damage rows, subhits, formulas, rotation summaries, and support output.',
+    aliases: ['Damage', 'Results', 'Formulas'],
     articles: [
       article(
         'damage-result-columns',
-        'Result Columns and Row Families',
-        'What the main numbers on the damage surfaces actually mean.',
+        'Read the Main Result Columns',
+        'Understand the columns on damage rows.',
         section(
-          'Normal, Crit, and Average',
+          'Column meanings',
           definitions(
-            ['Normal', 'The resolved non critical output after stat scaling, buffs, defense, and resistance.'],
-            ['Crit', 'The same resolved row with the current critical damage multiplier applied.'],
-            ['Average', 'Expected value from the current crit rate and crit damage. It is not a separate execution path.'],
-            ['Row family', 'Damage, healing, shield, tune rupture, negative effect, or another specialized result type.']
+            ['Normal', 'Resolved damage without a critical hit.'],
+            ['Crit', 'Resolved damage if the row crits.'],
+            ['Average', 'Expected value using current crit rate and crit damage.'],
+            ['Multiplier', 'The skill or authored multiplier used by the row.'],
+            ['Hits', 'The count of hits represented by the row.']
           ),
-          formula(
-            [
-              'normal = resolved non critical output',
-              'crit = normal x crit damage',
-              'avg = critRate x crit + (1 - critRate) x normal',
-            ],
-            'When crit rate reaches 100 percent, Average collapses to Crit for critical damage rows.',
-          ),
-          example(
-            'Expected value is not a guess',
-            [
-              'Normal = 10,000',
-              'Crit = 20,000',
-              'Crit Rate = 70 percent',
-            ],
-            [
-              'Average = 0.7 x 20,000 + 0.3 x 10,000 = 17,000',
-            ],
-            [
-              'Average is a deterministic expected value view of the same row, not a separate simulation setting.',
-            ],
+          steps(
+            ['Pick a row', 'Select the skill or feature row to inspect.'],
+            ['Read Average for expected output', 'Average is the default comparison value for most ranking surfaces.'],
+            ['Read Normal and Crit for range', 'Normal and Crit show the low and high crit-state result for that row.'],
+            ['Open details for inputs', 'Use row details to inspect formula pieces, buffs, debuffs, and state.']
           ),
         ),
       ),
       article(
         'damage-subhits-and-grouping',
-        'Sub Hits, Grouped Rows, and Family Breakdowns',
-        'Why some rows expand into more detail.',
+        'Sub Hits, Grouped Rows, and Breakdowns',
+        'Expand compound rows into their parts.',
         section(
-          'When sub hit rows appear',
-          paragraph(
-            'A skill can resolve as several hits. The calculator can show a grouped parent row and then sub hit rows when the hit structure is meaningfully more detailed than one single strike.'
-          ),
+          'Expanded output',
           definitions(
-            ['Sub hit row', 'A lower level hit breakdown under a grouped result.'],
-            ['Grouped row', 'A parent row that represents the combined output of several sub hits or several related rows.'],
-            ['Breakdown row', 'A summary split such as skill type contribution or teammate contribution.']
+            ['Sub hit', 'One component hit inside a compound skill row.'],
+            ['Grouped row', 'A row that combines several sub hits or related parts under one displayed total.'],
+            ['Breakdown', 'An expanded view showing how the total is assembled.']
           ),
-          note('If a row has only one hit with count 1, sub hit rows are usually suppressed because there is nothing useful to decompose.'),
+          steps(
+            ['Expand a grouped row', 'Open the row details or disclosure control.'],
+            ['Read sub hit totals', 'Each visible sub hit shows its own normal, crit, and average values.'],
+            ['Compare with parent total', 'The grouped parent row combines the expanded parts shown underneath it.']
+          ),
         ),
       ),
       article(
         'damage-formula-reading',
         'Formula Reading Guide',
-        'How to follow the detailed formula view from top to bottom.',
+        'Read the visible formula breakdown for a row.',
         section(
-          'Reading order',
-          paragraph(
-            'The formula panel is there to explain the path to the number. Read it in stages: base stat scaling, skill multiplier or hit multiplier, additive flats, then defense or resistance resolution, then outgoing bonus layers such as damage bonus, amplify, vulnerability, and crit.'
+          'Formula pieces',
+          definitions(
+            ['Base stat', 'The stat used as the starting value, such as ATK, HP, DEF, or a converted stat.'],
+            ['Scaling', 'The skill multiplier or authored scaling value.'],
+            ['Bonus', 'Damage bonus and related additive modifier groups.'],
+            ['Amplify', 'Multiplicative modifier groups applied after additive bonus groups.'],
+            ['Enemy mitigation', 'Defense, resistance, and enemy-side reductions.']
           ),
-          formula(
-            [
-              'base ability = finalAtk x atkScale + finalHp x hpScale + finalDef x defScale + finalER x erScale',
-              'row normal = (base ability x hit multiplier + flat damage) x defense x resistance x outgoing modifiers',
-              'row crit = normal x crit damage',
-            ],
-            'Specialized rows such as tune rupture or negative effects use their own dedicated branch, but the panel still follows a base then modifier reading order.',
-          ),
-          warningList(
-            'If a modifier is absent from the formula panel, that row did not use it in the resolved context.',
-            'A visible stat in Overview does not guarantee that every skill row consumes it.',
-            'Formula panels explain one selected row, not the whole build at once.'
+          steps(
+            ['Open formula details', 'Select the row details action on a damage result.'],
+            ['Read top to bottom', 'Formula panels show the main stages in the order the app displays them.'],
+            ['Open modifier groups', 'Expand groups to see which active sources contributed values.'],
+            ['Compare rows', 'Use formula details on two rows to see which stage differs.']
           ),
         ),
       ),
       article(
         'damage-rotation-summary-interpretation',
-        'Rotation Summary Interpretation',
-        'How the result page totals should be read when rotations are involved.',
+        'Read Rotation Summaries',
+        'Interpret totals that come from a simulated rotation.',
         section(
-          'Loop aware summary reading',
-          paragraph(
-            'Rotation summary totals are derived from the simulated entries, but loop aware summary surfaces normalize repeated loop rows by configured run counts before adding them together. This is why a repeated loop window can behave like an average contribution rather than a raw unqualified sum.'
+          'Summary fields',
+          definitions(
+            ['Rotation total', 'The combined output of the simulated rotation under the selected summary rules.'],
+            ['DPS', 'Rotation total divided by the displayed duration.'],
+            ['Contribution', 'A grouped share of the total by skill, source, teammate, or loop.'],
+            ['Loop-aware total', 'A total that averages repeated loop windows by configured run count.']
           ),
-          example(
-            'Loop window plus finisher',
-            [
-              'A looped skill runs 3 times and averages 40,000 per run.',
-              'A finisher outside the loop averages 120,000.',
-            ],
-            [
-              'The summary reads as 40,000 from the loop window plus 120,000 from the finisher, not 240,000 from a raw three run sum.',
-            ],
-            [
-              'Use inspection views when you need per run detail. Use totals when you need representative contribution inside the rotation summary.',
-            ],
-          ),
-          comparison(
-            'Personal rotation',
-            'Team rotation',
-            ['Who is counted', 'Active resonator only', 'Active resonator plus enabled teammate links'],
-            ['Breakdown emphasis', 'Skill family contribution', 'Contributor share and combined family contribution']
+          steps(
+            ['Read total and duration', 'Start with the total, DPS, and displayed rotation duration.'],
+            ['Open contribution groups', 'Expand skill, source, teammate, and loop groups to see the total split.'],
+            ['Compare raw details separately', 'Raw execution rows show executed entries; summary rows may group or average them.']
           ),
         ),
       ),
       article(
         'damage-healing-shield-and-specialized-rows',
         'Healing, Shield, Tune, and Specialized Rows',
-        'How non standard rows differ from direct damage rows.',
+        'Read non-damage output that appears beside damage results.',
         section(
-          'Support and specialized output',
-          paragraph(
-            'Healing and shield rows are not just recolored damage rows. They use dedicated formula branches and are summarized in separate aggregation buckets. Tune rupture and negative effect rows also use specialized computation paths.'
-          ),
+          'Support rows',
           definitions(
-            ['Healing row', 'A support row resolved through healing bonus paths. Its meaningful number is its average value.'],
-            ['Shield row', 'A support row resolved through shield bonus paths. Its meaningful number is its average value.'],
-            ['Tune rupture row', 'A specialized row that uses tune rupture scaling, enemy class data, vulnerability, amplify, and tune break boost.'],
-            ['Negative effect row', 'A specialized row that reads the relevant enemy side negative effect state and that effect family specific logic.']
+            ['Healing row', 'A row whose output is healing rather than damage.'],
+            ['Shield row', 'A row whose output is shield value rather than damage.'],
+            ['Tune row', 'A row tied to tune strain, tune rupture, or a specialized tune output.'],
+            ['Specialized row', 'A row with a custom output family defined by its feature.']
           ),
-          note('Healing and shield summaries are shown in their own support rows because the main damage total stays damage only.'),
-        ),
-      ),
-    ],
-  },
-  {
-    id: 'scoring-and-stat-weights',
-    title: 'Scoring and Stat Weights',
-    summary: 'How final stat structure, echo scores, build scores, crit value, and weight maps should be interpreted.',
-    aliases: ['Build and Echo Scoring', 'Scoring'],
-    articles: [
-      article(
-        'stats-structure-reference',
-        'Stat Structure Reference',
-        'How the app groups stats before they are consumed by formulas.',
-        section(
-          'Core stat families',
-          statTable(
-            ['ATK, HP, DEF', 'Each has base and final values. Final = base x (1 + percent) + flat.', 'Core scaling stats used by many direct damage, healing, and shield formulas.', 'Overview, Damage, Echoes, Custom Bonuses'],
-            ['Crit Rate, Crit DMG, Energy Regen, Healing Bonus', 'Top level scalar stats on final stats.', 'Read directly by formulas that care about them.', 'Overview, Damage, Echoes, Custom Bonuses'],
-            ['Attribute buckets', 'One universal all bucket plus per element buckets.', 'Element damage bonus, shred, vulnerability, crit modifiers, and similar scoped stats.', 'Overview, Damage, Custom Bonuses'],
-            ['Skill type buckets', 'One universal all bucket plus per skill family buckets.', 'Family specific bonus, crit modifiers, shred, and vulnerability.', 'Overview, Damage, Custom Bonuses'],
-            ['Negative effect buckets', 'Per negative effect family tracking.', 'Specialized rows such as Spectro Frazzle or Aero Erosion use these values.', 'Damage, Enemy, Rotation conditions'],
-            ['Flat Damage, Amplify, DMG Bonus, DEF Ignore, DEF Shred, DMG Vulnerability, Shield Bonus, Tune Break Boost, Special', 'Top level modifier paths with their own formula entry points.', 'These are not interchangeable. They land at different points in the formula chain.', 'Overview, Damage, Custom Bonuses']
-          ),
-          paragraph(
-            'Overview groups these stats for readability, but formulas consume them by scope. A universal all bucket and a matching element or skill type bucket can both contribute to the same row at the same time.'
-          ),
-        ),
-      ),
-      article(
-        'score-vocabulary',
-        'Score Vocabulary',
-        'What the visible score badges actually include.',
-        section(
-          'Primary score terms',
-          definitions(
-            ['Echo score', 'A character specific score for one echo based on its primary main stat and substats compared against that character weight table.'],
-            ['Build score', 'The normalized combined score of all five equipped echoes for the active resonator.'],
-            ['Crit Value', 'Crit Rate x 2 plus Crit Damage. It only measures crit concentration.'],
-            ['Weight table', 'The character specific priority map that tells the score model which stats matter more.']
-          ),
-          paragraph(
-            'The score model normalizes each echo against a character specific theoretical maximum. Flat stats are intentionally discounted compared with their percent family equivalents, and the active resonator weight table decides what counts as valuable.'
-          ),
-        ),
-      ),
-      article(
-        'roll-quality-and-ranges',
-        'Roll Quality and Range Interpretation',
-        'How to read a line value before you even care about damage.',
-        section(
-          'Range relative quality',
-          paragraph(
-            'Roll quality is about where a stat line lands inside its known range. A line near the top of its range is a stronger roll than the same stat near the bottom, even before character weights are applied.'
-          ),
-          example(
-            'Same stat, different quality',
-            [
-              'Two echoes both have Crit Rate.',
-              'One has a low roll near the minimum range.',
-              'The other has a high roll near the maximum range.',
-            ],
-            [
-              'Both lines are still valuable, but the second line is contributing more of the stat the build cares about.',
-            ],
-            [
-              'Roll quality tells you how strong the line itself is. Weighting tells you how relevant that line is for this resonator.',
-            ],
-          ),
-        ),
-      ),
-      article(
-        'character-weights-and-relevance',
-        'Stat Weights and Character Relevance',
-        'Why the same echo can score differently for different resonators.',
-        section(
-          'Weights change the meaning of a line',
-          paragraph(
-            'Echo score is not a universal item level. The weight map is character specific. A stat line that is excellent for one resonator can be much less valuable for another if their target rows do not consume it well.'
-          ),
-          example(
-            'Heavy attack line on two different resonators',
-            [
-              'Resonator A gets a large share of output from Heavy Attack rows.',
-              'Resonator B mostly cares about healing or Resonance Skill output.',
-            ],
-            [
-              'The same Heavy Attack line can score highly on Resonator A and only modestly on Resonator B.',
-            ],
-            [
-              'Scores always answer "for whom?" before they answer "how good?"',
-            ],
-          ),
-        ),
-      ),
-      article(
-        'score-limitations',
-        'Why a High Score Can Still Be Wrong',
-        'What the score system is good at and what it is not.',
-        section(
-          'Use score as guidance, not as a universal verdict',
-          bullets(
-            'High echo score usually means the piece has strong relevant lines for the selected resonator.',
-            'High build score does not guarantee highest output for every target skill or rotation.',
-            'Crit Value can be impressive while still hiding missing Energy Regen, element bonus, healing bonus, or other critical context.',
-            'A lower score piece can win in optimizer or target testing if it is better aligned with the chosen objective.'
-          ),
-          note('Score is strongest as a broad farming and sorting aid. Optimizer and damage results are stronger when the question is one exact target under one exact scenario.'),
-        ),
-      ),
-    ],
-  },
-  {
-    id: 'overview-and-build-state',
-    title: 'Overview and Build State',
-    summary: 'What the overview surface summarizes and how its readouts relate to the underlying runtime.',
-    aliases: ['OverviewLayer', 'Overview'],
-    articles: [
-      article(
-        'overview-surface-purpose',
-        'What Overview Is Summarizing',
-        'Why the overview page exists and what data it compresses.',
-        section(
-          'A read mostly summary surface',
-          paragraph(
-            'Overview is the cross section of the active build. It pulls together final stats, echo quality, rotation totals, top contributors, equipped assets, and selected profile state so you can reason about the build without opening every editing pane.'
-          ),
-          bullets(
-            'Overview is mostly derived output.',
-            'Most direct editing still happens in the dedicated resonator, weapon, echo, team, enemy, custom bonus, or rotation surfaces.',
-            'If a value changes in Overview, the source change usually happened somewhere else in the runtime.'
-          ),
-        ),
-      ),
-      article(
-        'overview-stat-groups',
-        'Stat Groups and Summary Cards',
-        'How Overview groups the final stat tree.',
-        section(
-          'Grouped final stats',
-          paragraph(
-            'Overview exposes base versus bonus versus total for core stats, then surfaces secondary percent style stats, then groups attribute and skill type damage modifiers. This keeps the final stat tree readable while still reflecting the same final stats used by formulas.'
-          ),
-          definitions(
-            ['Base', 'The starting value before bonus layers are added.'],
-            ['Bonus', 'The difference between final and base for the displayed stat.'],
-            ['Total', 'The final resolved stat value consumed by formulas.']
-          ),
-          note('Echo Stats on the echo pane are narrower than Overview stats. Overview includes the full build context, not just echo contributions.'),
-        ),
-      ),
-      article(
-        'overview-rotation-and-profile-readouts',
-        'Rotation and Profile Readouts',
-        'How build identity and performance snapshots appear in Overview.',
-        section(
-          'High level performance readouts',
-          bullets(
-            'Personal rotation and team rotation badges summarize the current simulation state for the selected profile.',
-            'Top skill type and top contributor summaries are there to show where output is concentrated.',
-            'Portrait, weapon, and echo badges help confirm that you are looking at the intended runtime and not another saved or inspected state.'
+          steps(
+            ['Open the support section', 'Find healing, shield, tune, and specialized rows in their own result groups.'],
+            ['Read their own totals', 'Support rows are not folded into the main damage total unless the surface explicitly says so.'],
+            ['Open details', 'Inspect the formula and active state the same way as a damage row.']
           ),
         ),
       ),
@@ -1715,56 +1134,65 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'saved-builds-and-presets',
     title: 'Saved Builds and Presets',
-    summary: 'How saved echoes, saved builds, and saved rotations are stored, matched, renamed, loaded, and removed.',
-    aliases: ['Build Presets', 'Inventory Builds'],
+    summary: 'Save, load, rename, overwrite, and delete build records.',
+    aliases: ['Saved', 'Presets', 'Builds'],
     articles: [
       article(
         'saved-record-types',
         'Saved Record Types',
-        'What each saved record family stores.',
+        'Identify what each saved record contains before loading it.',
         section(
-          'Three different saved families',
+          'Record types',
           definitions(
-            ['Saved echo', 'One reusable echo inventory entry.'],
-            ['Saved build', 'A snapshot of weapon plus five echoes for one resonator.'],
-            ['Saved rotation', 'A persisted rotation entry with authored nodes, metadata, and optional summary or snapshot fields.']
+            ['Build record', 'A saved resonator build snapshot with equipment and relevant state.'],
+            ['Rotation record', 'A saved rotation tree.'],
+            ['Preset', 'A reusable authored setup created by the app or user.'],
+            ['Backup', 'A larger saved payload for import, export, or sync.']
           ),
-          comparison(
-            'Saved build',
-            'Saved rotation',
-            ['Primary purpose', 'Restore a full equipment snapshot', 'Restore a full authored rotation snapshot'],
-            ['Key payload', 'Weapon plus echo loadout', 'Rotation items plus mode, duration, note, team, and optional summary']
+          steps(
+            ['Open saved records', 'Use the saved builds or saved rotations surface.'],
+            ['Read record type', 'Check the label before loading, overwriting, or deleting.'],
+            ['Open details', 'Inspect owner, resonator, timestamp, and included state fields.']
           ),
         ),
       ),
       article(
         'saved-live-matching-and-usage',
         'Live Matching and Usage Labels',
-        'How saved records relate to current state.',
+        'Read labels that compare saved records with live state.',
         section(
-          'Matching the current build',
-          paragraph(
-            'Saved builds can be marked Live when their snapshot matches the current weapon and echo snapshot. That match is based on the actual build payload, not only on the saved name.'
+          'Labels',
+          definitions(
+            ['Live match', 'The saved record matches the current live state for the compared fields.'],
+            ['Different from live', 'At least one compared field differs from the current live state.'],
+            ['In use', 'The record is currently selected or linked by a live surface.'],
+            ['Owner', 'The resonator or build context associated with the record.']
           ),
-          bullets(
-            'Usage labels help show where an inventory echo or build is already being referenced.',
-            'A saved record being marked Live does not mean it is locked. It only means the current runtime matches it right now.',
-            'Changing the live build after that point breaks the match until the live state lines up again.'
+          steps(
+            ['Compare before loading', 'Read live-match and owner labels on the record row.'],
+            ['Open linked surfaces', 'Use in-use labels to find where a record is currently referenced.'],
+            ['Save new state', 'Create a new record when the live build has changed and needs its own snapshot.']
           ),
         ),
       ),
       article(
         'saved-load-overwrite-and-delete',
         'Load, Overwrite, Rename, and Delete Semantics',
-        'What happens when you act on a saved record.',
+        'Use saved-record actions without mixing them up.',
         section(
-          'State changing actions',
-          warningList(
-            'Loading a saved build or rotation overwrites the current active state for that surface.',
-            'Renaming changes metadata only. It does not rewrite the build or rotation payload.',
-            'Deleting removes the saved record. It does not automatically delete unrelated live state that happened to match it.'
+          'Record actions',
+          definitions(
+            ['Load', 'Copies the saved record into live state.'],
+            ['Overwrite', 'Replaces the saved record with the current live state.'],
+            ['Rename', 'Changes the saved record name only.'],
+            ['Delete', 'Removes the saved record from storage.']
           ),
-          note('Saved records are persistence tools. They are meant to be loaded back into live state when you want that snapshot again.'),
+          steps(
+            ['Load into live', 'Use Load when the saved state needs to become the active state.'],
+            ['Overwrite from live', 'Use Overwrite when the current active state needs to replace that record.'],
+            ['Rename for organization', 'Use Rename to change the label without changing the record contents.'],
+            ['Delete old records', 'Use Delete only for records no longer needed.']
+          ),
         ),
       ),
     ],
@@ -1772,60 +1200,64 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'import-export-and-sync',
     title: 'Import, Export, and Sync',
-    summary: 'How image import, JSON import and export, legacy backup conversion, and Google Drive snapshot sync behave.',
-    aliases: ['Import/Export', 'Sync'],
+    summary: 'Bring in echo screenshots, rotation JSON, legacy backups, and Google Drive backups.',
+    aliases: ['Import', 'Export', 'Sync', 'Backup'],
     articles: [
       article(
         'import-echo-parser',
         'Echo Image Import',
-        'What the screenshot parser can import and what it cannot.',
+        'Create echo entries from supported echo images.',
         section(
-          'Parser scope',
-          paragraph(
-            'The image parser only imports echoes. It does not import the rest of the build. This makes it safe to use when you only want to capture echo instances without touching weapon, enemy, or rotation state.'
+          'Import flow',
+          definitions(
+            ['Image import', 'A parser flow that reads echo stat fields from an uploaded image.'],
+            ['Parsed field', 'A detected echo name, set, main stat, substat, or value.'],
+            ['Review step', 'The confirmation step before parsed fields are written into state.']
           ),
-          image(
-            '/assets/sample-import-image.png',
-            'Sample echo import format used by the image parser',
-            'The parser expects the same image format shown in the built in sample.',
-          ),
-          warningList(
-            'The image size (must be 1920 x 1080).',
-            'The image itself. The parser is tuned for the expected Wuwa bot style export and works best with English text.',
+          steps(
+            ['Open image import', 'Use the echo import action from the echo or inventory surface.'],
+            ['Upload image', 'Select the supported echo screenshot or image file.'],
+            ['Review parsed fields', 'Correct any name, set, stat, or value before saving.'],
+            ['Save the echo', 'Write the reviewed echo into the target slot or inventory location.']
           ),
         ),
       ),
       article(
         'import-rotation-json-and-legacy-backups',
         'Rotation JSON and Legacy Backup Import',
-        'What each JSON import path moves.',
+        'Import rotation files and older app backup payloads.',
         section(
-          'Different JSON paths carry different payloads',
-          comparison(
-            'Rotation JSON import',
-            'Legacy backup import',
-            ['Main payload', 'Saved rotation entries', 'Old app snapshot conversion'],
-            ['Typical result', 'Adds normalized saved rotations with fresh ids', 'Builds a current persisted app snapshot from legacy data'],
-            ['What it includes', 'Rotation items, metadata, optional snapshot and summary', 'Profiles, enemy, inventory echoes, inventory builds, and suggestion state'],
-            ['What it does not currently include', 'Unrelated calculator state', 'Saved rotations are not imported in the current legacy app state path']
+          'Import types',
+          definitions(
+            ['Rotation JSON', 'A file containing a rotation tree.'],
+            ['Legacy backup', 'An older full-state payload converted into the current state shape during import.'],
+            ['Import preview', 'The review step showing what the payload contains before it is written.']
           ),
-          note('Legacy import is a conversion path, not a literal byte for byte restore. The old payload is translated into the current persisted state schema.'),
+          steps(
+            ['Choose import action', 'Open the import action for rotations or backup data.'],
+            ['Select file', 'Pick the JSON or backup file.'],
+            ['Review preview', 'Read the resonator, rotation, build, and storage fields shown by the importer.'],
+            ['Confirm import', 'Write the imported state after the preview matches what you intend to load.']
+          ),
         ),
       ),
       article(
         'sync-local-and-google-drive',
         'Local Persistence and Google Drive Backup',
-        'How saved calculator state is stored and restored.',
+        'Control browser storage and Drive backup state.',
         section(
-          'Snapshot behavior',
-          paragraph(
-            'The app persists separate domain slices locally for layout, session, profiles, optimizer context, suggestions, inventory echoes, inventory builds, and inventory rotations. Google Drive sync uploads the current persisted snapshot into the appData folder and restore downloads the newest stored snapshot.'
+          'Storage paths',
+          definitions(
+            ['Local storage', 'The browser storage used by the app on the current device and browser profile.'],
+            ['Drive backup', 'A Google Drive copy of app state created through the sync controls.'],
+            ['Export file', 'A downloaded backup payload that can be imported later.'],
+            ['Sync status', 'The displayed sign-in, upload, download, or error state for Drive operations.']
           ),
-          bullets(
-            'Drive backup keeps the newest 10 snapshots by pruning older files.',
-            'Restore reads the latest available Drive snapshot, not an arbitrary earlier file.',
-            'Drive sync uses the connected Google account, the Drive appData scope, and the lightweight Google identity data needed to keep that session attached to the right account.',
-            'A restored snapshot replaces current persisted state with the imported snapshot once it is accepted.'
+          steps(
+            ['Check local state', 'Open settings or data management to see local storage controls.'],
+            ['Export backup', 'Download a backup file before large state changes.'],
+            ['Sign in for Drive', 'Use the Google Drive sign-in action before upload or download.'],
+            ['Upload or restore', 'Choose the sync action that matches whether local state or Drive state is the source.']
           ),
         ),
       ),
@@ -1834,57 +1266,65 @@ export const gdCtgr: GuideCategory[] = [
   {
     id: 'app-behavior-and-controls',
     title: 'App Behavior and Controls',
-    summary: 'Shared interaction rules around persistence, history, confirmations, toasts, and selection mode.',
-    aliases: ['UI Controls', 'App Controls'],
+    summary: 'Understand persistence, selection mode, confirmations, toasts, history, and restore actions.',
+    aliases: ['Controls', 'State', 'History'],
     articles: [
       article(
         'app-persistence-model',
         'Persistence Model',
-        'Which major app surfaces keep durable state.',
+        'Know which app state survives refresh and which state is only temporary.',
         section(
-          'Durable versus transient',
-          paragraph(
-            'The app persists layout preferences, session state, resonator profiles, optimizer context, suggestions state, and inventory collections as separate local slices. Results, previews, and many temporary modal states are transient and are rebuilt from persisted state or current runtime when needed.'
+          'State locations',
+          definitions(
+            ['Persisted state', 'Saved browser state that returns after refresh.'],
+            ['Session state', 'Temporary UI state that may reset when the surface closes or reloads.'],
+            ['Live calculator state', 'The active resonator, build, rotation, enemy, team, and manual state currently used by calculations.'],
+            ['Derived state', 'Computed output rebuilt from live state rather than stored directly.']
           ),
-          bullets(
-            'Inventory echoes, builds, and rotations are durable collections.',
-            'The active session and selected enemy are durable session state.',
-            'Suggestion settings and optimizer context persist so those surfaces can resume from previous work.',
-            'A preview panel or inspection view is usually transient and can be rebuilt.'
+          steps(
+            ['Edit live state', 'Normal calculator controls update live state and persist where the app stores that domain.'],
+            ['Refresh to reload', 'Persisted state returns after page refresh in the same browser profile.'],
+            ['Export for transfer', 'Use backup export or sync to move state to another device or browser.']
           ),
         ),
       ),
       article(
         'app-selection-confirmations-and-toasts',
         'Selection Mode, Confirmations, and Toasts',
-        'How the app communicates state changing actions.',
+        'Read short-lived UI feedback and selection controls.',
         section(
-          'Interaction patterns',
-          paragraph(
-            'Shared selection mode lets some dense surfaces switch from one item actions to batch actions. Confirmation modals are used for destructive or overwrite style operations. Toasts are used for non blocking status such as copy, paste, import, save, or apply results.'
-          ),
+          'Control feedback',
           definitions(
-            ['Selection mode', 'A temporary interaction mode where clicks target selected items and batch actions instead of normal single item actions.'],
-            ['Confirmation modal', 'A blocking prompt used before destructive or large overwrite style actions.'],
-            ['Toast', 'A short notification confirming that a non blocking action succeeded, failed, or needs attention.']
+            ['Selection mode', 'A temporary mode where clicking entries selects them for a batch action.'],
+            ['Confirmation', 'A prompt shown before overwriting, deleting, importing, or replacing important state.'],
+            ['Toast', 'A short message confirming an action, warning about state, or reporting an error.'],
+            ['Batch action', 'An action applied to multiple selected entries at once.']
           ),
-          note('If the app asks for confirmation, it is usually because the next action would overwrite or delete meaningful state.'),
+          steps(
+            ['Enter selection mode', 'Use the selection control on lists that support multi-select.'],
+            ['Select entries', 'Click entries to add or remove them from the selected set.'],
+            ['Confirm destructive actions', 'Read the confirmation text before approving overwrite, delete, import, or replace actions.'],
+            ['Read toast text', 'Use toast messages to confirm completion or identify the action that failed.']
+          ),
         ),
       ),
       article(
         'app-history-and-restore-behavior',
         'History, Undo, and Restore Behavior',
-        'How history works when it is enabled.',
+        'Use app history and restore controls to return to earlier state.',
         section(
-          'History rules',
-          paragraph(
-            'App History stores labeled persisted snapshots so undo and redo can restore earlier calculator state. Labels are built from the kind of change that happened, such as Equipped Echoes, Weapon, Team Setup, Rotation, Suggestions, or Inventory collections.'
+          'History controls',
+          definitions(
+            ['Undo', 'Reverts the most recent supported state change.'],
+            ['Redo', 'Reapplies a reverted supported state change.'],
+            ['Restore', 'Loads state from a saved record, backup, or prior snapshot.'],
+            ['History entry', 'A stored state transition available to the history controls.']
           ),
-          bullets(
-            'Undo and redo are only available while history is enabled.',
-            'Turning history off clears past and future stacks instead of keeping stale restore points.',
-            'History capacity is bounded, so older entries are trimmed when the stack exceeds the selected size.',
-            'Restore is snapshot based. Undoing one change can revert several visible surfaces if they were part of the same recorded state change.'
+          steps(
+            ['Use undo after an edit', 'Run undo immediately after a supported edit to return to the previous state.'],
+            ['Use redo after undo', 'Run redo to reapply the reverted edit.'],
+            ['Restore from a record', 'Load a saved build, rotation, backup, or sync payload when a larger state reset is needed.'],
+            ['Save before broad changes', 'Create a record or backup before large imports, batch edits, or optimizer applies.']
           ),
         ),
       ),

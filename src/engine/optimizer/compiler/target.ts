@@ -1,6 +1,6 @@
 /*
-  author: Runor Ewhro
-  description: compiles the optimizer payload for single target-skill mode
+  Author: Runor Ewhro
+  Description: compiles the optimizer payload for single target-skill mode
                by building the target context, encoding inventory echoes,
                and attaching the shared optimizer data needed for execution.
 */

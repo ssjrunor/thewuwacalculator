@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator enemies flow.
+  Description: renders the pane surface for the calculator enemies flow.
 */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -431,6 +431,7 @@ export function CalcEnemyPmg({
             {resistRows.map(({ elementId, label, attributeKey, value }) => {
               const effRes = value - resShredFor(attributeKey)
               const resMult = resistMultiplier(effRes)
+              if (elementId === 6) console.log(value, effRes, resMult)
               const shifted = Math.abs(effRes - value) >= 0.05
               const sign = effRes < 0 ? 'vuln' : effRes > 0 ? 'resist' : 'zero'
               const fmt = (n: number) => `${n > 0 ? '+' : ''}${n}%`
@@ -439,7 +440,7 @@ export function CalcEnemyPmg({
               return (
                 <div
                   key={elementId}
-                  className="enemy-res-cell"
+                  className={`enemy-res-cell ${effRes < value ? 'good' : effRes > value ? 'bad' : ''}`}
                   data-sign={sign}
                   style={{ '--el': ATTR_ID_COLORS[elementId] } as CssProps}
                   title={`${label} · RES ${fmt(value)}${shifted ? ` (effective ${fmt(Math.round(effRes))})` : ''} · damage ×${resMult.toFixed(3)}`}
@@ -471,7 +472,7 @@ export function CalcEnemyPmg({
                       />
                     </div>
                   ) : (
-                    <div className="enemy-res-cell__res" data-shifted={shifted}>{fmt(value)}</div>
+                    <div className="enemy-res-cell__res" data-shifted={shifted}>{fmt(effRes)}</div>
                   )}
 
                   <div className="enemy-res-cell__mult">

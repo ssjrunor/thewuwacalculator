@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Centralized optimizer search-space counting helpers for both
+  Description: centralized optimizer search-space counting helpers for both
                inventory-facing estimates and encoded main-index subsets.
 */
 
@@ -115,7 +115,7 @@ function cntMainByCost(settings: OptSets): Map<number, number> {
 // this intentionally ignores set identity; set identity is counted by the
 // set-plan dimension so equivalent slot-level set permutations do not inflate
 // theory mode's displayed search space.
-function countTheoryMain(settings: OptSets, slotCount: number): number {
+export function countTheoryMain(settings: OptSets, slotCount: number): number {
   const setIds = getAllowedSets(settings)
   const mainByCost = cntMainByCost(settings)
   const costs = new Set<number>()
@@ -179,7 +179,7 @@ function countTheoryMain(settings: OptSets, slotCount: number): number {
 // count the visible set-plan dimension using the same helper as suggestions.
 // hidden sets stay out of the count; an empty allowed-set shape means the
 // compiler should leave set plans unrestricted.
-function countSetPlans(settings: OptSets, slotCount: number): number {
+export function countSetPlans(settings: OptSets, slotCount: number): number {
   const allowedSets = normOptSets(settings.allowedSets)
   const allow5 = new Set(allowedSets[5])
   const allow3 = new Set(allowedSets[3])

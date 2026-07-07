@@ -1,11 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Sen:wght@400..800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Keania+One&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Righteous&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rubik+Glitch&display=swap');
+
+@font-face {
+  font-family: "Stormfaze";
+  src: url("../../public/fonts/Stormfaze.otf") format("truetype");
+}
+
+@font-face {
+  font-family: "mc-gamefont";
+  src: url('https://hw-media-cdn-mingchao.kurogame.com/font/LaguSansBold.otf') format('opentype');
+}
 
 :root {
-  --body-font: 'Sen', sans-serif;
+  --body-font: var(--wuwa-font);
   --display-font: 'Chakra Petch', 'Sen', sans-serif;
   --mono-font: 'DM Mono', ui-monospace, monospace;
+  --game-font: 'Stormfaze', sans-serif;
+  --game-font2: 'Righteous', 'sans-serif';
+  --game-font3: "Montserrat Alternates", sans-serif;
+  --game-font4: "Rubik Glitch", sans-serif;
+  --wuwa-font: "mc-gamefont", sans-serif;
   font-family: var(--body-font);
 }
 
@@ -103,7 +122,6 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--ui-focus-ring, color-mix(in srgb, var(--accent) 18%, transparent));
 }
 
 input[type='checkbox'] {

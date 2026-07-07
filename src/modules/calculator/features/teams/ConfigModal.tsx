@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the config modal surface for the calculator teams flow.
+  Description: renders the config modal surface for the calculator teams flow.
 */
 
 import { type CSSProperties as CssProps, useCallback, useMemo, useState } from 'react'
@@ -18,10 +18,10 @@ import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtim
 import { RtEchoSetBns, RtMainEchoPn } from '@/modules/calculator/features/echoes/RuntimePanels.tsx'
 import { BuffEditor } from '@/modules/calculator/features/buffs/BuffEditor.tsx'
 import {
-  STATICONMAP,
-  fmtDsplVl,
-  type VrvwSttsView,
-} from '@/modules/calculator/features/overview/lib/stats.ts'
+  STAT_ICON_MAP,
+  formatStatValue,
+  type StatsView,
+} from '@/modules/calculator/model/statsView.ts'
 import { getWeapon, weaponStatsAt, resPssvPrms } from '@/modules/calculator/features/weapons/lib/weapon.ts'
 import { SourceStateCtrl } from '@/modules/calculator/features/controls/SourceStateControl.tsx'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
@@ -42,7 +42,7 @@ interface TeamMemCnfgM {
   actRt: ResRuntime
   invBlds: InventoryEntry[]
   sttDefs: SourceState[]
-  cmbtSttsView: VrvwSttsView | null
+  cmbtSttsView: StatsView | null
   onSqncChng: (value: number) => void
   onRtPdt: RtUpdHnd
   getSelTgt: (ownerKey: string) => string | null
@@ -53,7 +53,7 @@ interface TeamMemCnfgM {
 function CmpcCmbtStts({
   statsView,
 }: {
-  statsView: VrvwSttsView | null
+  statsView: StatsView | null
 }) {
   if (!statsView) {
     return (
@@ -69,19 +69,19 @@ function CmpcCmbtStts({
         {statsView.mainStats.map((stat) => (
           <div key={stat.label} className="overview-metric-tile">
             <div className="overview-metric-tile-head">
-              {STATICONMAP[stat.label] ? (
+              {STAT_ICON_MAP[stat.label] ? (
                 <div
                   className="grid-stat-icon overview"
                   style={{
                     '--stat-color': stat.color ?? '#999999',
-                    WebkitMaskImage: `url(${STATICONMAP[stat.label]})`,
-                    maskImage: `url(${STATICONMAP[stat.label]})`,
+                    WebkitMaskImage: `url(${STAT_ICON_MAP[stat.label]})`,
+                    maskImage: `url(${STAT_ICON_MAP[stat.label]})`,
                   } as CssProps}
                 />
               ) : null}
               <span>{stat.label}</span>
             </div>
-            <span className="overview-metric-tile-value">{fmtDsplVl(stat.label, stat.total)}</span>
+            <span className="overview-metric-tile-value">{formatStatValue(stat.label, stat.total)}</span>
           </div>
         ))}
       </div>
@@ -90,19 +90,19 @@ function CmpcCmbtStts({
         {statsView.secondaryStats.map((stat) => (
           <div key={stat.label} className="overview-secondary-row">
             <span className="overview-secondary-label">
-              {STATICONMAP[stat.label] ? (
+              {STAT_ICON_MAP[stat.label] ? (
                 <div
                   className="grid-stat-icon overview small"
                   style={{
                     '--stat-color': stat.color ?? '#999999',
-                    WebkitMaskImage: `url(${STATICONMAP[stat.label]})`,
-                    maskImage: `url(${STATICONMAP[stat.label]})`,
+                    WebkitMaskImage: `url(${STAT_ICON_MAP[stat.label]})`,
+                    maskImage: `url(${STAT_ICON_MAP[stat.label]})`,
                   } as CssProps}
                 />
               ) : null}
               {stat.label}
             </span>
-            <span className="overview-secondary-value">{fmtDsplVl(stat.label, stat.total)}</span>
+            <span className="overview-secondary-value">{formatStatValue(stat.label, stat.total)}</span>
           </div>
         ))}
       </div>
@@ -114,13 +114,13 @@ function CmpcCmbtStts({
               className="overview-secondary-label"
               style={stat.color ? ({ color: stat.color } as CssProps) : undefined}
             >
-              {STATICONMAP[stat.label] ? (
+              {STAT_ICON_MAP[stat.label] ? (
                 <div
                   className="grid-stat-icon overview small"
                   style={{
                     '--stat-color': stat.color ?? '#999999',
-                    WebkitMaskImage: `url(${STATICONMAP[stat.label]})`,
-                    maskImage: `url(${STATICONMAP[stat.label]})`,
+                    WebkitMaskImage: `url(${STAT_ICON_MAP[stat.label]})`,
+                    maskImage: `url(${STAT_ICON_MAP[stat.label]})`,
                   } as CssProps}
                 />
               ) : null}
@@ -130,7 +130,7 @@ function CmpcCmbtStts({
               className="overview-secondary-value"
               style={stat.color ? ({ color: stat.color } as CssProps) : undefined}
             >
-              {fmtDsplVl(stat.label, stat.total)}
+              {formatStatValue(stat.label, stat.total)}
             </span>
           </div>
         ))}

@@ -9,7 +9,7 @@ export interface SuggSets {
   rotationMode: boolean
 }
 
-export type SuggsViewMod = 'mainStats' | 'setPlans' | 'weapons' | 'random'
+export type SuggsViewMod = 'mainStats' | 'setPlans' | 'weapons' | 'random' | 'substats'
 
 export interface RandGnrtSetP {
   setId: number

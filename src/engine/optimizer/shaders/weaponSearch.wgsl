@@ -1,3 +1,10 @@
+/*
+  Author: Runor Ewhro
+  Description: evaluates theory optimizer echo combos against compact weapon
+               overlays so the gpu can keep the best weapon and echo pairing in
+               one candidate record.
+*/
+
 // this kernel is the weapon-search variant of target.wgsl: it evaluates each
 // theory combo against every weapon overlay (a compact per-weapon stat delta
 // composed onto the shared base context) and keeps the best, packing the chosen
@@ -153,6 +160,7 @@ const SET_RUNTIME_TOGGLE_SET14_FIVE: u32 = 1u << 0u;
 const SET_RUNTIME_TOGGLE_SET22_P1: u32 = 1u << 1u;
 const SET_RUNTIME_TOGGLE_SET22_P2: u32 = 1u << 2u;
 const SET_RUNTIME_TOGGLE_SET29_FIVE: u32 = 1u << 3u;
+const SET_RUNTIME_TOGGLE_SET33_CHONGMING: u32 = 1u << 4u;
 
 // each thread processes this many consecutive combos before reduction
 override CYCLES_PER_INVOCATION : u32 = 32u;
@@ -815,7 +823,14 @@ fn evalMainPos(
 
     var dmgBonus = pre.dmgBonusBase + bonus * INV_100;
 
-    var finalAtk = pre.atkBaseTerm + (pre.baseAtk * mainAtkPRatio) + mainAtkF;
+    let set33Enabled = (setRuntimeMask & SET_RUNTIME_TOGGLE_SET33_CHONGMING) != 0u;
+    let s33_atk_bonus = min(max(finalER * 0.1, 0.0), 25.0) *
+        f32(u32(set33Enabled && setCount[33u] >= 5u));
+
+    var finalAtk =
+        pre.atkBaseTerm +
+        (pre.baseAtk * (mainAtkPRatio + s33_atk_bonus * INV_100)) +
+        mainAtkF;
 
     // 1206 er -> atk conversion
     if (pre.charId == 1206.0) {
@@ -842,6 +857,12 @@ fn evalMainPos(
     var critRateForDmg = pre.critRateTotal + mainCR * INV_100;
     var critDmgForDmg = pre.critDmgTotal + mainCD * INV_100;
     let baseMul = pre.resDefAmp * pre.dmgReductionTotal;
+
+    // 1505 team crit from Shorekeeper's own er
+    if (pre.charId == 1505.0) {
+        critRateForDmg = critRateForDmg + min(max(finalER * 0.05, 0.0), 12.5) * INV_100 * toggleValue(pre.toggles, 1u);
+        critDmgForDmg = critDmgForDmg + min(max(finalER * 0.1, 0.0), 25.0) * INV_100 * toggleValue(pre.toggles, 1u) * toggleValue(pre.toggles, 2u);
+    }
 
     // 1209 er-based bonuses
     if (pre.charId == 1209.0) {

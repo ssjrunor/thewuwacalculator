@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the number input surface for the calculator controls flow.
+  Description: renders the number input surface for the calculator controls flow.
 */
 
 import { useState } from 'react'
@@ -13,6 +13,7 @@ interface NmbrNptPrps {
   max?: number
   step?: number
   disabled?: boolean
+  className?: string
 }
 
 function getStepPrcs(step: number): number {
@@ -32,6 +33,7 @@ export function NumberInput({
   max,
   step,
   disabled,
+  className,
 }: NmbrNptPrps) {
   const [draftValue, setDrftVl] = useState(() => fmtNptVl(value))
   const [isEditing, setIsEditing] = useState(false)
@@ -93,6 +95,7 @@ export function NumberInput({
       min={min}
       max={max}
       step={step}
+      className={className}
       value={inputValue}
       disabled={disabled}
       onChange={(event) => {

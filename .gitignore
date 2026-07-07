@@ -17,3 +17,6 @@ scripts
 prod-app.json
 
 /settings
+
+/public/card-presets
+/public/assets/spine/portrait/

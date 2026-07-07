@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Provides shared utils helpers for the results surface.
+  Description: provides shared utils helpers for the results surface.
 */
 
 import type { SkillDef, SkillSubHit } from '@/domain/entities/stats.ts'
@@ -33,7 +33,7 @@ export function mkSubHitForm(
 }
 
 export function shldViewSubH(subHits: SkillSubHit[]): boolean {
-  return !(subHits.length === 1 && (subHits[0]?.count ?? 1) === 1)
+  return subHits.length > 0 && !(subHits.length === 1 && (subHits[0]?.count ?? 1) === 1)
 }
 
 export function fmtCntrPrcn(value: number): string {

@@ -1,11 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: Builds route-level context-menu entries for navigation, layout,
+  Description: builds route-level context-menu entries for navigation, layout,
                and app-history actions shared by the route chrome.
 */
 
-import { LayoutPanelTop as PanelTopIcon, MapPlus, Redo2, RotateCcw, Undo2 } from 'lucide-react'
-import { BsPersonVcard as BsPrsnVcrd } from 'react-icons/bs'
+import { ChartNoAxesColumnIncreasing as ChartInc, LayoutPanelTop as PanelTopIcon, MapPlus, Redo2, RotateCcw, Undo2 } from 'lucide-react'
 import { FaMicrochip } from 'react-icons/fa6'
 import { GiSchoolBag } from 'react-icons/gi'
 import { RxActivityLog as RxCtvtLog } from 'react-icons/rx'
@@ -28,10 +27,10 @@ interface RtChrmBttmSc extends RtChrmPgsBld {
   onUndoTo: (index: number) => void
   onRedoTo: (index: number) => void
   optAct: boolean
-  vrvwAct: boolean
+  bnchAct: boolean
   onOpenInv: () => void
   onTgglOpt: () => void
-  onTgglVrvw: () => void
+  onTgglBnch: () => void
   onOpenStatus: () => void
   canReset: boolean
   onReset: () => void
@@ -121,12 +120,12 @@ export const routeCtxBuilder = {
           onSelect: args.onTgglOpt,
         },
         {
-          id: 'routechrome-overview',
-          label: 'Overview',
-          icon: <BsPrsnVcrd size={15} />,
-          hint: args.vrvwAct ? 'Current' : undefined,
-          disabled: args.vrvwAct,
-          onSelect: args.onTgglVrvw,
+          id: 'routechrome-benchmark',
+          label: 'Benchmark',
+          icon: <ChartInc size={15} />,
+          hint: args.bnchAct ? 'Current' : undefined,
+          disabled: args.bnchAct,
+          onSelect: args.onTgglBnch,
         },
         {
           id: 'routechrome-status',

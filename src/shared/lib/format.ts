@@ -1,6 +1,6 @@
 /*
-  author: runor ewhro
-  description: small shared formatters for display-only ui values.
+  Author: Runor Ewhro
+  Description: small shared formatters for display-only ui values.
 */
 
 export function fmtPrcn(value: number, digits = 1): string {

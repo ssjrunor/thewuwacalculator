@@ -20,6 +20,8 @@ import {
   mkDrctFeatRs,
   mkPrepRotNvr,
   type PrepRotNvrn,
+  type RotSimulationDetail,
+  type RotSimulationMode,
 } from '@/engine/rotation/system'
 
 export interface PrepDrctTpt {
@@ -178,6 +180,10 @@ export function mkPrepWork({
 // run the full simulation from a previously prepared workspace snapshot
 export function runPrepWorkS(
     prepared: PrepWork,
+    options: {
+      mode?: RotSimulationMode
+      detail?: RotSimulationDetail
+    } = {},
 ): SimResult | null {
   if (!prepared.activeContext || !prepared.activeSeed || !prepared.actRt) {
     return null
@@ -190,6 +196,8 @@ export function runPrepWorkS(
       {
         directOutput: prepared.directOutput,
         rotNvrn: prepared.rotNvrn,
+        mode: options.mode,
+        detail: options.detail,
       },
   )
 }

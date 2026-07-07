@@ -45,6 +45,9 @@ interface LegDataFfctP {
   sourceStats?: Record<string, FinalStats>
   selectedTargets?: Record<string, string | null>
   enemy?: EnemyProfile
+  // echo set sources are only assembled in the graph path; opt them into the
+  // legacy path for standalone build-stat derivation.
+  includeEchoSets?: boolean
 }
 
 interface GrphDataFfct {
@@ -275,7 +278,10 @@ function mkLegFfctCtx(
       selectedTargetsByOwnerKey: options.selectedTargets,
     }
 
-    const contexts: EffectContext[] = [resContext]
+    const contexts: EffectContext[] = [
+      resContext,
+      ...(options.includeEchoSets ? mkEchoSetCnt(resContext) : []),
+    ]
     const wpnCtx = mkWpnCtx(resContext)
     const echoContext = mkEchoCtx(resContext)
 
@@ -620,10 +626,15 @@ export function applyRtDataF(
     baseBuffs: UnifiedBuffPool,
     options: DataFfctPtns = {},
     stage: 'preStats' | 'postStats' = 'preStats',
+    sourceFilter?: (source: DataSrcRef) => boolean,
 ): UnifiedBuffPool {
   const next = baseBuffs
 
   for (const entry of makeEffectRows(runtime, options)) {
+    if (sourceFilter && !sourceFilter(entry.baseContext.source)) {
+      continue
+    }
+
     const effects = stage === 'postStats' ? entry.postStatEffects : entry.rtPreSttsExe
     if (effects.length === 0) {
       continue

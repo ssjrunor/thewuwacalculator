@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Provides settings-page data management helpers and derived values.
+  Description: provides settings-page data management helpers and derived values.
 */
 
 import type { PersistedState } from '@/domain/entities/appState'
@@ -37,16 +37,16 @@ type CurResBndl = DataXprtBndl<'current-resonator', {
 }>
 
 type PrflBndl = DataXprtBndl<'profiles', {
-  actResId: string | null
+  activeResonatorId: string | null
   profiles: PersistedState['calculator']['profiles']
-  suggsByResId: PersistedState['calculator']['suggestionsByResonatorId']
-  optimizer: PersistedState['calculator']['optimizerContext']
+  suggestionsByResonatorId: PersistedState['calculator']['suggestionsByResonatorId']
+  optimizerContext: PersistedState['calculator']['optimizerContext']
 }>
 
 type InvBndl = DataXprtBndl<'inventory', {
-  invChs: PersistedState['calculator']['inventoryEchoes']
-  invBlds: PersistedState['calculator']['inventoryBuilds']
-  invRttn: PersistedState['calculator']['inventoryRotations']
+  inventoryEchoes: PersistedState['calculator']['inventoryEchoes']
+  inventoryBuilds: PersistedState['calculator']['inventoryBuilds']
+  inventoryRotations: PersistedState['calculator']['inventoryRotations']
 }>
 
 type SetsBndl = DataXprtBndl<'settings', {
@@ -63,6 +63,18 @@ type DataXprtBnrc =
   | InvBndl
   | SetsBndl
   | SssnBndl
+
+type LegacyPrflData = {
+  actResId?: string | null
+  suggsByResId?: PersistedState['calculator']['suggestionsByResonatorId']
+  optimizer?: PersistedState['calculator']['optimizerContext']
+}
+
+type LegacyInvData = {
+  invChs?: PersistedState['calculator']['inventoryEchoes']
+  invBlds?: PersistedState['calculator']['inventoryBuilds']
+  invRttn?: PersistedState['calculator']['inventoryRotations']
+}
 
 export interface XprtDataFile {
   fileName: string
@@ -277,11 +289,16 @@ export function resMprtData(raw: string, currentState: AppStore): RslvMprtData {
         }
       }
       case 'profiles': {
-        snapshot.calculator.profiles = structuredClone(bundle.data.profiles)
-        snapshot.calculator.suggestionsByResonatorId = structuredClone(bundle.data.suggsByResId)
-        snapshot.calculator.optimizerContext = structuredClone(bundle.data.optimizer)
+        const data = bundle.data as PrflBndl['data'] & LegacyPrflData
+        snapshot.calculator.profiles = structuredClone(data.profiles)
+        snapshot.calculator.suggestionsByResonatorId = structuredClone(
+          data.suggestionsByResonatorId ?? data.suggsByResId ?? {},
+        )
+        snapshot.calculator.optimizerContext = structuredClone(
+          data.optimizerContext ?? data.optimizer ?? null,
+        )
         snapshot.calculator.session.activeResonatorId = resActResId(
-          bundle.data.actResId,
+          data.activeResonatorId ?? data.actResId,
           snapshot.calculator.profiles,
           snapshot.calculator.session.activeResonatorId,
         )
@@ -300,9 +317,10 @@ export function resMprtData(raw: string, currentState: AppStore): RslvMprtData {
         }
       }
       case 'inventory': {
-        snapshot.calculator.inventoryEchoes = structuredClone(bundle.data.invChs)
-        snapshot.calculator.inventoryBuilds = structuredClone(bundle.data.invBlds)
-        snapshot.calculator.inventoryRotations = structuredClone(bundle.data.invRttn)
+        const data = bundle.data as InvBndl['data'] & LegacyInvData
+        snapshot.calculator.inventoryEchoes = structuredClone(data.inventoryEchoes ?? data.invChs ?? [])
+        snapshot.calculator.inventoryBuilds = structuredClone(data.inventoryBuilds ?? data.invBlds ?? [])
+        snapshot.calculator.inventoryRotations = structuredClone(data.inventoryRotations ?? data.invRttn ?? [])
         return {
           label: 'inventory backup',
           snapshot,

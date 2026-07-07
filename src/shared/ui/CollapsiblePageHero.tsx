@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Inline page hero plus a small floating pill that drops in
+  Description: inline page hero plus a small floating pill that drops in
                from above the viewport once the user has scrolled past
                the hero. Eyebrow + title characters stagger in. Clicking
                the pill smoothly scrolls the scroll container back to top.
@@ -133,8 +133,7 @@ export function CllpPageHeyf({
           <>
             {eyebrow ? <div className="page-hero-eyebrow">{eyebrow}</div> : null}
             <h1>{title}</h1>
-            {subtitle ? <p className="page-hero-sub">{subtitle}</p> : null}
-            {meta ? <p className="page-hero-meta">{meta}</p> : null}
+            {subtitle ? <p className="page-hero-meta">{subtitle ? subtitle : meta ? meta : null}</p> : null}
           </>
         )}
       </header>

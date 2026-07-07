@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator suggesstions flow.
+  Description: renders the pane surface for the calculator suggesstions flow.
 */
 
 import { cloneElement, isValidElement as isVldElem, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -21,6 +21,7 @@ import { getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
 import { applySetPlan, mkEchoMainSt } from '@/engine/suggestions/mutate.ts'
 import { applyMainSta } from '@/engine/suggestions/mainStat-suggestion/utils.ts'
+import { mkCostPlns } from '@/engine/suggestions/randomEchoes/lib/combinations.ts'
 import { runMainStatS, runRandSuggs, runSetPlanSu, runWpnSuggs } from '@/engine/suggestions/client.ts'
 import { readSuggsSss, writeSuggsSs } from '@/engine/suggestions/sessionCache.ts'
 import {
@@ -31,6 +32,9 @@ import {
   mkSuggVltnCt,
   evalSuggChs,
 } from '@/engine/suggestions/shared.ts'
+import { calcSubPrio, type SubstatEntry } from '@/engine/suggestions/substat-priority/compute.ts'
+import { calcSubBench, type SubstatBenchmark } from '@/data/scoring/substatBenchmark.ts'
+import { SubstatPriorityTables as SubPrioTables, type SubstatViewRow } from '@/modules/calculator/features/suggesstions/SubstatPriorityTables.tsx'
 import type {
   MainStatSugg,
   RandomEntry,
@@ -38,7 +42,7 @@ import type {
   WeaponEntry,
 } from '@/engine/suggestions/types.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
-import { fmtCmpcNmbr, fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import {
   DEFRANDSETS,
   DEFWPNSETS,
@@ -67,6 +71,7 @@ import {
   trimRandSetP,
 } from '@/modules/calculator/features/suggesstions/lib/suggestions.ts'
 import { getQppdEchoC } from '@/modules/calculator/features/echoes/lib/echoes.ts'
+import { canMainEchoFitSetPlan as canMainFitSet } from '@/modules/calculator/features/echoes/lib/quickSetup.ts'
 import { WPNTYPETOKEY } from '@/modules/calculator/features/resonator/lib/resonator.ts'
 import { resPssvPrms, weaponStatsAt, withDefWpnMg } from '@/modules/calculator/features/weapons/lib/weapon.ts'
 import { EchoPicker } from '@/modules/calculator/features/echoes/Picker.tsx'
@@ -74,6 +79,12 @@ import { SetCond } from '@/modules/calculator/features/controls/SetConditional.t
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
+import { useBenchPreview } from '@/modules/calculator/model/useBuildBenchmark.ts'
+import {
+  formatBuildBenchmarkScore as fmtBenchScore,
+  getBuildBenchmarkBadgeClass as getBenchBadgeCls,
+  getBuildBenchmarkBadgeStyle as getBenchBadgeStyle,
+} from '@/modules/calculator/model/buildBenchmarkDisplay.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { EchoGrid, mkEchoGridTm } from '@/shared/ui/EchoGrid.tsx'
@@ -81,13 +92,14 @@ import { SuggsMdl } from '@/modules/calculator/features/suggesstions/Parts.tsx'
 import { WeaponConfig } from '@/modules/calculator/features/suggesstions/WeaponConfig.tsx'
 import {
   targetOpts,
+  targetGroups,
   type SuggTgtPtn,
 } from '@/modules/calculator/features/suggesstions/lib/helpers.ts'
 import { runCchdSuggJ } from '@/modules/calculator/features/suggesstions/lib/runs.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { useEchoSrfcM } from '@/modules/calculator/features/echoes/lib/useEchoSurfaceMenu.tsx'
 import { qpEchoAtSlot } from '@/modules/calculator/features/echoes/lib/equip.ts'
-import { Copy } from 'lucide-react'
+import { Copy, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { useSel } from '@/modules/calculator/lib/sel.tsx'
 import AppLdrVrly from "@/shared/ui/AppLoaderOverlay.tsx";
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
@@ -104,19 +116,32 @@ interface WpnCard {
   plans: WeaponEntry[]
 }
 
+const SUGG_RERUN_MS = 300
 
+function randMainFitsPlan(
+  mainEchoId: string | null | undefined,
+  setPreferences: RandGnrtSetP[],
+): boolean {
+  if (!mainEchoId) {
+    return true
+  }
 
-// resolve the rank used for a visible weapon candidate
-// standard weapon rank overrides rarity rank, matching the suggestion engine.
+  const mainEcho = getEchoById(mainEchoId)
+  if (!mainEcho) {
+    return false
+  }
 
-// keep passive-state config scoped to weapons that are actually in the search space.
+  return mkCostPlns(mainEcho.cost).some((plan) => {
+    const rest = [...plan]
+    const costIndex = rest.indexOf(mainEcho.cost)
+    if (costIndex < 0) {
+      return false
+    }
 
-// resolve the normal max for a state control
-// sparse config only stores values that differ from this authored max.
-
-// coerce a user-edited max value back into the source state's valid range.
-
-// detect whether a sparse state config still has any meaningful override.
+    rest.splice(costIndex, 1)
+    return canMainFitSet(mainEcho.id, setPreferences, [mainEcho.cost, ...rest])
+  })
+}
 
 export function Suggestions({
   runtime,
@@ -136,6 +161,12 @@ export function Suggestions({
   const [rnnnSetPlns, setRnnnSetPl] = useState(false)
   const [rnnnWpns, setRnnnWpns] = useState(false)
   const [rnnnRand, setRnnnRand] = useState(false)
+  // how many tuning steps the substat add / remove columns simulate at once (1..88)
+  const [substatSteps, setSubstatSteps] = useState(1)
+
+  const setSubSteps = useCallback((value: number) => {
+    setSubstatSteps(Math.max(1, Math.min(88, Math.round(value) || 1)))
+  }, [])
 
   const inspectModal = useAppModal()
   const setCnfgMdl = useAppModal()
@@ -175,6 +206,10 @@ export function Suggestions({
   }), [weaponSuggests])
   const tgtSqncRef = useRef({ main: 0, set: 0, weapon: 0, random: 0 })
   const didHydrSetCo = useRef(false)
+  const rerunTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const randomRerunTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rerunForce = useRef(false)
+  const randomRerunForce = useRef(false)
   const portalTarget = mainPortal()
   const activeSeed = useMemo(() => getResSeedBy(runtime.id), [runtime.id])
   const resName = activeSeed?.name ?? runtime.id
@@ -211,14 +246,37 @@ export function Suggestions({
 
 
 
-  const targetOptions = useMemo<SuggTgtPtn[]>(
+  const mutableTargetOptions = useMemo<SuggTgtPtn[]>(
     () => targetOpts(runtime.id, simulation),
     [runtime.id, simulation],
+  )
+  const fixedTargetOptions = useMemo<SuggTgtPtn[]>(
+    () => targetOpts(runtime.id, simulation, { includeEchoAttacks: true }),
+    [runtime.id, simulation],
+  )
+  const usesFixedTargets = viewMode === 'substats' || viewMode === 'weapons'
+  const targetOptions = usesFixedTargets ? fixedTargetOptions : mutableTargetOptions
+
+  const targetSkillGroups = useMemo(
+    () => targetGroups(targetOptions),
+    [targetOptions],
   )
 
   const selTgtVl = suggsStt.settings.rotationMode
     ? ROT_TGT_VL
     : (suggsStt.settings.targetFeatureId ?? '')
+  const hasMutableTarget = suggsStt.settings.rotationMode
+    ? mutableTargetOptions.some((option) => option.value === ROT_TGT_VL)
+    : Boolean(
+      suggsStt.settings.targetFeatureId &&
+      mutableTargetOptions.some((option) => option.value === suggsStt.settings.targetFeatureId),
+    )
+  const hasFixedTarget = suggsStt.settings.rotationMode
+    ? fixedTargetOptions.some((option) => option.value === ROT_TGT_VL)
+    : Boolean(
+      suggsStt.settings.targetFeatureId &&
+      fixedTargetOptions.some((option) => option.value === suggsStt.settings.targetFeatureId),
+    )
 
   useEffect(() => {
     // keep the selected target valid after feature lists change, preferring rotation mode when it is still available.
@@ -260,7 +318,7 @@ export function Suggestions({
     if (
       !simulation ||
       !activeSeed ||
-      (!suggsStt.settings.rotationMode && targetOptions.length === 0)
+      !hasMutableTarget
     ) {
       return null
     }
@@ -285,16 +343,136 @@ export function Suggestions({
     simulation,
     suggsStt.settings.rotationMode,
     suggsStt.settings.targetFeatureId,
-    targetOptions.length,
+    hasMutableTarget,
   ])
 
-  const baseDamage = useMemo(() => {
+  const mainSuggVltnCtx = useMemo(() => {
+    if (
+      !simulation ||
+      !activeSeed ||
+      !hasMutableTarget
+    ) {
+      return null
+    }
+
+    return mkSuggVltnCt({
+      runtime,
+      seed: activeSeed,
+      enemy: enemyProfile,
+      runtimesById: partRntmById,
+      selectedTargets: selTrgtByOwn,
+      setConds: setConds,
+      setStateMode: 'resolved',
+      tgtFeatId: suggsStt.settings.targetFeatureId,
+      rotationMode: suggsStt.settings.rotationMode,
+    }, simulation)
+  }, [
+    activeSeed,
+    enemyProfile,
+    partRntmById,
+    runtime,
+    selTrgtByOwn,
+    setConds,
+    simulation,
+    suggsStt.settings.rotationMode,
+    suggsStt.settings.targetFeatureId,
+    hasMutableTarget,
+  ])
+
+  const fixedSuggVltnCtx = useMemo(() => {
+    if (
+      !simulation ||
+      !activeSeed ||
+      !hasFixedTarget
+    ) {
+      return null
+    }
+
+    return mkSuggVltnCt({
+      runtime,
+      seed: activeSeed,
+      enemy: enemyProfile,
+      runtimesById: partRntmById,
+      selectedTargets: selTrgtByOwn,
+      setConds: setConds,
+      setStateMode: 'resolved',
+      tgtFeatId: suggsStt.settings.targetFeatureId,
+      rotationMode: suggsStt.settings.rotationMode,
+      includeEchoAttacks: true,
+    }, simulation)
+  }, [
+    activeSeed,
+    enemyProfile,
+    hasFixedTarget,
+    partRntmById,
+    runtime,
+    selTrgtByOwn,
+    setConds,
+    simulation,
+    suggsStt.settings.rotationMode,
+    suggsStt.settings.targetFeatureId,
+  ])
+
+  const mutableBaseDamage = useMemo(() => {
     if (!suggVltnCtx) {
       return 0
     }
 
     return evalSuggChs(suggVltnCtx, runtime.build.echoes)
   }, [runtime.build.echoes, suggVltnCtx])
+
+  const mainBaseDamage = useMemo(() => {
+    if (!mainSuggVltnCtx) {
+      return 0
+    }
+
+    return evalSuggChs(mainSuggVltnCtx, runtime.build.echoes)
+  }, [mainSuggVltnCtx, runtime.build.echoes])
+
+  const fixedBaseDamage = useMemo(() => {
+    if (!fixedSuggVltnCtx) {
+      return 0
+    }
+
+    return evalSuggChs(fixedSuggVltnCtx, runtime.build.echoes)
+  }, [fixedSuggVltnCtx, runtime.build.echoes])
+
+  const baseDamage = viewMode === 'mainStats'
+    ? mainBaseDamage
+    : usesFixedTargets ? fixedBaseDamage : mutableBaseDamage
+
+  const substatRows = useMemo<SubstatEntry[]>(() => {
+    // substat priority is cheap (~30 evals) so it runs inline against the shared
+    // evaluation context and recomputes live whenever the build or target changes.
+    if (!fixedSuggVltnCtx) {
+      return []
+    }
+
+    return calcSubPrio(fixedSuggVltnCtx, runtime.build.echoes, substatSteps)
+  }, [fixedSuggVltnCtx, runtime.build.echoes, substatSteps])
+
+  const substatView = useMemo<SubstatViewRow[]>(() => {
+    // contribution share is relative to substats only, never the full damage total
+    const sumContribution = substatRows.reduce(
+      (sum, row) => sum + (row.present ? row.contribution : 0),
+      0,
+    )
+
+    return substatRows.map((row) => ({
+      ...row,
+      contributionShare: row.present && sumContribution > 0
+        ? (row.contribution / sumContribution) * 100
+        : 0,
+    }))
+  }, [substatRows])
+
+  const substatBenchmark = useMemo<SubstatBenchmark | null>(() => {
+    if (!fixedSuggVltnCtx) {
+      return null
+    }
+
+    return calcSubBench(fixedSuggVltnCtx, runtime.build.echoes)
+  }, [fixedSuggVltnCtx, runtime.build.echoes])
 
   const curMainStatS = useMemo(
     () => mkEchoMainSt(runtime.build.echoes),
@@ -309,10 +487,8 @@ export function Suggestions({
     [runtime.build.echoes],
   )
 
-  const canRunDrctSu = Boolean(activeSeed) && targetOptions.length > 0 && (
-    suggsStt.settings.rotationMode ||
-    suggsStt.settings.targetFeatureId != null
-  )
+  const canRunDrctSu = Boolean(activeSeed) && hasMutableTarget
+  const canRunFixedSu = Boolean(activeSeed) && hasFixedTarget
   // base signatures intentionally exclude mode-specific generator knobs; each job appends its own settings so caches
   // invalidate only for the inputs that affect that search space.
   const baseSuggNptS = useMemo(() => inputSig({
@@ -332,17 +508,54 @@ export function Suggestions({
     suggsStt.settings.rotationMode,
     suggsStt.settings.targetFeatureId,
   ])
+  const mainSuggNptS = useMemo(() => inputSig({
+    runtime,
+    enemyProfile,
+    prtcRntmById: partRntmById,
+    selectedTargets: selTrgtByOwn,
+    setConds: setConds,
+    setStateMode: 'resolved',
+    tgtFeatId: suggsStt.settings.targetFeatureId,
+    rotationMode: suggsStt.settings.rotationMode,
+  }), [
+    enemyProfile,
+    partRntmById,
+    runtime,
+    selTrgtByOwn,
+    setConds,
+    suggsStt.settings.rotationMode,
+    suggsStt.settings.targetFeatureId,
+  ])
   const mainSttsCchK = useMemo(
-    () => `main:${runtime.id}:${baseSuggNptS}`,
-    [baseSuggNptS, runtime.id],
+    () => `main:${runtime.id}:${mainSuggNptS}`,
+    [mainSuggNptS, runtime.id],
   )
   const setPlnsCchKe = useMemo(
     () => `sets:${runtime.id}:${baseSuggNptS}`,
     [baseSuggNptS, runtime.id],
   )
+  const fixedSuggNptS = useMemo(() => inputSig({
+    runtime,
+    enemyProfile,
+    prtcRntmById: partRntmById,
+    selectedTargets: selTrgtByOwn,
+    setConds: setConds,
+    setStateMode: 'resolved',
+    tgtFeatId: suggsStt.settings.targetFeatureId,
+    rotationMode: suggsStt.settings.rotationMode,
+    includeEchoAttacks: true,
+  }), [
+    enemyProfile,
+    partRntmById,
+    runtime,
+    selTrgtByOwn,
+    setConds,
+    suggsStt.settings.rotationMode,
+    suggsStt.settings.targetFeatureId,
+  ])
   const wpnCchKey = useMemo(
-    () => `weapon:${runtime.id}:${baseSuggNptS}:${wpnSig(wpnSets)}`,
-    [baseSuggNptS, runtime.id, wpnSets],
+    () => `weapon:${runtime.id}:${fixedSuggNptS}:${wpnSig(wpnSets)}`,
+    [fixedSuggNptS, runtime.id, wpnSets],
   )
   const randCchKey = useMemo(
     () => `random:${runtime.id}:${baseSuggNptS}:${randomSig(suggsStt.random)}`,
@@ -382,6 +595,7 @@ export function Suggestions({
               runtimesById: partRntmById,
               selectedTargets: selTrgtByOwn,
               setConds: setConds,
+              setStateMode: 'resolved',
               tgtFeatId: suggsStt.settings.targetFeatureId,
               rotationMode: suggsStt.settings.rotationMode,
             }, simulation)
@@ -462,7 +676,7 @@ export function Suggestions({
     // weapon suggestions use the same target cache shape, but each result scores a weapon passive variant.
     await runCchdSuggJ({
       force,
-      canRun: canRunDrctSu,
+      canRun: canRunFixedSu,
       enabled: Boolean(activeSeed),
       cacheKey: wpnCchKey,
       logLabel: 'weapon',
@@ -493,6 +707,7 @@ export function Suggestions({
               setConds: setConds,
               tgtFeatId: suggsStt.settings.targetFeatureId,
               rotationMode: suggsStt.settings.rotationMode,
+              includeEchoAttacks: true,
               weapon: wpnSets,
               topK: 30,
             }, simulation)
@@ -501,7 +716,7 @@ export function Suggestions({
       run: runWpnSuggs,
     })
   }, [
-    canRunDrctSu,
+    canRunFixedSu,
     enemyProfile,
     activeSeed,
     partRntmById,
@@ -572,15 +787,77 @@ export function Suggestions({
     suggsStt.settings.targetFeatureId,
   ])
 
+  const latestSuggestionRuns = useRef({
+    runMainStats,
+    runSetPlans,
+    runWeapons,
+    runRandom,
+  })
+
   useEffect(() => {
-    // target/runtime changes refresh deterministic suggestion modes immediately and clear random results, which are
+    latestSuggestionRuns.current = {
+      runMainStats,
+      runSetPlans,
+      runWeapons,
+      runRandom,
+    }
+  }, [runMainStats, runRandom, runSetPlans, runWeapons])
+
+  const schedRerun = useCallback((force = false) => {
+    rerunForce.current = rerunForce.current || force
+    if (rerunTimer.current) {
+      clearTimeout(rerunTimer.current)
+    }
+
+    rerunTimer.current = setTimeout(() => {
+      rerunTimer.current = null
+      const runForce = rerunForce.current
+      rerunForce.current = false
+
+      setRandRslt([])
+      setSelRandNd(0)
+      void latestSuggestionRuns.current.runMainStats(runForce)
+      void latestSuggestionRuns.current.runSetPlans(runForce)
+      void latestSuggestionRuns.current.runWeapons(runForce)
+    }, SUGG_RERUN_MS)
+  }, [])
+
+  const scheduleRandomRerun = useCallback((force = false) => {
+    randomRerunForce.current = randomRerunForce.current || force
+    if (randomRerunTimer.current) {
+      clearTimeout(randomRerunTimer.current)
+    }
+
+    randomRerunTimer.current = setTimeout(() => {
+      randomRerunTimer.current = null
+      const runForce = randomRerunForce.current
+      randomRerunForce.current = false
+
+      void latestSuggestionRuns.current.runRandom(runForce)
+    }, SUGG_RERUN_MS)
+  }, [])
+
+  useEffect(() => () => {
+    if (rerunTimer.current) {
+      clearTimeout(rerunTimer.current)
+      rerunTimer.current = null
+    }
+    if (randomRerunTimer.current) {
+      clearTimeout(randomRerunTimer.current)
+      randomRerunTimer.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    // target/runtime changes refresh deterministic suggestion modes after a short coalescing delay and clear random results, which are
     // generated lazily only when the random tab is opened.
-    setRandRslt([])
-    setSelRandNd(0)
-    void runMainStats()
-    void runSetPlans()
-    void runWeapons()
-  }, [runMainStats, runSetPlans, runWeapons])
+    schedRerun()
+  }, [
+    mainSttsCchK,
+    setPlnsCchKe,
+    wpnCchKey,
+    schedRerun,
+  ])
 
   useEffect(() => {
     // set conditionals hydrate from persisted runtime state on mount; skip the first pass so loading saved conditionals
@@ -590,20 +867,16 @@ export function Suggestions({
       return
     }
 
-    setRandRslt([])
-    setSelRandNd(0)
-    void runMainStats(true)
-    void runSetPlans(true)
-    void runWeapons(true)
-  }, [setCondsSig, runMainStats, runSetPlans, runWeapons])
+    schedRerun(true)
+  }, [setCondsSig, schedRerun])
 
   useEffect(() => {
     // random suggestions are the expensive path, so run them on demand rather than every time the user changes target
     // or conditionals while viewing another tab.
     if (viewMode === 'random' && randRslt.length === 0 && !rnnnRand && canRunDrctSu) {
-      void runRandom()
+      scheduleRandomRerun()
     }
-  }, [canRunDrctSu, randRslt.length, runRandom, rnnnRand, viewMode])
+  }, [canRunDrctSu, randCchKey, randRslt.length, rnnnRand, scheduleRandomRerun, viewMode])
 
   const onTgtChng = useCallback((value: string) => {
     updActResSug((state) => ({
@@ -736,6 +1009,12 @@ export function Suggestions({
   const nspcGridTms = useMemo(() => mkEchoGridTm({
     echoes: nspcChs,
   }), [nspcChs])
+  const { score: randomBuildScore } = useBenchPreview({
+    runtime: viewMode === 'random' && selRandPlan ? runtime : null,
+    echoes: selRandPlan?.echoes ?? [],
+    runtimesById: partRntmById,
+    targetSelections: selTrgtByOwn,
+  })
   const nspcSelTms = useMemo(
     // ids include the rendered index because suggested echoes can legitimately reuse the same uid across empty or
     // transformed loadout slots.
@@ -781,25 +1060,31 @@ export function Suggestions({
     () => selRandMainE ? getEchoById(selRandMainE) : null,
     [selRandMainE],
   )
+  const randMainInvalid = useMemo(
+    () => Boolean(
+      suggsStt.random.mainEchoId &&
+      !randMainFitsPlan(suggsStt.random.mainEchoId, suggsStt.random.setPreferences),
+    ),
+    [suggsStt.random.mainEchoId, suggsStt.random.setPreferences],
+  )
   const ttlRandSetPc = useMemo(
     () => suggsStt.random.setPreferences.reduce((sum, entry) => sum + entry.count, 0),
     [suggsStt.random.setPreferences],
   )
-  // the random generator can either be unconstrained, or constrained by up to two set preferences covering the four
-  // non-main echo slots.
-  const canAddRandSe = ttlRandSetPc === 0 || (
-    ttlRandSetPc < 4 &&
-    suggsStt.random.setPreferences.length < 2
-  )
+  // the random generator can either be unconstrained, or constrained by up to three set preferences across five slots.
+  const canAddRandSe = ttlRandSetPc < 5 && suggsStt.random.setPreferences.length < 3
   const vlblRandSetP = useMemo(() => (
     ECHO_SET_DEFS
-      .filter((entry) => !suggsStt.random.setPreferences.some((selected) => selected.setId === entry.id))
+      .filter((entry) => (
+        !suggsStt.random.setPreferences.some((selected) => selected.setId === entry.id) &&
+        getRandSetCn(entry.id).some((count) => count <= 5 - ttlRandSetPc)
+      ))
       .map((entry) => ({
         value: String(entry.id),
         label: entry.name,
         icon: getSntSetIco(entry.id) ?? undefined,
       }))
-  ), [suggsStt.random.setPreferences])
+  ), [suggsStt.random.setPreferences, ttlRandSetPc])
 
   const onAddRandSet = useCallback((value: string) => {
     const setId = Number(value)
@@ -807,7 +1092,8 @@ export function Suggestions({
       return
     }
 
-    const defaultCount = getRandSetCn(setId)[0]
+    const remaining = 5 - ttlRandSetPc
+    const defaultCount = getRandSetCn(setId).find((count) => count <= remaining)
     if (!defaultCount) {
       return
     }
@@ -817,7 +1103,7 @@ export function Suggestions({
       { setId, count: defaultCount },
       ...preferences.filter((entry) => entry.setId !== setId),
     ])
-  }, [updRandSetPr])
+  }, [ttlRandSetPc, updRandSetPr])
 
   const onRandSetCnt = useCallback((setId: number, nextCount: number) => {
     updRandSetPr((preferences) => {
@@ -863,6 +1149,14 @@ export function Suggestions({
             </button>
             <button
               type="button"
+              className={`echo-tool pane-view-toggle__button${viewMode === 'substats' ? ' is-active' : ''}`}
+              aria-pressed={viewMode === 'substats'}
+              onClick={() => setSugView('substats')}
+            >
+              Sub Stats
+            </button>
+            <button
+              type="button"
               className={`echo-tool pane-view-toggle__button${viewMode === 'setPlans' ? ' is-active' : ''}`}
               aria-pressed={viewMode === 'setPlans'}
               onClick={() => setSugView('setPlans')}
@@ -899,6 +1193,7 @@ export function Suggestions({
                   <LiquidSelect
                     value={selTgtVl}
                     options={targetOptions}
+                    groups={targetSkillGroups}
                     onChange={(value) => onTgtChng(String(value))}
                     placeholder="Target Skill"
                   />
@@ -978,12 +1273,12 @@ export function Suggestions({
                         </div>
                         <div className="main-stat-row-pills">
                           <span className="echo-buff main-stat-pill">
-                            <span className="main-stat-pill-stat">{fmtStatKeyLb(recipe.primaryKey)}</span>
-                            <span className="main-stat-pill-value highlight">{fmtStatKeyVl(recipe.primaryKey, ECHO_MAIN_STATS[recipe.cost]?.[recipe.primaryKey] ?? 0)}</span>
+                            <span className="main-stat-pill-stat">{formatStatKeyLabel(recipe.primaryKey)}</span>
+                            <span className="main-stat-pill-value highlight">{formatStatKeyValue(recipe.primaryKey, ECHO_MAIN_STATS[recipe.cost]?.[recipe.primaryKey] ?? 0)}</span>
                           </span>
                           <span className="echo-buff main-stat-pill">
-                            <span className="main-stat-pill-stat">{fmtStatKeyLb(ECHO_SIDE_STATS[recipe.cost]?.key ?? 'atkFlat')}</span>
-                            <span className="main-stat-pill-value highlight">{fmtStatKeyVl(ECHO_SIDE_STATS[recipe.cost]?.key ?? 'atkFlat', ECHO_SIDE_STATS[recipe.cost]?.value ?? 0)}</span>
+                            <span className="main-stat-pill-stat">{formatStatKeyLabel(ECHO_SIDE_STATS[recipe.cost]?.key ?? 'atkFlat')}</span>
+                            <span className="main-stat-pill-value highlight">{formatStatKeyValue(ECHO_SIDE_STATS[recipe.cost]?.key ?? 'atkFlat', ECHO_SIDE_STATS[recipe.cost]?.value ?? 0)}</span>
                           </span>
                         </div>
                       </div>
@@ -1006,6 +1301,7 @@ export function Suggestions({
                   <LiquidSelect
                     value={selTgtVl}
                     options={targetOptions}
+                    groups={targetSkillGroups}
                     onChange={(value) => onTgtChng(String(value))}
                     placeholder="Target Skill"
                   />
@@ -1082,7 +1378,7 @@ export function Suggestions({
                     })}
                   </span>
                   <span className="set-plan-damage-container">
-                    <span className="set-plan-damage-main">{fmtCmpcNmbr(plan.avgDamage)}</span>
+                    <span className="set-plan-damage-main">{formatCompactNum(plan.avgDamage)}</span>
                     <span className={`set-plan-damage-diff ${getDiffTone(diff)}`}>
                       {getDiffLabel(diff, isCurrent)}
                       {getDiffArrow(diff)}
@@ -1105,6 +1401,7 @@ export function Suggestions({
                   <LiquidSelect
                     value={selTgtVl}
                     options={targetOptions}
+                    groups={targetSkillGroups}
                     onChange={(value) => onTgtChng(String(value))}
                     placeholder="Target Skill"
                   />
@@ -1191,8 +1488,8 @@ export function Suggestions({
                           <span className="weapon-sugg-pill-v">{Math.round(targetPlan.baseAtk)}</span>
                         </span>
                         <span className="weapon-sugg-pill">
-                          <span className="weapon-sugg-pill-k">{fmtStatKeyLb(targetPlan.statKey)}</span>
-                          <span className="weapon-sugg-pill-v">{fmtStatKeyVl(targetPlan.statKey, targetPlan.statValue)}</span>
+                          <span className="weapon-sugg-pill-k">{formatStatKeyLabel(targetPlan.statKey)}</span>
+                          <span className="weapon-sugg-pill-v">{formatStatKeyValue(targetPlan.statKey, targetPlan.statValue)}</span>
                         </span>
                         <span className="weapon-sugg-pill weapon-sugg-pill--rank">
                           <span className="weapon-sugg-pill-v">R{targetPlan.rank}</span>
@@ -1239,6 +1536,7 @@ export function Suggestions({
                   <LiquidSelect
                     value={selTgtVl}
                     options={targetOptions}
+                    groups={targetSkillGroups}
                     onChange={(value) => onTgtChng(String(value))}
                     placeholder="Target Skill"
                   />
@@ -1322,12 +1620,12 @@ export function Suggestions({
                         </div>
                         <div className="main-stat-row-pills random">
                           <span className="echo-buff main-stat-pill">
-                            <span className="main-stat-pill-stat">{fmtStatKeyLb(echo.mainStats.primary.key)}</span>
-                            <span className="main-stat-pill-value highlight">{fmtStatKeyVl(echo.mainStats.primary.key, echo.mainStats.primary.value)}</span>
+                            <span className="main-stat-pill-stat">{formatStatKeyLabel(echo.mainStats.primary.key)}</span>
+                            <span className="main-stat-pill-value highlight">{formatStatKeyValue(echo.mainStats.primary.key, echo.mainStats.primary.value)}</span>
                           </span>
                           <span className="echo-buff main-stat-pill">
-                            <span className="main-stat-pill-stat">{fmtStatKeyLb(echo.mainStats.secondary.key)}</span>
-                            <span className="main-stat-pill-value highlight">{fmtStatKeyVl(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}</span>
+                            <span className="main-stat-pill-stat">{formatStatKeyLabel(echo.mainStats.secondary.key)}</span>
+                            <span className="main-stat-pill-value highlight">{formatStatKeyValue(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}</span>
                           </span>
                         </div>
                       </div>
@@ -1351,16 +1649,70 @@ export function Suggestions({
         </div>
       )}
 
+      {viewMode === 'substats' && (
+        <div className="suggestions-list substat-view">
+          <div className="pane-section suggestions-controls rotation-pane-controls">
+            <div className="rotation-toolbar">
+              <div className="rotation-toolbar-group">
+                <div className="rotation-toolbar-field ui-inline-field ui-inline-field--wide">
+                  <LiquidSelect
+                    value={selTgtVl}
+                    options={targetOptions}
+                    groups={targetSkillGroups}
+                    onChange={(value) => onTgtChng(String(value))}
+                    placeholder="Target Skill"
+                  />
+                </div>
+              </div>
+              <div className="subx-rolls">
+                <span className="subx-rolls__lbl">Steps</span>
+                <div className="subx-rolls__stepper" role="group" aria-label="Number of steps to add or remove">
+                  <button
+                    type="button"
+                    className="subx-rolls__btn"
+                    onClick={() => setSubSteps(substatSteps - 1)}
+                    disabled={substatSteps <= 1}
+                    aria-label="Fewer steps"
+                  >
+                    <Minus size={14} aria-hidden="true" />
+                  </button>
+                  <input
+                    type="number"
+                    className="subx-rolls__val"
+                    min={1}
+                    max={88}
+                    value={substatSteps}
+                    onChange={(event) => setSubSteps(Number(event.target.value))}
+                    aria-label="Steps to add or remove"
+                  />
+                  <button
+                    type="button"
+                    className="subx-rolls__btn"
+                    onClick={() => setSubSteps(substatSteps + 1)}
+                    disabled={substatSteps >= 88}
+                    aria-label="More steps"
+                  >
+                    <Plus size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <SubPrioTables rows={substatView} benchmark={substatBenchmark} steps={substatSteps} />
+        </div>
+      )}
+
       <SuggsMdl
         {...inspectModal}
         title={
           viewMode === 'setPlans'
-            ? 'Inspect — Suggested Sonata Sets'
+            ? 'Inspect Suggested Sonata Sets'
             : viewMode === 'random'
-              ? 'Inspect — Random Echo Build'
+              ? 'Inspect Random Echo Build'
               : viewMode === 'weapons'
-                ? 'Inspect — Suggested Weapon'
-                : 'Inspect — Suggested Main Stats'
+                ? 'Inspect Suggested Weapon'
+                : 'Inspect Suggested Main Stats'
         }
         onClose={() => {
           nspcSel.exitSelectionMode()
@@ -1445,8 +1797,8 @@ export function Suggestions({
                   <span className="weapon-inspect__spec-v">{Math.round(opts.baseAtk)}</span>
                 </div>
                 <div className="weapon-inspect__spec">
-                  <span className="weapon-inspect__spec-k">{fmtStatKeyLb(opts.statKey)}</span>
-                  <span className="weapon-inspect__spec-v">{fmtStatKeyVl(opts.statKey, opts.statValue)}</span>
+                  <span className="weapon-inspect__spec-k">{formatStatKeyLabel(opts.statKey)}</span>
+                  <span className="weapon-inspect__spec-v">{formatStatKeyValue(opts.statKey, opts.statValue)}</span>
                 </div>
               </div>
 
@@ -1547,10 +1899,16 @@ export function Suggestions({
         {viewMode === 'random' && selRandPlan && (
           <div className="suggestions-inspect-score-row">
             <span className="suggestions-config-label">Build Score</span>
-            <span className={`set-plan-damage-diff echo-buff ${getDiffTone(percentDiff(selRandPlan.damage, baseDamage))}`}>
-              {Math.abs(percentDiff(selRandPlan.damage, baseDamage)).toFixed(1)}%
-              {getDiffArrow(percentDiff(selRandPlan.damage, baseDamage))}
-            </span>
+            {randomBuildScore !== null ? (
+              <span
+                className={getBenchBadgeCls(randomBuildScore)}
+                style={getBenchBadgeStyle(randomBuildScore)}
+              >
+                {fmtBenchScore(randomBuildScore)}
+              </span>
+            ) : (
+              <span className="suggestions-config-value">-</span>
+            )}
           </div>
         )}
         {viewMode !== 'weapons' && (
@@ -1700,7 +2058,13 @@ export function Suggestions({
             <div className="rc-row-pair">
               <div className="rc-row">
                 <span className="rc-label">Main Echo</span>
-                <button type="button" className="rc-echo-btn" onClick={randMainEcho.show}>
+                <button
+                  type="button"
+                  className={`rc-echo-btn${randMainInvalid ? ' is-invalid' : ''}`}
+                  onClick={randMainEcho.show}
+                  aria-invalid={randMainInvalid || undefined}
+                  title={randMainInvalid ? 'This echo cannot be generated with the selected Sonata plan.' : undefined}
+                >
                   {selRandMaiel?.icon ? (
                     <img
                       src={selRandMaiel.icon}
@@ -1715,6 +2079,11 @@ export function Suggestions({
                   <span className="rc-echo-name">
                     {selRandMaiel?.name ?? 'Any echo'}
                   </span>
+                  {randMainInvalid ? (
+                    <span className="rc-echo-invalid" aria-hidden>
+                      <TriangleAlert size={11} strokeWidth={2.6} />
+                    </span>
+                  ) : null}
                 </button>
               </div>
 
@@ -1723,6 +2092,7 @@ export function Suggestions({
                 <LiquidSelect
                   value={selTgtVl}
                   options={targetOptions}
+                  groups={targetSkillGroups}
                   onChange={(value) => onTgtChng(String(value))}
                   placeholder="Target Skill"
                 />
@@ -1809,7 +2179,7 @@ export function Suggestions({
             </div>
 
             {suggsStt.random.setPreferences.length === 0 ? (
-              <span className="rc-empty">No constraint — generator picks freely.</span>
+              <span className="rc-empty">No constraints.</span>
             ) : (
               suggsStt.random.setPreferences.map((entry) => {
                 const definition = ECHO_SET_DEFS.find((set) => set.id === entry.setId)

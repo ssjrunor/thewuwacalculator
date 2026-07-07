@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Provides settings-page background theme helpers and derived values.
+  Description: provides settings-page background theme helpers and derived values.
 */
 
 import { loadMgBlob, saveMgBlob } from '@/infra/persistence/blobImageStore'
@@ -253,6 +253,17 @@ export function isPlddBgKey(key: string): boolean {
   return key.startsWith('upload:')
 }
 
+// Hosted/inline image keys: the key IS the image url (an imgbb link, or a data
+// url on localhost). These persist as a short string and need no blob store.
+export function isUrlBgKey(key: string): boolean {
+  return key.startsWith('http') || key.startsWith('data:')
+}
+
+// Either an IndexedDB-backed upload or a hosted-url upload (vs a bundled preset).
+export function isCustomBgKey(key: string): boolean {
+  return isPlddBgKey(key) || isUrlBgKey(key)
+}
+
 // stores an uploaded wallpaper and returns the persisted key used by the app.
 export async function savePlddBgIm(file: File): Promise<string> {
   const key = `upload:${Date.now()}-${sntzFileName(file.name || 'custom-background')}`
@@ -265,6 +276,10 @@ export async function resolveBg(key: string): Promise<ResolvedBg> {
   const preset = getBgPreset(key)
   if (preset) {
     return { url: preset.src }
+  }
+
+  if (isUrlBgKey(key)) {
+    return { url: key }
   }
 
   if (isPlddBgKey(key)) {
@@ -295,12 +310,10 @@ export function applyBgToDoc(url: string) {
   }
 
   const root = document.documentElement
+  // The wallpaper is painted by the .app-shell::after layer (which reads this
+  // variable) so it can be blurred independently. We deliberately do not set
+  // background-image on the root itself, or a sharp copy would show through.
   root.style.setProperty('--background-wallpaper-image', `url("${url}")`)
-  root.style.backgroundImage = `url(${url})`
-  root.style.backgroundSize = 'cover'
-  root.style.backgroundPosition = 'center'
-  root.style.backgroundAttachment = 'fixed'
-  root.style.backgroundRepeat = 'no-repeat'
 }
 
 export function applyBgColor(color: string) {
@@ -320,7 +333,7 @@ export async function switchBg(source: Blob | string, activeKey?: string): Promi
   writeActBgKe(nextActKey)
 
   let url: string
-  if (typeof source === 'string' && getBgPreset(nextActKey)) {
+  if (typeof source === 'string' && (getBgPreset(nextActKey) || isUrlBgKey(nextActKey))) {
     url = source
   } else {
     const blob = source instanceof Blob ? source : await (await fetch(source)).blob()

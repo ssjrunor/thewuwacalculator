@@ -1,7 +1,5 @@
 
 
-
-
 @keyframes confirm-icon-enter {
   0%   { opacity: 0; transform: scale(0) rotate(-120deg); }
   60%  { transform: scale(1.2) rotate(8deg); }
@@ -39,8 +37,6 @@
   100% { background-position: 200% 0; }
 }
 
-
-
 .confirmation-modal {
   --confirm-accent: var(--picker-modal-accent, var(--accent, #6b7cff));
   --confirm-icon-glow: color-mix(in srgb, var(--confirm-accent) 28%, transparent);
@@ -56,7 +52,6 @@
   --confirm-icon-glow: color-mix(in srgb, var(--danger, #ef4444) 28%, transparent);
 }
 
-
 .confirmation-modal::before {
   content: '';
   position: absolute;
@@ -70,7 +65,6 @@
   transform: scaleX(0);
   z-index: 1;
 }
-
 
 .confirmation-modal::after {
   content: '';
@@ -89,8 +83,6 @@
   pointer-events: none;
   opacity: 0;
 }
-
-
 
 .confirmation-modal.open::before {
   animation: confirm-bar-enter 350ms 120ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -119,8 +111,6 @@
   animation: confirm-actions-enter 350ms 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-
-
 .confirmation-modal__icon {
   display: flex;
   align-items: center;
@@ -142,8 +132,6 @@
   width: 1.25rem;
   height: 1.25rem;
 }
-
-
 
 .confirmation-modal__body {
   display: grid;
@@ -169,8 +157,6 @@
   line-height: 1.55;
   opacity: 0;
 }
-
-
 
 .confirmation-modal__actions {
   display: flex;
@@ -240,8 +226,6 @@
   box-shadow: 0 0.4rem 1rem color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
 }
 
-
-
 @media (max-width: 640px) {
   .confirmation-modal {
     width: min(100%, calc(100vw - 1rem));
@@ -257,8 +241,6 @@
     justify-content: center;
   }
 }
-
-
 
 @media (prefers-reduced-motion: reduce) {
   .confirmation-modal,

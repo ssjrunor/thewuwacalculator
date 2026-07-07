@@ -1,22 +1,40 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the changelog page.
+  Description: renders the changelog page.
 */
 
 import React from 'react'
-import { chngSctn } from '@/data/content/changelogEntries'
+import { Link } from 'react-router-dom'
+import { chngSctn, getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 import { HtmlContent } from '@/shared/ui/HtmlContent'
-import { History } from 'lucide-react'
+import { History, Radio, ArrowRight } from 'lucide-react'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
 export function ChngPage() {
+  const linkedLatestWhatsNew = getLinkedWhatsNew(ltstCurChngE)
+
   return (
     <div className="page">
       <CllpPageHeyf
+        variant="split"
         eyebrow="History"
         title="Changelog"
-        subtitle="Complete history of updates and patches."
+        meta="Complete history of updates and patches."
         layoutKey="changelog-hero"
+        trailing={
+          linkedLatestWhatsNew ? (
+            <Link to="/changelog/whatsnew" className="changelog-whatsnew-cta">
+              <span className="changelog-whatsnew-cta__icon" aria-hidden="true">
+                <Radio size={18} />
+              </span>
+              <span className="changelog-whatsnew-cta__text">
+                <span className="changelog-whatsnew-cta__eyebrow">What's New · on air</span>
+                <span className="changelog-whatsnew-cta__title">{linkedLatestWhatsNew.title}</span>
+              </span>
+              <ArrowRight size={16} className="changelog-whatsnew-cta__arrow" aria-hidden="true" />
+            </Link>
+          ) : undefined
+        }
       />
 
       <div className="page-bento">

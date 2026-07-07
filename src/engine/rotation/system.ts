@@ -33,7 +33,7 @@ import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { cloneSlotRml } from '@/domain/state/defaults'
 import { cloneSlotLuo } from '@/domain/state/runtimeMaterialization'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
-import { calcSkillDamage } from '@/engine/formulas/damage'
+import { calcSkillDamage, type CalcSkillDamageOptions } from '@/engine/formulas/damage'
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import type { CombatContext } from '@/engine/pipeline/types'
@@ -187,6 +187,19 @@ export interface PrepRotNvrn {
   baseCntxBymf: Partial<Record<SlotId, CombatContext>>
 }
 
+export type RotSimulationMode = 'personal' | 'team' | 'both'
+export type RotSimulationDetail = 'full' | 'summary'
+
+export interface RotSimulationOptions {
+  mode?: RotSimulationMode
+  detail?: RotSimulationDetail
+}
+
+export interface RotInspectionOptions {
+  mode?: RotSimulationMode
+  includeSnapshots?: boolean
+}
+
 interface RotationExec {
   environment: PrepRotNvrn
   overlay: RotVrlyStt
@@ -202,6 +215,12 @@ interface RotationExec {
   // branch weight, mainly used by uptime nodes
   weight: number
 
+  // summary runs keep numeric totals but skip per-hit detail allocation
+  detail: RotSimulationDetail
+
+  // inspection snapshots are only needed by the state browser, not loop traces
+  inspectSnapshots: boolean
+
   // accumulated feature result rows produced so far
   entries: DamageFeature[]
 
@@ -211,6 +230,14 @@ interface RotationExec {
   // active loop run numbers, keyed by loop id. used by when rules
   actLoopRuns: Record<string, number>
   actLoopRunqi: Record<string, number>
+}
+
+function shldRunRotMode(mode: RotSimulationMode | undefined, target: Exclude<RotSimulationMode, 'both'>): boolean {
+  return mode == null || mode === 'both' || mode === target
+}
+
+function dmgOptionsFor(detail: RotSimulationDetail): CalcSkillDamageOptions | undefined {
+  return detail === 'summary' ? { includeSubHits: false } : undefined
 }
 
 // current implementation just respects explicit enabled state on the node
@@ -256,6 +283,10 @@ function withLoopNspc(
 function withFeatNspc(
   state: RotationExec,
 ): Pick<RotNspcEnt, 'runtimeById' | 'selectedTargetsByRuntimeId' | 'activeResonatorId' | 'enemy'> {
+  if (!state.inspectSnapshots) {
+    return {}
+  }
+
   const graph = state.overlay.version === 0 ? getBaseGraph(state) : getMatGrph(state)
   const runtimeById: Record<string, ResRuntime> = {}
   const selectedTargetsByRuntimeId: Record<string, Record<string, string | null>> = {}
@@ -285,17 +316,12 @@ function ppndNspcEnt(
     return state
   }
 
-  return {
-    ...state,
-    nspcNtrs: [
-      ...state.nspcNtrs,
-      {
-        ...entry,
-        ...withLoopNspc(state),
-        ...(entry.nodeType === 'feature' ? withFeatNspc(state) : {}),
-      },
-    ],
-  }
+  state.nspcNtrs.push({
+    ...entry,
+    ...withLoopNspc(state),
+    ...(entry.nodeType === 'feature' ? withFeatNspc(state) : {}),
+  })
+  return state
 }
 
 // resolve a feature node multiplier, defaulting to 1 when unset
@@ -657,6 +683,10 @@ export function mkPrepRotNvr(
 function mkRotStt(
   environment: PrepRotNvrn,
   inspect = false,
+  options: {
+    detail?: RotSimulationDetail
+    includeSnapshots?: boolean
+  } = {},
 ): RotationExec {
   return {
     environment,
@@ -672,6 +702,8 @@ function mkRotStt(
     mtrlGrphVrsn: -1,
     mtrlGrph: null,
     weight: 1,
+    detail: options.detail ?? 'full',
+    inspectSnapshots: options.includeSnapshots ?? false,
     entries: [],
     nspcNtrs: inspect ? [] : null,
     actLoopRuns: {},
@@ -1606,6 +1638,7 @@ function runFeatNode(
       : 1
 
   const baseCmbtStt = participant.runtime.state.combat
+  const damageOptions = dmgOptionsFor(lclFeatStt.detail)
 
   const wghtRslt = scaleResult(
     negFfctCmbtK
@@ -1631,6 +1664,7 @@ function runFeatNode(
               ...baseCmbtStt,
               [negFfctCmbtK]: 0,
             },
+            damageOptions,
           )
         }
 
@@ -1644,6 +1678,7 @@ function runFeatNode(
               ...baseCmbtStt,
               [negFfctCmbtK]: stackValue,
             },
+            damageOptions,
           )
 
           return total ? mrgDmgRslts(total, nextResult) : nextResult
@@ -1653,6 +1688,7 @@ function runFeatNode(
           participant.context.enemy,
           participant.runtime.base.level,
           baseCmbtStt,
+          damageOptions,
         )
       })()
       : calcSkillDamage(
@@ -1661,6 +1697,7 @@ function runFeatNode(
         participant.context.enemy,
         participant.runtime.base.level,
         baseCmbtStt,
+        damageOptions,
       ),
     state.weight,
   )
@@ -1673,32 +1710,26 @@ function runFeatNode(
     })
   }
 
-  const nextState: RotationExec = {
-    ...lclFeatStt,
-    entries: [
-      ...lclFeatStt.entries,
-      {
-        id: `${node.id}:${feature.id}`,
-        nodeId: node.id,
-        resonatorId: participant.seed.id,
-        resonatorName: participant.seed.name,
-        feature,
-        skill: scaledSkill,
-        archetype: scaledSkill.archetype,
-        aggregationType: scaledSkill.aggregationType,
-        multiplier: nodeState.multiplier,
-        weight: state.weight,
-        normal: wghtRslt.normal,
-        crit: wghtRslt.crit,
-        avg: wghtRslt.avg,
-        subHits: wghtRslt.subHits,
-        ...(Object.keys(lclFeatStt.actLoopRuns).length > 0 ? { loopRuns: { ...lclFeatStt.actLoopRuns } } : {}),
-        ...(Object.keys(lclFeatStt.actLoopRunqi).length > 0 ? { loopRunCounts: { ...lclFeatStt.actLoopRunqi } } : {}),
-      },
-    ],
-  }
+  lclFeatStt.entries.push({
+    id: `${node.id}:${feature.id}`,
+    nodeId: node.id,
+    resonatorId: participant.seed.id,
+    resonatorName: participant.seed.name,
+    feature,
+    skill: scaledSkill,
+    archetype: scaledSkill.archetype,
+    aggregationType: scaledSkill.aggregationType,
+    multiplier: nodeState.multiplier,
+    weight: state.weight,
+    normal: wghtRslt.normal,
+    crit: wghtRslt.crit,
+    avg: wghtRslt.avg,
+    subHits: wghtRslt.subHits,
+    ...(Object.keys(lclFeatStt.actLoopRuns).length > 0 ? { loopRuns: { ...lclFeatStt.actLoopRuns } } : {}),
+    ...(Object.keys(lclFeatStt.actLoopRunqi).length > 0 ? { loopRunCounts: { ...lclFeatStt.actLoopRunqi } } : {}),
+  })
 
-  const nspcStt = ppndNspcEnt(nextState, {
+  const nspcStt = ppndNspcEnt(lclFeatStt, {
     nodeId: node.id,
     nodeType: node.type,
     executed: true,
@@ -1979,13 +2010,12 @@ function runPtmNode(
 
   const result = runRotTms(branchState, node.items, scpResId)
 
-  return ppndNspcEnt({
-    ...state,
-    entries: [...state.entries, ...result.entries],
-    nspcNtrs: state.nspcNtrs
-      ? [...state.nspcNtrs, ...(result.nspcNtrs ?? [])]
-      : null,
-  }, {
+  state.entries.push(...result.entries)
+  if (state.nspcNtrs && result.nspcNtrs) {
+    state.nspcNtrs.push(...result.nspcNtrs)
+  }
+
+  return ppndNspcEnt(state, {
     nodeId: node.id,
     nodeType: node.type,
     executed: true,
@@ -2408,8 +2438,12 @@ export function listRotFeatR(
 export function mkDrctFeatRs(
   context: CombatContext,
   seed: ResSeed,
+  options: {
+    detail?: RotSimulationDetail
+  } = {},
 ): DamageFeature[] {
   const actCat = makeRuntimeCat(context.runtime, seed)
+  const damageOptions = dmgOptionsFor(options.detail ?? 'full')
 
   return actCat.features
     .filter((feature) => feature.variant !== 'subHit')
@@ -2438,6 +2472,7 @@ export function mkDrctFeatRs(
         context.enemy,
         context.runtime.base.level,
         context.runtime.state.combat,
+        damageOptions,
       )
       if (!shldNcldFeat(ftrdSkll, result)) {
         return null
@@ -2472,6 +2507,7 @@ export function runFeatSmlt(
   runtimesById: Record<string, ResRuntime> = {},
   environment?: PrepRotNvrn,
   drctFeats?: DamageFeature[],
+  options: RotSimulationOptions = {},
 ): {
   allFeatures: DamageFeature[]
   rotations: {
@@ -2485,15 +2521,18 @@ export function runFeatSmlt(
 } {
   void runtimesById
 
-  const allFeatures = drctFeats ?? mkDrctFeatRs(context, seed)
+  const detail = options.detail ?? 'full'
+  const mode = options.mode ?? 'both'
+  const allFeatures = drctFeats ?? mkDrctFeatRs(context, seed, { detail })
   const prepNvrn = environment ?? mkPrepRotNvr(context, seed)
 
-  // execute both personal and team rotation lists against fresh root states
-  const persStt = mkRotStt(prepNvrn)
-  const persRslt = runRotTms(persStt, context.runtime.rotation.personalItems)
+  const persRslt = shldRunRotMode(mode, 'personal')
+    ? runRotTms(mkRotStt(prepNvrn, false, { detail }), context.runtime.rotation.personalItems)
+    : { entries: [], nspcNtrs: null }
 
-  const teamState = mkRotStt(prepNvrn)
-  const teamResult = runRotTms(teamState, context.runtime.rotation.teamItems)
+  const teamResult = shldRunRotMode(mode, 'team')
+    ? runRotTms(mkRotStt(prepNvrn, false, { detail }), context.runtime.rotation.teamItems)
+    : { entries: [], nspcNtrs: null }
 
   return {
     allFeatures,
@@ -2515,6 +2554,7 @@ export function runRotNspc(
   seed: ResSeed,
   runtimesById: Record<string, ResRuntime> = {},
   environment?: PrepRotNvrn,
+  options: RotInspectionOptions = {},
 ): {
   rotations: {
     personal: {
@@ -2527,12 +2567,21 @@ export function runRotNspc(
 } {
   void runtimesById
 
+  const mode = options.mode ?? 'both'
   const prepNvrn = environment ?? mkPrepRotNvr(context, seed)
-  const persStt = mkRotStt(prepNvrn, true)
-  const persRslt = runRotTms(persStt, context.runtime.rotation.personalItems)
+  const persRslt = shldRunRotMode(mode, 'personal')
+    ? runRotTms(
+      mkRotStt(prepNvrn, true, { includeSnapshots: options.includeSnapshots ?? false }),
+      context.runtime.rotation.personalItems,
+    )
+    : { entries: [], nspcNtrs: [] }
 
-  const teamState = mkRotStt(prepNvrn, true)
-  const teamResult = runRotTms(teamState, context.runtime.rotation.teamItems)
+  const teamResult = shldRunRotMode(mode, 'team')
+    ? runRotTms(
+      mkRotStt(prepNvrn, true, { includeSnapshots: options.includeSnapshots ?? false }),
+      context.runtime.rotation.teamItems,
+    )
+    : { entries: [], nspcNtrs: [] }
 
   return {
     rotations: {

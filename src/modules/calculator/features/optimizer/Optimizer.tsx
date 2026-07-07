@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the optimizer surface for the calculator optimizer flow.
+  Description: renders the optimizer surface for the calculator optimizer flow.
 */
 
 import {type ReactNode, useCallback, useRef} from 'react'
@@ -39,6 +39,7 @@ import {
 import { mkInvEchoSgB } from '@/domain/state/inventoryUsage.ts'
 import {compOptPay} from '@/engine/optimizer/compiler'
 import {deriveOptSets} from '@/engine/optimizer/config/defaultSettings.ts'
+import { buildSetRows, listDynamicSetStateParts, makeSetMask } from '@/engine/optimizer/encode/sets.ts'
 import {applyKeepPrc, makeStatWeights} from '@/engine/optimizer/search/filtering.ts'
 import {
   evalPrepOptB,
@@ -731,9 +732,10 @@ export function Optimizer() {
       return null
     }
 
-    // compile once up front so the baseline card and combo counts can reuse
-    // the exact same prepared payload shape as the real optimizer run.
-    return compOptPay({
+    // compile once up front so the baseline card can reuse the same prepared
+    // payload shape as the real optimizer run, then patch only the display row's
+    // set LUT so live set toggles affect the always-visible base damage.
+    const payload = compOptPay({
       resonatorId: optResId,
       resSeed: seedRsntById[optResId],
       staticData: {
@@ -756,6 +758,20 @@ export function Optimizer() {
       setConds: optSetConds,
       rotTms: rotationMode ? selRotTms : undefined,
     })
+
+    if (payload.mode !== 'targetSkill' && payload.mode !== 'rotation') {
+      return payload
+    }
+
+    const dynamicStateParts = listDynamicSetStateParts(payload.runtime)
+
+    return {
+      ...payload,
+      setRtMask: makeSetMask(payload.runtime, optSetConds, { dynamicStateParts }),
+      setConstLut: buildSetRows(payload.runtime, optSetConds, {
+        dynamicStateParts,
+      }),
+    }
   }, [
     activeTarget,
     enemyProfile,
