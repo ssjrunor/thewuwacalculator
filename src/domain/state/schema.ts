@@ -5,7 +5,8 @@
 */
 
 import { z } from 'zod'
-import { DEF_UI_PREFS } from '@/domain/entities/preferences'
+import { DEF_BENCH_RPT, DEF_UI_PREFS } from '@/domain/entities/preferences'
+import { DEF_BODY_FONT, getPrstBodyF } from '@/modules/settings/model/typography'
 import { DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
 import {
   BG_THEMES,
@@ -745,6 +746,24 @@ const pckrFreqSttS = z.object({
 
 export const APP_STATE_VER = 22 as const
 
+function normalizeBenchPrefs(value: unknown): unknown {
+  if (!value || typeof value !== 'object') {
+    return value
+  }
+
+  const prefs = value as Record<string, unknown>
+  if ('showBenchStates' in prefs) {
+    return prefs
+  }
+
+  return {
+    ...prefs,
+    showBenchStates: typeof prefs.showBenchStates === 'boolean'
+      ? prefs.showBenchStates
+      : DEF_UI_PREFS.showBenchStates,
+  }
+}
+
 const uiPersistSchema = z.object({
   theme: z.enum(['light', 'dark', 'background']),
   themePreference: z.enum(['system', 'light', 'dark', 'background']).optional(),
@@ -753,17 +772,88 @@ const uiPersistSchema = z.object({
   backgroundVariant: z.enum(BG_THEMES),
   backgroundImageKey: z.string().default('builtin:wallpaperflare1.jpg'),
   backgroundTextMode: z.enum(['light', 'dark']).default('light'),
-  bodyFontName: z.string().default('Sen'),
-  bodyFontUrl: z.string().default('https://fonts.googleapis.com/css2?family=Sen:wght@400..800&display=swap'),
+  bodyFontName: z.string().default(DEF_BODY_FONT),
+  bodyFontUrl: z.string().default(getPrstBodyF(DEF_BODY_FONT)),
   blurMode: uiBoolSchm(false),
   entranceAnimations: uiBoolSchm(true),
-  preferences: z.object({
+  preferences: z.preprocess(normalizeBenchPrefs, z.object({
     ctxMenu: z.boolean().default(DEF_UI_PREFS.ctxMenu),
     updateToast: z.boolean().default(DEF_UI_PREFS.updateToast),
     recommendedMenuItems: z.boolean().default(DEF_UI_PREFS.recommendedMenuItems),
-    showUnquantifiedOverviewStates: z.boolean().default(DEF_UI_PREFS.showUnquantifiedOverviewStates),
+    showBenchStates: z.boolean().default(DEF_UI_PREFS.showBenchStates),
     maxResOnInit: z.boolean().default(DEF_UI_PREFS.maxResOnInit),
-  }).default(DEF_UI_PREFS),
+    benchmarkViewMode: z.enum(['benchmark', 'showcase']).default(DEF_UI_PREFS.benchmarkViewMode),
+    benchAnim2d: z.boolean().default(DEF_UI_PREFS.benchAnim2d),
+    benchmarkCards: z.record(
+      z.string(),
+      z.object({
+        style: z.object({
+          accent: z.string().nullable().default(null),
+          surface: z.string().nullable().default(null),
+          text: z.string().nullable().default(null),
+          opacity: z.number().nullable().default(null),
+          displayFont: z.string().nullable().default(null),
+          monoFont: z.string().nullable().default(null),
+          portraitX: z.number().nullable().default(null),
+          portraitY: z.number().nullable().default(null),
+          portraitScale: z.number().nullable().default(null),
+          maskTop: z.number().nullable().default(null),
+          maskRight: z.number().nullable().default(null),
+          maskBottom: z.number().nullable().default(null),
+          maskLeft: z.number().nullable().default(null),
+          maskTopSharp: z.number().nullable().default(null),
+          maskRightSharp: z.number().nullable().default(null),
+          maskBottomSharp: z.number().nullable().default(null),
+          maskLeftSharp: z.number().nullable().default(null),
+          backdropBlur: z.number().nullable().default(null),
+          backdropOpacity: z.number().nullable().default(null),
+          backdropX: z.number().nullable().default(null),
+          backdropY: z.number().nullable().default(null),
+          backdropScale: z.number().nullable().default(null),
+          portraitImage: z.string().nullable().default(null),
+          backdropImage: z.string().nullable().default(null),
+          portraitCredit: z.string().nullable().default(null),
+          backdropCredit: z.string().nullable().default(null),
+          statsColumn: z.enum(['build', 'combat', 'both']).nullable().default(null),
+          textSlots: z.record(
+            z.string(),
+            z.object({
+              color: z.string().nullable().default(null),
+              font: z.string().nullable().default(null),
+              size: z.number().nullable().default(null),
+              weight: z.number().nullable().default(null),
+              spacing: z.number().nullable().default(null),
+              transform: z.enum(['none', 'uppercase', 'lowercase', 'capitalize']).nullable().default(null),
+            }),
+          ).default({}),
+          customCss: z.string().nullable().default(null),
+        }),
+        hidden: z.object({
+          score: z.boolean().default(false),
+          damage: z.boolean().default(false),
+          cv: z.boolean().default(false),
+          team: z.boolean().default(false),
+          brand: z.boolean().default(false),
+          portraitCredit: z.boolean().default(false),
+          backdropCredit: z.boolean().default(false),
+          seqRail: z.boolean().default(false),
+          subVal: z.boolean().default(false),
+          subColor: z.boolean().default(false),
+          relStats: z.boolean().default(true),
+        }),
+      }),
+    ).default({}),
+    benchRptSettings: z.object({
+      rotationFeatures: z.boolean().default(DEF_BENCH_RPT.rotationFeatures),
+      activeStateSources: z.boolean().default(DEF_BENCH_RPT.activeStateSources),
+      upgradePaths: z.boolean().default(DEF_BENCH_RPT.upgradePaths),
+      buildDetails: z.boolean().default(DEF_BENCH_RPT.buildDetails),
+      echoStatsTable: z.boolean().default(DEF_BENCH_RPT.echoStatsTable),
+      benchmarkTargets: z.boolean().default(DEF_BENCH_RPT.benchmarkTargets),
+    }).default(DEF_BENCH_RPT),
+    uploadPersist: z.enum(['indexeddb', 'imgbb']).nullable().default(DEF_UI_PREFS.uploadPersist),
+    imgbbApiKey: z.string().default(DEF_UI_PREFS.imgbbApiKey),
+  }).default(DEF_UI_PREFS)),
   leftPaneView: z.enum([
     'resonators',
     'buffs',

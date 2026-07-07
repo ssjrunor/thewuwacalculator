@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Shared display metadata for attribute-facing UI accents.
+  Description: shared display metadata for attribute-facing UI accents.
 */
 
 import type { AttributeKey } from '@/domain/entities/stats'
@@ -13,4 +13,8 @@ export const ATTR_COLORS: Record<AttributeKey, string> = {
   electro: '#b46aff',
   havoc: '#e649a6',
   physical: '#8c8c8c',
+}
+
+export function getAttributeIconSrc(attribute: string | null | undefined): string | null {
+  return attribute ? `/assets/attributes/attributes alt/${attribute}.webp` : null
 }

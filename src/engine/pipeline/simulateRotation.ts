@@ -7,7 +7,12 @@
 
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
 import type { CombatContext, DamageTotals, SimResult } from '@/engine/pipeline/types'
-import { runFeatSmlt, type PrepRotNvrn } from '@/engine/rotation/system'
+import {
+  runFeatSmlt,
+  type PrepRotNvrn,
+  type RotSimulationDetail,
+  type RotSimulationMode,
+} from '@/engine/rotation/system'
 import type { SkillAggType } from '@/domain/entities/stats'
 import type { PrepDrctTpt } from '@/engine/pipeline/preparedWorkspace'
 import type { FeatureResult } from '@/domain/gameData/contracts'
@@ -75,6 +80,8 @@ export function smltRot(
     options: {
       directOutput?: PrepDrctTpt | null
       rotNvrn?: PrepRotNvrn | null
+      mode?: RotSimulationMode
+      detail?: RotSimulationDetail
     } = {},
 ): SimResult {
   // execute the core simulation for this combat context
@@ -84,6 +91,10 @@ export function smltRot(
       runtimesById,
       options.rotNvrn ?? undefined,
       options.directOutput?.allFeatures ?? undefined,
+      {
+        mode: options.mode,
+        detail: options.detail,
+      },
   )
 
   // split out personal and team rotation entry lists for summary building

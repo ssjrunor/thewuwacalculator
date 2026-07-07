@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the tree node surface for the calculator rotation flow.
+  Description: renders the tree node surface for the calculator rotation flow.
 */
 
 import type {ResRuntime} from "@/domain/entities/runtime.ts";
@@ -49,6 +49,7 @@ import {
   withEditMenu,
 } from "@/modules/calculator/features/rotation/lib/utils.ts";
 import {withDefIconM, withDefResMg} from "@/shared/lib/imageFallback.ts";
+import { NumberInput } from "@/modules/calculator/features/controls/NumberInput.tsx";
 
 export function TreeNode({
                            portalTarget,
@@ -682,14 +683,13 @@ export function TreeNode({
               <div className="rotation-inline-field ui-inline-field">
                 <span className="entry-detail-text rotation-skill-type-label">{meta?.skillTypeLabel ?? 'Feature'}</span>
                 <span className="rotation-multiplier-symbol">×</span>
-                <input
-                  type="number"
+                <NumberInput
                   min={1}
                   step={1}
                   className="resonator-level-input"
                   value={Math.max(1, Math.floor(node.multiplier ?? 1))}
-                  onChange={(event) => {
-                    const nextValue = Math.max(1, Math.floor(Number(event.target.value) || 1))
+                  onChange={(value) => {
+                    const nextValue = Math.max(1, Math.floor(value || 1))
                     onUpdateNode(node.id, (current) =>
                       current.type === 'feature'
                         ? {
@@ -1096,14 +1096,13 @@ export function TreeNode({
               {node.type === 'repeat' ? (
                 <div className="rotation-inline-field ui-inline-field">
                   <span className="rotation-multiplier-symbol">×</span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={1}
                     step={1}
                     className="resonator-level-input"
                     value={Math.max(1, Math.floor(typeof node.times === 'number' ? node.times : 1))}
-                    onChange={(event) => {
-                      const nextValue = Math.max(1, Math.floor(Number(event.target.value) || 1))
+                    onChange={(value) => {
+                      const nextValue = Math.max(1, Math.floor(value || 1))
                       onUpdateNode(node.id, (current) =>
                         current.type === 'repeat'
                           ? {
@@ -1118,15 +1117,14 @@ export function TreeNode({
               ) : (
                 <div className="rotation-inline-field ui-inline-field">
                   <span className="rotation-multiplier-text">Uptime</span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
                     max={100}
                     step={1}
                     className="resonator-level-input"
                     value={Math.round((typeof node.ratio === 'number' ? node.ratio : 1) * 100)}
-                    onChange={(event) => {
-                      const nextValue = Math.max(0, Math.min(100, Math.floor(Number(event.target.value) || 0))) / 100
+                    onChange={(value) => {
+                      const nextValue = Math.max(0, Math.min(100, Math.floor(value || 0))) / 100
                       onUpdateNode(node.id, (current) =>
                         current.type === 'uptime'
                           ? {

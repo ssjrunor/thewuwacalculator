@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the echo equipment surface, including equipped echoes,
+  Description: renders the echo equipment surface, including equipped echoes,
                aggregated stats, set sections, and per-echo runtime controls.
 */
 
@@ -16,6 +16,11 @@ import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { StepScrubber } from '@/shared/ui/StepScrubber.tsx'
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
 import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric.ts'
+import {
+  formatBuildBenchmarkScore as fmtBenchScore,
+  getBuildBenchmarkBadgeClass as getBenchBadgeCls,
+  getBuildBenchmarkBadgeStyle as getBenchBadgeStyle,
+} from '@/modules/calculator/model/buildBenchmarkDisplay.ts'
 import {
   cmptSetCnts,
   fmtEchoStatL,
@@ -552,6 +557,12 @@ export function EchoTotals({
   const totalCV = (totals.critRate ?? 0) * 2 + (totals.critDmg ?? 0)
   const qppdCnt = echoes.filter(Boolean).length
 
+  // i discovered a lineup such as 44111 can have a max cv of 298%, i'd prefer to not have that skew a normal 43311 setup
+  // so we'd have the effective max cv be dependent on the number of 4 cost echoes in the lineup
+  // any setup not utilizing the full 5 slots is not an efficient/good build so a triple 4 cost build is only using 3 slots
+  // which is generally discouraged so the cv grading should still reflect that it's a bad build
+  const cv4Cost = Math.min(echoes.filter((e) => getEchoById(e?.id ?? '')?.cost === 4).length, 2)
+
   const groups = useMemo(() => {
     // totals are grouped only after zero-value keys are removed, keeping empty
     // categories from rendering while preserving the configured group order.
@@ -576,13 +587,16 @@ export function EchoTotals({
           <div className="echo-totals-badges">
             <span className="echo-totals-count">{qppdCnt}/5 equipped</span>
             {totalCV > 0 ? (
-              <span className={getCvBdgClss((totalCV - 44) / 5)}>
+              <span className={getCvBdgClss((totalCV - (44 * cv4Cost)) / 5)}>
                 CV {totalCV.toFixed(1)}
               </span>
             ) : null}
             {buildScore !== null ? (
-              <span className={`${getScrBdgCls(buildScore)} echo-score-badge--build`}>
-                {buildScore.toFixed(1)}%
+              <span
+                className={getBenchBadgeCls(buildScore)}
+                style={getBenchBadgeStyle(buildScore)}
+              >
+                {fmtBenchScore(buildScore)}
               </span>
             ) : null}
           </div>

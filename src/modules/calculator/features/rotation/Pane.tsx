@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator rotation flow.
+  Description: renders the pane surface for the calculator rotation flow.
 */
 
 import * as React from 'react'
@@ -117,7 +117,7 @@ import {
   getRotSvdPan,
 } from '@/modules/calculator/features/rotation/lib/ctx.tsx'
 import {CtnSqnc} from "@/modules/calculator/features/rotation/ActionSequence.tsx";
-import { mkVrvwSttSmm } from '@/modules/calculator/model/stateSummary.ts'
+import { makeStateSummary } from '@/modules/calculator/model/stateSummary.ts'
 import {
   mkDjcnFeatBy,
   mkVlblRotMmb,
@@ -919,7 +919,10 @@ export function Rotation({runtime, runtimesById, simulation, onRtPdt: onRtPdt}: 
       return []
     }
 
-    const inspection = nspcResRot(runtime, seed, enemyProfile, runtimesById)
+    const inspection = nspcResRot(runtime, seed, enemyProfile, runtimesById, {}, {
+      mode: currentMode,
+      includeSnapshots: whenView === 'states',
+    })
     return inspection.rotations[currentMode].entries
   }, [
     currentMode,
@@ -1003,7 +1006,7 @@ export function Rotation({runtime, runtimesById, simulation, onRtPdt: onRtPdt}: 
       ?? (activeResonatorId === runtime.id ? runtime : runtimesById[activeResonatorId])
       ?? targetRuntime
 
-    return mkVrvwSttSmm(
+    return makeStateSummary(
       targetRuntime,
       {
         ...runtimesById,

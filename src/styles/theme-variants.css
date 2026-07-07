@@ -388,7 +388,6 @@ body,
   --border-tint: var(--c-white);
   --avg-seed: orangered;
 
-
   --surface-2: color-mix(in srgb, var(--surface-base) 38%, var(--c-transparent));
   --border: color-mix(in srgb, var(--border-tint) 6%, var(--c-transparent));
   --avg-base: var(--avg-seed);
@@ -1009,7 +1008,6 @@ body,
   --hl-shadow: 0 0 6px rgba(200, 150, 12, 0.4), 0 0 10px rgba(218, 165, 32, 0.2);
 }
 
-
 .frosted-aurora {
   --floating-bg: transparent;
   --bg: #dbe8f9;
@@ -1080,11 +1078,6 @@ body,
   --trace-active-bg: linear-gradient(135deg,#ffebf86b,#e6faff75,#fff9e6c9);
 }
 
-.frosted-aurora .trace-icon {
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-}
-
 .frosted-aurora .dark-text,
 .frosted-aurora.dark-text {
   --toast-highlight: rgba(255, 176, 75, 0.89);
@@ -1098,17 +1091,21 @@ body,
   --loader-spin-track: rgba(255, 255, 255, 0.24);
 }
 
-body.blur-off.frosted-aurora,
-.blur-off.frosted-aurora {
+body.frosted-aurora,
+.frosted-aurora {
   --floating-bg: var(--bg-main-color, rgba(255, 255, 255, 0.14));
   --box-bg: rgba(255, 255, 255, 0.25);
   --inner-bg: rgba(255, 255, 255, 0.2);
 }
 
-.blur-off .frosted-aurora *,
-.frosted-aurora.blur-off .app-loader-overlay {
+.frosted-aurora *,
+.frosted-aurora .app-loader-overlay {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+.frosted-aurora .bench-card {
+  --bench-bg: transparent;
 }
 
 .frosted-aurora #root,
@@ -1128,21 +1125,11 @@ html.frosted-aurora {
       145deg,
       color-mix(in srgb, var(--bg-main-color, #fefeff) 24%, rgba(255, 255, 255, 0.34)),
       rgba(235, 245, 255, 0.18)
-    ),
-    var(--background-wallpaper-image, none);
+    );
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   background-repeat: no-repeat;
-}
-
-.blur-off.frosted-aurora .toolbar,
-.blur-off.frosted-aurora .sidebar,
-.blur-off.frosted-aurora .partition,
-.blur-off.frosted-aurora .calculator-toolbar,
-.blur-off.frosted-aurora .mode-toolbar,
-.blur-off.frosted-aurora .page-shell {
-  backdrop-filter: none;
 }
 
 .glassy-rainbow h1,
@@ -1172,10 +1159,6 @@ html.frosted-aurora {
 .sunlit-haze h5 {
   color: var(--text);
   text-shadow: 0 0 8px rgba(255, 245, 220, 0.5);
-}
-
-.dark-text :is(h1, h2, h3, h4, h5) {
-  color: var(--text);
 }
 
 .frosted-aurora.light-text body,
@@ -1229,8 +1212,6 @@ html.frosted-aurora {
 .frosted-aurora .toolbar,
 .frosted-aurora .sidebar {
   background: transparent;
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
 }
 
 .frosted-aurora .toolbar {
@@ -1243,15 +1224,11 @@ html.frosted-aurora {
 
 .frosted-aurora.light-text .sidebar-button:hover,
 .frosted-aurora .light-text .sidebar-button:hover {
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
 }
 
 .frosted-aurora.dark-text .sidebar-button:hover,
 .frosted-aurora .dark-text .sidebar-button:hover {
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
 }
 
@@ -1333,12 +1310,6 @@ html.frosted-aurora {
   box-shadow: var(--ctrl-on-shadow);
 }
 
-.frosted-aurora :is(.card, .calculator-toolbar, .mode-toolbar, .resonator-card, .suggestion-card, .kpi-card),
-.frosted-aurora :is(input[type='number'], input[type='text'], textarea, select, .ui-pill-button, .chip, .danger-btn, .toggle-row, .toolbar-tab, .toolbar-tab-icon, .stack label:not(.team-state-target, .state-control-label)) {
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-}
-
 :is(.highlight, .echo-slot-title, .echo-name) {
   color: var(--hl-color) !important;
   background: var(--hl-bg);
@@ -1351,79 +1322,78 @@ html.frosted-aurora {
   color: var(--text);
 }
 
-.blur-off.frosted-aurora .ui-surface-card,
-.blur-off.frosted-aurora .damage-inner-box,
-.blur-off.frosted-aurora .echo-slot,
-.blur-off.frosted-aurora .echo-set-bonus,
-.blur-off.frosted-aurora .echo-totals,
-.blur-off.frosted-aurora .hero-badge,
-.blur-off.frosted-aurora .ui-pill-button,
-.blur-off.frosted-aurora .hero-chip,
-.blur-off.frosted-aurora .resonator-heading-icons,
-.blur-off.frosted-aurora .resonator-flow-header,
-.blur-off.frosted-aurora .pane-section:not(.suggestions-controls),
-.blur-off.frosted-aurora .rotation-item,
-.blur-off.frosted-aurora .rotation-saved-item,
-.blur-off.frosted-aurora .page-tile,
-.blur-off.frosted-aurora .overview-mosaic,
-.blur-off.frosted-aurora .overview-cell--echoes,
-.blur-off.frosted-aurora .overview-stats-tree,
-.blur-off.frosted-aurora .overview-resonator-pill,
-.blur-off.frosted-aurora .main-stat-card,
-.blur-off.frosted-aurora .set-plan-card,
-.blur-off.frosted-aurora .echo-slot-detail-panel,
-.blur-off.frosted-aurora .stat-row:nth-child(odd),
-.blur-off.frosted-aurora .sequence-card-badge,
-.blur-off.frosted-aurora .sequence-card-status,
-.blur-off.frosted-aurora .team-member-config-modal__state-row,
-.blur-off.frosted-aurora .team-member-config-modal__summary-pill,
-.blur-off.frosted-aurora .toolbar,
-.blur-off.frosted-aurora .sidebar {
+.frosted-aurora .ui-surface-card,
+.frosted-aurora .damage-inner-box,
+.frosted-aurora .echo-slot,
+.frosted-aurora .echo-set-bonus,
+.frosted-aurora .echo-totals,
+.frosted-aurora .hero-badge,
+.frosted-aurora .ui-pill-button,
+.frosted-aurora .hero-chip,
+.frosted-aurora .resonator-heading-icons,
+.frosted-aurora .resonator-flow-header,
+.frosted-aurora .pane-section:not(.suggestions-controls),
+.frosted-aurora .rotation-item,
+.frosted-aurora .rotation-saved-item,
+.frosted-aurora .page-tile,
+.frosted-aurora .overview-mosaic,
+.frosted-aurora .overview-cell--echoes,
+.frosted-aurora .overview-stats-tree,
+.frosted-aurora .overview-resonator-pill,
+.frosted-aurora .main-stat-card,
+.frosted-aurora .set-plan-card,
+.frosted-aurora .echo-slot-detail-panel,
+.frosted-aurora .stat-row:nth-child(odd),
+.frosted-aurora .sequence-card-badge,
+.frosted-aurora .sequence-card-status,
+.frosted-aurora .team-member-config-modal__state-row,
+.frosted-aurora .team-member-config-modal__summary-pill,
+.frosted-aurora .toolbar,
+.frosted-aurora .sidebar {
   background-color: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 55%, rgba(255, 255, 255, 0.09)) !important;
 }
 
-.blur-off.frosted-aurora .toolbar-group::before {
+.frosted-aurora .toolbar-group::before {
   background: none;
 }
 
-.blur-off.frosted-aurora .optimizer-character-settings,
-.blur-off.frosted-aurora .optimizer-search-results,
-.blur-off.frosted-aurora .sticky-controls {
+.frosted-aurora .optimizer-character-settings,
+.frosted-aurora .optimizer-search-results,
+.frosted-aurora .sticky-controls {
   background: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 55%, rgba(255, 255, 255, 0.09)) !important;
 }
 
-.blur-off.frosted-aurora .stat-row:nth-child(even) {
+.frosted-aurora .stat-row:nth-child(even) {
   background-color: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 40%, rgba(255, 255, 255, 0.09)) !important;
 }
 
-.blur-off.frosted-aurora .overview-cell:not(.overview-cell--echoes, .overview-cell--portrait, .overview-cell--rotation) {
+.frosted-aurora .overview-cell:not(.overview-cell--echoes, .overview-cell--portrait, .overview-cell--rotation) {
   background: color-mix(in srgb, var(--hdr-bg) 18%, var(--item-bg));
 }
 
-.blur-off.dark-text.frosted-aurora .settings-action-btn,
-.blur-off.dark-text.frosted-aurora .settings-font-preview-copy,
-.blur-off.frosted-aurora .view-toggle-button:not(.active) {
+.dark-text.frosted-aurora .settings-action-btn,
+.dark-text.frosted-aurora .settings-font-preview-copy,
+.frosted-aurora .view-toggle-button:not(.active) {
   color: #001f37;
 }
 
-.blur-off.dark-text.frosted-aurora button,
-.blur-off.dark-text.frosted-aurora .liquid-select__option {
+.dark-text.frosted-aurora button,
+.dark-text.frosted-aurora .liquid-select__option {
   color: floralwhite;
 }
 
-.blur-off.frosted-aurora .skills-modal-content-area,
-.blur-off.frosted-aurora .toast-item,
-.blur-off.frosted-aurora .char-menu-panel,
-.blur-off.frosted-aurora .skill-menu-panel,
-.blur-off.frosted-aurora .app-modal-panel,
-.blur-off.frosted-aurora .echo-edit-panel,
-.blur-off.frosted-aurora .liquid-select__menu,
-.blur-off.frosted-aurora .co-skill-select__menu,
-.blur-off.frosted-aurora .opt-results-header,
-.blur-off.frosted-aurora .opt-pagination,
-.blur-off.frosted-aurora .suggestions-controls {
+.frosted-aurora .skills-modal-content-area,
+.frosted-aurora .toast-item,
+.frosted-aurora .char-menu-panel,
+.frosted-aurora .skill-menu-panel,
+.frosted-aurora .app-modal-panel,
+.frosted-aurora .echo-edit-panel,
+.frosted-aurora .liquid-select__menu,
+.frosted-aurora .co-skill-select__menu,
+.frosted-aurora .opt-results-header,
+.frosted-aurora .opt-pagination,
+.frosted-aurora .suggestions-controls {
   background: var(--bg-main-color, rgba(255, 255, 255, 0.14));
-  backdrop-filter: none;
 }
 
 @keyframes frosted-aurora-drift {

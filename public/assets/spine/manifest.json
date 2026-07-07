@@ -1,0 +1,890 @@
+{
+  "1102": {
+    "slug": "sanhua",
+    "slugs": {
+      "portrait": "sanhua"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1103": {
+    "slug": "baizhi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "baizhi"
+    }
+  },
+  "1104": {
+    "slug": "lingyang",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "lingyang"
+    }
+  },
+  "1105": {
+    "slug": "zhezhi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1106": {
+    "slug": "youhu",
+    "slugs": {
+      "portrait": "youhu"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1107": {
+    "slug": "kelaita",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1108": {
+    "slug": "feixue",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1109": {
+    "slug": "luosela",
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "luckdraw": "luosela"
+    }
+  },
+  "1203": {
+    "slug": "anke",
+    "slugs": {
+      "portrait": "anke"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1204": {
+    "slug": "motefei",
+    "slugs": {
+      "portrait": "motefei"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1205": {
+    "slug": "changli",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1206": {
+    "slug": "bulante",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1207": {
+    "slug": "lupa",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1208": {
+    "slug": "jiabeilina",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1209": {
+    "slug": "moning",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1210": {
+    "slug": "aimisi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1211": {
+    "slug": "daniya",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1301": {
+    "slug": "kakaluo",
+    "slugs": {
+      "portrait": "kakaluo"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1302": {
+    "slug": "yinlin",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1303": {
+    "slug": "yuanwu",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "yuanwu"
+    }
+  },
+  "1304": {
+    "slug": "jinxi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1305": {
+    "slug": "xiangliyao",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp",
+        "texture-3.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1306": {
+    "slug": "aogusita",
+    "slugs": {
+      "portrait": "aogusita",
+      "luckdraw": "aogusita"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1307": {
+    "slug": "buling",
+    "slugs": {
+      "portrait": "buling"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1308": {
+    "slug": "rebecca",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "rebecca",
+      "luckdraw": "libeika"
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1402": {
+    "slug": "yangyang",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "yangyang"
+    }
+  },
+  "1403": {
+    "slug": "qiushui",
+    "slugs": {
+      "portrait": "qiushui"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1404": {
+    "slug": "jiyan",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1405": {
+    "slug": "jianxin",
+    "slugs": {
+      "portrait": "jianxin"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1406": {
+    "slug": "male",
+    "slugs": {
+      "portrait": "male"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1407": {
+    "slug": "xiakong",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1408": {
+    "slug": "female",
+    "slugs": {
+      "portrait": "female"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    }
+  },
+  "1409": {
+    "slug": "katixiya",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1410": {
+    "slug": "younuo",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "younuo",
+      "luckdraw": "younuo"
+    }
+  },
+  "1411": {
+    "slug": "qiuyuan",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1412": {
+    "slug": "xigelika",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1501": {
+    "slug": "male",
+    "slugs": {
+      "portrait": "male"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1502": {
+    "slug": "female",
+    "slugs": {
+      "portrait": "female"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    }
+  },
+  "1503": {
+    "slug": "weilinai",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "weilinai"
+    }
+  },
+  "1504": {
+    "slug": "dengdeng",
+    "slugs": {
+      "portrait": "dengdeng"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1505": {
+    "slug": "shouanren",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1506": {
+    "slug": "feibi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "feibi",
+      "luckdraw": "feibi"
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1507": {
+    "slug": "zanni",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1508": {
+    "slug": "qianxiao",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1509": {
+    "slug": "linnai",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1510": {
+    "slug": "luhesi",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1511": {
+    "slug": "lucy",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "lucy",
+      "luckdraw": "luxi"
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1601": {
+    "slug": "taoqi",
+    "slugs": {
+      "portrait": "taoqi"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1602": {
+    "slug": "danjin",
+    "slugs": {
+      "portrait": "danjin"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1603": {
+    "slug": "chun",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "slugs": {
+      "portrait": "chun",
+      "luckdraw": "chun"
+    }
+  },
+  "1604": {
+    "slug": "female",
+    "slugs": {
+      "portrait": "female"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    }
+  },
+  "1605": {
+    "slug": "male",
+    "slugs": {
+      "portrait": "male"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1606": {
+    "slug": "luokeke",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1607": {
+    "slug": "kanteleila",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp",
+        "texture-2.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1608": {
+    "slug": "fuluoluo",
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  }
+}

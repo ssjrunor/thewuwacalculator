@@ -61,8 +61,6 @@
   font-size: 0.78rem;
 }
 
-
-
 .opt-expandable-trigger {
   position: relative;
   padding: 0.3rem 0.1rem;
@@ -73,7 +71,6 @@
 .opt-expandable-trigger:hover {
   background: color-mix(in srgb, var(--resonator-accent, var(--accent)) 5%, transparent);
 }
-
 
 .opt-expandable-trigger > div {
   display: flex;
@@ -90,7 +87,6 @@
 .opt-expandable-trigger:hover > div {
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 80%, var(--text));
 }
-
 
 .opt-expandable-trigger > div::before {
   content: '';
@@ -109,7 +105,6 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--resonator-accent, var(--accent)) 75%, transparent);
 }
 
-
 .opt-expandable-trigger::after {
   content: '';
   position: absolute;
@@ -126,7 +121,6 @@
   transition: opacity 200ms ease;
 }
 
-
 .opt-expandable-trigger > span {
   display: flex;
   align-items: center;
@@ -137,8 +131,6 @@
 .opt-expandable-trigger:hover > span {
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 70%, var(--muted));
 }
-
-
 
 .results-container {
   position: relative;
@@ -359,7 +351,6 @@
   gap: 0.3rem;
 }
 
-
 .opt-qc__icon-btn {
   display: inline-flex;
   align-items: center;
@@ -387,7 +378,6 @@
   cursor: default;
 }
 
-
 .opt-qc__step {
   display: inline-flex;
   align-items: center;
@@ -408,7 +398,6 @@
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--qc-accent) 70%, var(--text));
 }
-
 
 .opt-qc__ops {
   display: inline-flex;
@@ -560,7 +549,6 @@ input:is(.opt-qc__num):focus {
   border-radius: 0.25rem;
   flex: none;
 }
-
 
 .opt-qc__chips {
   display: flex;
@@ -877,7 +865,7 @@ input:is(.opt-qc__num):focus {
   right: 0;
   min-width: 0.75rem;
   height: 0.75rem;
-  padding: 0.1rem 0.1rem 0;
+  padding: 0.05rem 0.1rem 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -886,6 +874,7 @@ input:is(.opt-qc__num):focus {
   color: var(--bg);
   font-size: 0.72rem;
   font-weight: 800;
+  font-family: var(--mono-font);
   line-height: 1;
   letter-spacing: 0;
   font-feature-settings: 'tnum';
@@ -1139,8 +1128,6 @@ input:is(.opt-qc__num):focus {
   }
 }
 
-
-
 .sticky-controls {
   display: flex;
   flex-direction: column;
@@ -1182,8 +1169,6 @@ input:is(.opt-qc__num):focus {
   font-size: 0.7rem;
   color: var(--muted);
 }
-
-
 
 .optimizer-col {
   display: flex;
@@ -1271,8 +1256,6 @@ input:is(.opt-qc__num):focus {
   margin: 0 0.45rem;
   min-width: 1rem;
 }
-
-
 
 .optimizer-pane .section-title--progress {
   display: flex;
@@ -1633,8 +1616,6 @@ input:is(.opt-qc__num):focus {
   outline-offset: 2px;
 }
 
-
-
 .co-config {
   display: flex;
   flex-direction: column;
@@ -1932,7 +1913,6 @@ input:is(.opt-qc__num):focus {
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 80%, var(--text));
 }
 
-
 .co-bar__sep {
   width: 1px;
   align-self: stretch;
@@ -1940,7 +1920,6 @@ input:is(.opt-qc__num):focus {
   background: color-mix(in srgb, var(--text) 10%, transparent);
   flex-shrink: 0;
 }
-
 
 .co-switches {
   display: flex;
@@ -1992,8 +1971,6 @@ input:is(.opt-qc__num):focus {
   opacity: 0.8;
 }
 
-
-
 .co-mosaic {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2001,7 +1978,6 @@ input:is(.opt-qc__num):focus {
   gap: 0.65rem;
   align-items: stretch;
 }
-
 
 .co-tile {
   overflow-y: auto;
@@ -2732,7 +2708,6 @@ input:is(.opt-qc__num):focus {
   color: var(--muted);
 }
 
-
 .co-clear {
   border: 0;
   background: none;
@@ -2902,7 +2877,6 @@ input:is(.opt-qc__num):focus {
   opacity: 0.5;
 }
 
-
 .co-tag-select {
   display: inline-flex;
 }
@@ -3002,7 +2976,6 @@ input:is(.opt-qc__num):focus {
   color: var(--resonator-accent, var(--accent));
 }
 
-
 .co-limits {
   display: flex;
   flex-direction: column;
@@ -3059,8 +3032,6 @@ input:is(.opt-qc__num):focus {
   background: color-mix(in srgb, var(--text) 15%, transparent);
   flex-shrink: 0;
 }
-
-
 
 .co-set-dropdown {
   position: relative;
@@ -3433,8 +3404,6 @@ input:is(.opt-qc__num):focus {
   color: var(--optimizer-color-candidate);
 }
 
-
-
 .opt-echo-preview {
   padding: 0.55rem 0.1rem 0;
   display: flex;
@@ -3784,7 +3753,6 @@ input:is(.opt-qc__num):focus {
 .optimizer-pane > :nth-child(1) { animation-delay: 0ms; }
 .optimizer-pane > :nth-child(2) { animation-delay: 80ms; }
 .optimizer-pane > :nth-child(3) { animation-delay: 160ms; }
-
 
 .optimizer-details > .optimizer-character-settings,
 .optimizer-details > .optimizer-search-results,
@@ -4223,8 +4191,6 @@ input:is(.opt-qc__num):focus {
   text-transform: uppercase;
   color: color-mix(in srgb, var(--muted) 50%, transparent);
 }
-
-
 
 .co-qbuff {
   display: flex;

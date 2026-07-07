@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Generates random echo loadouts by sampling valid
+  Description: generates random echo loadouts by sampling valid
                combinations, evaluating them against the current
                suggestion context, and returning the strongest unique sets.
 */
@@ -8,6 +8,7 @@
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { makeEchoUid } from '@/domain/entities/runtime'
 import type { RandGnrtSetP } from '@/domain/entities/suggestions'
+import type { EchoDef } from '@/domain/entities/catalog'
 import { getEchoById, listChsByCos } from '@/domain/services/echoCatalogService'
 import { ECHOES_PER_SET } from '@/engine/optimizer/config/constants'
 import {
@@ -50,6 +51,7 @@ function randGenEchoT(
     echo: RandGenEcho,
     slotIndex: number,
     targetSetId: number | null,
+    forcedEcho?: EchoDef | null,
 ): EchoInstance {
   const definitions = listChsByCos(echo.cost)
 
@@ -58,7 +60,7 @@ function randGenEchoT(
       ? definitions.filter((def) => def.sets.includes(targetSetId))
       : definitions
 
-  const definition = (bySet.length > 0 ? bySet : definitions)[0]
+  const definition = forcedEcho ?? (bySet.length > 0 ? bySet : definitions)[0]
 
   const setId = targetSetId != null && definition?.sets.includes(targetSetId)
       ? targetSetId
@@ -77,18 +79,120 @@ function randGenEchoT(
   }
 }
 
+function randSetPieces(setPrefs: RandGnrtSetP[]): number[] {
+  return setPrefs
+      .filter((preference) => preference.count > 0)
+      .flatMap((preference) => Array.from({ length: preference.count }, () => preference.setId))
+}
+
+function randSetFitsSlot(
+    costs: readonly number[],
+    slotIndex: number,
+    setId: number,
+    mainEcho: EchoDef | null,
+): boolean {
+  const cost = costs[slotIndex]
+  if (slotIndex === 0 && mainEcho) {
+    return mainEcho.cost === cost && mainEcho.sets.includes(setId)
+  }
+
+  return listChsByCos(cost).some((echo) => echo.sets.includes(setId))
+}
+
+function resolveRandMainEcho(
+    mainEchoId: string | null,
+    setPrefs: RandGnrtSetP[],
+    costs: readonly number[],
+): EchoDef | null {
+  const selected = mainEchoId ? getEchoById(mainEchoId) : null
+  if (!selected) {
+    return null
+  }
+
+  if (assignRandSetTargets(costs, selected, setPrefs)) {
+    return selected
+  }
+
+  const candidates = listChsByCos(costs[0] ?? 0)
+      .filter((echo) => assignRandSetTargets(costs, echo, setPrefs))
+  return candidates.length > 0
+      ? candidates[Math.floor(Math.random() * candidates.length)]
+      : null
+}
+
+function assignRandSetTargets(
+    costs: readonly number[],
+    mainEcho: EchoDef | null,
+    setPrefs: RandGnrtSetP[],
+): Array<number | null> | null {
+  if (mainEcho && (costs.length === 0 || mainEcho.cost !== costs[0])) {
+    return null
+  }
+
+  const targets = new Array<number | null>(costs.length).fill(null)
+  const pieces = randSetPieces(setPrefs)
+  if (pieces.length === 0) {
+    return targets
+  }
+
+  const orderedPieces = [...pieces].sort((left, right) => {
+    const leftSlots = costs.filter((_, index) => randSetFitsSlot(costs, index, left, mainEcho)).length
+    const rightSlots = costs.filter((_, index) => randSetFitsSlot(costs, index, right, mainEcho)).length
+    return leftSlots - rightSlots
+  })
+  const used = new Set<number>()
+
+  function assign(pieceIndex: number): boolean {
+    if (pieceIndex >= orderedPieces.length) {
+      return true
+    }
+
+    const setId = orderedPieces[pieceIndex]
+    for (let slotIndex = 0; slotIndex < costs.length; slotIndex += 1) {
+      if (used.has(slotIndex) || !randSetFitsSlot(costs, slotIndex, setId, mainEcho)) {
+        continue
+      }
+
+      used.add(slotIndex)
+      targets[slotIndex] = setId
+      if (assign(pieceIndex + 1)) {
+        return true
+      }
+      targets[slotIndex] = null
+      used.delete(slotIndex)
+    }
+
+    return false
+  }
+
+  return assign(0) ? targets : null
+}
+
+function fallbackSetTgts(
+    setPrefs: RandGnrtSetP[],
+    slotCount: number,
+): Array<number | null> {
+  const pieces = randSetPieces(setPrefs)
+  const fallback: Array<number | null> = pieces.map((setId) => setId)
+  while (fallback.length < slotCount) {
+    fallback.push(null)
+  }
+  return fallback.slice(0, slotCount)
+}
+
 // map a generated echo array into runtime instances using set preferences as slot targets
 function cnvrToNstn(
     echoes: RandGenEcho[],
     setPrefs: RandGnrtSetP[],
+    mainEchoId: string | null,
 ): Array<EchoInstance | null> {
-  // expand set preferences into a per-slot set id list
-  const pieces = setPrefs
-      .filter((preference) => preference.count > 0)
-      .flatMap((preference) => Array.from({ length: preference.count }, () => preference.setId))
+  const costs = echoes.map((echo) => echo.cost)
+  const mainEcho = resolveRandMainEcho(mainEchoId, setPrefs, costs)
+  const targets = assignRandSetTargets(costs, mainEcho, setPrefs)
+      ?? fallbackSetTgts(setPrefs, costs.length)
 
   return echoes.map((echo, index) =>
-      echo ? randGenEchoT(echo, index, pieces[index] ?? null) : null,
+      echo ? randGenEchoT(echo, index, targets[index] ?? null, index === 0 ? mainEcho : null) : null,
   )
 }
 
@@ -171,7 +275,7 @@ export async function runEchoGnrt(
 
   return unique.slice(0, targetCount).map((result) => ({
     damage: result.value,
-    echoes: cnvrToNstn(result.echoes, setPrefsList),
+    echoes: cnvrToNstn(result.echoes, setPrefsList, mainEchoId),
   }))
 }
 
@@ -238,6 +342,6 @@ export async function runPrepEchoG(
 
   return unique.slice(0, targetCount).map((result) => ({
     damage: result.value,
-    echoes: cnvrToNstn(result.echoes, setPrefsList),
+    echoes: cnvrToNstn(result.echoes, setPrefsList, mainEchoId),
   }))
 }

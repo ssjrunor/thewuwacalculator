@@ -1,0 +1,1108 @@
+.bench {
+  --bench-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --bench-line-soft: color-mix(in srgb, var(--resonator-accent, var(--accent)) 9%, var(--item-border, var(--border)));
+  --bench-wash: color-mix(in srgb, var(--resonator-accent, var(--accent)) 4%, var(--inner-bg));
+  --bench-up: var(--ok, #1eab62);
+  --bench-down: var(--danger, #cc3f53);
+  --bench-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --bench-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 800px;
+  gap: 0.8rem;
+  padding: 0.85rem 1rem 0.5rem;
+  color: var(--text);
+  transition: gap 300ms var(--bench-ease);
+  font-family: var(--body-font);
+}
+
+.bench-eyebrow {
+  font: 600 0.6rem/1 var(--mono-font);
+  font-family: var(--ss-labels-font, var(--mono-font));
+  font-size: calc(0.6rem * var(--ss-labels-scale, 1));
+  font-weight: var(--ss-labels-weight, 600);
+  text-transform: var(--ss-labels-tt, uppercase);
+  letter-spacing: var(--ss-labels-ls, 0.22em);
+  color: var(--ss-labels-color, inherit);
+}
+
+.bench-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--bench-line);
+  flex-shrink: 0;
+  animation: bench-rise 0.5s var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.no-entrance-anim .bench-topbar,
+.reduce-animation .bench-topbar {
+  animation: none;
+}
+
+.bench-topbar-id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.bench-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(1.3rem, 2.2vw, 1.85rem);
+  line-height: 0.8;
+  letter-spacing: -0.01em;
+}
+
+.bench-title-attr {
+  width: 1.7rem;
+  height: 1.7rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--resonator-accent) 45%, transparent));
+}
+
+.bench-topbar-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.34rem;
+  flex-shrink: 0;
+}
+
+.bench-mode-switch {
+  display: flex;
+  gap: 2px;
+}
+
+.bench-mode-switch .bench-btn {
+  border-radius: 0;
+  flex: 0.85;
+  transition: flex 240ms var(--bench-ease), transform 240ms var(--bench-ease);
+}
+
+.bench-mode-switch .bench-btn.is-active {
+  flex: 1.15;
+}
+
+.bench-mode-switch .bench-btn:not(.is-active) {
+  transform: scale(0.90);
+}
+
+.bench-mode-switch .bench-btn:not(.is-active):is(:hover, :focus-visible) {
+  transform: scale(0.95);
+}
+
+.bench-mode-switch .bench-btn:first-child {
+  border-radius: 0.75rem 0 0 0.75rem;
+}
+
+.bench-mode-switch .bench-btn:last-child {
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+
+.bench-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.52rem 0.82rem 0.56rem;
+  border: 1px solid var(--bench-line-soft);
+  border-radius: 0.75rem;
+  width: fit-content;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 7%, transparent), transparent);
+  color: color-mix(in srgb, var(--text) 72%, var(--resonator-accent));
+  font: 600 0.62rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  transition: color 170ms ease, border-color 170ms ease, background 170ms ease;
+}
+
+.bench-btn svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.82;
+  transition: transform 240ms var(--bench-ease), color 170ms ease, opacity 170ms ease;
+}
+
+.bench-btn::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: -1px;
+  height: 2px;
+  background: var(--resonator-accent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--resonator-accent) 65%, transparent);
+  opacity: 0;
+  transition: left 240ms var(--bench-ease), right 240ms var(--bench-ease), opacity 200ms ease;
+}
+
+.bench-btn:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--resonator-accent) 36%, var(--bench-line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 14%, transparent), transparent);
+}
+
+.bench-btn:hover svg {
+  opacity: 1;
+}
+
+.bench-btn:hover::before {
+  opacity: 0.65;
+}
+
+.bench-btn:hover::after {
+  left: 0;
+  right: 0;
+  opacity: 1;
+}
+
+.bench-btn:active {
+  background: color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.bench-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+  pointer-events: none;
+}
+
+.bench-btn--refresh:hover svg {
+  transform: rotate(-180deg);
+}
+
+.bench-btn--switch:hover svg {
+  transform: translateX(2px);
+}
+
+.bench-mode-switch .bench-btn.is-active,
+.bench-btn--toggle[aria-pressed='true'] {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--bench-line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 16%, transparent), transparent);
+}
+
+.bench-mode-switch .bench-btn.is-activ::before,
+.bench-btn--toggle[aria-pressed='true']::before {
+  opacity: 0.7;
+}
+
+.bench-mode-switch .bench-btn.is-active::after,
+.bench-btn--toggle[aria-pressed='true']::after {
+  left: 0;
+  right: 0;
+  opacity: 1;
+}
+
+.bench-btn--toggle[aria-pressed='true'] svg {
+  color: var(--resonator-accent);
+  opacity: 1;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--resonator-accent) 60%, transparent));
+}
+
+.bench-btn--toggle[aria-pressed='false'] {
+  color: var(--muted);
+  border-color: var(--bench-line-soft);
+  background: transparent;
+}
+
+.bench-btn--toggle[aria-pressed='false'] svg {
+  opacity: 0.45;
+}
+
+.bench-btn--ghost {
+  margin-left: 0.3rem;
+  color: var(--muted);
+  border-color: var(--bench-line-soft);
+  background: transparent;
+}
+
+.bench-btn--delete {
+  color: color-mix(in srgb, var(--bench-down) 76%, var(--text));
+  border-color: color-mix(in srgb, var(--bench-down) 28%, var(--bench-line-soft));
+  background: color-mix(in srgb, var(--bench-down) 6%, transparent);
+}
+
+.bench-btn--delete::before {
+  border-top-color: var(--bench-down);
+  border-left-color: var(--bench-down);
+}
+
+.bench-btn--delete::after {
+  background: var(--bench-down);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--bench-down) 60%, transparent);
+}
+
+.bench-btn--delete:hover {
+  color: var(--bench-down);
+  border-color: color-mix(in srgb, var(--bench-down) 45%, var(--bench-line));
+  background: color-mix(in srgb, var(--bench-down) 8%, transparent);
+}
+
+.bench-btn--ghost::before {
+  border-top-color: var(--bench-down);
+  border-left-color: var(--bench-down);
+}
+
+.bench-btn--ghost::after {
+  background: var(--bench-down);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--bench-down) 60%, transparent);
+}
+
+.bench-btn--ghost:hover {
+  color: var(--bench-down);
+  border-color: color-mix(in srgb, var(--bench-down) 45%, var(--bench-line));
+  background: color-mix(in srgb, var(--bench-down) 8%, transparent);
+}
+
+.reduce-animation .bench-btn,
+.reduce-animation .bench-btn svg,
+.reduce-animation .bench-btn::before,
+.reduce-animation .bench-btn::after,
+.reduce-animation .bench-mode-option,
+.reduce-animation .bench-mode-option svg {
+  transition: none;
+}
+
+.reduce-animation .bench-btn--refresh:hover svg,
+.reduce-animation .bench-btn--switch:hover svg {
+  transform: none;
+}
+
+.bench-notice {
+  padding: 1.4rem 1rem;
+  border-radius: 0.8rem;
+  border: 1px dashed var(--bench-line);
+  background: var(--bench-wash);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.bench-notice--error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--bench-down) 40%, var(--item-border));
+  background: color-mix(in srgb, var(--bench-down) 8%, transparent);
+  color: color-mix(in srgb, var(--bench-down) 80%, var(--text));
+}
+
+.bench-empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 0.7rem;
+  border: 1px dashed var(--bench-line-soft);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.bench-section-loader {
+  height: 100%;
+  min-height: 14rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.7rem;
+  border: 1px dashed var(--bench-line-soft);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+}
+
+.bench-section-loader .app-loader-fallback {
+  min-height: 10rem;
+  padding: 1.25rem;
+}
+
+.bench-card {
+  --bench-bg: radial-gradient(135% 90% at 50% -20%, color-mix(in srgb, var(--resonator-accent) 7%, transparent), transparent 62%),
+  var(--bg);
+  position: relative;
+  border-radius: 1.1rem;
+  border: 1px solid var(--bench-line);
+  background: var(--bench-bg);
+}
+
+.bench-card--mod {
+  height: 45rem;
+  width: 100%;
+  max-width: 20rem;
+  min-width: 16rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bench-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 1.3rem auto;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--resonator-accent) 42%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.bench-board {
+  position: relative;
+  display: flex;
+  justify-content: space-evenly;
+  flex-direction: row;
+  gap: 2rem;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0.35rem;
+  transition: gap 300ms var(--bench-ease), padding 300ms var(--bench-ease);
+}
+
+.bench:has(.bench-board[data-view='showcase']) {
+  gap: 0;
+}
+
+.bench-board[data-view='showcase'] {
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  justify-content: flex-start;
+}
+
+.bench-workspace {
+  display: contents;
+}
+
+.bench-board[data-view='showcase'] .bench-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  padding: 1.5rem;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.bench-main[data-phase='out'],
+.bench-roster-dock[data-phase='out'],
+.bench-board > .overview-resonator-rail[data-phase='out'] {
+  opacity: 0;
+  transform: translateY(0.4rem);
+  pointer-events: none;
+}
+
+.bench-rail-build[data-phase='out'],
+.bench-tune[data-phase='out'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bench-main[data-phase='out'],
+.bench-rail-build[data-phase='out'] {
+  content-visibility: hidden;
+}
+
+.bench-main[data-phase='in'],
+.bench-roster-dock[data-phase='in'],
+.bench-board > .overview-resonator-rail[data-phase='in'],
+.bench-rail-build[data-phase='in'],
+.bench-tune[data-phase='in'] {
+  animation: bench-surface-fade-in 220ms var(--bench-ease) both;
+}
+
+.bench-main[data-phase='out'],
+.bench-main[data-phase='in'],
+.bench-roster-dock[data-phase='out'],
+.bench-roster-dock[data-phase='in'],
+.bench-board > .overview-resonator-rail[data-phase='out'],
+.bench-board > .overview-resonator-rail[data-phase='in'] {
+  will-change: opacity, transform;
+}
+
+@keyframes bench-surface-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.bench-rail-port {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-height: 0;
+  z-index: 2;
+  min-width: 0;
+}
+
+.bench-rail-build {
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 0.7rem;
+  flex: 1 1 auto;
+  padding: 1.05rem 1.05rem 1.3rem 0.35rem;
+  min-width: 0;
+  z-index: 2;
+}
+
+.bench-board[data-view='showcase'] .bench-rail-wrapper {
+  flex: 1 1 auto;
+  gap: 1rem;
+}
+
+.bench-board > .overview-resonator-rail {
+  opacity: 1;
+  transform: none;
+  transition: opacity 180ms ease, transform 180ms var(--bench-ease);
+}
+
+.bench-board[data-view='showcase'] .bench-rail {
+  width: 62rem;
+  flex-direction: row;
+  flex-shrink: 0;
+  height: 45rem;
+  gap: 1rem;
+  align-self: unset;
+  align-items: stretch;
+}
+
+.bench-board[data-view='showcase'] .bench-rail-port {
+  flex: 0 0 20rem;
+}
+
+.bench-board[data-view='showcase'] .bench-rail-build {
+  display: grid;
+}
+
+.reduce-animation .bench-board,
+.reduce-animation .bench-board .bench-rail,
+.reduce-animation .bench-board .bench-main,
+.reduce-animation .bench-board .bench-rail-build,
+.reduce-animation .bench-board > .overview-resonator-rail {
+  transition: none;
+  animation: none;
+}
+
+.reduce-animation .bench-board .bench-main,
+.reduce-animation .bench-board .bench-rail-build {
+  content-visibility: visible;
+}
+
+.bench-roster-dock {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  overflow-x: visible;
+  padding-left: 0.5rem;
+  align-items: stretch;
+  gap: 0.5rem;
+  transition: opacity 180ms ease, transform 180ms var(--bench-ease);
+}
+
+.bench-attr-rail {
+  --spine-accent: var(--resonator-accent);
+  position: relative;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 1.85rem;
+  height: 100%;
+  overflow-x: visible;
+  animation: bench-attr-rail-in 0.55s var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.no-entrance-anim .bench-attr-rail,
+.reduce-animation .bench-attr-rail {
+  animation: none;
+}
+
+.bench-attr-rail-track {
+  position: absolute;
+  top: 1.2rem;
+  bottom: 1.2rem;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--text) 2%, transparent) 10%,
+      color-mix(in srgb, var(--text) 9%, transparent) 50%,
+      color-mix(in srgb, var(--text) 2%, transparent) 90%,
+      transparent 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bench-attr-thumb {
+  position: absolute;
+  left: 50%;
+  top: calc(100% * var(--thumb-top, 0));
+  height: calc(25% * var(--thumb-h, 1));
+  width: 3px;
+  transform: translateX(-50%);
+  z-index: 1;
+  pointer-events: none;
+
+  background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--spine-accent) 18%, transparent) 20%,
+      color-mix(in srgb, var(--spine-accent) 55%, transparent) 42%,
+      color-mix(in srgb, var(--spine-accent) 95%, transparent) 50%,
+      color-mix(in srgb, var(--spine-accent) 55%, transparent) 58%,
+      color-mix(in srgb, var(--spine-accent) 18%, transparent) 80%,
+      transparent 100%
+  );
+
+  transition: background 320ms ease, box-shadow 320ms ease;
+}
+
+.bench-attr-thumb::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.5rem;
+  border-radius: 50%;
+  height: 0.5rem;
+  transform: translate(-50%, -50%);
+  border: none;
+
+  background: color-mix(in srgb,var(--spine-accent) 70%,transparent);
+
+  filter: blur(0.08rem);
+  box-shadow:
+      0 0 0 3px color-mix(in srgb,var(--spine-accent) 20%,transparent),
+      0 0 20px 2px color-mix(in srgb,var(--spine-accent) 70%,transparent);
+  opacity: 0.9;
+  z-index: -1;
+}
+
+.bench-attr-dot {
+  --dot-accent: var(--resonator-accent);
+  position: absolute;
+  left: 50%;
+  top: calc(1.2rem + (100% - 2.4rem) * var(--pos, 0));
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition:
+    transform 320ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    top 200ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-attr-dot-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.62;
+  filter: grayscale(0.5) saturate(0.6) brightness(0.92);
+  transition: opacity 280ms ease, filter 280ms ease, width 280ms ease, height 280ms ease;
+}
+
+.bench-attr-dot:is(.is-active, :hover) {
+  transform: translate(-50%, -50%) scale(1.22);
+}
+
+.bench-attr-dot:hover .bench-attr-dot-icon {
+  opacity: 1;
+  filter: none;
+}
+
+.bench-attr-dot:focus-visible {
+  outline: none;
+}
+
+.bench-attr-dot.is-active .bench-attr-dot-icon {
+  width: 150%;
+  height: 150%;
+}
+
+.bench-attr-dot.is-active .bench-attr-dot-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--dot-accent) 70%, transparent));
+}
+
+.bench-attr-dot-count {
+  position: absolute;
+  top: -0.28rem;
+  right: -0.32rem;
+  min-width: 0.8rem;
+  height: 0.8rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--dot-accent) 40%, var(--item-border));
+  background: color-mix(in srgb, var(--dot-accent) 20%, var(--item-bg));
+  color: color-mix(in srgb, var(--dot-accent) 86%, var(--text));
+  font: 700 0.46rem/1 var(--mono-font);
+  box-shadow: 0 1px 3px color-mix(in srgb, black 24%, transparent);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 240ms ease, transform 240ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-attr-dot:hover .bench-attr-dot-count,
+.bench-attr-dot.is-active .bench-attr-dot-count {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@keyframes bench-attr-rail-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.bench-roster {
+  align-items: center;
+  flex-shrink: 0;
+  width: 5.6rem;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.5rem 0 1.6rem;
+  overflow-y: auto;
+  overflow-x: visible;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.4rem, #000 calc(100% - 1.6rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.4rem, #000 calc(100% - 1.6rem), transparent 100%);
+}
+
+.bench-roster::-webkit-scrollbar {
+  display: none;
+}
+
+.bench-roster-item {
+  --browser-accent: var(--resonator-accent);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: fit-content;
+  border-radius: 999px;
+  border: 1px solid var(--bench-line-soft);
+  background: var(--item-bg);
+  cursor: pointer;
+  overflow: visible;
+  isolation: isolate;
+  transition:
+    margin-bottom 300ms ease,
+    border-radius 300ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    padding 420ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    background 300ms ease,
+    border-color 300ms ease,
+    box-shadow 320ms ease,
+    transform 320ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-roster-item:hover {
+  transform: translateX(5px) scale(1.067);
+  overflow: visible;
+  border-color: color-mix(in srgb, var(--browser-accent) 10%, transparent);
+}
+
+.bench-roster-item:hover:not(.is-active) {
+  margin-bottom: 0.5rem;
+}
+
+.bench-roster-item:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--browser-accent) 60%, var(--item-border));
+}
+
+.bench-roster-item.is-active {
+  transform: translateX(2px) scale(1.1);
+  border-radius: 0;
+  padding: 0.5rem 0.4rem 0.55rem;
+  border-color: transparent;
+  background: transparent;
+  cursor: auto;
+}
+
+.bench-roster-hint {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 5;
+  max-width: 5rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 0.45rem;
+  font: 700 0.7rem/1.15 var(--body-font);
+  letter-spacing: -0.01em;
+  text-align: center;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translate(-50%, 0.7rem) scale(0.9);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity 280ms ease, transform 300ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-roster-hint::before {
+  content: '';
+  position: absolute;
+  top: -0.22rem;
+  left: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-left: inherit;
+  border-top: inherit;
+}
+
+.bench-roster-item:hover .bench-roster-hint {
+  opacity: 1;
+  transform: translate(-50%, 0.75rem) scale(1);
+}
+
+.bench-roster-frame {
+  position: relative;
+  width: 3rem;
+  height: 3rem;
+  flex-shrink: 0;
+  transition: transform 320ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-roster-item.is-active .bench-roster-frame {
+  transform: scale(1.04);
+}
+
+.bench-roster-portrait {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--bench-line-soft);
+  filter: saturate(0.8) brightness(0.94);
+  transition: filter 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
+}
+
+.bench-roster-item:hover .bench-roster-portrait {
+  filter: saturate(1) brightness(1);
+}
+
+.bench-roster-item.is-active .bench-roster-portrait {
+  border: 2px solid var(--browser-accent);
+  filter: saturate(1.08) brightness(1.02);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--browser-accent) 50%, transparent);
+}
+
+.bench-roster-attr {
+  position: absolute;
+  right: -0.12rem;
+  bottom: -0.12rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  object-fit: contain;
+  padding: 0.06rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--item-bg) 86%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, black 45%, transparent);
+  transition: transform 320ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-roster-item:hover .bench-roster-attr {
+  transform: scale(1.12);
+}
+
+.bench-roster-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.22rem;
+  animation: bench-roster-meta-in 380ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+.bench-roster-name {
+  max-width: 4.7rem;
+  font: 700 0.64rem/1 var(--body-font);
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.bench-roster-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+}
+
+.bench-roster-lv {
+  font: 700 0.5rem/1 var(--mono-font);
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--browser-accent) 16%, transparent);
+  color: color-mix(in srgb, var(--browser-accent) 82%, var(--text));
+}
+
+.bench-roster-seq {
+  display: inline-flex;
+  gap: 0.12rem;
+}
+
+.bench-roster-seq i {
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+}
+
+.bench-roster-seq i[data-on='true'] {
+  background: var(--browser-accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--browser-accent) 60%, transparent);
+}
+
+@keyframes bench-roster-bg-in {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 0.16;
+    transform: none;
+  }
+}
+
+@keyframes bench-roster-meta-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes bench-roster-item-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.bench-roster-item {
+  animation: bench-roster-item-in 460ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)) backwards;
+  animation-delay: calc(var(--ri, 0) * 50ms);
+}
+
+.no-entrance-anim .bench-roster-item,
+.no-entrance-anim .bench-roster-meta,
+.reduce-animation .bench-roster-item,
+.reduce-animation .bench-roster-meta {
+  animation: none;
+}
+
+.bench-report-settings-modal {
+  --rs-accent: var(--confirm-accent, var(--accent, #20bfb9));
+  --rs-line: color-mix(in srgb, var(--text) 12%, transparent);
+  --rs-muted: color-mix(in srgb, var(--text) 52%, transparent);
+  width: 100%;
+  gap: 0;
+}
+
+.bench-rs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.bench-rs-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bench-rs-title {
+  font-family: var(--display-font);
+}
+
+.bench-rs-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  font: 500 0.78rem/1.4 var(--body-font);
+  color: var(--rs-muted);
+}
+
+.bench-rs-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35ch;
+  flex-shrink: 0;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--rs-line);
+  border-radius: 999px;
+  font: 600 0.58rem/1 var(--mono-font);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rs-muted);
+  white-space: nowrap;
+}
+
+.bench-rs-count b {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--rs-accent);
+}
+
+.bench-rs-list {
+  list-style: none;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.bench-rs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.bench-rs-row:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.bench-rs-row.is-on {
+  background: color-mix(in srgb, var(--rs-accent) 9%, transparent);
+}
+
+.bench-rs-row.is-on:hover {
+  background: color-mix(in srgb, var(--rs-accent) 14%, transparent);
+}
+
+.bench-rs-check {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  border-radius: 0.4rem;
+  border: 1.5px solid color-mix(in srgb, var(--text) 30%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.bench-rs-check:hover {
+  border-color: color-mix(in srgb, var(--rs-accent) 60%, transparent);
+}
+
+.bench-rs-check:checked {
+  border-color: var(--rs-accent);
+  background: var(--rs-accent);
+}
+
+.bench-rs-check:checked::after {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  top: 0.18rem;
+  width: 0.28rem;
+  height: 0.56rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.bench-rs-check:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--rs-accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.bench-rs-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.bench-rs-name {
+  font: 600 0.9rem/1.2 var(--display-font);
+  letter-spacing: -0.005em;
+  color: color-mix(in srgb, var(--text) 66%, transparent);
+  transition: color 150ms ease;
+}
+
+.bench-rs-row.is-on .bench-rs-name {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.bench-rs-desc {
+  font: 400 0.74rem/1.3 var(--body-font);
+  color: var(--rs-muted);
+}

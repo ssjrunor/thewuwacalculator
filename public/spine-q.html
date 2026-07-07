@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>p</title>
+<style>body{margin:0;background:#222;font:12px monospace;color:#0f0}
+.box{display:inline-block;width:260px;height:368px;background:#333;position:relative;margin:6px;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center}</style></head>
+<body>
+<div class="box"><canvas id="lp" width="2048" height="2048"></canvas></div>
+<div class="box"><canvas id="lk" width="2048" height="2048"></canvas></div>
+<pre id="log"></pre>
+<script src="/node_modules/@esotericsoftware/spine-webgl/dist/iife/spine-webgl.min.js"></script>
+<script>
+const log=m=>document.getElementById('log').textContent+=m+'\n'
+async function run(canvasId, base, tag){
+  const canvas=document.getElementById(canvasId)
+  const gl=canvas.getContext('webgl2',{alpha:true,premultipliedAlpha:true})
+  const ctx=new spine.ManagedWebGLRenderingContext(gl)
+  const am=new spine.AssetManager(ctx,base); am.loadBinary('skel.skel'); am.loadTextureAtlas('atlas.atlas')
+  await new Promise(r=>{const c=()=>am.isLoadingComplete()?r():requestAnimationFrame(c);c()})
+  if(am.hasErrors()){log(tag+' ERR '+JSON.stringify(am.getErrors()));return}
+  const size=canvas.width, atlas=am.require('atlas.atlas'), loader=new spine.AtlasAttachmentLoader(atlas)
+  const mb=new spine.SkeletonBinary(loader); mb.scale=1
+  const ms=new spine.Skeleton(mb.readSkeletonData(am.require('skel.skel'))); ms.setToSetupPose(); ms.updateWorldTransform()
+  const o=new spine.Vector2(), s=new spine.Vector2(); ms.getBounds(o,s,[])
+  log(tag+' bounds '+s.x.toFixed(0)+'x'+s.y.toFixed(0))
+  const fit=size/Math.max(s.x,s.y), cx=Math.round((o.x+s.x/2)*fit), cy=Math.round((o.y+s.y/2)*fit)
+  const b=new spine.SkeletonBinary(loader); b.scale=fit
+  const sk=new spine.Skeleton(b.readSkeletonData(am.require('skel.skel'))); sk.setToSetupPose()
+  const sd=new spine.AnimationStateData(sk.data); const as=new spine.AnimationState(sd)
+  const an=sk.data.animations.find(a=>a.name.toLowerCase().includes('idle'))||sk.data.animations[0]
+  if(an)as.setAnimation(0,an.name,true); sk.updateWorldTransform()
+  const r=new spine.SceneRenderer(canvas,ctx)
+  r.camera.position.x=cx; r.camera.position.y=cy; r.camera.setViewport(size,size); r.camera.update()
+  let last=performance.now(),n=0
+  function loop(t){const dt=Math.min((t-last)/1000,.1);last=t;as.update(dt);as.apply(sk);sk.updateWorldTransform()
+    gl.viewport(0,0,size,size);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);r.begin();r.drawSkeleton(sk,false);r.end()
+    if(n++<160)requestAnimationFrame(loop)}
+  requestAnimationFrame(loop)
+}
+Promise.all([run('lp','/assets/spine/portrait/1506/','portrait'),run('lk','/assets/spine/luckdraw/1506/','luckdraw')]).then(()=>document.title='OK')
+</script></body></html>

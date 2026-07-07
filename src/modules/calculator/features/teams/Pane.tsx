@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator teams flow.
+  Description: renders the pane surface for the calculator teams flow.
 */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -28,7 +28,7 @@ import {
   withDefResMg,
 } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
-import { mkVrvwSttsVi } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { makeStatsView } from '@/modules/calculator/model/statsView.ts'
 import { RES_MENU, getResonator } from '@/modules/calculator/features/resonator/lib/resonator.ts'
 import { mkSelTrgtByR } from '@/modules/calculator/model/teamTargets.ts'
 import { getWeapon, resPssvPrms, withDefWpnMg } from '@/modules/calculator/features/weapons/lib/weapon.ts'
@@ -261,7 +261,7 @@ export function Teams({
       enemy: enemyProfile,
     })
 
-    return mkVrvwSttsVi(cnfgRt, context.finalStats)
+    return makeStatsView(cnfgRt, context.finalStats)
   }, [
     cnfgRt,
     enemyProfile,

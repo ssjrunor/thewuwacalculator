@@ -94,13 +94,6 @@
   color: var(--text);
 }
 
-.page-hero-sub {
-  font-size: 0.92rem;
-  color: var(--muted);
-  max-width: 44ch;
-  line-height: 1.55;
-}
-
 .page-hero-meta {
   font-family: 'DM Mono', monospace;
   font-size: 0.72rem;
@@ -211,7 +204,6 @@
   margin: 0;
   display: inline-flex;
 }
-
 
 .floating-page-hero__eyebrow,
 .floating-page-hero__title {
@@ -340,12 +332,10 @@
   opacity: 1;
 }
 
-
 .page-tile--wide { grid-column: span 7; }
 .page-tile--narrow { grid-column: span 5; }
 .page-tile--half { grid-column: span 6; }
 .page-tile--full { grid-column: span 12; }
-
 
 .tile-header {
   display: flex;
@@ -481,8 +471,6 @@
   background: color-mix(in srgb, var(--text) 6%, transparent);
   border: 1px solid var(--border);
 }
-
-
 
 .page-back-btn {
   display: inline-flex;

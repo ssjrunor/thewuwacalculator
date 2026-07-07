@@ -64,8 +64,10 @@ const charStatWght: Record<string, Record<string, number>> = {
   '1412': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, aero: 1 },
   '1511': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, heavyAtk: 1, spectro: 1 },
   '1308': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 1, electro: 1 },
-  '1109': { atkPercent: 1, atkFlat: 0.5, energyRegen: 1, critRate: 1, critDmg: 1, basicAtk: 1, glacio: 1 },
-  '1110': { hpPercent: 1, hpFlat: 0.25, energyRegen: 1, critDmg: 1, critRate: 1, resonanceSkill: 1, glacio: 1, healingBonus: 1 },
+  '1109': { atkPercent: 1, atkFlat: 0.75, critRate: 1, critDmg: 1, basicAtk: 1, glacio: 1 },
+  '1110': { hpPercent: 1, hpFlat: 0.5, energyRegen: 1, critDmg: 1, critRate: 0.25, resonanceSkill: 1, glacio: 1, healingBonus: 1 },
+  '1309': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, resonanceSkill: 0.75, resonanceLiberation: 0.25, electro: 0.75 },
+  '1310': { atkPercent: 1, atkFlat: 0.75, energyRegen: 1, critRate: 1, critDmg: 1, resonanceSkill: 0.75, resonanceLiberation: 0.25, electro: 0.75 }
 }
 
 // get the weight of a single stat key for a given character

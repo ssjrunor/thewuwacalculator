@@ -1,6 +1,5 @@
 
 
-
 .card,
 .summary-row,
 .echo-row,
@@ -157,7 +156,6 @@
   transition: opacity 180ms ease, color 180ms ease;
 }
 
-
 .ssc-toolbar .rotation-saved-filters__search-input,
 .rotation-saved-filters .rotation-saved-filters__search-input {
   width: 100%;
@@ -206,8 +204,6 @@
   width: 100%;
 }
 
-
-
 .rotation-pane-controls .rotation-toolbar-group .liquid-select {
   flex: 1 1 0;
 }
@@ -224,11 +220,9 @@
   transition: background 140ms ease, color 140ms ease;
 }
 
-
 .rotation-pane-controls .rotation-toolbar-group .liquid-select__trigger::before {
   display: none;
 }
-
 
 .rotation-pane-controls .rotation-toolbar-group .liquid-select__trigger::after {
   content: '';
@@ -265,7 +259,6 @@
   box-shadow: none;
 }
 
-
 .rotation-pane-controls .rotation-toolbar-group .liquid-select__icon {
   color: var(--muted);
   opacity: 0.5;
@@ -278,7 +271,6 @@
   color: var(--resonator-accent);
 }
 
-
 .rotation-pane-controls .rotation-toolbar-group .liquid-select + .rotation-button::before {
   content: '';
   position: absolute;
@@ -289,7 +281,6 @@
   background: color-mix(in srgb, var(--text) 10%, transparent);
   pointer-events: none;
 }
-
 
 .rotation-toolbar-group--append > .rotation-button {
   position: relative;
@@ -305,8 +296,6 @@
   background: color-mix(in srgb, var(--text) 10%, transparent);
   pointer-events: none;
 }
-
-
 
 .rotation-toolbar--append .rotation-toolbar-group--append .liquid-select__trigger {
   border: none;
@@ -449,7 +438,6 @@
     color 140ms ease;
 }
 
-
 .rotation-toolbar-group > .rotation-button + .rotation-button::before {
   content: '';
   position: absolute;
@@ -483,7 +471,6 @@
   opacity: 0.8;
   color: var(--resonator-accent);
 }
-
 
 .rotation-button::after {
   content: '';
@@ -522,8 +509,6 @@
   display: none;
 }
 
-
-
 .rotation-button.clear {
   color: var(--muted);
 }
@@ -545,8 +530,6 @@
 .rotation-button.clear:hover svg {
   color: var(--danger, crimson);
 }
-
-
 
 .rotation-button.mini {
   padding: 0.22rem 0.48rem;
@@ -653,7 +636,6 @@
   gap: 0.08rem;
   flex: 1 1 auto;
 }
-
 
 .entry-name {
   color: var(--text);
@@ -1162,7 +1144,6 @@
   cursor: pointer;
 }
 
-
 .rotation-pane.is-dragging .rotation-item-wrapper,
 .rotation-pane.is-dragging .rotation-block-wrapper {
   opacity: 0.76;
@@ -1179,7 +1160,6 @@
   filter: grayscale(0.78);
 }
 
-
 .rotation-list-container.drag-active {
   background:
           linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 4%, transparent), transparent 18%),
@@ -1193,7 +1173,6 @@
           box-shadow 220ms ease;
 }
 
-
 .rotation-item-wrapper.dragging,
 .rotation-block-wrapper.dragging {
   opacity: 0.38;
@@ -1201,7 +1180,6 @@
   filter: grayscale(0.28) saturate(0.88);
   box-shadow: none;
 }
-
 
 .rotation-item-wrapper.sorting-near,
 .rotation-block-wrapper.sorting-near {
@@ -1220,7 +1198,6 @@
 .rotation-block-wrapper.sorting-near.after {
   transform: translateY(0.34rem);
 }
-
 
 .rotation-item-wrapper.drag-over,
 .rotation-list-container.drag-over,
@@ -1244,7 +1221,6 @@
     outline-color: color-mix(in srgb, var(--resonator-accent) 64%, var(--item-border));
   }
 }
-
 
 .rotation-item.rotation-block {
   position: relative;
@@ -1309,7 +1285,6 @@
   white-space: nowrap;
 }
 
-
 .rotation-drag-overlay {
   position: fixed;
   z-index: 1200;
@@ -1372,7 +1347,6 @@
   margin-top: 0.35rem;
 }
 
-
 .rotation-drop-indicator {
   height: 4px;
   border-radius: 999px;
@@ -1429,7 +1403,6 @@
   }
 }
 
-
 .rotation-item.just-dropped,
 .rotation-block.just-dropped {
   animation: dropped-settle 380ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1450,7 +1423,6 @@
   }
 }
 
-
 .is-valid-drop-target .rotation-item,
 .is-valid-drop-target .rotation-block,
 .rotation-item.is-valid-drop-target,
@@ -1465,7 +1437,6 @@
   opacity: 0.52;
   filter: grayscale(0.8);
 }
-
 
 @media (prefers-reduced-motion: reduce) {
   .rotation-item-wrapper,
@@ -1872,17 +1843,6 @@
     clip-path: polygon(0 20%, 60% 50%, 0 80%, 0 80%);
     transform: translateY(-50%) translateX(0.25rem);
   }
-}
-
-.frosted-aurora .skill-option:hover,
-.frosted-aurora .skill-option:focus-visible {
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-}
-
-.blur-off.frosted-aurora .skill-menu-panel {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 .rotation-editor-modal {
@@ -3263,7 +3223,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rotation-loop-color) 38%, transparent);
 }
 
-
 .rotation-loop-editor__inspector {
   --rotation-loop-color: var(--resonator-accent);
   display: grid;
@@ -3562,7 +3521,6 @@
 .rotation-loop-card:nth-child(4) { animation-delay: 150ms; }
 .rotation-loop-card:nth-child(5) { animation-delay: 200ms; }
 .rotation-loop-card:nth-child(n+6) { animation-delay: 240ms; }
-
 
 .rotation-modal-header-actions {
   display: inline-flex;
@@ -4551,7 +4509,6 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--resonator-accent) 26%, transparent);
 }
 
-
 .rotation-when-plate--add {
   display: grid;
   grid-template-columns: 2.9rem minmax(0, 1fr);
@@ -4608,7 +4565,6 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-
 
 .rotation-when-plate-state.liquid-select {
   flex: 1 1 auto;
@@ -4668,7 +4624,6 @@
 .rotation-when-plate-op.liquid-select .liquid-select__value {
   font-style: italic;
 }
-
 
 .rotation-when-loops__list {
   display: grid;
@@ -4949,7 +4904,6 @@
   margin-right: 0.5rem;
   align-self: center;
 }
-
 
 .rotation-saved-item-header::before {
   content: '';
@@ -5716,8 +5670,6 @@
   border-bottom-color: color-mix(in srgb, var(--rotation-loop-color) 32%, var(--item-border));
 }
 
-
-
 .rss-sequence__when-mark {
   flex-shrink: 0;
   display: inline-flex;
@@ -5758,8 +5710,6 @@
   gap: 1rem;
   align-content: start;
 }
-
-
 
 @keyframes rotation-section-in {
   from {
@@ -5830,7 +5780,6 @@
     animation: none;
   }
 }
-
 
 .rotation-snapshot-v2 {
   position: relative;

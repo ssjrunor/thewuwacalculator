@@ -225,7 +225,6 @@
   justify-content: stretch;
 }
 
-
 .manual-modifier-actions {
   display: inline-flex;
   align-items: center;
@@ -245,13 +244,9 @@
   color: color-mix(in srgb, var(--resonator-accent) 72%, var(--text));
 }
 
-
 .custom-buffs-clear {
   min-width: 8rem;
 }
-
-
-
 
 .buff-preset-panel {
   --bp-accent: var(--resonator-accent, var(--accent));
@@ -269,8 +264,6 @@
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
-
-
 .bp-header {
   position: relative;
   display: grid;
@@ -281,18 +274,12 @@
   border-bottom: 1px solid var(--bp-line);
 }
 
-
-
 .bp-meters {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.4rem;
 }
-
-
-
-
 
 .bp-toolbar {
   display: grid;
@@ -303,15 +290,12 @@
   border-bottom: 1px solid var(--bp-line-soft);
 }
 
-
-
 .bp-toolbar__filters {
   display: flex;
   gap: 0.45rem;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-
 
 .bp-seg {
   position: relative;
@@ -513,7 +497,6 @@
   text-transform: uppercase;
 }
 
-
 .bp-tag--type-all,
 .bp-tag--type-self {
   border-color: var(--bp-line-soft);
@@ -633,7 +616,6 @@
   box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--bp-accent) 16%, transparent);
 }
 
-
 .bp-control .liquid-select {
   width: 100%;
 }
@@ -665,7 +647,6 @@
   border-color: color-mix(in srgb, var(--bp-accent) 50%, var(--item-border));
   box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--bp-accent) 14%, transparent);
 }
-
 
 .bp-rank.liquid-select {
   width: auto;
@@ -755,8 +736,6 @@
 .bp-empty span {
   font-size: 0.78rem;
 }
-
-
 
 .bp-footer {
   display: grid;
@@ -873,8 +852,6 @@
   }
 }
 
-
-
 @media (max-width: 980px) {
 
   .custom-buffs-head {
@@ -957,7 +934,6 @@
 :is(.no-entrance-anim, .reduce-animation) .bp-card {
   animation: none;
 }
-
 
 @keyframes buffs-section-in {
   from {

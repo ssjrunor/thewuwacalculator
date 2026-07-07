@@ -713,7 +713,6 @@
   border-radius: 0.95rem;
 }
 
-
 .team-member-config-modal__weapon-desc {
   padding: 0.05rem 0 0.15rem;
   color: var(--muted);
@@ -827,8 +826,6 @@
     grid-template-columns: 1fr;
   }
 }
-
-
 
 @keyframes teams-section-in {
   from {

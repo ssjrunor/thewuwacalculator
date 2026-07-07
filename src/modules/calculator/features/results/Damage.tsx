@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the damage surface for the calculator results flow.
+  Description: renders the damage surface for the calculator results flow.
 */
 
 import { Fragment, useMemo, useState, type CSSProperties as CssProps } from 'react'
@@ -11,7 +11,7 @@ import type { SimResult } from '@/engine/pipeline/types.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { getPrimarySkill, getSkillType } from '@/modules/calculator/model/skillTypes.ts'
 import { ATTR_COLORS } from '@/modules/calculator/model/display.ts'
-import { fmtCmpcNmbr } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatCompactNum } from '@/modules/calculator/model/statsView.ts'
 import { Tooltip, DmgTltp } from '@/shared/ui/Tooltip.tsx'
 import {
   breakdown,
@@ -125,9 +125,9 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
         {total.normal !== 0 ? (
           <tr data-damage-kind="total">
             <th scope="row">{rowLabel}</th>
-            <td>{fmtCmpcNmbr(total.normal)}</td>
-            <td>{fmtCmpcNmbr(total.crit)}</td>
-            <td>{fmtCmpcNmbr(total.avg)}</td>
+            <td>{formatCompactNum(total.normal)}</td>
+            <td>{formatCompactNum(total.crit)}</td>
+            <td>{formatCompactNum(total.avg)}</td>
           </tr>
         ) : (
           <tr data-damage-kind="total">
@@ -142,9 +142,9 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
             <th scope="row" className="pane-hint">
               ↳ {entry.label} ({fmtCntrPrcn(entry.percent)})
             </th>
-            <td>{fmtCmpcNmbr(entry.normal)}</td>
-            <td>{fmtCmpcNmbr(entry.crit)}</td>
-            <td>{fmtCmpcNmbr(entry.avg)}</td>
+            <td>{formatCompactNum(entry.normal)}</td>
+            <td>{formatCompactNum(entry.crit)}</td>
+            <td>{formatCompactNum(entry.avg)}</td>
           </tr>
         ))}
       </>
@@ -187,7 +187,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
             <td className="damage-support-placeholder">-</td>
             <td className="damage-support-placeholder">-</td>
             <td className="damage-support-value" style={{ color: supportMeta.color }}>
-              {fmtCmpcNmbr(entry.avg)}
+              {formatCompactNum(entry.avg)}
             </td>
           </tr>
           {isExpanded && (
@@ -251,7 +251,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                 }
               >
                 <span className="damage-value-cell">
-                  {fmtCmpcNmbr(entry.normal)}
+                  {formatCompactNum(entry.normal)}
                 </span>
               </Tooltip>
             </td>
@@ -266,7 +266,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                 }
               >
                 <span className="damage-value-cell">
-                  {fmtCmpcNmbr(entry.crit)}
+                  {formatCompactNum(entry.crit)}
                 </span>
               </Tooltip>
             </td>
@@ -281,7 +281,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                 }
               >
                 <span className="damage-value-cell">
-                  {fmtCmpcNmbr(entry.avg)}
+                  {formatCompactNum(entry.avg)}
                 </span>
               </Tooltip>
             </td>
@@ -296,9 +296,9 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                 {hit.label ? ` (${hit.label})` : ''}
                 {hit.count > 1 ? ` (${hit.count} Hits)` : ''}
               </th>
-              <td>{fmtCmpcNmbr(hit.normal)}</td>
-              <td>{fmtCmpcNmbr(hit.crit)}</td>
-              <td>{fmtCmpcNmbr(hit.avg)}</td>
+              <td>{formatCompactNum(hit.normal)}</td>
+              <td>{formatCompactNum(hit.crit)}</td>
+              <td>{formatCompactNum(hit.avg)}</td>
             </tr>
           ))}
         {isExpanded && (
@@ -369,9 +369,9 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                 {simulation.rotations.personal.total.normal !== 0 ? (
                   <tr data-damage-kind="total">
                     <th scope="row">Damage</th>
-                    <td>{fmtCmpcNmbr(simulation.rotations.personal.total.normal)}</td>
-                    <td>{fmtCmpcNmbr(simulation.rotations.personal.total.crit)}</td>
-                    <td>{fmtCmpcNmbr(simulation.rotations.personal.total.avg)}</td>
+                    <td>{formatCompactNum(simulation.rotations.personal.total.normal)}</td>
+                    <td>{formatCompactNum(simulation.rotations.personal.total.crit)}</td>
+                    <td>{formatCompactNum(simulation.rotations.personal.total.avg)}</td>
                   </tr>
                 ) : (
                   <tr data-damage-kind="total">
@@ -386,9 +386,9 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                     <th scope="row" className="pane-hint">
                       ↳ {entry.label} ({fmtCntrPrcn(entry.percent)})
                     </th>
-                    <td>{fmtCmpcNmbr(entry.normal)}</td>
-                    <td>{fmtCmpcNmbr(entry.crit)}</td>
-                    <td>{fmtCmpcNmbr(entry.avg)}</td>
+                    <td>{formatCompactNum(entry.normal)}</td>
+                    <td>{formatCompactNum(entry.crit)}</td>
+                    <td>{formatCompactNum(entry.avg)}</td>
                   </tr>
                 ))}
                 {simulation.rotations.personal.totalsByGroup.healing.avg !== 0 && (
@@ -399,7 +399,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-value" style={{ color: SPPRROWSTYL.healing.color }}>
-                      {fmtCmpcNmbr(simulation.rotations.personal.totalsByGroup.healing.avg)}
+                      {formatCompactNum(simulation.rotations.personal.totalsByGroup.healing.avg)}
                     </td>
                   </tr>
                 )}
@@ -411,7 +411,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-value" style={{ color: SPPRROWSTYL.shield.color }}>
-                      {fmtCmpcNmbr(simulation.rotations.personal.totalsByGroup.shield.avg)}
+                      {formatCompactNum(simulation.rotations.personal.totalsByGroup.shield.avg)}
                     </td>
                   </tr>
                 )}
@@ -453,7 +453,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-value" style={{ color: SPPRROWSTYL.healing.color }}>
-                      {fmtCmpcNmbr(simulation.rotations.team.totalsByGroup.healing.avg)}
+                      {formatCompactNum(simulation.rotations.team.totalsByGroup.healing.avg)}
                     </td>
                   </tr>
                 )}
@@ -465,7 +465,7 @@ export function Damage({ simulation, runtime, enemy }: CalcDmgSctnP) {
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-placeholder">-</td>
                     <td className="damage-support-value" style={{ color: SPPRROWSTYL.shield.color }}>
-                      {fmtCmpcNmbr(simulation.rotations.team.totalsByGroup.shield.avg)}
+                      {formatCompactNum(simulation.rotations.team.totalsByGroup.shield.avg)}
                     </td>
                   </tr>
                 )}

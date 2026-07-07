@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Guides page rendered as an editorial codex. The index view is
+  Description: guides page rendered as an editorial codex. The index view is
                a two-column grid of numbered chapter cards with dotted-leader
                article tables of contents. Selecting a chapter swaps the
                canvas for a full-width reader with a sticky in-chapter TOC,
@@ -97,8 +97,6 @@ function blckSrchText(block: GuideBlock): string {
       return block.items.map((entry) => `${entry.term}: ${entry.description}`).join(' ')
     case 'note':
       return block.text
-    case 'formula':
-      return [block.lines.join(' '), block.note ?? ''].join(' ').trim()
     default:
       return ''
   }
@@ -395,24 +393,6 @@ function NoteBlock({ block }: { block: Extract<GuideBlock, { type: 'note' }> }) 
   )
 }
 
-function FormulaBlock({
-                        block,
-                        label,
-                      }: {
-  block: Extract<GuideBlock, { type: 'formula' }>
-  label: string
-}) {
-  return (
-    <figure className="guide-formula">
-      <figcaption className="guide-formula__label" aria-hidden="true">{label}</figcaption>
-      <pre className="guide-formula__pre">
-        <code>{block.lines.join('\n')}</code>
-      </pre>
-      {block.note ? <figcaption className="guide-formula__note">{block.note}</figcaption> : null}
-    </figure>
-  )
-}
-
 function ExampleBlock({ block }: { block: Extract<GuideBlock, { type: 'example' }> }) {
   return (
     <article className="guide-example">
@@ -561,7 +541,7 @@ function assertNever(value: never): never {
 
 function renderBlocks(
   blocks: GuideBlock[],
-  ctx: { sectionIndex: number, dropCapState: { used: boolean }, formulaState: { count: number }, artNmbr: string },
+  ctx: { sectionIndex: number, dropCapState: { used: boolean } },
 ): ReactNode[] {
   const out: ReactNode[] = []
   blocks.forEach((block, index) => {
@@ -608,12 +588,6 @@ function renderBlocks(
       }
       case 'note': {
         out.push(<NoteBlock key={key} block={block} />)
-        break
-      }
-      case 'formula': {
-        ctx.formulaState.count += 1
-        const label = `Formula F.${ctx.artNmbr}.${ctx.formulaState.count}`
-        out.push(<FormulaBlock key={key} block={block} label={label} />)
         break
       }
       case 'example': {
@@ -663,7 +637,6 @@ function ArticleView({
 }) {
   const rtclNmbr = `${chapterIndex + 1}.${articleIndex + 1}`
   const dropCapState = { used: false }
-  const formulaState = { count: 0 }
 
   return (
     <article id={rtclNchrId(article.id)} className="guide-article">
@@ -693,8 +666,6 @@ function ArticleView({
               {renderBlocks(section.blocks, {
                 sectionIndex,
                 dropCapState,
-                formulaState,
-                artNmbr: rtclNmbr,
               })}
             </div>
           </section>

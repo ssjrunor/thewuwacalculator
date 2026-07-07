@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines grouped settings preference models and small ui helpers
+  Description: defines grouped settings preference models and small ui helpers
                for rendering the settings page preference cards.
 */
 
@@ -55,7 +55,7 @@ interface MkPrefGrpsAr {
   setCtxMenu: (checked: boolean) => void
   setPdtTst: (checked: boolean) => void
   setRcmmMenyu: (checked: boolean) => void
-  setShowNqng6: (checked: boolean) => void
+  setBenchStates: (checked: boolean) => void
   setMaxResInit: (checked: boolean) => void
   setHaveHist: (checked: boolean) => void
   setHistMax: (value: HistoryMax) => void
@@ -129,7 +129,7 @@ export function mkPrefGrps({
   setCtxMenu,
   setPdtTst: setPdtTst,
   setRcmmMenyu: setRcmmMenuT,
-  setShowNqng6: setShowNqntV,
+  setBenchStates,
   setMaxResInit,
   setHaveHist: setHaveHstr,
   setHistMax: setHstrMax,
@@ -214,10 +214,10 @@ export function mkPrefGrps({
         },
         {
           kind: 'toggle',
-          label: 'Show All Overview States',
-          description: 'Show all enabled overview states even when they do not add a numeric value.',
-          checked: ui.preferences.showUnquantifiedOverviewStates,
-          onChange: setShowNqntV,
+          label: 'Show All Benchmark States',
+          description: 'Show enabled state sources even when they do not add a numeric value.',
+          checked: ui.preferences.showBenchStates,
+          onChange: setBenchStates,
         },
         {
           kind: 'toggle',

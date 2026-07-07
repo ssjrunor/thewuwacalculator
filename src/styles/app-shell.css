@@ -36,6 +36,27 @@
   opacity: 0.75;
 }
 
+.frosted-aurora.app-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--background-wallpaper-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.frosted-aurora.app-shell:not(.blur-off)::after {
+  filter: blur(10px);
+  transition: filter 0.3s ease;
+}
+
+.frosted-aurora.app-shell.blur-off::after {
+  filter: none;
+}
+
 .layout {
   display: flex;
   flex-direction: column;
@@ -500,7 +521,6 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .rotation-saved-list > *,
 :is(.no-entrance-anim, .reduce-animation) .character-overview-pane > .character-overview-header,
 :is(.no-entrance-anim, .reduce-animation) .character-overview-content > .overview-resonator-strip,
-:is(.no-entrance-anim, .reduce-animation) .overview-resonator-strip > .overview-resonator-pill,
 :is(.no-entrance-anim, .reduce-animation) .overview-mosaic > .overview-cell,
 :is(.no-entrance-anim, .reduce-animation) .overview-dashboard-left > .overview-stats-tree,
 :is(.no-entrance-anim, .reduce-animation) .overview-dashboard-layout > .calculator-hero-state-summary,

@@ -12,7 +12,7 @@ import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoSt
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
 import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils.ts'
-import { fmtCmpcNmbr, fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { getQppdEchoC, sortByCost } from '@/modules/calculator/features/echoes/lib/echoes.ts'
 
 export type { SuggsViewMod } from '@/domain/entities/suggestions.ts'
@@ -64,7 +64,7 @@ export interface SetPlanSmmrE {
 
 // format a damage total with the calculator's compact number style
 export function formatDamage(value: number): string {
-  return `${fmtCmpcNmbr(value)} dmg`
+  return `${formatCompactNum(value)} dmg`
 }
 
 // compare a suggestion against the current baseline
@@ -207,8 +207,11 @@ export function inputSig(options: {
   prtcRntmById: Record<string, ResRuntime>
   selectedTargets: Record<string, string | null>
   setConds?: SntSetConds
+  setStateMode?: 'max' | 'resolved'
   tgtFeatId: string | null
   rotationMode: boolean
+  includeEchoAttacks?: boolean
+  fixedEchoLoadout?: boolean
 }) {
   const {
     enemyProfile,
@@ -217,7 +220,10 @@ export function inputSig(options: {
     runtime,
     selectedTargets,
     setConds: setConds,
+    setStateMode = 'max',
     tgtFeatId: trgtFtrId,
+    includeEchoAttacks = false,
+    fixedEchoLoadout = false,
   } = options
 
   return JSON.stringify({
@@ -226,8 +232,11 @@ export function inputSig(options: {
     participants: memberSig(partRntmById),
     selectedTargetsByOwnerKey: strnSrtdRcrd(selectedTargets),
     setConditionals: setsSig(setConds),
+    setStateMode,
     targetFeatureId: trgtFtrId,
     rotationMode,
+    includeEchoAttacks,
+    fixedEchoLoadout,
   })
 }
 
@@ -342,8 +351,8 @@ export function mkGrpdSbst(echoes: Array<EchoInstance | null>) {
     .sort((left, right) => right[1] - left[1])
     .map(([key, value]) => ({
       key,
-      label: fmtStatKeyLb(key),
-      value: fmtStatKeyVl(key, value),
+      label: formatStatKeyLabel(key),
+      value: formatStatKeyValue(key, value),
     }))
 }
 
@@ -378,7 +387,7 @@ export function normSetCount(setId: number, count: number): number {
   ))
 }
 
-// sanitize random-set preferences down to the supported two-set constraint model
+// sanitize random-set preferences down to the supported three-set constraint model
 export function trimRandSetP(
   preferences: RandGnrtSetP[],
 ): RandGnrtSetP[] {
@@ -393,8 +402,8 @@ export function trimRandSetP(
       count: normSetCount(entry.setId, entry.count),
     }))
 
-  if (next.length > 2) {
-    next = next.slice(0, 2)
+  if (next.length > 3) {
+    next = next.slice(0, 3)
   }
 
   let total = next.reduce((sum, entry) => sum + entry.count, 0)

@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Summarizes an echo's stat rolls into a compact preview row used
+  Description: summarizes an echo's stat rolls into a compact preview row used
                by menus and comparison popovers.
 */
 
@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric'
 import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring'
-import { fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 
 interface EchoStatProps {
   echo: EchoInstance
@@ -49,9 +49,9 @@ export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
       <div className="echo-stat-preview__group">
         <span className="echo-stat-preview__group-label">Primary</span>
         <div className="echo-stat-preview__row">
-          <span className="echo-stat-preview__row-label">{fmtStatKeyLb(echo.mainStats.primary.key)}</span>
+          <span className="echo-stat-preview__row-label">{formatStatKeyLabel(echo.mainStats.primary.key)}</span>
           <span className="echo-stat-preview__row-value">
-            {fmtStatKeyVl(echo.mainStats.primary.key, echo.mainStats.primary.value)}
+            {formatStatKeyValue(echo.mainStats.primary.key, echo.mainStats.primary.value)}
           </span>
         </div>
       </div>
@@ -59,9 +59,9 @@ export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
       <div className="echo-stat-preview__group">
         <span className="echo-stat-preview__group-label">Secondary</span>
         <div className="echo-stat-preview__row">
-          <span className="echo-stat-preview__row-label">{fmtStatKeyLb(echo.mainStats.secondary.key)}</span>
+          <span className="echo-stat-preview__row-label">{formatStatKeyLabel(echo.mainStats.secondary.key)}</span>
           <span className="echo-stat-preview__row-value">
-            {fmtStatKeyVl(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
+            {formatStatKeyValue(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
           </span>
         </div>
       </div>
@@ -72,8 +72,8 @@ export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
           <div className="echo-stat-preview__substats">
             {substats.map(([key, value]) => (
               <div key={key} className="echo-stat-preview__row">
-                <span className="echo-stat-preview__row-label">{fmtStatKeyLb(key)}</span>
-                <span className="echo-stat-preview__row-value">{fmtStatKeyVl(key, value)}</span>
+                <span className="echo-stat-preview__row-label">{formatStatKeyLabel(key)}</span>
+                <span className="echo-stat-preview__row-value">{formatStatKeyValue(key, value)}</span>
               </div>
             ))}
           </div>

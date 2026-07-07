@@ -1,0 +1,850 @@
+.bench-main {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 1rem;
+  min-width: 0;
+  transition:
+    opacity 180ms ease,
+    transform 180ms var(--bench-ease);
+}
+
+.bench-main > .bench-section,
+.bench-main-stack > .bench-section {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 24rem;
+}
+
+.bench-main-body {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(18rem, 3fr);
+  gap: 1.5rem;
+  position: relative;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.bench-main-body[data-side='off'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.bench-main-stack {
+  display: grid;
+  position: sticky;
+  top: var(--bench-stack-stick-top, 0px);
+  align-self: start;
+  height: max-content;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.bench-state-sources {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.bench-span {
+  grid-column: 1 / -1;
+}
+
+.bench-band {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2.1rem;
+  padding: 1rem 1.7rem;
+  height: fit-content;
+  border: 1px solid color-mix(in srgb, var(--grade, var(--resonator-accent)) 32%, var(--bench-line));
+  background:
+    radial-gradient(62% 150% at 5% 50%, color-mix(in srgb, var(--grade, var(--resonator-accent)) 10%, transparent), transparent 56%),
+    radial-gradient(80% 170% at 102% 130%, color-mix(in srgb, var(--grade, var(--resonator-accent)) 5%, transparent), transparent 55%),
+    var(--item-bg);
+  box-shadow:
+    0 20px 52px -22px color-mix(in srgb, var(--grade, var(--resonator-accent)) 23%, transparent),
+    0 16px 36px -18px color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+.bench-band[data-score="200"] :is(.bench-band-figure, .bench-track-marker-flag),
+.bench-portrait-grade[data-score="200"] {
+  --game-font: var(--game-font4);
+  font-weight: normal;
+}
+
+.bench-band::after {
+  content: attr(data-emoji);
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  top: 48%;
+  transform: translateY(-50%);
+  font: bold clamp(6rem, 12vw, 9rem)/0.74 var(--game-font);
+  letter-spacing: -0.05em;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 8%, transparent);
+  pointer-events: none;
+}
+
+.bench-band-core {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.45rem;
+}
+
+.bench-band-score {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.bench-band-figure {
+  font: normal clamp(2.5rem, 4.2vw, 3.6rem)/0.8 var(--game-font);
+  letter-spacing: -0.03em;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 96%, var(--text));
+  text-shadow: 0 0 32px color-mix(in srgb, var(--grade, var(--resonator-accent)) 42%, transparent);
+}
+
+.bench-band-score-sub {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.32rem;
+  font: 600 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.bench-band-score-sub em {
+  font: 700 0.92rem/1 var(--mono-font);
+  font-style: normal;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 70%, var(--text));
+}
+
+.bench-band-gauge {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bench-ruler-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.bench-ruler-dmg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  text-align: left;
+}
+
+.bench-ruler-dmg--mid {
+  text-align: center;
+}
+
+.bench-ruler-dmg--end {
+  text-align: right;
+}
+
+.bench-ruler-dmg em {
+  font: 700 0.92rem/1 var(--mono-font);
+  letter-spacing: -0.02em;
+  font-style: normal;
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.bench-ruler-dmg--mid em {
+  color: color-mix(in srgb, var(--avg, var(--resonator-accent)) 82%, var(--text));
+  text-shadow: 0 0 14px color-mix(in srgb, var(--grade, var(--resonator-accent)) 35%, transparent);
+}
+
+.bench-ruler-dmg span {
+  font: 700 0.5rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+@keyframes bench-seal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bench-seal-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 30px color-mix(in srgb, var(--grade, var(--resonator-accent)) 32%, transparent),
+      inset 0 0 24px color-mix(in srgb, var(--grade, var(--resonator-accent)) 16%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--grade, var(--resonator-accent)) 26%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 48px color-mix(in srgb, var(--grade, var(--resonator-accent)) 52%, transparent),
+      inset 0 0 28px color-mix(in srgb, var(--grade, var(--resonator-accent)) 22%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--grade, var(--resonator-accent)) 40%, transparent);
+  }
+}
+
+.bench-track {
+  position: relative;
+  height: 1.5rem;
+  margin: 1.25rem 0 0;
+  --track-fade: 20%;
+}
+
+.bench-track-bar {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--track-fade, 7%), #000 calc(100% - var(--track-fade, 7%)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--track-fade, 7%), #000 calc(100% - var(--track-fade, 7%)), transparent 100%);
+}
+
+.bench-track-scale {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--grade-scale, color-mix(in srgb, var(--text) 8%, transparent));
+  opacity: 0.16;
+  filter: saturate(0.8) brightness(0.9);
+}
+
+.bench-track-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--grade-scale, var(--grade, var(--resonator-accent)));
+  clip-path: inset(0 calc(100% - var(--pos, 0%)) 0 0 round 0);
+  transition: clip-path 800ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+
+  mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 40%,
+      black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 40%,
+      black 100%
+  );
+}
+
+.bench-track-tick {
+  position: absolute;
+  top: 50%;
+  left: var(--at, 0%);
+  z-index: 3;
+  width: 2px;
+  height: 1.5rem;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--text) 26%, transparent);
+}
+
+.bench-track-tick--mid {
+  background: white;
+  box-shadow: 0 0 8px color-mix(in srgb, white 40%, transparent);
+}
+
+.bench-track-tick::after {
+  content: attr(data-cap);
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 0.56rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.bench-track-tick--mid::after {
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 78%, var(--text));
+}
+
+.bench-track-notch {
+  position: absolute;
+  top: 50%;
+  left: var(--at, 0%);
+  z-index: 3;
+  width: 1px;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, black 20%, transparent);
+  pointer-events: none;
+}
+
+.bench-track-marker {
+  position: absolute;
+  top: 50%;
+  left: var(--pos, 0%);
+  z-index: 4;
+  width: 0;
+  height: 0;
+  transform: translate(-50%, -50%);
+  transition: left 700ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.bench-track-marker::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -0.85rem;
+  bottom: -0.85rem;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, white 90%, var(--grade, var(--resonator-accent))),
+    transparent
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--grade, var(--resonator-accent)) 80%, transparent);
+}
+
+.bench-track-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.25rem;
+  height: 1.75rem;
+  transform: translate(-50%, -50%);
+  border-radius: 0.18rem;
+  background: white;
+  box-shadow:
+    0 0 18px color-mix(in srgb, white 80%, transparent),
+    0 0 4px color-mix(in srgb, white 70%, transparent);
+}
+
+.bench-track-marker-flag {
+  position: absolute;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  padding: 0.14rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--grade, var(--resonator-accent)) 60%, var(--item-border));
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 96%, white);
+  font: 800 0.68rem/1.2 var(--game-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow:
+    0 4px 12px color-mix(in srgb, black 36%, transparent),
+    0 0 16px color-mix(in srgb, var(--grade, var(--resonator-accent)) 35%, transparent);
+}
+
+.bench-track-marker-flag::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 0.34rem;
+  height: 0.34rem;
+  margin-top: -0.2rem;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+}
+
+.bench-ruler-tiers {
+  position: relative;
+  height: 1.5rem;
+  margin-top: 0.35rem;
+}
+
+.bench-ruler-tier {
+  position: absolute;
+  top: 0;
+  left: var(--at, 0%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.bench-ruler-tier-stem {
+  width: 1px;
+  height: 0.34rem;
+  background: color-mix(in srgb, var(--tier-color, var(--text)) 30%, var(--muted));
+  transition: background 320ms ease, box-shadow 320ms ease;
+}
+
+.bench-ruler-tier b {
+  font: 800 0.6rem/1 var(--game-font);
+  letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--tier-color, var(--text)) 40%, var(--muted));
+  transition: color 320ms ease, text-shadow 320ms ease;
+}
+
+.bench-ruler-tier.is-reached .bench-ruler-tier-stem {
+  background: color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 82%, var(--text));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 55%, transparent);
+}
+
+.bench-ruler-tier.is-reached b {
+  color: color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 68%, var(--text));
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 32%, transparent);
+}
+
+.bench-ruler-cap {
+  position: absolute;
+  top: 0.5rem;
+  font: 700 0.54rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--muted) 80%, transparent);
+}
+
+.bench-ruler-cap--start {
+  left: 0;
+}
+
+.bench-ruler-cap--end {
+  right: 0;
+}
+
+.bench-anchors {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.bench-anchor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.7rem;
+  background:
+    radial-gradient(120% 140% at 50% -20%, color-mix(in srgb, var(--text) 5%, transparent), transparent 60%),
+    color-mix(in srgb, black 16%, transparent);
+  border: 1px solid var(--bench-line-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+  overflow: hidden;
+  transition: border-color 280ms ease, box-shadow 280ms ease;
+}
+
+.bench-anchor--active {
+  background:
+    radial-gradient(120% 150% at 50% -10%, color-mix(in srgb, var(--grade, var(--resonator-accent)) 8%, transparent), transparent 62%),
+    color-mix(in srgb, var(--grade, var(--resonator-accent)) 3%, transparent);
+  border-color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 23%, var(--item-border));
+  box-shadow:
+    0 10px 12px -10px color-mix(in srgb, var(--grade, var(--resonator-accent)) 23%, transparent),
+    inset 0 0 16px color-mix(in srgb, var(--grade, var(--resonator-accent)) 12%, transparent);
+}
+
+.bench-anchor-value {
+  font: 800 1.1rem/1 var(--mono-font);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.bench-anchor--active .bench-anchor-value {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--grade, var(--resonator-accent)) 45%, transparent);
+}
+
+.bench-anchor-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.bench-anchor-label {
+  font: 700 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.bench-anchor-sub {
+  font: 700 0.5rem/1 var(--mono-font);
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--text) 36%, transparent);
+}
+
+.bench-anchor--active .bench-anchor-sub {
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 75%, var(--muted));
+}
+
+.bench-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.bench-main:has(.bench-section.loading) {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.bench-section.loading {
+  height: 100%;
+}
+
+.bench-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--bench-line-soft);
+}
+
+.bench-section-title {
+  margin: 0;
+  font: 700 1.02rem/1 var(--display-font);
+  letter-spacing: -0.01em;
+}
+
+.bench-section-meta {
+  font: 600 0.64rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bench-build-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: 0.12rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--bench-line-soft);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  white-space: normal;
+}
+
+.bench-build-toggle__btn {
+  min-width: 4.2rem;
+  padding: 0.4rem 0.58rem;
+  border: none;
+  border-radius: 0.52rem;
+  background: transparent;
+  color: var(--muted);
+  font: 800 0.62rem/1 var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.bench-build-toggle__btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--resonator-accent) 8%, transparent);
+}
+
+.bench-build-toggle__btn.is-active {
+  color: color-mix(in srgb, var(--resonator-accent) 88%, var(--text));
+  background: color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+}
+
+.bench-stat-glyph {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  background-color: var(--stat-color, var(--resonator-accent));
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.bench-echoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+  gap: 0.7rem;
+}
+
+.bench-echo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.52rem 0.6rem 0.5rem 0.78rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--bench-line-soft);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, transparent), transparent 38%),
+    var(--bench-wash);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
+  overflow: hidden;
+  transition:
+    transform 300ms var(--bench-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.bench-echo::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 1rem;
+  left: 1rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--resonator-accent) 20%, transparent) 22%,
+    color-mix(in srgb, var(--resonator-accent) 20%, transparent) 78%,
+    transparent
+  );
+}
+
+.bench-echo:not(.bench-echo--empty):hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 30%, var(--item-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
+    0 16px 34px -26px color-mix(in srgb, var(--resonator-accent) 55%, #000);
+}
+
+.bench-echo--main {
+  border-color: color-mix(in srgb, var(--resonator-accent) 30%, var(--item-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 7%, transparent), transparent 42%),
+    var(--bench-wash);
+}
+
+.bench-echo--main::before {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--resonator-accent) 30%, transparent);
+}
+
+.bench-echo--empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 9rem;
+  gap: 0.35rem;
+  padding: 0.72rem;
+  border-style: dashed;
+  border-color: var(--bench-line);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent);
+  box-shadow: none;
+}
+
+.bench-echo--empty::before {
+  display: none;
+}
+
+.bench-echo-empty-mark {
+  font: 800 1.7rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.bench-echo-empty-label {
+  font: 700 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--text) 32%, transparent);
+}
+
+.bench-echo-head {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  padding-bottom: .35rem;
+  min-width: 0;
+}
+
+.bench-echo-frame {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.bench-echo-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  border: 1px solid var(--bench-line-soft);
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.bench-echo-icon--fallback {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.bench-echo-set {
+  position: absolute;
+  right: -0.22rem;
+  bottom: -0.22rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--item-bg);
+  border: 1px solid var(--bench-line-soft);
+  padding: 1px;
+}
+
+.bench-echo-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.24rem;
+  min-width: 0;
+}
+
+.bench-echo-name {
+  font: 700 0.86rem/1.05 var(--display-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bench-echo--main .bench-echo-name {
+  color: color-mix(in srgb, var(--resonator-accent) 72%, var(--text));
+}
+
+.bench-echo-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bench-echo-cost {
+  font: 700 0.6rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-echo-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font: 800 0.54rem/1 var(--mono-font);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--resonator-accent) 92%, var(--text));
+}
+
+.bench-echo-flag::before {
+  content: '';
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 1px;
+  background: var(--resonator-accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--resonator-accent) 60%, transparent);
+}
+
+.bench-echo-mains {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.25rem 0.06rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.bench-echo-main {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.1rem 0;
+}
+
+.bench-echo-main-k {
+  font: 600 0.66rem/1 var(--mono-font);
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bench-echo-main-v {
+  margin-left: auto;
+  font: 800 0.9rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.bench-echo-main--secondary .bench-echo-main-k {
+  color: color-mix(in srgb, var(--text) 48%, transparent);
+}
+
+.bench-echo-main--secondary .bench-echo-main-v {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 76%, transparent);
+}
+
+.bench-echo-subs {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bench-echo-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-height: 1.45rem;
+  padding: 0.12rem 0.06rem;
+  min-width: 0;
+}
+
+.bench-echo-sub + .bench-echo-sub {
+  border-top: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.bench-echo-sub-k {
+  flex: 1;
+  font: 500 0.64rem/1 var(--mono-font);
+  color: color-mix(in srgb, var(--text) 56%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bench-echo-sub-v {
+  margin-left: auto;
+  font: 600 0.7rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+  flex-shrink: 0;
+}
+
+.bench-echo-subs-empty {
+  margin: 0;
+  padding: 0.5rem 0;
+  text-align: center;
+  font: 600 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: color-mix(in srgb, var(--text) 34%, transparent);
+}

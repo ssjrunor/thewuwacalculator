@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: wires eslint to the project parser and react rules while keeping
+               generated output and build artifacts outside the lint surface.
+*/
+
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -18,6 +24,9 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

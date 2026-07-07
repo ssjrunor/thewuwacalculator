@@ -242,7 +242,6 @@
   background: color-mix(in srgb, var(--inner-bg) 70%, transparent);
 }
 
-
 .picker-modal__summary-pill {
   flex-direction: column-reverse;
 }
@@ -277,7 +276,6 @@
   color: var(--picker-modal-muted);
 }
 
-
 .picker-modal__summary-pill.checkbox {
   flex-direction: row;
   align-items: center;
@@ -297,7 +295,6 @@
   width: 5px;
   height: 10px;
 }
-
 
 .bp-search {
   display: flex;
@@ -533,7 +530,6 @@
   font-weight: 700;
 }
 
-
 .picker-filter-icon {
   min-width: 2.3rem;
   padding: 0.4rem;
@@ -559,7 +555,7 @@
   transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.app-shell:not(.dark-text) :is(.picker-filter-icon--weapon img, .weapon-icon, .overview-inline-buff-icon, .picker-modal__meta-icon--weapon, .res-load__cap-ico) {
+.app-shell:not(.dark-text) :is(.bench-spec-chip-icon, .picker-filter-icon--weapon img, .weapon-icon, .overview-inline-buff-icon, .picker-modal__meta-icon--weapon, .res-load__cap-ico) {
   filter: brightness(0) saturate(100%);
 }
 
@@ -818,7 +814,6 @@
   .picker-modal__header-top {
     grid-template-columns: 1fr;
   }
-
 
   .picker-modal__filters > .bp-search {
     flex-basis: 100%;

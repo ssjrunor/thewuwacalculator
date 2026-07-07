@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the resonator options panel surface for the calculator optimizer flow.
+  Description: renders the resonator options panel surface for the calculator optimizer flow.
 */
 
 import { useMemo } from 'react'
@@ -12,6 +12,7 @@ import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import {
   type RtUpdHnd,
 } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
+import { NumberInput } from '@/modules/calculator/features/controls/NumberInput'
 import { useAppModal } from '@/shared/ui/useAppModal'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { ManualBuffs } from './ManualBuffs.tsx'
@@ -161,7 +162,7 @@ export function CharPtnsPnl({
 
   const updQckBaseSt = (stat: 'atk' | 'hp' | 'def', field: 'flat' | 'percent', raw: number) => {
     const max = field === 'flat' ? 9999 : 999
-    const val = Math.max(0, Math.min(max, raw))
+    const val = Math.max(-max, Math.min(max, raw))
     onPtmzRtPdt((prev) => ({
       ...prev,
       state: {
@@ -178,7 +179,7 @@ export function CharPtnsPnl({
   }
 
   const updQckSclr = (key: 'critRate' | 'critDmg' | 'energyRegen' | 'healingBonus', raw: number) => {
-    const val = Math.max(0, Math.min(999, raw))
+    const val = Math.max(-999, Math.min(999, raw))
     onPtmzRtPdt((prev) => ({
       ...prev,
       state: {
@@ -576,22 +577,20 @@ export function CharPtnsPnl({
                       <div key={stat} className="co-qbuff-row">
                         <span className="co-qbuff-label">{label}</span>
                         <div className="co-qbuff-inputs">
-                          <input
-                            type="number"
+                          <NumberInput
                             className="co-qbuff-in"
-                            min={0}
+                            min={-9999}
                             max={9999}
                             value={optRuntime.state.manualBuffs.quick[stat].flat}
-                            onChange={(e) => updQckBaseSt(stat, 'flat', Number(e.target.value) || 0)}
+                            onChange={(value) => updQckBaseSt(stat, 'flat', value)}
                           />
                           <div className="co-qbuff-in-pct">
-                            <input
-                              type="number"
+                            <NumberInput
                               className="co-qbuff-in"
-                              min={0}
+                              min={-999}
                               max={999}
                               value={optRuntime.state.manualBuffs.quick[stat].percent}
-                              onChange={(e) => updQckBaseSt(stat, 'percent', Number(e.target.value) || 0)}
+                              onChange={(value) => updQckBaseSt(stat, 'percent', value)}
                             />
                             <span className="co-qbuff-suffix">%</span>
                           </div>
@@ -612,13 +611,12 @@ export function CharPtnsPnl({
                       <div key={key} className="co-qbuff-scalar">
                         <span className="co-qbuff-label co-qbuff-label--sm">{label}</span>
                         <div className="co-qbuff-in-pct">
-                          <input
-                            type="number"
+                          <NumberInput
                             className="co-qbuff-in"
-                            min={0}
+                            min={-999}
                             max={999}
                             value={optRuntime.state.manualBuffs.quick[key]}
-                            onChange={(e) => updQckSclr(key, Number(e.target.value) || 0)}
+                            onChange={(value) => updQckSclr(key, value)}
                           />
                           <span className="co-qbuff-suffix">%</span>
                         </div>

@@ -45,6 +45,8 @@ import {
     normInvRotNo,
 } from '@/domain/entities/inventoryStorage'
 import { makeEchoUid } from '@/domain/entities/runtime'
+import { DEF_BENCH_CARD_STYLE, DEF_BENCH_HIDE } from '@/domain/entities/preferences'
+import type { BenchmarkCardStyle, BenchmarkCardHidden, BenchRptSettings, UploadPersistMode } from '@/domain/entities/preferences'
 import type {OptContext, OptSets} from '@/domain/entities/optimizer'
 import type {ResProf} from '@/domain/entities/profile'
 import type {SntSetConds} from '@/domain/entities/sonataSetConditionals'
@@ -257,8 +259,17 @@ export interface AppStore extends PersistedState {
   setCtxMenu: (enabled: boolean) => void
   setUpdToast: (enabled: boolean) => void
   setRecMenus: (enabled: boolean) => void
-  setUnqOvr: (enabled: boolean) => void
+  setBenchStates: (enabled: boolean) => void
   setMaxResInit: (enabled: boolean) => void
+  setBenchView: (view: UiState['preferences']['benchmarkViewMode']) => void
+  setBench2d: (enabled: boolean) => void
+  patchBenchRpt: (patch: Partial<BenchRptSettings>) => void
+  patchBenchCardStyle: (resId: string, patch: Partial<BenchmarkCardStyle>) => void
+  toggleBenchHide: (resId: string, key: keyof BenchmarkCardHidden) => void
+  patchBenchCardHidden: (resId: string, patch: Partial<BenchmarkCardHidden>) => void
+  resetBenchCard: (resId: string) => void
+  setUploadPersist: (mode: UploadPersistMode | null) => void
+  setImgbbApiKey: (key: string) => void
   setSugView: (view: SuggsViewMod) => void
   setLeftView: (view: LeftPaneView) => void
   openLeftView: (view: LeftPaneView) => void
@@ -912,17 +923,17 @@ export const useAppStore = create<AppStore>((set, get) => {
     }), { historyLabel: 'Changed Recommended Menu Items' })
   },
 
-  setUnqOvr: (showNqntVrvw) => {
+  setBenchStates: (showAllStates) => {
     persistedSet(['ui.layout'], (state) => ({
       ...state,
       ui: {
         ...state.ui,
         preferences: {
           ...state.ui.preferences,
-          showUnquantifiedOverviewStates: showNqntVrvw,
+          showBenchStates: showAllStates,
         },
       },
-    }), { historyLabel: 'Changed Overview State Visibility' })
+    }), { historyLabel: 'Changed Benchmark State Visibility' })
   },
 
   setMaxResInit: (maxResOnInit) => {
@@ -936,6 +947,144 @@ export const useAppStore = create<AppStore>((set, get) => {
         },
       },
     }), { historyLabel: 'Changed Resonator Init Mode' })
+  },
+
+  setBenchView: (benchmarkViewMode) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          benchmarkViewMode,
+        },
+      },
+    }), { historyLabel: 'Changed Benchmark View' })
+  },
+
+  setBench2d: (benchAnim2d) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          benchAnim2d,
+        },
+      },
+    }), { historyLabel: 'Changed Benchmark Portrait Mode' })
+  },
+
+  patchBenchRpt: (patch) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: {
+          ...state.ui.preferences,
+          benchRptSettings: {
+            ...state.ui.preferences.benchRptSettings,
+            ...patch,
+          },
+        },
+      },
+    }), { historyLabel: 'Changed Benchmark Report Settings' })
+  },
+
+  patchBenchCardStyle: (resId, patch) => {
+    persistedSet(['ui.layout'], (state) => {
+      const cards = state.ui.preferences.benchmarkCards
+      const current = cards[resId] ?? { style: DEF_BENCH_CARD_STYLE, hidden: DEF_BENCH_HIDE }
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          preferences: {
+            ...state.ui.preferences,
+            benchmarkCards: {
+              ...cards,
+              [resId]: { ...current, style: { ...current.style, ...patch } },
+            },
+          },
+        },
+      }
+    }, { recHist: false })
+  },
+
+  toggleBenchHide: (resId, key) => {
+    persistedSet(['ui.layout'], (state) => {
+      const cards = state.ui.preferences.benchmarkCards
+      const current = cards[resId] ?? { style: DEF_BENCH_CARD_STYLE, hidden: DEF_BENCH_HIDE }
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          preferences: {
+            ...state.ui.preferences,
+            benchmarkCards: {
+              ...cards,
+              [resId]: { ...current, hidden: { ...current.hidden, [key]: !current.hidden[key] } },
+            },
+          },
+        },
+      }
+    }, { recHist: false })
+  },
+
+  patchBenchCardHidden: (resId, patch) => {
+    persistedSet(['ui.layout'], (state) => {
+      const cards = state.ui.preferences.benchmarkCards
+      const current = cards[resId] ?? { style: DEF_BENCH_CARD_STYLE, hidden: DEF_BENCH_HIDE }
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          preferences: {
+            ...state.ui.preferences,
+            benchmarkCards: {
+              ...cards,
+              [resId]: { ...current, hidden: { ...current.hidden, ...patch } },
+            },
+          },
+        },
+      }
+    }, { recHist: false })
+  },
+
+  resetBenchCard: (resId) => {
+    persistedSet(['ui.layout'], (state) => {
+      const cards = state.ui.preferences.benchmarkCards
+      if (!(resId in cards)) return state
+      const next = { ...cards }
+      delete next[resId]
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          preferences: { ...state.ui.preferences, benchmarkCards: next },
+        },
+      }
+    }, { recHist: false })
+  },
+
+  setUploadPersist: (uploadPersist) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: { ...state.ui.preferences, uploadPersist },
+      },
+    }), { recHist: false })
+  },
+
+  setImgbbApiKey: (imgbbApiKey) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: { ...state.ui.preferences, imgbbApiKey },
+      },
+    }), { recHist: false })
   },
 
   setSugView: (suggsViewMode) => {

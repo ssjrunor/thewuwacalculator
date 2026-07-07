@@ -51,6 +51,10 @@ export interface DirectSkillCtx {
   fixedDmg: number
 }
 
+export interface CalcSkillDamageOptions {
+  includeSubHits?: boolean
+}
+
 interface HitSummary {
   hitScale: number
   hitCount: number
@@ -214,17 +218,23 @@ function calcDamageCtx(
 }
 
 // build a zeroed result while preserving the skill hit structure
-function makeZeroResult(skill: SkillDef): DamageResult {
+function shldInclSubHits(options?: CalcSkillDamageOptions): boolean {
+  return options?.includeSubHits !== false
+}
+
+function makeZeroResult(skill: SkillDef, options?: CalcSkillDamageOptions): DamageResult {
   return {
     normal: 0,
     crit: 0,
     avg: 0,
-    subHits: skill.hits.map((hit) => ({
-      ...hit,
-      normal: 0,
-      crit: 0,
-      avg: 0,
-    })),
+    subHits: shldInclSubHits(options)
+      ? skill.hits.map((hit) => ({
+        ...hit,
+        normal: 0,
+        crit: 0,
+        avg: 0,
+      }))
+      : [],
   }
 }
 
@@ -269,20 +279,24 @@ function makeDmgResult(
       crit: number
       avg: number
     },
+    options?: CalcSkillDamageOptions,
 ): DamageResult {
   const subHits: DamageResult['subHits'] = []
+  const includeSubHits = shldInclSubHits(options)
   let normal = 0
   let crit = 0
   let avg = 0
 
   for (const hit of hits) {
     const values = buildValues(hit)
-    subHits.push({
-      ...hit,
-      normal: values.normal,
-      crit: values.crit,
-      avg: values.avg,
-    })
+    if (includeSubHits) {
+      subHits.push({
+        ...hit,
+        normal: values.normal,
+        crit: values.crit,
+        avg: values.avg,
+      })
+    }
 
     normal += values.normal * hit.count
     crit += values.crit * hit.count
@@ -353,6 +367,7 @@ function calcDirectDmg(
     skill: SkillDef,
     enemy: EnemyProfile,
     level: number,
+    options?: CalcSkillDamageOptions,
 ): DamageResult {
   // fixed damage bypasses the normal scaling formula
   if ((skill.fixedDmg ?? 0) > 0) {
@@ -367,7 +382,7 @@ function calcDirectDmg(
         crit: normal,
         avg: normal,
       }
-    })
+    }, options)
   }
 
   const shared = calcDamageCtx(finalStats, skill, enemy, level)
@@ -375,7 +390,7 @@ function calcDirectDmg(
 
   // full elemental immunity produces zero damage
   if (shared.zeroed) {
-    return makeZeroResult(skill)
+    return makeZeroResult(skill, options)
   }
 
   const baseAbility = calcBasePower(finalStats, skill)
@@ -400,7 +415,7 @@ function calcDirectDmg(
       crit,
       avg,
     }
-  })
+  }, options)
 }
 
 // compute healing and shielding style support effects
@@ -429,13 +444,14 @@ function calcLevelDamage(
     enemy: EnemyProfile,
     level: number,
     kind: 'tuneRupture' | 'hack',
+    options?: CalcSkillDamageOptions,
 ): DamageResult {
   const element = skill.element
   const baseRes = getEnemyRes(enemy, element)
 
   // hard immunity check
   if (baseRes === 100) {
-    return makeZeroResult(skill)
+    return makeZeroResult(skill, options)
   }
 
   const attributeAll = finalStats.attribute.all
@@ -518,7 +534,7 @@ function calcLevelDamage(
       crit,
       avg,
     }
-  })
+  }, options)
 }
 
 // compute negative-effect archetype damage such as frazzle, erosion, burst and flare
@@ -530,13 +546,14 @@ function calcNegEffect(
     stacks: number,
     archetype: Extract<SkillDef['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>,
     ddtnStck = 0,
+    options?: CalcSkillDamageOptions,
 ): DamageResult {
   const stackCount = skill.stackMode === 'fixedMax'
       ? skill.stackMax ?? getNegEffectDef(archetype)
       : stacks
   // no stacks means no damage instance
   if (stackCount <= 0 && ddtnStck <= 0) {
-    return makeZeroResult(skill)
+    return makeZeroResult(skill, options)
   }
 
   const element = NEG_EFFECT_ELEM[archetype]
@@ -545,7 +562,7 @@ function calcNegEffect(
 
   // hard immunity check
   if (baseRes === 100) {
-    return makeZeroResult(skill)
+    return makeZeroResult(skill, options)
   }
 
   const attributeAll = finalStats.attribute.all
@@ -626,7 +643,7 @@ function calcNegEffect(
       crit,
       avg,
     }
-  })
+  }, options)
 }
 
 // route a skill to the correct computation path based on archetype
@@ -644,6 +661,7 @@ export function calcSkillDamage(
       electroFlare?: number
       electroRage?: number
     },
+    options?: CalcSkillDamageOptions,
 ): DamageResult {
   // healing/shield never target the enemy; every other archetype is zeroed when the enemy is immune
   if (
@@ -651,7 +669,7 @@ export function calcSkillDamage(
       && skill.archetype !== 'shield'
       && isSkillImmune(finalStats.immunities, skill)
   ) {
-    return makeZeroResult(skill)
+    return makeZeroResult(skill, options)
   }
 
   switch (skill.archetype) {
@@ -660,10 +678,10 @@ export function calcSkillDamage(
       return calcSupport(finalStats, skill)
 
     case 'tuneRupture':
-      return calcLevelDamage(finalStats, skill, enemy, level, 'tuneRupture')
+      return calcLevelDamage(finalStats, skill, enemy, level, 'tuneRupture', options)
 
     case 'hack':
-      return calcLevelDamage(finalStats, skill, enemy, level, 'hack')
+      return calcLevelDamage(finalStats, skill, enemy, level, 'hack', options)
 
     case 'spectroFrazzle':
       return calcNegEffect(
@@ -673,6 +691,8 @@ export function calcSkillDamage(
           level,
           combatState?.spectroFrazzle ?? combatState?.spctFrzz ?? 0,
           'spectroFrazzle',
+          0,
+          options,
       )
 
     case 'aeroErosion':
@@ -683,6 +703,8 @@ export function calcSkillDamage(
           level,
           combatState?.aeroErosion ?? 0,
           'aeroErosion',
+          0,
+          options,
       )
 
     case 'fusionBurst':
@@ -693,6 +715,8 @@ export function calcSkillDamage(
           level,
           combatState?.fusionBurst ?? 0,
           'fusionBurst',
+          0,
+          options,
       )
 
     case 'glacioChafe':
@@ -703,6 +727,8 @@ export function calcSkillDamage(
           level,
           combatState?.glacioChafe ?? 0,
           'glacioChafe',
+          0,
+          options,
       )
 
     case 'electroFlare':
@@ -716,10 +742,11 @@ export function calcSkillDamage(
           (combatState?.electroFlare ?? 0) > getNegEffectDef('electroFlare')
             ? (combatState?.electroRage ?? 0)
             : 0,
+          options,
       )
 
     case 'skillDamage':
     default:
-      return calcDirectDmg(finalStats, skill, enemy, level)
+      return calcDirectDmg(finalStats, skill, enemy, level, options)
   }
 }

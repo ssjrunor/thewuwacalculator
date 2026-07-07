@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Exposes small optimizer ui fragments so the larger optimizer
+  Description: exposes small optimizer ui fragments so the larger optimizer
                surface can stay split into reusable presentational pieces.
 */
 
@@ -8,7 +8,7 @@ import type { HTMLAttributes as HtmlAttrs } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
-import { fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { toTitle } from '@/shared/lib/format.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 
@@ -92,15 +92,15 @@ export function OptPrvwEchoT(props: {
 
       <div className="opt-echo-preview__stats-table">
         <div className="opt-echo-preview__stats-row opt-echo-preview__stats-row--main">
-          <span className="opt-echo-preview__stats-label">{fmtStatKeyLb(echo.mainStats.primary.key)}</span>
+          <span className="opt-echo-preview__stats-label">{formatStatKeyLabel(echo.mainStats.primary.key)}</span>
           <span className="opt-echo-preview__stats-value">
-            {fmtStatKeyVl(echo.mainStats.primary.key, echo.mainStats.primary.value)}
+            {formatStatKeyValue(echo.mainStats.primary.key, echo.mainStats.primary.value)}
           </span>
         </div>
         <div className="opt-echo-preview__stats-row opt-echo-preview__stats-row--main">
-          <span className="opt-echo-preview__stats-label">{fmtStatKeyLb(echo.mainStats.secondary.key)}</span>
+          <span className="opt-echo-preview__stats-label">{formatStatKeyLabel(echo.mainStats.secondary.key)}</span>
           <span className="opt-echo-preview__stats-value">
-            {fmtStatKeyVl(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
+            {formatStatKeyValue(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
           </span>
         </div>
         {sbstEnts.map(([key, value], subIndex) => (
@@ -108,8 +108,8 @@ export function OptPrvwEchoT(props: {
             key={key}
             className={`opt-echo-preview__stats-row${subIndex === 0 ? ' opt-echo-preview__stats-row--substart' : ''}`}
           >
-            <span className="opt-echo-preview__stats-label">{fmtStatKeyLb(key)}</span>
-            <span className="opt-echo-preview__stats-value">{fmtStatKeyVl(key, value)}</span>
+            <span className="opt-echo-preview__stats-label">{formatStatKeyLabel(key)}</span>
+            <span className="opt-echo-preview__stats-value">{formatStatKeyValue(key, value)}</span>
           </div>
         ))}
       </div>

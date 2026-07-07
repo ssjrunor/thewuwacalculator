@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Builds manual-buff editor labels, defaults, and normalization
+  Description: builds manual-buff editor labels, defaults, and normalization
                helpers used by the calculator buff controls.
 */
 
@@ -20,7 +20,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function clampQuickBuff(isFlat: boolean, rawValue: number): number {
   const maximum = isFlat ? 9999 : 999
-  return Math.max(0, Math.min(maximum, rawValue))
+  return Math.max(-maximum, Math.min(maximum, rawValue))
 }
 
 export function clmpMnlModVl(modifier: MnlMod, rawValue: number): number {
@@ -48,7 +48,7 @@ export function clmpMnlModVl(modifier: MnlMod, rawValue: number): number {
     return 999
   })()
 
-  return Math.max(0, Math.min(max, rawValue))
+  return Math.max(-max, Math.min(max, rawValue))
 }
 
 export function makeModId(): string {

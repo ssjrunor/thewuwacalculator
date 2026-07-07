@@ -1,0 +1,53 @@
+@media (max-width: 80rem) {
+  .bench-board:not([data-view='showcase']) {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .bench-board:not([data-view='showcase']) .bench-rail-wrapper {
+    display: none;
+  }
+
+  .bench-band[data-banner] {
+    position: relative;
+    overflow: hidden;
+    min-height: 12.5rem;
+    padding-left: 20rem;
+  }
+
+  .bench-band::after {
+    right: -5%;
+  }
+
+  .bench-band[data-banner] .bench-band-art {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .bench-band[data-banner] .bench-band-bg {
+    position: absolute;
+    inset: -12%;
+    background-size: cover;
+    background-position: 50% 16%;
+    filter: blur(5px);
+    opacity: 0.67;
+  }
+
+  .bench-band[data-banner] .bench-band-portrait {
+    position: absolute;
+    top: 0;
+    left: 0;
+    object-fit: cover;
+    object-position: var(--resonator-sprite-face-x, 40%) var(--resonator-sprite-face-y, 23%);
+    transform:
+        translate(calc(var(--resonator-sprite-face-x, 40%) * -1.2),calc(var(--resonator-sprite-face-y, 23%) * -2));
+    scale: calc(var(--resonator-sprite-face-scale, 1) * 0.67);
+    z-index: 0;
+    pointer-events: none;
+  }
+}

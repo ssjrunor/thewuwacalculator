@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the right surface for the calculator main flow.
+  Description: renders the right surface for the calculator main flow.
 */
 
 import { useMemo } from 'react'
@@ -11,9 +11,9 @@ import type { ResRuntime } from '@/domain/entities/runtime'
 import { getNegFfctFf, negEffectsFor } from '@/domain/gameData/negativeEffects'
 import type { SimResult } from '@/engine/pipeline/types'
 import {
-  mkVrvwSttsVi,
-  fmtCmpcNmbr,
-} from '@/modules/calculator/features/overview/lib/stats.ts'
+  makeStatsView,
+  formatCompactNum,
+} from '@/modules/calculator/model/statsView.ts'
 import { getPrimarySkill } from '@/modules/calculator/model/skillTypes'
 import { Damage } from '@/modules/calculator/features/results/Damage.tsx'
 import { Stats } from '@/modules/calculator/features/results/Stats.tsx'
@@ -45,7 +45,7 @@ const NEG_EFFECT_ABBR: Record<string, string> = {
 // renders the results-hand telemetry surface once a simulation and runtime are available.
 export function Right({ simulation, runtime, enemy }: CalcRghtPane) {
   const statsView = useMemo(
-    () => (simulation && runtime ? mkVrvwSttsVi(runtime, simulation.finalStats) : null),
+    () => (simulation && runtime ? makeStatsView(runtime, simulation.finalStats) : null),
     [runtime, simulation],
   )
   const vsblNegFfct = useMemo(
@@ -108,18 +108,18 @@ export function Right({ simulation, runtime, enemy }: CalcRghtPane) {
   const vrvwTms: OverviewItem[] = [
     {
       label: 'Personal Damage',
-      value: fmtCmpcNmbr(simulation.rotations.personal.total.avg),
+      value: formatCompactNum(simulation.rotations.personal.total.avg),
       detail:
         persRotCnt > 0
-          ? `${persRotCnt} feature${persSkllType === 1 ? '' : 's'}${simulation.rotations.personal.totalsByGroup.healing.avg > 0 ? `, ${fmtCmpcNmbr(simulation.rotations.personal.totalsByGroup.healing.avg)} heal` : ''}${simulation.rotations.personal.totalsByGroup.healing.avg > 0 ? `, ${fmtCmpcNmbr(simulation.rotations.personal.totalsByGroup.shield.avg)} shield` : ''}`
+          ? `${persRotCnt} feature${persSkllType === 1 ? '' : 's'}${simulation.rotations.personal.totalsByGroup.healing.avg > 0 ? `, ${formatCompactNum(simulation.rotations.personal.totalsByGroup.healing.avg)} heal` : ''}${simulation.rotations.personal.totalsByGroup.healing.avg > 0 ? `, ${formatCompactNum(simulation.rotations.personal.totalsByGroup.shield.avg)} shield` : ''}`
           : 'No personal rotation entries',
     },
     {
       label: 'Team Damage',
-      value: fmtCmpcNmbr(simulation.rotations.team.total.avg),
+      value: formatCompactNum(simulation.rotations.team.total.avg),
       detail:
         teamRotCount > 0
-          ? `${teamMemCnt} member${teamMemCnt === 1 ? '' : 's'}${simulation.rotations.team.totalsByGroup.healing.avg > 0 ? `, ${fmtCmpcNmbr(simulation.rotations.team.totalsByGroup.healing.avg)} heal` : ''}${simulation.rotations.team.totalsByGroup.healing.avg > 0 ? `, ${fmtCmpcNmbr(simulation.rotations.team.totalsByGroup.shield.avg)} shield` : ''}`
+          ? `${teamMemCnt} member${teamMemCnt === 1 ? '' : 's'}${simulation.rotations.team.totalsByGroup.healing.avg > 0 ? `, ${formatCompactNum(simulation.rotations.team.totalsByGroup.healing.avg)} heal` : ''}${simulation.rotations.team.totalsByGroup.healing.avg > 0 ? `, ${formatCompactNum(simulation.rotations.team.totalsByGroup.shield.avg)} shield` : ''}`
           : 'No team rotation entries',
     },
     {

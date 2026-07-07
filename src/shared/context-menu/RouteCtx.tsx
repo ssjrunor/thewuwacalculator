@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Provides route-chrome menu builders and route-level actions
+  Description: provides route-chrome menu builders and route-level actions
                such as navigation, history, inventory access, and reset flows.
 */
 
@@ -32,7 +32,7 @@ interface RtCtxVl {
     redo: () => void
     openInv: () => void
     tgglOpt: () => void
-    tgglVrvw: () => void
+    tgglBnch: () => void
     openStatus: () => void
     rstActRes: () => void
   }
@@ -110,8 +110,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     navigate(location.pathname === '/calculator/optimizer' ? '/calculator' : '/calculator/optimizer')
   }, [ensInvHydr, location.pathname, navigate])
 
-  const tglVrvw = useCallback(() => {
-    navigate(location.pathname === '/calculator/overview' ? '/calculator' : '/calculator/overview')
+  const tglBnch = useCallback(() => {
+    navigate(location.pathname === '/calculator/benchmark' ? '/calculator' : '/calculator/benchmark')
   }, [location.pathname, navigate])
 
   const openStatus = useCallback(() => {
@@ -158,10 +158,10 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
       }),
       actions: () => routeCtxBuilder.routeChrome.actions({
         optAct: location.pathname === '/calculator/optimizer',
-        vrvwAct: location.pathname === '/calculator/overview',
+        bnchAct: location.pathname === '/calculator/benchmark',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglVrvw: tglVrvw,
+        onTgglBnch: tglBnch,
         onOpenStatus: openStatus,
       }),
       reset: () => routeCtxBuilder.routeChrome.reset({
@@ -181,10 +181,10 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onUndoTo: undoTo,
         onRedoTo: redoTo,
         optAct: location.pathname === '/calculator/optimizer',
-        vrvwAct: location.pathname === '/calculator/overview',
+        bnchAct: location.pathname === '/calculator/benchmark',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglVrvw: tglVrvw,
+        onTgglBnch: tglBnch,
         onOpenStatus: openStatus,
         canReset: Boolean(actResId),
         onReset: rstActRes,
@@ -202,10 +202,10 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onUndoTo: undoTo,
         onRedoTo: redoTo,
         optAct: location.pathname === '/calculator/optimizer',
-        vrvwAct: location.pathname === '/calculator/overview',
+        bnchAct: location.pathname === '/calculator/benchmark',
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglVrvw: tglVrvw,
+        onTgglBnch: tglBnch,
         onOpenStatus: openStatus,
         canReset: Boolean(actResId),
         onReset: rstActRes,
@@ -224,7 +224,7 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     rstActRes,
     redo,
     tglOpt,
-    tglVrvw,
+    tglBnch,
     undo,
     undoHistory,
     undoTo,
@@ -240,7 +240,7 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
       redo,
       openInv: openInv,
       tgglOpt: tglOpt,
-      tgglVrvw: tglVrvw,
+      tgglBnch: tglBnch,
       openStatus,
       rstActRes: rstActRes,
     },
@@ -253,7 +253,7 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     openStatus,
     rstActRes,
     tglOpt,
-    tglVrvw,
+    tglBnch,
     undo,
   ])
 

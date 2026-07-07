@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the resonator configuration pane, including picker
+  Description: renders the resonator configuration pane, including picker
                access, level and chain controls, runtime state controls, and
                skill-data entry points.
 */
@@ -63,9 +63,16 @@ import {withDefIconM, withDefWpnMg} from '@/shared/lib/imageFallback'
 import {clampNumber} from '@/shared/lib/number'
 import {mainPortal} from '@/shared/lib/portalTarget'
 import {getWeapon} from '@/modules/calculator/features/weapons/lib/weapon.ts'
-import {getMkScrPrcn, getMaxEchoSc} from '@/data/scoring/echoScoring.ts'
-import {getScrTone} from '@/modules/calculator/features/echoes/lib/metric.ts'
+import {
+  formatBuildBenchmarkScore as fmtBenchScore,
+  getBuildBenchmarkGrade as getBenchGrade,
+  getBuildBenchmarkResScoreClass as getBenchResCls,
+  getBuildBenchmarkResScoreStyle as getBenchResStyle,
+  getBuildBenchmarkTrackPct as getBenchTrackPct,
+} from '@/modules/calculator/model/buildBenchmarkDisplay.ts'
+import {useAsmBenchScore} from '@/modules/calculator/model/useBuildBenchmark.ts'
 import {FaBookBookmark} from "react-icons/fa6";
+import { selActTgtSlc } from '@/domain/state/selectors.ts'
 
 // surfaces the resonator selector and slider controls that drive the runtime.
 interface ResPanePrps {
@@ -73,6 +80,7 @@ interface ResPanePrps {
   actResId: string | null
   onRtPdt: (updater: (runtime: ResRuntime) => ResRuntime) => void
   isDarkMode: boolean
+  prtcRntmById: Record<string, ResRuntime>
 }
 
 function sameRtVal(left: boolean | number | string | undefined, right: boolean | number | string): boolean {
@@ -121,12 +129,14 @@ export function Resonator({
   actResId: actResId,
   onRtPdt: onRtPdt,
   isDarkMode,
+  prtcRntmById: partRntmById,
 }: ResPanePrps) {
   const swtcToRes = useAppStore((s) => s.swRes)
   const openLeftView = useAppStore((s) => s.openLeftView)
   const [menuPrld, setMenuPrld] = useState(false)
   const menuModal = useAppModal()
   const skillsModal = useAppModal()
+  const selTrgtByOwn = useAppStore(selActTgtSlc)
 
   const resonator = getResonator(runtime.id)
   const details = getResDtls(runtime.id)
@@ -563,11 +573,12 @@ export function Resonator({
   const weaponIcon = weaponDef?.icon ?? '/assets/default.webp'
   const weaponRarity = weaponDef?.rarity ?? 4
 
-  const hasWeights = useMemo(() => getMaxEchoSc(runtime.id) > 0, [runtime.id])
-  const buildScore = useMemo(
-    () => (hasWeights ? getMkScrPrcn(runtime.id, runtime.build.echoes) : null),
-    [hasWeights, runtime.id, runtime.build.echoes],
-  )
+  const { score: buildScore } = useAsmBenchScore({
+    runtime,
+    runtimesById: partRntmById,
+    targetSelections: selTrgtByOwn,
+    exposeLogger: true,
+  })
 
   // the two teammate slots (the team's non-active positions) are always
   // rendered; an unfilled slot resolves to null and renders as an empty slot.
@@ -649,17 +660,27 @@ export function Resonator({
           </div>
         </div>
 
-        <div className="res-card__score">
+        <div
+          className="res-card__score"
+          style={getBenchResStyle(buildScore) as CssProps | undefined}
+        >
           <span className="res-score-cap">Build Score</span>
-          <span
-            className={`res-score-num${buildScore == null ? '' : ` res-score--${getScrTone(buildScore)}`}`}
-          >
-            {buildScore == null ? '—' : `${Math.round(buildScore)}%`}
+          <span className="res-score-row">
+            {getBenchGrade(buildScore) != null && (
+              <span className={getBenchResCls('res-score-grade', buildScore)}>
+                {getBenchGrade(buildScore)}
+              </span>
+            )}
+            <span
+              className={getBenchResCls('res-score-num', buildScore)}
+            >
+              {fmtBenchScore(buildScore)}
+            </span>
           </span>
           <span
-            className={`res-score-track${buildScore == null ? '' : ` res-score--${getScrTone(buildScore)}`}`}
+            className={getBenchResCls('res-score-track', buildScore)}
             aria-hidden="true"
-            style={{ '--pct': buildScore == null ? 0 : Math.round(buildScore) } as CssProps}
+            style={{ '--pct': getBenchTrackPct(buildScore) } as CssProps}
           />
         </div>
 

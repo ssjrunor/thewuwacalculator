@@ -19,8 +19,6 @@
 .toast-container--bottom-center { bottom: 0; left: 50%; transform: translateX(-50%); }
 .toast-container--bottom-right { bottom: 0; right: 0; }
 
-
-
 @keyframes toast-enter-top {
   0%   { opacity: 0; transform: translateY(-1.2rem) scale(0.92); filter: blur(4px); }
   50%  { opacity: 1; filter: blur(0); }
@@ -68,8 +66,6 @@
   100% { background-position: 200% 0; }
 }
 
-
-
 .toast-item {
   pointer-events: auto;
   position: relative;
@@ -93,7 +89,6 @@
   will-change: transform, opacity, filter;
 }
 
-
 .toast-item::before {
   content: '';
   position: absolute;
@@ -106,7 +101,6 @@
   transform-origin: top center;
   opacity: 0;
 }
-
 
 .toast-item::after {
   content: '';
@@ -125,8 +119,6 @@
   pointer-events: none;
   opacity: 0;
 }
-
-
 
 .toast-item--top {
   transform: translateY(-1.2rem) scale(0.92);
@@ -161,8 +153,6 @@
   animation: toast-content-enter 350ms 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-
-
 .toast-item--exiting.toast-item--top {
   animation: toast-exit-top 340ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
 }
@@ -171,13 +161,9 @@
   animation: toast-exit-bottom 340ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
 }
 
-
-
 .toast-item--success { --toast-accent: var(--ok, #22c55e); }
 .toast-item--error   { --toast-accent: var(--danger, #ef4444); }
 .toast-item--warning { --toast-accent: var(--toast-highlight, #f59e0b); }
-
-
 
 .toast-item__icon {
   flex-shrink: 0;
@@ -198,8 +184,6 @@
   width: 0.92rem;
   height: 0.92rem;
 }
-
-
 
 .toast-item__content {
   flex: 1;
@@ -230,8 +214,6 @@
   transform: translateY(-1px);
 }
 
-
-
 .toast-item--clickable {
   cursor: pointer;
   transition:
@@ -250,8 +232,6 @@
 .toast-item--clickable:active {
   transform: translateY(0) scale(0.99);
 }
-
-
 
 .toast-item__dismiss {
   flex-shrink: 0;
@@ -315,8 +295,6 @@
     transition: none;
   }
 }
-
-
 
 @media (max-width: 640px) {
   .toast-container {

@@ -9,10 +9,47 @@ export interface ChngEnt {
   content: string
 }
 
+export interface WnShot {
+  kind: 'image' | 'video' | 'card'
+  src?: string
+  resId?: string
+  poster?: string
+  ar?: number
+  caption?: string
+  alt?: string
+}
+
+export type WnLayout = 'stage' | 'split' | 'splitReverse' | 'text'
+
+export interface WnSection {
+  id: string
+  kicker?: string
+  title?: string
+  body?: string[]
+  media?: WnShot[]
+  layout: WnLayout
+  // text acts can point at an in-app page; the whole card becomes a link
+  href?: string
+  linkText?: string
+}
+
+export interface WnEntry {
+  id: string
+  date: string
+  signal: string
+  tag: string
+  title: string
+  summary: string
+  lede: string
+  hero?: WnShot
+  sections: WnSection[]
+}
+
 export interface ChngRcrd {
   date: string
   shortDesc?: string
   patchVersion?: string
+  whatsNew?: Omit<WnEntry, 'date'>
   entries: ChngEnt[]
 }
 
@@ -21,6 +58,8 @@ export interface ChngSctn {
   label: string
   entries: ChngRcrd[]
 }
+
+const S = '/assets/sample'
 
 export const curChngEnts: ChngRcrd[] = [
   {
@@ -361,10 +400,225 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `More 3.5.3 beta stuff~! (〜^∇^)〜`,
   },
+  {
+    date: '28/06/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.5 beta support</strong> continues with <strong>Suisui</strong>, <strong>Yangyang: Xuanling</strong> and <strong>Rover: Aero</strong> 3.5.6 changes added to the calculator along side the 3.5 weapons.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>build scoring system</strong> got reworked. It's less stat oriented and more damage oriented now.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          This also comes with a <strong>report</strong> now: it lines up a baseline, a benchmark, and a maxed version of your build, with the upgrade paths between them in the Benchmark page.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Separately, the <strong>Suggestions</strong> pane got a <strong>substat priority</strong> readout: it reads your sub stats against an ideal floor and ceiling, then breaks down each sub stat's contribution, share and quality, plus what one roll is worth.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The benchmark page doubles down as a showcase page with a <strong>showcase card</strong>: resonator, team, echoes and score in one screenshot-ready frame, with a <strong>Customize</strong> panel for portrait, backdrop, colours, fonts and custom CSS.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Added a new <strong>Docs</strong> page with live, pokeable instruments for the method notes behind some of the app's main engines.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Retired the old <strong>Overview</strong> page, the benchmark and showcase cards do its job much better now, so it's been folded in instead of left lying around.
+        `,
+      }
+    ],
+    whatsNew: {
+      id: '2026-06-28-scoring',
+      signal: '28.06',
+      tag: 'UPDATE',
+      title: 'The scoring system, reworked',
+      summary:
+        'The build score now sims your damage and reports baseline-to-max builds. Separately: a sub stat priority readout in Suggestions, showcase cards with splash art, a new docs page, and Overview removed.',
+      lede:
+        "The build score has been around a while as a quick read on a build. It has now been rebuilt. Instead of grading how closely your echoes match a set of stat weights, it runs your whole build through the sim and scores the damage, then reports what a baseline and an ideal build look like next to yours.",
+      hero: {
+        kind: 'image',
+        src: `${S}/benchmark-page.png`,
+        ar: 1454 / 808,
+        alt: 'Benchmark page: a 119% SS score on the scale, with echo loadout and build stats',
+        caption: 'You can see a lot on here.',
+      },
+      sections: [
+        {
+          id: 'score',
+          kicker: 'Build score',
+          title: 'One scale, three anchors',
+          body: [
+            'Your build is put on a single scale: a baseline at 0%, the benchmark at 100%, and a theoretical max at 200%. The result reads as a percentage and a grade, on a ladder- blah blah blah... you get the point.',
+            'It no longer just grades how closely your echoes match a set of stat weights; it sims your whole build, and the report lines up a baseline, a benchmark, and a maxed version of your setup with the upgrade paths between them.',
+          ],
+          layout: 'stage',
+        },
+        {
+          id: 'substat-priority',
+          kicker: 'Suggestions',
+          title: 'Which subs tats are worth it',
+          body: [
+            'A separate feature, over in the Suggestions section: a sub stat priority readout. It rolls out an ideal set of subs tats for your target, taken at their lowest and highest values, and reads your current build against that floor and ceiling while keeping your energy-regen investment intact.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/substat-build-benchmark.png`,
+              ar: 773 / 221,
+              alt: 'Sub stat priority: current build read against an ideal floor and ceiling',
+              caption: 'Your current build, an ideal floor, and an ideal ceiling.',
+            },
+          ],
+          layout: 'stage',
+        },
+        {
+          id: 'substat-priority-detail',
+          body: [
+            'It then breaks down each sub stat: how much damage it contributes, its share of the build, and its roll quality, alongside what adding or dropping a single roll is worth.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/current-build-state.png`,
+              ar: 773 / 459,
+              alt: 'Current build state table: per sub stat contribution, share and quality',
+              caption: 'Per-substat contribution, share and quality.',
+            },
+            {
+              kind: 'image',
+              src: `${S}/per-step-gain-loss.png`,
+              ar: 773 / 459,
+              alt: 'Per-step change table: damage and value gained or lost per sub stat step',
+              caption: 'Per-step gain and loss.',
+            },
+          ],
+          layout: 'stage',
+        },
+        {
+          id: 'showcase',
+          kicker: 'Showcase',
+          title: 'The best part (imho).',
+          body: [
+            'The same page has a separate showcase view. It turns a build into this: resonator, team, echoes, stats and the score, drawn from the data the resonator\'s data.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/showcase-card-sample.png`,
+              ar: 1984 / 1440,
+              alt: 'A finished showcase card for Phoebe with portrait, team, echoes and an SS score',
+              caption: 'I made this one myself ദ്ദി( ˘̀ ֊ ˘́).',
+            },
+          ],
+          layout: 'splitReverse',
+        },
+        {
+          id: 'splash',
+          kicker: 'Splash art',
+          title: 'I-it moves..?',
+          body: [
+            'The portrait can use animated Live2D splash art instead of a still image. You can toggle it on the card below (and on the page itself). What practical use does this have? None. Does that matter? No it doesn\'t.',
+          ],
+          media: [
+            {
+              kind: 'card',
+              resId: '1506',
+              caption: 'Pretty cool huh?',
+            },
+          ],
+          layout: 'split',
+        },
+        {
+          id: 'customize',
+          kicker: 'Customize',
+          title: 'It\'s ugly? Do it yourself! hmph! (˶˃⤙˂˶)',
+          body: [
+            'Swap the portrait and backdrop, change the colours and type, or drop straight into custom CSS.',
+            'These settings are saved per resonator, and uploaded images are stored as links so they stay put between sessions.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/customize.png`,
+              ar: 288 / 756,
+              alt: 'The Customize panel: portrait, backdrop, colour, base type, per-text styles and custom CSS',
+              caption: 'Edit stuff..',
+            },
+          ],
+          layout: 'splitReverse',
+        },
+        {
+          id: 'docs',
+          kicker: 'Docs',
+          title: 'Behind the scenes..',
+          body: [
+            'I bet y\'all wanna see how some of the complex-ish stuff works huh? You can find all the juicy deets in the new docs page. It collects the notes behind the scoring, with small live instruments for the scale and the negative-effect math. It will grow over time.',
+          ],
+          layout: 'text',
+          href: '/docs',
+          linkText: 'SEE SEE!!',
+        },
+        {
+          id: 'overview',
+          kicker: 'Overview',
+          title: 'The overview page is gone...',
+          body: [
+            'Sigh... the Overview page has now been retired. The build score report and the showcase card cover what it did, so it has been folded in rather than kept around.',
+          ],
+          layout: 'text',
+        },
+      ],
+    },
+    shortDesc: `Scoring rework, new suggestions feature and new pages~! (〜^∇^)〜`,
+  },
 ]
 
 export const ltstCurChngE =
   curChngEnts[curChngEnts.length - 1] ?? null
+
+export function getLinkedWhatsNew(entry: ChngRcrd | null): WnEntry | null {
+  if (!entry?.whatsNew) {
+    return null
+  }
+
+  return {
+    date: entry.date,
+    ...entry.whatsNew,
+  }
+}
+
+export function getWhatsNewEntries(): WnEntry[] {
+  return curChngEnts
+    .flatMap((entry) => {
+      const whatsNew = getLinkedWhatsNew(entry)
+      return whatsNew ? [whatsNew] : []
+    })
+    .reverse()
+}
+
+export function getLatestWhatsNew(): WnEntry | null {
+  return getWhatsNewEntries()[0] ?? null
+}
 
 export function getCurChngTs(entry: ChngRcrd | null): string {
   if (!entry) {

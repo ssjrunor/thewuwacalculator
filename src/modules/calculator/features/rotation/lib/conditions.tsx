@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines the editable condition rows and choice builders used by
+  Description: defines the editable condition rows and choice builders used by
                rotation condition nodes and when-rule editors.
 */
 
@@ -11,6 +11,7 @@ import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
 import { resPssvPrms } from '@/modules/calculator/features/weapons/lib/weapon.ts'
 import type { CondExpr, RotationNode, RtChng, SourceState } from '@/domain/gameData/contracts.ts'
 import type { CondChoice, CondAction, FeatCondDrft, RotCondBldrP, RotCondVl, RotMemEnt } from './types.ts'
+import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
 
 export function makeCondValue(definition: SourceState): RotCondVl {
   // default values from game data win; otherwise choose the smallest value that makes the condition meaningful.
@@ -74,17 +75,17 @@ export function viewCondVlFl(
     )
   }
 
+  const min = definition.kind === 'stack' ? definition.min ?? 0 : definition.min
+
   return (
-    <input
-      type="number"
-      min={definition.min ?? 0}
+    <NumberInput
+      min={min}
       max={definition.max}
       step={definition.kind === 'stack' ? 1 : 0.1}
       className="resonator-level-input"
       value={typeof value === 'number' ? value : Number(value) || 0}
-      onChange={(event) => {
-        const raw = Number(event.target.value)
-        onChange(definition.kind === 'stack' ? Math.floor(raw || 0) : raw || 0)
+      onChange={(nextValue) => {
+        onChange(definition.kind === 'stack' ? Math.max(min ?? 0, Math.floor(nextValue)) : nextValue)
       }}
     />
   )

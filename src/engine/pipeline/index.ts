@@ -12,7 +12,13 @@ import type { ResRuntime } from '@/domain/entities/runtime'
 import { makeCombatGraph } from '@/domain/state/combatGraph'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import { smltRot } from '@/engine/pipeline/simulateRotation'
-import { runRotNspc, type RotNspcEnt } from '@/engine/rotation/system'
+import {
+  runRotNspc,
+  type RotInspectionOptions,
+  type RotNspcEnt,
+  type RotSimulationDetail,
+  type RotSimulationMode,
+} from '@/engine/rotation/system'
 import type { SimResult } from '@/engine/pipeline/types'
 import type { SlotId } from '@/domain/entities/session'
 
@@ -25,6 +31,10 @@ export function runResSmlt(
     enemy: EnemyProfile,
     runtimesById: Record<string, ResRuntime> = {},
     selTrgtByOwn: Record<string, string | null> = {},
+    options: {
+      mode?: RotSimulationMode
+      detail?: RotSimulationDetail
+    } = {},
 ): SimResult {
   // build a temporary combat graph with this resonator in the active slot
   // and any extra participant runtimes supplied by the caller
@@ -46,7 +56,7 @@ export function runResSmlt(
   })
 
   // simulate the full rotation/damage pipeline from the resolved context
-  return smltRot(context, seed, runtimesById)
+  return smltRot(context, seed, runtimesById, options)
 }
 
 // run a simulation when the caller already has a fully built combat graph
@@ -56,6 +66,10 @@ export function runCmbtGrphS(
     targetSlotId: SlotId,
     seed: ResSeed,
     enemy: EnemyProfile,
+    options: {
+      mode?: RotSimulationMode
+      detail?: RotSimulationDetail
+    } = {},
 ): SimResult {
   const tgtPart = graph.participants[targetSlotId]
 
@@ -77,7 +91,7 @@ export function runCmbtGrphS(
   })
 
   // simulate from the selected participant's perspective using the shared graph data
-  return smltRot(context, seed, rtLkp)
+  return smltRot(context, seed, rtLkp, options)
 }
 
 export function nspcResRot(
@@ -86,6 +100,7 @@ export function nspcResRot(
     enemy: EnemyProfile,
     runtimesById: Record<string, ResRuntime> = {},
     selTrgtByOwn: Record<string, string | null> = {},
+    options: RotInspectionOptions = {},
 ): {
   rotations: {
     personal: {
@@ -114,5 +129,5 @@ export function nspcResRot(
   })
 
   // the inspector only needs node-level execution trace rows, not full totals
-  return runRotNspc(context, seed, runtimesById)
+  return runRotNspc(context, seed, runtimesById, undefined, options)
 }

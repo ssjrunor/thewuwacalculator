@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the not found page.
+  Description: renders the not found page.
 */
 
 import { useNavigate } from 'react-router-dom'
@@ -13,13 +13,14 @@ export function NotFoundPage() {
     <div className="page not-found-page">
       <div className="not-found-center">
         <div className="not-found-code">404</div>
-        <p className="not-found-message">The page you are looking for does not exist.</p>
 
         <img
-          src="https://media1.tenor.com/m/6OJmN4DnIm0AAAAd/ericdoa-imagine-if-ninja-got-a-low-taper-fade.gif"
+          src="https://media1.tenor.com/m/lx5lgBZWxucAAAAC/sparkle-sparxie.gif"
           alt=""
           className="not-found-gif"
         />
+
+        <p className="not-found-message">What were you looking for...?.</p>
 
         <button type="button" className="page-back-btn" title={'Calculator'} onClick={() => navigate('/calculator')}>
           <TbGoGame size={14} />

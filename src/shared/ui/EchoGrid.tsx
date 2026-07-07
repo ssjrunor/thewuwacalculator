@@ -1,8 +1,15 @@
+/*
+  Author: Runor Ewhro
+  Description: renders reusable echo cards and grids while preserving original
+               inventory slot indices for selection, click handling, and score
+               overlays.
+*/
+
 import type { HTMLAttributes as HtmlAttrs, MouseEventHandler as MsVntHnd, ReactNode } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
-import { fmtStatKeyLb, fmtStatKeyVl } from '@/modules/calculator/features/overview/lib/stats.ts'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import '../../styles/EchoGrid.css'
 
@@ -46,6 +53,9 @@ function getEchoCostF(echo: EchoInstance): number {
   return getEchoById(echo.id)?.cost ?? (echo.mainEcho ? 4 : 1)
 }
 
+// build the render list without losing inventory positions
+// filled slot counts add null placeholders, then visible cards are sorted by
+// echo cost while rgnlIdx keeps callbacks and selection tied to stored order
 export function mkEchoGridTm(args: {
   echoes: Array<EchoInstance | null>
   scores?: Array<number | null> | null
@@ -102,6 +112,8 @@ export function EchoCard({
   onClick,
   ...domProps
 }: EchoCardPrps & HtmlAttrs<HTMLDivElement>) {
+  // compact cards inherit their substat visibility from the variant unless a
+  // caller overrides it for inventory or comparison surfaces
   const rslvShowSbst = showSubstats ?? variant === 'full'
 
   if (!echo) {
@@ -171,18 +183,18 @@ export function EchoCard({
         <div className="echo-card__stat-section echo-card__stat-section--main">
           <div className="echo-card__stat">
             <span className="echo-card__stat-label">
-              {fmtStatKeyLb(echo.mainStats.primary.key)}
+              {formatStatKeyLabel(echo.mainStats.primary.key)}
             </span>
             <span className="echo-card__stat-value echo-card__stat-value--primary">
-              {fmtStatKeyVl(echo.mainStats.primary.key, echo.mainStats.primary.value)}
+              {formatStatKeyValue(echo.mainStats.primary.key, echo.mainStats.primary.value)}
             </span>
           </div>
           <div className="echo-card__stat echo-card__stat--secondary">
             <span className="echo-card__stat-label">
-              {fmtStatKeyLb(echo.mainStats.secondary.key)}
+              {formatStatKeyLabel(echo.mainStats.secondary.key)}
             </span>
             <span className="echo-card__stat-value">
-              {fmtStatKeyVl(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
+              {formatStatKeyValue(echo.mainStats.secondary.key, echo.mainStats.secondary.value)}
             </span>
           </div>
         </div>
@@ -194,9 +206,9 @@ export function EchoCard({
             </div>
             {sbstEnts.map(([key, value]) => (
               <div key={key} className="echo-card__stat echo-card__stat--sub">
-                <span className="echo-card__stat-label">{fmtStatKeyLb(key)}</span>
+                <span className="echo-card__stat-label">{formatStatKeyLabel(key)}</span>
                 <span className="echo-card__stat-value echo-card__stat-value--sub">
-                  {fmtStatKeyVl(key, value)}
+                  {formatStatKeyValue(key, value)}
                 </span>
               </div>
             ))}
@@ -219,8 +231,10 @@ export function EchoGrid({
   onEchoClick,
   getCardClskn: getCardClssN,
   wrapCard,
-  selection
+  selection,
 }: EchoGridPrps) {
+  // card wrapping is intentionally last so selection layers can preserve the
+  // normalized card props while adding drag, checkbox, or context-menu chrome
   const items = mkEchoGridTm({
     echoes,
     scores,

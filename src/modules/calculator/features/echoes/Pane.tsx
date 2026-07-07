@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator echoes flow.
+  Description: renders the pane surface for the calculator echoes flow.
 */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -31,9 +31,9 @@ import {
 import { cmptTtlEchoC } from '@/modules/calculator/features/echoes/lib/echoes.ts'
 import {
   getEchoScrPr,
-  getMkScrPrcn,
   getMaxEchoSc,
 } from '@/data/scoring/echoScoring.ts'
+import { useAsmBenchScore } from '@/modules/calculator/model/useBuildBenchmark.ts'
 import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import { CnfrMdl } from '@/shared/ui/ConfirmationModal.tsx'
 import { useAppModal, useAppMdlVl } from '@/shared/ui/useAppModal.ts'
@@ -68,10 +68,15 @@ const CHSSELFCSSCP = 'echoes-pane-selection'
 
 interface CalcChsPaneP {
   runtime: ResRuntime
+  prtcRntmById: Record<string, ResRuntime>
   onRtPdt: RtUpdHnd
 }
 
-export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
+export function Echoes({
+                         runtime,
+                         prtcRntmById: partRntmById,
+                         onRtPdt: onRtPdt,
+                       }: CalcChsPaneP) {
   const allEchoes = useMemo(() => listEchoes(), [])
   const invChs = useAppStore((state) => state.calculator.inventoryEchoes)
   const invBlds = useAppStore((state) => state.calculator.inventoryBuilds)
@@ -309,10 +314,11 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
     )
   }, [hasWeights, runtime.id, runtime.build.echoes])
 
-  const buildScore = useMemo(() => {
-    if (!hasWeights) return null
-    return getMkScrPrcn(runtime.id, runtime.build.echoes)
-  }, [hasWeights, runtime.id, runtime.build.echoes])
+  const { score: buildScore } = useAsmBenchScore({
+    runtime,
+    runtimesById: partRntmById,
+    targetSelections: selTrgtByOwn,
+  })
 
   const mdlPrtlTgt = mainPortal()
   const editEcho = editSlot !== null ? runtime.build.echoes[editSlot] : null
@@ -1070,6 +1076,8 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
                   closing={parserModal.closing}
                   portalTarget={mdlPrtlTgt}
                   charId={runtime.id}
+                  runtime={runtime}
+                  prtcRntmById={partRntmById}
                   curChs={runtime.build.echoes}
                   onEquip={(echoes) => {
                     onRtPdt((prev) => ({
@@ -1092,6 +1100,7 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
                   onClose={parserModal.hide}
               />
           ) : null}
+
           {quickSetupModal.visible ? (
               <QuickSetup
                   visible={quickSetupModal.visible}
@@ -1116,7 +1125,6 @@ export function Echoes({ runtime, onRtPdt: onRtPdt }: CalcChsPaneP) {
                   }}
               />
           ) : null}
-
 
           <CnfrMdl
               visible={confirmation.visible}

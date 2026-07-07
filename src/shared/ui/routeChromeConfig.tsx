@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines the authored route chrome navigation and calculator view
+  Description: defines the authored route chrome navigation and calculator view
                entries consumed by sidebar and route context menus.
 */
 
@@ -9,7 +9,7 @@ import type { LeftPaneView } from '@/domain/entities/appState'
 import { GiPokecog } from 'react-icons/gi'
 import { FaInfo, FaQuestion } from 'react-icons/fa'
 import { ImHistory } from 'react-icons/im'
-import { TbGoGame } from 'react-icons/tb'
+import { TbGoGame, TbMathFunction } from 'react-icons/tb'
 
 export interface RouteNavLink {
   to: string
@@ -29,6 +29,7 @@ export const rtNavLnks: RouteNavLink[] = [
   { to: '/settings', label: 'Settings', Icon: GiPokecog, iconClssName: 'settings-icon' },
   { to: '/info', label: 'Info', Icon: FaInfo },
   { to: '/guides', label: 'Guides', Icon: FaQuestion, iconClssName: 'help-icon' },
+  { to: '/docs', label: 'Docs', Icon: TbMathFunction, iconClssName: 'docs-icon' },
   { to: '/changelog', label: 'Changelog', Icon: ImHistory, iconClssName: 'changelog-icon' },
 ]
 

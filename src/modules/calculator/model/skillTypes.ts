@@ -8,12 +8,12 @@ import type { SkillTypeKey } from '@/domain/entities/stats'
 
 // ui display metadata for known skill types
 // if a type is missing here, we fall back to a formatted text desc
-export const skllTypeDspl: Record<string, { icon?: string; label: string }> = {
+export const skllTypeDspl: Record<string, { icon?: string; label: string, short?: string }> = {
   all: { label: 'All Skill Types' },
-  basicAtk: { icon: '/assets/stat-icons/basic.png', label: 'Basic Attack' },
-  heavyAtk: { icon: '/assets/stat-icons/heavy.png', label: 'Heavy Attack' },
-  resonanceSkill: { icon: '/assets/stat-icons/skill.png', label: 'Resonance Skill' },
-  resonanceLiberation: { icon: '/assets/stat-icons/liberation.png', label: 'Resonance Liberation' },
+  basicAtk: { icon: '/assets/stat-icons/basic.png', label: 'Basic Attack', short: 'Basic Atk' },
+  heavyAtk: { icon: '/assets/stat-icons/heavy.png', label: 'Heavy Attack', short: 'Heavy Atk' },
+  resonanceSkill: { icon: '/assets/stat-icons/skill.png', label: 'Resonance Skill', short: 'Res. Skill' },
+  resonanceLiberation: { icon: '/assets/stat-icons/liberation.png', label: 'Resonance Liberation', short: 'Res. Liberation' },
   introSkill: { label: 'Intro Skill' },
   outroSkill: { label: 'Outro Skill' },
   echoSkill: { icon: '/assets/stat-icons/echo.png', label: 'Echo Skill' },
@@ -57,7 +57,9 @@ export function getPrimarySkill(
 // if nothing is provided, returns the generic "Feature" desc
 export function getSkillType(
     skillType?: SkillTypeKey | SkillTypeKey[] | string | string[] | null,
-): { icon?: string; label: string } {
+): {
+  short?: string;
+  icon?: string; label: string } {
   const prmrSkllType = Array.isArray(skillType) ? skillType[0] : skillType
 
   if (!prmrSkllType) {
@@ -65,15 +67,4 @@ export function getSkillType(
   }
 
   return skllTypeDspl[prmrSkllType] ?? { label: fmtSkllTypeL(prmrSkllType) }
-}
-
-// typed wrapper for regular skill type fields coming from skill definitions
-export function getPrmrSklja(
-    skillType?: SkillTypeKey | SkillTypeKey[] | null,
-): { icon?: string; label: string } {
-  if (!skillType) {
-    return { label: 'Feature' }
-  }
-
-  return getSkillType(getPrimarySkill(skillType))
 }

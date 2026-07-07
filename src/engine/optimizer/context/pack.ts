@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Packs compiled optimizer skill context into the fixed float
+  Description: packs compiled optimizer skill context into the fixed float
                layout used by CPU/GPU execution and provides patch helpers
                for per-job gpu dispatch metadata.
 */
@@ -66,6 +66,14 @@ function mkSpecTggl(runtime: ResRuntime, characterId: number): number {
 
   if (characterId === 1209 && runtime.state.controls['resonator:1209:interfered_marker:active']) {
     toggles |= 1
+  }
+
+  if (characterId === 1505 && runtime.state.controls['resonator:1505:inner_stellarealm:active']) {
+    toggles |= 1 << 1
+  }
+
+  if (characterId === 1505 && runtime.state.controls['resonator:1505:supernal_stellarealm:active']) {
+    toggles |= 1 << 2
   }
 
   return toggles >>> 0
@@ -143,18 +151,38 @@ function calcCritDmg(characterId: number, finalER: number): number {
   return Math.min(Math.max(0, finalER - 100), 160)
 }
 
+// Shorekeeper grants team crit stats from her own final energy regen.
+function calcShoreCritRate(characterId: number, finalER: number, innerOn: boolean): number {
+  if (characterId !== 1505 || !innerOn) {
+    return 0
+  }
+
+  return Math.min(Math.max(0, finalER * 0.05), 12.5)
+}
+
+function calcShoreCritDmg(characterId: number, finalER: number, innerOn: boolean, supernalOn: boolean): number {
+  if (characterId !== 1505 || !innerOn || !supernalOn) {
+    return 0
+  }
+
+  return Math.min(Math.max(0, finalER * 0.1), 25)
+}
+
 // remove special resonator-side conversions so packed context stores normalized base terms
 function normPckdCtx(options: {
   compiled: CompTargetSkill
   skill: SkillDef
-  toggle0: boolean
+  toggles: number
 }): {
   finalAtk: number
   dmgBonus: number
   critRate: number
   critDmg: number
 } {
-  const { compiled, skill, toggle0 } = options
+  const { compiled, skill, toggles } = options
+  const toggle0 = (toggles & 1) !== 0
+  const shoreInner = (toggles & (1 << 1)) !== 0
+  const shoreSupernal = (toggles & (1 << 2)) !== 0
 
   let finalAtk = compiled.statFinAtk
   let dmgBonus = compiled.statDmgBonus
@@ -181,6 +209,9 @@ function normPckdCtx(options: {
     critRate -= calcCritRate(compiled.characterId, compiled.statFinEr)
     critDmg -= calcCritDmg(compiled.characterId, compiled.statFinEr)
   }
+
+  critRate -= calcShoreCritRate(compiled.characterId, compiled.statFinEr, shoreInner)
+  critDmg -= calcShoreCritDmg(compiled.characterId, compiled.statFinEr, shoreInner, shoreSupernal)
 
   return {
     finalAtk,
@@ -300,7 +331,7 @@ export function packTargetCtx(options: {
   const normalized = normPckdCtx({
     compiled,
     skill,
-    toggle0: (toggles & 1) !== 0,
+    toggles,
   })
 
   const archetype = compiled.archetype

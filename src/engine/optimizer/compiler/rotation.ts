@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Compiles an optimizer payload for rotation mode by building
+  Description: compiles an optimizer payload for rotation mode by building
                combat contexts for all relevant rotation targets, packing
                per-target execution contexts, and attaching the shared
                encoded echo/set data required by the optimizer runtime.
@@ -337,7 +337,10 @@ export function compRotRun(
   // Run the feature simulation so we can discover which rotation entries are
   // valid optimizer targets.
   const rotNvrn = mkPrepRotNvr(activeContext, seed)
-  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn)
+  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn, undefined, {
+    mode: 'personal',
+    detail: 'summary',
+  })
 
   // Keep only optimizer-eligible rotation targets for the active resonator.
   const targets = simulated.rotations.personal.entries.filter((entry) =>

@@ -1,6 +1,6 @@
 /*
-  author: Runor Ewhro
-  description: builds the packed optimizer-facing combat context for a
+  Author: Runor Ewhro
+  Description: builds the packed optimizer-facing combat context for a
                selected skill by converting final stat state, enemy data,
                and archetype-specific rules into numeric fields used by
                the optimizer backend.

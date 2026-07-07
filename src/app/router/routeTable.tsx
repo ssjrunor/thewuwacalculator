@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Defines the application's root route table and lazy-loaded
+  Description: defines the application's root route table and lazy-loaded
                page mappings.
 */
 
@@ -23,8 +23,14 @@ const InfoPage = lazy(async () => ({
 const GuidesPage = lazy(async () => ({
   default: (await import('@/modules/content/pages/GuidesPage')).GuidesPage,
 }))
+const DocsPage = lazy(async () => ({
+  default: (await import('@/modules/content/pages/DocsPage')).DocsPage,
+}))
 const ChngPage = lazy(async () => ({
   default: (await import('@/modules/content/pages/ChangelogPage')).ChngPage,
+}))
+const WhatsNewPage = lazy(async () => ({
+  default: (await import('@/modules/content/pages/WhatsNewPage')).WhatsNewPage,
 }))
 const PrvcPlcyPage = lazy(async () => ({
   default: (await import('@/modules/content/pages/PrivacyPolicyPage')).PrvcPlcyPage,
@@ -52,11 +58,13 @@ export const rootRoutes = [
       { index: true, element: <Navigate to="/calculator" replace /> },
       { path: 'calculator', element: viewLazyRt(<CalcPage surface="calculator" />) },
       { path: 'calculator/optimizer', element: viewLazyRt(<CalcPage surface="optimizer" />) },
-      { path: 'calculator/overview', element: viewLazyRt(<CalcPage surface="overview" />) },
+      { path: 'calculator/benchmark', element: viewLazyRt(<CalcPage surface="benchmark" />) },
       { path: 'settings', element: viewLazyRt(<SettingsPage />) },
       { path: 'info', element: viewLazyRt(<InfoPage />) },
       { path: 'guides', element: viewLazyRt(<GuidesPage />) },
+      { path: 'docs', element: viewLazyRt(<DocsPage />) },
       { path: 'changelog', element: viewLazyRt(<ChngPage />) },
+      { path: 'changelog/whatsnew', element: viewLazyRt(<WhatsNewPage />) },
       { path: 'privacy', element: viewLazyRt(<PrvcPlcyPage />) },
       { path: 'terms', element: viewLazyRt(<TrmsOfSrvcPa />) },
       { path: '*', element: viewLazyRt(<NotFoundPage />) },

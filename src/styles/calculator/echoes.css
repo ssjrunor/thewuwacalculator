@@ -207,12 +207,10 @@
   --cost-tone: #e7553f;
 }
 
-
 .echoes-pane {
   container-type: inline-size;
   container-name: echoes-pane;
 }
-
 
 @container echoes-pane (max-width: 34rem) {
   .echo-tool__label {
@@ -242,7 +240,6 @@
 :is(.no-entrance-anim, .reduce-animation) .echo-tool:is(:hover, :focus-visible):not(:disabled) svg {
   transform: none;
 }
-
 
 .echoes-slot-grid {
   display: grid;
@@ -274,7 +271,6 @@
   grid-row: 2;
 }
 
-
 .echo-slot-detail-panel {
   display: grid;
   grid-template-rows: 1fr;
@@ -286,8 +282,6 @@
   padding: 0.72rem;
   overflow: hidden;
 }
-
-
 
 .echo-slot {
   position: relative;
@@ -324,7 +318,6 @@
   opacity: 1;
 }
 
-
 .echo-slot-content {
   display: grid;
   gap: 0.72rem;
@@ -343,8 +336,6 @@
   align-content: start;
   overflow-y: auto;
 }
-
-
 
 .echo-slot-feature-head {
   display: grid;
@@ -399,8 +390,6 @@
   border-left: 2px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 28%, var(--item-border, var(--border)));
 }
 
-
-
 .echo-slot-left {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -445,7 +434,6 @@
   font-weight: 700;
   color: var(--muted);
 }
-
 
 .echo-slot-identity {
   display: flex;
@@ -586,8 +574,6 @@
   opacity: 0.26;
 }
 
-
-
 .echo-slot-name-row {
   display: flex;
   align-items: center;
@@ -601,7 +587,6 @@
 .echo-slot-main-chevron--open svg {
   transform: rotate(180deg);
 }
-
 
 .echo-stat-card {
   position: relative;
@@ -629,7 +614,6 @@
   outline: 2px solid var(--resonator-accent, var(--accent, #6b7cff));
   outline-offset: 2px;
 }
-
 
 .echo-stat-card-accent {
   height: 2px;
@@ -674,8 +658,6 @@
   font-style: italic;
 }
 
-
-
 .echo-stat-primary {
   display: flex;
   align-items: center;
@@ -708,8 +690,6 @@
   color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 58%, var(--text));
   flex-shrink: 0;
 }
-
-
 
 .echo-stat-secondary {
   display: flex;
@@ -759,8 +739,6 @@
   line-height: 1;
 }
 
-
-
 .echo-stat-subs-header {
   display: flex;
   align-items: center;
@@ -779,8 +757,6 @@
   color: var(--muted);
   opacity: 0.42;
 }
-
-
 
 .echo-stat-subs-list {
   display: flex;
@@ -841,8 +817,6 @@
   letter-spacing: -0.01em;
 }
 
-
-
 .echo-score-badge {
   display: inline-flex;
   align-items: center;
@@ -862,8 +836,6 @@
   font-size: 0.66rem;
 }
 
-
-
 .echo-set-label {
   font-size: 0.78rem;
   font-weight: 700;
@@ -873,8 +845,6 @@
   border-radius: 0.55rem;
   background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, transparent);
 }
-
-
 
 .echo-set-bonuses {
   display: grid;
@@ -899,8 +869,6 @@
 .echo-set-bonus:hover {
   border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 28%, var(--item-border, var(--border)));
 }
-
-
 
 .echo-set-bonus-header {
   display: flex;
@@ -952,8 +920,6 @@
   color: var(--text);
 }
 
-
-
 .echo-set-bonus-pips {
   display: flex;
   align-items: center;
@@ -980,8 +946,6 @@
   color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 62%, var(--muted));
   margin-left: 0.18rem;
 }
-
-
 
 .echo-set-bonus-tiers {
   display: flex;
@@ -1025,8 +989,6 @@
   opacity: 0.88;
 }
 
-
-
 .echo-set-bonus-controls {
   display: flex;
   flex-direction: column;
@@ -1045,8 +1007,6 @@
   border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 28%, var(--item-border, var(--border)));
   background: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 4%, transparent);
 }
-
-
 
 .echo-set-state-toggle {
   display: flex;
@@ -1164,8 +1124,6 @@
   color: var(--text);
 }
 
-
-
 .echo-set-state-stack {
   display: grid;
   align-items: center;
@@ -1208,7 +1166,6 @@
   color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 78%, var(--text));
 }
 
-
 .echo-set-state-step,
 .co-runtime-state--step {
   display: flex;
@@ -1237,7 +1194,6 @@
 
 .echo-set-state-step-count-input,
 .co-runtime-state__step-count-input {
-
 
   font-size: 0.75rem;
   font-weight: 700;
@@ -1381,8 +1337,6 @@
   flex-shrink: 0;
 }
 
-
-
 .echo-picker-set-filters {
   overflow: hidden;
   min-width: 0;
@@ -1400,7 +1354,6 @@
           transparent 100%
   );
 }
-
 
 .echo-picker-icon-frame {
   width: 3.6rem;
@@ -1449,8 +1402,6 @@
   white-space: nowrap;
 }
 
-
-
 .echo-edit-panel {
   width: min(46rem, calc(100vw - 2rem));
   max-height: 85vh;
@@ -1463,8 +1414,6 @@
   flex-direction: column;
   gap: 0.85rem;
 }
-
-
 
 .echo-edit-header {
   display: flex;
@@ -1547,8 +1496,6 @@
   font-size: 0.78rem;
 }
 
-
-
 .echo-edit-section {
   display: flex;
   flex-direction: column;
@@ -1572,8 +1519,6 @@
   font-weight: 700;
   color: color-mix(in srgb, var(--picker-modal-accent) 58%, var(--picker-modal-muted));
 }
-
-
 
 .echo-edit-set-group {
   display: flex;
@@ -1620,8 +1565,6 @@
   white-space: nowrap;
 }
 
-
-
 .echo-edit-main-stat-row {
   display: flex;
   align-items: center;
@@ -1653,8 +1596,6 @@
   letter-spacing: 0.04em;
   opacity: 0.55;
 }
-
-
 
 .echo-edit-substats-section {
 }
@@ -1760,7 +1701,6 @@
   border-color: color-mix(in srgb, var(--picker-modal-accent) 48%, var(--picker-modal-border));
 }
 
-
 .echo-edit-substat-input::-webkit-outer-spin-button,
 .echo-edit-substat-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -1770,8 +1710,6 @@
 .echo-edit-substat-input[type=number] {
   -moz-appearance: textfield;
 }
-
-
 
 .echo-edit-add-substat {
   align-self: flex-start;
@@ -1792,8 +1730,6 @@
   border-color: color-mix(in srgb, var(--picker-modal-accent) 28%, var(--picker-modal-border));
   color: var(--picker-modal-text);
 }
-
-
 
 .echo-edit-footer {
   display: flex;
@@ -1836,8 +1772,6 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-
-
 
 @media (max-width: 900px) {
   .echoes-slot-grid {
@@ -1914,8 +1848,6 @@
   }
 }
 
-
-
 .echo-score-badge,
 .echo-cv-badge,
 .echo-totals-cv,
@@ -1943,7 +1875,6 @@
   font-size: 0.66rem;
 }
 
-
 .echo-score-badge--grey,
 .echo-cv-badge--grey,
 .echo-totals-cv.echo-cv-badge--grey,
@@ -1951,6 +1882,42 @@
   --metric-bg: color-mix(in srgb, #8c939f 10%, transparent);
   --metric-border: color-mix(in srgb, #8c939f 24%, var(--item-border, var(--border)));
   --metric-text: color-mix(in srgb, #8c939f 72%, var(--text));
+}
+
+.echo-score-badge--zinc {
+  --metric-bg: color-mix(in srgb, #9ca3af 10%, transparent);
+  --metric-border: color-mix(in srgb, #9ca3af 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #9ca3af 72%, var(--text));
+}
+
+.echo-score-badge--slate {
+  --metric-bg: color-mix(in srgb, #a6b4c8 10%, transparent);
+  --metric-border: color-mix(in srgb, #a6b4c8 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #a6b4c8 72%, var(--text));
+}
+
+.echo-score-badge--sky {
+  --metric-bg: color-mix(in srgb, #4fd1ff 10%, transparent);
+  --metric-border: color-mix(in srgb, #4fd1ff 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #4fd1ff 74%, var(--text));
+}
+
+.echo-score-badge--teal {
+  --metric-bg: color-mix(in srgb, #20e0c2 10%, transparent);
+  --metric-border: color-mix(in srgb, #20e0c2 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #20e0c2 74%, var(--text));
+}
+
+.echo-score-badge--emerald {
+  --metric-bg: color-mix(in srgb, #24e68a 10%, transparent);
+  --metric-border: color-mix(in srgb, #24e68a 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #24e68a 74%, var(--text));
+}
+
+.echo-score-badge--green {
+  --metric-bg: color-mix(in srgb, #57f55f 10%, transparent);
+  --metric-border: color-mix(in srgb, #57f55f 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #57f55f 74%, var(--text));
 }
 
 .echo-score-badge--lime,
@@ -1966,9 +1933,15 @@
 .echo-cv-badge--blue,
 .echo-totals-cv.echo-cv-badge--blue,
 .echo-stat-cv.echo-cv-badge--blue {
-  --metric-bg: color-mix(in srgb, #3b82f6 10%, transparent);
-  --metric-border: color-mix(in srgb, #3b82f6 24%, var(--item-border, var(--border)));
-  --metric-text: color-mix(in srgb, #3b82f6 72%, var(--text));
+  --metric-bg: color-mix(in srgb, #1f8fff 12%, transparent);
+  --metric-border: color-mix(in srgb, #1f8fff 30%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #1f8fff 84%, var(--text));
+}
+
+.echo-score-badge--amber {
+  --metric-bg: color-mix(in srgb, #ffb020 10%, transparent);
+  --metric-border: color-mix(in srgb, #ffb020 24%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #ffb020 74%, var(--text));
 }
 
 .echo-score-badge--gold,
@@ -1985,27 +1958,47 @@
 .echo-cv-badge--red,
 .echo-totals-cv.echo-cv-badge--red,
 .echo-stat-cv.echo-cv-badge--red {
-  --metric-bg: color-mix(in srgb, #ef4444 10%, transparent);
-  --metric-border: color-mix(in srgb, #ef4444 24%, var(--item-border, var(--border)));
-  --metric-text: color-mix(in srgb, #ef4444 72%, var(--text));
-  text-shadow: 0 0 0.35rem color-mix(in srgb, #ef4444 34%, transparent);
-  box-shadow:
-          0 0 0.5rem color-mix(in srgb, #ef4444 18%, transparent),
-          inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  --metric-bg: color-mix(in srgb, #ff1f1f 14%, transparent);
+  --metric-border: color-mix(in srgb, #ff0033 38%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #ff0033 92%, var(--text));
 }
 
 .echo-score-badge--cyan,
 .echo-cv-badge--cyan,
 .echo-totals-cv.echo-cv-badge--cyan,
 .echo-stat-cv.echo-cv-badge--cyan {
-  --metric-bg: color-mix(in srgb, cyan 10%, transparent);
-  --metric-border: color-mix(in srgb, cyan 24%, var(--item-border, var(--border)));
-  --metric-text: color-mix(in srgb, cyan 74%, var(--text));
-  text-shadow: 0 0 0.42rem color-mix(in srgb, cyan 38%, transparent);
-  box-shadow:
-          0 0 0.65rem color-mix(in srgb, cyan 22%, transparent),
-          inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+  --metric-bg: color-mix(in srgb, #00f5ff 12%, transparent);
+  --metric-border: color-mix(in srgb, #00f5ff 34%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #00f5ff 88%, var(--text));
+}
 
+.echo-score-badge--violet {
+  --metric-bg: color-mix(in srgb, #a855ff 12%, transparent);
+  --metric-border: color-mix(in srgb, #a855ff 34%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #a855ff 88%, var(--text));
+}
+
+.echo-score-badge--fuchsia {
+  --metric-bg: color-mix(in srgb, #ff2df0 13%, transparent);
+  --metric-border: color-mix(in srgb, #ff2df0 36%, var(--item-border, var(--border)));
+  --metric-text: color-mix(in srgb, #ff2df0 90%, var(--text));
+}
+
+.echo-score-badge--build.echo-score-badge--glow {
+  text-shadow: 0 0 0.46rem color-mix(in srgb, var(--build-score-glow) 48%, transparent);
+  box-shadow:
+          0 0 0.68rem color-mix(in srgb, var(--build-score-glow) 24%, transparent),
+          inset 0 1px 0 color-mix(in srgb, white 14%, transparent);
+}
+
+.echo-score-badge--build.echo-score-badge--unreal.echo-score-badge--glow {
+  text-shadow:
+          0 0 0.42rem color-mix(in srgb, var(--build-score-glow) 64%, transparent),
+          0 0 0.9rem color-mix(in srgb, var(--build-score-glow) 42%, transparent);
+  box-shadow:
+          0 0 0.9rem color-mix(in srgb, var(--build-score-glow) 34%, transparent),
+          0 0 1.45rem color-mix(in srgb, var(--build-score-glow) 20%, transparent),
+          inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
 }
 
 .echo-bag-modal__save {
@@ -2039,7 +2032,6 @@
   cursor: default;
   transform: none;
 }
-
 
 .echo-bag-modal__filter-section--wide {
   grid-column: 1 / -1;
@@ -2188,7 +2180,7 @@
   --tile-bracket-inset: 6px;
   width: 100%;
   max-width: 14rem;
-  overflow: visible;
+  overflow: hidden;
   border-radius: 0 1.2rem 0 1.2rem;
   cursor: pointer;
 }
@@ -3015,7 +3007,6 @@
   }
 }
 
-
 @keyframes echoes-section-in {
   from {
     opacity: 0;
@@ -3216,7 +3207,6 @@
 
 .echo-tool--accent { color: color-mix(in srgb, var(--resonator-accent) 55%, var(--text)); }
 .echo-tool--accent svg { color: color-mix(in srgb, var(--resonator-accent) 90%, var(--text)); }
-
 
 .echo-quick-setup-panel {
   --bp-accent: var(--resonator-accent, var(--accent));

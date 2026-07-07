@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the calculator page.
+  Description: renders the calculator page.
 */
 
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
@@ -8,6 +8,7 @@ import { useAppStore } from '@/domain/state/store'
 import { selActResId, selWorkDrvd } from '@/domain/state/selectors'
 import { seedRsnt, seedRsntById } from '@/modules/calculator/features/resonator/lib/seedData.ts'
 import { ATTR_COLORS } from '@/modules/calculator/model/display'
+import { usePrefetchAsmBench } from '@/modules/calculator/model/useBuildBenchmark.ts'
 import { ResQBbbl } from '@/shared/ui/ResonatorQueueBubble'
 import { useResQStr } from '@/shared/util/resonatorQueueStore.ts'
 import { Inventory } from '@/modules/calculator/features/inventory/Inventory.tsx'
@@ -15,14 +16,14 @@ import { Calculator } from '@/modules/calculator/features/main/Calculator.tsx'
 import { CalcProv } from '@/modules/calculator/features/main/lib/ctx.tsx'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
 
-export type CalcSurface = 'calculator' | 'optimizer' | 'overview'
+export type CalcSurface = 'calculator' | 'optimizer' | 'benchmark'
 
 const LazyCalcOptS = lazy(async () => ({
   default: (await import('@/modules/calculator/features/optimizer/Optimizer.tsx')).Optimizer,
 }))
 
-const LazyCalcVrgz = lazy(async () => ({
-  default: (await import('@/modules/calculator/features/overview/Overview.tsx')).Overview,
+const LazyCalcBnch = lazy(async () => ({
+  default: (await import('@/modules/calculator/features/benchmark/Page.tsx')).Benchmark,
 }))
 
 interface CalcPageProps {
@@ -40,6 +41,7 @@ export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
   const {
     actRt: actRt,
     partRtsById: partRntmById,
+    actTgtSels,
   } = useAppStore(selWorkDrvd)
   const swtcToRes = useAppStore((state) => state.swRes)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
@@ -114,6 +116,13 @@ export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
     }
   }, [curCcnt])
 
+  usePrefetchAsmBench({
+    runtime: actRt,
+    runtimesById: partRntmById,
+    targetSelections: actTgtSels,
+    enabled: hasActProf,
+  })
+
   return (
       <CalcProv
         actResId={actResId}
@@ -128,9 +137,9 @@ export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
             <LazyCalcOptS />
           </Suspense>
         ) : null}
-        {surface === 'overview' ? (
-          <Suspense fallback={<AppLdrVrly mode="centered" text="Loading overview..." />}>
-            <LazyCalcVrgz />
+        {surface === 'benchmark' ? (
+          <Suspense fallback={<AppLdrVrly mode="centered" text="Loading benchmark..." />}>
+            <LazyCalcBnch />
           </Suspense>
         ) : null}
         {surface === 'calculator' ? <Calculator isCllpMode={isCllpMode} /> : null}

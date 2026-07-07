@@ -17,3 +17,5 @@ scripts
 prod-app.json
 
 /settings
+
+/public/card-presets

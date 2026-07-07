@@ -14,15 +14,25 @@ import {
   runPrepWorkS,
   type PrepWork,
 } from '@/engine/pipeline/preparedWorkspace'
+import type {
+  RotSimulationDetail,
+  RotSimulationMode,
+} from '@/engine/rotation/system'
+
+interface LiveSimulationOptions {
+  mode?: RotSimulationMode
+  detail?: RotSimulationDetail
+}
 
 export function mkPrepLiveCm(
   prepWork: PrepWork | null,
+  options: LiveSimulationOptions = {},
 ) {
   if (!prepWork) {
     return null
   }
 
-  return runPrepWorkS(prepWork)
+  return runPrepWorkS(prepWork, options)
 }
 
 // build the current live computation result for the calculator
@@ -34,6 +44,7 @@ export function mkLiveCmpt(
   runtimesById: Record<string, ResRuntime> = {},
   graph: CombatGraph | null = null,
   selTrgtByOwn: Record<string, string | null> = {},
+  options: LiveSimulationOptions = {},
 ) {
   if (!runtime || !seed) return null
 
@@ -46,7 +57,7 @@ export function mkLiveCmpt(
     combatGraph: graph,
   })
 
-  const prepSmlt = runPrepWorkS(prepWork)
+  const prepSmlt = runPrepWorkS(prepWork, options)
   if (prepSmlt) {
     // the prepared workspace path already knows how to simulate graph-aware and
     // standalone cases, so prefer it whenever it can materialize a result.
@@ -57,9 +68,9 @@ export function mkLiveCmpt(
   // this runtime, reuse the graph-based simulation path so all participant
   // interactions and graph state stay consistent
   if (graph?.participants.active?.resonatorId === runtime.id) {
-    return runCmbtGrphS(graph, 'active', seed, enemy)
+    return runCmbtGrphS(graph, 'active', seed, enemy, options)
   }
 
   // otherwise simulate directly from the runtime plus any linked teammate runtimes
-  return runResSmlt(runtime, seed, enemy, runtimesById, selTrgtByOwn)
+  return runResSmlt(runtime, seed, enemy, runtimesById, selTrgtByOwn, options)
 }
