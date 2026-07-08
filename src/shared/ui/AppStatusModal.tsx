@@ -10,7 +10,7 @@ import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 import { getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 
 const STATUS_DATA = {
-  lastUpdated: '28/06/2026',
+  lastUpdated: '06/07/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [

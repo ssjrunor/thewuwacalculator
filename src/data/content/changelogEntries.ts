@@ -401,7 +401,7 @@ export const curChngEnts: ChngRcrd[] = [
     shortDesc: `More 3.5.3 beta stuff~! (〜^∇^)〜`,
   },
   {
-    date: '28/06/2026',
+    date: '06/07/2026',
     entries: [
       {
         type: 'paragraph',
@@ -447,8 +447,8 @@ export const curChngEnts: ChngRcrd[] = [
       }
     ],
     whatsNew: {
-      id: '2026-06-28-scoring',
-      signal: '28.06',
+      id: '2026-07-06-scoring',
+      signal: '06.07',
       tag: 'UPDATE',
       title: 'The scoring system, reworked',
       summary:
