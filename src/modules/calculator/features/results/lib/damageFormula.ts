@@ -170,6 +170,10 @@ function resistMult(enemyResPct: number): number {
   return 1 / (1 + 5 * (enemyResPct / 100))
 }
 
+function defenseReduction(defIgnore: number, defShred: number): number {
+  return (1 - defShred / 100) * (1 - defIgnore / 100)
+}
+
 function getEnemyRes(enemy: EnemyProfile, skill: SkillDef): number {
   return enemy.res[ATTR_ENEMY_RES[skill.element]]
 }
@@ -280,8 +284,7 @@ function mkShrdDmgCtx(
   const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
   const resMult = ignoresEnemy ? 1 : resistMult(enemyResVl)
 
-  // defense ignore and defense shred share the same final multiplier in this calculator, so the readout aggregates
-  // them before reducing enemy defense.
+  // defense ignore and defense shred reduce enemy defense as separate factors.
   const totalDefIgnore =
     finalStats.defIgnore +
     attributeAll.defIgnore +
@@ -300,7 +303,7 @@ function mkShrdDmgCtx(
   const enemyDfnsBas = ignoresEnemy ? 0 : (8 * enemy.level) + 792
   const enemyDefense = ignoresEnemy
     ? 0
-    : enemyDfnsBas * (1 - (totalDefIgnore + totalDefShred) / 100)
+    : enemyDfnsBas * defenseReduction(totalDefIgnore, totalDefShred)
   const defenseMult = ignoresEnemy
     ? 1
     : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
@@ -476,7 +479,7 @@ function enemyLines(level: number, shared: ShrdDmgCtx): string[] {
   }
 
   return [
-    `enemy.def = ${pctMul(shared.defMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(shared.enemyDefBase, 2)} x (1 - ${fmtPct(shared.totalDefIgnore)} - ${fmtPct(shared.totalDefShred)}))`,
+    `enemy.def = ${pctMul(shared.defMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(shared.enemyDefBase, 2)} x (1 - ${fmtPct(shared.totalDefShred)}) x (1 - ${fmtPct(shared.totalDefIgnore)}))`,
     `enemy.res = ${pctMul(shared.resMult, 10)} = ${resFormula}`,
     `enemy.res.effective = ${fmtPct(shared.enemyResVl)} = Base ${fmtPct(shared.baseRes)} - Shred ${fmtPct(shared.resShred)}`,
   ]
@@ -632,10 +635,6 @@ function tuneBrkd(
     skillTypeBuff.resShred +
     skillBuffs.resShred
   const defIgnore =
-    finalStats.defIgnore +
-    attributeAll.defIgnore +
-    attrElement.defIgnore +
-    skillTypeAll.defIgnore +
     skillTypeBuff.defIgnore +
     skillBuffs.defIgnore
   const defShred =
@@ -655,7 +654,7 @@ function tuneBrkd(
   const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
   const resMult = ignoresEnemy ? 1 : resistMult(enemyResVl)
   const enemyDfnsBas = ignoresEnemy ? 0 : (8 * enemy.level) + 792
-  const enemyDefense = ignoresEnemy ? 0 : enemyDfnsBas * (1 - (defIgnore + defShred) / 100)
+  const enemyDefense = ignoresEnemy ? 0 : enemyDfnsBas * defenseReduction(defIgnore, defShred)
   const defenseMult = ignoresEnemy
     ? 1
     : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
@@ -684,7 +683,7 @@ function tuneBrkd(
     'enemy',
     ignoresEnemy
       ? `enemy.def = ${pctMul(defenseMult, 10)} = no enemy`
-      : `enemy.def = ${pctMul(defenseMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(enemyDfnsBas, 2)} x (1 - ${fmtPct(defIgnore)} - ${fmtPct(defShred)}))`,
+      : `enemy.def = ${pctMul(defenseMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(enemyDfnsBas, 2)} x (1 - ${fmtPct(defShred)}) x (1 - ${fmtPct(defIgnore)}))`,
     ignoresEnemy
       ? `enemy.res = ${pctMul(resMult, 10)} = no enemy`
       : `enemy.res = ${pctMul(resMult, 10)} = RES after shred ${fmtPct(enemyResVl)}`,
@@ -781,18 +780,19 @@ function negBreakdown(
         : 'electro'
   const ggrgFfctType = mergeSkillType(finalStats.skillType, skill.skillType)
   const negFfctBuff = finalStats.negativeEffect[effectArch as NegEffectKey]
+  const skillBuffs = makeSkillBuffs(skill)
   const attributeAll = finalStats.attribute.all
   const attrElement = finalStats.attribute[element]
   const ignoresEnemy = isNoEnemy(enemy)
   const baseRes = ignoresEnemy ? 0 : enemy.res[ATTR_ENEMY_RES[element]]
   const resShred = attributeAll.resShred + attrElement.resShred + ggrgFfctType.resShred
-  const defIgnore = finalStats.defIgnore + attributeAll.defIgnore + attrElement.defIgnore + ggrgFfctType.defIgnore
+  const defIgnore = ggrgFfctType.defIgnore + skillBuffs.defIgnore
   const defShred = finalStats.defShred + attributeAll.defShred + attrElement.defShred + ggrgFfctType.defShred
   const dmgVuln = finalStats.dmgVuln + attributeAll.dmgVuln + attrElement.dmgVuln + ggrgFfctType.dmgVuln
   const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
   const resMult = ignoresEnemy ? 1 : resistMult(enemyResVl)
   const enemyDfnsBas = ignoresEnemy ? 0 : (8 * enemy.level) + 792
-  const enemyDefense = ignoresEnemy ? 0 : enemyDfnsBas * (1 - (defIgnore + defShred) / 100)
+  const enemyDefense = ignoresEnemy ? 0 : enemyDfnsBas * defenseReduction(defIgnore, defShred)
   const defenseMult = ignoresEnemy
     ? 1
     : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
@@ -831,7 +831,7 @@ function negBreakdown(
     'enemy',
     ignoresEnemy
       ? `enemy.def = ${pctMul(defenseMult, 10)} = no enemy`
-      : `enemy.def = ${pctMul(defenseMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(enemyDfnsBas, 2)} x (1 - ${fmtPct(defIgnore)} - ${fmtPct(defShred)}))`,
+      : `enemy.def = ${pctMul(defenseMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(enemyDfnsBas, 2)} x (1 - ${fmtPct(defShred)}) x (1 - ${fmtPct(defIgnore)}))`,
     ignoresEnemy
       ? `enemy.res = ${pctMul(resMult, 10)} = no enemy`
       : `enemy.res = ${pctMul(resMult, 10)} = RES after shred ${fmtPct(enemyResVl)}`,

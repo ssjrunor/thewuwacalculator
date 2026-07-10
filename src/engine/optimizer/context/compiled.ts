@@ -49,7 +49,7 @@ function defenseMult(
     defIgnore: number,
     defShred: number,
 ): number {
-  const enemyDefense = ((8 * enemyLevel) + 792) * (1 - (defIgnore + defShred) / 100)
+  const enemyDefense = ((8 * enemyLevel) + 792) * (1 - defShred / 100) * (1 - defIgnore / 100)
   return (800 + 8 * charLvl) / (800 + 8 * charLvl + Math.max(0, enemyDefense))
 }
 
@@ -149,10 +149,6 @@ function makeLevelScale(options: {
       skillBuffs.resShred
 
   const defIgnore =
-      finalStats.defIgnore +
-      attributeAll.defIgnore +
-      attrElement.defIgnore +
-      skillTypeAll.defIgnore +
       skillTypeBuff.defIgnore +
       skillBuffs.defIgnore
 
@@ -219,6 +215,7 @@ function makeNegBase(options: {
   const attrElement = finalStats.attribute[element]
   const ggrgFfctType = mergeSkillType(finalStats.skillType, skill.skillType as SkillTypeKey[])
   const negFfctBuff = finalStats.negativeEffect[archetype as NegEffectKey]
+  const skillBuffs = makeSkillBuffs(skill)
 
   const resShred =
       attributeAll.resShred +
@@ -226,10 +223,8 @@ function makeNegBase(options: {
       ggrgFfctType.resShred
 
   const defIgnore =
-      finalStats.defIgnore +
-      attributeAll.defIgnore +
-      attrElement.defIgnore +
-      ggrgFfctType.defIgnore
+      ggrgFfctType.defIgnore +
+      skillBuffs.defIgnore
 
   const defShred =
       finalStats.defShred +

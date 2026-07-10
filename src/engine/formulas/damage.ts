@@ -67,6 +67,11 @@ function resistMult(enemyResPct: number): number {
   return 1 / (1 + 5 * (enemyResPct / 100))
 }
 
+// defense shred and defense ignore reduce enemy defense as separate factors
+function defenseReduction(defIgnore: number, defShred: number): number {
+  return (1 - defShred / 100) * (1 - defIgnore / 100)
+}
+
 // resolve the enemy resistance bucket for the skill's element
 function getEnemyRes(enemy: EnemyProfile, element: SkillDef['element']): number {
   if (isNoEnemy(enemy)) {
@@ -144,7 +149,7 @@ function calcDamageCtx(
 
   const enemyDefense = ignoresEnemy
       ? 0
-      : ((8 * enemy.level) + 792) * (1 - (totalDefIgnore + totalDefShred) / 100)
+      : ((8 * enemy.level) + 792) * defenseReduction(totalDefIgnore, totalDefShred)
 
   const defenseMult = ignoresEnemy
       ? 1
@@ -469,10 +474,6 @@ function calcLevelDamage(
       skillBuffs.resShred
 
   const defIgnore =
-      finalStats.defIgnore +
-      attributeAll.defIgnore +
-      attrElement.defIgnore +
-      skillTypeAll.defIgnore +
       skillTypeBuff.defIgnore +
       skillBuffs.defIgnore
 
@@ -495,7 +496,7 @@ function calcLevelDamage(
   const enemyResVl = baseRes - resShred
   const resMult = resistMult(enemyResVl)
 
-  const enemyDefense = ((8 * enemy.level) + 792) * (1 - (defIgnore + defShred) / 100)
+  const enemyDefense = ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
 
   const defenseMult = (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
 
@@ -570,19 +571,16 @@ function calcNegEffect(
   const effectTypes: SkillTypeKey[] = skill.skillType
   const ggrgFfctType = mergeSkillType(finalStats.skillType, effectTypes)
   const negFfctBuff = finalStats.negativeEffect[archetype as NegEffectKey]
+  const skillBuffs = makeSkillBuffs(skill)
 
   const resShred =
       attributeAll.resShred +
       attrElement.resShred +
       ggrgFfctType.resShred
 
-/*
   const defIgnore =
-      finalStats.defIgnore +
-      attributeAll.defIgnore +
-      attributeElement.defIgnore +
-      aggregatedEffectType.defIgnore
-*/
+      ggrgFfctType.defIgnore +
+      skillBuffs.defIgnore
 
   const defShred =
       finalStats.defShred +
@@ -601,7 +599,7 @@ function calcNegEffect(
 
   const enemyDefense = isNoEnemy(enemy)
       ? 0
-      : ((8 * enemy.level) + 792) * (1 - defShred / 100)
+      : ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
 
   const defenseMult = isNoEnemy(enemy)
       ? 1

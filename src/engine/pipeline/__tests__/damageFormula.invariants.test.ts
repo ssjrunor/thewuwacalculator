@@ -196,6 +196,30 @@ const hackSkill: SkillDef = {
   hits: [{ count: 1, multiplier: 2 }],
 }
 
+const negativeEffectSkill: SkillDef = {
+  id: 'spectro-frazzle',
+  label: 'Spectro Frazzle',
+  tab: 'forteCircuit',
+  element: 'spectro',
+  skillType: ['spectroFrazzle'],
+  archetype: 'spectroFrazzle',
+  aggregationType: 'damage',
+  scaling: { atk: 0, hp: 0, def: 0, energyRegen: 0 },
+  multiplier: 0,
+  flat: 0,
+  hits: [{ count: 1, multiplier: 1 }],
+}
+
+function expectedDefenseMult(
+  charLevel: number,
+  enemyLevel: number,
+  defIgnore: number,
+  defShred: number,
+): number {
+  const enemyDefense = ((8 * enemyLevel) + 792) * (1 - defShred / 100) * (1 - defIgnore / 100)
+  return (800 + 8 * charLevel) / ((800 + 8 * charLevel) + Math.max(0, enemyDefense))
+}
+
 function makeFeatureResult(
   skillDefinition: SkillDef,
   result = calcSkillDamage(makeFinalStats(), skillDefinition, enemy, 90),
@@ -300,6 +324,23 @@ describe('damage formula invariants', () => {
     expect(result.avg).toBe(0)
   })
 
+  it('combines defense shred and defense ignore as separate enemy-defense factors', () => {
+    const finalStats = makeFinalStats({
+      critRate: 0,
+      critDmg: 100,
+      defIgnore: 20,
+      defShred: 30,
+    })
+    const result = calcSkillDamage(finalStats, skill, enemy, 90)
+    const expectedNormal = 1000 * 0.8 * expectedDefenseMult(90, 90, 20, 30)
+    const additiveNormal = 1000 * 0.8 * expectedDefenseMult(90, 90, 50, 0)
+    const breakdown = formBrkd(makeFeatureResult(skill, result), finalStats, enemy, 90, makeCombatState())
+
+    expect(result.normal).toBeCloseTo(expectedNormal, 10)
+    expect(result.normal).not.toBeCloseTo(additiveNormal, 10)
+    expect(fmtBreakdown(breakdown)).toContain('x (1 - 30%) x (1 - 20%)')
+  })
+
   it('computes healing and shield as support outcomes', () => {
     const healing = calcSkillDamage(makeFinalStats(), healingSkill, enemy, 90)
     const shield = calcSkillDamage(makeFinalStats(), shieldSkill, enemy, 90)
@@ -334,6 +375,54 @@ describe('damage formula invariants', () => {
     expect(tuneResult.subHits).toHaveLength(2)
     expect(baseHack.avg).toBeGreaterThan(0)
     expect(buffedHack.avg).toBeGreaterThan(baseHack.avg)
+  })
+
+  it('applies defense ignore to special damage only when the special branch is targeted', () => {
+    const baseHack = calcSkillDamage(makeFinalStats(), hackSkill, enemy, 90)
+    const globalIgnoreHack = calcSkillDamage(makeFinalStats({ defIgnore: 20 }), hackSkill, enemy, 90)
+    const targetedHack = calcSkillDamage(
+      makeFinalStats({
+        skillType: {
+          ...makeFinalStats().skillType,
+          hack: { ...makeBuff(), defIgnore: 20 },
+        },
+      }),
+      hackSkill,
+      enemy,
+      90,
+    )
+    const onlyShred = calcSkillDamage(
+      makeFinalStats({ defShred: 30 }),
+      negativeEffectSkill,
+      enemy,
+      90,
+      { spectroFrazzle: 1 },
+    )
+    const globalIgnore = calcSkillDamage(
+      makeFinalStats({ defShred: 30, defIgnore: 20 }),
+      negativeEffectSkill,
+      enemy,
+      90,
+      { spectroFrazzle: 1 },
+    )
+    const targetedIgnore = calcSkillDamage(
+      makeFinalStats({
+        defShred: 30,
+        skillType: {
+          ...makeFinalStats().skillType,
+          spectroFrazzle: { ...makeBuff(), defIgnore: 20 },
+        },
+      }),
+      negativeEffectSkill,
+      enemy,
+      90,
+      { spectroFrazzle: 1 },
+    )
+
+    expect(globalIgnoreHack.avg).toBeCloseTo(baseHack.avg, 10)
+    expect(targetedHack.avg).toBeGreaterThan(baseHack.avg)
+    expect(globalIgnore.normal).toBeCloseTo(onlyShred.normal, 10)
+    expect(targetedIgnore.normal).toBeGreaterThan(onlyShred.normal)
   })
 
   it('builds a compact direct-damage formula breakdown', () => {

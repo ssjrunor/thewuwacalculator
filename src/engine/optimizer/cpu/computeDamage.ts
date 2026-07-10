@@ -115,7 +115,7 @@ function resistMult(enemyResPct: number): number {
 
 // compute defense multiplier after def ignore and def shred are applied
 function defenseMult(charLvl: number, enemyLevel: number, defIgnore: number, defShred: number): number {
-  const enemyDefense = ((8 * enemyLevel) + 792) * (1 - (defIgnore + defShred) / 100)
+  const enemyDefense = ((8 * enemyLevel) + 792) * (1 - defShred / 100) * (1 - defIgnore / 100)
   return (800 + 8 * charLvl) / (800 + 8 * charLvl + Math.max(0, enemyDefense))
 }
 
