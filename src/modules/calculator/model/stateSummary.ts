@@ -36,6 +36,7 @@ import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getSkillType } from '@/modules/calculator/model/skillTypes'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
 import { toTitle } from '@/shared/lib/format'
+import { truncTo } from '@/shared/lib/number.ts'
 
 export interface StateNode {
   id: string
@@ -69,7 +70,8 @@ type EffectOperation = EffectDef['operations'][number]
 
 // compact number formatting used in human-readable effect labels
 function formatValue(value: number, suffix = ''): string {
-  const normalized = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  const normalized = Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
   return `${normalized}${suffix}`
 }
 

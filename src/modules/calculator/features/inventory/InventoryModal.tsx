@@ -25,6 +25,7 @@ import type { InvEchoSg } from '@/domain/state/inventoryUsage.ts'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { toTitle } from '@/shared/lib/format'
 import { hideBrknMg, withDefIconM, withDefResMg, withDefWpnMg } from '@/shared/lib/imageFallback'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { AppModal } from '@/shared/ui/AppModal'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { MdlClsBttn } from '@/shared/ui/ModalCloseButton'
@@ -252,10 +253,10 @@ function InvEchoEntCa({
                 <span className="cost-num">0{definition.cost}</span>
               </div>
               {echoScore !== null ? (
-                <span className={getScrBdgCls(echoScore)}>{echoScore.toFixed(1)}%</span>
+                <span className={getScrBdgCls(echoScore)}>{formatTruncCompact(echoScore, 1)}%</span>
               ) : null}
               {cv > 0 ? (
-                <span className={getCvBdgClss(cv)}>CV {cv.toFixed(1)}</span>
+                <span className={getCvBdgClss(cv)}>CV {formatTruncCompact(cv, 1)}</span>
               ) : null}
             </div>
           </div>

@@ -6,6 +6,7 @@
 import { Info } from 'lucide-react'
 import type { OptSearchMode } from '@/domain/entities/optimizer'
 import type { OptPrgr } from '@/engine/optimizer/types'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 interface OptCntrBoxPr {
   isWide?: boolean
@@ -183,7 +184,7 @@ export function ControlBox({
           <div className="slider-item">
             <span>Filter Strength</span>
             <div className="dash-separator" />
-            <span>{(keepPercent * 100).toFixed(0)}%</span>
+            <span>{formatTruncCompact(keepPercent * 100, 0)}%</span>
           </div>
           <div className="slider-row">
             <input

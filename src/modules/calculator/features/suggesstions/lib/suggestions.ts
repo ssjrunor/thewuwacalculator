@@ -14,6 +14,7 @@ import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils.ts'
 import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { getQppdEchoC, sortByCost } from '@/modules/calculator/features/echoes/lib/echoes.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 export type { SuggsViewMod } from '@/domain/entities/suggestions.ts'
 export { runtimeSig } from '@/domain/state/runtimeSignature.ts'
@@ -73,7 +74,7 @@ export function percentDiff(damage: number, baseDamage: number): number {
     return 0
   }
 
-  return Number((((damage / baseDamage) - 1) * 100).toFixed(2))
+  return ((damage / baseDamage) - 1) * 100
 }
 
 // pick the correct ui tone for a percentage diff
@@ -95,7 +96,7 @@ export function getDiffLabel(diffPercent: number, isCurrent: boolean): string {
     return 'Current'
   }
 
-  return `${Math.abs(diffPercent).toFixed(2)}%`
+  return `${formatTruncCompact(Math.abs(diffPercent), 2)}%`
 }
 
 // decorate percentage diffs with an arrow only when they move

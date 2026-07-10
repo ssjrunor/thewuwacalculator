@@ -7,6 +7,7 @@
 
 import type { GenWpn } from '@/domain/entities/weapon.ts'
 import { getWpnById as getWpnFromCa } from '@/domain/services/weaponCatalogService.ts'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 // user-facing labels for weapon secondary stat keys
 export const WPNSTATLBLS: Record<string, string> = {
@@ -46,11 +47,12 @@ export function getWeapon(id: string | null): GenWpn | null {
 // ratio-based stats get one decimal place plus a percent sign
 export function fmtWpnStatDs(statKey: string, value: number): string {
   if (statKey === 'tuneBreakBoost') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+    const truncated = truncTo(value, 2)
+    return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
   }
 
   if (RT_STAT_KEYS.has(statKey)) {
-    return `${value.toFixed(1)}%`
+    return `${formatTruncCompact(value, 1)}%`
   }
   return String(value)
 }

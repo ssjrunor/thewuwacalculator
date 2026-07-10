@@ -11,6 +11,7 @@ import {
   withDefWpnMg,
 } from '@/modules/calculator/features/weapons/lib/weapon.ts'
 import { PickerModal as ShrdPckrMdl } from '@/shared/ui/PickerModal.tsx'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 // exposes the weapon picker dialog that filters the arsenal by rarity.
 interface WpnPckrMdlPr {
@@ -119,7 +120,7 @@ export function WeaponPicker({
             {fmtRrtyLbl(entry.rarity)}
           </span>
           <span className="picker-modal__meta-pill">
-            ATK: {(entry.baseAtk).toFixed(1)}
+            ATK: {formatTruncCompact(entry.baseAtk, 1)}
           </span>
           <span className="picker-modal__meta-pill">
             {statLabel}: {statDisplay}

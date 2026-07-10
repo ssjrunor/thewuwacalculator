@@ -43,6 +43,7 @@ import type {
 } from '@/engine/suggestions/types.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
 import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 import {
   DEFRANDSETS,
   DEFWPNSETS,
@@ -2136,7 +2137,7 @@ export function Suggestions({
                     value={suggsStt.random.bias}
                     onChange={(event) => updRandSets({ bias: Number(event.target.value) })}
                   />
-                  <span className="rc-slider-value">{suggsStt.random.bias.toFixed(1)}</span>
+                  <span className="rc-slider-value">{formatTruncCompact(suggsStt.random.bias, 1)}</span>
                 </div>
               </div>
 
@@ -2157,7 +2158,7 @@ export function Suggestions({
                     value={suggsStt.random.rollQuality}
                     onChange={(event) => updRandSets({ rollQuality: Number(event.target.value) })}
                   />
-                  <span className="rc-slider-value">{suggsStt.random.rollQuality.toFixed(1)}</span>
+                  <span className="rc-slider-value">{formatTruncCompact(suggsStt.random.rollQuality, 1)}</span>
                 </div>
               </div>
             </div>

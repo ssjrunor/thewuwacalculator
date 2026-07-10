@@ -10,9 +10,6 @@ import { evalTarget } from '@/engine/optimizer/target/evaluate';
 
 import type { BenchmarkFeature } from './types.ts';
 
-import { roundStat } from './stats.ts';
-
-
 export function buildBenchmarkFeatureBreakdown(
   ctx: SuggestContext,
   equipped: Array<EchoInstance | null>,
@@ -64,8 +61,8 @@ export function buildBenchmarkFeatureBreakdownFromEncoded(
       label: ctx.skll.label,
       tab: ctx.skll.tab,
       skillType: ctx.skll.skillType,
-      damage: roundStat(damage),
-      weightedDamage: roundStat(damage),
+      damage,
+      weightedDamage: damage,
       sharePct: 100,
     }]
   }
@@ -90,8 +87,8 @@ export function buildBenchmarkFeatureBreakdownFromEncoded(
       label: skill.label,
       tab: skill.tab,
       skillType: skill.skillType,
-      damage: roundStat(damage),
-      weightedDamage: roundStat(damage * weight),
+      damage,
+      weightedDamage: damage * weight,
       sharePct: 0,
     })
   }
@@ -100,7 +97,7 @@ export function buildBenchmarkFeatureBreakdownFromEncoded(
   return rows
     .map((row) => ({
       ...row,
-      sharePct: total > 0 ? roundStat((Math.max(0, row.weightedDamage) / total) * 100) : 0,
+      sharePct: total > 0 ? (Math.max(0, row.weightedDamage) / total) * 100 : 0,
     }))
     .sort((left, right) => right.weightedDamage - left.weightedDamage)
 }

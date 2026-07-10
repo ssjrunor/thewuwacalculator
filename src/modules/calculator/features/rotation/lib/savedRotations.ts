@@ -9,9 +9,10 @@ import type { InvRotEnt } from '@/domain/entities/inventoryStorage.ts'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { SvdRotDtrDrf, SvdRotDtrTgt } from './types.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 export function fmtSvdRotDur(durScnd: number): string {
-  return `${Math.max(0, durScnd).toFixed(1)}s`
+  return `${formatTruncCompact(Math.max(0, durScnd), 1)}s`
 }
 
 export function fmtSvdRotNtg(value: number): string {

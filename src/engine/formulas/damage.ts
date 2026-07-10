@@ -376,7 +376,7 @@ function calcDirectDmg(
 ): DamageResult {
   // fixed damage bypasses the normal scaling formula
   if ((skill.fixedDmg ?? 0) > 0) {
-    const value = Math.max(1, Math.floor(skill.fixedDmg ?? 0))
+    const value = Math.max(1, skill.fixedDmg ?? 0)
     const hits = resolveHits(skill, 1)
     const ttlHitScl = sumHitScale(hits)
 
@@ -432,7 +432,7 @@ function calcSupport(finalStats: FinalStats, skill: SkillDef): DamageResult {
       : finalStats.shieldBonus + (skill.skillShieldBonus ?? 0)
 
   const total = ((baseEffect * skill.multiplier) + skill.flat) * (1 + bonusPercent / 100)
-  const value = Math.max(1, Math.floor(total))
+  const value = Math.max(1, total)
 
   return {
     normal: 0,
@@ -619,14 +619,13 @@ function calcNegEffect(
       (1 + ggrgFfctType.dmgBonus / 100) *
       (1 + finalStats.special / 100)
 
-  const damage = Math.floor(
+  const damage =
     perStackBase *
     ttlHitScl *
     bnsMltp *
     resMult *
     defenseMult * (1 + negFfctBuff.multiplier) *
-    (1 + dmgVuln / 100),
-  )
+    (1 + dmgVuln / 100)
 
   const critRate = (skill.negativeEffectCritRate ?? 0) + (negFfctBuff.critRate / 100)
   const critMltp = (skill.negativeEffectCritDmg ?? 1) + (negFfctBuff.critDmg / 100)

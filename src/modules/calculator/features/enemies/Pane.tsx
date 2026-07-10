@@ -39,7 +39,7 @@ import { RichDscr } from '@/shared/ui/RichDescription.tsx'
 import { getStateText } from '@/modules/calculator/model/sourceStateDisplay.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { clampNumber } from '@/shared/lib/number.ts'
+import { clampNumber, formatTruncCompact } from '@/shared/lib/number.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { ATTR_ID_COLORS } from "@/modules/calculator/model/display.ts";
 
@@ -443,7 +443,7 @@ export function CalcEnemyPmg({
                   className={`enemy-res-cell ${effRes < value ? 'good' : effRes > value ? 'bad' : ''}`}
                   data-sign={sign}
                   style={{ '--el': ATTR_ID_COLORS[elementId] } as CssProps}
-                  title={`${label} · RES ${fmt(value)}${shifted ? ` (effective ${fmt(Math.round(effRes))})` : ''} · damage ×${resMult.toFixed(3)}`}
+                  title={`${label} · RES ${fmt(value)}${shifted ? ` (effective ${fmt(effRes)})` : ''} · damage x${formatTruncCompact(resMult, 3)}`}
                 >
                   <img
                     src={iconSrc}
@@ -477,7 +477,7 @@ export function CalcEnemyPmg({
 
                   <div className="enemy-res-cell__mult">
                     <span className="enemy-res-cell__mult-x">×</span>
-                    {resMult.toFixed(2)}
+                    {formatTruncCompact(resMult, 2)}
                   </div>
                 </div>
               )

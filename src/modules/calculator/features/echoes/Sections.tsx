@@ -15,6 +15,7 @@ import type { SetDef } from '@/data/gameData/echoSets/effects.ts'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { StepScrubber } from '@/shared/ui/StepScrubber.tsx'
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric.ts'
 import {
   formatBuildBenchmarkScore as fmtBenchScore,
@@ -151,7 +152,7 @@ export function EchoSlot({
                 {echo.mainEcho ? <span className="echo-slot-badge echo-slot-badge--main">Main</span> : null}
                 {score !== null ? (
                   <span className={getScrBdgCls(score)}>
-                    {score.toFixed(1)}%
+                    {formatTruncCompact(score, 1)}%
                   </span>
                 ) : null}
               </div>
@@ -221,7 +222,7 @@ export function EchoSlot({
                   <span className="echo-stat-subs-title">Substats</span>
                   {cv > 0 ? (
                     <span className={getCvBdgClss(cv)}>
-                      CV {cv.toFixed(1)}
+                      CV {formatTruncCompact(cv, 1)}
                     </span>
                   ) : null}
                 </div>
@@ -588,7 +589,7 @@ export function EchoTotals({
             <span className="echo-totals-count">{qppdCnt}/5 equipped</span>
             {totalCV > 0 ? (
               <span className={getCvBdgClss((totalCV - (44 * cv4Cost)) / 5)}>
-                CV {totalCV.toFixed(1)}
+                CV {formatTruncCompact(totalCV, 1)}
               </span>
             ) : null}
             {buildScore !== null ? (

@@ -33,6 +33,7 @@ import {
 } from '@/modules/calculator/model/statsView.ts'
 import { toTitle } from '@/shared/lib/format'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 import {
   SonataTokens,
   StatGlyph,
@@ -611,7 +612,7 @@ function RotationSpectrumBar({
               key={segment.key}
               className={`bench-spec-seg${segment === lead ? ' bench-spec-seg--lead' : ''}`}
               style={{ flexGrow: Math.max(segment.pct, 0.6), '--c': segment.color } as CssVars}
-              title={`${segment.label} · ${segment.pct.toFixed(1)}%`}
+              title={`${segment.label} · ${formatTruncCompact(segment.pct, 1)}%`}
             />
           ))
         ) : (
@@ -627,7 +628,7 @@ function RotationSpectrumBar({
               <img src={segment.icon} alt="" className="bench-spec-chip-icon" loading="lazy" onError={withDefIconM} />
             ) : null}
             <span className="bench-spec-chip-label">{segment.label}</span>
-            <span className="bench-spec-chip-pct">{segment.pct.toFixed(1)}%</span>
+            <span className="bench-spec-chip-pct">{formatTruncCompact(segment.pct, 1)}%</span>
           </li>
         ))}
       </ul>
@@ -729,7 +730,7 @@ function RotationFeatures({
                     </span>
                   </td>
                   <td className="num">{formatCompactNum(row.damage)}</td>
-                  <td className="num">{row.sharePct.toFixed(1)}%</td>
+                  <td className="num">{formatTruncCompact(row.sharePct, 1)}%</td>
                 </tr>
               )
             })}
@@ -746,8 +747,8 @@ function StatTable({ rows }: { rows: BenchmarkStatContribution[] }) {
     .slice()
     .sort((a, b) => b.sharePct - a.sharePct)
   const fmtRollCount = (count: number) => {
-    const rounded = Math.round(count * 10) / 10
-    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+    const truncated = truncTo(count, 1)
+    return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(1)
   }
   const renderMainPart = (row: BenchmarkStatContribution) => {
     if (Math.abs(row.mainTotal) <= 0.0001) {
@@ -800,9 +801,9 @@ function StatTable({ rows }: { rows: BenchmarkStatContribution[] }) {
                 <td className="num muted">{renderMainPart(row)}</td>
                 <td className="num muted">{renderSubstatPart(row)}</td>
                 <td className="num">{formatStatKeyValue(row.key, row.total)}</td>
-                <td className="num">{row.qualityPct > 0 ? `${row.qualityPct.toFixed(0)}%` : '--'}</td>
+                <td className="num">{row.qualityPct > 0 ? `${formatTruncCompact(row.qualityPct, 0)}%` : '--'}</td>
                 <td className="num">{fmtSignedNumber(row.damage)}</td>
-                <td className="num">{row.sharePct.toFixed(1)}%</td>
+                <td className="num">{formatTruncCompact(row.sharePct, 1)}%</td>
               </tr>
             ))
           ) : (

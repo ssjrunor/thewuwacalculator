@@ -15,6 +15,7 @@ import {
   Tooltip,
 } from 'recharts'
 import type { OptDsplStts } from './Row.tsx'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 interface StatProfRow {
   stat: string
@@ -38,9 +39,9 @@ function fmtStatVl(statLabel: string, value: number | null | undefined): string 
     case 'CR%':
     case 'CD%':
     case 'BNS%':
-      return value.toFixed(1)
+      return formatTruncCompact(value, 1)
     default:
-      return value.toFixed(1)
+      return formatTruncCompact(value, 1)
   }
 }
 

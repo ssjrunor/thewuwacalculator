@@ -885,12 +885,11 @@ fn evalMainPos(
         archetype == ARCHETYPE_ELECTRO_FLARE ||
         archetype == ARCHETYPE_GLACIO_CHAFE
     ) {
-        let normal = floor(
+        let normal =
             pre.multiplier *
             pre.resDefAmp *
             pre.dmgReductionTotal *
-            pre.packedDmgBonus
-        );
+            pre.packedDmgBonus;
         let cr = clamp(pre.packedCritRate, 0.0, 1.0);
         let critHit = normal * pre.packedCritDmg;
         avg = cr * critHit + (1.0 - cr) * normal;

@@ -17,6 +17,7 @@ import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
 import { getEchoById } from '@/domain/services/echoCatalogService'
 import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 export type CssVars = CSSProperties & Record<string, string | number>
 
@@ -287,7 +288,7 @@ export function preloadBenchmarkRailImages(urls: string[]): Promise<void> {
 export function fmtSignedPct(value: number): string {
   if (!Number.isFinite(value)) return '--'
   const prefix = value > 0 ? '+' : ''
-  return `${prefix}${value.toFixed(1)}%`
+  return `${prefix}${formatTruncCompact(value, 1)}%`
 }
 
 export function fmtSignedNumber(value: number): string {

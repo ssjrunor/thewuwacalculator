@@ -9,6 +9,7 @@ import type { EchoInstance } from '@/domain/entities/runtime'
 import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric'
 import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 interface EchoStatProps {
   echo: EchoInstance
@@ -37,12 +38,12 @@ export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
         {scoreShown ? (
           <span className={`echo-stat-preview__badge ${getScrBdgCls(score)}`}>
             <span className="echo-stat-preview__badge-key">Score</span>
-            <span className="echo-stat-preview__badge-value">{score.toFixed(1)}%</span>
+            <span className="echo-stat-preview__badge-value">{formatTruncCompact(score, 1)}%</span>
           </span>
         ) : null}
         <span className={`echo-stat-preview__badge ${getCvBdgClss(cv)}`}>
           <span className="echo-stat-preview__badge-key">CV</span>
-          <span className="echo-stat-preview__badge-value">{cv.toFixed(1)}</span>
+          <span className="echo-stat-preview__badge-value">{formatTruncCompact(cv, 1)}</span>
         </span>
       </div>
 

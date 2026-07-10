@@ -18,7 +18,7 @@ import { getSntSetNam } from '@/data/gameData/catalog/sonataSets';
 import { listEffectsFor } from '@/domain/services/gameDataService';
 import { isMaxSetPlan, isUtilitySet, makeEffectiveSetPlan } from '@/domain/gameData/sonataPlan';
 import type { BenchmarkBuildSnapshot, BenchmarkEchoSlot, BenchmarkFeature, BenchmarkFeatureGroup, BenchmarkFeatureGroups, BenchmarkOverviewStats, BenchmarkSetSummary, BenchmarkStatContribution, BenchmarkSubstatEntry, BenchmarkSubstatMode } from './types.ts';
-import { addStatTotal, collectMainStatSources, formatFeatureTabLabel, getBenchmarkStatKeys, roundStat, type BenchmarkEchoFrame, type MainEchoChoice, type MainEchoProfile, type MainStatCandidate, type MainStatSourceSummary } from './stats.ts';
+import { addStatTotal, collectMainStatSources, formatFeatureTabLabel, getBenchmarkStatKeys, type BenchmarkEchoFrame, type MainEchoChoice, type MainEchoProfile, type MainStatCandidate, type MainStatSourceSummary } from './stats.ts';
 
 
 export function cloneEchoSlot(echo: EchoInstance): EchoInstance {
@@ -140,7 +140,7 @@ export function makeMainEchoFixture(def: EchoDef, set = def.sets[0] ?? 0): EchoI
 }
 
 export function mainEchoEffectSig(buffer: Float32Array): string {
-  return Array.from(buffer, (value) => Math.abs(value) < 0.000001 ? 0 : roundStat(value)).join(',')
+  return Array.from(buffer, (value) => Math.abs(value) < 0.000001 ? 0 : value).join(',')
 }
 
 export function hasNonSelfMainEchoBuff(echoId: string): boolean {
@@ -288,14 +288,14 @@ export function makeEchoSlots(
       setName: setId > 0 ? getSntSetNam(setId) : 'No set',
       primary: {
         key: primaryStats[index]?.key ?? echo.mainStats.primary.key,
-        value: roundStat(primaryStats[index]?.value ?? echo.mainStats.primary.value),
+        value: primaryStats[index]?.value ?? echo.mainStats.primary.value,
       },
       secondary: {
         key: echo.mainStats.secondary.key,
-        value: roundStat(echo.mainStats.secondary.value),
+        value: echo.mainStats.secondary.value,
       },
       equippedSubstats: Object.entries(echo.substats)
-        .map(([key, value]) => ({ key, value: roundStat(value) }))
+        .map(([key, value]) => ({ key, value }))
         .sort((left, right) => right.value - left.value),
     }
   })
@@ -337,8 +337,8 @@ export function makeBenchmarkBuildSnapshot({
   const featureGroups = makeFeatureGroups(features)
   return {
     label,
-    score: roundStat(score),
-    damage: roundStat(damage),
+    score,
+    damage,
     sets: makeSetSummary(setRows, echoes),
     echoes: makeEchoSlots(echoes, setRows, primaryStats),
     substatMode,
@@ -385,7 +385,7 @@ export function makeFeatureGroups(features: BenchmarkFeature[]): BenchmarkFeatur
       .map((group) => ({
         key: group.key,
         label: group.label,
-        sharePct: total > 0 ? roundStat((Math.max(0, group.weightedDamage) / total) * 100) : 0,
+        sharePct: total > 0 ? (Math.max(0, group.weightedDamage) / total) * 100 : 0,
         skillType: group.skillType,
         sortDamage: group.weightedDamage,
       }))
@@ -429,13 +429,13 @@ export function makeStatContributions(
 
     return {
       key,
-      mainTotal: roundStat(mainTotal),
+      mainTotal,
       mainCount,
-      substatTotal: roundStat(substatTotal),
-      total: roundStat(total),
-      substatCount: roundStat(substat?.count ?? 0),
-      qualityPct: roundStat(qualityPct),
-      damage: roundStat(damage),
+      substatTotal,
+      total,
+      substatCount: substat?.count ?? 0,
+      qualityPct,
+      damage,
       sharePct: 0,
     }
   })
@@ -444,7 +444,7 @@ export function makeStatContributions(
   return rows
     .map((row) => ({
       ...row,
-      sharePct: sum > 0 ? roundStat((Math.max(0, row.damage) / sum) * 100) : 0,
+      sharePct: sum > 0 ? (Math.max(0, row.damage) / sum) * 100 : 0,
     }))
     .sort((left, right) => right.damage - left.damage || right.total - left.total)
 }

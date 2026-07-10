@@ -13,6 +13,7 @@ import { getSkillType } from '@/modules/calculator/model/skillTypes.ts'
 import { seedRsntById } from '@/modules/calculator/features/resonator/lib/seedData.ts'
 import { ATTR_COLORS } from '@/modules/calculator/model/display.ts'
 import { toTitle } from '@/shared/lib/format.ts'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 export interface StatViewRow {
   label: string
@@ -57,8 +58,8 @@ export function formatCompactNum(raw: number | null): string {
   }
 
   const num = Math.floor(raw)
-  if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`
-  if (num >= 1e7) return `${(num / 1e6).toFixed(1)}M`
+  if (num >= 1e9) return `${formatTruncCompact(num / 1e9, 1)}B`
+  if (num >= 1e7) return `${formatTruncCompact(num / 1e6, 1)}M`
   return num.toLocaleString()
 }
 
@@ -72,7 +73,7 @@ export function formatStatValue(label: string, value: number): string {
     return fmtNum(value)
   }
 
-  return `${value.toFixed(1)}%`
+  return `${formatTruncCompact(value, 1)}%`
 }
 
 // friendly labels for raw stat keys used in tooltips, trees, and detail panes
@@ -119,7 +120,7 @@ export function formatStatKeyValue(key: string, value: number): string {
   }
 
   if (PRCNSTATKEYS.has(key) || key.endsWith('Percent')) {
-    return `${value.toFixed(1)}%`
+    return `${formatTruncCompact(value, 1)}%`
   }
 
   return Math.floor(value).toLocaleString()
@@ -327,7 +328,8 @@ const SKLLTYPEKEYS: SkillTypeKey[] = [
 
 // compact number formatter that removes trailing zeroes from decimals
 function fmtNum(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
 }
 
 // flat integer display formatter

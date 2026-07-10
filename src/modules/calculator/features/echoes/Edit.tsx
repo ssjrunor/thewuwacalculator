@@ -20,6 +20,7 @@ import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
 import { MdlClsBttn } from '@/shared/ui/ModalCloseButton.tsx'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback'
 import { AppModal } from '@/shared/ui/AppModal'
+import { truncTo } from '@/shared/lib/number.ts'
 
 const STAT_LABELS: Record<string, string> = {
   hpPercent: 'HP%',
@@ -55,7 +56,8 @@ function fmtStatValue(key: string, value: number): string {
   }
 
   if (key === 'tuneBreakBoost') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+    const truncated = truncTo(value, 2)
+    return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
   }
 
   return `${value}%`

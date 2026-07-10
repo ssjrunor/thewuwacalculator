@@ -3,9 +3,11 @@
   Description: small shared formatters for display-only ui values.
 */
 
+import { formatTruncCompact } from '@/shared/lib/number.ts'
+
 export function fmtPrcn(value: number, digits = 1): string {
   if (!Number.isFinite(value)) return '-'
-  return `${value.toFixed(digits)}%`
+  return `${formatTruncCompact(value, digits)}%`
 }
 
 export function fmtDateShrt(timestamp: number): string {

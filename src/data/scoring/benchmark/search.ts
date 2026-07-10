@@ -11,7 +11,7 @@ import { mkCostPlns } from '@/engine/suggestions/randomEchoes/lib/combinations';
 import { applySetPlan, mkSetPlanCnd, prepSetPlanFsb } from '@/engine/suggestions/mutate';
 import { ignoresEr } from '@/data/scoring/energyRegenPolicy';
 import type { BenchmarkBuildSnapshot, BenchmarkSubstatEntry, BuildBenchmark } from './types.ts';
-import { addStatTotal, BENCHMARK_ROLL_SOURCE, effectiveRollCount, ENERGY_REGEN, equivalentRollCounts, gradeForPercent, makeBenchmarkInvariantStats, makeBenchmarkOverviewStats, makeSubstatPlan, MAXIMUM_ROLL_SOURCE, MAX_ROLLS_PER_KEY, normalizeRollParams, removeSubstatTotals, rollAtQuality, roundStat, scorePercent, sumEncodedEnergyRegen, sumEncodedStats, sumSubstats, type BenchmarkEchoFrame, type BenchmarkScoringParams, type MainStatCandidate, type SubstatCandidate } from './stats.ts';
+import { addStatTotal, BENCHMARK_ROLL_SOURCE, effectiveRollCount, ENERGY_REGEN, equivalentRollCounts, gradeForPercent, makeBenchmarkInvariantStats, makeBenchmarkOverviewStats, makeSubstatPlan, MAXIMUM_ROLL_SOURCE, MAX_ROLLS_PER_KEY, normalizeRollParams, removeSubstatTotals, rollAtQuality, scorePercent, sumEncodedEnergyRegen, sumEncodedStats, sumSubstats, type BenchmarkEchoFrame, type BenchmarkScoringParams, type MainStatCandidate, type SubstatCandidate } from './stats.ts';
 import { echoesMatchSetPlan, enumerateMainStatCandidates, findUsefulStatImpacts, mainEchoChoices, makeBenchmarkBuildSnapshot, makeBenchmarkEchoFrame, makeMainEchoProfiles, makeReferenceBenchmarkEchoes, preservedMainEchoFor, retainsUtilityPlan, setEffectSig, utilityPlanFor } from './echoDiscovery.ts';
 import { buildBenchmarkFeatureBreakdownFromEncoded } from './features.ts';
 
@@ -636,10 +636,10 @@ export function assembleBenchmark(
     .filter(([, total]) => total > 0)
     .map(([key, total]) => ({
       key,
-      count: roundStat(currentRollCounts[key] ?? 0),
-      effectiveCount: roundStat(currentRollCounts[key] ?? 0),
-      rollValue: roundStat(rollBounds[key]?.benchmark ?? 0),
-      total: roundStat(total),
+      count: currentRollCounts[key] ?? 0,
+      effectiveCount: currentRollCounts[key] ?? 0,
+      rollValue: rollBounds[key]?.benchmark ?? 0,
+      total,
     }))
     .sort((left, right) => right.total - left.total)
 

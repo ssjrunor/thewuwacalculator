@@ -346,7 +346,7 @@ function evalPckdCtxD(
           ((scaledValue * context[contextOffset + OPT_CTX_MULT]) + flatDmg) *
           (1 + hlngBnsPct / 100)
 
-      return Math.max(1, Math.floor(total))
+      return Math.max(1, total)
     }
 
     case ARCH_SHIELD: {
@@ -354,7 +354,7 @@ function evalPckdCtxD(
           ((scaledValue * context[contextOffset + OPT_CTX_MULT]) + flatDmg) *
           (1 + shldBnsPct / 100)
 
-      return Math.max(1, Math.floor(total))
+      return Math.max(1, total)
     }
 
     case ARCH_TUNE: {
@@ -457,7 +457,7 @@ function evalPckdCtxD(
                 : 0
           )
 
-      const normal = Math.floor(
+      const normal =
           perStackBase *
           context[contextOffset + OPTCTXHITSCL] *
           (1 + negFfctMltp) *
@@ -466,8 +466,7 @@ function evalPckdCtxD(
           (1 + specialPct / 100) *
           resMult *
           defMult *
-          (1 + dmgVulnPct / 100),
-      )
+          (1 + dmgVulnPct / 100)
 
       const crit = normal * context[contextOffset + OPTCTXNEGFFC]
 
@@ -481,7 +480,7 @@ function evalPckdCtxD(
     default: {
       // fixed damage ignores normal stat-scaling and crit calculations
       if (context[contextOffset + OPTCTXFXDDMG] > 0) {
-        return Math.max(1, Math.floor(context[contextOffset + OPTCTXFXDDMG]))
+        return Math.max(1, context[contextOffset + OPTCTXFXDDMG])
       }
 
       const normal =

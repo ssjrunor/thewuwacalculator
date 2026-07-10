@@ -9,6 +9,7 @@ import type {
   FormExpr,
   RtChng,
 } from '@/domain/gameData/contracts'
+import { truncTo } from '@/shared/lib/number.ts'
 
 // format a runtime path into readable title-cased text
 function formatPath(path: string): string {
@@ -25,11 +26,8 @@ function formatPath(path: string): string {
 
 // format numeric constants without unnecessary trailing zeros
 function formatConst(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value)
-  }
-
-  return value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
 }
 
 // format a formula expression into readable text

@@ -12,6 +12,7 @@ import {
   type NegEffectKey,
 } from '@/domain/gameData/negativeEffects'
 import { fmtFormExpr } from '@/shared/lib/formatGameData'
+import { truncTo } from '@/shared/lib/number.ts'
 import {featureMeta} from "@/modules/calculator/features/rotation/lib/features.ts";
 import {seedRsntById} from "@/modules/calculator/features/resonator/lib/seedData.ts";
 import {getRotNodeTm, getRotNodeSt} from "@/modules/calculator/features/rotation/lib/analytics.ts";
@@ -237,7 +238,8 @@ function fmtRotVl(value: RotVl): string {
 }
 
 function formatNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
 }
 
 function fmtPtmVl(value: RotVl): string {

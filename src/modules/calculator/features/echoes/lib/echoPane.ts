@@ -9,6 +9,7 @@ import { makeEchoUid } from '@/domain/entities/runtime.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
 import { STAT_ICON_MAP } from '@/modules/calculator/model/statsView.ts'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 const STAT_LABELS: Record<string, string> = {
   hpPercent: 'HP%',
@@ -70,10 +71,11 @@ export function fmtEchoStatV(key: string, value: number): string {
   }
 
   if (key === 'tuneBreakBoost') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+    const truncated = truncTo(value, 2)
+    return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
   }
 
-  return `${value.toFixed(1)}%`
+  return `${formatTruncCompact(value, 1)}%`
 }
 
 // resolve the stat icon asset used by the echo pane's mask icon

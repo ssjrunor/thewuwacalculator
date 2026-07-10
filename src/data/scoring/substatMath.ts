@@ -23,17 +23,13 @@ export interface SubstatRollBounds {
   max: number
 }
 
-export function roundStat(value: number): number {
-  return Number(value.toFixed(4))
-}
-
 export function aggregateSubstats(echoes: EchoInstance[]): SubstatTotals {
   const totals: Record<string, number> = {}
   const counts: Record<string, number> = {}
 
   for (const echo of echoes) {
     for (const [key, value] of Object.entries(echo.substats)) {
-      totals[key] = roundStat((totals[key] ?? 0) + value)
+      totals[key] = (totals[key] ?? 0) + value
       counts[key] = (counts[key] ?? 0) + 1
     }
   }

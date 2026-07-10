@@ -13,6 +13,7 @@ import { getNegBase as cmptNegFfctB } from '@/engine/formulas/negativeEffects.ts
 import { getTuneLevel } from '@/engine/formulas/tuneRupture.ts'
 import { mergeSkillType, makeModBuff } from '@/engine/resolvers/buffPool.ts'
 import { getSkillType, fmtSkllTypeL } from '@/modules/calculator/model/skillTypes.ts'
+import { formatTrunc, formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 type ShrdDmgCtx = {
   zeroed: boolean
@@ -75,16 +76,12 @@ function dmgTitle(label: string): string {
   return /\bDMG$/i.test(label.trim()) ? label : `${label} DMG`
 }
 
-const WHOLE_NUM_FMT = new Intl.NumberFormat('en-US', {
-  maximumFractionDigits: 0,
-})
-
 function fmtInt(value: number): string {
   if (!Number.isFinite(value)) {
     return '0'
   }
 
-  return WHOLE_NUM_FMT.format(Math.round(value))
+  return formatTrunc(value, 0)
 }
 
 function fmtFixed(value: number, digits = 4): string {
@@ -93,7 +90,7 @@ function fmtFixed(value: number, digits = 4): string {
   }
 
   const normalized = Math.abs(value) < 1e-12 ? 0 : value
-  return normalized.toFixed(digits)
+  return formatTruncCompact(normalized, digits)
 }
 
 function fmtNum(value: number, digits = 2): string {
@@ -102,7 +99,7 @@ function fmtNum(value: number, digits = 2): string {
   }
 
   const normalized = Math.abs(value) < 1e-12 ? 0 : value
-  return normalized.toLocaleString('en-US', {
+  return truncTo(normalized, digits).toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   })
@@ -501,7 +498,7 @@ function drctBrkd(
     addSection(
       sections,
       'core',
-      `core.fixed = ${fmtInt(entry.normal)} = max(1, floor(${fmtNum(skill.fixedDmg ?? 0, 2)}))`,
+      `core.fixed = ${fmtInt(entry.normal)} = max(1, ${fmtNum(skill.fixedDmg ?? 0, 2)})`,
       dstrHits.length > 1 || dstrHits.some((hit) => hit.count > 1 || hit.label)
         ? `core.spread = ${hitSpread(
           dstrHits,
@@ -516,7 +513,7 @@ function drctBrkd(
         `out.crit = ${fmtInt(entry.crit)} = fixed damage`,
         `out.avg = ${fmtInt(entry.avg)} = fixed damage`,
       ].join('\n'),
-      equation: `out.normal = ${fmtInt(entry.normal)} = max(1, floor(${fmtNum(skill.fixedDmg ?? 0, 2)}))`,
+      equation: `out.normal = ${fmtInt(entry.normal)} = max(1, ${fmtNum(skill.fixedDmg ?? 0, 2)})`,
       sections,
     }
   }
@@ -606,7 +603,7 @@ function spprBrkd(entry: FeatureResult, finalStats: FinalStats): DmgBreakdown {
   return {
     title: `${skill.label} ${supportType}`,
     summary: `out.normal = 0\nout.crit = 0`,
-    equation: `out.avg = ${fmtInt(entry.avg)} = max(1, floor(((${fmtNum(baseAbility, 2)} x ${fmtMulPct(skill.multiplier)})${nonZero(skill.flat) ? ` + ${fmtNum(skill.flat, 2)}` : ''}) x ${fmtMulPct(ttlMltp)}))`,
+    equation: `out.avg = ${fmtInt(entry.avg)} = max(1, ((${fmtNum(baseAbility, 2)} x ${fmtMulPct(skill.multiplier)})${nonZero(skill.flat) ? ` + ${fmtNum(skill.flat, 2)}` : ''}) x ${fmtMulPct(ttlMltp)})`,
     sections,
   }
 }

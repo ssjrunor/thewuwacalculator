@@ -31,6 +31,7 @@ import {getSkillType} from "@/modules/calculator/model/skillTypes.ts";
 import {ROT_SKILL_TABS} from "@/modules/calculator/model/skillTabs.ts";
 import type {SimResult} from "@/engine/pipeline/types.ts";
 import {seedRsntById} from "@/modules/calculator/features/resonator/lib/seedData.ts";
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 export function editMenu(config: EditConfig = {}): MenuEntry[] {
     // edit actions are built from optional callbacks so callers can expose the same menu shape while disabling actions
@@ -262,8 +263,8 @@ export function formatNumber(raw: number): string {
     }
 
     const rounded = Math.floor(raw)
-    if (rounded >= 1e9) return `${(rounded / 1e9).toFixed(1)}B`
-    if (rounded >= 1e6) return `${(rounded / 1e6).toFixed(1)}M`
+    if (rounded >= 1e9) return `${formatTruncCompact(rounded / 1e9, 1)}B`
+    if (rounded >= 1e6) return `${formatTruncCompact(rounded / 1e6, 1)}M`
     return rounded.toLocaleString()
 }
 

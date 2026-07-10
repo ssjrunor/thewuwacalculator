@@ -557,15 +557,14 @@ export function evalTgtCpuCmPrepped(options: {
       case ARCH_FUSION:
       case ARCH_GLACIO:
       case ARCH_ELECTRO: {
-        const normal = Math.floor(
+        const normal =
             prepared.multiplier *
             prepared.resMult *
             prepared.defMult *
             prepared.dmgReduction *
             prepared.dmgBonus *
             prepared.dmgAmplify *
-            prepared.aux0,
-        )
+            prepared.aux0
 
         const critRate = Math.max(0, Math.min(1, prepared.critRate))
         const critDmg = prepared.critDmg

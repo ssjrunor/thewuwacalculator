@@ -11,6 +11,7 @@ import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 import '../../styles/EchoGrid.css'
 
 export type EchoCardVar = 'full' | 'compact'
@@ -172,7 +173,7 @@ export function EchoCard({
               <span className="echo-card__main-badge">Main</span>
             )}
             {score != null && score > 0 && (
-              <span className="echo-score-badge">{score.toFixed(1)}%</span>
+              <span className="echo-score-badge">{formatTruncCompact(score, 1)}%</span>
             )}
           </div>
         </div>

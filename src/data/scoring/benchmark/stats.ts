@@ -13,6 +13,7 @@ import type { SuggestContext } from '@/engine/suggestions/types';
 import type { SetPlanEntry } from '@/engine/suggestions/types';
 import { ATTR_COLORS } from '@/modules/calculator/model/display.ts';
 import { getSkillType } from '@/modules/calculator/model/skillTypes.ts';
+import { truncTo } from '@/shared/lib/number.ts';
 import type { BenchmarkOverviewStatRow, BenchmarkOverviewStats, BenchmarkStatTreeLeaf, BenchmarkStatTreeNode, BenchmarkSubstatEntry, BuildBenchmark } from './types.ts';
 import {
   aggregateSubstats,
@@ -350,9 +351,9 @@ export function makeOverviewRow(
   return {
     key,
     label,
-    base: roundStat(base),
-    total: roundStat(total),
-    bonus: roundStat(total - base),
+    base,
+    total,
+    bonus: total - base,
     color,
   }
 }
@@ -470,7 +471,8 @@ const TABLE_SKILL_DMG_TYPES = new Set<SkillTypeKey>([
 ])
 
 function fmtInvariantNum(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
 }
 
 function fmtInvariantFlat(value: number): string {
@@ -492,7 +494,7 @@ function invariantLeaf(key: string, label: string, value: number, displayValue: 
     kind: 'leaf',
     key,
     label,
-    value: roundStat(value),
+    value,
     displayValue,
     color,
   }
@@ -604,16 +606,12 @@ export function equivalentRollCounts(totals: Record<string, number>): Record<str
   return counts
 }
 
-export function roundStat(value: number): number {
-  return Number(value.toFixed(4))
-}
-
 export function sumSubstats(echoes: EchoInstance[]): Record<string, number> {
   return aggregateSubstats(echoes).totals
 }
 
 export function addRecordTotal(record: Record<string, number>, key: string, value: number): void {
-  record[key] = roundStat((record[key] ?? 0) + value)
+  record[key] = (record[key] ?? 0) + value
 }
 
 export function addRecordSlot(record: Record<string, number[]>, key: string, slot: number): void {
@@ -688,20 +686,20 @@ export function makeSubstatPlan(
       if (fixedTotal != null) {
         return {
           key,
-          count: roundStat(count),
-          effectiveCount: roundStat(count),
-          rollValue: roundStat(count > 0 ? fixedTotal / count : 0),
-          total: roundStat(fixedTotal),
+          count,
+          effectiveCount: count,
+          rollValue: count > 0 ? fixedTotal / count : 0,
+          total: fixedTotal,
         }
       }
       const roll = rollOf(key)
       const effectiveCount = effectiveRollCount(count, params)
       return {
         key,
-        count: roundStat(count),
-        effectiveCount: roundStat(effectiveCount),
-        rollValue: roundStat(roll),
-        total: roundStat(effectiveCount * roll),
+        count,
+        effectiveCount,
+        rollValue: roll,
+        total: effectiveCount * roll,
       }
     })
     .sort((left, right) => right.count - left.count || right.total - left.total)

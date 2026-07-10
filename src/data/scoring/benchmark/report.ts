@@ -20,7 +20,7 @@ import { benchSetConds } from '@/data/scoring/setStatePolicy';
 import { buildSetRows, type DynamicSetStatePart } from '@/engine/optimizer/encode/sets';
 import type { SntSetConds } from '@/domain/entities/sonataSetConditionals';
 import type { BenchmarkAlternative, BenchmarkReportOpts, BenchmarkReportSections, BenchmarkRotationSummary, BenchmarkSetSummary, BuildBenchmark, BuildBenchmarkReport, DefRotBenchIn } from './types.ts';
-import { BENCHMARK_ROLL_SOURCE, ENERGY_REGEN, MAXIMUM_ROLL_SOURCE, normalizeRollParams, roundStat, scorePercentX100 } from './stats.ts';
+import { BENCHMARK_ROLL_SOURCE, ENERGY_REGEN, MAXIMUM_ROLL_SOURCE, normalizeRollParams, scorePercentX100 } from './stats.ts';
 import { cloneEchoSlot, makeSetSummary, preservedMainEchoFor, retainsUtilityPlan, utilityPlanFor } from './echoDiscovery.ts';
 import { assembleBenchmark, benchmarkErTarget, buildBenchmark, buildBenchmarkAnchors, LEAN_SCORE_OPTIONS, type BenchCancelCheck, type BenchmarkAnchors, type BuildBenchmarkOptions } from './search.ts';
 import { makeBenchmarkKey } from '@/data/scoring/buildBenchmarkKey';
@@ -251,11 +251,11 @@ export function pushAlternative(
     ...meta,
     fromSets: meta.fromSets?.map((set) => ({ ...set })),
     toSets: meta.toSets?.map((set) => ({ ...set })) ?? result.sets.map((set) => ({ ...set })),
-    damage: roundStat(result.damage),
-    damageDelta: roundStat(result.damage - baseDamage),
-    damageDeltaPct: baseDamage > 0 ? roundStat(((result.damage - baseDamage) / baseDamage) * 100) : 0,
-    score: roundStat(score),
-    scoreDelta: roundStat(score - currentScore),
+    damage: result.damage,
+    damageDelta: result.damage - baseDamage,
+    damageDeltaPct: baseDamage > 0 ? ((result.damage - baseDamage) / baseDamage) * 100 : 0,
+    score,
+    scoreDelta: score - currentScore,
   })
 }
 
@@ -653,26 +653,26 @@ export function logBuildBenchmarkResult(
   const seed = getResSeedBy(runtimeId)
   const benchmarkParams = normalizeRollParams(BENCHMARK_ROLL_SOURCE, SUBSTAT_KEYS.length)
   const maximumParams = normalizeRollParams(MAXIMUM_ROLL_SOURCE, SUBSTAT_KEYS.length)
-  const header = `[build benchmark] ${seed?.name ?? runtimeId} ${roundStat(benchmark.percent * 100)}% ${benchmark.grade}`
+  const header = `[build benchmark] ${seed?.name ?? runtimeId} ${benchmark.percent * 100}% ${benchmark.grade}`
   console.groupCollapsed(header)
   console.table([
-    { build: '0%', damage: roundStat(benchmark.baselineDamage), score: 0, quality: 0, rollGoal: 0, freeRolls: 0 },
-    { build: 'Active', damage: roundStat(benchmark.userDamage), score: roundStat(benchmark.percent * 100) },
+    { build: '0%', damage: benchmark.baselineDamage, score: 0, quality: 0, rollGoal: 0, freeRolls: 0 },
+    { build: 'Active', damage: benchmark.userDamage, score: benchmark.percent * 100 },
     {
       build: '100%',
-      damage: roundStat(benchmark.benchmarkDamage),
+      damage: benchmark.benchmarkDamage,
       score: 100,
       quality: benchmarkParams.quality,
-      rollGoal: roundStat(benchmarkParams.substatGoal),
-      freeRolls: roundStat(benchmarkParams.freeRolls),
+      rollGoal: benchmarkParams.substatGoal,
+      freeRolls: benchmarkParams.freeRolls,
     },
     {
       build: '200%',
-      damage: roundStat(benchmark.perfectionDamage),
+      damage: benchmark.perfectionDamage,
       score: 200,
       quality: maximumParams.quality,
-      rollGoal: roundStat(maximumParams.substatGoal),
-      freeRolls: roundStat(maximumParams.freeRolls),
+      rollGoal: maximumParams.substatGoal,
+      freeRolls: maximumParams.freeRolls,
     },
   ])
   console.log('Active build', benchmark.builds.active)

@@ -4,6 +4,7 @@
 */
 
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 export interface OptDsplStts {
   atk: number
@@ -68,7 +69,7 @@ export function Row({
   const diff =
     base || !baseDamage || baseDamage <= 0
       ? '100.00'
-      : ((damage / baseDamage) * 100).toFixed(2)
+      : formatTruncCompact((damage / baseDamage) * 100, 2)
 
   function viewSetBdgs() {
     if (!sets || sets.length === 0) return <span className="empty-set">…</span>
@@ -156,14 +157,14 @@ export function Row({
       <div className="opt-result-row__col">{renderStat(stats?.atk, (value) => Math.floor(value).toString())}</div>
       <div className="opt-result-row__col">{renderStat(stats?.hp, (value) => Math.floor(value).toString())}</div>
       <div className="opt-result-row__col">{renderStat(stats?.def, (value) => Math.floor(value).toString())}</div>
-      <div className="opt-result-row__col">{renderStat(stats?.er, (value) => value.toFixed(1))}</div>
-      <div className="opt-result-row__col">{renderStat(stats?.cr, (value) => value.toFixed(1))}</div>
-      <div className="opt-result-row__col">{renderStat(stats?.cd, (value) => value.toFixed(1))}</div>
+      <div className="opt-result-row__col">{renderStat(stats?.er, (value) => formatTruncCompact(value, 1))}</div>
+      <div className="opt-result-row__col">{renderStat(stats?.cr, (value) => formatTruncCompact(value, 1))}</div>
+      <div className="opt-result-row__col">{renderStat(stats?.cd, (value) => formatTruncCompact(value, 1))}</div>
       {!rotationMode ? (
-        <div className="opt-result-row__col">{renderStat(stats?.bonus, (value) => value.toFixed(1))}</div>
+        <div className="opt-result-row__col">{renderStat(stats?.bonus, (value) => formatTruncCompact(value, 1))}</div>
       ) : null}
       {!rotationMode ? (
-        <div className="opt-result-row__col">{renderStat(stats?.amp, (value) => value.toFixed(1))}</div>
+        <div className="opt-result-row__col">{renderStat(stats?.amp, (value) => formatTruncCompact(value, 1))}</div>
       ) : null}
       <div className="opt-result-row__col opt-result-row__col--dmg avg">{Math.floor(damage || 0)}</div>
       <div className="opt-result-row__col opt-result-row__col--eff">{diff}%</div>

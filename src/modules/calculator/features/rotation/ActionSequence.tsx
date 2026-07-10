@@ -21,6 +21,7 @@ import type {
 } from '@/modules/calculator/features/rotation/lib/sequence.ts'
 import { getStateText } from '@/modules/calculator/model/sourceStateDisplay.ts'
 import { fmtRtChng } from '@/shared/lib/formatGameData.ts'
+import { truncTo } from '@/shared/lib/number.ts'
 import {seedRsntById} from "@/modules/calculator/features/resonator/lib/seedData.ts";
 import {withDefResMg} from "@/shared/lib/imageFallback.ts";
 
@@ -47,11 +48,8 @@ function fmtSttVl(
 }
 
 function fmtCondNmbr(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value)
-  }
-
-  return value.toFixed(2).replace(/\.?0+$/, '')
+  const truncated = truncTo(value, 2)
+  return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
 }
 
 function prsSrcRefFro(value: string): { type: DataSrcType; id: string } | null {

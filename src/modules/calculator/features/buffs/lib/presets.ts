@@ -47,6 +47,7 @@ import {
   SKLLSCLRPTNS,
 } from '@/modules/calculator/features/buffs/lib/options.ts'
 import { resPssvPrms } from '@/modules/calculator/features/weapons/lib/weapon.ts'
+import { truncTo } from '@/shared/lib/number.ts'
 import { makeModId } from './helpers.ts'
 
 export type BuffPresetSourceKind = 'echo' | 'echoSet' | 'weapon'
@@ -397,8 +398,9 @@ function getOptionLabel(
 }
 
 function formatValue(value: number, suffix = '%'): string {
-  const rounded = Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
-  return `+${rounded}${suffix}`
+  const truncated = truncTo(value, 2)
+  const display = Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
+  return `+${display}${suffix}`
 }
 
 function scalarSuffix(field: string): string {

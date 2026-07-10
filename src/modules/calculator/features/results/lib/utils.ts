@@ -6,6 +6,7 @@
 import type { SkillDef, SkillSubHit } from '@/domain/entities/stats.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
 import type { TeamMemCntr } from '@/domain/entities/inventoryStorage.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 // utility builders that keep the results pane damage and summary tables aligned with the latest simulation.
 const SUBHITNMBRFR = new Intl.NumberFormat('en-US', {
@@ -37,11 +38,11 @@ export function shldViewSubH(subHits: SkillSubHit[]): boolean {
 }
 
 export function fmtCntrPrcn(value: number): string {
-  if (value >= 99.95) {
+  if (value >= 100) {
     return '100%'
   }
 
-  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)}%`
+  return `${value >= 10 ? formatTruncCompact(value, 0) : formatTruncCompact(value, 1)}%`
 }
 
 function getLoopVrgDv(entry: SimResult['perSkill'][number]): number {

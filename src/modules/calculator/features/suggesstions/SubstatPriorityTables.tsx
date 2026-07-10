@@ -11,6 +11,7 @@ import type { CSSProperties } from 'react'
 import type { SubstatEntry } from '@/engine/suggestions/substat-priority/compute.ts'
 import type { SubstatBenchmark, SubstatBenchRow } from '@/data/scoring/substatBenchmark.ts'
 import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 // view row augments the engine result with the relative contribution share
 export type SubstatViewRow = SubstatEntry & {
@@ -91,17 +92,17 @@ function fmtSubstatCell(row: SubstatViewRow, column: SubstatColumn): string {
   }
 
   if (column.format === 'count') {
-    return value.toFixed(0)
+    return formatTruncCompact(value, 0)
   }
 
   if (column.format === 'percent') {
     if (column.kind === 'gain') {
-      return `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}%`
+      return `${value >= 0 ? '+' : '−'}${formatTruncCompact(Math.abs(value), 2)}%`
     }
     if (column.kind === 'loss') {
-      return `−${Math.abs(value).toFixed(2)}%`
+      return `−${formatTruncCompact(Math.abs(value), 2)}%`
     }
-    return `${value.toFixed(2)}%`
+    return `${formatTruncCompact(value, 2)}%`
   }
 
   if (column.kind === 'loss') {
@@ -133,7 +134,7 @@ function appliedSteps(amount: number, step: number): string {
   if (step <= 0) {
     return '0'
   }
-  const count = Math.round((amount / step) * 10) / 10
+  const count = truncTo(amount / step, 1)
   return Number.isInteger(count) ? String(count) : count.toFixed(1)
 }
 
@@ -223,11 +224,11 @@ function buildBenchNote(bench: SubstatBenchRow): SubstatNoteLine[] {
       cells: 'vs base',
       text: isBase
         ? 'This row is your current build. It is the reference every other row is measured against, so there is nothing to compare it to.'
-        : `Its substat damage is ${bench.vsBaseSubPct >= 0 ? '+' : '−'}${Math.abs(bench.vsBaseSubPct).toFixed(2)}% ${bench.vsBaseSubPct >= 0 ? 'above' : 'below'} your current build's substats.`,
+        : `Its substat damage is ${bench.vsBaseSubPct >= 0 ? '+' : '−'}${formatTruncCompact(Math.abs(bench.vsBaseSubPct), 2)}% ${bench.vsBaseSubPct >= 0 ? 'above' : 'below'} your current build's substats.`,
     },
     {
       cells: 'Substat %',
-      text: `Substats make up ${bench.substatPct.toFixed(2)}% of this build's total damage.`,
+      text: `Substats make up ${formatTruncCompact(bench.substatPct, 2)}% of this build's total damage.`,
     },
     {
       cells: 'Build dmg',
@@ -398,13 +399,13 @@ export function SubstatPriorityTables({ rows, benchmark, steps }: SubstatPriorit
                               <span className="subx-dash">-</span>
                             ) : (
                               <span className="subx-figure">
-                                <span className="subx-figure__val">{`${bench.vsBaseSubPct >= 0 ? '+' : '−'}${Math.abs(bench.vsBaseSubPct).toFixed(2)}%`}</span>
+                                <span className="subx-figure__val">{`${bench.vsBaseSubPct >= 0 ? '+' : '−'}${formatTruncCompact(Math.abs(bench.vsBaseSubPct), 2)}%`}</span>
                               </span>
                             )}
                           </td>
                           <td className="subx-cell">
                             <span className="subx-figure">
-                              <span className="subx-figure__val">{`${bench.substatPct.toFixed(2)}%`}</span>
+                              <span className="subx-figure__val">{`${formatTruncCompact(bench.substatPct, 2)}%`}</span>
                             </span>
                           </td>
                           <td className="subx-cell subx-cell--ref">

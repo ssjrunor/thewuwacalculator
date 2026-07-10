@@ -16,6 +16,7 @@ import {
 import type { StatViewRow, StatsView } from '@/modules/calculator/model/statsView.ts'
 import { formatBuildBenchmarkScore } from '@/modules/calculator/model/buildBenchmarkDisplay.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { StatGlyph, statFamily, type BenchmarkEchoSelection, type CssVars } from './ui.tsx'
 
@@ -185,7 +186,7 @@ function ShowcaseEcho({
               {echo.mainEcho ? <span className="showcase-echo-tag">main</span> : null}
               {!hideCv ? (
                 <span className="showcase-echo-cv" style={{ '--cv-tone': getCvToneColor(cv) } as CssVars}>
-                  CV {cv.toFixed(1)}
+                  CV {formatTruncCompact(cv, 1)}
                 </span>
               ) : null}
             </span>
@@ -193,7 +194,7 @@ function ShowcaseEcho({
         </span>
         {!hideScore && score != null ? (
           <span className="showcase-echo-score">
-            <b>{Math.round(score)}</b>
+            <b>{formatTruncCompact(score, 0)}</b>
             <i>%</i>
           </span>
         ) : null}
@@ -369,7 +370,7 @@ export function ShowcaseBuild({
                   className="showcase-metric-v showcase-metric-v--cv"
                   style={totalCvTone ? { '--cv-tone': totalCvTone } as CssVars : undefined}
                 >
-                  {blank ? '-' : totalCv.toFixed(1)}
+                  {blank ? '-' : formatTruncCompact(totalCv, 1)}
                 </b>
                 <span className="showcase-metric-k">Crit Value</span>
               </div>
