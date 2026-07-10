@@ -10,7 +10,7 @@ import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 import { getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 
 const STATUS_DATA = {
-  lastUpdated: '06/07/2026',
+  lastUpdated: '09/07/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [
@@ -19,25 +19,19 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    'I added LOTS of stuff, i\'d love for you to read up on those (Just click the button below).',
-    '3.5.6 update for Yangyang: Xuanling, Suisui, Rover: Electro, Azure Oath (weapon) and Firstlight\'s Herald (weapon)',
-    'Enemies still don\'t seem to have an description even in the cn localized data so there\'s not much use in adding them yet UwU.',
+    'Version 3.5 update (It includes all version 3.5 data available)',
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
     { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
     { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets supported.' },
-    { title: 'Enemies',    status: 'wip' as const,  desc: 'All but 3.5 enemies supported.' },
+    { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies supported.' },
   ],
   recentChanges: [
-    '3.5.6 update.',
-    'Sub stat priority suggestions feature.',
-    'Scoring system revamp and a new benchmark page.',
-    'Showcase card/stuff... yeah.',
-    'A docs page for people that like reading.'
+    'Version 3.5 update.',
   ],
   knownIssues: [
-    "asides the missing game assets... nothing crazy right now :P"
+    "there's none."
   ]
 }
 

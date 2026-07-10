@@ -591,6 +591,15 @@ export const curChngEnts: ChngRcrd[] = [
     },
     shortDesc: `Scoring rework, new suggestions feature and new pages~! (〜^∇^)〜`,
   },
+  {
+    date: '09/07/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `Version 3.5 update.`,
+      }
+    ],
+  },
 ]
 
 export const ltstCurChngE =
