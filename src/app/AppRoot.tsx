@@ -6,9 +6,11 @@
 import { AppRouter } from '@/app/router/AppRouter'
 import { useCkBoot } from '@/app/hooks/useCookieBootstrap'
 import { usePageTrck } from '@/app/hooks/usePageTracking'
+import { useSeoMeta } from '@/app/hooks/useSeoMeta'
 
 export function AppRoot() {
   useCkBoot()
+  useSeoMeta()
   usePageTrck()
 
   return <AppRouter />

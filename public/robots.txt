@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /
+Sitemap: https://thewuwacalculator.com/sitemap.xml

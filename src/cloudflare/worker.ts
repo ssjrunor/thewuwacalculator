@@ -17,6 +17,8 @@ interface CldfEnv extends GglAuthEnv {
   }
 }
 
+const CANONICAL_HOST = 'thewuwacalculator.com'
+
 function makeJsonResponse({ body, status }: GoogleAuthResult): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -24,6 +26,22 @@ function makeJsonResponse({ body, status }: GoogleAuthResult): Response {
       'Content-Type': 'application/json',
     },
   })
+}
+
+function getCanonicalRedirect(request: Request): Response | null {
+  const url = new URL(request.url)
+  const host = url.hostname.toLowerCase()
+  const isCanonicalHost = host === CANONICAL_HOST
+
+  if (!isCanonicalHost) return null
+
+  let changed = false
+  if (url.protocol === 'http:') {
+    url.protocol = 'https:'
+    changed = true
+  }
+
+  return changed ? Response.redirect(url.toString(), 301) : null
 }
 
 async function onApiRqst(request: Request, env: CldfEnv): Promise<Response | null> {
@@ -45,6 +63,11 @@ async function onApiRqst(request: Request, env: CldfEnv): Promise<Response | nul
 
 export default {
   async fetch(request: Request, env: CldfEnv): Promise<Response> {
+    const canonicalRedirect = getCanonicalRedirect(request)
+    if (canonicalRedirect) {
+      return canonicalRedirect
+    }
+
     const apiResponse = await onApiRqst(request, env)
     if (apiResponse) {
       return apiResponse
