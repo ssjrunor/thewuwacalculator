@@ -5,13 +5,14 @@
 
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { chngSctn, getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
+import { chngSctn, getLatestWhatsNew, getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 import { HtmlContent } from '@/shared/ui/HtmlContent'
 import { History, Radio, ArrowRight } from 'lucide-react'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 
 export function ChngPage() {
   const linkedLatestWhatsNew = getLinkedWhatsNew(ltstCurChngE)
+  const latestWhatsNewId = getLatestWhatsNew()?.id ?? null
 
   return (
     <div className="page">
@@ -55,29 +56,49 @@ export function ChngPage() {
               ) : null}
 
             <div className="changelog-section">
-              {rvrsEnts.map((log, index) => (
-                <section key={`${section.id}-${index}`} className="page-tile page-tile--full changelog-entry">
-                  <div className="changelog-header">
-                    <div className="tile-icon"><History /></div>
-                    <div className="changelog-header-text">
-                      <h3 className="changelog-date">{log.date}</h3>
-                      {log.patchVersion && (
-                        <span className="page-pill">{log.patchVersion}</span>
-                      )}
+              {rvrsEnts.map((log, index) => {
+                const linkedWhatsNew = getLinkedWhatsNew(log)
+                const showWhatsNewLink = Boolean(linkedWhatsNew && linkedWhatsNew.id !== latestWhatsNewId)
+
+                return (
+                  <section key={`${section.id}-${index}`} className="page-tile page-tile--full changelog-entry">
+                    <div className="changelog-header">
+                      <div className="tile-icon"><History /></div>
+                      <div className="changelog-header-text">
+                        <h3 className="changelog-date">{log.date}</h3>
+                        {log.patchVersion && (
+                          <span className="page-pill">{log.patchVersion}</span>
+                        )}
+                      </div>
+                      {showWhatsNewLink && linkedWhatsNew ? (
+                        <Link
+                          to={`/changelog/whatsnew#${linkedWhatsNew.id}`}
+                          className="changelog-whatsnew-cta changelog-whatsnew-cta--entry"
+                        >
+                          <span className="changelog-whatsnew-cta__icon" aria-hidden="true">
+                            <Radio size={16} />
+                          </span>
+                          <span className="changelog-whatsnew-cta__text">
+                            <span className="changelog-whatsnew-cta__eyebrow">What's New · archive</span>
+                            <span className="changelog-whatsnew-cta__title">{linkedWhatsNew.title}</span>
+                          </span>
+                          <ArrowRight size={16} className="changelog-whatsnew-cta__arrow" aria-hidden="true" />
+                        </Link>
+                      ) : null}
                     </div>
-                  </div>
-                  {log.shortDesc && (
-                    <HtmlContent html={log.shortDesc} className="changelog-short" as="span" />
-                  )}
-                  <ul className="changelog-detail-list">
-                    {log.entries.map((entry, entryIndex) =>
-                      entry.type === 'paragraph' ? (
-                        <HtmlContent key={entryIndex} html={entry.content} as="li" />
-                      ) : null,
+                    {log.shortDesc && (
+                      <HtmlContent html={log.shortDesc} className="changelog-short" as="span" />
                     )}
-                  </ul>
-                </section>
-              ))}
+                    <ul className="changelog-detail-list">
+                      {log.entries.map((entry, entryIndex) =>
+                        entry.type === 'paragraph' ? (
+                          <HtmlContent key={entryIndex} html={entry.content} as="li" />
+                        ) : null,
+                      )}
+                    </ul>
+                  </section>
+                )
+              })}
             </div>
             </React.Fragment>
           )

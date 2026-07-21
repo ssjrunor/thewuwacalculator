@@ -20,6 +20,10 @@ export interface WnShot {
 }
 
 export type WnLayout = 'stage' | 'split' | 'splitReverse' | 'text'
+export type WnGridSpan = {
+  columns?: number | 'full'
+  rows?: number
+}
 
 export interface WnSection {
   id: string
@@ -28,6 +32,7 @@ export interface WnSection {
   body?: string[]
   media?: WnShot[]
   layout: WnLayout
+  span?: WnGridSpan
   // text acts can point at an in-app page; the whole card becomes a link
   href?: string
   linkText?: string
@@ -599,6 +604,161 @@ export const curChngEnts: ChngRcrd[] = [
         content: `Version 3.5 update.`,
       }
     ],
+  },
+  {
+    date: '20/07/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>Team Setup</strong> page got a full visual rebuild. Teammates now sit in a connected lineup with clearer roles, team count, quick member actions, and richer weapon, echo, and effect summaries at a glance.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Teammate editing is much more complex now too. Each teammate has a focused editor for loadout, effects, echoes, and buffs, so saved builds, weapons, echo loadouts, team effects, and manual buffs are all easier to manage in one place.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Saved echo browsing got a cleaner presentation with sharper echo cards, clearer stat rows, score and CV labels, set icons, equipped-by markers, and a larger selected-echo detail view on wide screens.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          The <strong>Optimizer</strong> now has an advanced inventory view for including or excluding saved echoes from a run, with visible included/excluded states and the same search, cost, and sonata filtering style as the rest of the app.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Resonator, weapon, echo, and enemy item menus were refreshed with larger artwork, cleaner badges, stronger selected states, and more useful detail rows. Recommended weapons now stand out more clearly as well.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          Combat setup got more readable in a few places: enemy combat effects now show Tune Strain responder cards with live breakdowns, and resonator pages now show Outro Skill cards when a character has one.
+        `,
+      },
+    ],
+    whatsNew: {
+      id: '2026-07-20-team-setup',
+      signal: '20.07',
+      tag: 'UPDATE',
+      title: 'New Stuff!!',
+      summary:
+        'Team Setup has a new lineup display, teammate editing is much deeper (and cleaner), optimizer inventory control is easier to see, and choice menus got a larger visual refresh.',
+      lede:
+        'The team side of the calculator got a big redesign. The lineup is easier to read, teammate editing is no longer a tiny side stop, and the menus for choosing resonators, weapons, echoes and enemies',
+      sections: [
+        {
+          id: 'team-lineup',
+          kicker: 'Team Setup',
+          title: 'The lineup now..',
+          body: [
+            'Team members now sit in a connected row instead of feeling like loose setup blocks.',
+            'Each teammate row also carries more visible context: weapon, main echo, sonata pieces, and team-facing effects are easier to scan before opening anything deeper.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/teampane.png`,
+              ar: 3360 / 1854,
+              alt: 'Team Setup page with connected teammate rows and visible loadout summaries',
+              caption: 'Swap, configure, or remove teammates straight from the row.',
+            },
+          ],
+          layout: 'stage',
+        },
+        {
+          id: 'teammate-editor',
+          kicker: 'Teammates',
+          title: 'One place for loadout, effects, echoes, and buffs',
+          body: [
+            'Each teammate now gets a larger editor split around the work you actually do: loadout, effects, echoes, and buffs.',
+            'Saved builds, weapon choices, echo slots, team effects, and manual buffs all live together now, so teammate setup involves much less jumping between separate calculator pages.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/teamconfig.png`,
+              ar: 3360 / 1854,
+              alt: 'Teammate editor showing loadout cards, weapon choices, stats, and section tabs',
+              caption: 'Teammate setup has its own space now.',
+            },
+          ],
+          layout: 'splitReverse',
+        },
+        {
+          id: 'optimizer-inventory',
+          kicker: 'Optimizer',
+          title: 'Decide which saved echoes are allowed',
+          body: [
+            'Optimizer inventory search now has an advanced view for including or excluding saved echoes from a run.',
+            'Included echoes stay bright, excluded echoes dim out, and status badges make it obvious what will be used before the run starts.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/optimizerinv.png`,
+              ar: 3360 / 1854,
+              alt: 'Optimizer inventory view with included and excluded echo cards',
+              caption: 'Useful when you want the optimizer to respect a smaller echo pool.',
+            },
+          ],
+          layout: 'split',
+        },
+        {
+          id: 'item-menus',
+          kicker: 'Item Menus',
+          title: 'Bigger cards, clearer choices',
+          body: [
+            'Resonator, weapon, echo, and enemy menus got a shared visual refresh. Item cards use larger artwork, clearer selected states, compact detail rows, and stronger badges.',
+            'Weapons can show recommended picks more clearly, echoes show cost and sonata information more cleanly, and resonators carry more visible attribute and weapon context.',
+          ],
+          media: [
+            {
+              kind: 'image',
+              src: `${S}/resopicker.png`,
+              ar: 3360 / 1854,
+              alt: 'Resonator menu with large character cards and metadata rows',
+              caption: 'Resonators are much easier to scan.',
+            },
+            {
+              kind: 'image',
+              src: `${S}/weaponpicker.png`,
+              ar: 3360 / 1854,
+              alt: 'Weapon menu with large weapon cards, stat rows, and recommendation badges',
+              caption: 'Recommended weapons stand out now.',
+            },
+            {
+              kind: 'image',
+              src: `${S}/echopicker.png`,
+              ar: 3360 / 1854,
+              alt: 'Echo menu with cost filters, sonata filtering, and large echo cards',
+              caption: 'Echo choices got the same treatment.',
+            },
+          ],
+          layout: 'stage',
+        },
+        {
+          id: 'combat-details',
+          kicker: 'Combat Details',
+          title: 'More effect information is visible where it matters',
+          body: [
+            'Enemy combat effects now show Tune Strain responder cards with live values and breakdowns, so the status is not just hidden behind a number.',
+            'Resonator pages also show Outro Skill cards when a character has one, including the relevant text and controls right alongside the rest of their kit.',
+          ],
+          layout: 'text',
+          span: { columns: 'full' },
+        },
+      ],
+    },
+    shortDesc: `New Stuff~! (〜^∇^)〜`,
   },
 ]
 

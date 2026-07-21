@@ -47,7 +47,7 @@
   margin: 0;
   height: fit-content;
   padding: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, color-mix(in srgb, var(--border) 50%, transparent));
   border-radius: var(--ui-surface-radius);
   background: var(--surface-2);
   box-shadow: var(--ui-surface-shadow);
@@ -1139,7 +1139,7 @@ input:is(.opt-qc__num):focus {
   font-size: 0.8rem;
   gap: 0.35rem;
   padding: 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, color-mix(in srgb, var(--border) 50%, transparent));
   border-radius: var(--ui-surface-radius);
   background: var(--surface-2);
   box-shadow: var(--ui-surface-shadow);
@@ -2708,7 +2708,7 @@ input:is(.opt-qc__num):focus {
   color: var(--muted);
 }
 
-.co-clear {
+.co-button {
   border: 0;
   background: none;
   font-size: 0.62rem;
@@ -2720,7 +2720,11 @@ input:is(.opt-qc__num):focus {
   transition: background 120ms ease, color 120ms ease;
 }
 
-.co-clear:hover {
+.co-clear {
+  --resonator-accent: var(--danger);
+}
+
+.co-button:hover {
   background: color-mix(in srgb, var(--resonator-accent, var(--accent)) 8%, transparent);
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 80%, var(--text));
 }
@@ -3121,6 +3125,10 @@ input:is(.opt-qc__num):focus {
   background: color-mix(in srgb, var(--item-border, var(--border)) 58%, transparent);
 }
 
+.co-set-dropdown__cmds--single {
+  grid-template-columns: 1fr;
+}
+
 .co-set-dropdown__cmd {
   min-width: 0;
   padding: 0.36rem 0.42rem;
@@ -3141,7 +3149,7 @@ input:is(.opt-qc__num):focus {
 
 .co-set-dropdown__board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--set-group-count, 3), minmax(0, 1fr));
   gap: 0.34rem;
   min-height: 0;
   overflow: hidden;
@@ -4315,4 +4323,82 @@ input:is(.opt-qc__num):focus {
   color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 90%, var(--text));
   font-size: 0.64rem;
   font-weight: 800;
+}
+
+.opt-inv-echo[data-included='false'] {
+  --echo-tile-enter-opacity: 0.38;
+  opacity: var(--echo-tile-enter-opacity);
+  filter: grayscale(0.42) saturate(0.36);
+}
+
+.opt-inv-echo[data-included='false']:is(:hover, :focus-visible),
+.opt-inv-echo[data-included='false'].focus-selected {
+  --echo-tile-enter-opacity: 0.72;
+  opacity: var(--echo-tile-enter-opacity);
+}
+
+.opt-inv-echo__status {
+  position: absolute;
+  top: 0.32rem;
+  right: 0.32rem;
+  --color: var(--ok);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--color) 26%, var(--picker-modal-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color) 12%, transparent);
+  color: var(--color);
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.opt-inv-echo__status-icon {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity 220ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.opt-inv-echo__status-icon--action {
+  opacity: 0;
+  transform: scale(0.78) rotate(-12deg);
+}
+
+.opt-inv-echo[data-included='true']:is(:hover, :focus-visible) .opt-inv-echo__status {
+  --color: var(--danger, crimson);
+}
+
+.opt-inv-echo[data-included='true']:is(:hover, :focus-visible) .opt-inv-echo__status-icon--current {
+  opacity: 0;
+  transform: scale(0.78) rotate(12deg);
+}
+
+.opt-inv-echo[data-included='true']:is(:hover, :focus-visible) .opt-inv-echo__status-icon--action {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+}
+
+.opt-inv-echo[data-included='false'] .opt-inv-echo__status {
+  --color: color-mix(in srgb, var(--picker-modal-muted) 90%, var(--picker-modal-text));
+  border-color: color-mix(in srgb, var(--picker-modal-muted) 32%, var(--picker-modal-border));
+}
+
+.opt-inv-rdt__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.opt-inv-rdt__action {
+  width: 100%;
 }

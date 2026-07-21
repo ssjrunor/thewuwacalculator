@@ -4,7 +4,7 @@
                and portal defaults for modal surfaces across the app.
 */
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { AppDialog } from '@/shared/ui/AppDialog'
 
@@ -30,6 +30,7 @@ interface AppMdlPrps {
   ariaLabel?: string
   ariaLabelBy?: string
   ariaDscrBy?: string
+  style?: CSSProperties
   onClose: () => void
   children: ReactNode
 }
@@ -67,7 +68,7 @@ function getVarClss(
     case 'suggestions-random':
       return { contentClass: 'app-modal-panel suggestions-modal suggestions-modal--random' }
     case 'team-config':
-      return { contentClass: 'app-modal-panel app-modal-panel--wide team-member-config-modal' }
+      return { contentClass: 'app-modal-panel mcc-modal' }
     case 'set-conditionals':
       return { contentClass: 'app-modal-panel ssc-modal' }
     case 'optimizer':
@@ -124,6 +125,7 @@ export function AppModal({
   ariaLabel,
   ariaLabelBy: ariaLabelBy,
   ariaDscrBy: ariaDscrBy,
+  style,
   onClose,
   children,
 }: AppMdlPrps) {
@@ -136,6 +138,7 @@ export function AppModal({
       closing={state.closing}
       portalTarget={mainPortal()}
       contentClass={classes.contentClass}
+      contentStyle={style}
       ariaLabel={ariaLabel}
       ariaLabelBy={ariaLabelBy}
       ariaDscrBy={ariaDscrBy}

@@ -30,11 +30,13 @@ export interface DataSrcRef {
   id: string
 }
 
-export type SrcOwnScp = 'resonator' | 'weapon' | 'echo' | 'team' | 'sequence' | 'inherent'
+export type SrcOwnScp = 'resonator' | 'weapon' | 'echo' | 'team' | 'sequence' | 'inherent' | 'outroSkill' | 'combatState'
 export type SrcOwnKind =
     | 'stateGroup'
     | 'inherent'
     | 'sequence'
+    | 'outroSkill'
+    | 'combatState'
     | 'teamBuff'
     | 'buffWindow'
     | 'weaponPassive'
@@ -89,6 +91,8 @@ export interface SourceState {
   disabledReason?: string
   visibleWhen?: CondExpr
   enabledWhen?: CondExpr
+  surface?: 'enemy'
+  combatStateType?: 'tuneStrain'
 }
 
 export type EvalScpRoot =

@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: renders the optimizer surface for the calculator optimizer flow.
+  Description: Coordinates optimizer settings, search execution, result
+               filtering, preview state, and build application.
 */
 
 import {type ReactNode, useCallback, useRef} from 'react'
@@ -10,6 +11,7 @@ import type {RotationNode} from '@/domain/gameData/contracts'
 import {DEF_SET_COND} from '@/domain/entities/sonataSetConditionals'
 import type { EchoInstance, ResRuntime, TeamMemRt } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
+import { makeOptInventorySelection } from '@/domain/entities/profile'
 import { makeTeamMember, maxRtInit } from '@/domain/state/defaults'
 import { initWpnStts, maxWpnRt } from '@/domain/state/sourceStateInit'
 import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
@@ -78,6 +80,7 @@ import { OPT_SKILL_TABS, getSkillTabLabel } from '@/modules/calculator/model/ski
 import {modalContent} from '@/modules/calculator/features/optimizer/Modals.tsx'
 import { OptPrvwEchoT } from '@/modules/calculator/features/optimizer/lib/parts.tsx'
 import { ResultToolbar } from '@/modules/calculator/features/optimizer/ResultToolbar.tsx'
+import { OptimizerInventoryModal } from '@/modules/calculator/features/optimizer/OptimizerInventoryModal.tsx'
 import {
   plchRslt,
   vsblRsltsAt as getRowsAt,
@@ -150,6 +153,7 @@ export function Optimizer() {
   ))
   const invEchoEnts = useAppStore((state) => state.calculator.inventoryEchoes)
   const optProfiles = useAppStore((state) => state.calculator.profiles)
+  const optInvEchoSg = useMemo(() => mkInvEchoSgB(optProfiles), [optProfiles])
   const invRttn = useAppStore((state) => state.calculator.inventoryRotations)
   const optCpuHintSe = useAppStore((state) => state.ui.optimizerCpuHintSeen)
   const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
@@ -176,6 +180,12 @@ export function Optimizer() {
   const cnclOpt = useAppStore((state) => state.cnclOpt)
   const clrOptRslts = useAppStore((state) => state.clrOptRslt)
   const optResId = optimizer?.resonatorId ?? actResId
+  const optInvSelection = useAppStore((state) => (
+    optResId
+      ? state.calculator.profiles[optResId]?.runtime.local.optimizerInventory
+      : null
+  )) ?? makeOptInventorySelection()
+  const updResOptInv = useAppStore((state) => state.updResOptInv)
 
   useEffect(() => {
     ensureOptimizer()
@@ -237,6 +247,7 @@ export function Optimizer() {
   const rulesModal = useAppModal()
   const setCondsMdl = useAppModal()
   const wpnCondMdl = useAppModal()
+  const optInvMdl = useAppModal()
   const quickPickModal = useAppMdlVl<number>()
   const mainEchoPckr = useAppMdlVl<OpEchoTarget>()
   const resPckr = useAppMdlVl<OpSlot>()
@@ -536,21 +547,24 @@ export function Optimizer() {
     }))
   }, [comboOptions, optSets, updOptSets])
 
-  const optInvEchoE = useMemo(() => {
-    if (isThryMode || !optSets?.excludeEquipped || !optResId) {
+  const optBaseInvEchoE = useMemo(() => {
+    if (isThryMode) {
       return invEchoEnts
     }
 
-    const invEchoSg = mkInvEchoSgB(optProfiles)
+    if (!optSets?.excludeEquipped || !optResId) {
+      return invEchoEnts
+    }
+
     return invEchoEnts.filter(({ echo }) => {
-      const owners = invEchoSg[echo.uid] ?? []
+      const owners = optInvEchoSg[echo.uid] ?? []
       return !owners.some((owner) => owner.resonatorId !== optResId)
     })
-  }, [invEchoEnts, isThryMode, optProfiles, optResId, optSets?.excludeEquipped])
+  }, [invEchoEnts, isThryMode, optInvEchoSg, optResId, optSets?.excludeEquipped])
 
   const fltrRuleEcho = useMemo(() => {
     if (!optSets) {
-      return optInvEchoE
+      return optBaseInvEchoE
     }
 
     const llwdSetIds = optSetIdSet(optSets.allowedSets)
@@ -560,13 +574,13 @@ export function Optimizer() {
         .filter((value): value is string => Boolean(value)),
     )
 
-    return optInvEchoE.filter(({ echo }) => {
+    return optBaseInvEchoE.filter(({ echo }) => {
       if (llwdSetIds.size > 0 && !llwdSetIds.has(echo.set)) {
         return false
       }
       return !(llwdMainStat.size > 0 && !llwdMainStat.has(echo.mainStats.primary.key));
     })
-  }, [optInvEchoE, optSets])
+  }, [optBaseInvEchoE, optSets])
 
   const allEchoes = useMemo(() => listEchoes(), [])
 
@@ -649,7 +663,7 @@ export function Optimizer() {
     })
   }, [effectRuntime, enemyProfile, optSets, prepTgtSkll, rotationMode])
 
-  const fltrInvEchoE = useMemo(() => {
+  const optEligibleInvEchoE = useMemo(() => {
     if (!optSets) {
       return fltrRuleEcho
     }
@@ -672,6 +686,23 @@ export function Optimizer() {
       .map((echo) => entriesByUid.get(echo.uid) ?? null)
       .filter((entry): entry is (typeof fltrRuleEcho)[number] => Boolean(entry))
   }, [fltrRuleEcho, optSets, optWghtMap])
+
+  const fltrInvEchoE = useMemo(() => {
+    if (isThryMode) {
+      return optEligibleInvEchoE
+    }
+
+    const trackedUids = new Set(optInvSelection.echoUids)
+    if (optInvSelection.mode === 'include') {
+      return optEligibleInvEchoE.filter(({ echo }) => echo.uid && trackedUids.has(echo.uid))
+    }
+
+    if (trackedUids.size === 0) {
+      return optEligibleInvEchoE
+    }
+
+    return optEligibleInvEchoE.filter(({ echo }) => !echo.uid || !trackedUids.has(echo.uid))
+  }, [isThryMode, optEligibleInvEchoE, optInvSelection])
 
   const fltrComboChs = useMemo(
     () => fltrInvEchoE.map((entry) => entry.echo),
@@ -1361,6 +1392,14 @@ export function Optimizer() {
     }
 
     return listWpnsByTy(seed.weaponType)
+  }, [selWpnPckrRt])
+
+  const selWpnPckrRecs = useMemo(() => {
+    if (!selWpnPckrRt) {
+      return []
+    }
+
+    return seedRsntById[selWpnPckrRt.id]?.recommendedWeaponIds ?? []
   }, [selWpnPckrRt])
 
   const selWpnPckroe = useMemo(() => {
@@ -2081,6 +2120,7 @@ export function Optimizer() {
                 }}
                 onOptRtPdt={updOptRt}
                 onOpenMainEcho={openMainEcho}
+                onOpenInventorySearch={optInvMdl.show}
                 onOpenSetCond={setCondsMdl.show}
                 onOpenWpnCond={wpnCondMdl.show}
                 onClrMainEyq={() => {
@@ -2451,6 +2491,23 @@ export function Optimizer() {
         onClose={clsMainEchoP}
       />
 
+      <OptimizerInventoryModal
+        visible={optInvMdl.visible}
+        open={optInvMdl.open}
+        closing={optInvMdl.closing}
+        invChs={optEligibleInvEchoE}
+        echoSgByUid={optInvEchoSg}
+        resonatorId={optResId ?? actResId ?? ''}
+        selection={optInvSelection}
+        onSelectionChange={(updater) => {
+          if (!optResId) {
+            return
+          }
+          updResOptInv(optResId, updater)
+        }}
+        onClose={optInvMdl.hide}
+      />
+
       <ResPckrMdl
         visible={resPckr.visible}
         open={resPckr.open}
@@ -2499,6 +2556,7 @@ export function Optimizer() {
             ? selWpnPckrRt.build.weapon.id
             : null
         }
+        recommendedWeaponIds={selWpnPckrRecs}
         onSelect={(weaponId) => {
           if (selWpnPckrSl === null) {
             return

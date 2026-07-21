@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the pane surface for the calculator weapons flow.
+  Description: Edits active weapon selection, rank, weapon runtime controls,
+               and source-owner detail rendering for the current resonator.
 */
 
 import { useMemo } from 'react'
@@ -32,6 +33,7 @@ import { SourceStateCtrl } from '@/modules/calculator/features/controls/SourceSt
 import { isSourceVisible } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import type { RtUpdHnd } from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 import { clampNumber } from '@/shared/lib/number.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
@@ -223,6 +225,7 @@ export function Weapon({ runtime, onRtPdt: onRtPdt }: CalcWpnPaneP) {
         portalTarget={mdlPrtlTgt}
         weapons={weapons}
         selWpnId={actWpnId}
+        recommendedWeaponIds={resonator?.recommendedWeaponIds ?? []}
         onClose={() => weaponMenu.hide()}
         onSelect={onWpnSel}
       />
@@ -238,8 +241,11 @@ export function Weapon({ runtime, onRtPdt: onRtPdt }: CalcWpnPaneP) {
         <div className="weapon-banner__top">
           <button
             type="button"
-            className={`resonator-avatar-button weapon-banner__avatar rarity-${weaponRarity}`}
-            style={{ '--rstars': weaponRarity } as CssProps}
+            className="resonator-avatar-button weapon-banner__avatar"
+            style={{
+              ...rarityVars(weaponRarity, false, '--avatar-rarity-color'),
+              '--rstars': weaponRarity,
+            } as CssProps}
             aria-label="Open weapon selector"
             onClick={() => {
               if (weaponMenu.open) {

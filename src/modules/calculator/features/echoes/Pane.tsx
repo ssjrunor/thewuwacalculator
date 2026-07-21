@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: renders the pane surface for the calculator echoes flow.
+  Description: Owns equipped-echo edits, inventory handoff, clipboard actions,
+               build saving, and benchmark scoring for the active runtime.
 */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -15,7 +16,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
-import { areMkSnpsQvl, areEchoNstnQ, cloneEchoLdt } from '@/domain/entities/inventoryStorage.ts'
+import { areEchoNstnQ, areMkSnpsQvl, areSameEchoN, cloneEchoFor, cloneEchoLdt } from '@/domain/entities/inventoryStorage.ts'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
 import { listStatesFor } from '@/domain/services/gameDataService.ts'
@@ -100,7 +101,7 @@ export function Echoes({
   const findEchoInIn = useCallback((echo: EchoInstance) => {
     // prefer the saved uid when the equipped echo matches an inventory entry, otherwise search for the equipped uid
     // itself so temporary echoes still narrow the bag.
-    const savedEntry = invChs.find((entry) => areEchoNstnQ(entry.echo, echo))
+    const savedEntry = invChs.find((entry) => areSameEchoN(entry.echo, echo))
     setInvEchoSr(savedEntry?.echo.uid ?? echo.uid)
     openInv()
   }, [invChs, openInv, setInvEchoSr])
@@ -313,11 +314,13 @@ export function Echoes({
         echo ? getEchoScrPr(runtime.id, echo) : null,
     )
   }, [hasWeights, runtime.id, runtime.build.echoes])
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
 
   const { score: buildScore } = useAsmBenchScore({
     runtime,
     runtimesById: partRntmById,
     targetSelections: selTrgtByOwn,
+    tuneStrain: enemyTuneStrain,
   })
 
   const mdlPrtlTgt = mainPortal()
@@ -371,17 +374,38 @@ export function Echoes({
     })
   }, [onRtPdt])
 
-  const saveChsToInv = useCallback((echoes: EchoInstance[]) => {
+  const saveSlotsToInv = useCallback((slotIndexes: number[]) => {
     let savedCount = 0
+    const refreshedEchoes = new Map<number, EchoInstance>()
 
-    for (const echo of echoes) {
-      if (addEchoToInv(echo)) {
+    for (const slotIndex of slotIndexes) {
+      const echo = runtime.build.echoes[slotIndex]
+      if (!echo) {
+        continue
+      }
+
+      const savedEntry = addEchoToInv(echo)
+      if (savedEntry) {
         savedCount += 1
+        if (!areSameEchoN(savedEntry.echo, echo)) {
+          refreshedEchoes.set(slotIndex, cloneEchoFor(savedEntry.echo, slotIndex))
+        }
       }
     }
 
+    if (refreshedEchoes.size > 0) {
+      onRtPdt((prev) => {
+        const nextEchoes = [...prev.build.echoes]
+        for (const [slotIndex, echo] of refreshedEchoes) {
+          nextEchoes[slotIndex] = echo
+        }
+
+        return { ...prev, build: { ...prev.build, echoes: nextEchoes } }
+      })
+    }
+
     return savedCount
-  }, [addEchoToInv])
+  }, [addEchoToInv, onRtPdt, runtime.build.echoes])
 
   const mkEchoClpbPa = useCallback((echoes: EchoInstance[]): EchoClipPayload => ({
     kind: ECHO_CLIP_KIND,
@@ -490,7 +514,7 @@ export function Echoes({
       return
     }
 
-    const savedCount = saveChsToInv([echo])
+    const savedCount = saveSlotsToInv([slotIndex])
 
     if (savedCount === 0) {
       showToast({
@@ -506,7 +530,7 @@ export function Echoes({
       variant: 'success',
       duration: 2400,
     })
-  }, [runtime.build.echoes, saveChsToInv, showToast])
+  }, [runtime.build.echoes, saveSlotsToInv, showToast])
 
   const copyEchoAtSl = useCallback(async (slotIndex: number) => {
     const echo = runtime.build.echoes[slotIndex]
@@ -586,16 +610,21 @@ export function Echoes({
       return
     }
 
-    for (const echo of svblQppdChs) {
-      addEchoToInv(echo)
-    }
+    const slotIndexes = runtime.build.echoes.reduce<number[]>((result, echo, slotIndex) => {
+      if (echo && canSaveEcho(echo)) {
+        result.push(slotIndex)
+      }
+
+      return result
+    }, [])
+    const savedCount = saveSlotsToInv(slotIndexes)
 
     showToast({
-      content: `Saved ${svblQppdChs.length} echo${svblQppdChs.length === 1 ? '' : 'es'} to bag.`,
+      content: `Saved ${savedCount} echo${savedCount === 1 ? '' : 'es'} to bag.`,
       variant: 'success',
       duration: 3000,
     })
-  }, [addEchoToInv, svblQppdChs, showToast])
+  }, [canSaveEcho, runtime.build.echoes, saveSlotsToInv, svblQppdChs.length, showToast])
 
   const onNqpAllChs = useCallback(() => {
     confirmation.confirm({

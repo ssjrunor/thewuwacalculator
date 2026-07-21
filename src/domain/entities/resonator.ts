@@ -1,7 +1,8 @@
 /*
   Author: Runor Ewhro
   Description: Defines resonator catalog entities, including skill tabs,
-               state controls, ui panels, metadata, and generated game data.
+               authored state controls, display panels, metadata, and generated
+               game data.
 */
 
 import type {
@@ -71,6 +72,8 @@ export interface ResStateControl {
   }
 }
 
+export type ResCombatStateType = 'tuneStrain'
+
 export interface ResModeOption {
   id: string
   label: string
@@ -123,6 +126,8 @@ export interface ResStateNode {
   displayMultiplier?: number
   inputMax?: number
   description?: string
+  surface?: 'enemy'
+  combatStateType?: ResCombatStateType
 }
 
 export interface ResStateGroup {
@@ -158,6 +163,18 @@ export interface ResSttPnl {
   keywords?: string[]
   unlockWhen?: CondExpr
   stateKeys: string[]
+  controls: ResStateControl[]
+}
+
+export interface ResCombatStt {
+  id?: string
+  title: string
+  body: string
+  type?: ResCombatStateType
+  param?: Array<string | number>
+  keywords?: string[]
+  unlockWhen?: CondExpr
+  stateKeys?: string[]
   controls: ResStateControl[]
 }
 
@@ -218,6 +235,28 @@ export interface ResNhrnSkll {
   keywords?: string[]
 }
 
+export interface ResOutroSection {
+  id?: string
+  title: string
+  body: string
+  param?: string[]
+  controls?: ResStateControl[]
+  stateKeys?: string[]
+  keywords?: string[]
+  unlockWhen?: CondExpr
+}
+
+export interface ResOutroSkill {
+  ownerKey?: string
+  name: string
+  desc: string
+  param: string[]
+  controls?: ResStateControl[]
+  stateKeys?: string[]
+  keywords?: string[]
+  sections?: ResOutroSection[]
+}
+
 export interface RsnnChn {
   index: number
   ownerKey?: string
@@ -244,9 +283,16 @@ export interface ResMenuEnt {
   id: string
   displayName: string
   profile: string
+  sprite: string
   rarity: 4 | 5
   attribute: AttributeKey
   weaponType: 1 | 2 | 3 | 4 | 5
+  tags?: Array<{
+    id: string
+    name: string
+    desc: string
+    color: string
+  }>
 }
 
 export interface ResDtls {
@@ -255,7 +301,9 @@ export interface ResDtls {
   stateGraph?: ResStateGraph
   modeGroups?: ResModeGroup[]
   statePanels: ResSttPnl[]
+  combatStates: ResCombatStt[]
   inherentSkills: ResNhrnSkll[]
+  outroSkills: ResOutroSkill[]
   resonanceChains: RsnnChn[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]
@@ -276,11 +324,20 @@ export interface Resonator {
   baseStats: ResBaseStats
   baseStatsByLevel?: Partial<Record<number, { hp: number; atk: number; def: number }>>
   defaultWeaponId: string | null
+  recommendedWeaponIds?: string[]
+  tags?: Array<{
+    id: string
+    name: string
+    desc: string
+    color: string
+  }>
   skillsByTab: Partial<Record<SkillTabKey, ResSkllPnl>>
   stateGraph?: ResStateGraph
   modeGroups?: ResModeGroup[]
   statePanels: ResSttPnl[]
+  combatStates: ResCombatStt[]
   inherentSkills: ResNhrnSkll[]
+  outroSkills: ResOutroSkill[]
   resonanceChains: RsnnChn[]
   traceNodes: TraceNode[]
   descriptionKeywords?: string[]

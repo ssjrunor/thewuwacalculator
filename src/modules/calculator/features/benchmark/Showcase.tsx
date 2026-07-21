@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Renders the benchmark showcase build card, including stat
+               ladders, echo scoring, sonata badges, and relevant-stat emphasis.
+*/
+
 import { useMemo } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import type { StatsColumnHighlight } from '@/domain/entities/preferences'
@@ -9,7 +15,6 @@ import { cmptEchoCrit, cmptEchoCritAll, getCvToneColor, getScrTone } from '@/mod
 import { getEchoScrPr } from '@/data/scoring/echoScoring.ts'
 import {
   formatCompactNum,
-  formatStatValue,
   formatStatKeyLabel,
   formatStatKeyValue,
 } from '@/modules/calculator/model/statsView.ts'
@@ -25,17 +30,6 @@ interface ShowcaseSonataEntry {
   pieces: number
   icon: string | null
   name: string
-}
-
-const SHOWCASE_STAT_KEY: Record<string, string> = {
-  ATK: 'atk',
-  HP: 'hp',
-  DEF: 'def',
-  'Energy Regen': 'energyRegen',
-  'Crit Rate': 'critRate',
-  'Crit DMG': 'critDmg',
-  'Healing Bonus': 'healingBonus',
-  'Tune Break Boost': 'tuneBreakBoost',
 }
 
 function clampPct(value: number): number {
@@ -88,7 +82,7 @@ function ShowcaseStatRow({
   blank?: boolean
   relevant: boolean
 }) {
-  const statKey = SHOWCASE_STAT_KEY[row.label]
+  const statKey = row.key
   return (
     <div
       className="showcase-row"
@@ -101,9 +95,9 @@ function ShowcaseStatRow({
       <span className="showcase-row-label">{row.label}</span>
       <span className="showcase-row-lead" aria-hidden="true" />
       <span className="showcase-row-build">
-        {blank || buildTotal == null ? '-' : formatStatValue(row.label, buildTotal)}
+        {blank || buildTotal == null ? '-' : formatStatKeyValue(row.key, buildTotal)}
       </span>
-      <span className="showcase-row-combat">{blank ? '-' : formatStatValue(row.label, row.total)}</span>
+      <span className="showcase-row-combat">{blank ? '-' : formatStatKeyValue(row.key, row.total)}</span>
     </div>
   )
 }
@@ -315,9 +309,11 @@ export function ShowcaseBuild({
   const totalCvTone = !blank && totalCv > 0 ? getCvToneColor((totalCv - (44 * cv4Cost)) / 5) : undefined
   const relStats = useMemo(() => makeRelStats(charId), [charId])
   const showRel = !hideRelStats
-  const buildByLabel = new Map<string, number>()
+  // Stat rows carry canonical keys so build/combat columns stay aligned even
+  // when display labels are shortened or mode-specific.
+  const buildByKey = new Map<string, number>()
   for (const row of [...(buildStatsView?.mainStats ?? []), ...(buildStatsView?.secondaryStats ?? [])]) {
-    buildByLabel.set(row.label, row.total)
+    buildByKey.set(row.key, row.total)
   }
 
   return (
@@ -388,22 +384,22 @@ export function ShowcaseBuild({
             <div className="showcase-ladder-group" style={{ '--rows': statsView.mainStats.length } as CssVars}>
               {statsView.mainStats.map((row) => (
                 <ShowcaseStatRow
-                  key={row.label}
+                  key={row.key}
                   row={row}
-                  buildTotal={buildByLabel.get(row.label) ?? null}
+                  buildTotal={buildByKey.get(row.key) ?? null}
                   blank={blank}
-                  relevant={showRel && relStats.fams.has(statFamily(SHOWCASE_STAT_KEY[row.label] ?? row.label))}
+                  relevant={showRel && relStats.fams.has(statFamily(row.key))}
                 />
               ))}
             </div>
             <div className="showcase-ladder-group" style={{ '--rows': statsView.secondaryStats.length } as CssVars}>
               {statsView.secondaryStats.map((row) => (
                 <ShowcaseStatRow
-                  key={row.label}
+                  key={row.key}
                   row={row}
-                  buildTotal={buildByLabel.get(row.label) ?? null}
+                  buildTotal={buildByKey.get(row.key) ?? null}
                   blank={blank}
-                  relevant={showRel && relStats.fams.has(statFamily(SHOWCASE_STAT_KEY[row.label] ?? row.label))}
+                  relevant={showRel && relStats.fams.has(statFamily(row.key))}
                 />
               ))}
             </div>

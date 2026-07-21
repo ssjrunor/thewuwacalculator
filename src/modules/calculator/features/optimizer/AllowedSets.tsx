@@ -1,14 +1,15 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the allowed sets surface for the calculator optimizer flow.
+  Description: Edits optimizer sonata-set constraints and resolves dropdown
+               overlay placement for the current modal or route context.
 */
 
 import { ChevronDown, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '@/domain/state/store'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { OptSetChoice } from '@/domain/entities/optimizer'
-import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
+import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 
@@ -22,9 +23,17 @@ const VRLYPRTLSLCT =
   '.app-modal-overlay, .char-menu-overlay'
 
 interface LlwdSetDrpdP {
-  selIdsByPc: OptSetChoice
-  onChange: (nextSelIdsBy: OptSetChoice) => void
+  selIdsByPc?: OptSetChoice
+  onChange?: (nextSelIdsBy: OptSetChoice) => void
+  selectedSetIds?: readonly number[]
+  onSetIdsChange?: (nextSetIds: number[]) => void
   triggerClass?: string
+  availableSetIds?: readonly number[]
+  selectionMode?: 'multi' | 'single'
+  closeOnSelect?: boolean
+  menuMinWidth?: number
+  placeholder?: string
+  triggerVariant?: 'chip' | 'liquid'
   viewTrggCntn?: (args: { summaryLabel: string; open: boolean }) => ReactNode
 }
 
@@ -38,10 +47,45 @@ interface MenuLayout {
   maxHeight: number
 }
 
+const EMPTY_SET_CHOICE: OptSetChoice = { 1: [], 3: [], 5: [] }
+
+function pieceCountForSet(setId: number): PieceCount {
+  const setMax = ECHO_SET_DEFS.find((set) => set.id === setId)?.setMax
+  return setMax === 1 || setMax === 3 || setMax === 5 ? setMax : 5
+}
+
+function setIdsToChoice(ids: readonly number[]): OptSetChoice {
+  const next: OptSetChoice = { 1: [], 3: [], 5: [] }
+  for (const id of ids) {
+    const pieceCount = pieceCountForSet(id)
+    if (!next[pieceCount].includes(id)) {
+      next[pieceCount].push(id)
+    }
+  }
+
+  return {
+    1: next[1].sort((left, right) => left - right),
+    3: next[3].sort((left, right) => left - right),
+    5: next[5].sort((left, right) => left - right),
+  }
+}
+
+function choiceToSetIds(choice: OptSetChoice): number[] {
+  return [...choice[1], ...choice[3], ...choice[5]].sort((left, right) => left - right)
+}
+
 export function AllowedSets({
                               selIdsByPc: selIdsByPc,
                               onChange,
+                              selectedSetIds,
+                              onSetIdsChange,
                               triggerClass: triggerClass,
+                              availableSetIds,
+                              selectionMode = 'multi',
+                              closeOnSelect,
+                              menuMinWidth = SET_MENU_MIN_W,
+                              placeholder = 'All Sets',
+                              triggerVariant = 'chip',
                               viewTrggCntn: rndrTrggCntn,
                             }: LlwdSetDrpdP) {
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -77,14 +121,39 @@ export function AllowedSets({
     return ui.theme === 'dark' ? 'dark-text' : 'light-text'
   }, [ui.backgroundTextMode, ui.theme])
 
+  const availableSetIdSet = useMemo(
+    () => availableSetIds ? new Set(availableSetIds) : null,
+    [availableSetIds],
+  )
+
+  const effectiveSelIdsByPc = useMemo(
+    () => selIdsByPc ?? (selectedSetIds ? setIdsToChoice(selectedSetIds) : EMPTY_SET_CHOICE),
+    [selectedSetIds, selIdsByPc],
+  )
+
+  const applyChange = useCallback((nextChoice: OptSetChoice) => {
+    onChange?.(nextChoice)
+    onSetIdsChange?.(choiceToSetIds(nextChoice))
+  }, [onChange, onSetIdsChange])
+
   const summaryLabel = useMemo(() => {
+    if (selectedSetIds) {
+      if (selectedSetIds.length === 0) {
+        return placeholder
+      }
+      if (selectedSetIds.length === 1) {
+        return getSntSetNam(selectedSetIds[0] ?? 0)
+      }
+      return `${selectedSetIds.length} Sonata`
+    }
+
     // summarize by selector bucket rather than set names so compact cards stay stable even when several sets are
     // selected.
-    const fiveCount = selIdsByPc[5].length
-    const threeCount = selIdsByPc[3].length
-    const oneCount = selIdsByPc[1].length
+    const fiveCount = effectiveSelIdsByPc[5].length
+    const threeCount = effectiveSelIdsByPc[3].length
+    const oneCount = effectiveSelIdsByPc[1].length
     if (oneCount === 0 && fiveCount === 0 && threeCount === 0) {
-      return 'All Sets'
+      return placeholder
     }
 
     const parts: string[] = []
@@ -92,7 +161,7 @@ export function AllowedSets({
     if (fiveCount > 0) parts.push(`5pc ${fiveCount}`)
     if (threeCount > 0) parts.push(`3pc ${threeCount}`)
     return parts.join(' • ')
-  }, [selIdsByPc])
+  }, [effectiveSelIdsByPc, placeholder, selectedSetIds])
 
   const optionGroups = useMemo(
     () => ([
@@ -100,7 +169,7 @@ export function AllowedSets({
         label: '5pc',
         pieceCount: 5 as PieceCount,
         options: ECHO_SET_DEFS
-          .filter((set) => set.setMax === 5)
+          .filter((set) => set.setMax === 5 && (!availableSetIdSet || availableSetIdSet.has(set.id)))
           .map((set) => ({
             id: set.id,
             name: set.name,
@@ -111,7 +180,7 @@ export function AllowedSets({
         label: '3pc',
         pieceCount: 3 as PieceCount,
         options: ECHO_SET_DEFS
-          .filter((set) => set.setMax === 3)
+          .filter((set) => set.setMax === 3 && (!availableSetIdSet || availableSetIdSet.has(set.id)))
           .map((set) => ({
             id: set.id,
             name: set.name,
@@ -122,7 +191,7 @@ export function AllowedSets({
         label: '1pc',
         pieceCount: 1 as PieceCount,
         options: ECHO_SET_DEFS
-          .filter((set) => set.setMax === 1)
+          .filter((set) => set.setMax === 1 && (!availableSetIdSet || availableSetIdSet.has(set.id)))
           .map((set) => ({
             id: set.id,
             name: set.name,
@@ -130,30 +199,35 @@ export function AllowedSets({
           })),
       },
     ]),
-    [],
+    [availableSetIdSet],
   )
 
   const selectedTotal = useMemo(
-    () => selIdsByPc[1].length + selIdsByPc[3].length + selIdsByPc[5].length,
-    [selIdsByPc],
+    () => effectiveSelIdsByPc[1].length + effectiveSelIdsByPc[3].length + effectiveSelIdsByPc[5].length,
+    [effectiveSelIdsByPc],
   )
+  const visibleOptionGroups = useMemo(
+    () => optionGroups.filter((group) => group.options.length > 0),
+    [optionGroups],
+  )
+  const visibleGroupCount = Math.max(1, visibleOptionGroups.length)
 
   const isReset = selectedTotal === 0
 
   const clearPc = useCallback((pieceCount: PieceCount) => {
-    onChange({
-      ...selIdsByPc,
+    applyChange({
+      ...effectiveSelIdsByPc,
       [pieceCount]: [],
     })
-  }, [onChange, selIdsByPc])
+  }, [applyChange, effectiveSelIdsByPc])
 
   const setAll = useCallback(() => {
-    onChange({
+    applyChange({
       1: optionGroups.find((group) => group.pieceCount === 1)?.options.map((set) => set.id) ?? [],
       3: optionGroups.find((group) => group.pieceCount === 3)?.options.map((set) => set.id) ?? [],
       5: optionGroups.find((group) => group.pieceCount === 5)?.options.map((set) => set.id) ?? [],
     })
-  }, [onChange, optionGroups])
+  }, [applyChange, optionGroups])
 
   const invPc = useCallback((pieceCount: PieceCount) => {
     const group = optionGroups.find((entry) => entry.pieceCount === pieceCount)
@@ -161,19 +235,19 @@ export function AllowedSets({
       return []
     }
 
-    const selected = new Set(selIdsByPc[pieceCount])
+    const selected = new Set(effectiveSelIdsByPc[pieceCount])
     return group.options
       .map((set) => set.id)
       .filter((id) => !selected.has(id))
-  }, [optionGroups, selIdsByPc])
+  }, [effectiveSelIdsByPc, optionGroups])
 
   const invertAll = useCallback(() => {
-    onChange({
+    applyChange({
       1: invPc(1),
       3: invPc(3),
       5: invPc(5),
     })
-  }, [invPc, onChange])
+  }, [applyChange, invPc])
 
   const rslvPrtlTgt =
     // render inside the nearest app/modal overlay when possible so dropdown z-order follows the surface that opened it.
@@ -210,7 +284,7 @@ export function AllowedSets({
     const vlblSpc = openUpward ? spaceAbove : spaceBelow
     const rslvMaxHght = Math.max(MENUMINHGHT, Math.min(MENUMAXHGHT, vlblSpc))
     const width = Math.min(
-      Math.max(rect.width, SET_MENU_MIN_W),
+      Math.max(rect.width, menuMinWidth),
       window.innerWidth - VWPR_PDDN * 2,
     )
     const left = Math.min(
@@ -226,7 +300,7 @@ export function AllowedSets({
       width,
       maxHeight: rslvMaxHght,
     })
-  }, [])
+  }, [menuMinWidth])
 
   const schdMsrMenu = useCallback(() => {
     clearMeasure()
@@ -257,6 +331,10 @@ export function AllowedSets({
     setClosing(false)
     setOpen(true)
   }, [clrClsTmr, measureMenu])
+
+  const shouldCloseOnSelect = closeOnSelect ?? selectionMode === 'single'
+  const showBulkCommands = selectionMode !== 'single'
+  const liquidTrigger = triggerVariant === 'liquid'
 
   useEffect(() => {
     return () => {
@@ -335,43 +413,55 @@ export function AllowedSets({
             }
           }}
         >
-          <div className="co-set-dropdown__cmds" aria-label="Allowed set commands">
+          <div className={`co-set-dropdown__cmds${showBulkCommands ? '' : ' co-set-dropdown__cmds--single'}`} aria-label="Allowed set commands">
             <button
               type="button"
               className={`co-set-dropdown__cmd${isReset ? ' is-active' : ''}`}
-              onClick={() => onChange({1: [], 3: [], 5: [] })}
+              onClick={() => {
+                applyChange({1: [], 3: [], 5: [] })
+                if (shouldCloseOnSelect) {
+                  closeMenu()
+                }
+              }}
               onMouseDown={(event) => event.preventDefault()}
             >
               Any
             </button>
-            <button
-              type="button"
-              className="co-set-dropdown__cmd"
-              onClick={setAll}
-              onMouseDown={(event) => event.preventDefault()}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              className="co-set-dropdown__cmd"
-              onClick={invertAll}
-              onMouseDown={(event) => event.preventDefault()}
-            >
-              Invert
-            </button>
+            {showBulkCommands ? (
+              <>
+                <button
+                  type="button"
+                  className="co-set-dropdown__cmd"
+                  onClick={setAll}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className="co-set-dropdown__cmd"
+                  onClick={invertAll}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  Invert
+                </button>
+              </>
+            ) : null}
           </div>
 
-          <div className="co-set-dropdown__board">
-            {optionGroups.map((group) => (
+          <div
+            className="co-set-dropdown__board"
+            style={{ '--set-group-count': visibleGroupCount } as CSSProperties}
+          >
+            {visibleOptionGroups.map((group) => (
               <section key={group.pieceCount} className="co-set-dropdown__col">
                 <header className="co-set-dropdown__col-head">
                   <span>{group.label}</span>
                   <span className="co-set-dropdown__group-actions">
                       <span className="co-set-dropdown__group-count">
-                        {selIdsByPc[group.pieceCount].length}/{group.options.length}
+                        {effectiveSelIdsByPc[group.pieceCount].length}/{group.options.length}
                       </span>
-                    {selIdsByPc[group.pieceCount].length > 0 ? (
+                    {effectiveSelIdsByPc[group.pieceCount].length > 0 ? (
                       <button
                         type="button"
                         aria-label={`Clear ${group.label}`}
@@ -385,21 +475,33 @@ export function AllowedSets({
                 </header>
                 <div className="co-set-dropdown__stack">
                   {group.options.map((set) => {
-                    const selected = selIdsByPc[group.pieceCount].includes(set.id)
+                    const selected = effectiveSelIdsByPc[group.pieceCount].includes(set.id)
                     return (
                       <button
                         key={`${group.pieceCount}-${set.id}`}
                         type="button"
                         className={`co-set-dropdown__tile${selected ? ' selected is-active' : ''}`}
                         onClick={() => {
-                          const current = selIdsByPc[group.pieceCount]
-                          const next = selected
-                            ? current.filter((id) => id !== set.id)
-                            : [...current, set.id].sort((left, right) => left - right)
-                          onChange({
-                            ...selIdsByPc,
-                            [group.pieceCount]: next,
-                          })
+                          if (selectionMode === 'single') {
+                            applyChange({
+                              1: [],
+                              3: [],
+                              5: [],
+                              [group.pieceCount]: selected ? [] : [set.id],
+                            })
+                          } else {
+                            const current = effectiveSelIdsByPc[group.pieceCount]
+                            const next = selected
+                              ? current.filter((id) => id !== set.id)
+                              : [...current, set.id].sort((left, right) => left - right)
+                            applyChange({
+                              ...effectiveSelIdsByPc,
+                              [group.pieceCount]: next,
+                            })
+                          }
+                          if (shouldCloseOnSelect) {
+                            closeMenu()
+                          }
                         }}
                         onMouseDown={(event) => event.preventDefault()}
                       >
@@ -425,11 +527,11 @@ export function AllowedSets({
     <div ref={(node) => {
       rootRef.current = node
       setRootLmnt(node)
-    }} className={`co-set-dropdown${open ? ' is-open' : ''}${closing ? ' closing' : ''}`}>
+    }} className={`co-set-dropdown${liquidTrigger ? ' liquid-select' : ''}${open ? ` is-open${liquidTrigger ? ' open' : ''}` : ''}${closing ? ' closing' : ''}`}>
       <button
         ref={triggerRef}
         type="button"
-        className={`co-chip co-set-dropdown__trigger${triggerClass ? ` ${triggerClass}` : ''}`}
+        className={`${liquidTrigger ? 'liquid-select__trigger' : 'co-chip'} co-set-dropdown__trigger${triggerClass ? ` ${triggerClass}` : ''}`}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => {
@@ -442,6 +544,13 @@ export function AllowedSets({
       >
         {rndrTrggCntn ? (
           rndrTrggCntn({ summaryLabel, open })
+        ) : liquidTrigger ? (
+          <>
+            <span className={`liquid-select__value${selectedTotal === 0 ? ' liquid-select__value--placeholder' : ''}`}>{summaryLabel}</span>
+            <span className="liquid-select__icon">
+              <ChevronDown size={14} />
+            </span>
+          </>
         ) : (
           <>
             <span className="co-set-dropdown__trigger-value">{summaryLabel}</span>

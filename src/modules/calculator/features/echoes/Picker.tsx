@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the picker surface for the calculator echoes flow.
+  Description: Filters catalog echoes by name, cost, sonata, and usage recency
+               before handing the selected echo id back to the caller.
 */
 
 import { useMemo, useState } from 'react'
@@ -9,6 +10,8 @@ import type { EchoDef } from '@/domain/entities/catalog.ts'
 import { getSntSetIco, SONATA_SETS } from '@/data/gameData/catalog/sonataSets.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { PickerModal as ShrdPckrMdl } from '@/shared/ui/PickerModal.tsx'
+import { AllowedSets } from '@/modules/calculator/features/optimizer/AllowedSets.tsx'
+import { mkSrchTkns, mtchSrchTkns } from '@/modules/calculator/features/echoes/lib/search.ts'
 
 // filters and renders the echo picker modal used by the left pane and optimizer.
 interface EchoPckrMdlP {
@@ -54,13 +57,14 @@ export function EchoPicker({
     }
     return SONATA_SETS.filter((s) => setIds.has(s.id))
   }, [echoes])
+  const vlblSetIds = useMemo(() => vlblSets.map((set) => set.id), [vlblSets])
 
   const fltrChs = useMemo(() => {
-    const searchLower = search.toLowerCase().trim()
+    const searchTokens = mkSrchTkns(search)
     return echoes.filter((echo) => {
       if (!costFilter.includes(echo.cost)) return false
       if (setFilter.length > 0 && !echo.sets.some((s) => setFilter.includes(s))) return false
-      if (searchLower && !echo.name.toLowerCase().includes(searchLower)) return false
+      if (!mtchSrchTkns(searchTokens, [echo.name, echo.id])) return false
       return true
     })
   }, [echoes, costFilter, setFilter, search])
@@ -89,60 +93,47 @@ export function EchoPicker({
 
   const filters = (
     <>
-      <label className="bp-search">
-        <Search size={17} aria-hidden="true" />
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name…"
-        />
-      </label>
-
-      <div className="picker-filter-layout">
-      <div className="picker-filter-section">
-        <div className="picker-filter-group">
-          {COST_OPTIONS.map((cost) => (
-            <button
-              key={`cost-${cost}`}
-              type="button"
-              className={costFilter.includes(cost) ? 'picker-filter-chip active' : 'picker-filter-chip'}
-              onClick={() =>
-                setCostFltr((prev) =>
-                  prev.includes(cost) ? prev.filter((c) => c !== cost) : [...prev, cost],
-                )
-              }
-            >
-              {cost}C
-            </button>
-          ))}
+      <div className="picker-filter-layout echo-filter-row">
+        <label className="bp-search">
+          <Search size={17} aria-hidden="true" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name…"
+          />
+        </label>
+        <div className="picker-filter-divider" aria-hidden="true" />
+        <div className="picker-filter-section">
+          <div className="picker-filter-group">
+            {COST_OPTIONS.map((cost) => (
+              <button
+                key={`cost-${cost}`}
+                type="button"
+                className={costFilter.includes(cost) ? 'picker-filter-chip active' : 'picker-filter-chip'}
+                onClick={() =>
+                  setCostFltr((prev) =>
+                    prev.includes(cost) ? prev.filter((c) => c !== cost) : [...prev, cost],
+                  )
+                }
+              >
+                {cost}C
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="picker-filter-section echo-picker-set-filters">
-        <div className="picker-filter-group echo-picker-set-group">
-          {vlblSets.map((set) => (
-            <button
-              key={`set-${set.id}`}
-              type="button"
-              className={setFilter.includes(set.id) ? 'picker-filter-chip active' : 'picker-filter-chip'}
-              onClick={() =>
-                setSetFilter((prev) =>
-                  prev.includes(set.id) ? prev.filter((s) => s !== set.id) : [...prev, set.id],
-                )
-              }
-              title={set.name}
-            >
-              <img
-                src={set.icon}
-                alt={set.name}
-                className="echo-picker-set-icon"
-                loading="lazy"
-                onError={withDefIconM}
-              />
-            </button>
-          ))}
+        <div className="picker-filter-divider" aria-hidden="true" />
+        <div className="picker-filter-section echo-picker-set-filters">
+          <AllowedSets
+            selectedSetIds={setFilter}
+            availableSetIds={vlblSetIds}
+            placeholder="All Sonata"
+            triggerClass="picker-sonata-select"
+            triggerVariant="liquid"
+            menuMinWidth={500}
+            onSetIdsChange={setSetFilter}
+          />
         </div>
-      </div>
       </div>
     </>
   )
@@ -159,9 +150,6 @@ export function EchoPicker({
               onClear()
               onClose()
             },
-            meta: (
-              <span className="picker-modal__meta-pill">Empty Slot</span>
-            ),
           },
         ]
       : []),
@@ -180,32 +168,32 @@ export function EchoPicker({
           onClose()
         },
         leading: (
-          <div className={`picker-modal__media-frame echo-picker-icon-frame ${overBudget ? 'echo-picker--over' : ''}`}>
+          <div className={`picker-modal__media-frame picker-modal__media-frame--inset echo-picker-icon-frame ${overBudget ? 'echo-picker--over' : ''}`}>
             <img
               src={echo.icon}
               alt={echo.name}
               className="picker-modal__media-image"
-              style={{ objectFit: 'contain' }}
               onError={withDefEchoMg}
             />
           </div>
         ),
         trailing: isSelected
-          ? <span className="picker-modal__selection-pill">Equipped</span>
+          ? 'Equipped'
           : overBudget
-            ? <span className="picker-modal__over-budget-pill">Cost {12 - maxCost + echo.cost} &gt; 12</span>
+            ? `+${echo.cost - maxCost}C over`
             : null,
+        specClassName: 'picker-modal__card-spec--echo',
         meta: (
           <>
-            <span className={`picker-modal__meta-pill ${overBudget ? 'picker-modal__meta-pill--disabled' : ''}`}>{echo.cost}C</span>
-            {echo.sets.map((setId) => {
-              const setIcon = getSntSetIco(setId)
-              return setIcon ? (
-                <span key={setId} className="picker-modal__meta-pill picker-modal__meta-pill--icon">
-                  <img src={setIcon} alt="" className="echo-picker-meta-set-icon" onError={withDefIconM} />
-                </span>
-              ) : null
-            })}
+            <span className={`picker-modal__spec-item ${overBudget ? 'picker-modal__spec-item--warn' : ''}`}>{echo.cost}C</span>
+            <span className="picker-modal__spec-group">
+              {echo.sets.map((setId) => {
+                const setIcon = getSntSetIco(setId)
+                return setIcon ? (
+                  <img key={setId} src={setIcon} alt="" className="echo-picker-meta-set-icon" onError={withDefIconM} />
+                ) : null
+              })}
+            </span>
           </>
         ),
       }
@@ -218,6 +206,7 @@ export function EchoPicker({
       open={open}
       closing={closing}
       portalTarget={portalTarget}
+      variant="echo"
       eyebrow={`Slot ${slotIndex + 1}`}
       title="Select Echo"
       summary={summary}

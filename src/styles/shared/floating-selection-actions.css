@@ -22,7 +22,7 @@
 }
 
 .selection-mode.focus-selected {
-  --selection-focus-accent: var(--picker-modal-accent, var(--resonator-accent, var(--accent, #20bfb9)));
+  --selection-focus-accent: var(--resonator-accent, var(--accent, #20bfb9));
   --selection-focus-border: var(--picker-modal-border, var(--item-border, var(--box-border, var(--border))));
   border-style: dashed;
   border-color: color-mix(in srgb, var(--browser-accent, var(--selection-focus-accent)) 72%, var(--selection-focus-border)) !important;

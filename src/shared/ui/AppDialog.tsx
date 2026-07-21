@@ -6,7 +6,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog'
 import { VisuallyHidden as VsllHddn } from '@radix-ui/react-visually-hidden'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 interface AppDlgPrps {
   visible: boolean
@@ -14,6 +14,7 @@ interface AppDlgPrps {
   closing?: boolean
   portalTarget: HTMLElement | null
   contentClass?: string
+  contentStyle?: CSSProperties
   ariaLabel?: string
   ariaLabelBy?: string
   ariaDscrBy?: string
@@ -29,12 +30,17 @@ function isFltnSelCtn(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest('.selection-focus-actions'))
 }
 
+function isLqdSelMenu(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('.liquid-select__menu'))
+}
+
 export function AppDialog({
   visible,
   open,
   closing = false,
   portalTarget,
   contentClass: contentClass,
+  contentStyle,
   ariaLabel,
   ariaLabelBy: ariaLabelBy,
   ariaDscrBy: ariaDscrBy,
@@ -67,6 +73,7 @@ export function AppDialog({
           <Dialog.Content
             forceMount
             className={cntnClssNms}
+            style={contentStyle}
             data-app-modal-content="true"
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelBy}
@@ -77,6 +84,7 @@ export function AppDialog({
               if (
                 isFltnCtxMen(event.target)
                 || isFltnSelCtn(event.target)
+                || isLqdSelMenu(event.target)
               ) {
                 event.preventDefault()
               }

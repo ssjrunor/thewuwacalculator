@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: renders the buff editor surface for the calculator buffs flow.
+  Description: Edits manual buff modifiers, selection actions, import/export
+               payloads, and preset application for the active runtime.
 */
 
 import type { ChangeEvent, ReactNode } from 'react'
@@ -41,7 +42,6 @@ import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
 import {
-  type BuffOption,
   DVNCTTRBPTNS,
   DVNCBASESTuv,
   DVNCBASESTAT,
@@ -74,6 +74,13 @@ import {
   readMnlModCl,
   writeMnlModC,
 } from '@/modules/calculator/features/buffs/lib/clipboard.ts'
+import {
+  applySkillMod,
+  getModVlMax,
+  getModVlSfx,
+  getSkllModPt,
+  modSummary,
+} from '@/modules/calculator/features/buffs/lib/manualBuffOps.ts'
 
 interface MnlBuffDtrPr {
   runtime: ResRuntime
@@ -778,50 +785,6 @@ export function BuffEditor({
     </div>
   )
 
-  const getPtnLbl = (
-    options: Array<BuffOption>,
-    value: string | undefined,
-    fallback = 'Unspecified',
-  ) => options.find((option) => option.value === value)?.label ?? fallback
-
-  const getOptionMax = (
-    options: Array<BuffOption>,
-    value: string | undefined,
-    fallback = 999,
-  ) => options.find((option) => option.value === value)?.max ?? fallback
-
-  const getModVlMax = (modifier: MnlMod): number => {
-    if (modifier.scope === 'baseStat') {
-      return getOptionMax(DVNCBASESTuv, modifier.field, 999)
-    }
-
-    if (modifier.scope === 'topStat') {
-      return getOptionMax(DVNCTOPSTATP, modifier.stat, 999)
-    }
-
-    if (modifier.scope === 'skill') {
-      if (modifier.effect === 'scalar') {
-        return getOptionMax(SKLLSCLRPTNS, modifier.field, 999)
-      }
-
-      return getOptionMax(SKLLMODPTNS, getSkllModPt(modifier), 999)
-    }
-
-    if (modifier.scope === 'negativeEffect') {
-      return getOptionMax(NEG_EFFECT_MODS, modifier.mod, 999)
-    }
-
-    return 999
-  }
-
-  const getModVlSfx = (modifier: MnlMod): string | null => {
-    if (modifier.scope === 'topStat' && modifier.stat === 'tuneBreakBoost') {
-      return null
-    }
-
-    return getModVlMax(modifier) === 9999 ? null : '%'
-  }
-
   const viewModVlNpt = (modifier: MnlMod) => (
     <div className={`custom-buff-input ${getModVlSfx(modifier) ? 'has-suffix' : ''}`}>
       <NumberInput
@@ -839,83 +802,6 @@ export function BuffEditor({
       {getModVlSfx(modifier) ? <span>{getModVlSfx(modifier)}</span> : null}
     </div>
   )
-
-  const getSkllModPt = (modifier: Extract<MnlMod, { scope: 'skill' }>): string => (
-    modifier.effect === 'mod' ? modifier.mod : modifier.effect
-  )
-
-  const applySkillMod = (
-    modifier: Extract<MnlMod, { scope: 'skill' }>,
-    optionValue: string,
-  ): MnlMod => {
-    if (optionValue === 'addMultiplier') {
-      return {
-        id: modifier.id,
-        enabled: modifier.enabled,
-        label: modifier.label,
-        scope: 'skill',
-        matchMode: modifier.matchMode,
-        skillId: modifier.skillId,
-        tab: modifier.tab,
-        skillType: modifier.skillType,
-        effect: 'addMultiplier',
-        value: modifier.value,
-      }
-    }
-
-    if (optionValue === 'scaleMultiplier') {
-      return {
-        id: modifier.id,
-        enabled: modifier.enabled,
-        label: modifier.label,
-        scope: 'skill',
-        matchMode: modifier.matchMode,
-        skillId: modifier.skillId,
-        tab: modifier.tab,
-        skillType: modifier.skillType,
-        effect: 'scaleMultiplier',
-        value: modifier.value,
-      }
-    }
-
-    if (optionValue === 'addHitMultiplier') {
-      return {
-        id: modifier.id,
-        enabled: modifier.enabled,
-        label: modifier.label,
-        scope: 'skill',
-        matchMode: modifier.matchMode,
-        skillId: modifier.skillId,
-        tab: modifier.tab,
-        skillType: modifier.skillType,
-        effect: 'addHitMultiplier',
-        hitIndex: modifier.effect === 'addHitMultiplier' ? modifier.hitIndex : 0,
-        value: modifier.value,
-      }
-    }
-
-    if (optionValue === 'scalar') {
-      return {
-        id: modifier.id,
-        enabled: modifier.enabled,
-        label: modifier.label,
-        scope: 'skill',
-        matchMode: modifier.matchMode,
-        skillId: modifier.skillId,
-        tab: modifier.tab,
-        skillType: modifier.skillType,
-        effect: 'scalar',
-        field: modifier.effect === 'scalar' ? modifier.field : 'fixedDmg',
-        value: modifier.value,
-      }
-    }
-
-    return {
-      ...modifier,
-      effect: 'mod',
-      mod: optionValue as MnlModVlKey,
-    }
-  }
 
   const viewModFld = (
     label: string,
@@ -1221,58 +1107,7 @@ export function BuffEditor({
 
   const viewModRow = (modifier: MnlMod) => {
     const selected = modSel.isSelected(modifier.id)
-    const summary = (() => {
-      if (modifier.scope === 'baseStat') {
-        return `${getPtnLbl(DVNCBASESTAT, modifier.stat)} · ${getPtnLbl(DVNCBASESTuv, modifier.field)}`
-      }
-
-      if (modifier.scope === 'topStat') {
-        return getPtnLbl(DVNCTOPSTATP, modifier.stat)
-      }
-
-      if (modifier.scope === 'attribute') {
-        return `${getPtnLbl(DVNCTTRBPTNS, modifier.attribute)} · ${getPtnLbl(MOD_VL_PTNS, modifier.mod)}`
-      }
-
-      if (modifier.scope === 'skillType') {
-        return `${getPtnLbl(ADV_SKILL_TYPES, modifier.skillType)} · ${getPtnLbl(MOD_VL_PTNS, modifier.mod)}`
-      }
-
-      if (modifier.scope === 'negativeEffect') {
-        return `${getPtnLbl(NEG_EFFECT_OPTS, modifier.negativeEffect)} · ${getPtnLbl(NEG_EFFECT_MODS, modifier.mod)}`
-      }
-
-      const skllMtchPtns = modifier.matchMode === 'skillId'
-        ? [{ value: '', label: 'Select Skill' }, ...skillOptions]
-        : modifier.matchMode === 'tab'
-          ? (tabOptions.length > 0
-            ? tabOptions
-            : [{ value: 'normalAttack', label: 'Normal Attack' }])
-          : ADV_SKILL_TYPES
-
-      const targetLabel = getPtnLbl(
-        skllMtchPtns,
-        modifier.matchMode === 'skillId'
-          ? modifier.skillId ?? ''
-          : modifier.matchMode === 'tab'
-            ? modifier.tab ?? ''
-            : modifier.skillType ?? 'all',
-      )
-
-      if (modifier.effect === 'mod') {
-        return `${targetLabel} · ${getPtnLbl(MOD_VL_PTNS, modifier.mod)}`
-      }
-
-      if (modifier.effect === 'scalar') {
-        return `${targetLabel} · ${getPtnLbl(SKLLSCLRPTNS, modifier.field)}`
-      }
-
-      if (modifier.effect === 'addHitMultiplier') {
-        return `${targetLabel} · Hit ${modifier.hitIndex + 1} MV`
-      }
-
-      return `${targetLabel} · ${getPtnLbl(SKLLMODPTNS, modifier.effect)}`
-    })()
+    const summary = modSummary(modifier, { skillOptions, tabOptions })
 
     return (
       <ContextTrigger

@@ -9,6 +9,7 @@ import type { EnemyProfile } from '@/domain/entities/appState'
 import { cloneEchoLdt, cloneRotNds } from '@/domain/entities/inventoryStorage'
 import type { ManualBuffs, MnlMod, QuickBuffs } from '@/domain/entities/manualBuffs'
 import type { ResProf, SlotLocalState, SlotRatingState } from '@/domain/entities/profile'
+import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import { cloneSntSet } from '@/domain/entities/sonataSetConditionals'
 import type {
   CombatState,
@@ -137,6 +138,7 @@ export function cloneSlotLcl(local: SlotLocalState): SlotLocalState {
     manualBuffs: cloneBuffs(local.manualBuffs),
     combat: cloneCmbtStt(local.combat),
     setConditionals: cloneSntSet(local.setConditionals),
+    optimizerInventory: cloneOptInventorySelection(local.optimizerInventory),
   }
 }
 

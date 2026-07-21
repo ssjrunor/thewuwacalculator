@@ -1,11 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: renders the inventory modal surface for the calculator inventory flow.
+  Description: Manages saved echo and build inventory browsing, filtering,
+               selection actions, equip targets, and persistence commands.
 */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { CSSProperties as CssProps, HTMLAttributes as HtmlAttrs, KeyboardEvent as KybrVnt, MouseEvent as RctMsVnt } from 'react'
-import {ArrowBigDownDash as ArrowDownIcon, Clipboard, Copy, Maximize2, Minimize2, Pencil, Save, Scissors, Search, Trash2, X} from 'lucide-react'
+import type { AnimationEvent as RctAnmVnt, CSSProperties as CssProps, HTMLAttributes as HtmlAttrs, KeyboardEvent as KybrVnt, MouseEvent as RctMsVnt, ReactNode } from 'react'
+import {ArrowBigDownDash as ArrowDownIcon, Clipboard, Copy, Maximize2, Minimize2, Pencil, Scissors, Search, Trash2, X} from 'lucide-react'
 import type { InvEchoEnt, InventoryEntry } from '@/domain/entities/inventoryStorage'
 import type { EchoInstance, WeaponState } from '@/domain/entities/runtime'
 import { areMkSnpsQvl } from '@/domain/entities/inventoryStorage'
@@ -14,23 +15,27 @@ import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getWpnById } from '@/domain/services/weaponCatalogService'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring'
-import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric.ts'
+import { cmptEchoCrit, getCvBdgClss, getCvToneColor, getScrBdgCls, getScrTone } from '@/modules/calculator/features/echoes/lib/metric.ts'
+import { EchoStatGlyph } from '@/modules/calculator/features/echoes/lib/statGlyph.tsx'
 import { cmptTtlEchoC } from '@/modules/calculator/features/echoes/lib/echoes.ts'
 import {
   getInvSlotFi,
   sortEntsByNa,
   type InvSlotFitSt,
 } from '@/modules/calculator/features/inventory/lib/inventory.ts'
-import type { InvEchoSg } from '@/domain/state/inventoryUsage.ts'
+import type { InvBldUsr, InvEchoSg } from '@/domain/state/inventoryUsage.ts'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
 import { toTitle } from '@/shared/lib/format'
 import { hideBrknMg, withDefIconM, withDefResMg, withDefWpnMg } from '@/shared/lib/imageFallback'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
+import { mergeRefs } from '@/shared/lib/mergeRefs.ts'
+import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
 import { AppModal } from '@/shared/ui/AppModal'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { MdlClsBttn } from '@/shared/ui/ModalCloseButton'
 import { CnfrMdl } from '@/shared/ui/ConfirmationModal'
 import { useCnfr } from '@/app/hooks/useConfirmation.ts'
+import { useMediaQuery } from '@/app/hooks/useMediaQuery.ts'
 import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import {
@@ -40,11 +45,15 @@ import {
   writeEchoClp,
 } from '@/modules/calculator/features/echoes/lib/clipboard.ts'
 import { EchoQpCmprdn } from '@/modules/calculator/features/echoes/lib/EchoEquipComparePreview.tsx'
+import { mkSrchTkns, mtchSrchTkns } from '@/modules/calculator/features/echoes/lib/search.ts'
+import { AllowedSets } from '@/modules/calculator/features/optimizer/AllowedSets.tsx'
 import { useSel } from '@/modules/calculator/lib/sel.tsx'
 import { getInvEchoCt } from '@/modules/calculator/features/inventory/lib/ctx.tsx'
 import {useAppStore} from "@/domain/state/store.ts";
 import { useAppCtxMen } from '@/shared/ui/AppContextMenu'
 import { EchoStatPreview } from '@/shared/ui/EchoStatPreview'
+import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 
 type InventoryTab = 'echoes' | 'builds'
 
@@ -62,16 +71,16 @@ interface InvMdlPrps {
   invChs: InvEchoEnt[]
   invBlds: InventoryEntry[]
   ntlEchoSrch?: string
-  bldSgNmsById: Record<string, string[]>
+  bldUsrsById: Record<string, InvBldUsr[]>
   echoSgByUid: Record<string, InvEchoSg[]>
   onClose: () => void
   onQpInvEcho: (entry: InvEchoEnt, slotIndex: number) => void
   onEditEcho: (entry: InvEchoEnt) => void
   onAddInvChs: (echoes: EchoInstance[]) => number
+  onSaveInitEchoes: () => void
   onRmvInvEcho: (entryId: string) => void
   onRmvInvChs: (entryIds: string[]) => void
   onClrInvChs: () => void
-  onSaveCurBld: () => void
   onQpInvBld: (entry: InventoryEntry) => void
   onPdtInvBlgk: (entryId: string, name: string) => void
   onRmvInvBld: (entryId: string) => void
@@ -86,12 +95,6 @@ function getInvEchoDs(entry: InvEchoEnt) {
   return getEchoById(entry.echo.id)?.name ?? toTitle(entry.echo.id)
 }
 
-function cmptTileStgg(index: number): number {
-  if (index < 1) return 0
-  if (index < 3) return 1
-  return Math.floor(index / 3) + 1
-}
-
 function InvEchoEntCa({
   entry,
   resonatorId,
@@ -99,6 +102,7 @@ function InvEchoEntCa({
   showScore,
   compact,
   index,
+  columns,
   slotFitStates: slotFitStates,
   onEquip,
   onEdit,
@@ -106,12 +110,14 @@ function InvEchoEntCa({
   onActivate,
   isRbtlFcsd: isRbtlFcsd = false,
   selected = false,
+  isPreview,
   selMode: selectMode = false,
   ...articleProps
 }: {
   entry: InvEchoEnt
   compact: boolean
   index: number
+  columns: number
   resonatorId: string
   usage: InvEchoSg[]
   showScore: boolean
@@ -123,20 +129,29 @@ function InvEchoEntCa({
   isRbtlFcsd?: boolean
   selected?: boolean
   selMode?: boolean
+  isPreview?: boolean
 } & HtmlAttrs<HTMLElement>) {
-  const tileStyle = { '--tile-index': cmptTileStgg(index) } as CssProps
+  const tileRow = Math.min(Math.floor(index / columns), 6)
+  const tileStyle = { '--tile-index': tileRow } as CssProps
   const definition = getEchoById(entry.echo.id)
   const setIcon = getSntSetIco(entry.echo.set)
-  const sbstEnts = Object.entries(entry.echo.substats)
+  const sbstEnts = Object.entries(entry.echo.substats).filter(([, value]) => value > 0)
   const echoScore = showScore ? getEchoScrPr(resonatorId, entry.echo) : null
   const cv = cmptEchoCrit(entry.echo.substats)
   const visibleUsage = usage.filter((equipped) => equipped.icon)
+  const [entered, setEntered] = useState(false)
 
   const cmpcClckHnd = (event: RctMsVnt<HTMLElement>) => {
     if (compact && onActivate) {
       onActivate(event)
     } else {
       onEdit()
+    }
+  }
+
+  const onTileEntranceEnd = (event: RctAnmVnt<HTMLElement>) => {
+    if (event.animationName === 'echoes-section-in') {
+      setEntered(true)
     }
   }
 
@@ -163,13 +178,15 @@ function InvEchoEntCa({
   if (compact) return (
       <article
           {...articleProps}
-          className={`overview-echo-tile echo-bag-card__compact${selected ? ' focus-selected' : ''}${selectMode ? ' selection-mode' : ''}${isRbtlFcsd ? ' is-orbital-focused' : ''}`}
+          className={`overview-echo-tile echo-bag-card__compact${selected ? ' focus-selected' : ''}${selectMode ? ' selection-mode' : ''}${isRbtlFcsd ? ' is-orbital-focused' : ''}${entered ? ' echo-tile-entered' : ''}`}
           style={tileStyle}
+          data-preview={isPreview}
           data-selection-focus-item="true"
           role="button"
           tabIndex={0}
           onClick={cmpcClckHnd}
           onKeyDown={onTileKeyDow}
+          onAnimationEnd={onTileEntranceEnd}
           aria-label={isRbtlFcsd ? `Quick actions for ${definition.name}` : `Open actions for ${definition.name}`}
       >
         <span className="echo-tile-bracket echo-tile-bracket--tl" aria-hidden="true" />
@@ -213,51 +230,56 @@ function InvEchoEntCa({
   return (
     <article
       {...articleProps}
-      className={`overview-echo-tile echo-bag-card__tile${selected ? ' focus-selected' : ''}${selectMode ? ' selection-mode' : ''}`}
+      className={`overview-echo-tile echo-bag-card__tile${selected ? ' focus-selected' : ''}${selectMode ? ' selection-mode' : ''}${entered ? ' echo-tile-entered' : ''}`}
       style={tileStyle}
       data-selection-focus-item="true"
       role="button"
       tabIndex={0}
       onClick={onEdit}
       onKeyDown={onTileKeyDow}
+      onAnimationEnd={onTileEntranceEnd}
       aria-label={`Edit ${definition.name}`}
     >
         <span className="echo-tile-bracket echo-tile-bracket--tl" aria-hidden="true" />
         <span className="echo-tile-bracket echo-tile-bracket--br" aria-hidden="true" />
-        <div className="overview-echo-tile-head">
-          <img
-            src={definition.icon}
-            alt={definition.name}
-            className="overview-echo-glyph"
-            loading="lazy"
-            decoding="async"
-            onError={hideBrknMg}
-          />
+        <div className="echo-tile-head">
+          <span className="echo-tile-frame">
+            <img
+              src={definition.icon}
+              alt={definition.name}
+              className="overview-echo-glyph"
+              loading="lazy"
+              decoding="async"
+              onError={hideBrknMg}
+            />
+            {setIcon ? (
+              <img
+                src={setIcon}
+                alt={getSntSetNam(entry.echo.set)}
+                className="overview-echo-set-icon"
+                loading="lazy"
+                onError={withDefIconM}
+              />
+            ) : null}
+          </span>
 
-          <div className="overview-echo-tile-info">
-            <div className="overview-echo-tile-info__meta">
-              {setIcon ? (
-                <img
-                  src={setIcon}
-                  alt={getSntSetNam(entry.echo.set)}
-                  className="overview-echo-set-icon"
-                  loading="lazy"
-                  onError={withDefIconM}
-                />
-              ) : null}
-              <strong>{definition.name ?? toTitle(entry.echo.id)}</strong>
-            </div>
-            <div className="overview-echo-tile-meta">
-              <div className="cost-chip overview-echo-cost-chip">
-                <span className="cost-bar" aria-hidden="true" />
-                <span className="cost-num">0{definition.cost}</span>
+          <div className="echo-tile-titles">
+            <strong className="echo-tile-name">{definition.name ?? toTitle(entry.echo.id)}</strong>
+            <div className="echo-tile-tags">
+              <div className="cost-chip echo-tile-cost">
+                <span className="cost-num">{definition.cost}c</span>
               </div>
-              {echoScore !== null ? (
-                <span className={getScrBdgCls(echoScore)}>{formatTruncCompact(echoScore, 1)}%</span>
-              ) : null}
               {cv > 0 ? (
-                <span className={getCvBdgClss(cv)}>CV {formatTruncCompact(cv, 1)}</span>
+                <span className="echo-tile-cv" style={{ '--cv-tone': getCvToneColor(cv) } as CssProps}>
+                  CV {formatTruncCompact(cv, 1)}
+                </span>
               ) : null}
+              {echoScore !== null ? (
+                <span className="echo-tile-score" data-tone={getScrTone(echoScore)}>
+                  {formatTruncCompact(echoScore, 0)}%
+                </span>
+              ) : null}
+
             </div>
           </div>
 
@@ -274,27 +296,28 @@ function InvEchoEntCa({
           </button>
         </div>
 
-        <div className="overview-echo-tile-stats">
-          <div className="overview-echo-stat overview-echo-stat--primary">
-            <span className="overview-echo-stat-label">{formatStatKeyLabel(entry.echo.mainStats.primary.key)}</span>
-            <span className="overview-echo-stat-value">{formatStatKeyValue(entry.echo.mainStats.primary.key, entry.echo.mainStats.primary.value)}</span>
-          </div>
-          <div className="overview-echo-stat overview-echo-stat--secondary">
-            <span className="overview-echo-stat-label">{formatStatKeyLabel(entry.echo.mainStats.secondary.key)}</span>
-            <span className="overview-echo-stat-value">{formatStatKeyValue(entry.echo.mainStats.secondary.key, entry.echo.mainStats.secondary.value)}</span>
-          </div>
-
-          {sbstEnts.length > 0 ? (
-            <div className="overview-echo-subs">
-              {sbstEnts.map(([key, value]) => (
-                <div key={key} className="overview-echo-stat overview-echo-stat--sub">
-                  <span className="overview-echo-stat-label">{formatStatKeyLabel(key)}</span>
-                  <span className="overview-echo-stat-value">{formatStatKeyValue(key, value)}</span>
-                </div>
-              ))}
-            </div>
+        <ul className="echo-tile-stats">
+          <li className="echo-tile-row echo-tile-row--primary">
+            <EchoStatGlyph statKey={entry.echo.mainStats.primary.key} size={0.66} />
+            <span className="echo-tile-row-k">{formatStatKeyLabel(entry.echo.mainStats.primary.key)}</span>
+            <span className="echo-tile-row-v">{formatStatKeyValue(entry.echo.mainStats.primary.key, entry.echo.mainStats.primary.value)}</span>
+          </li>
+          <li className="echo-tile-row echo-tile-row--secondary">
+            <EchoStatGlyph statKey={entry.echo.mainStats.secondary.key} size={0.6} />
+            <span className="echo-tile-row-k">{formatStatKeyLabel(entry.echo.mainStats.secondary.key)}</span>
+            <span className="echo-tile-row-v">{formatStatKeyValue(entry.echo.mainStats.secondary.key, entry.echo.mainStats.secondary.value)}</span>
+          </li>
+          {sbstEnts.map(([key, value]) => (
+            <li key={key} className="echo-tile-row echo-tile-row--sub">
+              <EchoStatGlyph statKey={key} size={0.6} />
+              <span className="echo-tile-row-k">{formatStatKeyLabel(key)}</span>
+              <span className="echo-tile-row-v">{formatStatKeyValue(key, value)}</span>
+            </li>
+          ))}
+          {sbstEnts.length === 0 ? (
+            <li className="echo-tile-row echo-tile-row--empty">No tuned substats</li>
           ) : null}
-        </div>
+        </ul>
 
         <div className="overview-echo-tile-foot echo-bag-card__equip-row">
           <div className="echo-bag-card__slot-actions">
@@ -334,6 +357,177 @@ function InvEchoEntCa({
   )
 }
 
+// renders the wide-screen "currently selected echo" readout beside the compact bag grid.
+function EchoBagRdt({
+  entry,
+  resonatorId,
+  showScore,
+  usage,
+  slotFitStates,
+  onEquip,
+  onEdit,
+  onRemove,
+}: {
+  entry: InvEchoEnt
+  resonatorId: string
+  showScore: boolean
+  usage: InvEchoSg[]
+  slotFitStates: InvSlotFitSt[]
+  onEquip: (slotIndex: number) => void
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  const definition = getEchoById(entry.echo.id)
+  if (!definition) {
+    return null
+  }
+
+  const setIcon = getSntSetIco(entry.echo.set)
+  const sbstEnts = Object.entries(entry.echo.substats).filter(([, value]) => Number.isFinite(value) && value !== 0)
+  const echoScore = showScore ? getEchoScrPr(resonatorId, entry.echo) : null
+  const cv = cmptEchoCrit(entry.echo.substats)
+  const visibleUsage = usage.filter((equipped) => equipped.icon)
+
+  return (
+    <div className="echo-rdt">
+      <div className="echo-rdt__plate">
+        <img
+          src={definition.icon}
+          alt=""
+          className="echo-rdt__art"
+          loading="lazy"
+          decoding="async"
+          onError={hideBrknMg}
+        />
+        <div className="echo-rdt__scrim" aria-hidden="true" />
+        {setIcon ? (
+          <span className="echo-rdt__set-badge" title={getSntSetNam(entry.echo.set)}>
+            <img src={setIcon} alt={getSntSetNam(entry.echo.set)} onError={withDefIconM} />
+          </span>
+        ) : null}
+        <div className="echo-rdt__title">
+          <div className="echo-rdt__title-row">
+            <h3 className="echo-rdt__name">{definition.name}</h3>
+            <span className="echo-rdt__cost">
+              <span className="echo-rdt__cost-num">{definition.cost}</span>
+              <span className="echo-rdt__cost-unit">cost</span>
+            </span>
+          </div>
+        </div>
+        <div className="echo-rdt__plate-actions">
+          <button
+            type="button"
+            className="echo-rdt__plate-btn"
+            title="Edit echo"
+            onClick={onEdit}
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            type="button"
+            className="echo-rdt__plate-btn echo-rdt__plate-btn--danger"
+            title="Remove echo"
+            onClick={onRemove}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      </div>
+
+      <div className="echo-rdt__body">
+        {echoScore !== null || cv > 0 ? (
+          <div className="echo-rdt__grade">
+            {echoScore !== null ? (
+              <div className="echo-rdt__grade-block">
+                <span className="echo-rdt__grade-cap">Score</span>
+                <span className={`echo-rdt__grade-num ${getScrBdgCls(echoScore)}`}>
+                  {formatTruncCompact(echoScore, 1)}<small>%</small>
+                </span>
+              </div>
+            ) : null}
+            {cv > 0 ? (
+              <div className="echo-rdt__grade-block">
+                <span className="echo-rdt__grade-cap">CV</span>
+                <span className={`echo-rdt__grade-num ${getCvBdgClss(cv)}`}>{formatTruncCompact(cv, 1)}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="echo-rdt__spec">
+          <div className="echo-rdt__stat">
+            <span className="echo-rdt__stat-label">{formatStatKeyLabel(entry.echo.mainStats.primary.key)}</span>
+            <span className="echo-rdt__stat-value">
+              {formatStatKeyValue(entry.echo.mainStats.primary.key, entry.echo.mainStats.primary.value)}
+            </span>
+          </div>
+          <div className="echo-rdt__stat">
+            <span className="echo-rdt__stat-label">{formatStatKeyLabel(entry.echo.mainStats.secondary.key)}</span>
+            <span className="echo-rdt__stat-value">
+              {formatStatKeyValue(entry.echo.mainStats.secondary.key, entry.echo.mainStats.secondary.value)}
+            </span>
+          </div>
+        </div>
+
+        {sbstEnts.length > 0 ? (
+          <div className="echo-rdt__ledger">
+            {sbstEnts.map(([key, value]) => (
+              <div key={key} className="echo-rdt__ledger-row">
+                <span>{formatStatKeyLabel(key)}</span>
+                <b>{formatStatKeyValue(key, value)}</b>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {definition.skillDesc ? (
+          <div className="echo-rdt__note echo-rdt__note--skill">
+            <span className="echo-rdt__note-tag">Skill</span>
+            <RichDscr description={definition.skillDesc} className="echo-rdt__prose" unstyled />
+          </div>
+        ) : null}
+
+        {visibleUsage.length > 0 ? (
+          <div className="echo-rdt__note echo-rdt__note--equip">
+            <span className="echo-rdt__note-tag">Equipped</span>
+            <div className="echo-rdt__usage">
+              {visibleUsage.map((equipped) => (
+                <img
+                  key={`${entry.id}-${equipped.resonatorId}-${equipped.slotIndex}`}
+                  src={equipped.icon}
+                  alt={`${equipped.resName} equipped`}
+                  title={`${equipped.resName} slot ${equipped.slotIndex + 1}`}
+                  className={`echo-rdt__usage-icon ${equipped.rarity === 5 ? 'five' : 'four'}`}
+                  loading="lazy"
+                  onError={withDefResMg}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="echo-rdt__actions">
+        <span className="echo-rdt__actions-label">Equip Slot</span>
+        <div className="echo-rdt__slots">
+          {slotFitStates.map((fitState, index) => (
+            <button
+              key={index}
+              type="button"
+              className={`echo-rdt__slot${fitState.selected ? ' is-selected' : ''}`}
+              onClick={() => onEquip(index)}
+              disabled={!fitState.fits}
+              title={fitState.fits ? `Equip into slot ${index + 1}` : 'Does not fit within the 12 cost cap'}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SvdMkCard({
   entry,
   currentBuild,
@@ -346,6 +540,7 @@ function SvdMkCard({
   onCnclRnm: onCnclRnm,
   onEquip,
   onRemove,
+  style,
   ...articleProps
 }: {
   entry: InventoryEntry
@@ -353,7 +548,7 @@ function SvdMkCard({
     weapon: WeaponState
     echoes: Array<EchoInstance | null>
   }
-  usage: string[]
+  usage: InvBldUsr[]
   editing: boolean
   editingName: string
   onStrtRnm: () => void
@@ -368,12 +563,13 @@ function SvdMkCard({
   // open modal resonator.
   const resonatorDef = getResSeedBy(entry.resonatorId)
   const weaponDef = entry.build.weapon.id ? getWpnById(entry.build.weapon.id) : null
+  const visibleUsage = usage.filter((user) => user.icon)
 
   return (
     <article
       {...articleProps}
       className="echo-preset-card"
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '216px' }}
+      style={style}
     >
       <span className="echo-tile-bracket echo-tile-bracket--tl" aria-hidden="true" />
       <span className="echo-tile-bracket echo-tile-bracket--br" aria-hidden="true" />
@@ -412,15 +608,6 @@ function SvdMkCard({
               {mtchCur ? <span className="echo-preset-card__match">Live</span> : null}
             </div>
           )}
-          {usage.length > 0 ? (
-            <div className="echo-preset-card__usage">
-              {usage.map((label) => (
-                <span key={`${entry.id}-${label}`} className="echo-preset-card__usage-chip">
-                  {label}
-                </span>
-              ))}
-            </div>
-          ) : null}
         </div>
 
         <div className="echo-preset-card__actions">
@@ -452,7 +639,10 @@ function SvdMkCard({
       </div>
 
       <div className="echo-preset-card__body">
-        <div className={`echo-preset-card__weapon${weaponDef ? ` rarity-${weaponDef.rarity}` : ''}`}>
+        <div
+          className="echo-preset-card__weapon"
+          style={weaponDef ? rarityVars(weaponDef.rarity) as CssProps : undefined}
+        >
           {weaponDef ? (
             <>
               <img
@@ -501,6 +691,21 @@ function SvdMkCard({
           })}
         </div>
       </div>
+      {visibleUsage.length > 0 ? (
+        <div className="preset-equipped echo-preset-card__usage">
+          {visibleUsage.map((user) => (
+            <img
+              key={`${entry.id}-${user.resonatorId}`}
+              src={user.icon}
+              alt={`${user.resName} equipped`}
+              title={user.resName}
+              className={`echo-preset-card__usage-icon ${user.rarity === 5 ? 'five' : 'four'}`}
+              loading="lazy"
+              onError={withDefResMg}
+            />
+          ))}
+        </div>
+      ) : null}
     </article>
   )
 }
@@ -526,16 +731,16 @@ export function InvMdl({
   invChs: invChs,
   invBlds: invBlds,
   ntlEchoSrch: initEchoSrch = '',
-  bldSgNmsById: bldSgNmsById,
+  bldUsrsById: bldUsrsById,
   echoSgByUid: echoSgByUid,
   onClose,
   onQpInvEcho: onQpInvEcho,
   onEditEcho: onEditInvEch,
   onAddInvChs: onAddInvChs,
+  onSaveInitEchoes,
   onRmvInvEcho: onRmvInvEcho,
   onRmvInvChs: onRmvInvChs,
   onClrInvChs: onClrInvChs,
-  onSaveCurBld: onSaveCrrnBl,
   onQpInvBld: onQpInvBld,
   onPdtInvBlgk: onPdtInvBldN,
   onRmvInvBld: onRmvInvBld,
@@ -565,8 +770,12 @@ export function InvMdl({
   const menu = useCtxBuilder()
   const showToast = useTstStr((state) => state.show)
   const [activeTab, setActiveTab] = useState<InventoryTab>('echoes')
+  const railVisible = useMediaQuery('(min-width: 64rem)')
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [echoSearch, setEchoSrch] = useState(initEchoSrch)
   const [buildSearch, setBldSrch] = useState('')
+  const echoSearchTokens = useMemo(() => mkSrchTkns(echoSearch), [echoSearch])
+  const buildSearchTokens = useMemo(() => mkSrchTkns(buildSearch), [buildSearch])
   const [selectedSet, setSelSet] = useState<number | null>(null)
   const [selectedCost, setSelCost] = useState<number | null>(null)
   const [dtngBldId, setDtngBldId] = useState<string | null>(null)
@@ -588,6 +797,8 @@ export function InvMdl({
 
   const [fcsdTileId, setFcsdTileI] = useState<string | null>(null)
   const modalBodyRef = useRef<HTMLDivElement | null>(null)
+  const [echoGridRef, echoGridCols] = useGridColumns()
+  const [buildsGridRef, buildsGridCols] = useGridColumns()
   const contextMenu = useAppCtxMen()
 
   const onCmpcTgl = useCallback(() => {
@@ -609,47 +820,49 @@ export function InvMdl({
 
   const filteredBag = useMemo(() => {
     // search includes ids and uids so imported echoes remain findable even when duplicate names or generated ids are
-    // the only clue the user has.
+    // the only clue the user has. equipped resonator names/ids are included so searching a resonator narrows to
+    // echoes currently equipped by that resonator.
     return sortEntsByNa(invChs, getInvEchoDs).filter((entry) => {
       const definition = getEchoById(entry.echo.id)
       if (!definition) {
         return false
       }
 
-      const search = echoSearch.trim().toLowerCase()
-      const echoName = definition.name.toLowerCase()
-      const mtchSrch = !search
-        || echoName.includes(search)
-        || entry.echo.id.toLowerCase().includes(search)
-        || entry.echo.uid.toLowerCase().includes(search)
-        || entry.id.toLowerCase().includes(search)
+      const usage = entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []
+      const mtchSrch = mtchSrchTkns(echoSearchTokens, [
+        definition.name,
+        entry.echo.id,
+        entry.echo.uid,
+        entry.id,
+        ...usage.flatMap((equipped) => [equipped.resName, equipped.resonatorId]),
+      ])
       const matchesSet = selectedSet == null || entry.echo.set === selectedSet
       const matchesCost = selectedCost == null || definition.cost === selectedCost
       return mtchSrch && matchesSet && matchesCost
     })
-  }, [invChs, echoSearch, selectedCost, selectedSet])
+  }, [echoSearchTokens, echoSgByUid, invChs, selectedCost, selectedSet])
+  const previewEntry = useMemo(
+    () => filteredBag.find((entry) => entry.id === previewId) ?? filteredBag[0] ?? null,
+    [filteredBag, previewId],
+  )
   const fltrBlds = useMemo(() => {
     return sortEntsByNa(invBlds, (entry) => entry.name).filter((entry) => {
-      const search = buildSearch.trim().toLowerCase()
-      return !search || (
-        entry.name.toLowerCase().includes(search)
-        || entry.resonatorName.toLowerCase().includes(search)
-      )
+      return mtchSrchTkns(buildSearchTokens, [entry.name, entry.resonatorName, entry.resonatorId])
     })
-  }, [invBlds, buildSearch])
+  }, [buildSearchTokens, invBlds])
   const actEchoFltrC =
     (selectedCost !== null ? 1 : 0) +
     (selectedSet !== null ? 1 : 0) +
-    (echoSearch.trim() ? 1 : 0)
-  const actMkFltrCnt = buildSearch.trim() ? 1 : 0
+    (echoSearchTokens.length > 0 ? 1 : 0)
+  const actMkFltrCnt = buildSearchTokens.length > 0 ? 1 : 0
   const actCollCnt = activeTab === 'echoes' ? filteredBag.length : fltrBlds.length
   const ttlCollCnt = activeTab === 'echoes' ? invChs.length : invBlds.length
   const actFltrCnt = activeTab === 'echoes' ? actEchoFltrC : actMkFltrCnt
-
-  const currentSaved = useMemo(
-    () => invBlds.some((entry) => areMkSnpsQvl(entry.build, currentBuild)),
-    [invBlds, currentBuild],
+  const invSetFilterIds = useMemo(
+    () => Array.from(new Set(invChs.map((entry) => entry.echo.set))).sort((left, right) => left - right),
+    [invChs],
   )
+
   const hasEchoScrWg = useMemo(() => getMaxEchoSc(resonatorId) > 0, [resonatorId])
   const clrDsbl = activeTab === 'echoes' ? invChs.length === 0 : invBlds.length === 0
   const curMkTtlCost = useMemo(() => cmptTtlEchoC(currentBuild.echoes), [currentBuild.echoes])
@@ -1022,9 +1235,9 @@ export function InvMdl({
     startRnmMk,
   ])
 
-  const tabFilters = (
-    <div className="picker-filter-section">
-      <div className="picker-filter-group echo-bag-modal__tab-group">
+  const tabFilters = (extraControls?: ReactNode) => (
+    <div className="picker-filter-layout echo-filter-row echo-bag-modal__toolbar-row">
+      <div className="picker-filter-tabswitch echo-bag-modal__tab-group">
         <button
           type="button"
           className={activeTab === 'echoes' ? 'picker-filter-chip active' : 'picker-filter-chip'}
@@ -1039,6 +1252,9 @@ export function InvMdl({
         >
           Builds
         </button>
+      </div>
+      <div className="picker-filter-divider" aria-hidden="true" />
+      <div className="echo-bag-modal__action-group">
         {activeTab === 'echoes' ? (
           <button
             type="button"
@@ -1061,6 +1277,7 @@ export function InvMdl({
           disabled={gridSwtc}
         >
           {compact ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+          {compact ? 'Expand' : 'Compact'}
         </button>
         <button
           type="button"
@@ -1079,25 +1296,27 @@ export function InvMdl({
           }}
           disabled={clrDsbl}
         >
-          Clear {activeTab === 'echoes' ? 'Echoes' : 'Builds'}
+          <Trash2 size={14} /> Clear
         </button>
       </div>
+      <div className="picker-filter-divider" aria-hidden="true" />
+      {extraControls}
     </div>
   )
 
   const hdrFltr = activeTab === 'echoes' ? (
-    <>
-      {tabFilters}
-      <label className="bp-search">
-        <Search size={17} aria-hidden="true" />
-        <input
-          type="search"
-          value={echoSearch}
-          onChange={(event) => setEchoSrch(event.target.value)}
-          placeholder="Search saved echoes"
-        />
-      </label>
-      <div className="picker-filter-layout">
+    tabFilters(
+      <>
+        <label className="bp-search">
+          <Search size={"0.72rem"} aria-hidden="true" />
+          <input
+            type="search"
+            value={echoSearch}
+            onChange={(event) => setEchoSrch(event.target.value)}
+            placeholder="Search saved echoes (resonaor/echo name, ID, UID, etc.)..."
+          />
+        </label>
+        <div className="picker-filter-divider" aria-hidden="true" />
         <div className="picker-filter-section">
           <div className="picker-filter-group echo-bag-modal__filter-group">
             {COST_FILTERS.map((cost) => (
@@ -1112,29 +1331,24 @@ export function InvMdl({
             ))}
           </div>
         </div>
+        <div className="picker-filter-divider" aria-hidden="true" />
         <div className="picker-filter-section echo-picker-set-filters">
-          <div className="picker-filter-group echo-picker-set-group">
-            {Array.from(new Set(invChs.map((entry) => entry.echo.set))).sort((left, right) => left - right).map((setId) => {
-              const icon = getSntSetIco(setId)
-              return (
-                  <button
-                      key={`set-filter-${setId}`}
-                      type="button"
-                      className={selectedSet === setId ? 'picker-filter-icon active' : 'picker-filter-icon'}
-                      onClick={() => setSelSet((current) => (current === setId ? null : setId))}
-                      title={getSntSetNam(setId)}
-                  >
-                    {icon ? <img src={icon} alt={getSntSetNam(setId)} className="echo-picker-set-icon" loading="lazy" onError={withDefIconM} /> : <span>{setId}</span>}
-                  </button>
-              )
-            })}
-          </div>
+          <AllowedSets
+            selectedSetIds={selectedSet == null ? [] : [selectedSet]}
+            availableSetIds={invSetFilterIds}
+            selectionMode="single"
+            closeOnSelect
+            placeholder="All Sonata"
+            triggerClass="picker-sonata-select"
+            triggerVariant="liquid"
+            menuMinWidth={420}
+            onSetIdsChange={(nextIds) => setSelSet(nextIds[0] ?? null)}
+          />
         </div>
-      </div>
-    </>
+      </>,
+    )
   ) : (
-    <>
-      {tabFilters}
+    tabFilters(
       <label className="bp-search">
         <Search size={17} aria-hidden="true" />
         <input
@@ -1143,8 +1357,8 @@ export function InvMdl({
           onChange={(event) => setBldSrch(event.target.value)}
           placeholder="Search saved builds"
         />
-      </label>
-    </>
+      </label>,
+    )
   )
 
   return (
@@ -1181,16 +1395,15 @@ export function InvMdl({
                 ) : null}
                 <button
                   type="button"
-                  className="picker-modal__close echo-bag-modal__save"
-                  onClick={onSaveCrrnBl}
-                  disabled={currentSaved}
+                  className="picker-modal__summary-action echo-bag-modal__save-equipped"
+                  onClick={onSaveInitEchoes}
+                  title="Save equipped echoes from initialized resonators"
                 >
-                  <Save size={15} />
-                  {currentSaved ? 'Build Saved' : 'Save Current Build'}
+                  <ArrowDownIcon size={14} />
+                  Save Equipped
                 </button>
+                <MdlClsBttn className="picker-modal__close" onClick={onClose} />
               </div>
-
-              <MdlClsBttn className="picker-modal__close" onClick={onClose} />
               <p id={dscrId} className="picker-modal__description">Saved echoes and full builds.</p>
             </div>
           </div>
@@ -1199,64 +1412,104 @@ export function InvMdl({
             {hdrFltr}
           </div>
 
-          <div className="picker-modal__body echo-bag-modal__body" ref={modalBodyRef}>
+          <div
+            className={`picker-modal__body echo-bag-modal__body${compact && activeTab === 'echoes' && filteredBag.length > 0 ? ' echo-bag-modal__body--rail' : ''}`}
+            ref={modalBodyRef}
+          >
             {activeTab === 'echoes' ? (
               filteredBag.length === 0 ? (
                 <div className="picker-modal__empty">
                   <p>No saved echoes match the current filters.</p>
                 </div>
               ) : (
-                <div
-                  key={compact ? 'compact' : 'expanded'}
-                  className={`picker-modal__grid echo-bag-modal__grid ${compact ? 'echo-bag-modal__compact' : ''}${gridSwtc ? ' is-switching' : ''}`}
-                  data-orbital-focus-active={fcsdTileId ? 'true' : undefined}
-                  {...echoSel.scopeProps}
-                >
-                  {filteredBag.map((entry, entryIndex) => {
-                    const slotFitStates = compact ? null : mkInvSlotFit(entry.echo)
-                    const selected = ffctSelEchoE.has(entry.id)
+                <>
+                  <div
+                    key={compact ? 'compact' : 'expanded'}
+                    className={`picker-modal__grid echo-bag-modal__grid ${compact ? 'echo-bag-modal__compact' : ''}${gridSwtc ? ' is-switching' : ''}`}
+                    data-orbital-focus-active={fcsdTileId ? 'true' : undefined}
+                    {...echoSel.scopeProps}
+                    ref={mergeRefs(echoGridRef, echoSel.scopeProps.ref)}
+                  >
+                    {filteredBag.map((entry, entryIndex) => {
+                      const slotFitStates = compact ? null : mkInvSlotFit(entry.echo)
+                      const selected = ffctSelEchoE.has(entry.id)
 
-                    return (
-                      <ContextTrigger
-                        key={entry.id}
-                        asChild
-                        ariaLabel={`${getEchoById(entry.echo.id)?.name ?? 'Echo'} inventory actions`}
-                        getItems={() => mkInvEchoCtx(
-                          entry,
-                          slotFitStates ?? mkInvSlotFit(entry.echo),
-                        )}
-                      >
-                        <InvEchoEntCa
-                          entry={entry}
-                          compact={compact}
-                          index={entryIndex}
-                          resonatorId={resonatorId}
-                          usage={entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []}
-                          showScore={hasEchoScrWg}
-                          slotFitStates={slotFitStates ?? MPTYSLOTFITS}
-                          selected={selected}
-                          selMode={selMode}
-                          onActivate={selMode ? undefined : (event) => openTileMenu(
+                      return (
+                        <ContextTrigger
+                          key={entry.id}
+                          asChild
+                          ariaLabel={`${getEchoById(entry.echo.id)?.name ?? 'Echo'} inventory actions`}
+                          getItems={() => mkInvEchoCtx(
                             entry,
                             slotFitStates ?? mkInvSlotFit(entry.echo),
-                            event,
                           )}
-                          isRbtlFcsd={fcsdTileId === entry.id}
-                          onEquip={(slotIndex) => onQpInvEcho(entry, slotIndex)}
-                          onEdit={() => onEditInvEch(entry)}
-                          onRemove={() => confirmation.confirm({
-                            title: 'You sure about that? ( · ❛ ֊ ❛)',
-                            message: `Remove "${getEchoById(entry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
-                            confirmLabel: 'Remove',
-                            variant: 'danger',
-                            onConfirm: () => onRmvInvEcho(entry.id),
-                          })}
-                          onClickCapture={echoSel.buildClickCapture(entry.id)}
-                        />
-                      </ContextTrigger>
-                    )
-                  })}
-                </div>
+                        >
+                          <InvEchoEntCa
+                            entry={entry}
+                            compact={compact}
+                            index={entryIndex}
+                            columns={echoGridCols}
+                            isPreview={compact && railVisible && entry.id === previewEntry?.id}
+                            resonatorId={resonatorId}
+                            usage={entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []}
+                            showScore={hasEchoScrWg}
+                            slotFitStates={slotFitStates ?? MPTYSLOTFITS}
+                            selected={selected}
+                            selMode={selMode}
+                            onActivate={selMode ? undefined : (event) => {
+                              setPreviewId(entry.id)
+                              if (railVisible) {
+                                // the rail already surfaces everything the quick-actions popup
+                                // offers, so a plain click just updates the preview there instead.
+                                return
+                              }
+                              openTileMenu(
+                                entry,
+                                slotFitStates ?? mkInvSlotFit(entry.echo),
+                                event,
+                              )
+                            }}
+                            isRbtlFcsd={fcsdTileId === entry.id}
+                            onEquip={(slotIndex) => onQpInvEcho(entry, slotIndex)}
+                            onEdit={() => onEditInvEch(entry)}
+                            onRemove={() => confirmation.confirm({
+                              title: 'You sure about that? ( · ❛ ֊ ❛)',
+                              message: `Remove "${getEchoById(entry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
+                              confirmLabel: 'Remove',
+                              variant: 'danger',
+                              onConfirm: () => onRmvInvEcho(entry.id),
+                            })}
+                            onClickCapture={echoSel.buildClickCapture(entry.id)}
+                          />
+                        </ContextTrigger>
+                      )
+                    })}
+                  </div>
+                  {compact && previewEntry ? (
+                    <aside
+                      className={`echo-bag-modal__rail${gridSwtc ? ' is-switching' : ''}`}
+                      aria-label="Selected echo details"
+                    >
+                      <EchoBagRdt
+                        key={previewEntry.id}
+                        entry={previewEntry}
+                        resonatorId={resonatorId}
+                        showScore={hasEchoScrWg}
+                        usage={previewEntry.echo.uid ? echoSgByUid[previewEntry.echo.uid] ?? [] : []}
+                        slotFitStates={mkInvSlotFit(previewEntry.echo)}
+                        onEquip={(slotIndex) => onQpInvEcho(previewEntry, slotIndex)}
+                        onEdit={() => onEditInvEch(previewEntry)}
+                        onRemove={() => confirmation.confirm({
+                          title: 'You sure about that? ( · ❛ ֊ ❛)',
+                          message: `Remove "${getEchoById(previewEntry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
+                          confirmLabel: 'Remove',
+                          variant: 'danger',
+                          onConfirm: () => onRmvInvEcho(previewEntry.id),
+                        })}
+                      />
+                    </aside>
+                  ) : null}
+                </>
               )
             ) : (
               fltrBlds.length === 0 ? (
@@ -1264,8 +1517,11 @@ export function InvMdl({
                   <p>No saved builds match the current filters.</p>
                 </div>
               ) : (
-                <div className="picker-modal__grid echo-bag-modal__grid echo-bag-modal__grid--builds">
-                  {fltrBlds.map((entry) => (
+                <div
+                  ref={buildsGridRef}
+                  className="picker-modal__grid echo-bag-modal__grid echo-bag-modal__grid--builds"
+                >
+                  {fltrBlds.map((entry, entryIndex) => (
                     <ContextTrigger
                       key={entry.id}
                       asChild
@@ -1274,8 +1530,9 @@ export function InvMdl({
                     >
                       <SvdMkCard
                         entry={entry}
+                        style={{ '--tile-index': Math.min(Math.floor(entryIndex / buildsGridCols), 6) } as CssProps}
                         currentBuild={currentBuild}
-                        usage={bldSgNmsById[entry.id] ?? []}
+                        usage={bldUsrsById[entry.id] ?? []}
                         editing={dtngBldId === entry.id}
                         editingName={dtngBldName}
                         onStrtRnm={() => startRnmMk(entry)}

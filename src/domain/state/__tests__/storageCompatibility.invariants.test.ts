@@ -9,12 +9,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { makeEchoUid } from '@/domain/entities/runtime'
+import { getEchoNstnSig } from '@/domain/entities/inventoryStorage'
 import { listEchoes } from '@/domain/services/echoCatalogService'
 import { listWeaponsByType } from '@/domain/services/catalogService'
 import { importLegacyInventoryEchoJson } from '@/domain/services/legacyInventoryImport'
 import { importLegacyApp } from '@/domain/services/legacyAppStateImport'
 import { listResSds, resSdsById } from '@/domain/services/resonatorSeedService'
-import { DEF_RES_ID, initAppState, makeAppState, makeResProfile, makeSuggest } from '@/domain/state/defaults'
+import {
+  DEF_RES_ID,
+  initAppState,
+  makeAppState,
+  makeResProfile,
+  makeResRuntime,
+  makeSuggest,
+  makeTeamMember,
+  mkDefTeamMem,
+} from '@/domain/state/defaults'
 import { persistedSchema } from '@/domain/state/schema'
 import { useAppStore } from '@/domain/state/store'
 import { APP_STORAGE_KEY, clrPrssAppSt, consumePersist, loadPrssAppS, parsePersisted } from '@/infra/persistence/storage'
@@ -181,6 +191,29 @@ function makeInventoryEchoInstance(echoId: string, slotIndex = 0): EchoInstance 
 }
 
 describe('storage compatibility', () => {
+  it('uses the catalog default weapon when instantiating resonator state', () => {
+    const expectConstructorsUseWeapon = (seed: NonNullable<ReturnType<typeof listResSds>[number]>, weaponId: string | null) => {
+      expect(makeResProfile(seed).runtime.build.weapon.id).toBe(weaponId)
+      expect(makeResRuntime(seed).build.weapon.id).toBe(weaponId)
+      expect(mkDefTeamMem(seed).build.weapon.id).toBe(weaponId)
+      expect(makeTeamMember(seed).build.weapon.id).toBe(weaponId)
+    }
+
+    const seed = listResSds().find((entry) => entry.defaultWeaponId)
+    expect(seed?.defaultWeaponId).toBeTruthy()
+    expectConstructorsUseWeapon(seed!, seed!.defaultWeaponId)
+
+    const fallbackSeed = listResSds().find((entry) => !entry.defaultWeaponId)
+    if (!fallbackSeed) {
+      return
+    }
+
+    expectConstructorsUseWeapon(
+      fallbackSeed,
+      listWeaponsByType(fallbackSeed.weaponType)[0]?.id ?? '0',
+    )
+  })
+
   it.runIf(Boolean(loadProdApp))('hydrates the current production snapshot without clearing saved state', async () => {
     const raw = await loadProdApp!()
     const parsed = JSON.parse(raw) as unknown
@@ -208,6 +241,18 @@ describe('storage compatibility', () => {
     expect(hydrated.calculator.inventoryEchoes).toHaveLength(echoCount)
     expect(hydrated.calculator.inventoryBuilds).toHaveLength(buildCount)
     expect(hydrated.calculator.inventoryRotations).toHaveLength(rotationCount)
+
+    const lynaeProfile = hydrated.calculator.profiles['1509']
+    expect(lynaeProfile).toBeDefined()
+    const invByUid = new Map(
+      hydrated.calculator.inventoryEchoes.map((entry) => [entry.echo.uid, entry.echo] as const),
+    )
+    for (const echo of lynaeProfile!.runtime.build.echoes) {
+      expect(echo).not.toBeNull()
+      const inventoryEcho = invByUid.get(echo!.uid)
+      expect(inventoryEcho).toBeDefined()
+      expect(getEchoNstnSig(inventoryEcho!)).toBe(getEchoNstnSig(echo!))
+    }
 
     // production users still carrying the old monolithic key should be migrated
     // into split domain keys instead of falling back to a cleared default state
@@ -450,5 +495,41 @@ describe('storage persistence routing', () => {
   it('marks only echo inventory persistence when adding an echo', () => {
     useAppStore.getState().addInvEcho(makeInventoryEchoInstance(listEchoes()[0].id))
     expect(consumePersist()).toEqual(['calculator.inventory.echoes'])
+  })
+
+  it('blocks exact echo duplicates but freshens uid for same-slot sonata variants', () => {
+    const multiSetEcho = listEchoes().find((echo) => echo.sets.length > 1)
+    expect(multiSetEcho).toBeDefined()
+
+    const first = makeInventoryEchoInstance(multiSetEcho!.id)
+    const exactDuplicate: EchoInstance = {
+      ...first,
+      uid: makeEchoUid(),
+      mainStats: {
+        primary: { ...first.mainStats.primary },
+        secondary: { ...first.mainStats.secondary },
+      },
+      substats: { ...first.substats },
+    }
+    const sonataVariant: EchoInstance = {
+      ...first,
+      set: multiSetEcho!.sets.find((setId) => setId !== first.set) ?? first.set,
+      mainStats: {
+        primary: { ...first.mainStats.primary },
+        secondary: { ...first.mainStats.secondary },
+      },
+      substats: { ...first.substats },
+    }
+
+    const firstEntry = useAppStore.getState().addInvEcho(first)
+    const duplicateEntry = useAppStore.getState().addInvEcho(exactDuplicate)
+    const variantEntry = useAppStore.getState().addInvEcho(sonataVariant)
+
+    expect(firstEntry?.echo.uid).toBe(first.uid)
+    expect(duplicateEntry).toBeNull()
+    expect(variantEntry?.echo.uid).not.toBe(first.uid)
+    expect(variantEntry?.echo.set).toBe(sonataVariant.set)
+    expect(useAppStore.getState().calculator.inventoryEchoes.map((entry) => entry.echo.uid))
+      .toEqual([first.uid, variantEntry?.echo.uid])
   })
 })

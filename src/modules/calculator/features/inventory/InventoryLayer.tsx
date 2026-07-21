@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the inventory layer surface for the calculator inventory flow.
+  Description: Coordinates inventory modal state, pending equip targets, and
+               echo/build application back into the active calculator runtime.
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -13,6 +14,7 @@ import {
 import { initWpnStts } from '@/domain/state/sourceStateInit'
 import { useAppStore } from '@/domain/state/store'
 import { selActRt, selInvSg } from '@/domain/state/selectors'
+import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getWpnById } from '@/domain/services/weaponCatalogService'
 import { APPMDLEXITMS, useAppModal } from '@/shared/ui/useAppModal'
@@ -209,18 +211,59 @@ function MntdInvLyr(props: {
 }) {
   const invChs = useAppStore((state) => state.calculator.inventoryEchoes)
   const invBlds = useAppStore((state) => state.calculator.inventoryBuilds)
-  const addEchoToInv = useAppStore((state) => state.addInvEcho)
-  const addMkToInv = useAppStore((state) => state.addInvBuild)
+  const addEchoesToInv = useAppStore((state) => state.addInvEchoes)
   const updInvMk = useAppStore((state) => state.updInvBuild)
   const rmInvMk = useAppStore((state) => state.rmInvBuild)
   const clrInvBlds = useAppStore((state) => state.clrInvBuild)
   const updEchoInInv = useAppStore((state) => state.updInvEcho)
   const rmEchoFromIn = useAppStore((state) => state.rmInvEcho)
   const clrInvChs = useAppStore((state) => state.clrInvEcho)
+  const cleanInvalidEchoes = useAppStore((state) => state.cleanInvEcho)
+  const showToast = useTstStr((state) => state.show)
 
   const dtngInvEchoE = props.editingEchoId
     ? invChs.find((entry) => entry.id === props.editingEchoId) ?? null
     : null
+
+  const saveInitEchoes = useCallback(() => {
+    const cleanedCount = cleanInvalidEchoes()
+    const profiles = useAppStore.getState().calculator.profiles
+    const equippedEchoes = Object.values(profiles)
+      .flatMap((profile) => profile.runtime.build.echoes)
+      .filter((echo): echo is EchoInstance => echo != null)
+    const echoes = equippedEchoes.filter((echo) => getEchoById(echo.id))
+
+    if (echoes.length === 0) {
+      showToast({
+        content: cleanedCount > 0
+          ? `Cleaned ${cleanedCount} invalid inventory echo${cleanedCount === 1 ? '' : 'es'}. No valid equipped echoes found.`
+          : 'No initialized resonators have valid echoes equipped.',
+        variant: 'warning',
+        duration: 2800,
+      })
+      return
+    }
+
+    const added = addEchoesToInv(echoes)
+    if (added.length === 0) {
+      showToast({
+        content: cleanedCount > 0
+          ? `Cleaned ${cleanedCount} invalid inventory echo${cleanedCount === 1 ? '' : 'es'}. All valid equipped echoes are already in inventory.`
+          : 'All valid initialized resonator echoes are already in inventory.',
+        variant: 'warning',
+        duration: 3000,
+      })
+      return
+    }
+
+    showToast({
+      content: cleanedCount > 0
+        ? `Cleaned ${cleanedCount} invalid and saved ${added.length} equipped echo${added.length === 1 ? '' : 'es'} to inventory.`
+        : `Saved ${added.length} equipped echo${added.length === 1 ? '' : 'es'} to inventory.`,
+      variant: 'success',
+      duration: 2800,
+    })
+  }, [addEchoesToInv, cleanInvalidEchoes, showToast])
 
   return (
     <>
@@ -238,22 +281,13 @@ function MntdInvLyr(props: {
         invChs={invChs}
         invBlds={invBlds}
         ntlEchoSrch={props.ntlEchoSrch}
-        bldSgNmsById={props.invSg.buildUseName}
+        bldUsrsById={props.invSg.buildUseByBldId}
         echoSgByUid={props.invSg.echoUseByUid}
         onClose={props.onClose}
         onQpInvEcho={props.onQpInvEcho}
         onEditEcho={(entry: InvEchoEnt) => props.onEditInvEcho(entry.id)}
-        onAddInvChs={(echoes) => {
-          let addedCount = 0
-
-          for (const echo of echoes) {
-            if (addEchoToInv(echo)) {
-              addedCount += 1
-            }
-          }
-
-          return addedCount
-        }}
+        onAddInvChs={(echoes) => addEchoesToInv(echoes).length}
+        onSaveInitEchoes={saveInitEchoes}
         onRmvInvEcho={rmEchoFromIn}
         onRmvInvChs={(entryIds) => {
           for (const entryId of entryIds) {
@@ -261,16 +295,7 @@ function MntdInvLyr(props: {
           }
         }}
         onClrInvChs={clrInvChs}
-        onSaveCurBld={() => {
-          addMkToInv({
-            resonatorId: props.runtime.id,
-            resonatorName: props.actSeedName,
-            build: {
-              weapon: { ...props.runtime.build.weapon },
-              echoes: cloneEchoLdt(props.runtime.build.echoes),
-            },
-          })
-        }}
+
         onQpInvBld={props.onQpInvBld}
         onPdtInvBlgk={(entryId, name) => updInvMk(entryId, { name })}
         onRmvInvBld={rmInvMk}
@@ -286,7 +311,10 @@ function MntdInvLyr(props: {
           echo={dtngInvEchoE.echo}
           slotIndex={0}
           onSave={(updated: EchoInstance) => {
-            updEchoInInv(dtngInvEchoE.id, updated)
+            updEchoInInv(dtngInvEchoE.id, {
+              ...updated,
+              uid: dtngInvEchoE.echo.uid,
+            })
             props.onClsEchoDtr()
           }}
           onClose={props.onClsEchoDtr}

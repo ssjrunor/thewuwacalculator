@@ -93,9 +93,14 @@ export function getResStateControls(
           defaultValue: group.defaultValue,
           options: group.modes.map((mode) => ({ id: mode.id, label: mode.label })),
         })),
-        ...details.inherentSkills.flatMap((entry) => entry.control ? [entry.control] : []),
-        ...details.statePanels.flatMap((panel) => panel.controls ?? []),
-        ...details.resonanceChains.flatMap((entry) => entry.controls ?? []),
+        ...(details.inherentSkills ?? []).flatMap((entry) => entry.control ? [entry.control] : []),
+        ...(details.outroSkills ?? []).flatMap((entry) => [
+          ...(entry.controls ?? []),
+          ...(entry.sections ?? []).flatMap((section) => section.controls ?? []),
+        ]),
+        ...(details.combatStates ?? []).flatMap((entry) => entry.controls ?? []),
+        ...(details.statePanels ?? []).flatMap((panel) => panel.controls ?? []),
+        ...(details.resonanceChains ?? []).flatMap((entry) => entry.controls ?? []),
       ]
     }
 
@@ -124,19 +129,37 @@ function getAttachedKeys(details: ResDtls): Set<string> {
     keys.add(group.controlKey)
   }
 
-  for (const panel of details.statePanels) {
+  for (const panel of details.statePanels ?? []) {
     for (const key of panel.stateKeys ?? panel.controls?.map((control) => control.key) ?? []) {
       keys.add(key)
     }
   }
 
-  for (const inherent of details.inherentSkills) {
+  for (const inherent of details.inherentSkills ?? []) {
     for (const key of inherent.stateKeys ?? (inherent.control ? [inherent.control.key] : [])) {
       keys.add(key)
     }
   }
 
-  for (const chain of details.resonanceChains) {
+  for (const outro of details.outroSkills ?? []) {
+    for (const key of outro.stateKeys ?? outro.controls?.map((control) => control.key) ?? []) {
+      keys.add(key)
+    }
+
+    for (const section of outro.sections ?? []) {
+      for (const key of section.stateKeys ?? section.controls?.map((control) => control.key) ?? []) {
+        keys.add(key)
+      }
+    }
+  }
+
+  for (const combatState of details.combatStates ?? []) {
+    for (const key of combatState.stateKeys ?? combatState.controls?.map((control) => control.key) ?? []) {
+      keys.add(key)
+    }
+  }
+
+  for (const chain of details.resonanceChains ?? []) {
     for (const key of chain.stateKeys ?? chain.controls?.map((control) => control.key) ?? []) {
       keys.add(key)
     }
@@ -161,6 +184,18 @@ export function getLooseResCtrls(details: ResDtls | null | undefined): ResStateC
 
 export function getResInherentControls(details: ResDtls | null | undefined, inherent: ResDtls['inherentSkills'][number]): ResStateControl[] {
   return getResStateControls(details, inherent.stateKeys ?? (inherent.control ? [inherent.control.key] : []))
+}
+
+export function getResOutroControls(details: ResDtls | null | undefined, outro: ResDtls['outroSkills'][number]): ResStateControl[] {
+  return getResStateControls(details, outro.stateKeys ?? outro.controls?.map((control) => control.key) ?? [])
+}
+
+export function getResOutroSectionControls(details: ResDtls | null | undefined, section: NonNullable<ResDtls['outroSkills'][number]['sections']>[number]): ResStateControl[] {
+  return getResStateControls(details, section.stateKeys ?? section.controls?.map((control) => control.key) ?? [])
+}
+
+export function getResCombatControls(details: ResDtls | null | undefined, combatState: ResDtls['combatStates'][number]): ResStateControl[] {
+  return getResStateControls(details, combatState.stateKeys ?? combatState.controls?.map((control) => control.key) ?? [])
 }
 
 export function getResChainControls(details: ResDtls | null | undefined, chain: ResDtls['resonanceChains'][number]): ResStateControl[] {
@@ -212,6 +247,8 @@ function nodeToState(resonatorId: string, details: ResDtls, node: ResStateNode):
     })) } : {}),
     ...(node.maxWhen ? { maxWhen: node.maxWhen } : {}),
     ...(node.description ? { description: node.description } : {}),
+    ...(node.surface ? { surface: node.surface } : {}),
+    ...(node.combatStateType ? { combatStateType: node.combatStateType } : {}),
     ...(node.disabledReason ? { disabledReason: node.disabledReason } : {}),
     ...(node.unlockWhen ? { visibleWhen: node.unlockWhen } : {}),
     ...(node.enabledWhen ? { enabledWhen: node.enabledWhen } : {}),

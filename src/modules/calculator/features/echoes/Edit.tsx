@@ -21,33 +21,10 @@ import { MdlClsBttn } from '@/shared/ui/ModalCloseButton.tsx'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback'
 import { AppModal } from '@/shared/ui/AppModal'
 import { truncTo } from '@/shared/lib/number.ts'
-
-const STAT_LABELS: Record<string, string> = {
-  hpPercent: 'HP%',
-  atkPercent: 'ATK%',
-  defPercent: 'DEF%',
-  critRate: 'Crit Rate',
-  critDmg: 'Crit DMG',
-  healingBonus: 'Healing',
-  energyRegen: 'Energy Regen',
-  tuneBreakBoost: 'Tune Break Boost',
-  hpFlat: 'HP',
-  atkFlat: 'ATK',
-  defFlat: 'DEF',
-  aero: 'Aero DMG',
-  glacio: 'Glacio DMG',
-  electro: 'Electro DMG',
-  fusion: 'Fusion DMG',
-  havoc: 'Havoc DMG',
-  spectro: 'Spectro DMG',
-  basicAtk: 'Basic ATK',
-  heavyAtk: 'Heavy ATK',
-  resonanceSkill: 'Res. Skill',
-  resonanceLiberation: 'Res. Liberation',
-}
+import { formatStatKeyLabel } from '@/modules/calculator/model/statsView.ts'
 
 function fmtStatKey(key: string): string {
-  return STAT_LABELS[key] ?? key
+  return formatStatKeyLabel(key)
 }
 
 function fmtStatValue(key: string, value: number): string {

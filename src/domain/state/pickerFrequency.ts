@@ -82,8 +82,9 @@ function mrgBktStt(
     return current
   }
 
-  // new picks move to the front while older picks keep their relative order,
-  // which lets the same bucket serve both recent and frequent suggestions.
+  // New picks move to the front while older picks keep their relative order.
+  // Counts are intentionally kept beyond this short recent list so frequent
+  // picks do not reset when a few other items are selected.
   const nextIds = [
     ...rdrdNcmn,
     ...current.ids.filter((value) => !rdrdNcmn.includes(value)),
@@ -92,12 +93,6 @@ function mrgBktStt(
 
   for (const id of rdrdNcmn) {
     nextCounts[id] = (nextCounts[id] ?? 0) + 1
-  }
-
-  for (const id of Object.keys(nextCounts)) {
-    if (!nextIds.includes(id)) {
-      delete nextCounts[id]
-    }
   }
 
   const idsUnchanged =

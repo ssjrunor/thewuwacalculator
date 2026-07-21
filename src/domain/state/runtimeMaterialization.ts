@@ -5,6 +5,7 @@
 */
 
 import type { ResProf, SlotLocalState } from '@/domain/entities/profile'
+import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import { cloneSntSet, DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
 import type { SlotId } from '@/domain/entities/session'
 import type {
@@ -43,6 +44,10 @@ export function cloneSlotLuo(state?: SlotLclSttSr): SlotLocalState {
       state && 'setConditionals' in state
           ? state.setConditionals
           : undefined
+  const optimizerInventory =
+      state && 'optimizerInventory' in state
+          ? state.optimizerInventory
+          : undefined
 
   return {
     controls: { ...(state?.controls ?? {}) },
@@ -51,6 +56,7 @@ export function cloneSlotLuo(state?: SlotLclSttSr): SlotLocalState {
     setConditionals: cloneSntSet(
       setConds ?? DEF_SET_COND,
     ),
+    optimizerInventory: cloneOptInventorySelection(optimizerInventory),
   }
 }
 

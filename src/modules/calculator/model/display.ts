@@ -10,6 +10,33 @@ import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 export { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 
 export type WeaponTypeId = 1 | 2 | 3 | 4 | 5
+export type RarityId = 1 | 2 | 3 | 4 | 5
+
+export const RARITY_COLORS: Record<RarityId, string> = {
+  1: 'rgb(153, 153, 153)',
+  2: 'rgb(98, 147, 124)',
+  3: 'rgb(96, 147, 185)',
+  4: 'rgb(132, 72, 168)',
+  5: 'rgb(255, 183, 0)',
+}
+
+export function getRarityColor(rarity: number | null | undefined): string | undefined {
+  return RARITY_COLORS[rarity as RarityId]
+}
+
+export function rarityVars(
+  rarity: number | null | undefined,
+  bisOrVars: boolean | string | string[] = false,
+  vars: string | string[] = '--picker-rarity-color',
+): Record<string, string> | undefined {
+  const bis = typeof bisOrVars === 'boolean' ? bisOrVars : false
+  const rslvVars = typeof bisOrVars === 'boolean' ? vars : bisOrVars
+  const color = bis ? '#BDD7F9' : getRarityColor(rarity)
+  if (!color) return undefined
+
+  const keys = Array.isArray(rslvVars) ? rslvVars : [rslvVars]
+  return Object.fromEntries(keys.map((key) => [key, color]))
+}
 
 export const ATTR_ID_COLORS: Record<EnemyElemId, string> = {
   0: ATTR_COLORS.physical,

@@ -122,8 +122,8 @@
   overflow: auto;
   padding: 0;
   border-top-left-radius: 1rem;
-  border-top: 1px solid var(--chrome-line);
-  border-left: 1px solid var(--chrome-line);
+  border-top: 1px solid color-mix(in srgb, var(--chrome-line) 50%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--chrome-line) 50%, transparent);
   transition: all 0.3s ease;
 }
 

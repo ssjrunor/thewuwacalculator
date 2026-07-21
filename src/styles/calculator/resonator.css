@@ -130,6 +130,183 @@
   letter-spacing: 0.05em;
 }
 
+.resonator-pane-v2 .res-card__ident-tags,
+.tlu-meta-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: help;
+  border-radius: 999px;
+  outline: none;
+}
+
+.resonator-pane-v2 .res-card__ident-tags:focus-visible,
+.tlu-meta-tags:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--resonator-accent) 70%, transparent);
+  outline-offset: 3px;
+}
+
+.resonator-pane-v2 .res-card__tag-icon,
+.tlu-meta-tags .res-card__tag-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  background-color: var(--muted);
+  object-fit: contain;
+  transition: background-color 220ms ease;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.res-tag-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1200;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.res-tag-tooltip__card {
+  width: min(20rem, calc(100vw - 24px));
+  padding: 0.85rem 0.95rem 0.65rem;
+  border-radius: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--item-border);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--text) 6%, transparent) inset,
+    0 18px 40px -18px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(6px) scale(0.985);
+  transition:
+    opacity 180ms ease,
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.res-tag-tooltip[data-open='true'] .res-tag-tooltip__card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.res-tag-tooltip[data-closing='true'] .res-tag-tooltip__card {
+  opacity: 0;
+  transform: translateY(4px) scale(0.99);
+}
+
+:is(.no-entrance-anim, .reduce-animation) .res-tag-tooltip__card {
+  transition: opacity 90ms linear;
+  transform: none;
+}
+
+:is(.no-entrance-anim, .reduce-animation) .res-tag-tooltip[data-open='true'] .res-tag-tooltip__card,
+:is(.no-entrance-anim, .reduce-animation) .res-tag-tooltip[data-closing='true'] .res-tag-tooltip__card {
+  transform: none;
+}
+
+.res-tag-tooltip__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.55rem;
+  margin-bottom: 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.res-tag-tooltip__label {
+  font-family: var(--mono-font);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.res-tag-tooltip__count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  font-family: var(--mono-font);
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1;
+  color: color-mix(in srgb, var(--resonator-accent) 62%, var(--text));
+  font-variant-numeric: tabular-nums;
+}
+
+.res-tag-tooltip__count-unit {
+  font-size: 0.56rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.res-tag-tooltip__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.res-tag-tooltip__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.6rem;
+  padding-left: 0.6rem;
+  position: relative;
+}
+
+.res-tag-tooltip__row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  bottom: 0.1rem;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--res-tag-color, var(--resonator-accent));
+}
+
+.res-tag-tooltip__icon {
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--res-tag-color, var(--resonator-accent)) 55%, transparent);
+  background: color-mix(in srgb, var(--res-tag-color, var(--resonator-accent)) 14%, transparent);
+}
+
+.res-tag-tooltip__icon img {
+  width: 1.05rem;
+  height: 1.05rem;
+  object-fit: contain;
+}
+
+.res-tag-tooltip__text {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.res-tag-tooltip__name {
+  font-family: var(--display-font);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+
+.res-tag-tooltip__desc {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .resonator-pane-v2 .res-card__score {
   grid-area: score;
   align-self: center;
@@ -2155,10 +2332,13 @@
 .res-mode-body.rich-description.main-echo-description.guides {
   padding: 0;
   color: color-mix(in srgb, var(--text) 78%, var(--muted));
-  font-size: 0.86rem;
   line-height: 1.45;
   transform-origin: top left;
   animation: res-mode-body-in 340ms var(--mode-ease) both;
+}
+
+.mcc-root .rich-description.main-echo-description.guides {
+  font-size: 0.8rem;
 }
 
 .res-mode-entry.is-active .res-mode-glyph {

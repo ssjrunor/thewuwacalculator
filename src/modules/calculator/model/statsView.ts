@@ -16,6 +16,7 @@ import { toTitle } from '@/shared/lib/format.ts'
 import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 export interface StatViewRow {
+  key: string
   label: string
   base: number
   bonus: number
@@ -76,34 +77,55 @@ export function formatStatValue(label: string, value: number): string {
   return `${formatTruncCompact(value, 1)}%`
 }
 
+export type StatKeyLabelMode = 'default' | 'bonus'
+
+const STAT_KEY_LABELS: Record<string, string> = {
+  atkPercent: 'ATK%',
+  hpPercent: 'HP%',
+  defPercent: 'DEF%',
+  atkFlat: 'ATK',
+  hpFlat: 'HP',
+  defFlat: 'DEF',
+  critRate: 'Crit Rate',
+  critDmg: 'Crit DMG',
+  energyRegen: 'Energy Regen',
+  healingBonus: 'Healing Bonus',
+  tuneBreakBoost: 'Tune Break Boost',
+  dmgVuln: 'DMG Vulnerability',
+  aero: 'Aero DMG',
+  glacio: 'Glacio DMG',
+  spectro: 'Spectro DMG',
+  fusion: 'Fusion DMG',
+  electro: 'Electro DMG',
+  havoc: 'Havoc DMG',
+  basicAtk: 'Basic ATK',
+  heavyAtk: 'Heavy ATK',
+  resonanceSkill: 'Res. Skill',
+  resonanceLiberation: 'Res. Liberation',
+}
+
+const BONUS_STAT_LABELS: Record<string, string> = {
+  healingBonus: 'Healing Bonus',
+  tuneBreakBoost: 'Tune Break Boost',
+  aero: 'Aero DMG Bonus',
+  glacio: 'Glacio DMG Bonus',
+  spectro: 'Spectro DMG Bonus',
+  fusion: 'Fusion DMG Bonus',
+  electro: 'Electro DMG Bonus',
+  havoc: 'Havoc DMG Bonus',
+  basicAtk: 'Basic Attack DMG Bonus',
+  heavyAtk: 'Heavy Attack DMG Bonus',
+  resonanceSkill: 'Resonance Skill DMG Bonus',
+  resonanceLiberation: 'Resonance Liberation DMG Bonus',
+}
+
 // friendly labels for raw stat keys used in tooltips, trees, and detail panes
-export function formatStatKeyLabel(key: string): string {
-  const labels: Record<string, string> = {
-    atkPercent: 'ATK%',
-    hpPercent: 'HP%',
-    defPercent: 'DEF%',
-    atkFlat: 'ATK',
-    hpFlat: 'HP',
-    defFlat: 'DEF',
-    critRate: 'Crit Rate',
-    critDmg: 'Crit DMG',
-    energyRegen: 'Energy Regen',
-    healingBonus: 'Healing Bonus',
-    tuneBreakBoost: 'Tune Break Boost',
-    dmgVuln: 'DMG Vulnerability',
-    aero: 'Aero DMG',
-    glacio: 'Glacio DMG',
-    spectro: 'Spectro DMG',
-    fusion: 'Fusion DMG',
-    electro: 'Electro DMG',
-    havoc: 'Havoc DMG',
-    basicAtk: 'Basic ATK',
-    heavyAtk: 'Heavy ATK',
-    resonanceSkill: 'Res. Skill',
-    resonanceLiberation: 'Res. Liberation',
+export function formatStatKeyLabel(key: string, mode: StatKeyLabelMode = 'default'): string {
+  if (mode === 'bonus') {
+    return BONUS_STAT_LABELS[key] ?? STAT_KEY_LABELS[key] ?? toTitle(key)
   }
 
-  return labels[key] ?? toTitle(key)
+  return STAT_KEY_LABELS[key] ?? toTitle(key)
 }
 
 // keys that should be rendered as percentages instead of flat values
@@ -155,18 +177,21 @@ export function makeStatsView(runtime: ResRuntime, finalStats: FinalStats): Stat
   // flat core stats are shown as base + bonus = total
   const mainStats: StatViewRow[] = [
     {
+      key: 'atkFlat',
       label: 'ATK',
       base: finalStats.atk.base,
       total: finalStats.atk.final,
       bonus: finalStats.atk.final - finalStats.atk.base,
     },
     {
+      key: 'hpFlat',
       label: 'HP',
       base: finalStats.hp.base,
       total: finalStats.hp.final,
       bonus: finalStats.hp.final - finalStats.hp.base,
     },
     {
+      key: 'defFlat',
       label: 'DEF',
       base: finalStats.def.base,
       total: finalStats.def.final,
@@ -183,30 +208,35 @@ export function makeStatsView(runtime: ResRuntime, finalStats: FinalStats): Stat
 
   const secondaryStats: StatViewRow[] = [
     {
+      key: 'energyRegen',
       label: 'Energy Regen',
       base: baseNrgyRgn,
       total: finalStats.energyRegen,
       bonus: finalStats.energyRegen - baseNrgyRgn,
     },
     {
+      key: 'critRate',
       label: 'Crit Rate',
       base: baseCritRate,
       total: finalStats.critRate,
       bonus: finalStats.critRate - baseCritRate,
     },
     {
+      key: 'critDmg',
       label: 'Crit DMG',
       base: baseCritDmg,
       total: finalStats.critDmg,
       bonus: finalStats.critDmg - baseCritDmg,
     },
     {
+      key: 'healingBonus',
       label: 'Healing Bonus',
       base: baseHlngBns,
       total: finalStats.healingBonus,
       bonus: finalStats.healingBonus - baseHlngBns,
     },
     {
+      key: 'tuneBreakBoost',
       label: 'Tune Break Boost',
       base: baseTuneBreakBoost,
       total: finalStats.tbb,
@@ -222,6 +252,7 @@ export function makeStatsView(runtime: ResRuntime, finalStats: FinalStats): Stat
     const total = finalStats.attribute[element].dmgBonus + finalStats.attribute.all.dmgBonus
 
     return {
+      key: element,
       label: `${element.charAt(0).toUpperCase() + element.slice(1)} DMG Bonus`,
       base,
       total,
@@ -233,24 +264,28 @@ export function makeStatsView(runtime: ResRuntime, finalStats: FinalStats): Stat
   // skill-type damage bonus rows also include the shared universal skillType.all bucket
   dmgModStts.push(
       {
+        key: 'basicAtk',
         label: 'Basic Attack DMG Bonus',
         base: 0,
         total: finalStats.skillType.basicAtk.dmgBonus + finalStats.skillType.all.dmgBonus,
         bonus: finalStats.skillType.basicAtk.dmgBonus + finalStats.skillType.all.dmgBonus,
       },
       {
+        key: 'heavyAtk',
         label: 'Heavy Attack DMG Bonus',
         base: 0,
         total: finalStats.skillType.heavyAtk.dmgBonus + finalStats.skillType.all.dmgBonus,
         bonus: finalStats.skillType.heavyAtk.dmgBonus + finalStats.skillType.all.dmgBonus,
       },
       {
+        key: 'resonanceSkill',
         label: 'Resonance Skill DMG Bonus',
         base: 0,
         total: finalStats.skillType.resonanceSkill.dmgBonus + finalStats.skillType.all.dmgBonus,
         bonus: finalStats.skillType.resonanceSkill.dmgBonus + finalStats.skillType.all.dmgBonus,
       },
       {
+        key: 'resonanceLiberation',
         label: 'Resonance Liberation DMG Bonus',
         base: 0,
         total: finalStats.skillType.resonanceLiberation.dmgBonus + finalStats.skillType.all.dmgBonus,

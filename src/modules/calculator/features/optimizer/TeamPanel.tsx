@@ -1,9 +1,11 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the team panel surface for the calculator optimizer flow.
+  Description: Edits optimizer teammate inclusion, set plans, weapon choices,
+               runtime controls, and target-routing constraints.
 */
 
 import { useCallback, useMemo } from 'react'
+import type { CSSProperties as CssProps } from 'react'
 import { isNoWeaponId, type ResRuntime, type TeamMemRt } from '@/domain/entities/runtime'
 import { MAX_RES_LVL, makeTeamMember, maxRtInit } from '@/domain/state/defaults'
 import { initWpnStts } from '@/domain/state/sourceStateInit'
@@ -40,6 +42,7 @@ import { getRandSetCn } from '@/modules/calculator/features/suggesstions/lib/sug
 import { mkMateCntr, teamRuntime } from '@/domain/state/teamRuntime'
 import { viewRtStt } from './renderRuntimeState'
 import { AllowedSets } from './AllowedSets.tsx'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 
 const SCOPE_LABELS: Record<SrcOwnScp, string> = {
   resonator: 'State',
@@ -48,6 +51,8 @@ const SCOPE_LABELS: Record<SrcOwnScp, string> = {
   team: 'Team',
   sequence: 'Sequence',
   inherent: 'Inherent',
+  outroSkill: 'Outro Skill',
+  combatState: 'Combat Effects',
 }
 
 interface StateGroup {
@@ -865,14 +870,18 @@ function OptRtCard({
         {onPortraitClick ? (
           <button
             type="button"
-            className={`opt-team__thumb-ring opt-team__thumb-ring--button rarity-${rarity}`}
+            className="opt-team__thumb-ring opt-team__thumb-ring--button"
+            style={rarityVars(rarity, false, '--avatar-rarity-color') as CssProps}
             onClick={onPortraitClick}
             aria-label={`Change ${slotLabel.toLowerCase()}`}
           >
             <img src={profileSrc} alt={displayName} className="opt-team__thumb" loading="eager" onError={withDefResMg} />
           </button>
         ) : (
-          <div className={`opt-team__thumb-ring rarity-${rarity}`}>
+          <div
+            className="opt-team__thumb-ring"
+            style={rarityVars(rarity, false, '--avatar-rarity-color') as CssProps}
+          >
             <img src={profileSrc} alt={displayName} className="opt-team__thumb" loading="eager" onError={withDefResMg} />
           </div>
         )}

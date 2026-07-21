@@ -330,8 +330,7 @@
       "iss  iss";
   }
 
-  /* once the hero sits on its own row, pinning it just makes the cards
-     scroll up behind it; let the whole panel scroll as one column */
+
   .app-status-hero {
     position: static;
     top: auto;

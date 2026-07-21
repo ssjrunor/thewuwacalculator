@@ -37,8 +37,6 @@ const DEFSPRTFACES = 1
 // re-export core resonator domain types for convenience
 export type {
   Resonator,
-  ResDtls as ResonatorDetails,
-  ResMenuEnt as ResonatorMenuEntry,
   SkillTabKey as ResonatorSkillTabKey,
   ResStateControl as ResonatorStateControl,
 }
@@ -135,9 +133,11 @@ function toMenuEntry(resonator: ResSeed): ResMenuEnt {
     id: resonator.id,
     displayName: resonator.name,
     profile: resonator.profile ?? '',
+    sprite: resonator.sprite ?? resonator.profile ?? '',
     rarity: resonator.rarity ?? 4,
     attribute: resonator.attribute,
     weaponType: resonator.weaponType,
+    tags: resonator.tags,
   }
 }
 

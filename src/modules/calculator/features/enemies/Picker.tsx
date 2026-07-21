@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the picker surface for the calculator enemies flow.
+  Description: Filters enemy presets and returns the selected enemy profile
+               template for calculator target configuration.
 */
 
 import { useMemo } from 'react'
@@ -61,6 +62,8 @@ function mkFltrNpt(
           />
         </label>
 
+        <div className="picker-filter-divider" aria-hidden="true" />
+
         <div className="picker-filter-section">
           <div className="picker-filter-group">
             {(Object.keys(ENEMY_ELEM_TXT) as Array<`${EnemyElemId}`>).map((key) => {
@@ -89,6 +92,8 @@ function mkFltrNpt(
             })}
           </div>
         </div>
+
+        <div className="picker-filter-divider" aria-hidden="true" />
 
         <div className="picker-filter-section">
           <div className="picker-filter-group enemy-picker__class-group">
@@ -172,25 +177,19 @@ export function EnemyPicker({
             />
           </div>
         ),
-        trailing: isSelected ? <span className="picker-modal__selection-pill">Selected</span> : null,
-        meta: (
-          <>
-            <span className="picker-modal__meta-pill">{ENEMY_CLASS_TXT[entry.class]}</span>
-            {attributeKey ? (
-              <span className="picker-modal__meta-pill">
-                <img
-                  src={`/assets/attributes/attributes alt/${attributeKey}.webp`}
-                  alt=""
-                  aria-hidden="true"
-                  className="picker-modal__meta-icon"
-                  style={attributeKey === 'physical' ? { filter: 'grayscale(1) brightness(0.6)' } : undefined}
-                  onError={withDefIconM}
-                />
-                {ENEMY_ELEM_TXT[element!]}
-              </span>
-            ) : null}
-          </>
-        ),
+        trailing: isSelected ? 'Selected' : null,
+        specClassName: '/picker-modal__card-spec--enemy',
+        meta: attributeKey ? (
+          <span className="picker-modal__spec-item" title={ENEMY_ELEM_TXT[element!]}>
+            <img
+              src={`/assets/attributes/attributes alt/${attributeKey}.webp`}
+              alt={ENEMY_ELEM_TXT[element!]}
+              className="picker-modal__meta-icon"
+              style={attributeKey === 'physical' ? { filter: 'grayscale(1) brightness(0.6)' } : undefined}
+              onError={withDefIconM}
+            />
+          </span>
+        ) : null,
       }
     })
   }, [enemies, onSelect, selNmyId])
@@ -207,6 +206,7 @@ export function EnemyPicker({
       open={open}
       closing={closing}
       portalTarget={portalTarget}
+      variant="enemy"
       eyebrow="Enemy Catalog"
       title="Select Enemy"
       summary={summary}

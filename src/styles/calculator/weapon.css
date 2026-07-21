@@ -253,18 +253,6 @@
   .weapon-banner__top {
     grid-template-columns: auto minmax(0, 1fr);
   }
-
-  .weapon-banner__figures {
-    grid-column: 1 / -1;
-    justify-self: start;
-  }
-}
-
-@media (max-width: 720px) {
-  .weapon-banner__top {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: start;
-  }
 }
 
 .weapon-pane > .resonator-strip__head,

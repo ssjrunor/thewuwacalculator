@@ -467,7 +467,7 @@
     0 1rem 1.7rem color-mix(in srgb, var(--danger, #cc3f53) 18%, transparent);
 }
 
-.calc-pane label:not(.toggle-row, .team-state-target),
+.calc-pane label:not(.tlu-lamp, .toggle-row, .team-state-target),
 .calc-pane > label {
   gap: 0.48rem;
   color: var(--text);
@@ -1246,7 +1246,6 @@ label.is-disabled {
   margin-top: 0;
   position: relative;
   display: grid;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
   border-radius: var(--ui-panel-card-radius);
   padding: var(--ui-panel-card-padding);
   box-shadow: var(--ui-panel-card-shadow);

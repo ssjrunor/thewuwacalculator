@@ -5,9 +5,11 @@
 */
 
 import { useId } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties as CssProps, ReactNode } from 'react'
 import { AppModal } from '@/shared/ui/AppModal'
 import { MdlClsBttn } from '@/shared/ui/ModalCloseButton'
+import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 
 export type PckrMdlRrty = 1 | 2 | 3 | 4 | 5
 
@@ -19,10 +21,12 @@ export interface PckrMdlItem {
   rarity?: PckrMdlRrty
   leading?: ReactNode
   trailing?: ReactNode
+  cornerNote?: ReactNode
   meta?: ReactNode
-  footer?: ReactNode
+  specClassName?: string
   selected?: boolean
   disabled?: boolean
+  bis?: boolean
   onSelect: () => void
 }
 
@@ -31,6 +35,7 @@ interface PckrMdlPrps {
   open: boolean
   closing?: boolean
   portalTarget: HTMLElement | null
+  variant?: string
   title: string
   eyebrow?: string
   description?: string
@@ -48,6 +53,7 @@ export function PickerModal({
   open,
   closing = false,
   portalTarget,
+  variant,
   title,
   eyebrow,
   description,
@@ -61,6 +67,7 @@ export function PickerModal({
 }: PckrMdlPrps) {
   const titleId = useId()
   const dscrId = useId()
+  const [gridRef, columns] = useGridColumns()
 
   if (!visible || !portalTarget) {
     return null
@@ -75,7 +82,7 @@ export function PickerModal({
       ariaDscrBy={description ? dscrId : undefined}
       onClose={onClose}
     >
-      <div className="picker-modal__frame" onClick={(event) => event.stopPropagation()}>
+      <div className="picker-modal__frame" data-variant={variant} onClick={(event) => event.stopPropagation()}>
         <div className="picker-modal__header">
           <div className="picker-modal__header-top">
             <div className="picker-modal__heading">
@@ -104,36 +111,47 @@ export function PickerModal({
               {emptyState ?? <p>No items available.</p>}
             </div>
           ) : (
-            <div className="picker-modal__grid">
-              {items.map((item) => (
+            <div className="picker-modal__grid picker-modal__grid--cards" ref={gridRef}>
+              {items.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
-                  className={`picker-modal__card ${item.rarity ? `rarity-${item.rarity}` : ''} ${item.selected ? 'is-selected' : ''}`}
-                  data-rarity={item.rarity}
+                  className={`picker-modal__card ${item.selected ? 'is-selected' : ''} ${!item.leading ? 'picker-modal__card--plain' : ''}`}
+                  style={{
+                    ...rarityVars(item.rarity, item.bis),
+                    animationDelay: `${Math.min(Math.floor(index / columns), 6) * 55}ms`,
+                  } as CssProps}
+                  aria-pressed={item.selected}
+                  data-bis={item.bis ? 'true' : undefined}
                   onClick={item.onSelect}
                   disabled={item.disabled}
                 >
                   <span className="picker-card-bracket picker-card-bracket--tl" aria-hidden="true" />
                   <span className="picker-card-bracket picker-card-bracket--br" aria-hidden="true" />
 
-                  <div className="picker-modal__card-main">
-                    {item.leading ? <div className="picker-modal__card-media">{item.leading}</div> : null}
-
-                    <div className="picker-modal__card-copy">
-                      <div className="picker-modal__card-head">
-                        <div className="picker-modal__card-heading">
-                          <div className="picker-modal__card-title">{item.title}</div>
-                          {item.subtitle ? <div className="picker-modal__card-subtitle">{item.subtitle}</div> : null}
-                        </div>
-                        {item.trailing ? <div className="picker-modal__card-trailing">{item.trailing}</div> : null}
+                  {item.leading ? (
+                    <div className="picker-modal__card-art">
+                      {item.leading}
+                      {item.cornerNote ? <div className="picker-modal__card-flag picker-modal__card-flag--left">{item.cornerNote}</div> : null}
+                      {item.trailing ? <div className="picker-modal__card-flag">{item.trailing}</div> : null}
+                      <div className="picker-modal__card-scrim">
+                        <div className="picker-modal__card-title">{item.title}</div>
+                        {item.subtitle ? <div className="picker-modal__card-subtitle">{item.subtitle}</div> : null}
                       </div>
-
-                      {item.meta ? <div className="picker-modal__card-meta">{item.meta}</div> : null}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="picker-modal__card-plate">
+                      <div className="picker-modal__card-title">{item.title}</div>
+                      {item.subtitle ? <div className="picker-modal__card-subtitle">{item.subtitle}</div> : null}
+                      {item.trailing ? <div className="picker-modal__card-flag picker-modal__card-flag--inline">{item.trailing}</div> : null}
+                    </div>
+                  )}
 
-                  {item.footer ? <div className="picker-modal__card-footer">{item.footer}</div> : null}
+                  {item.meta ? (
+                    <div className={`picker-modal__card-spec ${item.specClassName ?? ''}`}>
+                      {item.meta}
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>

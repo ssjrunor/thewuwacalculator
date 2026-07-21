@@ -19,7 +19,7 @@ import type {
   InventoryEntry,
   InvRotEnt,
 } from '@/domain/entities/inventoryStorage'
-import { dedupeInvEchoUids } from '@/domain/entities/inventoryStorage'
+import { dedupeInvEchoUids, getEchoNstnSig } from '@/domain/entities/inventoryStorage'
 import type { OptContext, OptSets } from '@/domain/entities/optimizer'
 import {
   cloneSntSet,
@@ -55,11 +55,16 @@ import type {
   TeamMemRt,
   TeamMemRtVie,
   WeaponState,
+  EchoInstance,
 } from '@/domain/entities/runtime'
 import type {
   ResProf,
   SlotLocalState,
   SlotRatingState,
+} from '@/domain/entities/profile'
+import {
+  cloneOptInventorySelection,
+  makeOptInventorySelection,
 } from '@/domain/entities/profile'
 import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
 
@@ -418,6 +423,18 @@ export function mkDefWpnMkSt(weaponType?: number): WeaponState {
   }
 }
 
+export function mkDefSeedWpnMkSt(seed: Pick<ResSeed, 'defaultWeaponId' | 'weaponType'>): WeaponState {
+  if (seed.defaultWeaponId) {
+    return catWpnAtk({
+      id: seed.defaultWeaponId,
+      level: 1,
+      rank: 1,
+    })
+  }
+
+  return mkDefWpnMkSt(seed.weaponType)
+}
+
 // create a maxed weapon build state
 export function mkMaxWpnMkSt(
     id: string | null = NONE_WPN_ID,
@@ -442,6 +459,7 @@ export function mkDefSlotLcl(): SlotLocalState {
     manualBuffs: makeCustomBuff(),
     combat: makeCombatState(),
     setConditionals: cloneSntSet(DEF_SET_COND),
+    optimizerInventory: makeOptInventorySelection(),
   }
 }
 
@@ -504,6 +522,7 @@ export function makeResProfile(seed: ResSeed, options: { maxed?: boolean } = {})
           manualBuffs: cloneBuffs(runtime.state.manualBuffs),
           combat: { ...runtime.state.combat },
           setConditionals: cloneSntSet(DEF_SET_COND),
+          optimizerInventory: makeOptInventorySelection(),
         },
         routing: mkDefSlotRtn(),
         team: runtime.build.team,
@@ -523,7 +542,7 @@ export function makeResProfile(seed: ResSeed, options: { maxed?: boolean } = {})
         traceNodes: makeTraceNode(),
       },
       build: {
-        weapon: mkDefWpnMkSt(seed.weaponType),
+        weapon: mkDefSeedWpnMkSt(seed),
         echoes: [null, null, null, null, null],
       },
       local: applySeedStt(seed, mkDefSlotLcl()),
@@ -556,6 +575,7 @@ export function applySeedStt(
     manualBuffs: cloneBuffs(localState.manualBuffs),
     combat: { ...localState.combat },
     setConditionals: cloneSntSet(localState.setConditionals),
+    optimizerInventory: cloneOptInventorySelection(localState.optimizerInventory),
   }
 
   for (const state of getSeedStts(seed)) {
@@ -619,7 +639,7 @@ export function makeResRuntime(seed: ResSeed): ResRuntime {
       traceNodes: makeTraceNode(),
     },
     build: {
-      weapon: mkDefWpnMkSt(seed.weaponType),
+      weapon: mkDefSeedWpnMkSt(seed),
       echoes: [null, null, null, null, null],
       team: mkDefTeamSlt(seed),
     },
@@ -660,7 +680,7 @@ export function mkDefTeamMem(seed: ResSeed): TeamMemRtVie {
       sequence: 0,
     },
     build: {
-      weapon: catTmWpnAtk(mkDefWpnMkSt(seed.weaponType), MAX_WPN_LVL),
+      weapon: catTmWpnAtk(mkDefSeedWpnMkSt(seed), MAX_WPN_LVL),
       echoes: [null, null, null, null, null],
     },
     state: {
@@ -675,7 +695,7 @@ export function mkDefTeamMem(seed: ResSeed): TeamMemRtVie {
 
 // create a maxed default team member runtime
 export function makeTeamMember(seed: ResSeed): TeamMemRt {
-  const weapon = mkDefWpnMkSt(seed.weaponType)
+  const weapon = mkDefSeedWpnMkSt(seed)
 
   return {
     id: seed.id,
@@ -749,16 +769,83 @@ export function cloneOptCtxS(
   }
 }
 
+function relinkEquippedEchoUids(
+    profiles: CalcState['profiles'],
+    inventoryEchoes: InvEchoEnt[],
+): CalcState['profiles'] {
+  if (inventoryEchoes.length === 0) {
+    return profiles
+  }
+
+  const invByUid = new Map<string, EchoInstance>()
+  const invBySig = new Map<string, EchoInstance>()
+  for (const entry of inventoryEchoes) {
+    invByUid.set(entry.echo.uid, entry.echo)
+    const sig = getEchoNstnSig(entry.echo)
+    if (!invBySig.has(sig)) {
+      invBySig.set(sig, entry.echo)
+    }
+  }
+
+  let changed = false
+  const nextProfiles = Object.fromEntries(
+      Object.entries(profiles).map(([resonatorId, profile]) => {
+        let profileChanged = false
+        const nextEchoes = profile.runtime.build.echoes.map((echo) => {
+          if (!echo) {
+            return echo
+          }
+
+          const sig = getEchoNstnSig(echo)
+          const currentInvEcho = invByUid.get(echo.uid)
+          if (currentInvEcho && getEchoNstnSig(currentInvEcho) === sig) {
+            return echo
+          }
+
+          const exactInvEcho = invBySig.get(sig)
+          if (!exactInvEcho || exactInvEcho.uid === echo.uid) {
+            return echo
+          }
+
+          profileChanged = true
+          changed = true
+          return { ...echo, uid: exactInvEcho.uid }
+        })
+
+        if (!profileChanged) {
+          return [resonatorId, profile]
+        }
+
+        return [
+          resonatorId,
+          {
+            ...profile,
+            runtime: {
+              ...profile.runtime,
+              build: {
+                ...profile.runtime.build,
+                echoes: nextEchoes,
+              },
+            },
+          },
+        ]
+      }),
+  )
+
+  return changed ? nextProfiles : profiles
+}
+
 // initialize calculator state with current defaults
 function mkInitCalcSt(base?: CalcState): CalcState {
   const rtRvsn = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
-  const profiles = normProfsCat(structuredClone(base?.profiles ?? {}))
+  const baseProfiles = normProfsCat(structuredClone(base?.profiles ?? {}))
   // inventory uids are unique within the bag; the entry an equipped loadout echo
   // points at keeps its uid, and equipped echoes are passed in to resolve that.
   const invChs: InvEchoEnt[] = dedupeInvEchoUids(
     structuredClone(base?.inventoryEchoes ?? []),
-    Object.values(profiles).flatMap((profile) => profile.runtime.build.echoes),
+    Object.values(baseProfiles).flatMap((profile) => profile.runtime.build.echoes),
   )
+  const profiles = relinkEquippedEchoUids(baseProfiles, invChs)
   const invBlds: InventoryEntry[] = normBldsCat(structuredClone(base?.inventoryBuilds ?? []))
   const invRttn: InvRotEnt[] = normRotsCat(structuredClone(base?.inventoryRotations ?? []))
   const optimizer = normOptCat(cloneOptCtxS(base?.optimizerContext ?? null))
@@ -957,6 +1044,7 @@ function normPrfLcl(
     ...localState,
     controls,
     combat: normNegFfctC(normRuntime),
+    optimizerInventory: cloneOptInventorySelection(localState.optimizerInventory),
   }
 }
 

@@ -161,6 +161,13 @@ export interface ResSeed {
   attribute: AttributeKey
   weaponType: 1 | 2 | 3 | 4 | 5
   defaultWeaponId: string | null
+  recommendedWeaponIds?: string[]
+  tags?: Array<{
+    id: string
+    name: string
+    desc: string
+    color: string
+  }>
   baseStats: {
     hp: number
     atk: number

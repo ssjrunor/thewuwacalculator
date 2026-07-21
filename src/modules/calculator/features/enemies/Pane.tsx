@@ -6,13 +6,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties as CssProps, ReactNode } from 'react'
 import type { EnemyProfile, EnemyStateValue } from '@/domain/entities/appState.ts'
-import type { SourceState } from '@/domain/gameData/contracts.ts'
+import type { EffectScope, FormExpr, SourceState } from '@/domain/gameData/contracts.ts'
 import type { EnemyClassId, EnemyElemId } from '@/domain/entities/enemy.ts'
 import { ENEMY_CLASS_TXT, ENEMY_PRST, getEnemyIcon } from '@/domain/entities/enemy.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { AttributeKey } from '@/domain/entities/stats.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
+import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
+import { readRtPath } from '@/domain/gameData/runtimePath.ts'
 import { NEG_EFFECT_ELEM, negEffectsFor } from '@/domain/gameData/negativeEffects.ts'
+import { mkSrcSttScp, srcSttOpts } from '@/modules/calculator/model/sourceEval.ts'
 import { fltrEnemyCat, getEnemyCatE } from '@/domain/services/enemyCatalogService.ts'
 import { EnemyPicker } from '@/modules/calculator/features/enemies/Picker.tsx'
 import {
@@ -30,13 +33,23 @@ import {
   setEnemyTune,
   tglEnemyTwrM,
 } from '@/domain/services/enemyProfileService.ts'
-import { listEffectsFor, listStatesFor } from '@/domain/services/gameDataService.ts'
+import { listEffectsFor, listFfctForO, listStatesFor } from '@/domain/services/gameDataService.ts'
 import { useEnemyCat } from '@/app/hooks/useEnemyCatalog.ts'
 import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
+import { SourceStateCtrl } from '@/modules/calculator/features/controls/SourceStateControl.tsx'
 import { StackGauge } from '@/modules/calculator/features/controls/StackGauge.tsx'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
 import { getStateText } from '@/modules/calculator/model/sourceStateDisplay.ts'
+import { getSrcSttNct } from '@/domain/gameData/controlOptions.ts'
+import { srcSttNumMax } from '@/domain/state/sourceStateInit.ts'
+import { evalCond, evalForm } from '@/engine/effects/evaluator.ts'
+import { getSrcSttDsb } from '@/modules/calculator/model/stateDisabledReason.ts'
+import {
+  isSourceVisible,
+  isSrcSttOn,
+  setSourceState,
+} from '@/modules/calculator/features/controls/lib/runtimeStateUtils.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { clampNumber, formatTruncCompact } from '@/shared/lib/number.ts'
@@ -64,7 +77,7 @@ function resistMultiplier(enemyResPct: number): number {
   return 1 / (1 + 5 * (enemyResPct / 100))
 }
 
-interface EnemyStateCtrlPrps {
+interface EnemyCombatCtrlPrps {
   state: SourceState
   value: EnemyStateValue | undefined
   onChange: (value: EnemyStateValue) => void
@@ -72,7 +85,7 @@ interface EnemyStateCtrlPrps {
 
 // renders a single enemy debuff state as a control panel: name, description, then the control,
 // matching the resonator/weapon source-state panels.
-function EnemyStateCtrl({ state, value, onChange }: EnemyStateCtrlPrps) {
+function EnemyCombatCtrl({ state, value, onChange }: EnemyCombatCtrlPrps) {
   const display = getStateText(state)
   let control: ReactNode
 
@@ -143,6 +156,305 @@ function EnemyStateCtrl({ state, value, onChange }: EnemyStateCtrlPrps) {
   )
 }
 
+interface ResCombatSttCard {
+  id: string
+  title: string
+  body: string
+  type?: 'tuneStrain'
+  states: SourceState[]
+  keywords?: string[]
+}
+
+interface ResCombatStatePrps {
+  card: ResCombatSttCard
+  runtime: ResRuntime
+  enemy: EnemyProfile
+  simulation: SimResult | null
+  onRtPdt: (updater: (runtime: ResRuntime) => ResRuntime) => void
+}
+
+function fmtPct(value: number): string {
+  const rounded = Math.abs(value) >= 10
+    ? Math.round(value * 10) / 10
+    : Math.round(value * 100) / 100
+
+  return `${rounded > 0 ? '+' : ''}${formatTruncCompact(rounded, 2)}%`
+}
+
+function fmtMathNum(value: number): string {
+  return formatTruncCompact(Math.round(value * 100) / 100, 2)
+}
+
+function formulaTerm(formula: FormExpr, scope: EffectScope): string {
+  if (formula.type === 'const') {
+    return fmtMathNum(formula.value)
+  }
+
+  if (formula.type === 'read') {
+    const value = evalForm(formula, scope)
+    const path = `${formula.from ?? ''}.${formula.path}`
+
+    if (path.endsWith('finalStats.tbb') || path.endsWith('finalStats.tuneBreakBoost')) {
+      return `TBB ${fmtMathNum(value)}`
+    }
+
+    if (path.endsWith('enemy.status.tuneStrain')) {
+      return `Tune Strain ${fmtMathNum(value)}`
+    }
+
+    return `${formula.path.split('.').at(-1) ?? 'Value'} ${fmtMathNum(value)}`
+  }
+
+  if (formula.type === 'clamp') {
+    return formulaTerm(formula.value, scope)
+  }
+
+  return fmtMathNum(evalForm(formula, scope))
+}
+
+function formulaMath(formula: FormExpr, scope: EffectScope): string {
+  if (formula.type === 'mul') {
+    return formula.values.map((entry) => formulaTerm(entry, scope)).join(' x ')
+  }
+
+  if (formula.type === 'add') {
+    return formula.values.map((entry) => formulaTerm(entry, scope)).join(' + ')
+  }
+
+  return formulaTerm(formula, scope)
+}
+
+function effectScope(
+  runtime: ResRuntime,
+  state: SourceState,
+  enemy: EnemyProfile,
+  simulation: SimResult | null,
+): EffectScope {
+  const base = mkSrcSttScp(runtime, runtime, state, runtime)
+  const finalStats = simulation?.finalStats
+
+  return {
+    ...base,
+    sourceFinalStats: finalStats,
+    finalStats,
+    context: {
+      ...base.context,
+      sourceFinalStats: finalStats,
+      finalStats,
+      enemy,
+    },
+  }
+}
+
+function dmgVulnMath(
+  runtime: ResRuntime,
+  state: SourceState,
+  enemy: EnemyProfile,
+  simulation: SimResult | null,
+): Array<{ id: string; label: string; value: number; equation: string; active: boolean }> {
+  const scope = effectScope(runtime, state, enemy, simulation)
+
+  return listFfctForO(state.ownerKey)
+    .flatMap((effect) => {
+      const active = evalCond(effect.condition, scope)
+      return effect.operations.flatMap((operation, index) => {
+        if (operation.type !== 'add_top_stat' || operation.stat !== 'dmgVuln') {
+          return []
+        }
+
+        return [{
+          id: `${effect.id}:${index}`,
+          label: effect.label,
+          value: active ? evalForm(operation.value, scope) : 0,
+          equation: formulaMath(operation.value, scope),
+          active,
+        }]
+      })
+    })
+}
+
+function toSourceBool(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value > 0
+  if (typeof value === 'string') return value === 'true'
+  return false
+}
+
+function toSourceNum(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return 0
+}
+
+function ResCombatStateControl({
+  state,
+  runtime,
+  onRtPdt,
+  compact = false,
+}: {
+  state: SourceState
+  runtime: ResRuntime
+  onRtPdt: (updater: (runtime: ResRuntime) => ResRuntime) => void
+  compact?: boolean
+}) {
+  const current = readRtValue(runtime, state)
+  const enabled = isSrcSttOn(runtime, runtime, state, runtime)
+  const disabledReason = enabled ? null : getSrcSttDsb(state)
+  const display = getStateText(state)
+
+  if (state.kind === 'toggle') {
+    const checked = toSourceBool(current)
+
+    return (
+      <div className={['res-combat-control', compact ? 'res-combat-control--compact' : '', checked ? 'is-active' : '', !enabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
+        <button
+          type="button"
+          className="res-combat-switch"
+          aria-pressed={checked}
+          disabled={!enabled}
+          onClick={() => setSourceState(onRtPdt, runtime, runtime, state, !checked, runtime)}
+        >
+          <span className="res-combat-switch__mark" aria-hidden="true" />
+          <span className="res-combat-switch__text">{display.label}</span>
+          <span className="res-combat-switch__state">{checked ? 'Active' : 'Off'}</span>
+        </button>
+        {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
+      </div>
+    )
+  }
+
+  if (state.kind === 'select') {
+    const options = srcSttOpts(runtime, runtime, state, runtime)
+    const value = String(current ?? options[0]?.id ?? '')
+
+    return (
+      <label className={['res-combat-control', !enabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
+        <span>{display.label}</span>
+        <LiquidSelect
+          value={value}
+          options={options.map((option) => ({ value: option.id, label: option.label }))}
+          disabled={!enabled}
+          onChange={(next) => setSourceState(onRtPdt, runtime, runtime, state, next, runtime)}
+        />
+        {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
+      </label>
+    )
+  }
+
+  const min = state.min ?? 0
+  const max = srcSttNumMax(runtime, runtime, state, runtime)
+
+  return (
+    <label className={['res-combat-control', !enabled ? 'is-disabled' : ''].filter(Boolean).join(' ')}>
+      <span>{display.label}</span>
+      <NumberInput
+        value={toSourceNum(current)}
+        min={min}
+        max={max}
+        step={state.kind === 'stack' ? 1 : 0.1}
+        disabled={!enabled}
+        onChange={(next) => setSourceState(onRtPdt, runtime, runtime, state, clampNumber(next, min, max ?? Number.MAX_SAFE_INTEGER), runtime)}
+      />
+      {disabledReason ? <div className="state-control-reason">{disabledReason}</div> : null}
+    </label>
+  )
+}
+
+function readRtValue(runtime: ResRuntime, state: SourceState): string | number | boolean {
+  const stored = readRtPath(runtime, state.path)
+  if (stored === undefined) {
+    return getSrcSttNct(runtime, runtime, state, runtime)
+  }
+
+  return stored as string | number | boolean
+}
+
+function ResCombatTuneCard({ card, runtime, enemy, simulation, onRtPdt }: ResCombatStatePrps) {
+  const state = card.states[0]
+  const mathRows = state ? dmgVulnMath(runtime, state, enemy, simulation) : []
+  const total = mathRows.reduce((sum, row) => sum + row.value, 0)
+
+  const active = total > 0
+  const showTermValues = mathRows.length > 1
+
+  return (
+    <article className={active ? 'combat-tune-card is-active' : 'combat-tune-card'}>
+      <header className="combat-tune-card__header">
+        <h4 className="combat-tune-card__title">{card.title}</h4>
+        <div className="combat-tune-card__output">
+          <span className="combat-tune-card__output-value">{fmtPct(total)}</span>
+          <span className="combat-tune-card__output-label">DMG taken</span>
+        </div>
+      </header>
+      <RichDscr
+        description={card.body}
+        className="combat-tune-card__desc"
+        xtrKywr={card.keywords}
+      />
+      <div className="combat-tune-card__controls">
+        {card.states.map((entry) => (
+          <SourceStateCtrl
+            key={entry.controlKey}
+            srcRt={runtime}
+            tgtRt={runtime}
+            state={entry}
+            onRtPdt={onRtPdt}
+            hideDscr
+          />
+        ))}
+      </div>
+      {mathRows.length > 0 ? (
+        <div className="combat-tune-card__breakdown">
+          {mathRows.map((row) => (
+            <div key={row.id} className={row.active ? 'combat-tune-card__term is-active' : 'combat-tune-card__term'}>
+              <span className="combat-tune-card__term-desc">
+                <span className="combat-tune-card__term-label">{row.label}</span>
+                <span className="combat-tune-card__term-eq">{row.equation}</span>
+              </span>
+              {showTermValues ? <span className="combat-tune-card__term-value">{fmtPct(row.value)}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  )
+}
+
+function ResCombatPlainCard({ card, runtime, enemy, simulation, onRtPdt }: ResCombatStatePrps) {
+  const mathRows = card.states.flatMap((state) => dmgVulnMath(runtime, state, enemy, simulation))
+
+  return (
+    <article className="pane-section res-combat-plain-card">
+      <div className="sequence-card-head">
+        <div className="sequence-card-title-row">
+          <h4>{card.title}</h4>
+        </div>
+      </div>
+      <RichDscr description={card.body} xtrKywr={card.keywords} />
+      <div className="res-combat-plain-card__controls">
+        {card.states.map((state) => (
+          <ResCombatStateControl
+            key={state.controlKey}
+            state={state}
+            runtime={runtime}
+            onRtPdt={onRtPdt}
+          />
+        ))}
+      </div>
+      {mathRows.length > 0 ? (
+        <div className="res-combat-plain-card__math">
+          {mathRows.map((row) => (
+            <span key={row.id}>{row.equation} = {fmtPct(row.value)} DMG Vulnerability</span>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  )
+}
+
 export function CalcEnemyPmg({
   runtime,
   enemyProfile,
@@ -181,10 +493,42 @@ export function CalcEnemyPmg({
     () => vsblNegFfct.filter((effect) => effect.sliderVisible),
     [vsblNegFfct],
   )
-  const enemyStates = useMemo(
+  const enemySourceCombatStates = useMemo(
     () => listStatesFor('enemy', enemyProfile.id),
     [enemyProfile.id],
   )
+  const resCombatStateCards = useMemo<ResCombatSttCard[]>(() => {
+    const details = getResDtlsBy()[runtime.id]
+    if (!details?.combatStates?.length) {
+      return []
+    }
+
+    const statesByControlKey = new Map(
+      listStatesFor('resonator', runtime.id)
+        .map((state) => [state.controlKey, state]),
+    )
+
+    return details.combatStates
+      .map((entry) => {
+        const stateKeys = entry.stateKeys ?? entry.controls.map((control) => control.key)
+        const states = stateKeys
+          .map((key) => statesByControlKey.get(key))
+          .filter((state): state is SourceState => Boolean(state))
+          .filter((state) => isSourceVisible(runtime, runtime, state, runtime))
+
+        return {
+          id: entry.id ?? entry.title,
+          title: entry.title,
+          body: entry.body,
+          type: entry.type,
+          keywords: entry.keywords,
+          states,
+        }
+      })
+      .filter((entry) => entry.states.length > 0)
+  }, [runtime])
+  const tuneStrainCards = resCombatStateCards.filter((entry) => entry.type === 'tuneStrain')
+  const plainResCombatCards = resCombatStateCards.filter((entry) => entry.type !== 'tuneStrain')
   const enemyPassives = useMemo(
     () => listEffectsFor('enemy', enemyProfile.id).filter((effect) => Boolean(effect.description)),
     [enemyProfile.id],
@@ -496,6 +840,20 @@ export function CalcEnemyPmg({
             accent="#c9b35d"
             onChange={onTuneStrnCh}
           />
+          {tuneStrainCards.length > 0 ? (
+            <div className="combat-tune-responder-list">
+              {tuneStrainCards.map((card) => (
+                <ResCombatTuneCard
+                  key={card.id}
+                  card={card}
+                  runtime={runtime}
+                  enemy={enemyProfile}
+                  simulation={simulation}
+                  onRtPdt={onRtPdt}
+                />
+              ))}
+            </div>
+          ) : null}
 
         </section>
         {djstNegFfct.length > 0 ? (
@@ -522,16 +880,16 @@ export function CalcEnemyPmg({
         ) : null}
       </section>
 
-      {enemyStates.length > 0 || enemyPassives.length > 0 ? (
+      {enemySourceCombatStates.length > 0 || enemyPassives.length > 0 || plainResCombatCards.length > 0 ? (
         <section className="enemy-strip">
           <div className="weapon-effect__bar">
             <span className="weapon-effect__sigil" aria-hidden="true" />
             <span className="weapon-effect__titles">
-                  <span className="weapon-effect__tag">Combat Effect</span>
+                  <span className="weapon-effect__tag">Combat Effects</span>
                   <span className="weapon-effect__name">{selEnemy?.name || 'who-is-this'}</span>
                 </span>
           </div>
-          <div className="stack enemy-state-controls">
+          <div className="stack combat-effect-controls">
             {enemyPassives.map((effect) => (
               <div
                 key={effect.id}
@@ -546,17 +904,27 @@ export function CalcEnemyPmg({
                 {effect.description ? <RichDscr description={effect.description} /> : null}
               </div>
             ))}
-            {enemyStates.map((state) => (
+            {enemySourceCombatStates.map((state) => (
               <div
                 key={state.controlKey}
                 className="pane-section"
               >
-                <EnemyStateCtrl
+                <EnemyCombatCtrl
                   state={state}
                   value={getEnemyState(enemyProfile, state.id)}
                   onChange={(value) => onNmyPrflChn(setEnemyState(enemyProfile, state.id, value))}
                 />
               </div>
+            ))}
+            {plainResCombatCards.map((card) => (
+              <ResCombatPlainCard
+                key={card.id}
+                card={card}
+                runtime={runtime}
+                enemy={enemyProfile}
+                simulation={simulation}
+                onRtPdt={onRtPdt}
+              />
             ))}
           </div>
         </section>

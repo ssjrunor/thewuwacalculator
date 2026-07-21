@@ -22,7 +22,7 @@ import type { SimResult } from '@/engine/pipeline/types'
 import {
   applyBenchAsm,
   applyBenchMapAsm,
-  BENCH_ENEMY,
+  makeBenchEnemy,
 } from '@/modules/calculator/model/benchmarkAssumptions.ts'
 import { useBenchTarget } from '@/modules/calculator/model/useBenchTarget.ts'
 
@@ -46,6 +46,7 @@ export interface UseAsmBenchScoreIn {
   runtime: ResRuntime | null
   runtimesById: Record<string, ResRuntime>
   targetSelections: Record<string, string | null>
+  tuneStrain?: number
   debounceMs?: number
   exposeLogger?: boolean
   enabled?: boolean
@@ -90,13 +91,15 @@ interface AsmBenchTarget {
   runtime: ResRuntime | null
   runtimesById: Record<string, ResRuntime>
   simulation: SimResult | null
+  enemy: EnemyProfile
 }
 
 function useAsmBenchTarget({
   runtime,
   runtimesById,
   targetSelections,
-}: Pick<UseAsmBenchScoreIn, 'runtime' | 'runtimesById' | 'targetSelections'>): AsmBenchTarget {
+  tuneStrain,
+}: Pick<UseAsmBenchScoreIn, 'runtime' | 'runtimesById' | 'targetSelections' | 'tuneStrain'>): AsmBenchTarget {
   // assumed benchmark mode runs on a cloned runtime/team map so benchmark
   // scoring can apply its fixed enemy and assumptions without mutating app state
   const benchRt = useMemo(
@@ -111,6 +114,10 @@ function useAsmBenchTarget({
     () => (benchRt ? getResSeedBy(benchRt.id) ?? null : null),
     [benchRt],
   )
+  const benchEnemy = useMemo(
+    () => makeBenchEnemy(tuneStrain),
+    [tuneStrain],
+  )
   const benchTgt = useBenchTarget({
     targetRuntime: benchRt,
     targetSeed,
@@ -118,7 +125,7 @@ function useAsmBenchTarget({
     activeResId: null,
     activeRuntimesById: benchRtsById,
     initializedRuntimesById: benchRtsById,
-    enemy: BENCH_ENEMY,
+    enemy: benchEnemy,
     showAllStates: false,
   })
 
@@ -126,6 +133,7 @@ function useAsmBenchTarget({
     runtime: benchRt,
     runtimesById: benchTgt.runtimesById,
     simulation: benchTgt.simulation,
+    enemy: benchEnemy,
   }
 }
 
@@ -240,13 +248,15 @@ export function usePrefetchAsmBench({
   runtime,
   runtimesById,
   targetSelections,
+  tuneStrain,
   enabled = true,
-}: Pick<UseAsmBenchScoreIn, 'runtime' | 'runtimesById' | 'targetSelections' | 'enabled'>): void {
+}: Pick<UseAsmBenchScoreIn, 'runtime' | 'runtimesById' | 'targetSelections' | 'tuneStrain' | 'enabled'>): void {
   const prefetchedRef = useRef<string | null>(null)
   const target = useAsmBenchTarget({
     runtime,
     runtimesById,
     targetSelections,
+    tuneStrain,
   })
 
   useEffect(() => {
@@ -262,7 +272,7 @@ export function usePrefetchAsmBench({
     const payload = mkBenchPayload({
       runtime: target.runtime,
       simulation: target.simulation,
-      enemy: BENCH_ENEMY,
+      enemy: target.enemy,
       runtimesById: target.runtimesById,
     })
     const timeoutId = window.setTimeout(() => {
@@ -279,6 +289,7 @@ export function useAsmBenchScore({
   runtime,
   runtimesById,
   targetSelections,
+  tuneStrain,
   debounceMs,
   exposeLogger = false,
   enabled = true,
@@ -287,12 +298,13 @@ export function useAsmBenchScore({
     runtime,
     runtimesById,
     targetSelections,
+    tuneStrain,
   })
 
   return useBenchScore({
     runtime: benchTgt.runtime,
     simulation: benchTgt.simulation,
-    enemy: BENCH_ENEMY,
+    enemy: benchTgt.enemy,
     runtimesById: benchTgt.runtimesById,
     debounceMs,
     exposeLogger,
@@ -471,6 +483,7 @@ export function useBenchPreview({
   echoes,
   runtimesById,
   targetSelections,
+  tuneStrain,
   debounceMs,
 }: Omit<UseAsmBenchScoreIn, 'exposeLogger'> & {
   echoes: Array<EchoInstance | null>
@@ -492,6 +505,7 @@ export function useBenchPreview({
     runtime: benchRt,
     runtimesById,
     targetSelections,
+    tuneStrain,
     debounceMs,
   })
 }

@@ -116,6 +116,28 @@
       "luckdraw": "luosela"
     }
   },
+  "1110": {
+    "slug": "suisui",
+    "slugs": {
+      "portrait": "suisui",
+      "luckdraw": "suisui"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
   "1203": {
     "slug": "anke",
     "slugs": {
@@ -877,6 +899,28 @@
       "atlas": "atlas.atlas",
       "pages": [
         "texture.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
+  "1610": {
+    "slug": "xuanling",
+    "slugs": {
+      "portrait": "xuanling",
+      "luckdraw": "xuanling"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
       ]
     },
     "luckdraw": {

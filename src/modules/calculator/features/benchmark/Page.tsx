@@ -1,3 +1,10 @@
+/*
+  Author: Runor Ewhro
+  Description: Owns the benchmark report/showcase page, including resonator
+               rail state, report generation, card export, and benchmark-only
+               runtime assumptions.
+*/
+
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/domain/state/store.ts'
@@ -29,7 +36,7 @@ import { useBenchTarget } from '@/modules/calculator/model/useBenchTarget.ts'
 import {
   applyBenchAsm,
   applyBenchMapAsm,
-  BENCH_ENEMY,
+  makeBenchEnemy,
 } from '@/modules/calculator/model/benchmarkAssumptions.ts'
 import { nextResonatorSelection } from '@/modules/calculator/model/resonatorProfileActions.ts'
 import {
@@ -126,6 +133,7 @@ export function Benchmark() {
   const animatedPortraits = useAppStore((state) => state.ui.preferences.benchAnim2d)
   const entranceAnimations = useAppStore((state) => state.ui.entranceAnimations)
   const profilesById = useAppStore((state) => state.calculator.profiles)
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
   const { actRt: runtime, partRtsById, initRtsById } = useAppStore(selVrvwDrvd)
   const swapResonator = useAppStore((state) => state.swRes)
   const deleteResonatorProfiles = useAppStore((state) => state.delResProfs)
@@ -741,6 +749,12 @@ export function Benchmark() {
     [initRtsById],
   )
   const reportSeed = reportTargetResId ? seedRsntById[reportTargetResId] ?? null : null
+  // Benchmark assumptions are normalized, but tune strain is still a live enemy
+  // status input because it changes the benchmark target's effective stats.
+  const benchEnemy = useMemo(
+    () => makeBenchEnemy(enemyTuneStrain),
+    [enemyTuneStrain],
+  )
   const reportTargets = useMemo(
     () => (
       reportTargetResId
@@ -758,7 +772,7 @@ export function Benchmark() {
     activeResId: null,
     activeRuntimesById: benchmarkPartRtsById,
     initializedRuntimesById: benchmarkInitRtsById,
-    enemy: BENCH_ENEMY,
+    enemy: benchEnemy,
     showAllStates,
   })
   const reportRuntimesById = reportTarget.runtimesById
@@ -871,7 +885,7 @@ export function Benchmark() {
   const { report, loading, error, refresh } = useBenchReport({
     runtime: benchmarkRuntime,
     simulation,
-    enemy: BENCH_ENEMY,
+    enemy: benchEnemy,
     runtimesById: reportRuntimesById,
     enabled: !isShowcase && surfacePhase === 'idle',
     reportOptions,
@@ -896,7 +910,7 @@ export function Benchmark() {
   const { score: showcaseScore, avgDamage: showcaseDamage, runtimeId: showcaseScoreResId } = useBenchShowcase({
     runtime: benchmarkRuntime,
     simulation,
-    enemy: BENCH_ENEMY,
+    enemy: benchEnemy,
     runtimesById: reportRuntimesById,
     enabled: isShowcase && surfacePhase === 'idle' && railPhase === 'idle' && reportTargetResId === railResId,
   })
@@ -1450,7 +1464,7 @@ export function Benchmark() {
                   stateGroups={reportStateGroups}
                   reportRuntime={benchmarkRuntime}
                   reportRuntimesById={reportRuntimesById}
-                  enemyId={BENCH_ENEMY.id}
+                  enemyId={benchEnemy.id}
                   echoSelection={echoSelection}
                   loadoutSlots={loadoutSlots}
                   sourceEchoes={echoLoadout}

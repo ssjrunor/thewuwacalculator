@@ -10,7 +10,7 @@ import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
 import { getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 
 const STATUS_DATA = {
-  lastUpdated: '09/07/2026',
+  lastUpdated: '21/07/2026',
   overallState: 'stable' as const,
   patchVersion: CURRENT_VERSION,
   dataSources: [
@@ -19,7 +19,9 @@ const STATUS_DATA = {
   ],
   notes: [
     'HEWO~! (˶˃ ᵕ ˂˶)',
-    'Version 3.5 update (It includes all version 3.5 data available)',
+    'I HOPE everyone reading this is doing super well and having a great time being alive today. ONLY IF YOU\'RE READING THIS THOUGH!',
+    'There\'re some new stuff (see more below).',
+    'A reminder, there\'s a discord server up, if you\'d like to make suggestions or report bugs you unfortunately found... or you just wanna join a discord, feel free.'
   ],
   coverage: [
     { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
@@ -28,7 +30,9 @@ const STATUS_DATA = {
     { title: 'Enemies',    status: 'ok' as const,  desc: 'All enemies supported.' },
   ],
   recentChanges: [
-    'Version 3.5 update.',
+    'There\'re some new stuff, item menus have been redesigned along with the inventory menu.',
+    'You can now exclude/include echoes directly before running the optimizer.',
+    'The team setup ui has been completely reworked, everything is much clearer and just easier to get to/access (imo)'
   ],
   knownIssues: [
     "there's none."

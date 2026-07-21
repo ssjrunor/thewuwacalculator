@@ -61,9 +61,7 @@
   color: var(--grade, var(--resonator-accent));
   text-shadow: 0 0 2px black;
 
-  /*
-  text-shadow: 0 0 30px color-mix(in srgb, var(--grade, var(--resonator-accent)) 42%, transparent);
-  */
+
 }
 
 .showcase-grade-score {

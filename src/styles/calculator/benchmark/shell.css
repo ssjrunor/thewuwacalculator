@@ -1,5 +1,5 @@
 .bench {
-  --bench-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --bench-line: color-mix(in srgb, var(--border) 50%, transparent);
   --bench-line-soft: color-mix(in srgb, var(--resonator-accent, var(--accent)) 9%, var(--item-border, var(--border)));
   --bench-wash: color-mix(in srgb, var(--resonator-accent, var(--accent)) 4%, var(--inner-bg));
   --bench-up: var(--ok, #1eab62);

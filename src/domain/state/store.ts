@@ -37,6 +37,7 @@ import {
     cloneEchoLdt,
     cloneRotNds,
     dedupeInvEchoUids,
+    getEchoNstnSig,
     makeInvBuild,
     makeInvEcho,
     makeInvRot,
@@ -48,7 +49,8 @@ import { makeEchoUid } from '@/domain/entities/runtime'
 import { DEF_BENCH_CARD_STYLE, DEF_BENCH_HIDE } from '@/domain/entities/preferences'
 import type { BenchmarkCardStyle, BenchmarkCardHidden, BenchRptSettings, UploadPersistMode } from '@/domain/entities/preferences'
 import type {OptContext, OptSets} from '@/domain/entities/optimizer'
-import type {ResProf} from '@/domain/entities/profile'
+import type {OptInventorySelection, ResProf} from '@/domain/entities/profile'
+import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import type {SntSetConds} from '@/domain/entities/sonataSetConditionals'
 import type {SuggestState, SuggsViewMod, WeaponPlanSet} from '@/domain/entities/suggestions'
 import type {
@@ -326,6 +328,10 @@ export interface AppStore extends PersistedState {
       resonatorId: ResonatorId,
       updater: (state: SntSetConds) => SntSetConds,
   ) => void
+  updResOptInv: (
+      resonatorId: ResonatorId,
+      updater: (state: OptInventorySelection) => OptInventorySelection,
+  ) => void
   updActConds: (
       updater: (state: SntSetConds) => SntSetConds,
   ) => void
@@ -335,6 +341,7 @@ export interface AppStore extends PersistedState {
       tgtResId: ResonatorId | null,
   ) => void
   addInvEcho: (echo: EchoInstance) => InvEchoEnt | null
+  addInvEchoes: (echoes: EchoInstance[]) => InvEchoEnt[]
   rplInvEcho: (echoes: EchoInstance[]) => void
   updInvEcho: (entryId: string, echo: EchoInstance) => void
   cleanInvEcho: () => number
@@ -1540,6 +1547,37 @@ export const useAppStore = create<AppStore>((set, get) => {
     }, { historyLabel: 'Updated Set Conditionals' })
   },
 
+  updResOptInv: (resonatorId, updater) => {
+    persistedSet(['calculator.profiles'], (state) => {
+      const profile = state.calculator.profiles[resonatorId]
+      if (!profile) {
+        return state
+      }
+
+      return {
+        ...state,
+        calculator: {
+          ...state.calculator,
+          profiles: {
+            ...state.calculator.profiles,
+            [resonatorId]: {
+              ...profile,
+              runtime: {
+                ...profile.runtime,
+                local: {
+                  ...profile.runtime.local,
+                  optimizerInventory: cloneOptInventorySelection(
+                    updater(profile.runtime.local.optimizerInventory),
+                  ),
+                },
+              },
+            },
+          },
+        },
+      }
+    }, { historyLabel: 'Updated Optimizer Inventory' })
+  },
+
   updActConds: (updater) => {
     const actResId = getActResId(get().calculator)
     if (!actResId) return
@@ -1613,6 +1651,72 @@ export const useAppStore = create<AppStore>((set, get) => {
     }), { historyLabel: 'Added Inventory Echo' })
 
     return nextEntry
+  },
+
+  addInvEchoes: (echoes) => {
+    get().ensInvHydr()
+    if (echoes.length === 0) {
+      return []
+    }
+
+    const invChs = get().calculator.inventoryEchoes
+    // De-dupe by semantic echo signature before touching UIDs. A pasted/team
+    // batch can contain old UIDs from equipped echoes; identical stat payloads
+    // should be skipped, while distinct payloads with colliding UIDs get fresh
+    // identity below.
+    const knownEchoSigs = new Set(invChs.map((entry) => getEchoNstnSig(entry.echo)))
+    const knownUids = new Set(invChs.map((entry) => entry.echo.uid).filter((uid): uid is string => Boolean(uid)))
+    const echoesToAdd: EchoInstance[] = []
+
+    for (const echo of echoes) {
+      if (!getEchoById(echo.id)) {
+        continue
+      }
+
+      const echoSig = getEchoNstnSig(echo)
+      if (knownEchoSigs.has(echoSig)) {
+        continue
+      }
+
+      let nextEcho = echo
+      if (echo.uid != null && knownUids.has(echo.uid)) {
+        // Keep generating until the whole in-memory batch is collision-free,
+        // not only collision-free against entries that were already saved.
+        let nextUid = makeEchoUid()
+        while (knownUids.has(nextUid)) {
+          nextUid = makeEchoUid()
+        }
+        nextEcho = { ...echo, uid: nextUid }
+      }
+
+      knownEchoSigs.add(echoSig)
+      if (nextEcho.uid) {
+        knownUids.add(nextEcho.uid)
+      }
+      echoesToAdd.push(nextEcho)
+    }
+
+    if (echoesToAdd.length === 0) {
+      return []
+    }
+
+    const now = Date.now()
+    const nextEntries = echoesToAdd.map((echo, index) => makeInvEcho(echo, now + index))
+
+    persistedSet(['calculator.inventory.echoes'], (state) => ({
+      ...state,
+      calculator: {
+        ...state.calculator,
+        inventoryEchoes: dedupeInvEchoUids([
+          ...state.calculator.inventoryEchoes,
+          ...nextEntries,
+        ]),
+      },
+    }), {
+      historyLabel: nextEntries.length === 1 ? 'Added Inventory Echo' : 'Added Inventory Echoes',
+    })
+
+    return nextEntries
   },
 
   rplInvEcho: (echoes) => {

@@ -823,7 +823,6 @@
 .bp-btn--primary {
   border: 1px solid color-mix(in srgb, var(--bp-accent) 60%, var(--item-border));
   background: color-mix(in srgb, var(--bp-accent) 86%, white), var(--bp-accent);
-  color: var(--c-white);
 }
 
 .bp-btn--primary:hover:not(:disabled) {
@@ -877,9 +876,6 @@
 }
 
 @media (max-width: 760px) {
-  .bp-header {
-    grid-template-columns: 1fr;
-  }
 
   .bp-meters {
     justify-content: flex-start;

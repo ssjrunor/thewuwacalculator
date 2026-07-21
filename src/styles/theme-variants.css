@@ -170,6 +170,7 @@ body,
 }
 
 .light-text {
+  --theme: white;
   --surface-boost: var(--c-white);
   --hover-color: var(--c-black);
   --a-hover: 3%;
@@ -190,6 +191,7 @@ body,
 }
 
 .dark-text {
+  --theme: black;
   --surface-boost: var(--c-white);
   --hover-color: var(--c-white);
   --a-hover: 6%;

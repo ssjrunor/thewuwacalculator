@@ -43,15 +43,20 @@ export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
     partRtsById: partRntmById,
     actTgtSels,
   } = useAppStore(selWorkDrvd)
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
   const swtcToRes = useAppStore((state) => state.swRes)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
   const [isCllpMode, setIsCllpMod] = useState(() =>
       typeof window !== 'undefined' ? window.innerWidth < 910 : false,
   )
 
+  const freqItems = useAppStore((state) => state.ui.itemFreq)
+
+  // debug
+  useEffect(() => console.log('These are your tracked item usage stats on this app:\n', freqItems), [])
+
   const activeSeed = actResId ? seedRsntById[actResId] ?? null : null
-  const actTtrb = activeSeed?.attribute ?? 'aero'
-  const curCcnt = ATTR_COLORS[actTtrb] ?? '#20bfb9'
+  const curCcnt = ATTR_COLORS[activeSeed?.attribute ?? 'aero'] ?? '#20bfb9'
   const pushToQueue = useResQStr((s) => s.pushToQueue)
   const prevResIdRef = useRef<string | null>(null)
   const shldSeedNtlF = useRef(Boolean(actResId && hasActProf))
@@ -120,6 +125,7 @@ export function CalcPage({ surface = 'calculator' }: CalcPageProps) {
     runtime: actRt,
     runtimesById: partRntmById,
     targetSelections: actTgtSels,
+    tuneStrain: enemyTuneStrain,
     enabled: hasActProf,
   })
 

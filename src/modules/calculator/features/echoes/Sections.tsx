@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: renders the echo equipment surface, including equipped echoes,
-               aggregated stats, set sections, and per-echo runtime controls.
+  Description: Builds equipped-echo sections, set summaries, total stat rows,
+               and main-echo runtime controls from the current loadout.
 */
 
 import { useMemo, type HTMLAttributes as HtmlAttrs } from 'react'
@@ -184,7 +184,7 @@ export function EchoSlot({
                 title="Remove echo"
                 onClick={onRemove}
               >
-                <DeleteBinIcon />
+                <DeleteBinIcon size={14} />
               </button>
             </div>
           </div>

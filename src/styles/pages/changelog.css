@@ -71,6 +71,28 @@
   transform: translateX(3px);
 }
 
+.changelog-whatsnew-cta--entry {
+  margin-left: auto;
+  width: fit-content;
+  padding: 0.62rem 0.72rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-2));
+}
+
+.changelog-whatsnew-cta--entry .changelog-whatsnew-cta__icon {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.5rem;
+}
+
+.changelog-whatsnew-cta--entry .changelog-whatsnew-cta__eyebrow {
+  font-size: 0.58rem;
+}
+
+.changelog-whatsnew-cta--entry .changelog-whatsnew-cta__title {
+  font-size: 0.9rem;
+}
+
 .changelog-entry {
   display: grid;
   gap: 0.55rem;
@@ -135,12 +157,14 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .changelog-header-text {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .changelog-date {

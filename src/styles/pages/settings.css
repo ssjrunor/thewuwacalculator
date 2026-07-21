@@ -1,8 +1,9 @@
 
 .settings.page .page-content {
   display: grid;
-  grid-template-columns: 1.25fr 3.75fr;
+  grid-template-columns: minmax(15rem, 1.25fr) minmax(0, 3.75fr);
   gap: 2rem;
+  align-items: start;
 }
 
 .settings.page {
@@ -852,21 +853,24 @@
 }
 
 @media (max-width: 900px) {
-  .settings-prefs-panel {
-    grid-column: span 6;
+  .settings.page .page-content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
   }
 
-  .settings-utilities {
-    grid-column: span 6;
+  .settings-prefs-panel {
+    position: static;
+    overflow: visible;
+    height: auto;
   }
 }
 
 @media (max-width: 600px) {
-  .settings-prefs-panel {
-    grid-column: span 1;
+  .settings-uploads-modes {
+    flex-direction: column;
   }
 
-  .settings-utilities {
-    grid-column: span 1;
+  .settings-font-select {
+    width: 100%;
   }
 }

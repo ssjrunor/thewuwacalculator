@@ -10,6 +10,7 @@
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties as CssProps } from 'react'
 import { Search } from 'lucide-react'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { ResSeed } from '@/domain/entities/runtime.ts'
@@ -27,6 +28,7 @@ import { resPssvPrms, weaponStatsAt, withDefWpnMg } from '@/modules/calculator/f
 import { RichDscr } from '@/shared/ui/RichDescription.tsx'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
 import { NumberInput } from '@/modules/calculator/features/controls/NumberInput.tsx'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 
 const WPN_RARS = [5, 4, 3, 2, 1] as const
 type WpnCfgView = 'search' | 'states'
@@ -286,7 +288,11 @@ export function WeaponConfig({
                 const showWpn = wpnSets.visible[rarKey] ?? false
                 const rankVal = wpnSets.ranks[rarKey] ?? (rarity === 5 ? 1 : 5)
                 return (
-                  <div key={`wpn-rar-${rarity}`} className={`wpncfg__rarity-cell rarity-${rarity}${showWpn ? '' : ' is-off'}`}>
+                  <div
+                    key={`wpn-rar-${rarity}`}
+                    className={`wpncfg__rarity-cell${showWpn ? '' : ' is-off'}`}
+                    style={rarityVars(rarity, false, '--cell-tint') as CssProps}
+                  >
                     <header className="wpncfg__rarity-head">
                       <span className="wpncfg__rarity-stars">{'★'.repeat(rarity)}</span>
                       <button type="button" className={`wpncfg__pill${showWpn ? ' is-active' : ''}`} onClick={() => updWpnSets({ visible: { [rarKey]: !showWpn } })}>{showWpn ? 'On' : 'Off'}</button>
@@ -335,7 +341,11 @@ export function WeaponConfig({
                     const onCount = states.filter((state) => wpnSets.states[wpn.id]?.[state.controlKey]?.off !== true).length
                     const counterClass = onCount === 0 ? 'wpncfg__weapon-counter' : onCount === states.length ? 'wpncfg__weapon-counter is-full' : 'wpncfg__weapon-counter is-partial'
                     return (
-                      <article key={`wpn-state-${wpn.id}`} className={`wpncfg__weapon rarity-${wpn.rarity}`}>
+                      <article
+                        key={`wpn-state-${wpn.id}`}
+                        className="wpncfg__weapon"
+                        style={rarityVars(wpn.rarity, false, '--cell-tint') as CssProps}
+                      >
                         <header className="wpncfg__weapon-head">
                           <span className="wpncfg__weapon-frame"><img src={wpn.icon} alt={wpn.name} className="wpncfg__weapon-icon" onError={withDefWpnMg} /></span>
                           <div className="wpncfg__weapon-title">

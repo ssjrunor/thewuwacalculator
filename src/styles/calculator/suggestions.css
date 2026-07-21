@@ -58,7 +58,7 @@
   margin: 0 auto;
   padding: 0.26rem 0.5rem 0.26rem 0.28rem;
   text-align: left;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, color-mix(in srgb, var(--border) 50%, transparent));
   border-radius: 999px;
   background: var(--item-bg);
   cursor: pointer;
@@ -203,7 +203,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
+  border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, color-mix(in srgb, var(--border) 50%, transparent));
   background: var(--item-bg);
   transition:
     border-color 0.3s ease,
@@ -1032,12 +1032,6 @@
   object-fit: contain;
 }
 
-.weapon-sugg-card.rarity-1 .weapon-sugg-frame { --weapon-rarity-tint: rgb(153, 153, 153); }
-.weapon-sugg-card.rarity-2 .weapon-sugg-frame { --weapon-rarity-tint: rgb(98, 147, 124); }
-.weapon-sugg-card.rarity-3 .weapon-sugg-frame { --weapon-rarity-tint: rgb(96, 147, 185); }
-.weapon-sugg-card.rarity-4 .weapon-sugg-frame { --weapon-rarity-tint: rgb(132, 72, 168); }
-.weapon-sugg-card.rarity-5 .weapon-sugg-frame { --weapon-rarity-tint: rgb(255, 183, 0); }
-
 .weapon-sugg-info {
   display: flex;
   flex-direction: column;
@@ -1171,12 +1165,6 @@
   background: color-mix(in srgb, var(--weapon-rarity-tint) 3%, var(--inner-bg));
   border: 1px solid color-mix(in srgb, var(--weapon-rarity-tint) 14%, var(--item-border));
 }
-
-.weapon-inspect__col.rarity-1 { --weapon-rarity-tint: rgb(153, 153, 153); }
-.weapon-inspect__col.rarity-2 { --weapon-rarity-tint: rgb(98, 147, 124); }
-.weapon-inspect__col.rarity-3 { --weapon-rarity-tint: rgb(96, 147, 185); }
-.weapon-inspect__col.rarity-4 { --weapon-rarity-tint: rgb(132, 72, 168); }
-.weapon-inspect__col.rarity-5 { --weapon-rarity-tint: rgb(255, 183, 0); }
 
 .weapon-inspect__col--equipped {
   background: color-mix(in srgb, var(--weapon-rarity-tint) 2%, var(--inner-bg));
@@ -1647,12 +1635,6 @@
   transition: opacity 220ms ease;
 }
 
-.wpncfg__rarity-cell.rarity-1 { --cell-tint: rgb(153, 153, 153); }
-.wpncfg__rarity-cell.rarity-2 { --cell-tint: rgb(98, 147, 124); }
-.wpncfg__rarity-cell.rarity-3 { --cell-tint: rgb(96, 147, 185); }
-.wpncfg__rarity-cell.rarity-4 { --cell-tint: rgb(132, 72, 168); }
-.wpncfg__rarity-cell.rarity-5 { --cell-tint: rgb(255, 183, 0); }
-
 .wpncfg__rarity-cell.is-off {
   opacity: 0.48;
 }
@@ -1755,12 +1737,6 @@
 
 .no-entrance-anim .wpncfg__weapon,
 .reduce-animation .wpncfg__weapon { animation: none; }
-
-.wpncfg__weapon.rarity-1 { --cell-tint: rgb(153, 153, 153); }
-.wpncfg__weapon.rarity-2 { --cell-tint: rgb(98, 147, 124); }
-.wpncfg__weapon.rarity-3 { --cell-tint: rgb(96, 147, 185); }
-.wpncfg__weapon.rarity-4 { --cell-tint: rgb(132, 72, 168); }
-.wpncfg__weapon.rarity-5 { --cell-tint: rgb(255, 183, 0); }
 
 .wpncfg__weapon-head {
   display: flex;

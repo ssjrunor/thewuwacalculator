@@ -99,7 +99,7 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   }, [navigate])
 
   const openInv = useCallback(() => {
-    if (location.pathname !== '/calculator') {
+    if (location.pathname !== '/calculator' && !location.pathname.startsWith('/calculator/')) {
       navigate('/calculator')
     }
     setInvOpen(true)

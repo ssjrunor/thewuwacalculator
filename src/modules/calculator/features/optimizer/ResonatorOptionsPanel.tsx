@@ -1,9 +1,11 @@
 /*
   Author: Runor Ewhro
-  Description: renders the resonator options panel surface for the calculator optimizer flow.
+  Description: Edits optimizer target resonator options, target skill state,
+               rotation target state, and target-facing runtime controls.
 */
 
 import { useMemo } from 'react'
+import type { CSSProperties as CssProps } from 'react'
 import { ChevronDown, Crosshair, Cpu, Image, Info, Lock, Sword, X } from 'lucide-react'
 import type { OptSetChoice, OptStatCstr } from '@/domain/entities/optimizer'
 import type { ResRuntime } from '@/domain/entities/runtime'
@@ -20,6 +22,7 @@ import { AllowedSets } from './AllowedSets.tsx'
 import { STAT_LIST } from './lib/mockData.ts'
 import { SiBattledotnet as SiBttl } from "react-icons/si";
 import { withDefEchoMg, withDefResMg } from '@/shared/lib/imageFallback.ts'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 
 const BNSSHRTLBLS: Record<string, string> = {
   glacio: 'Glacio',
@@ -67,6 +70,7 @@ interface ResPtnsPnl {
   onOpenResPick: () => void
   onSyncLive: () => void
   onOpenMainEcho: () => void
+  onOpenInventorySearch: () => void
   onOpenSetCond: () => void
   onOpenWpnCond: () => void
   onClrMainEyq: () => void
@@ -112,6 +116,7 @@ export function CharPtnsPnl({
   onOpenResPick: onOpenResPck,
   onSyncLive,
   onOpenMainEcho: onOpenMainEcho,
+  onOpenInventorySearch,
   onOpenSetCond: onOpenSetCon,
   onOpenWpnCond,
   onClrMainEyq: onClrMainEch,
@@ -198,7 +203,8 @@ export function CharPtnsPnl({
         <div className="co-portrait">
           <button
             type="button"
-            className={`co-portrait__ring co-portrait__ring-button rarity-${rarity}`}
+            className="co-portrait__ring co-portrait__ring-button"
+            style={rarityVars(rarity, false, '--avatar-rarity-color') as CssProps}
             onClick={onOpenResPck}
             aria-label="Open resonator picker"
           >
@@ -434,7 +440,7 @@ export function CharPtnsPnl({
                   <div className="co-tile__head">
                     <span className="co-field__label">Main Stat Filters</span>
                     {mainStatFilter.length > 0 && (
-                      <button className="co-clear" onClick={onClrAllFltr}>
+                      <button className="co-clear co-button" onClick={onClrAllFltr}>
                         Clear
                       </button>
                     )}
@@ -500,7 +506,17 @@ export function CharPtnsPnl({
               ) : (
                 <>
                   <div className="co-field co-field--weapon">
-                    <span className="co-field__label">Inventory Search</span>
+                    <div className="co-tile__head">
+                      <span className="co-field__label">Inventory Search</span>
+                      <button
+                        type="button"
+                        className="co-button"
+                        onClick={onOpenInventorySearch}
+                      >
+                        Advanced
+                      </button>
+                    </div>
+
                     <button
                       type="button"
                       className={`co-wpn-toggle${excludeEquipped ? ' is-on' : ''}`}

@@ -8,80 +8,21 @@ import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { makeEchoUid } from '@/domain/entities/runtime.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
-import { STAT_ICON_MAP } from '@/modules/calculator/model/statsView.ts'
-import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
-
-const STAT_LABELS: Record<string, string> = {
-  hpPercent: 'HP%',
-  atkPercent: 'ATK%',
-  defPercent: 'DEF%',
-  critRate: 'Crit Rate',
-  critDmg: 'Crit DMG',
-  healingBonus: 'Healing',
-  energyRegen: 'Energy Regen',
-  tuneBreakBoost: 'Tune Break Boost',
-  hpFlat: 'HP',
-  atkFlat: 'ATK',
-  defFlat: 'DEF',
-  aero: 'Aero DMG',
-  glacio: 'Glacio DMG',
-  electro: 'Electro DMG',
-  fusion: 'Fusion DMG',
-  havoc: 'Havoc DMG',
-  spectro: 'Spectro DMG',
-  basicAtk: 'Basic ATK',
-  heavyAtk: 'Heavy ATK',
-  resonanceSkill: 'Res. Skill',
-  resonanceLiberation: 'Res. Liberation',
-}
-
-const STATICONKEYM: Record<string, string> = {
-  hpPercent: 'HP',
-  hpFlat: 'HP',
-  atkPercent: 'ATK',
-  atkFlat: 'ATK',
-  defPercent: 'DEF',
-  defFlat: 'DEF',
-  critRate: 'Crit Rate',
-  critDmg: 'Crit DMG',
-  energyRegen: 'Energy Regen',
-  healingBonus: 'Healing Bonus',
-  tuneBreakBoost: 'Tune Break Boost',
-  aero: 'Aero DMG Bonus',
-  glacio: 'Glacio DMG Bonus',
-  electro: 'Electro DMG Bonus',
-  fusion: 'Fusion DMG Bonus',
-  havoc: 'Havoc DMG Bonus',
-  spectro: 'Spectro DMG Bonus',
-  basicAtk: 'Basic Attack DMG Bonus',
-  heavyAtk: 'Heavy Attack DMG Bonus',
-  resonanceSkill: 'Resonance Skill DMG Bonus',
-  resonanceLiberation: 'Resonance Liberation DMG Bonus',
-}
+import { formatStatKeyLabel, formatStatKeyValue, STAT_ICON_MAP } from '@/modules/calculator/model/statsView.ts'
 
 // map internal stat keys to the shorter ui display labels
 export function fmtEchoStatL(key: string): string {
-  return STAT_LABELS[key] ?? key
+  return formatStatKeyLabel(key)
 }
 
 // format echo stat values according to flat vs percent display rules
 export function fmtEchoStatV(key: string, value: number): string {
-  if (key.endsWith('Flat') || key === 'hpFlat' || key === 'atkFlat' || key === 'defFlat') {
-    return String(Math.round(value))
-  }
-
-  if (key === 'tuneBreakBoost') {
-    const truncated = truncTo(value, 2)
-    return Number.isInteger(truncated) ? String(truncated) : truncated.toFixed(2).replace(/\.?0+$/, '')
-  }
-
-  return `${formatTruncCompact(value, 1)}%`
+  return formatStatKeyValue(key, value)
 }
 
 // resolve the stat icon asset used by the echo pane's mask icon
 export function getEchoStatI(key: string): string | undefined {
-  const iconKey = STATICONKEYM[key]
-  return iconKey ? STAT_ICON_MAP[iconKey] : undefined
+  return STAT_ICON_MAP[formatStatKeyLabel(key, 'bonus')]
 }
 
 // build a default echo instance for a picked catalog echo and slot
@@ -114,8 +55,10 @@ export function mkDefEchoNst(
   const keepSet =
     previousSet != null && definition.sets.includes(previousSet)
 
+  const keepUid = previous?.id === definition.id
+
   return {
-    uid: previous?.uid ?? makeEchoUid(),
+    uid: keepUid ? previous.uid : makeEchoUid(),
     id: definition.id,
     set: keepSet ? previousSet : (definition.sets[0] ?? 0),
     mainEcho: index === 0,

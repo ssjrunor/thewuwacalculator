@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { DEF_BENCH_RPT, DEF_UI_PREFS } from '@/domain/entities/preferences'
 import { DEF_BODY_FONT, getPrstBodyF } from '@/modules/settings/model/typography'
 import { DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
+import { makeOptInventorySelection } from '@/domain/entities/profile'
 import {
   BG_THEMES,
   DARK_THEMES,
@@ -601,6 +602,10 @@ const resProfSchm = z.object({
       manualBuffs: mnlBffsSchm,
       combat: cmbtSttSchm,
       setConditionals: sntSetConS.default(DEF_SET_COND),
+      optimizerInventory: z.object({
+        mode: z.enum(['include', 'exclude']).default('exclude'),
+        echoUids: z.array(z.string()).default([]),
+      }).strict().default(makeOptInventorySelection()),
     }).strict(),
     routing: z.object({
       selectedTargetsByOwnerKey: z.record(z.string(), z.string().nullable()),

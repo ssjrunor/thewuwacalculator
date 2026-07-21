@@ -125,11 +125,13 @@ export function Parser({
     ? parsedEchoes.map((echo) => (echo ? getEchoScrPr(charId, echo) : null))
     : null
   const hasParsedEchoes = parsedEchoes.some(Boolean)
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
   const { score: buildScore } = useBenchPreview({
     runtime: hasParsedEchoes ? runtime : null,
     echoes: parsedEchoes,
     runtimesById: partRntmById,
     targetSelections: selTrgtByOwn,
+    tuneStrain: enemyTuneStrain,
   })
   const resName = getResSeedBy(charId)?.name ?? charId
   const previewItems = useMemo(() => mkEchoGridTm({

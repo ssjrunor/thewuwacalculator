@@ -17,9 +17,16 @@ export interface InvEchoSg {
   slotIndex: number
 }
 
+export interface InvBldUsr {
+  resonatorId: string
+  resName: string
+  icon?: string
+  rarity: 4 | 5
+}
+
 export interface InvSgDrvd {
   echoUseByUid: Record<string, InvEchoSg[]>
-  buildUseName: Record<string, string[]>
+  buildUseByBldId: Record<string, InvBldUsr[]>
 }
 
 export function mkInvEchoSgB(
@@ -65,36 +72,42 @@ export function mkInvEchoSgB(
   return usageByUid
 }
 
-export function mkInvMkSgNms(
+export function mkInvMkUsrs(
   profilesById: Record<string, ResProf>,
   invBlds: InventoryEntry[],
-): Record<string, string[]> {
+): Record<string, InvBldUsr[]> {
   // saved build entries are matched through the canonical build signature so
   // equivalent weapon+echo layouts collapse onto the same inventory build id.
-  const sgNmsBySig = new Map<string, string[]>()
+  const usrsBySig = new Map<string, InvBldUsr[]>()
 
   for (const [resonatorId, profile] of Object.entries(profilesById)) {
     const signature = getBuildSig({
       weapon: profile.runtime.build.weapon,
       echoes: profile.runtime.build.echoes,
     } satisfies SavedBuildSnap)
-    const resName = getResSeedBy(resonatorId)?.name ?? resonatorId
-    const existing = sgNmsBySig.get(signature)
+    const resonator = getResSeedBy(resonatorId)
+    const user: InvBldUsr = {
+      resonatorId,
+      resName: resonator?.name ?? resonatorId,
+      ...(resonator?.profile ? { icon: resonator.profile } : {}),
+      rarity: resonator?.rarity ?? 4,
+    }
+    const existing = usrsBySig.get(signature)
 
     if (existing) {
-      existing.push(resName)
+      existing.push(user)
       continue
     }
 
-    sgNmsBySig.set(signature, [resName])
+    usrsBySig.set(signature, [user])
   }
 
   return Object.fromEntries(
     invBlds.map((entry) => [
       entry.id,
-      sgNmsBySig.get(getBuildSig(entry.build)) ?? [],
+      usrsBySig.get(getBuildSig(entry.build)) ?? [],
     ]),
-  ) as Record<string, string[]>
+  )
 }
 
 export function mkInvSgDrvd(
@@ -105,6 +118,6 @@ export function mkInvSgDrvd(
   return {
     // disabling the preference should fully short-circuit the expensive indexes.
     echoUseByUid: seeEquipped ? mkInvEchoSgB(profilesById) : {},
-    buildUseName: seeEquipped ? mkInvMkSgNms(profilesById, invBlds) : {},
+    buildUseByBldId: seeEquipped ? mkInvMkUsrs(profilesById, invBlds) : {},
   }
 }

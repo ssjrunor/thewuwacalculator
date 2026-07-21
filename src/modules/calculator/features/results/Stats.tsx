@@ -7,7 +7,8 @@ import type { CSSProperties as CssProps } from 'react'
 import type { StatViewRow, StatsView } from '@/modules/calculator/model/statsView.ts'
 import {
   STAT_ICON_MAP,
-  formatStatValue,
+  formatStatKeyLabel,
+  formatStatKeyValue,
 } from '@/modules/calculator/model/statsView.ts'
 
 interface CalcSttsSctn {
@@ -22,36 +23,40 @@ function StatsGrid({
 }) {
   return (
     <div className="stats-grid">
-      {stats.map((stat) => (
-        <div key={stat.label} className="stat-row">
-          <div
-            className="stat-label"
-            style={{
+      {stats.map((stat) => {
+        const icon = STAT_ICON_MAP[formatStatKeyLabel(stat.key, 'bonus')]
+
+        return (
+          <div key={stat.label} className="stat-row">
+            <div
+              className="stat-label"
+              style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               ...(stat.color ? { color: stat.color } : {}),
             }}
           >
-            {STAT_ICON_MAP[stat.label] ? (
+            {icon ? (
               <div
                 className="grid-stat-icon"
                 style={{
                   '--stat-color': stat.color ?? '#999999',
-                  WebkitMaskImage: `url(${STAT_ICON_MAP[stat.label]})`,
-                  maskImage: `url(${STAT_ICON_MAP[stat.label]})`,
+                  WebkitMaskImage: `url(${icon})`,
+                  maskImage: `url(${icon})`,
                 } as CssProps}
               />
             ) : null}
             {stat.label}
           </div>
-          <div className="stat-value">{formatStatValue(stat.label, stat.base)}</div>
-          <div className="stat-bonus">
-            {stat.bonus === 0 ? '' : `+${formatStatValue(stat.label, stat.bonus)}`}
+          <div className="stat-value">{formatStatKeyValue(stat.key, stat.base)}</div>
+            <div className="stat-bonus">
+              {stat.bonus === 0 ? '' : `+${formatStatKeyValue(stat.key, stat.bonus)}`}
+            </div>
+            <div className="stat-total">{formatStatKeyValue(stat.key, stat.total)}</div>
           </div>
-          <div className="stat-total">{formatStatValue(stat.label, stat.total)}</div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

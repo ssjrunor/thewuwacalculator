@@ -239,6 +239,10 @@ function normCmprEcho(echo: EchoInstance) {
   return signature
 }
 
+export function getEchoNstnSig(echo: EchoInstance): string {
+  return normCmprEcho(echo)
+}
+
 // build a comparable signature for an echo loadout
 function getEchoLdtSi(echoes: Array<EchoInstance | null>): string {
   const cached = echoLdtSigCc.get(echoes)

@@ -7,6 +7,7 @@
 import type { CalcState } from '@/domain/entities/appState'
 import { cloneSntSet, DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
 import type { SlotLocalState } from '@/domain/entities/profile'
+import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import type { SlotId } from '@/domain/entities/session'
 import { normResRtCnt } from '@/domain/gameData/controlOptions'
 import { normNegFfctC } from '@/domain/gameData/negativeEffects'
@@ -81,6 +82,7 @@ function mkLclSttFrom(
     setConditionals: cloneSntSet(
       xstnLcl?.setConditionals ?? DEF_SET_COND,
     ),
+    optimizerInventory: cloneOptInventorySelection(xstnLcl?.optimizerInventory),
   }
 }
 

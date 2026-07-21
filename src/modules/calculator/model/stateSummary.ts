@@ -5,7 +5,7 @@
                sets for calculator report surfaces.
 */
 
-import type { CombatGraph } from '@/domain/entities/combatGraph'
+import type { CombatGraph, CombatPart } from '@/domain/entities/combatGraph'
 import { getSrcSttNct } from '@/domain/gameData/controlOptions'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import { readRtPath } from '@/domain/gameData/runtimePath'
@@ -388,6 +388,8 @@ function fmtOwnScpLbl(owner: SrcOwnDef): string {
     team: 'Team',
     sequence: 'Sequence',
     inherent: 'Inherent',
+    outroSkill: 'Outro Skill',
+    combatState: 'Combat Effects',
   }
 
   return labels[owner.scope] ?? toTitle(owner.scope)
@@ -823,8 +825,10 @@ function sttIsVsbl(state: SourceState, context: EffectContext): boolean {
   return evalCond(state.enabledWhen, stateScope)
 }
 
-// build an effect runtime context for a specific source runtime relative to the
-// target runtime being inspected and the current active runtime.
+// Build an effect runtime context for a source runtime relative to the target
+// runtime being inspected. Source and target contexts are resolved separately:
+// sourceFinalStats must describe the owner of the effect, while base/final/pool
+// must describe the target receiving or previewing that effect.
 function buildContext(
     srcRt: ResRuntime,
     targetRt: ResRuntime,
@@ -835,18 +839,21 @@ function buildContext(
     prepCntxByRe: Record<string, CombatContext> = {},
     enemyProfile = makeEnemy(),
 ): EffectContext {
-  const prepCtx = prepCntxByRe[srcRt.id] ?? null
+  const srcPrepCtx = prepCntxByRe[srcRt.id] ?? null
+  const tgtPrepCtx = prepCntxByRe[targetRt.id] ?? null
   const teamMemIds = Array.from(
       new Set([activeRt.id, ...activeRt.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
   )
-  const sourceSeed = prepCtx ? null : getResSeedBy(srcRt.id)
 
   // try to reuse an existing graph participant if available
   const srcPart =
       graph ? Object.values(graph.participants).find((participant) => participant.resonatorId === srcRt.id) : null
+  const tgtPart =
+      graph ? Object.values(graph.participants).find((participant) => participant.resonatorId === targetRt.id) : null
 
-  // otherwise build a transient graph so we can still resolve combat context for teammates
-  const trnsGrph = !srcPart && sourceSeed
+  // Build one transient graph that can answer both source and target lookups
+  // when a summary is rendered outside the live calculator graph path.
+  const trnsGrph = (!srcPart || !tgtPart)
       ? makeCombatGraph({
         actRt: activeRt,
         partRts: runtimesById,
@@ -855,24 +862,39 @@ function buildContext(
         },
       })
       : null
-  const trnsTgtSlotI =
-      trnsGrph ? findCombatPart(trnsGrph, srcRt.id) : null
 
-  // resolve combat context from either the live graph or the transient fallback
-  const cmbtCtx = prepCtx
-      ?? (srcPart
-          ? makeCombatEnv({
-            graph: graph!,
-            targetSlotId: srcPart.slotId,
-            enemy: enemyProfile,
-          })
-          : trnsGrph && trnsTgtSlotI
-              ? makeCombatEnv({
-                graph: trnsGrph,
-                targetSlotId: trnsTgtSlotI,
-                enemy: enemyProfile,
-              })
-              : null)
+  const resolveCtx = (
+      runtime: ResRuntime,
+      prepCtx: CombatContext | null,
+      graphPart: CombatPart | null,
+  ): CombatContext | null => {
+    // Prepared contexts come from callers that already paid the pipeline cost;
+    // graph contexts preserve live targeting; transient contexts are the final
+    // fallback for detached teammate summaries.
+    if (prepCtx) {
+      return prepCtx
+    }
+
+    if (graphPart && graph) {
+      return makeCombatEnv({
+        graph,
+        targetSlotId: graphPart.slotId,
+        enemy: enemyProfile,
+      })
+    }
+
+    const trnsSlot = trnsGrph ? findCombatPart(trnsGrph, runtime.id) : null
+    return trnsGrph && trnsSlot
+        ? makeCombatEnv({
+          graph: trnsGrph,
+          targetSlotId: trnsSlot,
+          enemy: enemyProfile,
+        })
+        : null
+  }
+
+  const srcCtx = resolveCtx(srcRt, srcPrepCtx, srcPart ?? null)
+  const tgtCtx = resolveCtx(targetRt, tgtPrepCtx, tgtPart ?? null)
 
   return {
     source: {
@@ -880,7 +902,6 @@ function buildContext(
       id: srcRt.id,
     },
     sourceRuntime: srcRt,
-    sourceFinalStats: cmbtCtx?.finalStats,
     targetRuntime: targetRt,
     activeRuntime: activeRt,
     targetRuntimeId: targetRt.id,
@@ -889,10 +910,11 @@ function buildContext(
     team: makeTeamComp(teamMemIds),
     echoSetCounts: countEchoSets(srcRt.build.echoes),
     selectedTargetsByOwnerKey: selTrgtByOwn,
-    baseStats: cmbtCtx?.baseStats,
-    finalStats: cmbtCtx?.finalStats,
-    pool: cmbtCtx?.buffs,
-    enemy: cmbtCtx?.enemy ?? enemyProfile,
+    baseStats: tgtCtx?.baseStats,
+    sourceFinalStats: srcCtx?.finalStats,
+    finalStats: tgtCtx?.finalStats,
+    pool: tgtCtx?.buffs,
+    enemy: tgtCtx?.enemy ?? enemyProfile,
   }
 }
 

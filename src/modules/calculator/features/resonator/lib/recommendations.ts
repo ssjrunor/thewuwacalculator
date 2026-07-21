@@ -20,8 +20,24 @@ function getRcmmFrqnI(
   frequentIds: string[],
   frqnCnts: Record<string, number>,
 ): string[] {
-  return frequentIds
-    .filter((id) => (frqnCnts[id] ?? 0) >= MIN_FRQN_CNT)
+  const recentRank = new Map(frequentIds.map((id, index) => [id, index]))
+
+  return Object.entries(frqnCnts)
+    .filter(([, count]) => count >= MIN_FRQN_CNT)
+    .sort(([leftId, leftCount], [rightId, rightCount]) => {
+      if (leftCount !== rightCount) {
+        return rightCount - leftCount
+      }
+
+      const leftRank = recentRank.get(leftId) ?? Number.POSITIVE_INFINITY
+      const rightRank = recentRank.get(rightId) ?? Number.POSITIVE_INFINITY
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank
+      }
+
+      return leftId.localeCompare(rightId)
+    })
+    .map(([id]) => id)
     .slice(0, MAXFRQNRCMM)
 }
 

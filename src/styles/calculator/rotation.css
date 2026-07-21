@@ -1531,10 +1531,10 @@
   -webkit-backdrop-filter: var(--menu-backdrop);
   transform-origin: 50% 50%;
   width: min(900px, 90vw);
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
-  display: grid;
-  gap: 0.72rem;
+  height: min(42rem, calc(100vh - 220px));
+  max-height: min(82vh, calc(100vh - 5rem));
+  overflow: hidden;
+  display: block;
 }
 
 .skill-menu-panel::before {
@@ -1549,13 +1549,18 @@
 }
 
 .skill-menu-panel .app-modal-header {
+  flex: 0 0 auto;
   padding: 0.9rem 0.95rem;
-  position: sticky;
-  top: 0;
-  z-index: 4;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--picker-modal-surface, var(--box-bg)) 96%, transparent), color-mix(in srgb, var(--picker-modal-surface, var(--box-bg)) 88%, transparent));
-  backdrop-filter: blur(10px);
+}
+
+.skill-menu-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+  height: 100%;
+  min-height: 0;
 }
 
 .skill-menu-list {
@@ -1563,8 +1568,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  flex-grow: 1;
   position: relative;
 }
 
@@ -5817,8 +5823,6 @@
   font-size: 0.68rem;
   letter-spacing: 0.1em;
   white-space: nowrap;
-
-  color: var(--text);
 }
 
 .rotation-snapshot__team {

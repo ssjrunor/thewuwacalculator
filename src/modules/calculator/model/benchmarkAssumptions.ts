@@ -32,6 +32,24 @@ export const BENCH_ENEMY: EnemyProfile = {
   },
 }
 
+function normBenchTune(value: number | null | undefined): number {
+  if (!Number.isFinite(value)) {
+    return BENCH_ENEMY.status?.tuneStrain ?? 0
+  }
+
+  return Math.max(0, Math.min(10, Number(value)))
+}
+
+export function makeBenchEnemy(tuneStrain: number | null | undefined): EnemyProfile {
+  return {
+    ...BENCH_ENEMY,
+    status: {
+      ...(BENCH_ENEMY.status ?? { tuneStrain: 0 }),
+      tuneStrain: normBenchTune(tuneStrain),
+    },
+  }
+}
+
 function maxSkillLevels(current: SkillLevels): SkillLevels {
   return {
     ...current,

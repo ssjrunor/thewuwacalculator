@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the rotation skill menu surface for the calculator rotation flow.
+  Description: Builds the rotation skill menu from visible participant skills,
+               echo skills, negative effects, and current target context.
 */
 
 import type {
@@ -167,7 +168,7 @@ export function RotSkllMenu({
             ariaLabel="Select a skill"
             onClose={onClose}
         >
-            <div onClick={(event) => event.stopPropagation()}>
+            <div className="skill-menu-modal" onClick={(event) => event.stopPropagation()}>
                 <div className="pane-section app-modal-header menu-header-with-buttons">
                     <div className="app-modal-header-top">
                         <div className="menu-header">

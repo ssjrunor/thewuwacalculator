@@ -21,11 +21,14 @@ import {
   getResInherentControls,
   getLooseResCtrls,
   getResModeGroups,
+  getResOutroControls,
+  getResOutroSectionControls,
   getResPanelControls,
   getResStateControls,
   getResStateGroups,
 } from '@/domain/gameData/resonatorStateGraph'
 import {ResPckr} from '@/modules/calculator/features/resonator/Picker.tsx'
+import {IdentTagsTooltip} from '@/modules/calculator/features/resonator/IdentTagsTooltip.tsx'
 import {SkillData} from '@/modules/calculator/features/resonator/SkillData.tsx'
 import {StackGauge} from '@/modules/calculator/features/controls/StackGauge.tsx'
 import {
@@ -50,7 +53,7 @@ import {
   skllLblMap,
   toStrdCntrVl,
 } from '@/modules/calculator/features/resonator/lib/panel.ts'
-import { ATTR_COLORS } from '@/modules/calculator/model/display.ts'
+import { ATTR_COLORS, rarityVars } from '@/modules/calculator/model/display.ts'
 import {
   ctrlEnabled,
   ctrlVisible,
@@ -148,6 +151,7 @@ export function Resonator({
   const curTtrb = resonator?.attribute ?? 'physical'
   const curSldrClr = ATTR_COLORS[curTtrb] ?? '#888'
   const activeSprite = resonator?.sprite ?? '/assets/default.webp'
+  const resTags = resonator?.tags ?? []
   const vlblCntr = details ? getResStateControls(details) : []
   const viewRuntime = useMemo(() => ({
     ...runtime,
@@ -173,6 +177,9 @@ export function Resonator({
         sources.push(entry.profile)
         sources.push(`/assets/weapons/${weaponKey}.webp`)
         sources.push(`/assets/attributes/attributes alt/${entry.attribute}.webp`)
+        for (const tag of entry.tags ?? []) {
+          sources.push(`/assets/resonators/tag-icons/${tag.id}.webp`)
+        }
       }
 
       for (const weapon of WEAPON_FILTERS) {
@@ -572,11 +579,13 @@ export function Resonator({
   const weaponDef = getWeapon(runtime.build.weapon.id)
   const weaponIcon = weaponDef?.icon ?? '/assets/default.webp'
   const weaponRarity = weaponDef?.rarity ?? 4
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
 
   const { score: buildScore } = useAsmBenchScore({
     runtime,
     runtimesById: partRntmById,
     targetSelections: selTrgtByOwn,
+    tuneStrain: enemyTuneStrain,
     exposeLogger: true,
   })
 
@@ -615,11 +624,14 @@ export function Resonator({
       className="calc-pane resonator-pane resonator-pane-v2"
       style={{ '--slider-color': curSldrClr } as CssProps}
     >
-      <div className={`pane-section res-card rarity-${menu?.rarity ?? 5}`}>
+      <div className="pane-section res-card">
         <button
           type="button"
-          className={`resonator-avatar-button res-slab__portrait rarity-${menu?.rarity ?? 5}`}
-          style={{ '--rstars': menu?.rarity ?? 5 } as CssProps}
+          className="resonator-avatar-button res-slab__portrait"
+          style={{
+            ...rarityVars(menu?.rarity ?? 5, false, '--avatar-rarity-color'),
+            '--rstars': menu?.rarity ?? 5,
+          } as CssProps}
           aria-label="Open resonator selector"
           onClick={() => {
             if (menuModal.open) {
@@ -634,7 +646,7 @@ export function Resonator({
             <img
               src={activeSprite}
               alt={menu?.displayName ?? displayName}
-              className={`resonator-avatar resonator-avatar--sprite rarity-${menu?.rarity ?? 5}`}
+              className="resonator-avatar resonator-avatar--sprite"
               onError={withDefIconM}
             />
           </span>
@@ -657,6 +669,9 @@ export function Resonator({
             /></h3>
           <div className="res-card__ident">
             <span className="res-card__ident-lv">Lv.{runtime.base.level}</span>
+            {resTags.length > 0 ? (
+              <IdentTagsTooltip tags={resTags} onIconError={withDefIconM} />
+            ) : null}
           </div>
         </div>
 
@@ -701,7 +716,10 @@ export function Resonator({
               onClick={() => openLeftView('weapon')}
               aria-label="Open weapon pane"
             >
-              <span className={`res-wpn-thumb rarity-${weaponRarity}`}>
+              <span
+                className="res-wpn-thumb"
+                style={rarityVars(weaponRarity, false, '--picker-rarity-color') as CssProps}
+              >
                 <img src={weaponIcon} alt="" onError={withDefWpnMg} />
               </span>
               <span className="res-wpn-text">
@@ -733,9 +751,13 @@ export function Resonator({
                   mate ? (
                     <span
                       key={mate.id}
-                      className={`res-mate rarity-${mate.rarity}`}
+                      className="res-mate"
                       title={`${mate.name} · ${mate.rarity}★${mate.weaponName ? ` · ${mate.weaponName}${mate.weaponRank ? ` R${mate.weaponRank}` : ''}` : ''}`}
-                      style={{ '--ring': mate.ring, '--rstars': mate.rarity } as CssProps}
+                      style={{
+                        ...rarityVars(mate.rarity, false, '--avatar-rarity-color'),
+                        '--ring': mate.ring,
+                        '--rstars': mate.rarity,
+                      } as CssProps}
                     >
                       <span className="res-mate__crown" aria-label={`${mate.rarity} star`}>
                         {Array.from({ length: mate.rarity }).map((_, starIndex) => (
@@ -1092,6 +1114,88 @@ export function Resonator({
             })}
           </div>
         )}
+
+        {details && details.outroSkills.length > 0 ? (
+          <>
+            <div className="resonator-strip__head">
+              <span className="weapon-effect__sigil" aria-hidden="true" />
+              <span className="panel-overline">Outro Skill</span>
+            </div>
+
+            <div className="inherent-skills">
+              {details.outroSkills.map((outro) => {
+                const controls = getResOutroControls(details, outro)
+                const vsblCntr = controls.filter((control) => getCntrVsbl(control))
+                const sections = (outro.sections ?? [])
+                  .map((section) => ({
+                    section,
+                    controls: getResOutroSectionControls(details, section).filter((control) => getCntrVsbl(control)),
+                  }))
+                  .filter(({ section, controls: sectionControls }) => sectionControls.length > 0 || !(section.stateKeys?.length))
+
+                if (sections.length > 0) {
+                  return sections.map(({ section, controls: sectionControls }) => (
+                    <article
+                      key={`${outro.ownerKey ?? `outro-${outro.name}`}:${section.id ?? section.title}`}
+                      className="pane-section inherent-skill"
+                    >
+                      <div className="sequence-card-head inherent-skill-head">
+                        <div className="sequence-card-title-row">
+                          <span className="sequence-card-badge">Outro</span>
+                          <h4 className="highlight">{section.title}</h4>
+                        </div>
+                      </div>
+
+                      <div className="sequence-card-body inherent-skill-body">
+                        <RichDscr
+                          description={section.body}
+                          params={section.param}
+                          accentColor={curSldrClr}
+                          xtrKywr={mrgDscrKywr(details?.descriptionKeywords, section.keywords)}
+                        />
+                      </div>
+
+                      {sectionControls.length > 0 ? (
+                        <div className="sequence-card-footer inherent-skill-footer">
+                          {sectionControls.map((control) => viewCntrFld(control, { className: 'inherent-skill-control' }))}
+                        </div>
+                      ) : null}
+                    </article>
+                  ))
+                }
+
+                return (
+                  <article
+                    key={outro.ownerKey ?? `outro-${outro.name}`}
+                    className="pane-section inherent-skill"
+                  >
+                    <div className="sequence-card-head inherent-skill-head">
+                      <div className="sequence-card-title-row">
+                        <span className="sequence-card-badge">Outro</span>
+                        <h4 className="highlight">{outro.name}</h4>
+                      </div>
+                    </div>
+
+                    <div className="sequence-card-body inherent-skill-body">
+                      <RichDscr
+                        description={outro.desc}
+                        params={outro.param}
+                        accentColor={curSldrClr}
+                        xtrKywr={mrgDscrKywr(details?.descriptionKeywords, outro.keywords)}
+                      />
+                    </div>
+
+                    {vsblCntr.length > 0 ? (
+                      <div className="sequence-card-footer inherent-skill-footer">
+                        {vsblCntr.map((control) => viewCntrFld(control, { className: 'inherent-skill-control' }))}
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          </>
+        ) : null}
 
         {details?.statePanels.map((panel) => {
           if (!resVisible(viewRuntime, panel.unlockWhen)) {

@@ -22,7 +22,7 @@
 .pane-section,
 .custom-buffs-card {
   --ui-surface-radius: 1.45rem;
-  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, var(--item-border, var(--border)));
+  --ui-surface-border-color: color-mix(in srgb, var(--resonator-accent, var(--accent, #6b7cff)) 5%, color-mix(in srgb, var(--border) 50%, transparent));
   --ui-surface-border: 1px solid var(--ui-surface-border-color);
   --ui-surface-bg:
     linear-gradient(180deg, color-mix(in srgb, var(--resonator-accent) 2%, transparent), transparent 48%),

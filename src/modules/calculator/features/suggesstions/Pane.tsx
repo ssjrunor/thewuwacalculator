@@ -4,7 +4,7 @@
 */
 
 import { cloneElement, isValidElement as isVldElem, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { HTMLAttributes as HtmlAttrs } from 'react'
+import type { CSSProperties as CssProps, HTMLAttributes as HtmlAttrs } from 'react'
 import type { EnemyProfile, PickFreqWeapon } from '@/domain/entities/appState.ts'
 import type { RandGnrtSets, RandGnrtSetP, WeaponPlanSet } from '@/domain/entities/suggestions.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
@@ -43,6 +43,7 @@ import type {
 } from '@/engine/suggestions/types.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
 import { formatCompactNum, formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { rarityVars } from '@/modules/calculator/model/display.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import {
   DEFRANDSETS,
@@ -1010,11 +1011,13 @@ export function Suggestions({
   const nspcGridTms = useMemo(() => mkEchoGridTm({
     echoes: nspcChs,
   }), [nspcChs])
+  const enemyTuneStrain = useAppStore((state) => state.calculator.session.enemyProfile.status?.tuneStrain ?? 0)
   const { score: randomBuildScore } = useBenchPreview({
     runtime: viewMode === 'random' && selRandPlan ? runtime : null,
     echoes: selRandPlan?.echoes ?? [],
     runtimesById: partRntmById,
     targetSelections: selTrgtByOwn,
+    tuneStrain: enemyTuneStrain,
   })
   const nspcSelTms = useMemo(
     // ids include the rendered index because suggested echoes can legitimately reuse the same uid across empty or
@@ -1460,7 +1463,8 @@ export function Suggestions({
               return (
                 <div
                   key={`weapon-${card.id}`}
-                  className={`weapon-sugg-card${isSolo ? ' weapon-sugg-card--solo' : ' weapon-sugg-card--dual'}${selWpnNdx === index ? ' selected' : ''} rarity-${targetPlan.rarity}`}
+                  className={`weapon-sugg-card${isSolo ? ' weapon-sugg-card--solo' : ' weapon-sugg-card--dual'}${selWpnNdx === index ? ' selected' : ''}`}
+                  style={rarityVars(targetPlan.rarity, false, '--weapon-rarity-tint') as CssProps}
                   onClick={() => setSelWpnNd(index)}
                   role="button"
                   tabIndex={0}
@@ -1770,7 +1774,10 @@ export function Suggestions({
               passiveParams: string[]
             },
           ) => (
-            <div className={`weapon-inspect__col weapon-inspect__col--${kind} rarity-${opts.rarity}`}>
+            <div
+              className={`weapon-inspect__col weapon-inspect__col--${kind}`}
+              style={rarityVars(opts.rarity, false, '--weapon-rarity-tint') as CssProps}
+            >
               <header className="weapon-inspect__col-head">
                 <span className="weapon-inspect__col-cap">{opts.cap}</span>
               </header>
