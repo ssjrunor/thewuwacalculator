@@ -10,8 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "postbuild": "node scripts/seo/writeStaticRoutes.mjs",
-    "seo:sync": "node scripts/seo/writeStaticRoutes.mjs --sync-public",
+    "postbuild": "node tools/seo/writeStaticRoutes.mjs",
+    "seo:sync": "node tools/seo/writeStaticRoutes.mjs --sync-public",
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:cloudflare": "wrangler dev",
