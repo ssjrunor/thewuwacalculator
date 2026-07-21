@@ -20,7 +20,7 @@ export function InfoPage() {
       <CllpPageHeyf
         eyebrow="About"
         title="About"
-        subtitle="Everything about the Wuthering Waves Damage Calculator & Optimizer."
+        subtitle="Reference calculator, formula tooling, and build analysis for Wuthering Waves."
         layoutKey="info-hero"
       />
 
@@ -35,10 +35,15 @@ export function InfoPage() {
           </div>
           <div className="tile-prose">
             <p>
-              The Wuthering Waves Damage Calculator & Optimizer is a fan-made toolkit to plan builds,
-              compare rotations, and explore how stats translate into real damage. It tracks live-patch
-              character kits, echoes, weapons, and resonance chains, and pairs the calculator with an
-              optimizer so you can see which substat rolls or echo sets move the needle the most.
+              The Wuthering Waves Damage Calculator & Optimizer is a fan-made reference calculator for
+              build analysis, formula checking, and stat comparison. It tracks live-patch character kits,
+              echoes, weapons, and resonance chains, then turns those values into transparent damage
+              estimates and optimizer reports.
+            </p>
+            <p>
+              The site is not playable Wuthering Waves content and does not provide a game client,
+              emulator, or game account service. Users enter build data, review calculations, and compare
+              formula outputs in the browser.
             </p>
             <p>
               Goals: stay current with balance changes, keep formulas transparent, and help the community

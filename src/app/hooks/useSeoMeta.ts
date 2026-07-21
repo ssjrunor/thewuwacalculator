@@ -62,6 +62,9 @@ export function useSeoMeta() {
     upsertMetaByName('description', route.description)
     upsertMetaByName('robots', robots)
     upsertMetaByName('theme-color', SEO_CONFIG.themeColor)
+    upsertMetaByName('category', SEO_CONFIG.siteCategory)
+    upsertMetaByName('classification', SEO_CONFIG.siteClassification)
+    upsertMetaByName('keywords', SEO_CONFIG.siteKeywords.join(', '))
 
     upsertLink('canonical', route.canonicalUrl)
 
@@ -71,6 +74,7 @@ export function useSeoMeta() {
     upsertMetaByProperty('og:description', route.description)
     upsertMetaByProperty('og:url', route.canonicalUrl)
     upsertMetaByProperty('og:image', route.imageUrl)
+    upsertMetaByProperty('og:image:alt', route.imageAlt)
     upsertMetaByProperty('og:image:width', '1200')
     upsertMetaByProperty('og:image:height', '630')
     upsertMetaByProperty('og:locale', 'en_US')
@@ -79,6 +83,7 @@ export function useSeoMeta() {
     upsertMetaByName('twitter:title', route.fullTitle)
     upsertMetaByName('twitter:description', route.description)
     upsertMetaByName('twitter:image', route.imageUrl)
+    upsertMetaByName('twitter:image:alt', route.imageAlt)
 
     upsertJsonLd('app-route', buildStructuredData(route))
   }, [location.pathname])

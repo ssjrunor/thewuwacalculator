@@ -1,7 +1,7 @@
 {
   "name": "The Wuwa Calculator",
   "short_name": "Wuwa Calc",
-  "description": "A fan-made Wuthering Waves damage calculator, optimizer, benchmark reporter, and build planner.",
+  "description": "A fan-made, non-playable Wuthering Waves reference calculator for damage formulas, build analysis, optimizer math, and team setup planning.",
   "start_url": "/calculator",
   "scope": "/",
   "display": "standalone",

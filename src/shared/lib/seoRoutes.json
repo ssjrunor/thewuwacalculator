@@ -2,75 +2,110 @@
   "siteUrl": "https://thewuwacalculator.com",
   "siteName": "The Wuwa Calculator",
   "defaultTitle": "Wuthering Waves Calculator",
-  "defaultDescription": "A fan-made Wuthering Waves damage calculator, optimizer, and build planner for resonators, weapons, echoes, rotations, and team setups.",
+  "defaultDescription": "A fan-made, non-playable Wuthering Waves reference calculator for damage formulas, build analysis, optimizer math, and team setup planning.",
+  "siteCategory": "Reference",
+  "siteClassification": "Reference calculator, formula tool, build analysis utility",
+  "siteKeywords": [
+    "Wuthering Waves calculator",
+    "Wuthering Waves damage calculator",
+    "Wuthering Waves optimizer",
+    "Wuthering Waves build planner",
+    "Wuwa calculator",
+    "damage formula calculator",
+    "reference calculator",
+    "build analysis tool"
+  ],
   "socialImage": "/og-image.png",
+  "socialImageAlt": "The Wuwa Calculator preview card",
   "themeColor": "#101820",
   "routes": [
     {
       "path": "/calculator",
       "title": "Wuthering Waves Damage Calculator",
       "description": "Calculate Wuthering Waves resonator damage with live stats, weapons, echoes, enemies, custom buffs, rotations, and team support.",
-      "priority": "1.0"
+      "priority": "1.0",
+      "socialImage": "/assets/social/calculator.png",
+      "socialImageAlt": "The Wuwa Calculator damage calculator page preview"
     },
     {
       "path": "/calculator/optimizer",
       "title": "Wuthering Waves Build Optimizer",
       "description": "Search inventory and theory echo builds, compare ranked results, and tune optimizer constraints around your target skill or rotation.",
-      "priority": "0.9"
+      "priority": "0.9",
+      "socialImage": "/assets/social/optimizer.png",
+      "socialImageAlt": "The Wuwa Calculator optimizer page preview"
     },
     {
       "path": "/calculator/benchmark",
       "title": "Wuthering Waves Build Benchmark",
       "description": "Create Wuthering Waves benchmark reports, compare substat quality, and export showcase cards for resonator builds.",
-      "priority": "0.8"
+      "priority": "0.8",
+      "socialImage": "/assets/social/benchmark.png",
+      "socialImageAlt": "The Wuwa Calculator benchmark page preview"
     },
     {
       "path": "/settings",
       "title": "Settings",
       "description": "Personalize The Wuwa Calculator workspace, themes, typography, background, data sync, and local app preferences.",
-      "priority": "0.3"
+      "priority": "0.3",
+      "socialImage": "/assets/social/settings.png",
+      "socialImageAlt": "The Wuwa Calculator settings page preview"
     },
     {
       "path": "/info",
       "title": "About The Wuwa Calculator",
-      "description": "Learn what The Wuwa Calculator does, where its Wuthering Waves data and formulas come from, and how the project is maintained.",
-      "priority": "0.6"
+      "description": "Learn how The Wuwa Calculator works as a non-playable reference calculator for formulas, build analysis, and patch data.",
+      "priority": "0.6",
+      "socialImage": "/assets/social/info.png",
+      "socialImageAlt": "The Wuwa Calculator about page preview"
     },
     {
       "path": "/guides",
       "title": "Wuthering Waves Calculator Guides",
       "description": "Read operating guides for calculator surfaces, build workflows, optimizer setup, rotations, benchmarks, and app behavior.",
-      "priority": "0.8"
+      "priority": "0.8",
+      "socialImage": "/assets/social/guides.png",
+      "socialImageAlt": "The Wuwa Calculator guides page preview"
     },
     {
       "path": "/docs",
       "title": "Wuthering Waves Damage Formula Docs",
       "description": "Reference the calculator methods, damage math, benchmark formulas, optimizer search behavior, and scoring details used by the app.",
-      "priority": "0.8"
+      "priority": "0.8",
+      "socialImage": "/assets/social/docs.png",
+      "socialImageAlt": "The Wuwa Calculator docs page preview"
     },
     {
       "path": "/changelog",
       "title": "Changelog",
       "description": "Track Wuthering Waves Calculator updates, live data changes, feature releases, fixes, and patch support.",
-      "priority": "0.5"
+      "priority": "0.5",
+      "socialImage": "/assets/social/changelog.png",
+      "socialImageAlt": "The Wuwa Calculator changelog page preview"
     },
     {
       "path": "/changelog/whatsnew",
       "title": "What's New",
       "description": "See the detailed update notes for the latest Wuthering Waves Calculator changes and new app features.",
-      "priority": "0.5"
+      "priority": "0.5",
+      "socialImage": "/assets/social/whats-new.png",
+      "socialImageAlt": "The Wuwa Calculator what's new page preview"
     },
     {
       "path": "/privacy",
       "title": "Privacy Policy",
       "description": "Read how The Wuwa Calculator stores local app data, handles optional Google Drive sync, and treats user-provided information.",
-      "priority": "0.2"
+      "priority": "0.2",
+      "socialImage": "/assets/social/privacy.png",
+      "socialImageAlt": "The Wuwa Calculator privacy policy page preview"
     },
     {
       "path": "/terms",
       "title": "Terms of Service",
       "description": "Read the usage terms, warranty disclaimer, and responsibilities for using The Wuwa Calculator.",
-      "priority": "0.2"
+      "priority": "0.2",
+      "socialImage": "/assets/social/terms.png",
+      "socialImageAlt": "The Wuwa Calculator terms of service page preview"
     }
   ]
 }
