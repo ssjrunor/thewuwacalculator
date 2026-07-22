@@ -3,7 +3,7 @@
   Description: renders the right surface for the calculator main flow.
 */
 
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type { CSSProperties as CssProps } from 'react'
 import type { EnemyProfile } from '@/domain/entities/appState'
@@ -43,7 +43,9 @@ const NEG_EFFECT_ABBR: Record<string, string> = {
 }
 
 // renders the results-hand telemetry surface once a simulation and runtime are available.
-export function Right({ simulation, runtime, enemy }: CalcRghtPane) {
+// Memoized: its props (simulation/runtime/enemy) are unchanged by a left-pane
+// switch, so the telemetry column no longer re-renders on every tab change.
+function RightImpl({ simulation, runtime, enemy }: CalcRghtPane) {
   const statsView = useMemo(
     () => (simulation && runtime ? makeStatsView(runtime, simulation.finalStats) : null),
     [runtime, simulation],
@@ -184,3 +186,5 @@ export function Right({ simulation, runtime, enemy }: CalcRghtPane) {
     </section>
   )
 }
+
+export const Right = memo(RightImpl)
