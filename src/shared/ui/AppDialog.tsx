@@ -57,6 +57,13 @@ export function AppDialog({
   const cntnClssNms = [contentClass, open ? 'open' : '', closing ? 'closing' : '']
     .filter(Boolean)
     .join(' ')
+  // The frosted-glass blur lives on its own layer that is a sibling of the
+  // overlay, never an ancestor of the scrolling content. A backdrop-filter on
+  // an ancestor of a scroller forces the whole viewport to re-blur on every
+  // scroll frame; keeping it outside the overlay subtree avoids that.
+  const blurClssNms = ['app-modal-blur', open ? 'open' : '', closing ? 'closing' : '']
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <Dialog.Root open={open} onOpenChange={(nextOpen) => {
@@ -65,6 +72,7 @@ export function AppDialog({
       }
     }}>
       <Dialog.Portal forceMount container={portalTarget}>
+        <div className={blurClssNms} aria-hidden="true" />
         <Dialog.Overlay
           forceMount
           className={vrlyClssNms}
