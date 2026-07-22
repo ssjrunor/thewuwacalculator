@@ -66,11 +66,6 @@
   transition: opacity 260ms ease;
 }
 
-/*
-  Frosted-glass layer for every modal. It sits just under the overlay and is a
-  sibling of it (never an ancestor of the scrolling content), so scrolling a
-  modal body does not force the full-viewport blur to re-rasterize each frame.
-*/
 .app-modal-blur {
   position: fixed;
   inset: 0;
