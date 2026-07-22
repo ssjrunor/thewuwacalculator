@@ -53,27 +53,23 @@
   --ui-modal-border-color: color-mix(in srgb, var(--picker-modal-accent) 24%, var(--picker-modal-border));
   --ui-modal-bg: var(--picker-modal-surface);
   --ui-modal-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.14);
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: clamp(1rem, 2vw, 1.6rem);
-  background: color-mix(in srgb, var(--bg-alt, rgba(6, 10, 26, 0.92)) 18%, rgba(6, 10, 26, 0.66));
-  opacity: 0;
+}
+
+.app-modal-blur, .app-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
   pointer-events: none;
-  transition: opacity 260ms ease;
+  opacity: 0;
 }
 
 .app-modal-blur {
-  position: fixed;
-  inset: 0;
-  z-index: 1099;
-  pointer-events: none;
-  opacity: 0;
+  background: color-mix(in srgb, var(--bg-alt, rgba(6, 10, 26, 0.92)) 18%, rgba(6, 10, 26, 0.66));
   backdrop-filter: blur(10px);
-  transition: opacity 260ms ease;
 }
 
 .app-modal-blur.open {
@@ -98,7 +94,6 @@
 
 .app-modal-overlay.closing {
   opacity: 0;
-  pointer-events: none;
   animation: app-modal-overlay-out 240ms ease both;
 }
 
