@@ -876,6 +876,22 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `3.7.0 beta update`,
   },
+  {
+    date: '11/09/2026',
+    patchVersion: '3.7.1 beta',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          Added <strong>3.7.1 beta</strong> changes for <strong>Suoming</strong>, <strong>Hsin</strong>, and <strong>Blooming Jadehaven</strong>.
+        `},
+      {
+        type: 'paragraph',
+        content: `Updated <strong>Suoming</strong>'s <strong>Unison Boom</strong> stack limit.`,
+      }
+    ],
+    shortDesc: `3.7.1 beta update`,
+  },
 ]
 
 export const ltstCurChngE =
