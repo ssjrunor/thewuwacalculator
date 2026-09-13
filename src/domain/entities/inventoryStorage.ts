@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Defines inventory storage entities and helper utilities for
-               cloning, comparing, and creating saved echoes, builds, and rotations.
+               cloning, comparing, and creating saved echoes, builds, rotations, and team loadouts.
 */
 
 import type { EchoInstance, ResonatorId, TeamSlots, WeaponState } from './runtime'
@@ -60,6 +60,27 @@ export interface InvRotEnt {
   items: RotationNode[]
   snapshot?: ResProf
   summary?: RotEntSmmr
+  createdAt: number
+  updatedAt: number
+}
+
+export interface TeamMemberBuild {
+  resonatorId: ResonatorId
+  resonatorName: string
+  level: number
+  sequence: number
+  weapon: WeaponState
+  echoes: Array<EchoInstance | null>
+}
+
+export interface TeamLoadoutSnap {
+  members: [TeamMemberBuild, TeamMemberBuild, TeamMemberBuild]
+}
+
+export interface InvTeamLoadout {
+  id: string
+  name: string
+  loadout: TeamLoadoutSnap
   createdAt: number
   updatedAt: number
 }
@@ -204,6 +225,29 @@ export function cloneBuildSnap(build: SavedBuildSnap): SavedBuildSnap {
   }
 }
 
+// clone a team member build
+export function cloneTeamMemberBuild(member: TeamMemberBuild): TeamMemberBuild {
+  return {
+    resonatorId: member.resonatorId,
+    resonatorName: member.resonatorName,
+    level: member.level,
+    sequence: member.sequence,
+    weapon: { ...member.weapon },
+    echoes: cloneEchoLdt(member.echoes),
+  }
+}
+
+// clone a team loadout snapshot
+export function cloneTeamLoadoutSnap(loadout: TeamLoadoutSnap): TeamLoadoutSnap {
+  return {
+    members: loadout.members.map((member) => cloneTeamMemberBuild(member)) as [
+      TeamMemberBuild,
+      TeamMemberBuild,
+      TeamMemberBuild,
+    ],
+  }
+}
+
 // keep saved rotation duration numeric and treat non-positive values as unset
 export function normInvRotDu(value: unknown): number {
   const numericValue = typeof value === 'number' ? value : Number(value)
@@ -300,6 +344,30 @@ export function areMkSnpsQvl(
     right: SavedBuildSnap,
 ): boolean {
   return getBuildSig(left) === getBuildSig(right)
+}
+
+// compare two team loadout snapshots
+export function areTeamLoadoutSnapsEqual(
+  left: TeamLoadoutSnap,
+  right: TeamLoadoutSnap,
+): boolean {
+  return left.members.every((leftMember, index) => {
+    const rightMember = right.members[index]
+    if (!rightMember) return false
+
+    return (
+      leftMember.resonatorId === rightMember.resonatorId
+      && leftMember.weapon.id === rightMember.weapon.id
+      && leftMember.weapon.level === rightMember.weapon.level
+      && leftMember.weapon.rank === rightMember.weapon.rank
+      && leftMember.echoes.length === rightMember.echoes.length
+      && leftMember.echoes.every((echo, echoIdx) => {
+        const rightEcho = rightMember.echoes[echoIdx]
+        if (!echo || !rightEcho) return echo === rightEcho
+        return normCmprEcho(echo) === normCmprEcho(rightEcho)
+      })
+    )
+  })
 }
 
 // returns the entries with uids made unique within the bag. a uid identifies one
@@ -429,6 +497,23 @@ export function makeInvRot(input: {
     items: cloneRotNds(input.items),
     ...(input.snapshot ? { snapshot: structuredClone(input.snapshot) } : {}),
     ...(input.summary ? { summary: structuredClone(input.summary) } : {}),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+// create an inventory team loadout entry
+export function makeInvTeamLoadout(
+  input: {
+    name: string
+    loadout: TeamLoadoutSnap
+  },
+  now = Date.now(),
+): InvTeamLoadout {
+  return {
+    id: makeStoreId(),
+    name: input.name,
+    loadout: cloneTeamLoadoutSnap(input.loadout),
     createdAt: now,
     updatedAt: now,
   }
