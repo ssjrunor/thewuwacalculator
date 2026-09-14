@@ -1,19 +1,16 @@
 /*
   Author: Runor Ewhro
-  Description: Shared confirmation dialog for important or destructive choices.
-               Presents a centered emblem "seal": two doors for a yes/no, or a
-               stacked list when a third (secondary) choice is offered.
+  Description: Owns confirmation modal behavior and state transitions for the ui module.
 */
 
 import type { ReactNode } from 'react'
 import { AlertTriangle as AlertIcon, Info } from 'lucide-react'
 import { AppModal } from '@/shared/ui/AppModal'
 
-interface CnfrMdlPrps {
+export interface ConfirmControl {
   visible: boolean
   open: boolean
   closing?: boolean
-  portalTarget: HTMLElement | null
   title: string
   message: ReactNode
   confirmLabel?: string
@@ -21,13 +18,17 @@ interface CnfrMdlPrps {
   secondaryLabel?: string
   confirmDisabled?: boolean
   confirmTitle?: string
-  variant?: 'info' | 'danger'
+  variant?: 'info' | 'warn' | 'danger'
   onConfirm: () => void
   onSecondary?: () => void
   onCancel: () => void
 }
 
-export function CnfrMdl({
+interface ConfirmProps extends ConfirmControl {
+  portalTarget: HTMLElement | null
+}
+
+export function ConfirmModal({
   visible,
   open,
   closing = false,
@@ -42,8 +43,8 @@ export function CnfrMdl({
   onConfirm,
   onSecondary,
   onCancel,
-}: CnfrMdlPrps) {
-  const Icon = variant === 'danger' ? AlertIcon : Info
+}: ConfirmProps) {
+  const Icon = variant === 'info' ? Info : AlertIcon
   const hasSecondary = Boolean(secondaryLabel && onSecondary)
 
   const confirmBtn = (
@@ -59,8 +60,7 @@ export function CnfrMdl({
   )
   const cancelBtn = (
     <button
-      type="button"
-      className="confirmation-modal__door confirmation-modal__door--cancel"
+      type="button" className="confirmation-modal__door"
       onClick={onCancel}
     >
       {cancelLabel}
@@ -89,8 +89,7 @@ export function CnfrMdl({
           <>
             {confirmBtn}
             <button
-              type="button"
-              className="confirmation-modal__door confirmation-modal__door--secondary"
+              type="button" className="confirmation-modal__door"
               onClick={onSecondary}
             >
               {secondaryLabel}
@@ -106,4 +105,14 @@ export function CnfrMdl({
       </div>
     </AppModal>
   )
+}
+
+export function ConfirmHost({
+  control,
+  portalTarget,
+}: {
+  control: ConfirmControl
+  portalTarget: HTMLElement | null
+}) {
+  return <ConfirmModal {...control} portalTarget={portalTarget} />
 }

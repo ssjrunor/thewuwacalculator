@@ -1,8 +1,14 @@
+/*
+  Author: Runor Ewhro
+  Description: Verifies that build-stat projection includes build-bound
+               passives while excluding live combat control state.
+*/
+
 import { describe, expect, it } from 'vitest'
 import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService.ts'
 import { makeResRuntime } from '@/domain/state/defaults.ts'
 import { getBuildStats } from '@/engine/pipeline/buildStats.ts'
-import { makeStatsView } from '@/modules/calculator/model/statsView.ts'
+import { makeStatsView } from '@/modules/simulation/model/statsView.ts'
 
 describe('build stats', () => {
   it('includes build-bound resonator passives in their stats', () => {

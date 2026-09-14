@@ -5,7 +5,7 @@
                coloring for elemental and status-related terms.
 */
 
-import { ATTR_COLORS } from '@/modules/calculator/model/display'
+import { ATTR_COLORS } from '@/modules/simulation/model/display'
 
 const FIXED_MARKS: Record<string, string> = {
   'Spectro Frazzle': ATTR_COLORS.spectro,
@@ -288,7 +288,7 @@ export function fmtDscr(
 }
 
 // format description text and return a plain-text version without HTML
-export function fmtDscrText(
+export function formatDescription(
     desc: string,
     param: Array<string | number> = [],
     curSldrClr = '#888',

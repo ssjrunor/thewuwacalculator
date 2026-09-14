@@ -7,24 +7,27 @@
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
-import type { SkillDef } from '@/domain/entities/stats.ts'
-import type { DamageFeature } from '@/domain/gameData/contracts.ts'
+import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph.ts'
 import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
 import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
 import { selOptTgtSkl } from '@/engine/optimizer/target/selectedSkill.ts'
-import type { CompTargetSkill, OptStartPay, PrepRotRun } from '@/engine/optimizer/types.ts'
-import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext.ts'
-import { mkPrepRotNvr, runFeatSmlt } from '@/engine/rotation/system.ts'
+import type { OptStartPay, PrepRotRun } from '@/engine/optimizer/types.ts'
+import { materializeResRotation } from '@/engine/pipeline/index.ts'
 import { encStatCstrs } from '@/engine/optimizer/constraints/statConstraints.ts'
 import { mkGnrcMainEc, encEchoRows } from '@/engine/optimizer/encode/echoes.ts'
 import { buildSetRows, makeSetMask } from '@/engine/optimizer/encode/sets.ts'
 import { mkShrdPay, stripEchoes } from '@/engine/optimizer/compiler/shared.ts'
-import { applyPersRot } from '@/engine/optimizer/rotation/runtime.ts'
-import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
-import { makeOptContext } from '@/engine/optimizer/context/compiled.ts'
-import { isOptRotTgt } from '@/engine/optimizer/rules/eligibility.ts'
+import { stripRotLoops } from '@/engine/optimizer/rotation/runtime.ts'
+import { isOptDmgSkll } from '@/engine/optimizer/rules/eligibility.ts'
+import {
+  buildRotationCombatContexts,
+  packRotationTargetContexts,
+  type RotationContextShape,
+  type RotationTargetContext,
+} from '@/engine/optimizer/rotation/targetContexts.ts'
+import type { DamageInvocation } from '@/engine/rotation/execute.ts'
+import { materializeFinalPlane } from '@/engine/rotation/numericLayout.ts'
 import {
   resolveWeaponCandidates,
   stripWeaponControls,
@@ -34,26 +37,32 @@ import {
   CTX_FLOATS,
 } from '@/engine/optimizer/config/constants.ts'
 
-type CombatEnv = ReturnType<typeof makeCombatEnv>
-
-// shared combo-shape inputs needed to pack any rotation target context.
-interface RotShapeInputs {
-  comboN: number
-  comboK: number
-  totalCombos: number
-  setRtMask: number
+interface CapturedRotationTarget extends RotationTargetContext {
+  runtime: ResRuntime
+  finalStats: ReturnType<typeof materializeFinalPlane>
+  combat: DamageInvocation['combat']
+  nodeMultiplier: number
 }
 
-// one rotation context set: the packed per-target contexts, their weights, and a
-// representative display context (lowest positive skill-damage target).
-interface RotCtxPack {
-  contexts: Float32Array
-  contextWeight: Float32Array
-  displayContext: Float32Array
+function captureInvocation(
+    output: CapturedRotationTarget[],
+    invocation: DamageInvocation,
+    resonatorId: string,
+): void {
+  if (invocation.resonatorId !== resonatorId || !isOptDmgSkll(invocation.skill)) return
+  output.push({
+    resonatorId: invocation.resonatorId,
+    skill: invocation.skill,
+    weight: invocation.weight,
+    runtime: invocation.runtime,
+    finalStats: materializeFinalPlane(invocation.finalPlane, invocation.finalOffset),
+    combat: { ...invocation.combat },
+    nodeMultiplier: invocation.nodeMultiplier,
+  })
 }
 
-function rotTargetSig(target: DamageFeature): string {
-  return `${target.resonatorId}|${target.skill.id}|${target.weight ?? 1}`
+function rotTargetSig(target: RotationTargetContext): string {
+  return `${target.resonatorId}|${target.skill.id}|${target.weight ?? 1}|${target.nodeMultiplier ?? 1}`
 }
 
 // Fallback synthetic target used only when the rotation simulation
@@ -69,147 +78,6 @@ function mkFllbTgt(seedId: string): OptTargetSkill {
   }
 }
 
-// Only normal skill-damage targets should drive the representative display stats.
-// Tune rupture and negative-effect entries still contribute damage, but they
-// should not become the one context shown in the optimizer UI.
-function isDsplCtxTgt(target: Pick<SkillDef, 'archetype'>): boolean {
-  return target.archetype === 'skillDamage'
-}
-
-// Build the fully compiled scalar context for one rotation target.
-// This strips away most object lookups and prepares the numeric values
-// that will later be packed into the optimizer context float array.
-function mkCompCtx(options: {
-  resonatorId: string
-  runtime: ResRuntime
-  skill: SkillDef
-  combat: ReturnType<typeof makeCombatEnv>
-  enemy: OptStartPay['enemyProfile']
-}): CompTargetSkill {
-  const { resonatorId, runtime, skill, combat, enemy } = options
-
-  return makeOptContext({
-    resonatorId,
-    runtime,
-    skill,
-    finalStats: combat.finalStats,
-    enemy,
-    combatState: runtime.state.combat,
-  })
-}
-
-// Build the per-resonator combat context map for one runtime/graph. The active
-// resonator's context is supplied (it is reused elsewhere); teammate contexts
-// that own a rotation target are built on demand and cached by resonator id.
-function buildCmbtByResId(
-    graph: ReturnType<typeof makeCombatGraph>,
-    activeContext: CombatEnv,
-    activeId: string,
-    targets: DamageFeature[],
-    enemy: OptStartPay['enemyProfile'],
-): Record<string, CombatEnv> {
-  const cmbtByResId: Record<string, CombatEnv> = { [activeId]: activeContext }
-
-  for (const target of targets) {
-    if (cmbtByResId[target.resonatorId]) {
-      continue
-    }
-    const slotId = findCombatPart(graph, target.resonatorId)
-    if (!slotId) {
-      continue
-    }
-    cmbtByResId[target.resonatorId] = makeCombatEnv({
-      graph,
-      targetSlotId: slotId,
-      enemy,
-    })
-  }
-
-  return cmbtByResId
-}
-
-// Pack one context per rotation target into a flat buffer, capturing per-target
-// weights and a representative display context. This is the weapon-invariant
-// core shared by the base run and each per-weapon recompile.
-function packRotContexts(opts: {
-  targets: DamageFeature[]
-  cmbtByResId: Record<string, CombatEnv>
-  activeContext: CombatEnv
-  enemy: OptStartPay['enemyProfile']
-  shape: RotShapeInputs
-}): RotCtxPack {
-  const { targets, cmbtByResId, activeContext, enemy, shape } = opts
-  const contextCount = targets.length
-
-  const contexts = new Float32Array(contextCount * CTX_FLOATS)
-  const contextWeight = new Float32Array(contextCount)
-
-  let dsplCtx = new Float32Array(CTX_FLOATS)
-  let dsplLwstPstv = Number.POSITIVE_INFINITY
-  let displayLowCrit = Number.POSITIVE_INFINITY
-  let dsplLwstZero = Number.POSITIVE_INFINITY
-
-  for (let index = 0; index < targets.length; index += 1) {
-    const target = targets[index]
-
-    const ownerCombat = cmbtByResId[target.resonatorId] ?? activeContext
-    const ownerRuntime = ownerCombat.runtime
-
-    const compiled = mkCompCtx({
-      resonatorId: target.resonatorId,
-      runtime: ownerRuntime,
-      skill: target.skill,
-      combat: ownerCombat,
-      enemy,
-    })
-
-    const pckdCtx = packTargetCtx({
-      compiled,
-      skill: target.skill,
-      runtime: ownerRuntime,
-      comboN: shape.comboN,
-      comboK: shape.comboK,
-      comboCount: shape.totalCombos,
-      comboBaseIndex: 0,
-      lockEchoIdx: -1,
-      setRtMask: shape.setRtMask,
-    })
-
-    contexts.set(pckdCtx, index * CTX_FLOATS)
-    contextWeight[index] = target.weight ?? 1
-
-    if (!isDsplCtxTgt(target.skill)) {
-      continue
-    }
-
-    const critSum = compiled.statCritRate + compiled.statCritDmg
-    const displayValue = Number.isFinite(target.weight) ? (target.weight as number) : 1
-    if (
-      displayValue > 0 &&
-      (
-        displayValue < dsplLwstPstv ||
-        (displayValue === dsplLwstPstv && critSum < displayLowCrit)
-      )
-    ) {
-      dsplLwstPstv = displayValue
-      displayLowCrit = critSum
-      dsplCtx = new Float32Array(pckdCtx)
-      continue
-    }
-
-    if (
-      dsplLwstPstv === Number.POSITIVE_INFINITY &&
-      displayValue === 0 &&
-      critSum < dsplLwstZero
-    ) {
-      dsplLwstZero = critSum
-      dsplCtx = new Float32Array(pckdCtx)
-    }
-  }
-
-  return { contexts, contextWeight, displayContext: dsplCtx }
-}
-
 // Weapon search recompiles the full rotation context set per candidate weapon.
 // The echo combo space is weapon-independent, but simulated skill rows are not:
 // some effects bake runtime stats into per-node multipliers, so a compact weapon
@@ -218,15 +86,16 @@ export function buildRotWeaponContexts(options: {
   input: OptStartPay
   seed: ReturnType<typeof getResSeedBy>
   rotRt: ResRuntime
-  targets: DamageFeature[]
-  shape: RotShapeInputs
+  targets: CapturedRotationTarget[]
+  rotationItems: RotationNode[]
+  shape: RotationContextShape
 }): {
   weaponContexts: Float32Array
   weaponDisplayContexts: Float32Array
   weaponIds: string[]
   count: number
 } | null {
-  const { input, seed, rotRt, targets, shape } = options
+  const { input, seed, rotRt, targets, rotationItems, shape } = options
   if (!seed || targets.length === 0) {
     return null
   }
@@ -254,44 +123,40 @@ export function buildRotWeaponContexts(options: {
     const rt = withCandidateWeapon(baseRuntime, wpn, level, plan)
 
     const participants = makeRuntimeMap(rt)
-    const graph = makeCombatGraph({
-      actRt: rt,
-      activeSeed: seed,
-      partRts: participants,
-      targetsByRes: {
-        [rt.id]: input.selectedTargets ?? {},
-      },
-    })
-
-    const activeContext = makeCombatEnv({
-      graph,
-      targetSlotId: 'active',
+    const weaponTargets: CapturedRotationTarget[] = []
+    const materialized = materializeResRotation({
+      runtime: rt,
+      seed,
       enemy: input.enemyProfile,
-    })
-
-    const rotNvrn = mkPrepRotNvr(activeContext, seed)
-    const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn, undefined, {
-      mode: 'personal',
+      items: rotationItems,
+      runtimesById: participants,
+      selectedTargets: input.selectedTargets ?? {},
       detail: 'summary',
+      captureEntries: false,
+      onDamageInvocation: (invocation) => captureInvocation(weaponTargets, invocation, input.resonatorId),
     })
-    const weaponTargets = simulated.rotations.personal.entries.filter((entry) =>
-        isOptRotTgt(entry, input.resonatorId),
-    )
+    const { graph, context: activeContext } = materialized
     if (weaponTargets.length !== contextCount || weaponTargets.map(rotTargetSig).join('\n') !== targetSig) {
       continue
     }
 
-    const cmbtByResId = buildCmbtByResId(graph, activeContext, rt.id, weaponTargets, input.enemyProfile)
-    const packed = packRotContexts({
+    const cmbtByResId = buildRotationCombatContexts(
+      graph,
+      activeContext,
+      rt.id,
+      weaponTargets,
+      input.enemyProfile,
+    )
+    const packed = packRotationTargetContexts({
       targets: weaponTargets,
-      cmbtByResId,
+      combatByResonatorId: cmbtByResId,
       activeContext,
       enemy: input.enemyProfile,
       shape,
     })
 
     weaponContexts.set(packed.contexts, weaponCursor * contextCount * CTX_FLOATS)
-    weaponDisplayContexts.set(packed.displayContext, weaponCursor * CTX_FLOATS)
+    weaponDisplayContexts.set(packed.displayContext ?? new Float32Array(CTX_FLOATS), weaponCursor * CTX_FLOATS)
     weaponIds.push(wpn.id)
     weaponCursor += 1
   }
@@ -330,41 +195,27 @@ export function compRotRun(
   // equipped echoes, so we strip echoes from the runtime before building contexts.
   const runtime = stripEchoes(input.runtime)
 
-  // Apply personal rotation setup items so the runtime reflects the actual
-  // rotation state we want to optimize against.
-  const rotRt: ResRuntime = applyPersRot(runtime, input.rotTms, { ignoreLoops: true })
+  // Apply rotation setup items so the runtime reflects the actual program.
+  const rotationItems = stripRotLoops(input.rotTms ?? runtime.rotation.sequence)
+  const rotRt: ResRuntime = runtime
 
   const participants = makeRuntimeMap(rotRt)
-
-  // Teammate-owned rotation entries are evaluated in one transient graph so
-  // active-target routing and shared enemy state stay consistent.
-  const graph = makeCombatGraph({
-    actRt: rotRt,
-    activeSeed: seed,
-    partRts: participants,
-    targetsByRes: {
-      [rotRt.id]: input.selectedTargets ?? {},
-    },
-  })
-
-  const activeContext = makeCombatEnv({
-    graph,
-    targetSlotId: 'active',
+  const targets: CapturedRotationTarget[] = []
+  const materialized = materializeResRotation({
+    runtime: rotRt,
+    seed,
     enemy: input.enemyProfile,
+    items: rotationItems,
+    runtimesById: participants,
+    selectedTargets: input.selectedTargets ?? {},
+    detail: 'summary',
+    captureEntries: false,
+    onDamageInvocation: (invocation) => captureInvocation(targets, invocation, input.resonatorId),
   })
+  const { graph, context: activeContext } = materialized
 
   // Simulation is the source of optimizer targets because authored rotation
   // nodes can expand, skip, or reroute before producing damage rows.
-  const rotNvrn = mkPrepRotNvr(activeContext, seed)
-  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn, undefined, {
-    mode: 'personal',
-    detail: 'summary',
-  })
-
-  const targets = simulated.rotations.personal.entries.filter((entry) =>
-      isOptRotTgt(entry, input.resonatorId),
-  )
-
   const constraints = encStatCstrs(input.settings)
 
   // Use the first real target if available. Otherwise synthesize a fallback
@@ -414,18 +265,24 @@ export function compRotRun(
 
   // Cache combat contexts by resonator id so each teammate's combat context
   // is only built once even if multiple rotation entries belong to them.
-  const cmbtByResId = buildCmbtByResId(graph, activeContext, rotRt.id, targets, input.enemyProfile)
+  const cmbtByResId = buildRotationCombatContexts(
+    graph,
+    activeContext,
+    rotRt.id,
+    targets,
+    input.enemyProfile,
+  )
 
-  const shape: RotShapeInputs = {
+  const shape: RotationContextShape = {
     comboN: shared.comboN,
     comboK: shared.comboK,
-    totalCombos: shared.totalCombos,
+    comboCount: shared.totalCombos,
     setRtMask,
   }
 
-  const { contexts, contextWeight, displayContext } = packRotContexts({
+  const { contexts, contextWeight, displayContext } = packRotationTargetContexts({
     targets,
-    cmbtByResId,
+    combatByResonatorId: cmbtByResId,
     activeContext,
     enemy: input.enemyProfile,
     shape,
@@ -434,7 +291,7 @@ export function compRotRun(
   // Weapon search (theory rotation only): recompile the whole context set once
   // per searchable weapon so evaluation can pick the best weapon per build.
   const weapons = opts.weaponSearch && input.settings.includeWeapons
-      ? buildRotWeaponContexts({ input, seed, rotRt, targets, shape })
+      ? buildRotWeaponContexts({ input, seed, rotRt, targets, rotationItems, shape })
       : null
 
   return {
@@ -447,7 +304,7 @@ export function compRotRun(
     contextCount: targets.length,
     contexts,
     contextWeight: contextWeight,
-    displayContext: displayContext,
+    displayContext: displayContext ?? new Float32Array(CTX_FLOATS),
     stats: encoded.stats,
     setConstLut,
     mainEchoBuffs: mainEchoBuffs,

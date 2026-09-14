@@ -6,9 +6,10 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import { ATTR_ENEMY_RES, isNoEnemy } from '@/domain/entities/appState'
+import { isNoEnemy } from '@/domain/entities/appState'
 import type {
   DamageResult,
+  AttributeKey,
   FinalStats,
   ModBuff,
   NegEffectKey,
@@ -18,8 +19,40 @@ import type {
 import { getNegEffectDef, NEG_EFFECT_ELEM } from '@/domain/gameData/negativeEffects'
 import { getNegBase } from '@/engine/formulas/negativeEffects'
 import { getTuneLevel } from '@/engine/formulas/tuneRupture'
-import { isSkillImmune } from '@/engine/formulas/immunity'
-import { mergeSkillType, makeModBuff } from '@/engine/resolvers/buffPool'
+import {
+  compileSkillRecord,
+  FIELD_AMPLIFY,
+  FIELD_CRIT_DMG,
+  FIELD_CRIT_RATE,
+  FIELD_DEF_IGNORE,
+  FIELD_DEF_SHRED,
+  FIELD_DMG_BONUS,
+  FIELD_DMG_VULN,
+  FIELD_RES_SHRED,
+  type SkillRecord,
+} from '@/engine/formulas/skillRecord.ts'
+import {
+  defenseReduction,
+  gatherPools,
+  getEnemyRes,
+  layerModifier,
+  resistMult,
+  resolveDamageFactors,
+  resolveHits,
+} from '@/engine/formulas/damageFactors.ts'
+import { syncNumericTeam, type NumericTeamState } from '@/engine/effects/numericTeam.ts'
+import {
+  NUMERIC_ATTRIBUTES,
+  NUMERIC_FINAL_CELL_COUNT,
+  NUMERIC_NEGATIVE_EFFECTS,
+  NUMERIC_SKILL_TYPES,
+  finalAttributeCell,
+  finalCoreCell,
+  finalNegativeCell,
+  finalSkillTypeCell,
+  finalTopCell,
+  packFinalStats,
+} from '@/engine/rotation/numericLayout.ts'
 
 export interface DirectSkillCtx {
   baseAtk: number
@@ -55,211 +88,87 @@ export interface CalcSkillDamageOptions {
   includeSubHits?: boolean
 }
 
+/**
+ * Allocation-free damage output used by compiled rotation execution.
+ * The caller owns the storage, so a feature evaluation can contribute its
+ * three scalar results without constructing a DamageResult or sub-hit rows.
+ */
+export interface SkillDamageScoreTarget {
+  values: Float64Array
+  offset?: number
+}
+
 interface HitSummary {
   hitScale: number
   hitCount: number
 }
 
-// convert an enemy resistance percentage into the game damage multiplier
-function resistMult(enemyResPct: number): number {
-  if (enemyResPct < 0) return 1 - enemyResPct / 200
-  if (enemyResPct < 75) return 1 - enemyResPct / 100
-  return 1 / (1 + 5 * (enemyResPct / 100))
-}
+/**
+ * What the enemy side of the calculation came to for one skill.
+ *
+ * These four are layered the way crit and bonus are: the sheet's figure is
+ * only the first of six, and the rest arrive from the attribute, skill type
+ * and skill buffs in force. Reading them off the final stats states the wrong
+ * one, and states defence ignore and defence shred as the same number whenever
+ * the sheet carries neither.
+ */
+export function resolveSkillFactors(
+    finalStats: FinalStats,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+): {
+  defIgnore: number
+  defShred: number
+  dmgVuln: number
+  /** the enemy's resistance to this element after every shred, or null when
+      there is no enemy to resist */
+  resistance: number | null
+} {
+  const pools = gatherPools(finalStats, skill)
 
-// defense shred and defense ignore reduce enemy defense as separate factors
-function defenseReduction(defIgnore: number, defShred: number): number {
-  return (1 - defShred / 100) * (1 - defIgnore / 100)
-}
-
-// resolve the enemy resistance bucket for the skill's element
-function getEnemyRes(enemy: EnemyProfile, element: SkillDef['element']): number {
-  if (isNoEnemy(enemy)) {
-    return 0
-  }
-
-  return enemy.res[ATTR_ENEMY_RES[element]]
-}
-
-// normalize optional per-skill buffs into a complete modifier object
-function makeSkillBuffs(skill: SkillDef): ModBuff {
   return {
-    ...makeModBuff(),
-    ...(skill.skillBuffs ?? {}),
+    defIgnore: finalStats.defIgnore + layerModifier(pools, (pool) => pool.defIgnore),
+    defShred: finalStats.defShred + layerModifier(pools, (pool) => pool.defShred),
+    dmgVuln: finalStats.dmgVuln + layerModifier(pools, (pool) => pool.dmgVuln),
+    resistance: isNoEnemy(enemy)
+      ? null
+      : getEnemyRes(enemy, skill.element) - layerModifier(pools, (pool) => pool.resShred),
   }
 }
 
-// compute the raw stat-scaled base amount for a skill before multipliers
-function calcBasePower(finalStats: FinalStats, skill: SkillDef): number {
-  return (
-      finalStats.atk.final * skill.scaling.atk +
-      finalStats.hp.final * skill.scaling.hp +
-      finalStats.def.final * skill.scaling.def +
-      finalStats.energyRegen * skill.scaling.energyRegen
-  )
-}
-
-// compute all shared damage terms used by direct damage formulas
+/**
+ * The names this file's callers already use, over the shared factor set. The
+ * math lives in damageFactors so the results pane explains the same numbers.
+ */
 function calcDamageCtx(
     finalStats: FinalStats,
     skill: SkillDef,
     enemy: EnemyProfile,
     level: number,
 ) {
-  // aggregate generic and skill-specific buff buckets
-  const skillTypeAll = finalStats.skillType.all
-  const skillTypeBuff = mergeSkillType(finalStats.skillType, skill.skillType)
-  const attributeAll = finalStats.attribute.all
-  const attrElement = finalStats.attribute[skill.element]
-  const skillBuffs = makeSkillBuffs(skill)
-
-  // special-case unset enemies and hard immunity
-  const ignoresEnemy = isNoEnemy(enemy)
-  const baseRes = ignoresEnemy ? 0 : getEnemyRes(enemy, skill.element)
-  const zeroed = !ignoresEnemy && baseRes === 100
-
-  // final enemy resistance after all shred sources
-  const enemyResVl = ignoresEnemy
-      ? 0
-      : baseRes
-      - attributeAll.resShred
-      - attrElement.resShred
-      - skillTypeAll.resShred
-      - skillTypeBuff.resShred
-      - skillBuffs.resShred
-
-  const resMult = zeroed ? 0 : (ignoresEnemy ? 1 : resistMult(enemyResVl))
-
-  // total defense ignore and shred applied to enemy defense
-  const totalDefIgnore =
-      finalStats.defIgnore +
-      attributeAll.defIgnore +
-      attrElement.defIgnore +
-      skillTypeAll.defIgnore +
-      skillTypeBuff.defIgnore +
-      skillBuffs.defIgnore
-
-  const totalDefShred =
-      finalStats.defShred +
-      attributeAll.defShred +
-      attrElement.defShred +
-      skillTypeAll.defShred +
-      skillTypeBuff.defShred +
-      skillBuffs.defShred
-
-  const enemyDefense = ignoresEnemy
-      ? 0
-      : ((8 * enemy.level) + 792) * defenseReduction(totalDefIgnore, totalDefShred)
-
-  const defenseMult = ignoresEnemy
-      ? 1
-      : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
-
-  // total outgoing bonus layers
-  const damageBonusPct =
-      finalStats.dmgBonus +
-      attributeAll.dmgBonus +
-      attrElement.dmgBonus +
-      skillTypeAll.dmgBonus +
-      skillTypeBuff.dmgBonus +
-      skillBuffs.dmgBonus
-
-  const amplifyPct =
-      finalStats.amplify +
-      attributeAll.amplify +
-      attrElement.amplify +
-      skillTypeAll.amplify +
-      skillTypeBuff.amplify +
-      skillBuffs.amplify
-
-  const dmgVulnPct =
-      attributeAll.dmgVuln +
-      attrElement.dmgVuln +
-      skillTypeAll.dmgVuln +
-      skillTypeBuff.dmgVuln +
-      skillBuffs.dmgVuln +
-      finalStats.dmgVuln
-
-  const dmgBnsMltp = 1 + damageBonusPct / 100
-  const amplifyMult = 1 + amplifyPct / 100
-  const dmgVulnMltp = 1 + dmgVulnPct / 100
-  const finalDmgMult = 1 + finalStats.finalDmg / 100
-
-  // crit values are stored as percents in final stats, so convert to ratios
-  const critRate =
-      (finalStats.critRate
-          + attributeAll.critRate
-          + attrElement.critRate
-          + skillTypeAll.critRate
-          + skillTypeBuff.critRate
-          + skillBuffs.critRate) / 100
-
-  const critDmg =
-      (finalStats.critDmg
-          + attributeAll.critDmg
-          + attrElement.critDmg
-          + skillTypeAll.critDmg
-          + skillTypeBuff.critDmg
-          + skillBuffs.critDmg) / 100
-
-  void level
+  const factors = resolveDamageFactors(finalStats, skill, enemy, level)
 
   return {
-    zeroed,
-    skillTypeAll,
-    skillTypeBuff: skillTypeBuff,
-    attributeAll,
-    attributeElement: attrElement,
-    skillBuffs,
-    resMult,
-    defenseMultiplier: defenseMult,
-    damageBonusMultiplier: dmgBnsMltp,
-    amplifyMultiplier: amplifyMult,
-    dmgVulnMultiplier: dmgVulnMltp,
-    finalDmgMultiplier: finalDmgMult,
-    critRate,
-    critDmg,
+    zeroed: factors.zeroed,
+    skillTypeAll: factors.skillTypeAll,
+    skillTypeBuff: factors.skillTypeBuff,
+    attributeAll: factors.attributeAll,
+    attributeElement: factors.attrElement,
+    skillBuffs: factors.skillBuffs,
+    resMult: factors.resMult,
+    defenseMultiplier: factors.defMult,
+    damageBonusMultiplier: factors.dmgBonusMult,
+    amplifyMultiplier: factors.ampMult,
+    dmgVulnMultiplier: factors.dmgVulnMult,
+    finalDmgMultiplier: factors.finalDmgMult,
+    critRate: factors.critRate,
+    critDmg: factors.critDmg,
   }
 }
 
 // build a zeroed result while preserving the skill hit structure
 function shldInclSubHits(options?: CalcSkillDamageOptions): boolean {
   return options?.includeSubHits !== false
-}
-
-function makeZeroResult(skill: SkillDef, options?: CalcSkillDamageOptions): DamageResult {
-  return {
-    normal: 0,
-    crit: 0,
-    avg: 0,
-    subHits: shldInclSubHits(options)
-      ? skill.hits.map((hit) => ({
-        ...hit,
-        normal: 0,
-        crit: 0,
-        avg: 0,
-      }))
-      : [],
-  }
-}
-
-// resolve the effective hit list for a skill
-// if the skill has no explicit hit breakdown, synthesize one from fallback multiplier
-function resolveHits(skill: SkillDef, fallbackMult = 0): SkillDef['hits'] {
-  if (skill.hits.length > 0) {
-    return skill.hits
-  }
-
-  if (fallbackMult <= 0) {
-    return []
-  }
-
-  return [{ count: 1, multiplier: fallbackMult }]
-}
-
-// sum total hit scaling, taking hit count into account
-function sumHitScale(hits: SkillDef['hits']): number {
-  return hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0)
 }
 
 function summarizeHits(hits: SkillDef['hits']): HitSummary {
@@ -274,45 +183,6 @@ function summarizeHits(hits: SkillDef['hits']): HitSummary {
   return {
     hitScale,
     hitCount,
-  }
-}
-
-function makeDmgResult(
-    hits: SkillDef['hits'],
-    buildValues: (hit: SkillDef['hits'][number]) => {
-      normal: number
-      crit: number
-      avg: number
-    },
-    options?: CalcSkillDamageOptions,
-): DamageResult {
-  const subHits: DamageResult['subHits'] = []
-  const includeSubHits = shldInclSubHits(options)
-  let normal = 0
-  let crit = 0
-  let avg = 0
-
-  for (const hit of hits) {
-    const values = buildValues(hit)
-    if (includeSubHits) {
-      subHits.push({
-        ...hit,
-        normal: values.normal,
-        crit: values.crit,
-        avg: values.avg,
-      })
-    }
-
-    normal += values.normal * hit.count
-    crit += values.crit * hit.count
-    avg += values.avg * hit.count
-  }
-
-  return {
-    normal,
-    crit,
-    avg,
-    subHits,
   }
 }
 
@@ -366,384 +236,742 @@ export function makeSkillDamage(
   return makeDirectSkill(finalStats, skill, shared)
 }
 
-// compute standard direct damage skills
-function calcDirectDmg(
-    finalStats: FinalStats,
-    skill: SkillDef,
-    enemy: EnemyProfile,
-    level: number,
-    options?: CalcSkillDamageOptions,
-): DamageResult {
-  // fixed damage bypasses the normal scaling formula
-  if ((skill.fixedDmg ?? 0) > 0) {
-    const value = Math.max(1, skill.fixedDmg ?? 0)
-    const hits = resolveHits(skill, 1)
-    const ttlHitScl = sumHitScale(hits)
-
-    return makeDmgResult(hits, (hit) => {
-      const normal = ttlHitScl > 0 ? (value * hit.multiplier) / ttlHitScl : value
-      return {
-        normal,
-        crit: normal,
-        avg: normal,
-      }
-    }, options)
-  }
-
-  const shared = calcDamageCtx(finalStats, skill, enemy, level)
-  const direct = makeDirectSkill(finalStats, skill, shared)
-
-  // full elemental immunity produces zero damage
-  if (shared.zeroed) {
-    return makeZeroResult(skill, options)
-  }
-
-  const baseAbility = calcBasePower(finalStats, skill)
-
-  // final multiplier stack applied to every hit
-  const dmgMltp =
-      direct.resMult *
-      direct.defMult *
-      direct.dmgVulnMult *
-      direct.dmgBonusMult *
-      direct.ampMult *
-      direct.finalDmgMult
-
-  return makeDmgResult(skill.hits, (hit) => {
-    const normal = (baseAbility * hit.multiplier + direct.flatDmg) * dmgMltp
-    const crit = normal * (direct.critDmg / 100)
-    const critRate = direct.critRate / 100
-    const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
-
-    return {
-      normal,
-      crit,
-      avg,
-    }
-  }, options)
+export interface DamageCombatState {
+  spectroFrazzle?: number
+  spctFrzz?: number
+  aeroErosion?: number
+  fusionBurst?: number
+  glacioChafe?: number
+  electroFlare?: number
+  electroRage?: number
 }
 
-// compute healing and shielding style support effects
-function calcSupport(finalStats: FinalStats, skill: SkillDef): DamageResult {
-  const baseEffect = calcBasePower(finalStats, skill)
+export interface NumericDamageLane {
+  finals: Float64Array
+  offset: number
+  immunityAll: number
+  immunityElements: number
+  immunitySkillTypes: number
+  immunityNegative: number
+}
 
-  const bonusPercent = skill.archetype === 'healing'
-      ? finalStats.healingBonus + (skill.skillHealingBonus ?? 0)
-      : finalStats.shieldBonus + (skill.skillShieldBonus ?? 0)
+export interface NumericEffectiveStats {
+  atk: number | null
+  hp: number | null
+  def: number | null
+  multiplier: number | null
+  critRate: number | null
+  critDmg: number | null
+  bonus: number | null
+  amplify: number | null
+  energyRegen: number | null
+  defIgnore: number | null
+  defShred: number | null
+  dmgVuln: number | null
+  resistance: number | null
+  tuneBreakBoost: number | null
+  finalDmg: number | null
+  flatDmg: number | null
+}
 
-  const total = ((baseEffect * skill.multiplier) + skill.flat) * (1 + bonusPercent / 100)
-  const value = Math.max(1, total)
+const skillTypeIndex = new Map(NUMERIC_SKILL_TYPES.map((field, index) => [field, index]))
+
+function objectDamageLane(finalStats: FinalStats): NumericDamageLane {
+  let elements = 0
+  let skillTypes = 0
+  let negative = 0
+  const immunities = finalStats.immunities
+  for (const key of immunities?.elements ?? []) {
+    const index = NUMERIC_ATTRIBUTES.indexOf(key)
+    if (index > 0) elements |= 1 << (index - 1)
+  }
+  for (const key of immunities?.skillTypes ?? []) {
+    const index = NUMERIC_SKILL_TYPES.indexOf(key)
+    if (index >= 0) skillTypes |= 1 << index
+  }
+  for (const key of immunities?.negativeEffects ?? []) {
+    const index = NUMERIC_NEGATIVE_EFFECTS.indexOf(key)
+    if (index >= 0) negative |= 1 << index
+  }
+  return {
+    finals: packFinalStats(finalStats),
+    offset: 0,
+    immunityAll: immunities?.all ? 1 : 0,
+    immunityElements: elements,
+    immunitySkillTypes: skillTypes,
+    immunityNegative: negative,
+  }
+}
+
+function teamDamageLane(
+    state: NumericTeamState,
+    lane: number,
+    finals: Float64Array = state.finals,
+): NumericDamageLane {
+  // reading derived stats is the point where any deferred rebuild has to land
+  syncNumericTeam(state)
+  return {
+    finals,
+    offset: finals === state.finals ? lane * NUMERIC_FINAL_CELL_COUNT : 0,
+    immunityAll: state.immunityAll[lane] ?? 0,
+    immunityElements: state.immunityElements[lane] ?? 0,
+    immunitySkillTypes: state.immunitySkillTypes[lane] ?? 0,
+    immunityNegative: state.immunityNegative[lane] ?? 0,
+  }
+}
+
+function numericFinal(lane: NumericDamageLane, cell: number): number {
+  return lane.finals[lane.offset + cell] ?? 0
+}
+
+function numericTop(lane: NumericDamageLane, stat: Parameters<typeof finalTopCell>[0]): number {
+  return numericFinal(lane, finalTopCell(stat))
+}
+
+function numericAttribute(
+    lane: NumericDamageLane,
+    attribute: 'all' | AttributeKey,
+    field: keyof ModBuff,
+): number {
+  return numericFinal(lane, finalAttributeCell(attribute, field))
+}
+
+function numericSkillType(
+    lane: NumericDamageLane,
+    skillType: SkillTypeKey,
+    field: keyof ModBuff,
+): number {
+  return numericFinal(lane, finalSkillTypeCell(skillType, field))
+}
+
+function numericSkillTypes(
+    lane: NumericDamageLane,
+    skillTypes: readonly SkillTypeKey[],
+    field: keyof ModBuff,
+): number {
+  let value = 0
+  let seen = 0
+  for (const skillType of skillTypes) {
+    if (skillType === 'all') continue
+    const index = skillTypeIndex.get(skillType) ?? 0
+    const bit = 1 << index
+    if (seen & bit) continue
+    seen |= bit
+    value += numericSkillType(lane, skillType, field)
+  }
+  return value
+}
+
+function numericLayer(
+    lane: NumericDamageLane,
+    skill: SkillDef,
+    field: keyof ModBuff,
+): number {
+  return numericAttribute(lane, 'all', field)
+    + numericAttribute(lane, skill.element, field)
+    + numericSkillType(lane, 'all', field)
+    + numericSkillTypes(lane, skill.skillType, field)
+    + (skill.skillBuffs?.[field] ?? 0)
+}
+
+function numericBasePower(lane: NumericDamageLane, skill: SkillDef): number {
+  return numericFinal(lane, finalCoreCell('atk', 'final')) * skill.scaling.atk
+    + numericFinal(lane, finalCoreCell('hp', 'final')) * skill.scaling.hp
+    + numericFinal(lane, finalCoreCell('def', 'final')) * skill.scaling.def
+    + numericTop(lane, 'energyRegen') * skill.scaling.energyRegen
+}
+
+function numericImmune(lane: NumericDamageLane, skill: SkillDef): boolean {
+  if (lane.immunityAll) return true
+  const attribute = NUMERIC_ATTRIBUTES.indexOf(skill.element) - 1
+  if (attribute >= 0 && (lane.immunityElements & (1 << attribute))) return true
+  for (const type of skill.skillType) {
+    const index = skillTypeIndex.get(type)
+    if (index !== undefined && (lane.immunitySkillTypes & (1 << index))) return true
+  }
+  const negative = NUMERIC_NEGATIVE_EFFECTS.indexOf(skill.archetype as NegEffectKey)
+  return negative >= 0 && Boolean(lane.immunityNegative & (1 << negative))
+}
+
+function numericSkillMultiplier(skill: SkillDef): number {
+  if (skill.hits.length > 0) {
+    let total = 0
+    for (const hit of skill.hits) total += hit.multiplier * hit.count
+    return total
+  }
+  return (skill.archetype === 'tuneRupture' || skill.archetype === 'hack')
+    ? skill.tuneRuptureScale ?? 16
+    : skill.multiplier
+}
+
+/**
+ * Extract the rotation register directly from the exact numeric final plane
+ * used by the damage kernel. This is deliberately a projection rather than a
+ * second calculation route: no FinalStats, buff-pool, or CombatContext object
+ * is materialized for captured feature rows.
+ */
+export function resolveNumericEffectiveStats(
+    state: NumericTeamState,
+    laneIndex: number,
+    finals: Float64Array,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+): NumericEffectiveStats {
+  const lane = teamDamageLane(state, laneIndex, finals)
+  const skillBuff = (field: keyof ModBuff): number => skill.skillBuffs?.[field] ?? 0
+  const type = (field: keyof ModBuff): number => numericSkillTypes(lane, skill.skillType, field)
+  const allType = (field: keyof ModBuff): number => numericSkillType(lane, 'all', field)
+  const attr = (field: keyof ModBuff): number =>
+    numericAttribute(lane, 'all', field) + numericAttribute(lane, skill.element, field)
+  const layered = (field: keyof ModBuff): number =>
+    attr(field) + allType(field) + type(field) + skillBuff(field)
+  const noEnemy = isNoEnemy(enemy)
+  const resistance = noEnemy
+    ? null
+    : getEnemyRes(enemy, skill.element) - layered('resShred')
+  const base: NumericEffectiveStats = {
+    atk: numericFinal(lane, finalCoreCell('atk', 'final')),
+    hp: numericFinal(lane, finalCoreCell('hp', 'final')),
+    def: numericFinal(lane, finalCoreCell('def', 'final')),
+    multiplier: numericSkillMultiplier(skill),
+    critRate: numericTop(lane, 'critRate'),
+    critDmg: numericTop(lane, 'critDmg'),
+    bonus: numericTop(lane, 'dmgBonus'),
+    amplify: numericTop(lane, 'amplify'),
+    energyRegen: numericTop(lane, 'energyRegen'),
+    defIgnore: numericTop(lane, 'defIgnore') + layered('defIgnore'),
+    defShred: numericTop(lane, 'defShred') + layered('defShred'),
+    dmgVuln: numericTop(lane, 'dmgVuln') + layered('dmgVuln'),
+    resistance,
+    tuneBreakBoost: numericTop(lane, 'tuneBreakBoost'),
+    finalDmg: numericTop(lane, 'finalDmg'),
+    flatDmg: numericTop(lane, 'flatDmg') + skill.flat,
+  }
+
+  if (skill.archetype === 'healing') {
+    return { ...base, bonus: numericTop(lane, 'healingBonus') + (skill.skillHealingBonus ?? 0) }
+  }
+  if (skill.archetype === 'shield') {
+    return { ...base, bonus: numericTop(lane, 'shieldBonus') + (skill.skillShieldBonus ?? 0) }
+  }
+  if (skill.archetype === 'tuneRupture' || skill.archetype === 'hack') {
+    return {
+      ...base,
+      ...(skill.archetype === 'tuneRupture'
+        ? {
+          critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
+          critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
+        }
+        : {}),
+      bonus: numericSkillType(lane, skill.archetype, 'dmgBonus'),
+      amplify: numericTop(lane, 'amplify'),
+      defIgnore: type('defIgnore') + skillBuff('defIgnore'),
+    }
+  }
+  if (NUMERIC_NEGATIVE_EFFECTS.includes(skill.archetype as NegEffectKey)) {
+    const archetype = skill.archetype as NegEffectKey
+    return {
+      ...base,
+      critRate: ((skill.negativeEffectCritRate ?? 0) * 100)
+        + numericFinal(lane, finalNegativeCell(archetype, 'critRate')),
+      critDmg: ((skill.negativeEffectCritDmg ?? 1) * 100)
+        + numericFinal(lane, finalNegativeCell(archetype, 'critDmg')),
+      bonus: type('dmgBonus'),
+      amplify: numericTop(lane, 'amplify') + type('amplify'),
+      defIgnore: type('defIgnore') + skillBuff('defIgnore'),
+      defShred: numericTop(lane, 'defShred') + attr('defShred') + type('defShred'),
+      dmgVuln: numericTop(lane, 'dmgVuln') + attr('dmgVuln') + type('dmgVuln'),
+      resistance: noEnemy
+        ? null
+        : getEnemyRes(enemy, skill.element) - attr('resShred') - type('resShred'),
+    }
+  }
 
   return {
-    normal: 0,
-    crit: 0,
-    avg: value,
-    subHits: [],
+    ...base,
+    critRate: numericTop(lane, 'critRate') + layered('critRate'),
+    critDmg: numericTop(lane, 'critDmg') + layered('critDmg'),
+    bonus: numericTop(lane, 'dmgBonus') + layered('dmgBonus'),
+    amplify: numericTop(lane, 'amplify') + layered('amplify'),
   }
 }
 
-// compute tune rupture and hack damage using their level-scaled formula path
-function calcLevelDamage(
-    finalStats: FinalStats,
-    skill: SkillDef,
+function writeScore(target: SkillDamageScoreTarget, normal: number, crit: number, avg: number): void {
+  const offset = target.offset ?? 0
+  target.values[offset] = normal
+  target.values[offset + 1] = crit
+  target.values[offset + 2] = avg
+}
+
+/**
+ * Canonical damage kernel. Every app-facing damage route reaches this function.
+ * It reads a flat final-stat lane and can either write only three score scalars
+ * or additionally capture the exact per-hit rows from the same arithmetic.
+ */
+/*
+  The lowered path for ordinary direct damage. Every stat it reads was resolved
+  to a cell index when the skill was compiled, so this walks index arrays and
+  never touches a string, a map, or a hit object.
+*/
+function runLoweredSkillDamage(
+    target: SkillDamageScoreTarget,
+    lane: NumericDamageLane,
+    record: SkillRecord,
     enemy: EnemyProfile,
     level: number,
-    kind: 'tuneRupture' | 'hack',
-    options?: CalcSkillDamageOptions,
-): DamageResult {
-  const element = skill.element
-  const baseRes = getEnemyRes(enemy, element)
+    multiplierScale: number,
+): void {
+  const finals = lane.finals
+  const base = lane.offset
 
-  // hard immunity check
-  if (baseRes === 100) {
-    return makeZeroResult(skill, options)
+  if (lane.immunityAll
+    || (lane.immunityElements & record.attributeBit)
+    || (lane.immunitySkillTypes & record.skillTypeMask)
+    || (lane.immunityNegative & record.negativeBit)) {
+    writeScore(target, 0, 0, 0)
+    return
   }
 
-  const attributeAll = finalStats.attribute.all
-  const attrElement = finalStats.attribute[element]
-  const skillTypeAll = finalStats.skillType.all
-  const skillTypeBuff = mergeSkillType(finalStats.skillType, skill.skillType)
-  const skillBuffs = makeSkillBuffs(skill)
+  const noEnemy = isNoEnemy(enemy)
+  const baseRes = noEnemy ? 0 : enemy.res[record.enemyResKey]
+  if (baseRes === 100) {
+    writeScore(target, 0, 0, 0)
+    return
+  }
 
-  // shred and ignore values that feed the tune rupture formula
-  const resShred =
-      attributeAll.resShred +
-      attrElement.resShred +
-      skillTypeAll.resShred +
-      skillTypeBuff.resShred +
-      skillBuffs.resShred
-
-  const defIgnore =
-      skillTypeBuff.defIgnore +
-      skillBuffs.defIgnore
-
-  const defShred =
-      finalStats.defShred +
-      attributeAll.defShred +
-      attrElement.defShred +
-      skillTypeAll.defShred +
-      skillTypeBuff.defShred +
-      skillBuffs.defShred
-
-  const dmgVuln =
-      finalStats.dmgVuln +
-      attributeAll.dmgVuln +
-      attrElement.dmgVuln +
-      skillTypeAll.dmgVuln +
-      skillTypeBuff.dmgVuln +
-      skillBuffs.dmgVuln
-
-  const enemyResVl = baseRes - resShred
-  const resMult = resistMult(enemyResVl)
-
-  const enemyDefense = ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
-
-  const defenseMult = (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
-
-  // class multiplier depends on enemy class
-  let classMult = 1
-  if (enemy.class === 3 || enemy.class === 4) classMult = 14
-  else if (enemy.class === 2) classMult = 3
-
-  const formulaSkillType = finalStats.skillType[kind]
-
-  const bnsMltp =
-      (1 + finalStats.amplify / 100) *
-      (1 + formulaSkillType.dmgBonus / 100) *
-      (1 + finalStats.tbb / 100)
-
-  const hits = resolveHits(skill, skill.tuneRuptureScale ?? 16)
-  const lvlScale = getTuneLevel(level)
-
-  const perHitMltp =
-      resMult *
-      defenseMult *
-      (1 + dmgVuln / 100) *
-      classMult *
-      bnsMltp
-
-  const critMltp = kind === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) : 1
-  const critRate = kind === 'tuneRupture' ? (skill.tuneRuptureCritRate ?? 0) : 0
-
-  return makeDmgResult(hits, (hit) => {
-    const normal = hit.multiplier * lvlScale * perHitMltp
-    const crit = normal * critMltp
-    const avg = critRate >= 1 ? crit : (crit * critRate) + (normal * (1 - critRate))
-
-    return {
-      normal,
-      crit,
-      avg,
+  const cells = record.fieldCells
+  const starts = record.fieldStart
+  const field = (index: number): number => {
+    let sum = 0
+    const end = starts[index + 1]!
+    for (let cursor = starts[index]!; cursor < end; cursor += 1) {
+      sum += finals[base + cells[cursor]!] ?? 0
     }
-  }, options)
+    sum += record.fieldConst[index]!
+    const topCell = record.fieldTopCell[index]!
+    return topCell >= 0 ? (finals[base + topCell] ?? 0) + sum : sum
+  }
+
+  const defIgnore = field(FIELD_DEF_IGNORE)
+  const defShred = field(FIELD_DEF_SHRED)
+  const enemyDefense = noEnemy
+    ? 0
+    : ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
+  const defenseMult = noEnemy
+    ? 1
+    : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
+
+  const totalMultiplier =
+    (noEnemy ? 1 : resistMult(baseRes - field(FIELD_RES_SHRED))) *
+    defenseMult *
+    (1 + field(FIELD_DMG_VULN) / 100) *
+    (1 + field(FIELD_DMG_BONUS) / 100) *
+    (1 + field(FIELD_AMPLIFY) / 100) *
+    (1 + (finals[base + record.finalDmgCell] ?? 0) / 100)
+
+  const critRate = field(FIELD_CRIT_RATE) / 100
+  const critDmg = field(FIELD_CRIT_DMG) / 100
+  const basePower =
+    (finals[base + record.coreAtkCell] ?? 0) * record.scalingAtk
+    + (finals[base + record.coreHpCell] ?? 0) * record.scalingHp
+    + (finals[base + record.coreDefCell] ?? 0) * record.scalingDef
+    + (finals[base + record.energyRegenCell] ?? 0) * record.scalingEnergyRegen
+  const flat = (finals[base + record.flatDmgCell] ?? 0) + record.flat
+
+  let normalTotal = 0
+  let critTotal = 0
+  let avgTotal = 0
+  const hits = record.hits
+  for (let index = 0; index < hits.length; index += 2) {
+    const normal = (basePower * hits[index]! * multiplierScale + flat) * totalMultiplier
+    const crit = normal * critDmg
+    const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
+    const count = hits[index + 1]!
+    normalTotal += normal * count
+    critTotal += crit * count
+    avgTotal += avg * count
+  }
+  writeScore(target, normalTotal, critTotal, avgTotal)
 }
 
-// compute negative-effect archetype damage such as frazzle, erosion, burst and flare
-function calcNegEffect(
+function runNumericDamageKernel(
+    target: SkillDamageScoreTarget,
+    lane: NumericDamageLane,
     skill: SkillDef,
-    finalStats: FinalStats,
     enemy: EnemyProfile,
     level: number,
-    stacks: number,
-    archetype: Extract<SkillDef['archetype'], 'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'>,
-    ddtnStck = 0,
-    options?: CalcSkillDamageOptions,
-): DamageResult {
-  const stackCount = skill.stackMode === 'fixedMax'
-      ? skill.stackMax ?? getNegEffectDef(archetype)
-      : stacks
-  // no stacks means no damage instance
-  if (stackCount <= 0 && ddtnStck <= 0) {
-    return makeZeroResult(skill, options)
+    combatState: DamageCombatState | undefined,
+    multiplierScale: number,
+    subHits?: DamageResult['subHits'],
+): void {
+  /*
+    Sub-hit rows are the one thing the lowered path does not produce, because
+    they exist to be displayed rather than summed.
+  */
+  if (!subHits) {
+    const record = compileSkillRecord(skill)
+    if (record.lowered) {
+      runLoweredSkillDamage(target, lane, record, enemy, level, multiplierScale)
+      return
+    }
   }
 
-  const element = NEG_EFFECT_ELEM[archetype]
-
-  const baseRes = isNoEnemy(enemy) ? 0 : getEnemyRes(enemy, element)
-
-  // hard immunity check
-  if (baseRes === 100) {
-    return makeZeroResult(skill, options)
+  let normalTotal = 0
+  let critTotal = 0
+  let avgTotal = 0
+  const emit = (hit: SkillDef['hits'][number], normal: number, crit: number, avg: number) => {
+    normalTotal += normal * hit.count
+    critTotal += crit * hit.count
+    avgTotal += avg * hit.count
+    subHits?.push({ ...hit, normal, crit, avg })
+  }
+  const zero = () => {
+    if (subHits) {
+      for (const hit of skill.hits) subHits.push({ ...hit, normal: 0, crit: 0, avg: 0 })
+    }
+    writeScore(target, 0, 0, 0)
   }
 
-  const attributeAll = finalStats.attribute.all
-  const attrElement = finalStats.attribute[element]
-  const effectTypes: SkillTypeKey[] = skill.skillType
-  const ggrgFfctType = mergeSkillType(finalStats.skillType, effectTypes)
-  const negFfctBuff = finalStats.negativeEffect[archetype as NegEffectKey]
-  const skillBuffs = makeSkillBuffs(skill)
+  if (skill.archetype !== 'healing' && skill.archetype !== 'shield' && numericImmune(lane, skill)) {
+    zero()
+    return
+  }
 
-  const resShred =
-      attributeAll.resShred +
-      attrElement.resShred +
-      ggrgFfctType.resShred
+  if (skill.archetype === 'healing' || skill.archetype === 'shield') {
+    const bonus = skill.archetype === 'healing'
+      ? numericTop(lane, 'healingBonus') + (skill.skillHealingBonus ?? 0)
+      : numericTop(lane, 'shieldBonus') + (skill.skillShieldBonus ?? 0)
+    const value = Math.max(
+      1,
+      (numericBasePower(lane, skill) * skill.multiplier * multiplierScale + skill.flat) *
+        (1 + bonus / 100),
+    )
+    writeScore(target, 0, 0, value)
+    return
+  }
 
-  const defIgnore =
-      ggrgFfctType.defIgnore +
-      skillBuffs.defIgnore
+  if (skill.archetype === 'skillDamage') {
+    if ((skill.fixedDmg ?? 0) > 0) {
+      const value = Math.max(1, skill.fixedDmg ?? 0)
+      const hits = resolveHits(skill, 1)
+      let totalScale = 0
+      for (const hit of hits) totalScale += hit.multiplier * multiplierScale * hit.count
+      for (const hit of hits) {
+        const scaled = hit.multiplier * multiplierScale
+        const normal = totalScale > 0 ? value * scaled / totalScale : value
+        emit(hit, normal, normal, normal)
+      }
+      writeScore(target, normalTotal, critTotal, avgTotal)
+      return
+    }
 
-  const defShred =
-      finalStats.defShred +
-      attributeAll.defShred +
-      attrElement.defShred +
-      ggrgFfctType.defShred
-
-  const dmgVuln =
-      finalStats.dmgVuln +
-      attributeAll.dmgVuln +
-      attrElement.dmgVuln +
-      ggrgFfctType.dmgVuln
-
-  const enemyResVl = isNoEnemy(enemy) ? 0 : baseRes - resShred
-  const resMult = isNoEnemy(enemy) ? 1 : resistMult(enemyResVl)
-
-  const enemyDefense = isNoEnemy(enemy)
+    const noEnemy = isNoEnemy(enemy)
+    const baseRes = noEnemy ? 0 : getEnemyRes(enemy, skill.element)
+    if (baseRes === 100) {
+      zero()
+      return
+    }
+    const defIgnore = numericTop(lane, 'defIgnore') + numericLayer(lane, skill, 'defIgnore')
+    const defShred = numericTop(lane, 'defShred') + numericLayer(lane, skill, 'defShred')
+    const enemyDefense = noEnemy
       ? 0
       : ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
-
-  const defenseMult = isNoEnemy(enemy)
+    const defenseMult = noEnemy
       ? 1
       : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
-
-  // base per-stack damage is provided by the negative-effect formula helper
-  const perStackBase =
-      getNegBase(archetype, level, stackCount, { fixedMv: skill.fixedMv }) +
-      (archetype === 'electroFlare' ? getNegBase(archetype, level, ddtnStck, { fixedMv: skill.fixedMv }) : 0)
-
-  const hits = resolveHits(skill, 1)
-  const ttlHitScl = sumHitScale(hits)
-
-  const bnsMltp =
-      (1 + finalStats.amplify / 100) *
-      (1 + ggrgFfctType.amplify / 100) *
-      (1 + ggrgFfctType.dmgBonus / 100) *
-      (1 + finalStats.finalDmg / 100)
-
-  const damage =
-    perStackBase *
-    ttlHitScl *
-    bnsMltp *
-    resMult *
-    defenseMult * (1 + negFfctBuff.multiplier) *
-    (1 + dmgVuln / 100)
-
-  const critRate = (skill.negativeEffectCritRate ?? 0) + (negFfctBuff.critRate / 100)
-  const critMltp = (skill.negativeEffectCritDmg ?? 1) + (negFfctBuff.critDmg / 100)
-
-  return makeDmgResult(hits, (hit) => {
-    const normal = ttlHitScl > 0 ? (damage * hit.multiplier) / ttlHitScl : 0
-    const crit = normal * critMltp
-    const avg = critRate >= 1 ? crit : (crit * critRate) + (normal * (1 - critRate))
-
-    return {
-      normal,
-      crit,
-      avg,
+    const totalMultiplier =
+      (noEnemy ? 1 : resistMult(baseRes - numericLayer(lane, skill, 'resShred'))) *
+      defenseMult *
+      (1 + (numericTop(lane, 'dmgVuln') + numericLayer(lane, skill, 'dmgVuln')) / 100) *
+      (1 + (numericTop(lane, 'dmgBonus') + numericLayer(lane, skill, 'dmgBonus')) / 100) *
+      (1 + (numericTop(lane, 'amplify') + numericLayer(lane, skill, 'amplify')) / 100) *
+      (1 + numericTop(lane, 'finalDmg') / 100)
+    const critRate = (numericTop(lane, 'critRate') + numericLayer(lane, skill, 'critRate')) / 100
+    const critDmg = (numericTop(lane, 'critDmg') + numericLayer(lane, skill, 'critDmg')) / 100
+    const basePower = numericBasePower(lane, skill)
+    const flat = numericTop(lane, 'flatDmg') + skill.flat
+    for (const hit of skill.hits) {
+      const normal = (basePower * hit.multiplier * multiplierScale + flat) * totalMultiplier
+      const crit = normal * critDmg
+      const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
+      emit(hit, normal, crit, avg)
     }
-  }, options)
+    writeScore(target, normalTotal, critTotal, avgTotal)
+    return
+  }
+
+  if (skill.archetype === 'tuneRupture' || skill.archetype === 'hack') {
+    const baseRes = getEnemyRes(enemy, skill.element)
+    if (baseRes === 100) {
+      zero()
+      return
+    }
+    const kind = skill.archetype
+    const defIgnore = numericSkillTypes(lane, skill.skillType, 'defIgnore')
+      + (skill.skillBuffs?.defIgnore ?? 0)
+    const defShred = numericTop(lane, 'defShred') + numericLayer(lane, skill, 'defShred')
+    const enemyDefense = ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
+    const defenseMult = (800 + 8 * level) /
+      (800 + 8 * level + Math.max(0, enemyDefense))
+    const classMult = enemy.class === 3 || enemy.class === 4 ? 14 : enemy.class === 2 ? 3 : 1
+    const perHit =
+      resistMult(baseRes - numericLayer(lane, skill, 'resShred')) *
+      defenseMult *
+      (1 + (numericTop(lane, 'dmgVuln') + numericLayer(lane, skill, 'dmgVuln')) / 100) *
+      classMult *
+      (1 + numericTop(lane, 'amplify') / 100) *
+      (1 + numericSkillType(lane, kind, 'dmgBonus') / 100) *
+      (1 + numericTop(lane, 'tuneBreakBoost') / 100)
+    const critDmg = kind === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) : 1
+    const critRate = kind === 'tuneRupture' ? (skill.tuneRuptureCritRate ?? 0) : 0
+    const levelScale = getTuneLevel(level)
+    for (const hit of resolveHits(skill, skill.tuneRuptureScale ?? 16)) {
+      const normal = hit.multiplier * multiplierScale * levelScale * perHit
+      const crit = normal * critDmg
+      const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
+      emit(hit, normal, crit, avg)
+    }
+    writeScore(target, normalTotal, critTotal, avgTotal)
+    return
+  }
+
+  const archetype = skill.archetype as Extract<
+    NegEffectKey,
+    'spectroFrazzle' | 'aeroErosion' | 'fusionBurst' | 'glacioChafe' | 'electroFlare'
+  >
+  const stacks = combatState?.[archetype]
+    ?? (archetype === 'spectroFrazzle' ? combatState?.spctFrzz : 0)
+    ?? 0
+  const stackCount = skill.stackMode === 'fixedMax'
+    ? skill.stackMax ?? getNegEffectDef(archetype)
+    : stacks
+  const additional = archetype === 'electroFlare' && stacks > getNegEffectDef('electroFlare')
+    ? (combatState?.electroRage ?? 0)
+    : 0
+  if (stackCount <= 0 && additional <= 0) {
+    zero()
+    return
+  }
+  const element = NEG_EFFECT_ELEM[archetype]
+  const noEnemy = isNoEnemy(enemy)
+  const baseRes = noEnemy ? 0 : getEnemyRes(enemy, element)
+  if (baseRes === 100) {
+    zero()
+    return
+  }
+  const typeResShred = numericSkillTypes(lane, skill.skillType, 'resShred')
+  const typeDefIgnore = numericSkillTypes(lane, skill.skillType, 'defIgnore')
+  const typeDefShred = numericSkillTypes(lane, skill.skillType, 'defShred')
+  const typeDmgVuln = numericSkillTypes(lane, skill.skillType, 'dmgVuln')
+  const defShred = numericTop(lane, 'defShred')
+    + numericAttribute(lane, 'all', 'defShred')
+    + numericAttribute(lane, element, 'defShred')
+    + typeDefShred
+  const enemyDefense = noEnemy
+    ? 0
+    : ((8 * enemy.level) + 792) * defenseReduction(
+      typeDefIgnore + (skill.skillBuffs?.defIgnore ?? 0),
+      defShred,
+    )
+  const defenseMult = noEnemy
+    ? 1
+    : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
+  const perStack = getNegBase(archetype, level, stackCount, { fixedMv: skill.fixedMv })
+    + (archetype === 'electroFlare'
+      ? getNegBase(archetype, level, additional, { fixedMv: skill.fixedMv })
+      : 0)
+  const multiplier =
+    perStack *
+    (1 + numericTop(lane, 'amplify') / 100) *
+    (1 + numericSkillTypes(lane, skill.skillType, 'amplify') / 100) *
+    (1 + numericSkillTypes(lane, skill.skillType, 'dmgBonus') / 100) *
+    (1 + numericTop(lane, 'finalDmg') / 100) *
+    (noEnemy
+      ? 1
+      : resistMult(
+        baseRes
+        - numericAttribute(lane, 'all', 'resShred')
+        - numericAttribute(lane, element, 'resShred')
+        - typeResShred,
+      )) *
+    defenseMult *
+    (1 + numericFinal(lane, finalNegativeCell(archetype, 'multiplier'))) *
+    (1 + (
+      numericTop(lane, 'dmgVuln')
+      + numericAttribute(lane, 'all', 'dmgVuln')
+      + numericAttribute(lane, element, 'dmgVuln')
+      + typeDmgVuln
+    ) / 100)
+  const critRate = (skill.negativeEffectCritRate ?? 0)
+    + numericFinal(lane, finalNegativeCell(archetype, 'critRate')) / 100
+  const critDmg = (skill.negativeEffectCritDmg ?? 1)
+    + numericFinal(lane, finalNegativeCell(archetype, 'critDmg')) / 100
+  for (const hit of resolveHits(skill, 1)) {
+    const normal = hit.multiplier * multiplierScale * multiplier
+    const crit = normal * critDmg
+    const avg = critRate >= 1 ? crit : crit * critRate + normal * (1 - critRate)
+    emit(hit, normal, crit, avg)
+  }
+  writeScore(target, normalTotal, critTotal, avgTotal)
 }
 
-// route a skill to the correct computation path based on archetype
+/**
+ * Score one recorded invocation against a caller-owned stat plane. Recorded
+ * replay owns its own lane view, because the team state that produced it is
+ * long gone by the time it is replayed.
+ */
+export function scoreDamageAgainstLane(
+    target: SkillDamageScoreTarget,
+    lane: NumericDamageLane,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState: DamageCombatState | undefined,
+    multiplierScale: number,
+): void {
+  runNumericDamageKernel(target, lane, skill, enemy, level, combatState, multiplierScale)
+}
+
+/** Object compatibility boundary. Object stats are packed once, then use the same kernel. */
+export function calcSkillDamageScoreInto(
+    target: SkillDamageScoreTarget,
+    finalStats: FinalStats,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState?: DamageCombatState,
+    multiplierScale = 1,
+): void {
+  runNumericDamageKernel(
+    target,
+    objectDamageLane(finalStats),
+    skill,
+    enemy,
+    level,
+    combatState,
+    multiplierScale,
+  )
+}
+
+/** Allocation-free score execution against a prepared three-lane team state. */
+export function calcPackedSkillDamageScoreInto(
+    target: SkillDamageScoreTarget,
+    state: NumericTeamState,
+    lane: number,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState?: DamageCombatState,
+    multiplierScale = 1,
+): void {
+  runNumericDamageKernel(
+    target,
+    teamDamageLane(state, lane),
+    skill,
+    enemy,
+    level,
+    combatState,
+    multiplierScale,
+  )
+}
+
+/** Score a caller-owned final plane while reusing the team's immunity lane. */
+export function calcNumericPlaneSkillDamageScoreInto(
+    target: SkillDamageScoreTarget,
+    state: NumericTeamState,
+    lane: number,
+    finals: Float64Array,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState?: DamageCombatState,
+    multiplierScale = 1,
+): void {
+  runNumericDamageKernel(
+    target,
+    teamDamageLane(state, lane, finals),
+    skill,
+    enemy,
+    level,
+    combatState,
+    multiplierScale,
+  )
+}
+
+/** Detailed output is optional capture from the same flat numeric kernel. */
+export function calcNumericSkillDamage(
+    state: NumericTeamState,
+    lane: number,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState?: DamageCombatState,
+    options?: CalcSkillDamageOptions,
+): DamageResult {
+  const values = new Float64Array(3)
+  const subHits: DamageResult['subHits'] = []
+  runNumericDamageKernel(
+    { values },
+    teamDamageLane(state, lane),
+    skill,
+    enemy,
+    level,
+    combatState,
+    1,
+    shldInclSubHits(options) ? subHits : undefined,
+  )
+  return { normal: values[0]!, crit: values[1]!, avg: values[2]!, subHits }
+}
+
+/** Detailed capture from a caller-owned final plane. */
+export function calcNumericPlaneSkillDamage(
+    state: NumericTeamState,
+    lane: number,
+    finals: Float64Array,
+    skill: SkillDef,
+    enemy: EnemyProfile,
+    level: number,
+    combatState?: DamageCombatState,
+    options?: CalcSkillDamageOptions,
+): DamageResult {
+  const values = new Float64Array(3)
+  const subHits: DamageResult['subHits'] = []
+  runNumericDamageKernel(
+    { values },
+    teamDamageLane(state, lane, finals),
+    skill,
+    enemy,
+    level,
+    combatState,
+    1,
+    shldInclSubHits(options) ? subHits : undefined,
+  )
+  return { normal: values[0]!, crit: values[1]!, avg: values[2]!, subHits }
+}
+
+/**
+ * Legacy-shaped API retained for external callers. It is now only a packing
+ * boundary; it no longer owns a second formula implementation.
+ */
 export function calcSkillDamage(
     finalStats: FinalStats,
     skill: SkillDef,
     enemy: EnemyProfile,
     level: number,
-    combatState?: {
-      spectroFrazzle?: number
-      spctFrzz?: number
-      aeroErosion?: number
-      fusionBurst?: number
-      glacioChafe?: number
-      electroFlare?: number
-      electroRage?: number
-    },
+    combatState?: DamageCombatState,
     options?: CalcSkillDamageOptions,
 ): DamageResult {
-  // healing/shield never target the enemy; every other archetype is zeroed when the enemy is immune
-  if (
-      skill.archetype !== 'healing'
-      && skill.archetype !== 'shield'
-      && isSkillImmune(finalStats.immunities, skill)
-  ) {
-    return makeZeroResult(skill, options)
-  }
-
-  switch (skill.archetype) {
-    case 'healing':
-    case 'shield':
-      return calcSupport(finalStats, skill)
-
-    case 'tuneRupture':
-      return calcLevelDamage(finalStats, skill, enemy, level, 'tuneRupture', options)
-
-    case 'hack':
-      return calcLevelDamage(finalStats, skill, enemy, level, 'hack', options)
-
-    case 'spectroFrazzle':
-      return calcNegEffect(
-          skill,
-          finalStats,
-          enemy,
-          level,
-          combatState?.spectroFrazzle ?? combatState?.spctFrzz ?? 0,
-          'spectroFrazzle',
-          0,
-          options,
-      )
-
-    case 'aeroErosion':
-      return calcNegEffect(
-          skill,
-          finalStats,
-          enemy,
-          level,
-          combatState?.aeroErosion ?? 0,
-          'aeroErosion',
-          0,
-          options,
-      )
-
-    case 'fusionBurst':
-      return calcNegEffect(
-          skill,
-          finalStats,
-          enemy,
-          level,
-          combatState?.fusionBurst ?? 0,
-          'fusionBurst',
-          0,
-          options,
-      )
-
-    case 'glacioChafe':
-      return calcNegEffect(
-          skill,
-          finalStats,
-          enemy,
-          level,
-          combatState?.glacioChafe ?? 0,
-          'glacioChafe',
-          0,
-          options,
-      )
-
-    case 'electroFlare':
-      return calcNegEffect(
-          skill,
-          finalStats,
-          enemy,
-          level,
-          combatState?.electroFlare ?? 0,
-          'electroFlare',
-          (combatState?.electroFlare ?? 0) > getNegEffectDef('electroFlare')
-            ? (combatState?.electroRage ?? 0)
-            : 0,
-          options,
-      )
-
-    case 'skillDamage':
-    default:
-      return calcDirectDmg(finalStats, skill, enemy, level, options)
-  }
+  const values = new Float64Array(3)
+  const subHits: DamageResult['subHits'] = []
+  runNumericDamageKernel(
+    { values },
+    objectDamageLane(finalStats),
+    skill,
+    enemy,
+    level,
+    combatState,
+    1,
+    shldInclSubHits(options) ? subHits : undefined,
+  )
+  return { normal: values[0]!, crit: values[1]!, avg: values[2]!, subHits }
 }

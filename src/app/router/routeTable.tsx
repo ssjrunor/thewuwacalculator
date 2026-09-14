@@ -1,73 +1,146 @@
 /*
   Author: Runor Ewhro
-  Description: defines the application's root route table and lazy-loaded
-               page mappings.
+  Description: Defines Home, Read, Simulation, and temporary legacy routes.
 */
 
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
-import { RouteChrome } from '@/shared/ui/RouteChrome'
+import { Navigate, useLocation, useParams } from 'react-router-dom'
+import type { LoaderFunctionArgs, RouteObject } from 'react-router-dom'
+import { AppShell } from '@/app/AppShell'
+import { RouteChrome } from '@/app/chrome/RouteChrome'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
+import {
+  changelogChunk,
+  docsChunk,
+  guidesChunk,
+  homeChunk,
+  infoChunk,
+  notFoundChunk,
+  privacyChunk,
+  calibrationChunk,
+  simulationChunk,
+  termsChunk,
+} from '@/app/nav/routeChunks'
+import {
+  APP_ROUTES,
+  LEGACY_HOME_ROUTE,
+  LEGACY_NESTED_SIMULATION_ROUTES,
+  LEGACY_PROGRESSION_ALIAS,
+  LEGACY_SETTINGS_ROUTE,
+  LEGACY_SIMULATION_ROUTES,
+  LEGACY_WHATS_NEW_ROUTE,
+  SIMULATION_ROUTES,
+  whatsNewHref,
+} from '@/shared/lib/appRoutes'
+import { useAppStore } from '@/domain/state/store'
 
-// lazy-loaded route pages
-const CalcPage = lazy(async () => ({
-  default: (await import('@/modules/calculator/pages/CalculatorPage')).CalcPage,
-}))
-const SettingsPage = lazy(async () => ({
-  default: (await import('@/modules/settings/pages/SettingsPage')).SettingsPage,
-}))
-const InfoPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/InfoPage')).InfoPage,
-}))
-const GuidesPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/GuidesPage')).GuidesPage,
-}))
-const DocsPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/DocsPage')).DocsPage,
-}))
-const ChngPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/ChangelogPage')).ChngPage,
-}))
-const WhatsNewPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/WhatsNewPage')).WhatsNewPage,
-}))
-const PrvcPlcyPage = lazy(async () => ({
-  default: (await import('@/modules/content/pages/PrivacyPolicyPage')).PrvcPlcyPage,
-}))
-const TrmsOfSrvcPa = lazy(async () => ({
-  default: (await import('@/modules/content/pages/TermsOfServicePage')).TrmsOfSrvcPa,
-}))
-const NotFoundPage = lazy(async () => ({
-  default: (await import('@/modules/system/pages/NotFoundPage')).NotFoundPage,
-}))
+const SimulationPage = simulationChunk.Mount
+const CalibrationPage = calibrationChunk.Mount
+const InfoPage = infoChunk.Mount
+const GuidesPage = guidesChunk.Mount
+const DocsPage = docsChunk.Mount
+const ChngPage = changelogChunk.Mount
+const PrvcPlcyPage = privacyChunk.Mount
+const TrmsOfSrvcPa = termsChunk.Mount
+const NotFoundPage = notFoundChunk.Mount
+const HomePage = homeChunk.Mount
 
-// shared suspense fallback for lazy routes
-const rtFllb = <AppLdrVrly mode="centered" text="Loading..." />
+const routeFallback = (
+  <AppLdrVrly
+    mode="centered" className="app-loader-fallback--route"
+    text="Loading..."
+  />
+)
 
-function viewLazyRt(node: ReactNode) {
-  return <Suspense fallback={rtFllb}>{node}</Suspense>
+function lazyRoute(node: ReactNode) {
+  return <Suspense fallback={routeFallback}>{node}</Suspense>
 }
 
-// root application routes
-export const rootRoutes = [
+function PreserveLocationRedirect({ to }: { to: string }) {
+  const location = useLocation()
+  return <Navigate to={{ pathname: to, search: location.search, hash: location.hash }} replace />
+}
+
+// the old What's New page is an act on the home page now; a release it named by
+// hash opens on that release there
+function WhatsNewRedirect() {
+  const location = useLocation()
+  const entryId = decodeURIComponent(location.hash.replace(/^#/, ''))
+  return <Navigate to={whatsNewHref(entryId || null)} replace />
+}
+
+function hydrateOptimizerInventory() {
+  useAppStore.getState().ensInvHydr()
+  return null
+}
+
+const SHARED_WORKSPACE_SURFACES = ['modulation', 'optimizer', 'showcase', 'suggestions'] as const
+
+function SharedWorkspaceRoute() {
+  const { simulationSurface } = useParams()
+  const surface = SHARED_WORKSPACE_SURFACES.find((candidate) => candidate === simulationSurface)
+  return surface ? <SimulationPage surface={surface} /> : <NotFoundPage />
+}
+
+function hydrateSharedWorkspaceInventory({ params }: LoaderFunctionArgs) {
+  if (params.simulationSurface === 'optimizer') hydrateOptimizerInventory()
+  return null
+}
+
+export const rootRoutes: RouteObject[] = [
   {
-    path: '/',
-    element: <RouteChrome />,
+    element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/calculator" replace /> },
-      { path: 'calculator', element: viewLazyRt(<CalcPage surface="calculator" />) },
-      { path: 'calculator/optimizer', element: viewLazyRt(<CalcPage surface="optimizer" />) },
-      { path: 'calculator/benchmark', element: viewLazyRt(<CalcPage surface="benchmark" />) },
-      { path: 'settings', element: viewLazyRt(<SettingsPage />) },
-      { path: 'info', element: viewLazyRt(<InfoPage />) },
-      { path: 'guides', element: viewLazyRt(<GuidesPage />) },
-      { path: 'docs', element: viewLazyRt(<DocsPage />) },
-      { path: 'changelog', element: viewLazyRt(<ChngPage />) },
-      { path: 'changelog/whatsnew', element: viewLazyRt(<WhatsNewPage />) },
-      { path: 'privacy', element: viewLazyRt(<PrvcPlcyPage />) },
-      { path: 'terms', element: viewLazyRt(<TrmsOfSrvcPa />) },
-      { path: '*', element: viewLazyRt(<NotFoundPage />) },
+      {
+        path: '/',
+        element: <RouteChrome />,
+        children: [
+          { index: true, element: lazyRoute(<HomePage />) },
+          {
+            path: '/:simulationSurface',
+            loader: hydrateSharedWorkspaceInventory,
+            element: lazyRoute(<SharedWorkspaceRoute />),
+          },
+          {
+            path: SIMULATION_ROUTES.rotation,
+            element: lazyRoute(<SimulationPage surface="rotation" />),
+          },
+          {
+            path: LEGACY_SIMULATION_ROUTES.calculator,
+            element: lazyRoute(<SimulationPage surface="legacy-calculator" />),
+          },
+          {
+            path: LEGACY_SIMULATION_ROUTES.optimizer,
+            loader: hydrateOptimizerInventory,
+            element: lazyRoute(<SimulationPage surface="legacy-optimizer" />),
+          },
+          { path: LEGACY_HOME_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.home} /> },
+          { path: LEGACY_PROGRESSION_ALIAS, element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} /> },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.optimizer,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.optimizer} />,
+          },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.benchmark,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} />,
+          },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.rotation,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
+          },
+          { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
+          { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
+          { path: APP_ROUTES.info, element: lazyRoute(<InfoPage />) },
+          { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
+          { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
+          { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },
+          { path: LEGACY_WHATS_NEW_ROUTE, element: <WhatsNewRedirect /> },
+          { path: APP_ROUTES.privacy, element: lazyRoute(<PrvcPlcyPage />) },
+          { path: APP_ROUTES.terms, element: lazyRoute(<TrmsOfSrvcPa />) },
+          { path: '*', element: lazyRoute(<NotFoundPage />) },
+        ],
+      },
     ],
   },
 ]

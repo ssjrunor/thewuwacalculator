@@ -25,6 +25,7 @@ import { prepSkill } from '@/engine/pipeline/prepareRuntimeSkill'
 import { calcSkillDamage } from '@/engine/formulas/damage'
 import { getGameData } from '@/data/gameData'
 import { listSrcStts } from '@/domain/gameData/registry'
+import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 
 const enemy = makeEnemy()
 
@@ -314,6 +315,8 @@ describe('optimizer parity invariants', () => {
       settings.resultsLimit = 8
 
       const results = await runOptSrch({
+        scenarioId: combatScenarioId('optimizer:test'),
+        memberId: teamMemberId(seedId),
         resonatorId: seedId,
         runtime,
         settings,
@@ -353,6 +356,8 @@ describe('optimizer parity invariants', () => {
     settings.resultsLimit = 1
 
     const payload = compOptPay({
+      scenarioId: combatScenarioId('optimizer:test'),
+      memberId: teamMemberId(seed.id),
       resonatorId: seed.id,
       resSeed: seed,
       runtime,
@@ -379,6 +384,8 @@ describe('optimizer parity invariants', () => {
     settings.resultsLimit = 1
 
     const payload = compOptPay({
+      scenarioId: combatScenarioId('optimizer:test'),
+      memberId: teamMemberId(seed.id),
       resonatorId: seed.id,
       resSeed: seed,
       runtime,

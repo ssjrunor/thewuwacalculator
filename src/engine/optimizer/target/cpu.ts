@@ -62,6 +62,17 @@ import {
   getJingranFortune,
   hasJingranEverflow,
 } from '@/engine/optimizer/jingran.ts'
+import {
+  calcConvert,
+  calcCritConvert,
+  calcErToAtk,
+  calcJingranAtk,
+  calcJingranFusion,
+  calcShoreCritDmg,
+  calcShoreCritRate,
+  countOneBits,
+} from '@/engine/optimizer/specialMath.ts'
+import { optimizerAverageDamage } from '@/engine/optimizer/damageSpec.ts'
 
 // offsets for the packed per-echo stat rows
 const STAT_ATK_PCT = 0
@@ -148,71 +159,6 @@ interface PrepTgtCpuCt {
 
 // cache parsed contexts so repeated combo checks do not keep unpacking the same buffer
 const prsdCtxCch = new WeakMap<Float32Array, PrepTgtCpuCt>()
-
-// fast popcount used to turn per-set bitmasks into unique-kind counts
-function countOneBits(x: number): number {
-  let value = x >>> 0
-  value = value - ((value >>> 1) & 0x55555555)
-  value = (value & 0x33333333) + ((value >>> 2) & 0x33333333)
-  return (((value + (value >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24
-}
-
-// special conversion for 1206: excess er contributes atk
-function calcErToAtk(charId: number, finalER: number, toggle0: number): number {
-  if (charId !== 1206) return 0
-  const erOver = Math.max(0, finalER - 150)
-  return toggle0 ? Math.min(erOver * 20, 2600) : Math.min(erOver * 12, 1560)
-}
-
-// special conversion for 1306: excess crit rate converts into crit dmg
-function calcCritConvert(charId: number, sequence: number, critRateTotal: number): number {
-  if (charId !== 1306 || sequence < 2) return 0
-
-  let bonusCd = 0
-
-  if (critRateTotal >= 1) {
-    const excess = critRateTotal - 1
-    bonusCd += Math.min(excess * 2, 1)
-  }
-
-  if (sequence >= 6 && critRateTotal >= 1.5) {
-    const excess = critRateTotal - 1.5
-    bonusCd += Math.min(excess * 2, 0.5)
-  }
-
-  return bonusCd
-}
-
-// special conversion for 1412: excess er grants echo skill bonus
-function calcConvert(charId: number, finalER: number): number {
-  if (charId !== 1412 || finalER <= 125) return 0
-  return Math.min((finalER - 125) * 2, 50) / 100
-}
-
-function calcShoreCritRate(charId: number, finalER: number, innerOn: boolean): number {
-  if (charId !== 1505 || !innerOn) return 0
-  return Math.min(Math.max(0, finalER * 0.05), 12.5) / 100
-}
-
-function calcShoreCritDmg(charId: number, finalER: number, innerOn: boolean, supernalOn: boolean): number {
-  if (charId !== 1505 || !innerOn || !supernalOn) return 0
-  return Math.min(Math.max(0, finalER * 0.1), 25) / 100
-}
-
-function calcJingranAtk(charId: number, sequence: number, finalHp: number, everflowOn: boolean): number {
-  if (charId !== 1212) return 0
-  return sequence >= 3 && everflowOn
-    ? Math.min(Math.max(0, finalHp * 0.05), 2500)
-    : Math.min(Math.max(0, finalHp * 0.036), 1800)
-}
-
-function calcJingranFusion(charId: number, finalHp: number, fortuneStacks: number): number {
-  if (charId !== 1212) return 0
-  return (
-    Math.min(Math.max(0, finalHp * 0.0015), 75) +
-    Math.min(Math.max(0, finalHp * 0.00005), 2.5) * Math.max(0, fortuneStacks)
-  ) / 100
-}
 
 // select the matching elemental bonus bucket from base stats + set bonus
 function selSetElemBn(
@@ -558,9 +504,7 @@ export function evalTgtCpuCmPrepped(options: {
             prepared.dmgAmplify *
             prepared.aux0
 
-        const critRate = Math.max(0, Math.min(1, prepared.critRate))
-        const critDmg = prepared.critDmg
-        avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
+        avg = optimizerAverageDamage(normal, prepared.critRate, prepared.critDmg)
 
         // tune rupture uses packed crit/bonus values directly
         cstrCritRate = prepared.critRate
@@ -579,9 +523,7 @@ export function evalTgtCpuCmPrepped(options: {
             prepared.dmgAmplify *
             prepared.aux0
 
-        const critRate = Math.max(0, Math.min(1, prepared.critRate))
-        const critDmg = prepared.critDmg
-        avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
+        avg = optimizerAverageDamage(normal, prepared.critRate, prepared.critDmg)
 
         cstrCritRate = prepared.critRate
         cstrCritDmg = prepared.critDmg
@@ -603,9 +545,7 @@ export function evalTgtCpuCmPrepped(options: {
             prepared.dmgAmplify *
             prepared.aux0
 
-        const critRate = Math.max(0, Math.min(1, prepared.critRate))
-        const critDmg = prepared.critDmg
-        avg = (critRate * (normal * critDmg)) + ((1 - critRate) * normal)
+        avg = optimizerAverageDamage(normal, prepared.critRate, prepared.critDmg)
 
         // negative-effect archetypes also use packed crit/bonus values
         cstrCritRate = prepared.critRate
@@ -638,9 +578,9 @@ export function evalTgtCpuCmPrepped(options: {
             baseMul *
             (dmgBonus + (mrnyDmgBns * prepared.toggle0))
 
-        const critRateForD = Math.max(0, Math.min(1, critRateTotal + critRateBns))
+        const critRateForD = critRateTotal + critRateBns
         const critDmgForDm = critDmgTotal + critDmgBonus
-        avg = (critRateForD * (baseDamage * critDmgForDm)) + ((1 - critRateForD) * baseDamage)
+        avg = optimizerAverageDamage(baseDamage, critRateForD, critDmgForDm)
         break
       }
     }

@@ -11,7 +11,7 @@ type MdlClsBttnPr = Omit<BttnHtmlTtrb<HTMLButtonElement>, 'type'> & {
   label?: string
 }
 
-export function MdlClsBttn({
+export function ModalCloseButton({
   label = 'Close',
   className,
   'aria-label': ariaLabel,

@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document covers application bootstrap, route ownership, shell level UI, and calculator stage switching. It is the right reference when you need to understand how pages mount, where shared overlays come from, or which layer owns route wide behavior.
+The visible information architecture is `Home > Read / Simulation`. URLs stay flat; the hierarchy is expressed by the chrome and module ownership rather than nested public paths.
 
 ## Bootstrap
 
@@ -12,92 +12,64 @@ Primary files:
 - [src/app/AppRoot.tsx](../src/app/AppRoot.tsx)
 - [src/app/providers/AppProviders.tsx](../src/app/providers/AppProviders.tsx)
 
-Bootstrap sequence:
+Game data loads before React mounts. App-wide persistence, theme, wallpaper, font, OAuth, tooltip, context-menu, and selection providers then wrap the router.
 
-1. `src/main.tsx` loads game data before React mounts.
-2. React mounts inside `BrowserRouter`.
-3. `AppProviders` installs app wide providers and sync effects.
-4. `AppRoot` applies app wide hooks and renders the route tree.
-
-`AppProviders` owns:
-
-- debounced persistence flush scheduling
-- `beforeunload` and visibility based persistence flushes
-- body font application
-- system theme sync when system mode is selected
-- wallpaper resolution and background text mode sync
-- Google OAuth provider installation
-- shared tooltip, context menu, and floating selection action providers
-
-## Route Table
+## Public Routes
 
 Primary files:
 
+- [src/shared/lib/appRoutes.ts](../src/shared/lib/appRoutes.ts)
 - [src/app/router/routeTable.tsx](../src/app/router/routeTable.tsx)
-- [src/app/router/AppRouter.tsx](../src/app/router/AppRouter.tsx)
+- [src/app/nav/routeChunks.ts](../src/app/nav/routeChunks.ts)
 
-The root route table mounts one shared `RouteChrome` and lazy loads child pages:
+Home:
 
 - `/`
-- `/settings`
+
+Simulation tools:
+
+- `/modulation`
+- `/rotation`
+- `/showcase`
+- `/optimizer`
+
+Read pages:
+
 - `/info`
 - `/guides`
+- `/docs`
 - `/changelog`
 - `/privacy`
 - `/terms`
-- fallback `*`
 
-The route table itself stays intentionally small. Most complexity lives below the route shell rather than in nested route trees.
+Settings is now Calibration at `/calibration`; `/settings` redirects to it.
+
+`/home` redirects to `/`, and `/progression` redirects to `/modulation`. What's New is an act on Home: `/changelog/whatsnew` redirects to `/#whatsnew`, and `/changelog/whatsnew#<release id>` to `/#whatsnew-<release id>`. Old nested tool URLs redirect to their flat counterparts.
+
+## Shared Simulation Workspace
+
+[SimulationPage.tsx](../src/modules/simulation/pages/SimulationPage.tsx) owns initialization and providers shared by Simulation tools. Modulation, Showcase, and Optimizer use one persistent parameterized route and [BuildWorkspaceSurface.tsx](../src/modules/simulation/workspace/BuildWorkspaceSurface.tsx), so their roster, rail, and workspace furniture remain mounted while the tool body changes. Rotation uses its own editor surface but the same Simulation provider boundary.
+
+Route chunks preserve lazy loading and prewarm tool modules on navigation intent.
+
+## Temporary Development Pages
+
+The following direct development URLs are intentionally hidden from primary navigation and SEO:
+
+- `/calculator`
+- `/legacy-optimizer`
+
+Their components live under `src/modules/simulation/legacy`. They reuse the Simulation provider and initialization boundary; the old Calculator no longer owns shared startup behavior. The former Benchmark and standalone Progression pages have been removed. Historical `/progression` and `/calculator/benchmark` links redirect to Modulation.
 
 ## Route Chrome
 
-Primary file:
-
-- [src/shared/ui/RouteChrome.tsx](../src/shared/ui/RouteChrome.tsx)
-
-`RouteChrome` is the shared page shell. It owns:
-
-- sidebar and toolbar navigation
-- shell classes and global theme application
-- route level chrome around all major pages
-- app status modal
-- global toast renderer
-- cookie banner and related UI
-- shell level toggle entrypoints for calculator stage switching
-
-If something appears across multiple top level pages, `RouteChrome` is the first place to inspect.
-
-## Calculator Route Staging
-
 Primary files:
 
-- [src/modules/calculator/pages/CalculatorPage.tsx](../src/modules/calculator/pages/CalculatorPage.tsx)
-- [src/domain/state/store.ts](../src/domain/state/store.ts)
+- [src/app/chrome/RouteChrome.tsx](../src/app/chrome/RouteChrome.tsx)
+- [src/app/chrome/AppChrome.tsx](../src/app/chrome/AppChrome.tsx)
+- [src/app/chrome/appIndex.ts](../src/app/chrome/appIndex.ts)
 
-The calculator route contains an internal stage model controlled by `ui.mainMode`:
-
-- `default`
-- `optimizer`
-- `overview`
-
-`CalculatorPage` always mounts the shared calculator shell context and inventory layer, then conditionally mounts:
-
-- the main calculator workspace
-- the optimizer stage
-- the overview stage
-
-This is important because optimizer and overview are not separate routes. They are alternative calculator stages over the same broader application state.
-
-## Shell Level Shared Behavior
-
-Cross route shell behavior is assembled from several layers:
-
-- route table for lazy page mounting
-- `RouteChrome` for shell chrome and overlays
-- app providers for environment sync and provider setup
-- shared UI primitives for modals, tooltips, toasts, and selection actions
-
-When debugging route wide behavior, inspect those layers in that order.
+The chrome presents Simulation or Read navigation according to the current route. Home is the front door. Hidden legacy pages are never added to the authored navigation index.
 
 ## Related Docs
 

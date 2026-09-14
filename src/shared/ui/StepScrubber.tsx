@@ -5,14 +5,14 @@
 */
 
 import './StepScrubber.css'
-import { motion, AnimatePresence as NmtPrsn } from 'motion/react'
+import { motion } from 'motion/react'
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { AnchoredAppPopup } from '@/shared/ui/AppPopup'
 
 const DOT_PITCH_PX = 10
 const MAX_DOTS = 50
 
 const ACT_SPRN = { type: 'spring' as const, stiffness: 460, damping: 30, mass: 0.75 }
-const HOVER_SPRING  = { type: 'spring' as const, stiffness: 560, damping: 34, mass: 0.6 }
 
 interface StepScrbPrps {
   min: number
@@ -25,6 +25,7 @@ interface StepScrbPrps {
 
 export function StepScrubber({ min, max, value, onChange, disabled, className }: StepScrbPrps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const hoverAnchorRef = useRef<HTMLDivElement>(null)
   const [cntnWdth, setCntnWdth] = useState(0)
   const [hoverRatio, setHvrRt] = useState<number | null>(null)
 
@@ -98,7 +99,6 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
       </div>
 
       <motion.div
-        className="step-scrubber__active-desc"
         aria-hidden
         animate={{ left: `${activeRatio * 100}%` }}
         transition={ACT_SPRN}
@@ -106,29 +106,29 @@ export function StepScrubber({ min, max, value, onChange, disabled, className }:
         {value}
       </motion.div>
 
-      <NmtPrsn>
-        {hoverValue !== null && (
+      {hoverValue !== null && (
           <div
-            key="hover-anchor"
-            className="step-scrubber__hover-anchor"
+            ref={hoverAnchorRef}
+            key="hover-anchor" className="step-scrubber__hover-anchor"
             style={{ left: `${valueToRatio(hoverValue) * 100}%` }}
           >
-            <motion.div
-              className="step-scrubber__hover-tooltip"
-              initial={{ opacity: 0, scaleX: 0.7, scaleY: 0.7 }}
-              animate={{ opacity: 1, scaleX: 1,   scaleY: 1   }}
-              exit={{    opacity: 0, scaleX: 0.7, scaleY: 0.7 }}
-              transition={HOVER_SPRING}
+            <AnchoredAppPopup
+              visible
+              anchorRef={hoverAnchorRef}
+              minHeight={0}
+              maxHeight={100}
+              offset={4} className="step-scrubber__hover-tooltip"
+              open
+              role="tooltip"
             >
               {adjPrev !== null && <span className="step-scrubber__adj">{adjPrev}</span>}
               <span className={`step-scrubber__hover-value${hoverValue === value ? ' is-active' : ''}`}>
                 {hoverValue}
               </span>
               {adjNext !== null && <span className="step-scrubber__adj">{adjNext}</span>}
-            </motion.div>
+            </AnchoredAppPopup>
           </div>
-        )}
-      </NmtPrsn>
+      )}
     </div>
   )
 }

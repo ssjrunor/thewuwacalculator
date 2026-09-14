@@ -1,10 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: App-wide import surface. Any share link or token routed through
-               `queryImport` (or pasted via `openImport`) resolves against the
-               registered handlers and always opens one confirmation modal
-               describing what will be imported before anything is applied.
-               Register new shareable kinds by adding a handler below.
+  Description: Owns import surface behavior and state transitions for the imports module.
 */
 
 import {
@@ -18,7 +14,7 @@ import {
   type ReactNode,
 } from 'react'
 import { ClipboardPaste } from 'lucide-react'
-import { CnfrMdl } from '@/shared/ui/ConfirmationModal.tsx'
+import { ConfirmModal } from '@/shared/ui/ConfirmationModal.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { resolveShareText } from '@/shared/lib/shareCodec.ts'
@@ -158,7 +154,7 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
   return (
     <ImportSurfaceCtx.Provider value={api}>
       {children}
-      <CnfrMdl
+      <ConfirmModal
         visible={modal.dialogProps.visible}
         open={modal.dialogProps.open}
         closing={modal.dialogProps.closing}
@@ -171,8 +167,7 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
             <>
               Paste a share token, or choose an exported file.
               <div className="import-surface-token">
-                <input
-                  className="import-surface-token__input"
+                <input className="import-surface-token__input"
                   placeholder="Paste a share token"
                   value={inputText}
                   onChange={(event) => {
@@ -181,8 +176,7 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
                   }}
                 />
                 <button
-                  type="button"
-                  className="import-surface-token__paste"
+                  type="button" className="import-surface-token__paste"
                   onClick={() => void onPasteToken()}
                 >
                   {createElement(ClipboardPaste, { size: '0.85rem' })}

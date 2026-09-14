@@ -1,0 +1,658 @@
+
+
+.frt {
+
+  --frt-dx-1: calc(var(--frt-span) * 0.266);
+  --frt-dx-2: calc(var(--frt-span) * 0.5);
+  --frt-dy-1: calc(var(--frt-span) * 0.047);
+  --frt-dy-2: calc(var(--frt-span) * 0.182);
+
+  --frt-stem: 4.1rem;
+  --frt-dial: 4.3rem;
+  --frt-dial-glyph: 2.3rem;
+  --frt-node-inner: 1.9rem;
+  --frt-node-outer: 2.3rem;
+
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.frt-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+
+
+.frt-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.frt-floor {
+  position: absolute;
+  inset: 0;
+}
+
+.frt-field svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+
+
+.frt-grid {
+  position: relative;
+  z-index: 1;
+  width: var(--frt-span);
+  margin: 0 auto;
+  display: grid;
+}
+
+
+.frt-branch {
+  grid-area: 1 / 1;
+  align-self: start;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--frt-dy, 0rem);
+  transform: translateX(var(--frt-dx, 0rem));
+}
+
+.frt-branch[data-side='l2'] { --frt-dx: calc(var(--frt-dx-2) * -1); --frt-dy: var(--frt-dy-2); }
+.frt-branch[data-side='l1'] { --frt-dx: calc(var(--frt-dx-1) * -1); --frt-dy: var(--frt-dy-1); }
+.frt-branch[data-side='c']  { --frt-dx: 0rem; --frt-dy: 0rem; }
+.frt-branch[data-side='r1'] { --frt-dx: var(--frt-dx-1); --frt-dy: var(--frt-dy-1); }
+.frt-branch[data-side='r2'] { --frt-dx: var(--frt-dx-2); --frt-dy: var(--frt-dy-2); }
+
+
+
+.frt-stem {
+  position: relative;
+  width: 1.5rem;
+  height: var(--frt-stem);
+  flex: 0 0 auto;
+}
+
+.frt-stem::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 999px;
+  background: var(--frt-rule);
+  transition: background 280ms ease, box-shadow 280ms ease;
+}
+
+.frt-stem.lit::before {
+  background: linear-gradient(to top,
+    color-mix(in srgb, var(--frt-ink) 18%, transparent),
+    color-mix(in srgb, var(--frt-ink) 74%, transparent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--frt-ink) 30%, transparent);
+}
+
+
+.frt-stem svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: var(--frt-rule);
+  transition: color 280ms ease;
+}
+
+.frt-stem.lit svg {
+  color: color-mix(in srgb, var(--frt-ink) 26%, transparent);
+}
+
+
+
+.frt-spark {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  overflow: visible;
+  pointer-events: none;
+  color: var(--frt-rule);
+  opacity: 0.7;
+  transition: opacity 260ms ease, color 260ms ease;
+}
+
+
+.frt-dial > .frt-spark {
+  opacity: 0.42;
+}
+
+.frt-glyph {
+  display: block;
+  width: 0.88rem;
+  height: 0.88rem;
+  background-color: currentColor;
+  -webkit-mask-image: var(--glyph);
+  mask-image: var(--glyph);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+
+
+.frt-node {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 0.5rem;
+  transform: rotate(45deg);
+  cursor: pointer;
+  border: 1px solid var(--frt-rule);
+  background: var(--frt-face);
+  color: var(--frt-dim);
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease;
+}
+
+.frt-node > .frt-glyph {
+  transform: rotate(-45deg);
+  opacity: 0.5;
+  transition: opacity 220ms ease;
+}
+
+.frt-node > .frt-spark {
+  transform: rotate(-45deg);
+}
+
+.frt-node:hover {
+  border-color: color-mix(in srgb, var(--frt-ink) 42%, transparent);
+}
+
+.frt-node:hover > .frt-glyph { opacity: 0.85; }
+
+.frt-node.is-on > .frt-glyph { opacity: 1; }
+
+.frt-node.is-on > .frt-spark {
+  color: color-mix(in srgb, var(--frt-ink) 55%, transparent);
+}
+
+.frt-node--inner { width: var(--frt-node-inner); height: var(--frt-node-inner); }
+.frt-node--outer { width: var(--frt-node-outer); height: var(--frt-node-outer); }
+.frt-node--outer .frt-glyph { width: 1.05rem; height: 1.05rem; }
+
+.frt-node.is-fixed {
+  cursor: default;
+  border-radius: 0.55rem;
+}
+
+.frt-node.is-fixed > .frt-glyph {
+  width: 1.35rem;
+  height: 1.35rem;
+  opacity: 1;
+}
+
+.frt-node.is-fixed > .frt-spark {
+  color: color-mix(in srgb, var(--frt-ink) 48%, transparent);
+}
+
+.frt-val {
+  margin-top: 0.6rem;
+  font-family: var(--mono-font);
+  font-size: 0.58rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--frt-dim);
+  transition: color 220ms ease;
+}
+
+.frt-val.is-lit {
+  color: var(--frt-ink-text);
+}
+
+
+
+.frt-dial {
+  position: relative;
+  width: var(--frt-dial);
+  height: var(--frt-dial);
+  padding: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--frt-rule);
+  background: var(--frt-face);
+  transition: border-color 200ms ease;
+}
+
+.frt-dial:hover {
+  border-color: color-mix(in srgb, var(--frt-ink) 52%, transparent);
+}
+
+.frt-dial:hover > .frt-spark { opacity: 0.7; }
+
+
+.frt-ring {
+  position: absolute;
+  inset: -0.3rem;
+  border-radius: 999px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 0 calc(100% - 3px), #000 calc(100% - 3px));
+  mask-image: radial-gradient(circle closest-side, transparent 0 calc(100% - 3px), #000 calc(100% - 3px));
+}
+
+.frt-ring i {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(
+    from -90deg,
+    var(--frt-collar, var(--frt-ink)) 0 calc(var(--frt-f) * 360deg),
+    var(--frt-rule) 0
+  );
+  -webkit-mask-image: repeating-conic-gradient(from -90deg, #000 0 31.4deg, transparent 31.4deg 36deg);
+  mask-image: repeating-conic-gradient(from -90deg, #000 0 31.4deg, transparent 31.4deg 36deg);
+}
+
+.frt-dial::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--frt-ink) calc(var(--frt-f) * 55%), transparent);
+}
+
+.frt-glyph--dial {
+  position: relative;
+  width: var(--frt-dial-glyph);
+  height: var(--frt-dial-glyph);
+}
+
+
+.frt-dial--plain {
+  cursor: default;
+}
+
+.frt-lv {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.5rem;
+  font-family: var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+.frt-lv[data-spacer='true'] {
+  visibility: hidden;
+}
+
+.frt-name {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+
+
+.frt-dock {
+  display: flex;
+  justify-content: center;
+  margin-top: 2.9rem;
+  gap: calc(var(--frt-span) * 0.22);
+}
+
+.frt-dock-cell {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.frt-dial--mini {
+  width: 2.7rem;
+  height: 2.7rem;
+  --frt-dial-glyph: 1.4rem;
+}
+
+.frt-dial--mini .frt-ring {
+  inset: -0.22rem;
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 0 calc(100% - 2.4px), #000 calc(100% - 2.4px));
+  mask-image: radial-gradient(circle closest-side, transparent 0 calc(100% - 2.4px), #000 calc(100% - 2.4px));
+}
+
+.frt-dial--mini::after {
+  inset: -0.22rem;
+}
+
+
+
+.frt-band {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  min-height: 1rem;
+
+  padding-left: 0.9rem;
+}
+
+.frt-band:has(.frt-mode) {
+  min-height: 4.6rem;
+}
+
+.frt-mode {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.frt-mode-opt {
+  position: relative;
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  width: 4rem;
+  height: 4rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--frt-mode-ink, var(--frt-ink-text));
+}
+
+.frt-mode-opt > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+
+.frt-mode-halo {
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(closest-side,
+    color-mix(in srgb, var(--frt-ink) var(--frt-halo, 62%), transparent),
+    color-mix(in srgb, var(--frt-ink) calc(var(--frt-halo, 62%) / 3), transparent) 52%,
+    transparent 72%);
+  transition: opacity 320ms ease;
+}
+
+.frt-mode-rest {
+  fill: none;
+  stroke: var(--frt-rule);
+  stroke-width: 1.1;
+  transition: opacity 300ms ease;
+}
+
+.frt-mode-bloom {
+  fill: var(--frt-ink);
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.frt-mode-crest {
+  fill: none;
+  stroke: var(--frt-ink);
+  stroke-width: var(--frt-crest, 3.4);
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.frt-mode-opt .frt-glyph {
+  position: relative;
+  width: 1.7rem;
+  height: 1.7rem;
+  opacity: 0.34;
+  transform: scale(0.8);
+  transition: opacity 300ms ease, transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.frt-mode-opt[aria-checked='true'] .frt-mode-halo { opacity: 1; }
+.frt-mode-opt[aria-checked='true'] .frt-mode-bloom { opacity: var(--frt-bloom, 0.5); }
+.frt-mode-opt[aria-checked='true'] .frt-mode-crest { opacity: 1; }
+.frt-mode-opt[aria-checked='true'] .frt-mode-rest { opacity: 0; }
+
+.frt-mode-opt[aria-checked='true'] .frt-glyph {
+  opacity: 1;
+  transform: scale(1.24);
+}
+
+.frt-mode-opt:hover .frt-glyph { opacity: 0.8; }
+.frt-mode-opt[aria-checked='true']:hover .frt-glyph { opacity: 1; }
+
+
+.frt-mode-star {
+  position: relative;
+  width: 4.4rem;
+  height: 5rem;
+  flex: none;
+  margin: 0 -0.7rem;
+}
+
+.frt-mode-star svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.frt-mode-ghost {
+  fill: none;
+  stroke: var(--frt-ink);
+  stroke-width: 1;
+  opacity: var(--frt-needle, 0.5);
+}
+
+.frt-mode-core { fill: var(--frt-ink); }
+.frt-mode-bar { fill: var(--frt-ink); opacity: var(--frt-needle, 0.62); }
+
+
+
+
+.frt:has(.frt-placard) {
+  overflow: visible;
+}
+
+
+.frt-placard {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 100%;
+  text-align: center;
+}
+
+.frt-placard-name {
+  display: block;
+  font: 500 0.56rem/1 var(--mono-font);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--frt-dim);
+}
+
+.frt-placard-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.frt-leaf {
+  appearance: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: none;
+  color: var(--frt-dim);
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.frt-leaf .frt-glyph {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.frt-leaf.is-cued,
+.frt-leaf:focus-visible {
+  color: var(--frt-ink);
+  border-color: color-mix(in srgb, var(--frt-ink) 40%, transparent);
+  background: color-mix(in srgb, var(--frt-ink) 9%, transparent);
+  outline: none;
+}
+
+
+.frt-placard-cap {
+  display: block;
+  margin-top: 0.4rem;
+  min-height: 0.9rem;
+  font: 500 0.58rem/1 var(--mono-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--frt-ink-text);
+}
+
+
+.frt-branch.is-cued > .frt-dial,
+.frt-dock-cell.is-cued > .frt-dial {
+  border-color: color-mix(in srgb, var(--frt-ink) 70%, transparent);
+  box-shadow: 0 0 22px -6px color-mix(in srgb, var(--frt-ink) 75%, transparent);
+}
+
+.frt-branch.is-cued > .frt-name,
+.frt-dock-cell.is-cued > .frt-name {
+  color: var(--frt-ink-text);
+}
+
+
+.frt-branch.is-cued > .frt-node.is-fixed {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--frt-ink) 70%, transparent);
+  box-shadow: 0 0 20px -6px color-mix(in srgb, var(--frt-ink) 70%, transparent);
+}
+
+.frt-branch.is-cued > .frt-node.is-fixed > .frt-glyph {
+  color: var(--frt-ink);
+}
+
+
+
+
+.frt-val {
+  position: relative;
+  --frt-nh: var(--frt-node-inner);
+}
+
+.frt-val.for-outer {
+  --frt-nh: var(--frt-node-outer);
+}
+
+.frt-desc {
+  position: absolute;
+  top: calc(-0.6rem - var(--frt-nh) / 2);
+  transform: translateY(-50%);
+  width: max-content;
+
+  max-width: min(10rem, calc(var(--frt-dx-1) - 4.6rem));
+  font: 500 0.56rem/1.45 var(--mono-font);
+  font-style: normal;
+  letter-spacing: 0.02em;
+  white-space: normal;
+  color: var(--frt-dim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+
+.frt-branch[data-rank='2'] .frt-desc {
+  max-width: min(10rem, calc(16.5cqw - 2.4rem));
+}
+
+.frt-branch[data-side='l1'] .frt-desc,
+.frt-branch[data-side='l2'] .frt-desc {
+  right: calc(50% + 1.85rem);
+  text-align: right;
+}
+
+.frt-branch[data-side='c'] .frt-desc,
+.frt-branch[data-side='r1'] .frt-desc,
+.frt-branch[data-side='r2'] .frt-desc {
+  left: calc(50% + 1.85rem);
+  text-align: left;
+}
+
+.frt-branch.is-cued .frt-desc {
+  opacity: 1;
+}
+
+:is(.no-entrance-anim, .reduce-animation) :is(.frt-desc, .frt-leaf) {
+  transition: none;
+}
+
+
+
+.frt-node:focus-visible,
+.frt-dial:focus-visible,
+.frt-mode-opt:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--frt-ink) 80%, transparent);
+  outline-offset: 3px;
+}
+
+.frt-mode-opt:focus-visible {
+  border-radius: 999px;
+  outline-offset: 2px;
+}
+
+
+
+@container (max-width: 34rem) {
+  .frt {
+    --frt-stem: 3rem;
+    --frt-dial: 3.4rem;
+    --frt-dial-glyph: 1.8rem;
+  }
+}

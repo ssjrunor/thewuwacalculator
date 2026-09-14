@@ -10,7 +10,6 @@ import type {
   EvalScpRoot,
   EffectScope,
   EffectOp,
-  FeatDef,
   FormExpr,
   RotationNode,
   SrcPkg,
@@ -35,6 +34,57 @@ interface CompPathRef {
 
 const scpdPathCch = new Map<string, CompPathRef>()
 const bjctPathCch = new Map<string, string[]>()
+
+const FORM_CONST = 1
+const FORM_READ = 2
+const FORM_TABLE = 3
+const FORM_ADD = 4
+const FORM_MUL = 5
+const FORM_CLAMP = 6
+
+const COND_ALWAYS = 1
+const COND_NOT = 2
+const COND_TRUTHY = 3
+const COND_EQ = 4
+const COND_NEQ = 5
+const COND_GT = 6
+const COND_GTE = 7
+const COND_LT = 8
+const COND_LTE = 9
+const COND_INCLUDES = 10
+const COND_AND = 11
+const COND_OR = 12
+
+interface CompiledFormProgram {
+  readonly opcodes: Uint8Array
+  readonly a: Int32Array
+  readonly b: Int32Array
+  readonly c: Int32Array
+  readonly x: Float64Array
+  readonly y: Float64Array
+  readonly paths: readonly CompPathRef[]
+  readonly tables: readonly number[][]
+  /** Re-entrant scratch lanes; ordinary execution uses only lane zero. */
+  readonly stacks: Float64Array[]
+  activeDepth: number
+}
+
+const formProgramCache = new WeakMap<FormExpr, CompiledFormProgram>()
+
+interface CompiledConditionProgram {
+  readonly opcodes: Uint8Array
+  readonly pathIndexes: Int32Array
+  readonly valueIndexes: Int32Array
+  readonly itemPathIndexes: Int32Array
+  readonly childStarts: Int32Array
+  readonly childCounts: Int32Array
+  readonly children: Int32Array
+  readonly paths: readonly CompPathRef[]
+  readonly values: ReadonlyArray<string | number | boolean>
+  readonly itemPaths: ReadonlyArray<readonly string[]>
+}
+
+const conditionProgramCache = new WeakMap<CondExpr, CompiledConditionProgram>()
 
 function mkScpdPathCc(path: string, from?: EvalScpRoot): string {
   return `${from ?? ''}::${path}`
@@ -179,7 +229,7 @@ function resolveRoot(scope: EffectScope, from: EvalScpRoot): unknown {
   }
 }
 
-function readBjctPath(root: unknown, parts: string[]): unknown {
+function readBjctPath(root: unknown, parts: readonly string[]): unknown {
   let cursor: unknown = root
 
   for (const part of parts) {
@@ -195,7 +245,7 @@ function readBjctPath(root: unknown, parts: string[]): unknown {
 
 // read a value from a compiled scoped path
 // runtime-backed roots use the dedicated runtime-path helper so evaluator reads
-// stay aligned with the rest of the calculator's runtime semantics
+// Stay aligned with the rest of the Simulation runtime semantics.
 function readCompPath(scope: EffectScope, compiled: CompPathRef): unknown {
   const root = resolveRoot(scope, compiled.from)
 
@@ -245,46 +295,312 @@ function clampValue(value: number, min?: number, max?: number): number {
   return next
 }
 
-function prmFormExpr(formula: FormExpr): void {
-  if (formula.type === 'read' || formula.type === 'table') {
-    compScpdPath(formula.path, formula.from)
-    return
+function compileFormProgram(formula: FormExpr): CompiledFormProgram {
+  const cached = formProgramCache.get(formula)
+  if (cached) return cached
+
+  const opcodes: number[] = []
+  const a: number[] = []
+  const b: number[] = []
+  const c: number[] = []
+  const x: number[] = []
+  const y: number[] = []
+  const paths: CompPathRef[] = []
+  const tables: number[][] = []
+
+  const emit = (
+      opcode: number,
+      aValue = 0,
+      bValue = 0,
+      cValue = 0,
+      xValue = 0,
+      yValue = 0,
+  ): void => {
+    opcodes.push(opcode)
+    a.push(aValue)
+    b.push(bValue)
+    c.push(cValue)
+    x.push(xValue)
+    y.push(yValue)
   }
 
-  if (formula.type === 'add' || formula.type === 'mul') {
-    for (const value of formula.values) {
-      prmFormExpr(value)
+  const visit = (expression: FormExpr): void => {
+    if (expression.type === 'const') {
+      emit(FORM_CONST, 0, 0, 0, expression.value)
+      return
     }
-    return
+
+    if (expression.type === 'read') {
+      const pathIndex = paths.length
+      paths.push(compScpdPath(expression.path, expression.from))
+      emit(FORM_READ, pathIndex, 0, 0, expression.default ?? 0)
+      return
+    }
+
+    if (expression.type === 'table') {
+      const pathIndex = paths.length
+      const tableIndex = tables.length
+      const minIndex = expression.minIndex ?? 0
+      paths.push(compScpdPath(expression.path, expression.from))
+      tables.push(expression.values)
+      emit(
+        FORM_TABLE,
+        pathIndex,
+        tableIndex,
+        expression.defaultIndex ?? 0,
+        minIndex,
+        expression.maxIndex ?? (expression.values.length - 1 + minIndex),
+      )
+      return
+    }
+
+    if (expression.type === 'add' || expression.type === 'mul') {
+      for (const value of expression.values) visit(value)
+      emit(expression.type === 'add' ? FORM_ADD : FORM_MUL, expression.values.length)
+      return
+    }
+
+    visit(expression.value)
+    emit(
+      FORM_CLAMP,
+      0,
+      0,
+      0,
+      expression.min ?? Number.NaN,
+      expression.max ?? Number.NaN,
+    )
   }
 
-  if (formula.type === 'clamp') {
-    prmFormExpr(formula.value)
+  visit(formula)
+  const program: CompiledFormProgram = {
+    opcodes: Uint8Array.from(opcodes),
+    a: Int32Array.from(a),
+    b: Int32Array.from(b),
+    c: Int32Array.from(c),
+    x: Float64Array.from(x),
+    y: Float64Array.from(y),
+    paths,
+    tables,
+    stacks: [new Float64Array(opcodes.length)],
+    activeDepth: 0,
+  }
+  formProgramCache.set(formula, program)
+  return program
+}
+
+function executeFormProgram(program: CompiledFormProgram, scope: EffectScope): number {
+  const { opcodes, a, b, c, x, y, paths, tables } = program
+  const depth = program.activeDepth
+  const stack = program.stacks[depth]
+    ?? new Float64Array(opcodes.length)
+  if (!program.stacks[depth]) program.stacks[depth] = stack
+  program.activeDepth += 1
+  let stackSize = 0
+  try {
+    for (let instruction = 0; instruction < opcodes.length; instruction += 1) {
+      const opcode = opcodes[instruction]
+      if (opcode === FORM_CONST) {
+        stack[stackSize] = x[instruction] ?? 0
+        stackSize += 1
+        continue
+      }
+
+      if (opcode === FORM_READ) {
+        const path = paths[a[instruction] ?? 0]
+        stack[stackSize] = path
+          ? toNumber(readCompPath(scope, path), x[instruction] ?? 0)
+          : (x[instruction] ?? 0)
+        stackSize += 1
+        continue
+      }
+
+      if (opcode === FORM_TABLE) {
+        const path = paths[a[instruction] ?? 0]
+        const minIndex = x[instruction] ?? 0
+        const maxIndex = y[instruction] ?? minIndex
+        const rawIndex = path
+          ? toNumber(readCompPath(scope, path), c[instruction] ?? 0)
+          : (c[instruction] ?? 0)
+        const index = clampValue(Math.floor(rawIndex), minIndex, maxIndex)
+        stack[stackSize] = tables[b[instruction] ?? 0]?.[index - minIndex] ?? 0
+        stackSize += 1
+        continue
+      }
+
+      if (opcode === FORM_ADD || opcode === FORM_MUL) {
+        const count = a[instruction] ?? 0
+        const start = stackSize - count
+        let value = opcode === FORM_ADD ? 0 : 1
+        for (let index = start; index < stackSize; index += 1) {
+          value = opcode === FORM_ADD ? value + (stack[index] ?? 0) : value * (stack[index] ?? 0)
+        }
+        stackSize = start
+        stack[stackSize] = value
+        stackSize += 1
+        continue
+      }
+
+      if (opcode === FORM_CLAMP) {
+        const index = stackSize - 1
+        const min = x[instruction]
+        const max = y[instruction]
+        stack[index] = clampValue(
+          stack[index] ?? 0,
+          Number.isNaN(min) ? undefined : min,
+          Number.isNaN(max) ? undefined : max,
+        )
+      }
+    }
+    return stackSize > 0 ? (stack[stackSize - 1] ?? 0) : 0
+  } finally {
+    program.activeDepth -= 1
   }
 }
 
-function prmCondExpr(condition: CondExpr | undefined): void {
-  if (!condition || condition.type === 'always') {
-    return
-  }
+function conditionOpcode(condition: CondExpr): number {
+  if (condition.type === 'always') return COND_ALWAYS
+  if (condition.type === 'not') return COND_NOT
+  if (condition.type === 'truthy') return COND_TRUTHY
+  if (condition.type === 'eq') return COND_EQ
+  if (condition.type === 'neq') return COND_NEQ
+  if (condition.type === 'gt') return COND_GT
+  if (condition.type === 'gte') return COND_GTE
+  if (condition.type === 'lt') return COND_LT
+  if (condition.type === 'includes') return COND_INCLUDES
+  return condition.type === 'and' ? COND_AND : COND_OR
+}
 
-  if (condition.type === 'not') {
-    prmCondExpr(condition.value)
-    return
-  }
+function compileConditionProgram(condition: CondExpr): CompiledConditionProgram {
+  const cached = conditionProgramCache.get(condition)
+  if (cached) return cached
 
-  if (condition.type === 'and' || condition.type === 'or') {
-    for (const value of condition.values) {
-      prmCondExpr(value)
+  const opcodes: number[] = []
+  const pathIndexes: number[] = []
+  const valueIndexes: number[] = []
+  const itemPathIndexes: number[] = []
+  const childStarts: number[] = []
+  const childCounts: number[] = []
+  const children: number[] = []
+  const paths: CompPathRef[] = []
+  const values: Array<string | number | boolean> = []
+  const itemPaths: string[][] = []
+
+  const visit = (entry: CondExpr): number => {
+    const nodeIndex = opcodes.length
+    opcodes.push(conditionOpcode(entry))
+    pathIndexes.push(-1)
+    valueIndexes.push(-1)
+    itemPathIndexes.push(-1)
+    childStarts.push(-1)
+    childCounts.push(0)
+
+    if (entry.type === 'not') {
+      const child = visit(entry.value)
+      childStarts[nodeIndex] = children.length
+      children.push(child)
+      childCounts[nodeIndex] = 1
+      return nodeIndex
     }
-    return
+
+    if (entry.type === 'and' || entry.type === 'or') {
+      const indexes = entry.values.map(visit)
+      // Compile children before recording this range: nested child lists must
+      // not become interleaved with this parent's contiguous references.
+      childStarts[nodeIndex] = children.length
+      children.push(...indexes)
+      childCounts[nodeIndex] = indexes.length
+      return nodeIndex
+    }
+
+    if (entry.type === 'always') return nodeIndex
+
+    pathIndexes[nodeIndex] = paths.length
+    paths.push(compScpdPath(entry.path, entry.from))
+    if (entry.type !== 'truthy') {
+      valueIndexes[nodeIndex] = values.length
+      values.push(entry.value)
+    }
+    if (entry.type === 'includes' && entry.itemPath) {
+      itemPathIndexes[nodeIndex] = itemPaths.length
+      itemPaths.push(compBjctPath(entry.itemPath))
+    }
+    return nodeIndex
   }
 
-  compScpdPath(condition.path, condition.from)
-
-  if (condition.type === 'includes' && condition.itemPath) {
-    compBjctPath(condition.itemPath)
+  visit(condition)
+  const program: CompiledConditionProgram = {
+    opcodes: Uint8Array.from(opcodes),
+    pathIndexes: Int32Array.from(pathIndexes),
+    valueIndexes: Int32Array.from(valueIndexes),
+    itemPathIndexes: Int32Array.from(itemPathIndexes),
+    childStarts: Int32Array.from(childStarts),
+    childCounts: Int32Array.from(childCounts),
+    children: Int32Array.from(children),
+    paths,
+    values,
+    itemPaths,
   }
+  conditionProgramCache.set(condition, program)
+  return program
+}
+
+function executeConditionNode(
+    program: CompiledConditionProgram,
+    nodeIndex: number,
+    scope: EffectScope,
+): boolean {
+  const opcode = program.opcodes[nodeIndex]
+  if (opcode === COND_ALWAYS) return true
+
+  const childStart = program.childStarts[nodeIndex] ?? -1
+  const childCount = program.childCounts[nodeIndex] ?? 0
+  if (opcode === COND_NOT) {
+    return !executeConditionNode(program, program.children[childStart] ?? 0, scope)
+  }
+  if (opcode === COND_AND) {
+    for (let index = 0; index < childCount; index += 1) {
+      if (!executeConditionNode(program, program.children[childStart + index] ?? 0, scope)) {
+        return false
+      }
+    }
+    return true
+  }
+  if (opcode === COND_OR) {
+    for (let index = 0; index < childCount; index += 1) {
+      if (executeConditionNode(program, program.children[childStart + index] ?? 0, scope)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const path = program.paths[program.pathIndexes[nodeIndex] ?? -1]
+  const actual = path ? readCompPath(scope, path) : undefined
+  if (opcode === COND_TRUTHY) return Boolean(actual)
+  const expected = program.values[program.valueIndexes[nodeIndex] ?? -1]
+  if (opcode === COND_EQ) return actual === expected
+  if (opcode === COND_NEQ) return actual !== expected
+  if (opcode === COND_GT) return toNumber(actual, 0) > Number(expected)
+  if (opcode === COND_GTE) return toNumber(actual, 0) >= Number(expected)
+  if (opcode === COND_LT) return toNumber(actual, 0) < Number(expected)
+  if (opcode === COND_LTE) return toNumber(actual, 0) <= Number(expected)
+
+  if (opcode === COND_INCLUDES && Array.isArray(actual)) {
+    const itemPathIndex = program.itemPathIndexes[nodeIndex] ?? -1
+    const itemPath = itemPathIndex >= 0 ? program.itemPaths[itemPathIndex] : undefined
+    for (const item of actual) {
+      if ((itemPath ? readBjctPath(item, itemPath) : item) === expected) return true
+    }
+  }
+  return false
+}
+
+function prmFormExpr(formula: FormExpr): void {
+  compileFormProgram(formula)
+}
+
+function prmCondExpr(condition: CondExpr | undefined): void {
+  if (condition) compileConditionProgram(condition)
 }
 
 function primeSkill(skill: SkillDef): void {
@@ -293,10 +609,6 @@ function primeSkill(skill: SkillDef): void {
   for (const entry of skill.skillTypeWhen ?? []) {
     prmCondExpr(entry.when)
   }
-}
-
-function primeFeature(feature: FeatDef): void {
-  prmCondExpr(feature.condition)
 }
 
 function primeState(state: SourceState): void {
@@ -317,10 +629,15 @@ function prmOp(operation: EffectOp): void {
 }
 
 function prmRotNode(node: RotationNode): void {
-  if ('condition' in node) {
-    prmCondExpr(node.condition)
+  if (node.type === 'feature') {
+    for (const child of node.attached?.conditions ?? []) {
+      prmRotNode(child)
+    }
+    for (const child of node.attached?.features ?? []) {
+      prmRotNode(child)
+    }
+    return
   }
-  prmCondExpr('when' in node ? node.when?.condition : undefined)
 
   if (node.type === 'repeat') {
     if (typeof node.times !== 'number') {
@@ -354,12 +671,6 @@ export function prmCompSkllE(skills: SkillDef[]): void {
   }
 }
 
-export function prmCompFeatE(features: FeatDef[]): void {
-  for (const feature of features) {
-    primeFeature(feature)
-  }
-}
-
 export function prmCompSttEx(states: SourceState[]): void {
   for (const state of states) {
     primeState(state)
@@ -388,8 +699,6 @@ export function prmCompSrcPk(source: SrcPkg): void {
   }
 
   prmCompSkllE(source.skills ?? [])
-  prmCompFeatE(source.features ?? [])
-
   for (const rotation of source.rotations ?? []) {
     for (const item of rotation.items) {
       prmRotNode(item)
@@ -399,45 +708,7 @@ export function prmCompSrcPk(source: SrcPkg): void {
 
 // evaluate a formula expression against the given scope
 export function evalForm(formula: FormExpr, scope: EffectScope): number {
-  if (formula.type === 'const') {
-    return formula.value
-  }
-
-  if (formula.type === 'read') {
-    const fallback = formula.default ?? 0
-    return toNumber(readCompPath(scope, compScpdPath(formula.path, formula.from)), fallback)
-  }
-
-  if (formula.type === 'table') {
-    const fllbNdx = formula.defaultIndex ?? 0
-    const minIndex = formula.minIndex ?? 0
-    const rawIndex = toNumber(
-        readCompPath(scope, compScpdPath(formula.path, formula.from)),
-        fllbNdx,
-    )
-    const index = clampValue(
-        Math.floor(rawIndex),
-        minIndex,
-        formula.maxIndex ?? (formula.values.length - 1 + minIndex),
-    )
-
-    return formula.values[index - minIndex] ?? 0
-  }
-
-  if (formula.type === 'add') {
-    return formula.values.reduce((acc, item) => acc + evalForm(item, scope), 0)
-  }
-
-  if (formula.type === 'mul') {
-    return formula.values.reduce((acc, item) => acc * evalForm(item, scope), 1)
-  }
-
-  if (formula.type === 'clamp') {
-    const value = evalForm(formula.value, scope)
-    return clampValue(value, formula.min, formula.max)
-  }
-
-  return 0
+  return executeFormProgram(compileFormProgram(formula), scope)
 }
 
 // evaluate a condition expression against the given scope
@@ -450,60 +721,5 @@ export function evalCond(
   if (!condition || condition.type === 'always') {
     return true
   }
-
-  if (condition.type === 'not') {
-    return !evalCond(condition.value, scope)
-  }
-
-  if (condition.type === 'truthy') {
-    return Boolean(readCompPath(scope, compScpdPath(condition.path, condition.from)))
-  }
-
-  if (condition.type === 'eq') {
-    return readCompPath(scope, compScpdPath(condition.path, condition.from)) === condition.value
-  }
-
-  if (condition.type === 'neq') {
-    return readCompPath(scope, compScpdPath(condition.path, condition.from)) !== condition.value
-  }
-
-  if (condition.type === 'gt') {
-    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) > condition.value
-  }
-
-  if (condition.type === 'gte') {
-    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) >= condition.value
-  }
-
-  if (condition.type === 'lt') {
-    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) < condition.value
-  }
-
-  if (condition.type === 'lte') {
-    return toNumber(readCompPath(scope, compScpdPath(condition.path, condition.from)), 0) <= condition.value
-  }
-
-  if (condition.type === 'includes') {
-    const container = readCompPath(scope, compScpdPath(condition.path, condition.from))
-    if (!Array.isArray(container)) {
-      return false
-    }
-
-    const itemParts = condition.itemPath ? compBjctPath(condition.itemPath) : null
-
-    return container.some((item) => {
-      const candidate = itemParts ? readBjctPath(item, itemParts) : item
-      return candidate === condition.value
-    })
-  }
-
-  if (condition.type === 'and') {
-    return condition.values.every((item) => evalCond(item, scope))
-  }
-
-  if (condition.type === 'or') {
-    return condition.values.some((item) => evalCond(item, scope))
-  }
-
-  return false
+  return executeConditionNode(compileConditionProgram(condition), 0, scope)
 }

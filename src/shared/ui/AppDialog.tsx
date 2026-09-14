@@ -22,16 +22,12 @@ interface AppDlgPrps {
   children: ReactNode
 }
 
-function isFltnCtxMen(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('.floating-context-menu'))
-}
-
 function isFltnSelCtn(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest('.selection-focus-actions'))
 }
 
-function isLqdSelMenu(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('.liquid-select__menu'))
+function isAppPopup(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('.app-popup'))
 }
 
 export function AppDialog({
@@ -90,9 +86,8 @@ export function AppDialog({
               // menus and floating selection actions should keep working even
               // when a dialog is mounted, so do not treat them as backdrop hits.
               if (
-                isFltnCtxMen(event.target)
+                isAppPopup(event.target)
                 || isFltnSelCtn(event.target)
-                || isLqdSelMenu(event.target)
               ) {
                 event.preventDefault()
               }

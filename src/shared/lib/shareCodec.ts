@@ -19,7 +19,7 @@ export function encShareText(payload: unknown): string {
   return SHR_TOKEN_PREFIX + compressToEncodedURIComponent(JSON.stringify(payload))
 }
 
-export function encShareLink(payload: unknown, path = '/calculator'): string {
+export function encShareLink(payload: unknown, path = '/modulation'): string {
   const token = compressToEncodedURIComponent(JSON.stringify(payload))
   return `${window.location.origin}${path}${SHR_LINK_FRAG}${token}`
 }
@@ -52,7 +52,7 @@ export interface RemoteShare {
   url: string
 }
 
-export async function createRemoteShare(payload: unknown, path = '/calculator'): Promise<RemoteShare | null> {
+export async function createRemoteShare(payload: unknown, path = '/modulation'): Promise<RemoteShare | null> {
   try {
     const response = await fetch('/api/shares', {
       method: 'POST',

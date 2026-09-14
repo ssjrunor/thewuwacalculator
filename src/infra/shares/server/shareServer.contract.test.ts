@@ -36,7 +36,6 @@ const rotationPayload = {
   version: 1,
   rotation: {
     name: 'Test',
-    mode: 'personal',
     resonatorId: '1204',
     resonatorName: 'Test',
     items: [],
@@ -56,7 +55,7 @@ describe('share server contract', () => {
     expect(result.status).toBe(200)
     expect(result.body).toEqual({
       token: expect.stringMatching(/^[A-Za-z0-9_-]{16,96}$/),
-      url: expect.stringMatching(/^https:\/\/thewuwacalculator\.com\/calculator\?s=[A-Za-z0-9_-]+$/),
+      url: expect.stringMatching(/^https:\/\/thewuwacalculator\.com\/modulation\?s=[A-Za-z0-9_-]+$/),
     })
     const sharePut = kv.puts.find((entry) => entry.key.startsWith('share:v1:'))
     expect(sharePut?.key).toMatch(/^share:v1:[A-Za-z0-9_-]+$/)

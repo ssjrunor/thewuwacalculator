@@ -92,7 +92,7 @@ Primary files:
 - [src/engine/rotation/system.ts](../src/engine/rotation/system.ts)
 - [src/engine/pipeline/simulateRotation.ts](../src/engine/pipeline/simulateRotation.ts)
 
-Rotation execution is not a separate calculator. It is another view over the same combat context and skill resolution system.
+Rotation execution is another Simulation tool over the same combat context and skill resolution system.
 
 Important outputs:
 

@@ -137,6 +137,30 @@ export function getResNumMax(
   return control.max
 }
 
+export function getResCntrMax(
+  runtime: ResRuntime,
+  control: ResStateControl,
+): boolean | number | string | undefined {
+  if (control.kind === 'toggle') {
+    return control.maxValue ?? true
+  }
+
+  if (control.kind === 'select') {
+    const options = resResCntrPt(runtime, control)
+    if (
+      control.maxValue !== undefined
+      && options.some((option) => sameSelectValue(normResCntrOpt(option).value, control.maxValue))
+    ) {
+      return control.maxValue
+    }
+
+    const lastOption = options[options.length - 1]
+    return lastOption === undefined ? undefined : normResCntrOpt(lastOption).value
+  }
+
+  return getResNumMax(runtime, control) ?? control.maxValue
+}
+
 export function normResRtCnt(
   runtime: ResRuntime,
   controls: Record<string, boolean | number | string> = runtime.state.controls,
@@ -179,6 +203,10 @@ export function normResRtCnt(
       || !(control.controlDependencies ?? []).every((controlKey) => Boolean(nextControls[controlKey]))
 
     if (unavailable) {
+      if (sameSelectValue(nextControls[control.key], getResCntrMax(scpdRt, control))) {
+        continue
+      }
+
       const nctvVl = getResCntrNc(control, scpdRt)
       if (nextControls[control.key] !== nctvVl) {
         nextControls[control.key] = nctvVl
@@ -188,6 +216,10 @@ export function normResRtCnt(
     }
 
     if (control.disabledWhen && nextControls[control.disabledWhen.key] === control.disabledWhen.equals) {
+      if (sameSelectValue(nextControls[control.key], getResCntrMax(scpdRt, control))) {
+        continue
+      }
+
       const nctvVl = getResCntrNc(control, scpdRt)
       if (nextControls[control.key] !== nctvVl) {
         nextControls[control.key] = nctvVl
@@ -201,6 +233,10 @@ export function normResRtCnt(
       const currentValue = nextControls[control.key]
 
       if (!options.some((option) => sameSelectValue(normResCntrOpt(option).value, currentValue))) {
+        if (sameSelectValue(currentValue, getResCntrMax(scpdRt, control))) {
+          continue
+        }
+
         nextControls[control.key] = getResCntrNc(control, scpdRt)
         changed = true
       }
@@ -229,7 +265,7 @@ export function normResRtCnt(
 function resSttTgtRt(
   srcRt: ResRuntime,
   tgtRt: ResRuntime,
-  state: SourceState,
+  state: Pick<SourceState, 'displayScope'>,
 ): ResRuntime {
   const teamScpdStt = state.displayScope === 'team' || state.displayScope === 'both'
 
@@ -243,7 +279,7 @@ function resSttTgtRt(
 export function mkSrcSttScp(
   srcRt: ResRuntime,
   tgtRt: ResRuntime,
-  state: SourceState,
+  state: Pick<SourceState, 'source' | 'displayScope'>,
   actRt: ResRuntime = tgtRt,
 ) {
   const scpdTgtRt = resSttTgtRt(srcRt, tgtRt, state)
@@ -274,6 +310,23 @@ export function mkSrcSttScp(
       echoSetCounts: countEchoSets(srcRt.build.echoes),
     },
   }
+}
+
+export function getSrcNumMax(
+  srcRt: ResRuntime,
+  tgtRt: ResRuntime,
+  state: Pick<SourceState, 'source' | 'displayScope' | 'max' | 'maxWhen'>,
+  actRt: ResRuntime = tgtRt,
+): number | undefined {
+  const scope = mkSrcSttScp(srcRt, tgtRt, state, actRt)
+
+  for (const entry of state.maxWhen ?? []) {
+    if (evalCond(entry.when, scope)) {
+      return entry.max
+    }
+  }
+
+  return state.max
 }
 
 export function sourceOptions(

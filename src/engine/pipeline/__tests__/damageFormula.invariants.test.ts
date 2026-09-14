@@ -10,8 +10,8 @@ import type { EnemyProfile } from '@/domain/entities/appState'
 import type { FeatureResult } from '@/domain/gameData/contracts'
 import type { FinalStats, SkillDef } from '@/domain/entities/stats'
 import { makeCombatState } from '@/domain/state/defaults'
-import { calcSkillDamage } from '@/engine/formulas/damage'
-import { formBrkd, fmtBreakdown } from '@/modules/calculator/features/results/lib/damageFormula'
+import { calcSkillDamage, calcSkillDamageScoreInto } from '@/engine/formulas/damage'
+import { formBrkd, fmtBreakdown } from '@/modules/simulation/features/results/lib/damageFormula'
 
 function makeBuff() {
   return {
@@ -234,7 +234,6 @@ function makeFeatureResult(
       id: skillDefinition.id,
       label: skillDefinition.label,
       source: { type: 'resonator', id: 'resonator' },
-      kind: 'skill',
       skillId: skillDefinition.id,
     },
     skill: skillDefinition,
@@ -250,6 +249,97 @@ function makeFeatureResult(
 }
 
 describe('damage formula invariants', () => {
+  it('keeps the allocation-free scalar kernel exact across every formula family', () => {
+    const cases: Array<{ skill: SkillDef; combat?: Parameters<typeof calcSkillDamage>[4] }> = [
+      { skill },
+      { skill: fixedDamageSkill },
+      { skill: healingSkill },
+      { skill: shieldSkill },
+      { skill: tuneRuptureSkill },
+      { skill: hackSkill },
+      { skill: negativeEffectSkill, combat: { spectroFrazzle: 6 } },
+      {
+        skill: {
+          ...negativeEffectSkill,
+          id: 'aero-erosion',
+          archetype: 'aeroErosion',
+          skillType: ['aeroErosion'],
+        },
+        combat: { aeroErosion: 4 },
+      },
+      {
+        skill: {
+          ...negativeEffectSkill,
+          id: 'fusion-burst',
+          archetype: 'fusionBurst',
+          skillType: ['fusionBurst'],
+        },
+        combat: { fusionBurst: 8 },
+      },
+      {
+        skill: {
+          ...negativeEffectSkill,
+          id: 'glacio-chafe',
+          archetype: 'glacioChafe',
+          skillType: ['glacioChafe'],
+        },
+        combat: { glacioChafe: 5 },
+      },
+      {
+        skill: {
+          ...negativeEffectSkill,
+          id: 'electro-flare',
+          archetype: 'electroFlare',
+          skillType: ['electroFlare'],
+        },
+        combat: { electroFlare: 12, electroRage: 3 },
+      },
+    ]
+    const stats = makeFinalStats({
+      flatDmg: 37,
+      amplify: 14,
+      dmgVuln: 9,
+      finalDmg: 5,
+      tbb: 21,
+    })
+    const values = new Float64Array(3)
+
+    for (const entry of cases) {
+      const captured = calcSkillDamage(stats, entry.skill, enemy, 90, entry.combat, {
+        includeSubHits: false,
+      })
+      calcSkillDamageScoreInto({ values }, stats, entry.skill, enemy, 90, entry.combat)
+      expect([...values], entry.skill.id).toEqual([captured.normal, captured.crit, captured.avg])
+
+      const multiplierScale = 2.375
+      const scaledSkill: SkillDef = {
+        ...entry.skill,
+        multiplier: entry.skill.multiplier * multiplierScale,
+        hits: entry.skill.hits.map((hit) => ({
+          ...hit,
+          multiplier: hit.multiplier * multiplierScale,
+        })),
+      }
+      const scaledCaptured = calcSkillDamage(stats, scaledSkill, enemy, 90, entry.combat, {
+        includeSubHits: false,
+      })
+      calcSkillDamageScoreInto(
+        { values },
+        stats,
+        entry.skill,
+        enemy,
+        90,
+        entry.combat,
+        multiplierScale,
+      )
+      expect([...values], `${entry.skill.id}:scaled`).toEqual([
+        scaledCaptured.normal,
+        scaledCaptured.crit,
+        scaledCaptured.avg,
+      ])
+    }
+  })
+
   it('applies shared damage modifiers before final output', () => {
     const baseline = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
     const buffed = calcSkillDamage(

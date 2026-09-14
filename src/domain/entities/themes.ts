@@ -64,3 +64,29 @@ export const THEME_PREVIEW: Record<ThemeVariant, string> = {
   'frosted-aurora':
       'linear-gradient(135deg, rgba(240, 255, 255, 0.55) 0%, rgba(170, 220, 255, 0.45) 100%)',
 }
+/** The four tokens a theme card needs to paint itself as a small portrait of
+ *  the app wearing that theme. Kept here beside THEME_PREVIEW rather than read
+ *  off a live element, because the variant classes carry decoration that has no
+ *  business inside a card. */
+export interface ThemeInk {
+  bg: string
+  surface: string
+  text: string
+  accent: string
+}
+
+export const THEME_INK: Record<ThemeVariant, ThemeInk> = {
+  light: { bg: '#f9f9f9', surface: '#ffffff', text: '#1f2b3f', accent: '#20bfb9' },
+  'pastel-pink': { bg: '#ffe4e9', surface: '#ffeef1', text: '#521d2f', accent: '#ff6884' },
+  'pastel-blue': { bg: '#e4f2ff', surface: '#eff7ff', text: '#143056', accent: '#338bff' },
+  'vibrant-citrus': { bg: '#fff2d7', surface: '#fff8e8', text: '#4d2f12', accent: '#ff5ea8' },
+  'glassy-rainbow': { bg: '#ffffff', surface: '#fdfbff', text: '#222222', accent: '#ff00c8' },
+  'sunlit-haze': { bg: '#e8f4fd', surface: '#f4faff', text: '#2c3e50', accent: '#c8960c' },
+  dark: { bg: '#131922', surface: '#161e2c', text: '#dddddd', accent: '#20bfb9' },
+  'dark-alt': { bg: '#000000', surface: '#131417', text: '#dddddd', accent: '#2ab6ab' },
+  'cosmic-rainbow': { bg: '#080815', surface: '#0e0a22', text: '#e4e7ff', accent: '#8bdfff' },
+  'scarlet-nebula': { bg: '#0f0000', surface: '#1a0708', text: '#ffeaea', accent: '#ff8f84' },
+  'emerald-forest': { bg: '#020c08', surface: '#0a1a12', text: '#e0f0e8', accent: '#5eeaaa' },
+  'graphite-pop': { bg: '#101010', surface: '#2a2a2a', text: '#e8e8e8', accent: '#f5a742' },
+  'frosted-aurora': { bg: '#dbe8f9', surface: 'rgba(255, 255, 255, 0.34)', text: '#001f37', accent: '#2f9fd6' },
+}

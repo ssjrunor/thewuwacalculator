@@ -1,11 +1,11 @@
 /*
   Author: Runor Ewhro
   Description: defines shared suggestion engine input, result, and worker
-               message types for main stat, set plan, and random echo flows.
+               message types for durable main-stat, set-plan, and weapon flows.
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { RandGnrtSets, WeaponPlanSet } from '@/domain/entities/suggestions'
+import type { WeaponPlanSet } from '@/domain/entities/suggestions'
 import type { ResRuntime, ResSeed, EchoInstance } from '@/domain/entities/runtime'
 import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
 import type { FinalStats, UnifiedBuffPool, ResBaseStats, SkillDef } from '@/domain/entities/stats'
@@ -14,14 +14,16 @@ import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/ut
 import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill'
 import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 import type { GameDataMode } from '@/domain/entities/gameDataMode'
+import type { CombatScenarioId, TeamMemberId } from '@/domain/entities/combatScenario'
 
 interface SuggsWrkrBase {
   id: number
   gameDataMode?: GameDataMode
 }
 
-// common evaluation input shared by all suggestion pipelines
 export interface SuggestInput {
+  scenarioId: CombatScenarioId
+  memberId: TeamMemberId
   runtime: ResRuntime
   seed: ResSeed
   enemy: EnemyProfile
@@ -65,7 +67,7 @@ export interface RotSuggCtx {
   contextStride: number
   contextWeight: Float32Array
   contextCount: number
-  /** representative skill-damage context used for user-facing resolved stats */
+  /** Representative context retained for materialized result statistics. */
   displayContext: Float32Array | null
   setConstLut: Float32Array
 }
@@ -75,6 +77,8 @@ export type SuggestContext =
     | RotSuggCtx
 
 export interface MainStatPrep {
+  scenarioId: CombatScenarioId
+  memberId: TeamMemberId
   context: SuggestContext
   rotationMode: boolean
   qppdChs: Array<EchoInstance | null>
@@ -84,30 +88,25 @@ export interface MainStatPrep {
 }
 
 export interface PrepSetPlanS {
+  scenarioId: CombatScenarioId
+  memberId: TeamMemberId
   context: SuggestContext
   rotationMode: boolean
   qppdChs: Array<EchoInstance | null>
   topK?: number
 }
 
-export interface RandomPrep {
-  context: SuggestContext
-  qppdChs: Array<EchoInstance | null>
-  runtimeId: string
-  rawWeightMap: OptStatWeight
-  statWeight: OptStatWeight
-  settings: RandGnrtSets
-  resultsLimit?: number
-  candCnt?: number
-}
-
 export interface PrepWeaponPlan {
+  scenarioId: CombatScenarioId
+  memberId: TeamMemberId
+  runtime: ResRuntime
   context: SuggestContext
   qppdChs: Array<EchoInstance | null>
   seed: ResSeed
   enemy: EnemyProfile
   runtimesById: Record<string, ResRuntime>
   selectedTargets: Record<string, string | null>
+  includeEchoAttacks?: boolean
   weaponType: number
   level: number
   rank: number
@@ -115,7 +114,6 @@ export interface PrepWeaponPlan {
   topK?: number
 }
 
-// one main-stat suggestion result entry
 export interface MainStatSugg {
   damage: number
   recipes: MainStatRecipe[]
@@ -123,30 +121,21 @@ export interface MainStatSugg {
   isRotation?: boolean
 }
 
-// one set-plan piece entry describing set id and piece count
 export interface SetPlanEntry {
   setId: number
   pieces: number
 }
 
-// one displayed set-plan group. Multiple set ids here mean those sets produce
-// the same effect for this piece count, so the UI can render them as one choice.
+/** Set ids sharing one entry are effect-equivalent at this piece count. */
 export interface SetPlanDisplayEntry {
   setIds: number[]
   pieces: number
 }
 
-// one set-plan suggestion result entry
 export interface SetPlanSuggest {
   avgDamage: number
   setPlan: SetPlanEntry[]
   displayPlan?: SetPlanDisplayEntry[]
-  echoes: Array<EchoInstance | null>
-}
-
-// one random suggestion result entry
-export interface RandomEntry {
-  damage: number
   echoes: Array<EchoInstance | null>
 }
 
@@ -168,46 +157,28 @@ export interface WeaponEntry {
   params: string[]
 }
 
-// input for random echo generation suggestions
-export interface RandSuggsNpt extends SuggestInput {
-  settings: RandGnrtSets
-  resultsLimit?: number
-  candCnt?: number
-}
-
-// input for main-stat suggestions
 export interface MainStatSuwo extends SuggestInput {
   topK?: number
 }
 
-// input for set-plan suggestions
 export interface SetPlanSuggs extends SuggestInput {
   topK?: number
 }
 
-// full set-plan suggestion result container
 export interface SetPlanSugoi {
   baseAvg: number
   results: SetPlanSuggest[]
   isRotation: boolean
 }
 
-// worker start message for main-stat suggestions
 export interface SuggsWrkrMai extends SuggsWrkrBase {
   type: 'mainStats'
   payload: MainStatPrep
 }
 
-// worker start message for set-plan suggestions
 export interface SuggsWrkrSet extends SuggsWrkrBase {
   type: 'setPlans'
   payload: PrepSetPlanS
-}
-
-// worker start message for random echo suggestions
-export interface SuggsWrkrRan extends SuggsWrkrBase {
-  type: 'random'
-  payload: RandomPrep
 }
 
 export interface SuggsWrkrWpn extends SuggsWrkrBase {
@@ -215,28 +186,23 @@ export interface SuggsWrkrWpn extends SuggsWrkrBase {
   payload: PrepWeaponPlan
 }
 
-// successful worker response message
 export interface SuggsWrkrDon {
   id: number
   ok: true
-  result: MainStatSugg[] | SetPlanSuggest[] | RandomEntry[] | WeaponEntry[]
+  result: MainStatSugg[] | SetPlanSuggest[] | WeaponEntry[]
 }
 
-// failed worker response message
 export interface SuggsWrkrRrr {
   id: number
   ok: false
   error: string
 }
 
-// all valid inbound worker message shapes
 export type SuggsWrkrInM =
     | SuggsWrkrMai
     | SuggsWrkrSet
-    | SuggsWrkrRan
     | SuggsWrkrWpn
 
-// all valid outbound worker message shapes
 export type SuggsWrkrOut =
     | SuggsWrkrDon
     | SuggsWrkrRrr

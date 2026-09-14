@@ -13,6 +13,7 @@ import {
 } from '@/data/gameData/echoSets/effects'
 import type { SourceState } from '@/domain/gameData/contracts'
 import {
+  getSrcNumMax,
   getSrcSttNct,
   mkSrcSttScp,
   sourceOptions,
@@ -22,6 +23,9 @@ import { listStatesFor } from '@/domain/services/gameDataService'
 import { evalCond } from '@/engine/effects/evaluator'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 import { wpnAtkAt } from '@/domain/state/weaponState'
+import { meetsStateReqs } from '@/domain/services/sourceStateService.ts'
+
+export { getSrcNumMax as srcSttNumMax } from '@/domain/gameData/controlOptions'
 
 export type RtCtlMap = Record<string, boolean | number | string>
 
@@ -38,30 +42,13 @@ export function srcSttKey(state: SourceState): string {
     : state.controlKey
 }
 
-function srcReqMet(srcRt: ResRuntime, state: SourceState): boolean {
-  const sttsByCtl = new Map(
-    listStatesFor(state.source.type, state.source.id)
-      .map((entry) => [entry.controlKey, entry]),
-  )
-
-  return (state.requires ?? state.controlDependencies ?? [])
-    .every((controlKey) => {
-      const curVal = srcRt.state.controls[controlKey]
-      if (curVal !== undefined) {
-        return Boolean(curVal)
-      }
-
-      return Boolean(sttsByCtl.get(controlKey)?.defaultValue)
-    })
-}
-
 function srcSttVis(
   srcRt: ResRuntime,
   tgtRt: ResRuntime,
   state: SourceState,
   actRt: ResRuntime = tgtRt,
 ): boolean {
-  return srcReqMet(srcRt, state)
+  return meetsStateReqs(srcRt, state)
     && evalCond(state.visibleWhen, mkSrcSttScp(srcRt, tgtRt, state, actRt))
     && evalCond(state.enabledWhen, mkSrcSttScp(srcRt, tgtRt, state, actRt))
 }
@@ -72,23 +59,6 @@ function clampNumber(value: number, min: number, max?: number): number {
   }
 
   return Math.min(Math.max(value, min), max)
-}
-
-export function srcSttNumMax(
-  srcRt: ResRuntime,
-  tgtRt: ResRuntime,
-  state: SourceState,
-  actRt: ResRuntime = tgtRt,
-): number | undefined {
-  const scope = mkSrcSttScp(srcRt, tgtRt, state, actRt)
-
-  for (const entry of state.maxWhen ?? []) {
-    if (evalCond(entry.when, scope)) {
-      return entry.max
-    }
-  }
-
-  return state.max
 }
 
 export function srcSttMax(
@@ -114,7 +84,7 @@ export function srcSttMax(
   }
 
   const min = state.min ?? 0
-  const max = srcSttNumMax(srcRt, tgtRt, state, actRt)
+  const max = getSrcNumMax(srcRt, tgtRt, state, actRt)
   const rawValue = Number(max ?? state.maxValue ?? state.defaultValue ?? min)
   return clampNumber(Number.isFinite(rawValue) ? rawValue : min, min, max)
 }

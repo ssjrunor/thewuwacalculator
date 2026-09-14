@@ -4,6 +4,9 @@
                and scrim display modes for lazy content fallbacks.
 */
 
+import { createPortal } from 'react-dom'
+import { mainPortal } from '@/shared/lib/portalTarget.ts'
+
 interface AppLdrVrlyPr {
   text?: string
   className?: string
@@ -30,12 +33,22 @@ export default function AppLdrVrly({
                                            mode = 'overlay',
                                          }: AppLdrVrlyPr) {
   if (mode === 'scrim') {
-    return (
+    /*
+      The scrim frosts the page behind it, so it cannot render where it is
+      written: the routed panel carries the page transition's
+      view-transition-name and a named element is a backdrop root, meaning a
+      backdrop-filter inside it samples nothing. Portalling to the shell around
+      it puts the page back behind the blur.
+    */
+    const scrim = (
         <div className={`app-loader-scrim ${className}`.trim()} aria-live="polite" aria-busy="true">
           {kaomoji}
           <span className="app-loader-fallback-text">{text}</span>
         </div>
     )
+
+    const host = mainPortal()
+    return host ? createPortal(scrim, host) : scrim
   }
 
   if (mode === 'centered') {

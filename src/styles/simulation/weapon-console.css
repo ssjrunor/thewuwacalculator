@@ -1,0 +1,312 @@
+
+
+
+.weapon-console-panel {
+  --amdl-w: 30rem;
+  --rar: var(--muted);
+}
+
+.wcon-body {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.95rem;
+  min-width: 0;
+}
+
+.wcon-sec {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55em;
+  min-width: 0;
+  font-family: var(--amdl-mono, var(--mono-font));
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--rar) 52%, var(--muted));
+}
+
+.wcon-sec-type {
+  flex: 0 0 auto;
+  width: 1.3em;
+  height: 1.3em;
+  background-color: currentColor;
+  -webkit-mask: var(--g) no-repeat center / contain;
+  mask: var(--g) no-repeat center / contain;
+  opacity: 0.8;
+}
+
+.wcon-sec-sep {
+  flex: 0 0 auto;
+  width: 1.05em;
+  height: 1px;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.wcon-sec-passive {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--rar) 26%, var(--text));
+}
+
+.wcon-console {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 1.2rem;
+  row-gap: 0.6rem;
+}
+
+.wcon-open {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.wcon-open:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--rar) 70%, transparent);
+  outline-offset: 3px;
+  border-radius: 0.4rem;
+}
+
+.wcon-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 3.1rem;
+  height: 3.1rem;
+}
+
+.wcon-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0.12em 0.4em color-mix(in srgb, var(--rar) 45%, transparent));
+  transition: filter 150ms ease, scale 150ms ease, rotate 150ms ease;
+}
+
+.wcon-open:is(:hover, :focus-visible) .wcon-icon img {
+  filter: drop-shadow(0 0.12em 0.5em color-mix(in srgb, var(--rar) 65%, transparent));
+  scale: 1.05;
+  rotate: -2deg;
+}
+
+.wcon-rank {
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.15rem;
+  padding: 0.05rem 0.28rem;
+  border: 1px solid color-mix(in srgb, var(--rar) 55%, transparent);
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  font-family: var(--amdl-mono, var(--mono-font));
+  font-size: 0.55rem;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--rar);
+}
+
+.wcon-plate {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.wcon-name {
+  position: relative;
+  min-width: 0;
+  font-family: var(--display-font);
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 150ms ease;
+}
+
+.wcon-name::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: 0.05em;
+  height: 1px;
+  background: color-mix(in srgb, var(--rar) 70%, var(--text));
+  transition: right 240ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.wcon-open:is(:hover, :focus-visible) .wcon-name {
+  color: color-mix(in srgb, var(--rar) 55%, var(--text));
+}
+
+.wcon-open:is(:hover, :focus-visible) .wcon-name::after {
+  right: 0;
+}
+
+
+.wcon-statline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-family: var(--amdl-mono, var(--mono-font));
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text);
+}
+
+.wcon-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.wcon-stat-glyph {
+  width: 1.05em;
+  height: 1.05em;
+  background-color: color-mix(in srgb, var(--text) 62%, transparent);
+  -webkit-mask: var(--g) no-repeat center / contain;
+  mask: var(--g) no-repeat center / contain;
+}
+
+.wcon-lvl {
+  display: grid;
+  justify-items: end;
+  gap: 0.05rem;
+  margin-left: auto;
+  cursor: text;
+}
+
+.wcon-lvl-cap {
+  font-family: var(--amdl-mono, var(--mono-font));
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+
+  color: color-mix(in srgb, var(--text) 50%, transparent);
+  transition: color 150ms ease;
+}
+
+.wcon-lvl[data-max='1'] .wcon-lvl-cap {
+  color: color-mix(in srgb, var(--rar) 40%, var(--text));
+}
+
+.wcon-lvl-val {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+
+.wcon-lvl-val input[type='number'] {
+  width: 2.9rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--wuwa-font);
+  font-size: 1.7rem;
+  font-weight: 400;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--rar) 78%, var(--text));
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.wcon-lvl-val input[type='number']::-webkit-outer-spin-button,
+.wcon-lvl-val input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.wcon-lvl-val input[type='number']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--rar) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: 0.2rem;
+}
+
+.wcon-lvl-val em {
+  font-family: var(--amdl-mono, var(--mono-font));
+  font-style: normal;
+  font-size: 0.62rem;
+  color: color-mix(in srgb, var(--text) 34%, transparent);
+}
+
+
+.wcon-rank-track {
+  --seq-node-size: 1.45rem;
+  --seq-accent: var(--rar);
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.wcon-rank-track .res-seq-track {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.wcon-rank-track .res-seq-node {
+  grid-template-rows: var(--seq-node-size) auto;
+  gap: 0.28rem;
+  min-height: 0;
+}
+
+.wcon-rule {
+  display: block;
+  height: 1px;
+  background: var(--amdl-line-soft, color-mix(in srgb, var(--text) 8%, transparent));
+}
+
+.wcon-passive {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 0.8rem;
+  line-height: 1.62;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+}
+
+.wcon-passive--empty {
+  color: color-mix(in srgb, var(--text) 40%, transparent);
+}
+
+.wcon-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wcon-swap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.75rem;
+  border: 1px solid var(--amdl-line, var(--border));
+  border-radius: 0.45rem;
+  font-family: var(--display-font);
+  font-size: 0.78rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.wcon-swap:hover {
+  border-color: color-mix(in srgb, var(--rar) 50%, var(--border));
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.wcon-swap-glyph {
+  width: 0.95rem;
+  height: 0.95rem;
+  background-color: var(--rar);
+  -webkit-mask: var(--g) no-repeat center / contain;
+  mask: var(--g) no-repeat center / contain;
+}

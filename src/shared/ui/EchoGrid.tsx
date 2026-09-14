@@ -9,16 +9,16 @@ import type { HTMLAttributes as HtmlAttrs, MouseEventHandler as MsVntHnd, ReactN
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
-import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import '../../styles/EchoGrid.css'
 
-export type EchoCardVar = 'full' | 'compact'
+export type EchoCardVariant = 'full' | 'compact'
 
-export interface EchoCardPrps {
+export interface EchoCardProps {
   echo: EchoInstance | null
-  variant?: EchoCardVar
+  variant?: EchoCardVariant
   showSubstats?: boolean
   showImage?: boolean
   score?: number | null
@@ -27,10 +27,10 @@ export interface EchoCardPrps {
   onClick?: MsVntHnd<HTMLDivElement>
 }
 
-export interface EchoGridPrps {
+export interface EchoGridProps {
   selection: { surfaceProps?: HtmlAttrs<HTMLDivElement> }
   echoes: Array<EchoInstance | null>
-  variant?: EchoCardVar
+  variant?: EchoCardVariant
   showSubstats?: boolean
   showImage?: boolean
   scores?: Array<number | null> | null
@@ -45,8 +45,8 @@ export interface EchoGridPrps {
 export interface EchoGridItem {
   key: string
   echo: EchoInstance | null
-  rgnlIdx: number
-  rndrIdx: number
+  sourceIndex: number
+  renderIndex: number
   score: number | null
 }
 
@@ -54,32 +54,31 @@ function getEchoCostF(echo: EchoInstance): number {
   return getEchoById(echo.id)?.cost ?? (echo.mainEcho ? 4 : 1)
 }
 
-// build the render list without losing inventory positions
 // filled slot counts add null placeholders, then visible cards are sorted by
-// echo cost while rgnlIdx keeps callbacks and selection tied to stored order
-export function mkEchoGridTm(args: {
+// echo cost while sourceIndex keeps callbacks and selection tied to stored order
+export function makeEchoGridItems(args: {
   echoes: Array<EchoInstance | null>
   scores?: Array<number | null> | null
   slotCount?: number
 }): EchoGridItem[] {
-  const slots: Array<{ echo: EchoInstance | null; rgnlIdx: number; score: number | null }> = (
+  const slots: Array<{ echo: EchoInstance | null; sourceIndex: number; score: number | null }> = (
     args.slotCount != null
       ? [
-          ...args.echoes.map((echo, rgnlNdx) => ({
+          ...args.echoes.map((echo, sourceIndex) => ({
             echo,
-            rgnlIdx: rgnlNdx,
-            score: args.scores?.[rgnlNdx] ?? null,
+            sourceIndex: sourceIndex,
+            score: args.scores?.[sourceIndex] ?? null,
           })),
           ...Array.from({ length: Math.max(0, args.slotCount - args.echoes.length) }, (_, offset) => ({
             echo: null,
-            rgnlIdx: args.echoes.length + offset,
+            sourceIndex: args.echoes.length + offset,
             score: null,
           })),
         ].slice(0, args.slotCount)
-      : args.echoes.map((echo, rgnlNdx) => ({
+      : args.echoes.map((echo, sourceIndex) => ({
           echo,
-          rgnlIdx: rgnlNdx,
-          score: args.scores?.[rgnlNdx] ?? null,
+          sourceIndex: sourceIndex,
+          score: args.scores?.[sourceIndex] ?? null,
         }))
   )
 
@@ -91,13 +90,13 @@ export function mkEchoGridTm(args: {
         return costRight - costLeft
       }
 
-      return left.rgnlIdx - right.rgnlIdx
+      return left.sourceIndex - right.sourceIndex
     })
-    .map((item, rndrNdx) => ({
-      key: item.echo ? `${item.echo.uid}-${item.rgnlIdx}-${rndrNdx}` : `empty-${item.rgnlIdx}-${rndrNdx}`,
+    .map((item, renderIndex) => ({
+      key: item.echo ? `${item.echo.uid}-${item.sourceIndex}-${renderIndex}` : `empty-${item.sourceIndex}-${renderIndex}`,
       echo: item.echo,
-      rgnlIdx: item.rgnlIdx,
-      rndrIdx: rndrNdx,
+      sourceIndex: item.sourceIndex,
+      renderIndex: renderIndex,
       score: item.score,
     }))
 }
@@ -112,7 +111,7 @@ export function EchoCard({
   className = '',
   onClick,
   ...domProps
-}: EchoCardPrps & HtmlAttrs<HTMLDivElement>) {
+}: EchoCardProps & HtmlAttrs<HTMLDivElement>) {
   // compact cards inherit their substat visibility from the variant unless a
   // caller overrides it for inventory or comparison surfaces
   const rslvShowSbst = showSubstats ?? variant === 'full'
@@ -152,8 +151,7 @@ export function EchoCard({
           <div className="echo-card__icon">
             <img
               src={definition!.icon}
-              alt={definition!.name ?? 'Echo'}
-              className="echo-card__icon-img"
+              alt={definition!.name ?? 'Echo'} className="echo-card__icon-img"
               loading="lazy"
               onError={withDefEchoMg}
             />
@@ -233,10 +231,10 @@ export function EchoGrid({
   getCardClskn: getCardClssN,
   wrapCard,
   selection,
-}: EchoGridPrps) {
+}: EchoGridProps) {
   // card wrapping is intentionally last so selection layers can preserve the
   // normalized card props while adding drag, checkbox, or context-menu chrome
-  const items = mkEchoGridTm({
+  const items = makeEchoGridItems({
     echoes,
     scores,
     slotCount,
@@ -259,7 +257,7 @@ export function EchoGrid({
             score={item.score}
             interactive={interactive || Boolean(onEchoClick)}
             className={getCardClssN?.(item) ?? ''}
-            onClick={onEchoClick ? () => onEchoClick(item.echo, item.rgnlIdx) : undefined}
+            onClick={onEchoClick ? () => onEchoClick(item.echo, item.sourceIndex) : undefined}
           />
         )
 

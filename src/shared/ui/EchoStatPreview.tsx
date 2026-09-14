@@ -6,9 +6,10 @@
 
 import { useMemo } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/calculator/features/echoes/lib/metric'
+import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/simulation/features/echoes/lib/metric'
 import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring'
-import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/calculator/model/statsView.ts'
+import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision'
+import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 interface EchoStatProps {
@@ -17,13 +18,15 @@ interface EchoStatProps {
 }
 
 export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
+  const echoScoringRevision = useEchoScoringRevision(resonatorId)
   const { score, scoreShown } = useMemo(() => {
+    void echoScoringRevision
     const hasWeights = getMaxEchoSc(resonatorId) > 0
     return {
       scoreShown: hasWeights,
       score: hasWeights ? getEchoScrPr(resonatorId, echo) : 0,
     }
-  }, [resonatorId, echo])
+  }, [echoScoringRevision, resonatorId, echo])
 
   const cv = useMemo(() => cmptEchoCrit(echo.substats), [echo.substats])
 

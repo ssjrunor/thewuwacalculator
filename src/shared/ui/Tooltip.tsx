@@ -7,24 +7,28 @@
 import React from 'react'
 import * as RadixTooltip from '@radix-ui/react-tooltip'
 import type {
+  CSSProperties,
   FocusEvent as RctFcsVnt,
   MouseEvent as RctMsVnt,
   ReactNode,
 } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useAnimVis } from '@/app/hooks/useAnimatedVisibility'
-import { bodyPortal } from '@/shared/lib/portalTarget'
+import { bodyPortal, mainPortal } from '@/shared/lib/portalTarget'
+import {
+  AppPopupSurface,
+  syncAppPopupTokens,
+  useAppPopup,
+} from '@/shared/ui/AppPopup'
 
 export interface TooltipProps {
   children: ReactNode
   content: ReactNode
   placement?: 'top' | 'right' | 'bottom' | 'left'
   className?: string
+  triggerStyle?: CSSProperties
   delay?: number
 }
-
-const TLTPCLSDURMS = 180
 
 export function AppTltpProv({ children }: { children: ReactNode }) {
   return (
@@ -39,71 +43,56 @@ export const Tooltip: React.FC<TooltipProps> = ({
   content,
   placement = 'top',
   className = '',
+  triggerStyle,
   delay = 200,
 }) => {
-  const [open, setOpen] = React.useState(false)
-  const [present, setPresent] = React.useState(false)
-  const [closing, setClosing] = React.useState(false)
-  const clsTmrRef = React.useRef<number | null>(null)
+  const popup = useAppPopup()
+  const triggerRef = useRef<HTMLSpanElement | null>(null)
+  const scopeRef = useRef<HTMLDivElement | null>(null)
+  const changeOpen = (nextOpen: boolean) => nextOpen ? popup.show() : popup.hide()
+  const popupPlacement = placement === 'top' ? 'up' : placement === 'bottom' ? 'down' : placement
 
-  React.useEffect(() => {
-    return () => {
-      if (clsTmrRef.current !== null) {
-        window.clearTimeout(clsTmrRef.current)
-      }
+  useLayoutEffect(() => {
+    if (popup.visible && triggerRef.current && scopeRef.current) {
+      syncAppPopupTokens(triggerRef.current, scopeRef.current)
     }
-  }, [])
-
-  const syncPresence = React.useCallback((nextOpen: boolean) => {
-    if (clsTmrRef.current !== null) {
-      window.clearTimeout(clsTmrRef.current)
-      clsTmrRef.current = null
-    }
-
-    if (nextOpen) {
-      setPresent(true)
-      setClosing(false)
-      setOpen(true)
-      return
-    }
-
-    setOpen(false)
-    setPresent(true)
-    setClosing(true)
-    clsTmrRef.current = window.setTimeout(() => {
-      setPresent(false)
-      setClosing(false)
-      clsTmrRef.current = null
-    }, TLTPCLSDURMS)
-  }, [])
-
-  const changeOpen = (nextOpen: boolean) => {
-    syncPresence(nextOpen)
-  }
+  })
 
   return (
     <RadixTooltip.Root
-      open={open}
+      open={popup.open}
       onOpenChange={changeOpen}
       delayDuration={delay}
       disableHoverableContent
     >
       <RadixTooltip.Trigger asChild>
-        <span className={`tooltip-trigger ${className}`.trim()} style={{ display: 'inline-flex' }}>
+        <span ref={triggerRef} className={`tooltip-trigger ${className}`.trim()} style={{ display: 'inline-flex', ...triggerStyle }}>
           {children}
         </span>
       </RadixTooltip.Trigger>
-      {present ? (
-        <RadixTooltip.Portal>
+      {/*
+        forceMount belongs on the portal as well as the content: radix gates the
+        portal on `open` alone, so without it the subtree is torn out the instant
+        the tooltip closes and the exit animation never paints. The popup's own
+        visibility gate below still unmounts once the exit has finished.
+      */}
+      {popup.visible ? (
+        <RadixTooltip.Portal forceMount>
           <RadixTooltip.Content
+            ref={scopeRef}
             forceMount
             side={placement}
             sideOffset={8}
-            collisionPadding={12}
-            className={`app-tooltip-container radix-tooltip-content ${closing ? 'is-closing' : 'is-opening'}`.trim()}
+            collisionPadding={12} className="app-tooltip-container"
             style={{ zIndex: 99999 }}
           >
-            <div className="app-tooltip-content">{content}</div>
+            <AppPopupSurface className="app-tooltip-content"
+              open={popup.open}
+              closing={popup.closing}
+              placement={popupPlacement}
+            >
+              {content}
+            </AppPopupSurface>
           </RadixTooltip.Content>
         </RadixTooltip.Portal>
       ) : null}
@@ -151,13 +140,19 @@ export function HoverCard({
   offsetY = HC_CRSR_OFFSET_Y,
   exitMs = HC_EXIT_MS,
 }: HoverCardProps) {
-  const visibility = useAnimVis(exitMs)
+  const visibility = useAppPopup(exitMs)
+  const triggerRef = useRef<HTMLSpanElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const frameRef = useRef<number | null>(null)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
 
-  const portalTarget = bodyPortal()
+  /*
+    the shell, not the body: the theme's tokens are declared on `.app-shell`, so
+    a card portalled outside it paints its highlights from whatever :root
+    happens to hold rather than from the theme the page is wearing.
+  */
+  const portalTarget = mainPortal() ?? bodyPortal()
 
   const applyPlacement = useCallback((clientX: number, clientY: number) => {
     const root = rootRef.current
@@ -228,6 +223,9 @@ export function HoverCard({
 
   useLayoutEffect(() => {
     if (!visibility.visible) return
+    if (triggerRef.current && rootRef.current) {
+      syncAppPopupTokens(triggerRef.current, rootRef.current)
+    }
     const pointer = pointerRef.current
     if (pointer) applyPlacement(pointer.x, pointer.y)
   }, [applyPlacement, visibility.visible])
@@ -237,6 +235,7 @@ export function HoverCard({
   return (
     <>
       <span
+        ref={triggerRef}
         className={triggerClassName ? `hover-card__trigger ${triggerClassName}` : 'hover-card__trigger'}
         aria-label={label}
         tabIndex={disabled ? undefined : 0}
@@ -257,16 +256,16 @@ export function HoverCard({
             <div
               ref={rootRef}
               className={rootClassName ? `hover-card ${rootClassName}` : 'hover-card'}
-              data-open={visibility.open ? 'true' : undefined}
-              data-closing={visibility.closing ? 'true' : undefined}
               role="presentation"
             >
-              <div
+              <AppPopupSurface
                 ref={cardRef}
-                className={cardClassName ? `hover-card__card ${cardClassName}` : 'hover-card__card'}
+                className={cardClassName}
+                open={visibility.open}
+                closing={visibility.closing}
               >
                 {typeof content === 'function' ? content() : content}
-              </div>
+              </AppPopupSurface>
             </div>,
             portalTarget,
           )

@@ -1,28 +1,32 @@
 /*
   Author: Runor Ewhro
-  Description: applies a supplied personal rotation item list onto a runtime
+  Description: applies a supplied rotation program onto a runtime
                snapshot while preserving the rest of the runtime shape.
 */
 
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 
-interface ApplyPersRotOptions {
+interface ApplyRotationProgramOptions {
   ignoreLoops?: boolean
 }
 
 function dropLoopRules(node: RotationNode): RotationNode {
-  if (!('when' in node) || !node.when?.loops?.length) {
+  if (node.type !== 'feature' || !node.attached) {
     return node
   }
 
-  const when = { ...node.when }
-  delete when.loops
-
   return {
     ...node,
-    when: Object.keys(when).length > 0 ? when : undefined,
-  } as RotationNode
+    attached: {
+      conditions: node.attached.conditions.map(
+        (condition) => dropLoopRules(condition) as Extract<RotationNode, { type: 'condition' }>,
+      ),
+      features: node.attached.features.map(
+        (feature) => dropLoopRules(feature) as Extract<RotationNode, { type: 'feature' }>,
+      ),
+    },
+  }
 }
 
 export function stripRotLoops(items: RotationNode[]): RotationNode[] {
@@ -52,27 +56,23 @@ export function stripRotLoops(items: RotationNode[]): RotationNode[] {
   })
 }
 
-export function applyPersRot(
+export function applyRotationProgram(
     runtime: ResRuntime,
     rotTms?: RotationNode[] | null,
-    options: ApplyPersRotOptions = {},
+    options: ApplyRotationProgramOptions = {},
 ): ResRuntime {
-  const personalItems = structuredClone(rotTms ?? runtime.rotation.personalItems)
+  const items = structuredClone(rotTms ?? runtime.rotation.sequence)
 
   return {
     ...runtime,
     rotation: {
       ...runtime.rotation,
-
-      // force the runtime into personal rotation view
-      view: 'personal',
-
       // prefer the provided rotation items when present
-      // otherwise clone the runtime's existing personal rotation list
+      // otherwise clone the runtime's existing rotation list
       // structuredClone avoids sharing mutable references with the source runtime
-      personalItems: options.ignoreLoops
-          ? stripRotLoops(personalItems)
-          : personalItems,
+      sequence: options.ignoreLoops
+          ? stripRotLoops(items)
+          : items,
     },
   }
 }

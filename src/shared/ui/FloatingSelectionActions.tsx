@@ -4,8 +4,8 @@
                register top-center selection toolbars without owning layout.
 */
 
-import { createContext as mkCtx, useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { createContext as mkCtx, Fragment, useContext, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { CSSProperties as CssProps, ReactNode } from 'react'
 import { AnimatePresence as NmtPrsn, motion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { bodyPortal } from '@/shared/lib/portalTarget'
@@ -20,9 +20,17 @@ export interface FltnSelCtn {
   onSelect: () => void
 }
 
+/** What the rail's readout says it is holding. */
+export interface FltnSelRead {
+  count: number
+  one: string
+  many: string
+}
+
 export interface FltnSelSssn {
   active: boolean
   ariaLabel?: string
+  readout?: FltnSelRead
   activationId?: number
   priority?: number
   focusScopeId?: string
@@ -90,6 +98,19 @@ function resFcsScp(session: RgstFltnSelS | null): HTMLElement | null {
   )
 }
 
+/** The rail's readout: what is picked, or the idle line when nothing is. */
+function SelectionRead({ read }: { read?: FltnSelRead }) {
+  const count = read?.count ?? 0
+  const idle = count === 0
+
+  return (
+    <div className="selection-focus-actions__read" data-idle={idle ? 'true' : undefined}>
+      <b>{idle ? 'Nothing picked' : `${count} ${count === 1 ? read?.one : read?.many}`}</b>
+      {idle ? null : <em>selected</em>}
+    </div>
+  )
+}
+
 function FltnSelCtnsH({ session }: { session: RgstFltnSelS | null }) {
   const actionsRef = useRef<HTMLDivElement | null>(null)
   const portalTarget = (typeof document === 'undefined'
@@ -133,8 +154,8 @@ function FltnSelCtnsH({ session }: { session: RgstFltnSelS | null }) {
       {session ? (
         <motion.div
           key={session.key}
-          ref={actionsRef}
-          className="selection-focus-actions"
+          ref={actionsRef} className="app-popup selection-focus-actions"
+          data-state="open"
           role="toolbar"
           aria-label={session.ariaLabel ?? 'Selection actions'}
           initial={{ opacity: 0, y: -18, scale: 0.92, filter: 'blur(8px)' }}
@@ -150,14 +171,20 @@ function FltnSelCtnsH({ session }: { session: RgstFltnSelS | null }) {
           }}
           layout
         >
-          {session.groups.map((group, groupIndex) => (
-            group.length > 0 ? (
-              <div key={`${session.key}:group:${groupIndex}`} className="selection-focus-actions__group">
-                {group.map((action) => (
+          <SelectionRead read={session.readout} />
+
+          <div className="selection-focus-actions__cells">
+            {session.groups.filter((group) => group.length > 0).map((group, groupIndex) => (
+              <Fragment key={`${session.key}:group:${groupIndex}`}>
+                {groupIndex > 0 ? (
+                  <span className="selection-focus-actions__gap" aria-hidden="true" />
+                ) : null}
+                {group.map((action, wellIndex) => (
                   <button
                     key={action.id}
-                    type="button"
-                    className={`selection-focus-actions__button${action.danger ? ' danger' : ''}`}
+                    type="button" className="selection-focus-actions__item"
+                    style={{ '--well-index': groupIndex * 4 + wellIndex } as CssProps}
+                    data-danger={action.danger ? 'true' : undefined}
                     title={action.title}
                     disabled={action.disabled}
                     onClick={action.onSelect}
@@ -166,9 +193,9 @@ function FltnSelCtnsH({ session }: { session: RgstFltnSelS | null }) {
                     <span className="selection-focus-actions__label">{action.label}</span>
                   </button>
                 ))}
-              </div>
-            ) : null
-          ))}
+              </Fragment>
+            ))}
+          </div>
         </motion.div>
       ) : null}
     </NmtPrsn>,

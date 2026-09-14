@@ -50,7 +50,7 @@ export function makeAbsoluteUrl(path: string): string {
 }
 
 export function resolveSeoRoute(pathname: string): ResolvedSeoRoute {
-  const normalized = pathname === '/' ? '/calculator' : pathname.replace(/\/+$/, '') || '/calculator'
+  const normalized = pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/'
   const route = routeByPath.get(normalized)
   const title = route?.title ?? SEO_CONFIG.defaultTitle
   const description = route?.description ?? SEO_CONFIG.defaultDescription

@@ -7,7 +7,7 @@
 import type { ResProf, SlotLocalState } from '@/domain/entities/profile'
 import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import { cloneSntSet, DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
-import type { SlotId } from '@/domain/entities/session'
+import type { SlotId } from '@/domain/entities/combatGraph'
 import type {
   ResRuntime,
   ResSeed,
@@ -25,9 +25,9 @@ import {
   mkMaxSkllLvl,
   mkDefRot,
 } from '@/domain/state/defaults'
-import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { repairEchoLoadoutForCatalog } from '@/domain/state/echoCatalogRepair'
 import { mkMaxTrcNode } from '@/domain/state/traceNodes'
 import {
   cloneBuffs,
@@ -119,23 +119,7 @@ function matSlotWpn(seed: ResSeed, profile: ResProf, slotId: SlotId) {
 }
 
 function matEchoLoadout(profile: ResProf) {
-  return profile.runtime.build.echoes.map((echo) => {
-    if (!echo) {
-      return null
-    }
-
-    const definition = getEchoById(echo.id)
-    if (!definition) {
-      return null
-    }
-
-    return {
-      ...echo,
-      set: definition.sets.includes(echo.set)
-        ? echo.set
-        : definition.sets[0] ?? echo.set,
-    }
-  })
+  return repairEchoLoadoutForCatalog(profile.runtime.build.echoes)
 }
 
 function matTeamRuntimes(profile: ResProf): [TeamMemRt | null, TeamMemRt | null] {
@@ -227,23 +211,7 @@ export function matTeamMemFr(
         ),
         level: MAX_WPN_LVL,
       },
-      echoes: tmr.build.echoes.map((echo) => {
-        if (!echo) {
-          return null
-        }
-
-        const definition = getEchoById(echo.id)
-        if (!definition) {
-          return null
-        }
-
-        return {
-          ...echo,
-          set: definition.sets.includes(echo.set)
-            ? echo.set
-            : definition.sets[0] ?? echo.set,
-        }
-      }),
+      echoes: repairEchoLoadoutForCatalog(tmr.build.echoes),
       team: teamSlots,
     },
     state: {

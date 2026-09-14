@@ -15,7 +15,7 @@ Use these docs in this order:
 - [architecture.md](./architecture.md)
   High level system map. Start here.
 - [app-shell-and-routing.md](./app-shell-and-routing.md)
-  App bootstrap, route table, shell ownership, and calculator stage switching.
+  App bootstrap, Home / Read / Simulation routes, shell ownership, persistent workspace routing, and hidden legacy pages.
 - [state-and-persistence.md](./state-and-persistence.md)
   Store structure, runtime materialization, persistence slices, and hydration behavior.
 - [game-data-and-content-pipeline.md](./game-data-and-content-pipeline.md)
@@ -25,7 +25,7 @@ Use these docs in this order:
 - [optimizer-and-suggestions.md](./optimizer-and-suggestions.md)
   Suggestions, workers, optimizer compile and search flow, CPU and GPU paths, and result materialization.
 - [feature-surfaces.md](./feature-surfaces.md)
-  User facing module ownership across calculator, settings, content, and system surfaces.
+  User-facing ownership across Home, Read, Simulation, Settings, and System surfaces.
 - [deployment-and-operations.md](./deployment-and-operations.md)
   Local development, Cloudflare deployment, OAuth, sync, and checked in maintenance workflows.
 

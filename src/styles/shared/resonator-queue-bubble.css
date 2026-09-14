@@ -2,6 +2,7 @@
   display: flex;
   align-items: center;
   gap: 0;
+  opacity: 0.5;
   height: 3rem;
   padding: 0.35rem;
   border-radius: 999px;
@@ -13,7 +14,8 @@
     0 0.35rem 1.2rem rgba(0, 0, 0, 0.22),
     0 0 0 1px color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 6%, transparent);
   user-select: none;
-  will-change: left, top;
+  will-change: left, top, opacity;
+  transition: opacity 180ms ease;
 }
 
 .resonator-queue-bubble__icon {
@@ -25,6 +27,10 @@
   border: 1px solid color-mix(in srgb, var(--resonator-accent, var(--accent, #20bfb9)) 25%, var(--border, rgba(255, 255, 255, 0.1)));
   background: color-mix(in srgb, var(--text, #fff) 6%, transparent);
   transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.resonator-queue-bubble:hover {
+  opacity: 1;
 }
 
 .resonator-queue-bubble:hover .resonator-queue-bubble__icon {

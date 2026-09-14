@@ -5,7 +5,7 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 
-// serialize the runtime fields that change calculator and optimizer behavior.
+// Serialize the runtime fields that change Simulation and Optimizer behavior.
 export function runtimeSig(runtime: ResRuntime): string {
   return JSON.stringify({
     id: runtime.id,

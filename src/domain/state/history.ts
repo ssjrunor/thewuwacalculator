@@ -59,32 +59,32 @@ export function resFllbHistL(dirtyDomains: PersistKey[]): string {
   // prefer the most user-meaningful domain bucket instead of echoing raw keys.
   const domainSet = new Set(dirtyDomains)
 
-  if (domainSet.has('calculator.inventory.echoes')) {
+  if (domainSet.has('library.echoes')) {
     return 'Updated Inventory Echoes'
   }
 
-  if (domainSet.has('calculator.inventory.builds')) {
+  if (domainSet.has('library.builds')) {
     return 'Updated Inventory Builds'
   }
 
-  if (domainSet.has('calculator.inventory.rotations')) {
+  if (domainSet.has('library.rotations')) {
     return 'Updated Inventory Rotations'
   }
 
-  if (domainSet.has('calculator.optimizerContext')) {
-    return 'Updated Simulation State'
+  if (domainSet.has('library.scenarios')) {
+    return 'Updated Saved Scenarios'
   }
 
-  if (domainSet.has('calculator.profiles')) {
-    return 'Updated Resonator Setup'
+  if (domainSet.has('simulation.optimizerSettings')) {
+    return 'Updated Optimizer Settings'
   }
 
-  if (domainSet.has('calculator.suggestions')) {
+  if (domainSet.has('combat.workspace')) {
+    return 'Updated Combat Scenario'
+  }
+
+  if (domainSet.has('simulation.suggestions')) {
     return 'Updated Suggestions'
-  }
-
-  if (domainSet.has('calculator.session')) {
-    return 'Updated Session'
   }
 
   if (domainSet.has('ui.savedRotationPreferences')) {

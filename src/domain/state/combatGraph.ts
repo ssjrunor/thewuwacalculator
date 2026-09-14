@@ -1,22 +1,22 @@
 /*
   Author: Runor Ewhro
-  Description: Builds combat graphs from calculator or transient runtime
-               state and provides helpers for participant slot resolution.
+  Description: Builds execution graphs from projected scenario members and
+               resolves fixed-width engine coordinates.
 */
 
-import type { CalcState } from '@/domain/entities/appState'
-import type { CombatGraph, CombatPart } from '@/domain/entities/combatGraph'
+import {
+  teamMemberId,
+  type EnvironmentTargetModifiers,
+  type TeamMemberId,
+} from '@/domain/entities/combatScenario'
+import type { ManualBuffs } from '@/domain/entities/manualBuffs'
+import type { CombatGraph, CombatPart, SlotId } from '@/domain/entities/combatGraph'
 import type { ResRuntime, ResSeed, TeamSlots } from '@/domain/entities/runtime'
-import type { SlotId } from '@/domain/entities/session'
 import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService'
 import {
   SLOT_IDS,
   cloneSlotLuo,
 } from '@/domain/state/runtimeMaterialization'
-import {
-  mkWorkRtBndl,
-  type WorkRtBndl,
-} from '@/domain/state/runtimeAdapters'
 import { cloneSlotRml } from '@/domain/state/defaults'
 import {
   cloneResRtSt,
@@ -27,6 +27,9 @@ interface MkTrnsCmbtGr {
   activeSeed?: ResSeed
   partRts?: Record<string, ResRuntime>
   targetsByRes?: Record<string, Record<string, string | null>>
+  memberIdByResonatorId?: Readonly<Record<string, TeamMemberId>>
+  environmentBuffsByMemberId?: Readonly<Record<TeamMemberId, ManualBuffs>>
+  environmentTargetModifiers?: EnvironmentTargetModifiers
 }
 
 // find the slot id for a resonator inside a combat graph
@@ -37,6 +40,13 @@ export function findCombatPart(graph: CombatGraph, resonatorId: string): SlotId 
     }
   }
 
+  return null
+}
+
+export function findCombatPartByMemberId(graph: CombatGraph, memberId: TeamMemberId): SlotId | null {
+  for (const slotId of SLOT_IDS) {
+    if (graph.participants[slotId]?.memberId === memberId) return slotId
+  }
   return null
 }
 
@@ -81,86 +91,15 @@ export function rbldCmbtPart(graph: CombatGraph, slotId: SlotId): CombatPart | n
   return nextPart
 }
 
-// build a combat graph from persisted calculator state
-export function mkCmbtGrphFr(
-    calculator: CalcState,
-    workspace: WorkRtBndl,
-): CombatGraph {
-  const participants = {} as Record<SlotId, CombatPart>
-  const activeId = workspace.actResId
-  const actProf = activeId ? calculator.profiles[activeId] : null
-
-  // active slot
-  if (activeId && actProf && workspace.actRt) {
-    const seed = getResSeedBy(activeId)
-    if (seed) {
-      const runtime = workspace.actRt
-
-      participants.active = {
-        slotId: 'active',
-        resonatorId: activeId,
-        slot: {
-          slotId: 'active',
-          resonatorId: activeId,
-          local: cloneSlotLuo(actProf.runtime.local),
-          routing: cloneSlotRml(actProf.runtime.routing),
-        },
-        runtime: cloneResRtSt(runtime),
-        baseStats: resResBaseSt(seed, runtime.base.level),
-        snapshots: {},
-      }
-    }
-  }
-
-  // team slots sourced from the active profile's compact team runtimes
-  if (actProf) {
-    const slotIds: SlotId[] = ['team1', 'team2']
-
-    for (let i = 0; i < 2; i += 1) {
-      const tmr = actProf.runtime.teamRuntimes?.[i] ?? null
-      if (!tmr) continue
-
-      const seed = getResSeedBy(tmr.id)
-      if (!seed) continue
-
-      const runtime = workspace.partRtsById[tmr.id]
-      if (!runtime) {
-        continue
-      }
-
-      participants[slotIds[i]] = {
-        slotId: slotIds[i],
-        resonatorId: tmr.id,
-        slot: {
-          slotId: slotIds[i],
-          resonatorId: tmr.id,
-          local: cloneSlotLuo(runtime.state),
-          routing: cloneSlotRml(actProf.runtime.routing),
-        },
-        runtime: cloneResRtSt(runtime),
-        baseStats: resResBaseSt(seed, runtime.base.level),
-        snapshots: {},
-      }
-    }
-  }
-
-  return {
-    activeSlotId: 'active',
-    participants,
-  }
-}
-
-// build a combat graph from persisted calculator state
-export function mkCmbtGrph(calculator: CalcState): CombatGraph {
-  return mkCmbtGrphFr(calculator, mkWorkRtBndl(calculator))
-}
-
 // build a temporary combat graph directly from runtime snapshots
 export function makeCombatGraph({
                                             actRt: actRt,
                                             activeSeed,
                                             partRts: partRntm = {},
                                             targetsByRes: targetsByRes = {},
+                                            memberIdByResonatorId = {},
+                                            environmentBuffsByMemberId,
+                                            environmentTargetModifiers,
                                           }: MkTrnsCmbtGr): CombatGraph {
   const participants = {} as Record<SlotId, CombatPart>
   const teamSlots = [...actRt.build.team] as TeamSlots
@@ -191,9 +130,11 @@ export function makeCombatGraph({
 
     participants[slotId] = {
       slotId,
+      memberId: memberIdByResonatorId[resonatorId] ?? teamMemberId(resonatorId),
       resonatorId,
       slot: {
         slotId,
+        memberId: memberIdByResonatorId[resonatorId] ?? teamMemberId(resonatorId),
         resonatorId,
         local: cloneSlotLuo(runtime.state),
         routing: cloneSlotRml(
@@ -211,5 +152,7 @@ export function makeCombatGraph({
   return {
     activeSlotId: 'active',
     participants,
+    environmentBuffsByMemberId,
+    environmentTargetModifiers,
   }
 }

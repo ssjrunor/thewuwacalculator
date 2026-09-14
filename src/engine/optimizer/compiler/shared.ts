@@ -82,6 +82,8 @@ export function mkShrdPay(
   })
 
   return {
+    scenarioId: input.scenarioId,
+    memberId: input.memberId,
     // Top-K / result retention settings
     resultsLimit: input.settings.resultsLimit,
     lowMmryMode: input.settings.lowMemoryMode,

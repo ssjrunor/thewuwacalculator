@@ -1,0 +1,147 @@
+
+
+.lho {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.lho-line {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.lho-title {
+  margin: 0;
+  font: 700 1.02rem/1 var(--display-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.lho-read {
+  font: 600 0.64rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 200ms ease;
+}
+
+
+.lho-read[data-over] {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--workspace-down, #e7553f) 78%, var(--text));
+}
+
+.lho-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.lho-tool-slot {
+  display: inline-flex;
+  align-items: center;
+}
+
+.lho-sep {
+  width: 1px;
+  height: 0.7rem;
+  margin: 0 0.55rem;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.lho-tool {
+  padding: 0;
+  border: 0;
+  background: var(--c-transparent);
+  color: color-mix(in srgb, var(--text) 58%, var(--surface));
+  font: 700 0.6rem/1 var(--mono-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease;
+}
+
+.lho-tool:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.lho-tool:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--resonator-accent) 70%, transparent);
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}
+
+.lho-tool:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.lho-tool--danger:hover:not(:disabled) {
+  color: var(--workspace-down, #e7553f);
+}
+
+
+.lho-tool--go {
+  padding: 0.34rem 0.62rem;
+  border-radius: 0.45rem;
+  color: color-mix(in srgb, var(--resonator-accent) 84%, var(--text));
+  background: color-mix(in srgb, var(--resonator-accent) 12%, var(--c-transparent));
+}
+
+.lho-tool--go:hover:not(:disabled) {
+  color: color-mix(in srgb, var(--resonator-accent) 94%, var(--text));
+  background: color-mix(in srgb, var(--resonator-accent) 20%, var(--c-transparent));
+}
+
+.lho-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.lho-seg {
+  height: 1px;
+  background: var(--workspace-line-soft);
+}
+
+.lho-seg--lead { flex: none; width: 1.6rem; }
+.lho-seg--rest { flex: 1; }
+
+.lho-word {
+  font: 700 0.56rem/1 var(--mono-font);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 46%, var(--surface));
+  white-space: nowrap;
+  transition: color 200ms ease;
+}
+
+.lho-word[data-proposed] {
+  color: color-mix(in srgb, var(--resonator-accent) 78%, var(--text));
+}
+
+
+.lho-line .pgs-seat-stack {
+  flex: none;
+  margin-left: 0;
+}
+
+@media (max-width: 80rem) {
+  .lho-line {
+    flex-wrap: wrap;
+    gap: 0.5rem 0.7rem;
+  }
+
+  .lho-tools {
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
+  }
+}

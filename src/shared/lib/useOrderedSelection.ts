@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Manages ordered multi-selection with command-click, shift-range,
-               select-all, and keyboard action helpers for calculator surfaces.
+               select-all, and keyboard action helpers for Simulation surfaces.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,18 +24,47 @@ interface RdrdSelClckP {
   shouldIgnore?: (event: RctMsVnt<HTMLElement>) => boolean
 }
 
-interface RdrdSelKeyDo {
+interface RdrdSelKeyDo<TId extends RdrdSelId> {
   active?: boolean
-  onCopy?: () => void
-  onCut?: () => void
-  onPaste?: () => void
-  onDelete?: () => void
+  /**
+   * What the surface tracks outside selection mode, usually the one entry it
+   * has open. The clipboard shortcuts fall back to it so a row that is simply
+   * picked answers the same keys a selected one does. Ids the surface does not
+   * offer for selection are dropped, which is what keeps an uneditable entry
+   * out of reach of them.
+   */
+  trackedIds?: readonly TId[]
+  onCopy?: (ids: readonly TId[]) => void
+  onCut?: (ids: readonly TId[]) => void
+  onPaste?: (ids: readonly TId[]) => void
+  onDelete?: (ids: readonly TId[]) => void
 }
 
 interface UseRdrdSelAr<TId extends RdrdSelId> {
   active?: boolean
   orderedIds: readonly TId[]
   availableIds?: readonly TId[]
+  selectAllIds?: readonly TId[]
+}
+
+/**
+ * The ids a clipboard shortcut acts on.
+ *
+ * Selection mode acts on what was picked. Outside it the surface's own tracked
+ * entry stands in, narrowed to ids the surface offers for selection: that is
+ * what keeps a row it will not let you pick out of reach of the keys.
+ */
+export function shortcutTargetIds<TId extends RdrdSelId>(
+  selectMode: boolean,
+  selectedIds: readonly TId[],
+  trackedIds: readonly TId[] | undefined,
+  validIds: ReadonlySet<TId>,
+): readonly TId[] {
+  if (selectMode) {
+    return selectedIds
+  }
+
+  return (trackedIds ?? []).filter((id) => validIds.has(id))
 }
 
 function areIdRrysQl<TId extends RdrdSelId>(left: readonly TId[], right: readonly TId[]): boolean {
@@ -81,6 +110,7 @@ export function useRdrdSel<TId extends RdrdSelId>({
   active = true,
   orderedIds,
   availableIds,
+  selectAllIds,
 }: UseRdrdSelAr<TId>) {
   const anchorIdRef = useRef<TId | null>(null)
   const [selectMode, setSlctMode] = useState(false)
@@ -170,14 +200,15 @@ export function useRdrdSel<TId extends RdrdSelId>({
 
   const selectAll = useCallback(() => {
     setSlctMode(true)
-    anchorIdRef.current = orderedIds.at(-1) ?? null
+    const bulkIds = selectAllIds ?? orderedIds
+    anchorIdRef.current = bulkIds.at(-1) ?? null
     setState((previous) => {
-      const nextIds = orderedIds.filter((id) => validIdSet.has(id))
+      const nextIds = bulkIds.filter((id) => validIdSet.has(id))
       return areIdRrysQl(previous.orderedIds, nextIds)
         ? previous
         : { orderedIds: nextIds }
     })
-  }, [validIdSet, orderedIds])
+  }, [orderedIds, selectAllIds, validIdSet])
 
   const deselectAll = useCallback(() => {
     setSlctMode(true)
@@ -242,11 +273,12 @@ export function useRdrdSel<TId extends RdrdSelId>({
     event: RctKybrVnt<HTMLElement>,
     {
       active: kybrAct = active,
+      trackedIds,
       onCopy,
       onCut,
       onPaste,
       onDelete,
-    }: RdrdSelKeyDo = {},
+    }: RdrdSelKeyDo<TId> = {},
   ): boolean => {
     if (!kybrAct || isDtblVntTgt(event.target)) {
       return false
@@ -260,6 +292,12 @@ export function useRdrdSel<TId extends RdrdSelId>({
 
     const commandKey = event.metaKey || event.ctrlKey
     const lowerKey = event.key.toLowerCase()
+    const targetIds = shortcutTargetIds(selectMode, selectedIds, trackedIds, validIdSet)
+    const hasTarget = targetIds.length > 0
+    // a real text selection keeps its native copy: only a bare caret hands
+    // the clipboard keys to the tracked row.
+    const takesClipboard = hasTarget
+      && (selectMode || (globalThis.getSelection?.()?.isCollapsed ?? true))
 
     if (commandKey && lowerKey === 'a') {
       event.preventDefault()
@@ -272,32 +310,32 @@ export function useRdrdSel<TId extends RdrdSelId>({
       return true
     }
 
-    if (commandKey && lowerKey === 'c' && selectMode && hasSelection && onCopy) {
+    if (commandKey && lowerKey === 'c' && takesClipboard && onCopy) {
       event.preventDefault()
-      onCopy()
+      onCopy(targetIds)
       return true
     }
 
-    if (commandKey && lowerKey === 'x' && selectMode && hasSelection && onCut) {
+    if (commandKey && lowerKey === 'x' && takesClipboard && onCut) {
       event.preventDefault()
-      onCut()
+      onCut(targetIds)
       return true
     }
 
     if (commandKey && lowerKey === 'v' && onPaste) {
       event.preventDefault()
-      onPaste()
+      onPaste(targetIds)
       return true
     }
 
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectMode && hasSelection && onDelete) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && hasTarget && onDelete) {
       event.preventDefault()
-      onDelete()
+      onDelete(targetIds)
       return true
     }
 
     return false
-  }, [active, deselectAll, exitSelMode, hasSelection, selectAll, selectMode])
+  }, [active, deselectAll, exitSelMode, selectAll, selectMode, selectedIds, validIdSet])
 
   const isSelected = useCallback((id: TId) => selIdSet.has(id), [selIdSet])
 

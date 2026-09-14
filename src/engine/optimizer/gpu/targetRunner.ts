@@ -8,6 +8,7 @@
 
 import tgtShdrCode from '@/engine/optimizer/shaders/target.wgsl?raw'
 import wpnShdrCode from '@/engine/optimizer/shaders/weaponSearch.wgsl?raw'
+import { withOptimizerDamageSpec } from '@/engine/optimizer/damageSpec.ts'
 import {
   mkChckBindGr,
   mkChckCmptPp,
@@ -46,6 +47,9 @@ import {
   ptchTgtCtxDi,
   ptchTgtCtxFo,
 } from '@/engine/optimizer/context/pack.ts'
+
+const targetShaderCode = withOptimizerDamageSpec(tgtShdrCode)
+const weaponShaderCode = withOptimizerDamageSpec(wpnShdrCode)
 
 interface TgtGpuJobPay {
   // absolute combo start for this job within the global search space
@@ -186,7 +190,7 @@ async function getBatchPipeline(
         device,
         label: 'optimizer-weapon-pipeline-batch',
         layout,
-        code: wpnShdrCode,
+        code: weaponShaderCode,
         constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
       })
     }
@@ -198,7 +202,7 @@ async function getBatchPipeline(
       device,
       label: 'optimizer-target-pipeline-batch',
       layout,
-      code: tgtShdrCode,
+      code: targetShaderCode,
       constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
     })
   }
@@ -235,7 +239,7 @@ async function getWeaponPipeline(device: GPUDevice): Promise<{ layout: GPUBindGr
     device,
     label: 'optimizer-weapon-pipeline',
     layout: cachedWpnLayout,
-    code: wpnShdrCode,
+    code: weaponShaderCode,
   })
 
   return { layout: cachedWpnLayout, pipeline: cachedWpnPipeline }
@@ -270,7 +274,7 @@ async function getPipeline(device: GPUDevice): Promise<{ layout: GPUBindGroupLay
     device,
     label: 'optimizer-target-pipeline',
     layout: cachedLayout,
-    code: tgtShdrCode,
+    code: targetShaderCode,
   })
 
   return { layout: cachedLayout, pipeline: cachedPipeline }

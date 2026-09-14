@@ -98,16 +98,17 @@ External integration and environment specific code:
 - analytics
 - cookies
 
-This layer should not own calculator rules. It owns persistence and platform behavior.
+This layer should not own simulation rules. It owns persistence and platform behavior.
 
 ### `src/modules`
 
-Route facing feature surfaces:
+Route-facing feature surfaces:
 
-- calculator
-- settings
-- content
-- system
+- `home`
+- `read`
+- `simulation`
+- `settings`
+- `system`
 
 This is where domain state and engine outputs become interactive UI.
 
@@ -127,28 +128,14 @@ Reusable UI primitives and low level helpers:
 Primary files:
 
 - [src/app/router/routeTable.tsx](../src/app/router/routeTable.tsx)
-- [src/shared/ui/RouteChrome.tsx](../src/shared/ui/RouteChrome.tsx)
-- [src/modules/calculator/pages/CalculatorPage.tsx](../src/modules/calculator/pages/CalculatorPage.tsx)
+- [src/app/chrome/RouteChrome.tsx](../src/app/chrome/RouteChrome.tsx)
+- [src/modules/simulation/pages/SimulationPage.tsx](../src/modules/simulation/pages/SimulationPage.tsx)
 
-The route table is intentionally small:
-
-- `/`
-- `/settings`
-- `/info`
-- `/guides`
-- `/changelog`
-- `/privacy`
-- `/terms`
+The public route hierarchy is `Home > Read / Simulation`, expressed with flat URLs. Home is `/`. Simulation tools are `/modulation`, `/rotation`, `/showcase`, and `/optimizer`; Read owns Info, Guides, Docs, Changelog, Privacy, and Terms; What's New is an act on Home.
 
 Pages mount under a shared `RouteChrome`. The chrome owns global shell behavior such as navigation, shell styling, toasts, the app status modal, cookie banner, and shared modal infrastructure.
 
-The calculator route contains an internal stage switch:
-
-- `default`
-- `optimizer`
-- `overview`
-
-That switch is not separate routing. It is store driven staging inside `CalculatorPage`.
+Modulation, Showcase, and Optimizer share one persistent parameterized route and mounted workspace. Rotation has its own editor surface under the same Simulation provider. Temporary direct legacy pages live below `src/modules/simulation/legacy` and are omitted from navigation and SEO.
 
 See [app-shell-and-routing.md](./app-shell-and-routing.md) for detail.
 
@@ -201,7 +188,7 @@ The app distinguishes between:
 - materialized runtime state
 - transient execution state
 
-Persisted state holds durable user choices such as profiles, session, inventory, optimizer context, and saved UI preferences.
+Persisted state holds durable user choices such as combat scenarios, inventory, optimizer settings, and saved UI preferences.
 
 Runtime adapters expand that into active runtime structures for the engine:
 

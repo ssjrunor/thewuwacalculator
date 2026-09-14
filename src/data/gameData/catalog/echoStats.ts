@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Cached echo stat tables loaded from JSON before runtime
-               consumers import calculator modules.
+               consumers import Simulation modules.
 */
 
 export interface EchoSideStat {

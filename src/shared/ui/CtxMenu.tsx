@@ -1,26 +1,37 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the floating context-menu renderer, including portal
-               mounting, viewport-aware panel layout, submenu hover intent, and
-               optional preview panels.
+  Description: Owns ctx menu behavior and state transitions for the ui module.
+               Every level is a rail: a row of wells with a readout at its end,
+               or a stacked column when the entries are too long to sweep.
 */
 
 import type {
   CSSProperties as CssProps,
+  KeyboardEvent as RctKbdVnt,
   MouseEvent as RctMsVnt,
-  PointerEvent as RctPntrVnt,
   ReactNode,
 } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
-import { useAnimVis } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
 import { bodyPortal } from '@/shared/lib/portalTarget'
+import { AppPopupSurface, syncAppPopupTokens } from '@/shared/ui/AppPopup'
 
-const DEFMENUWDTH = 178
 const DEFVWPRPDDN = 12
-const DEFSBMNFFST = 24
-const MENUEXITDURM = 620
+const RAILGAP = 9
+const MENUEXITDURM = 190
 const HVRCLSDLYMS = 180
+const COLBDGTPX = 432
+const HVRARMMS = 90
+const RAILSTEPPX = 46
 
 export interface CtxOpenEvent {
   clientX: number
@@ -70,6 +81,9 @@ export interface MenuItem<TData = unknown> {
   label: ReactNode
   hint?: ReactNode
   icon?: ReactNode
+  /* a full-bleed image for the well, used where the entry has art of its own:
+     resonator portraits, echo icons, sonata glyphs. */
+  art?: string
   preview?: ReactNode | ((context: CtxSelect<TData>) => ReactNode)
   disabled?: boolean
   danger?: boolean
@@ -94,23 +108,42 @@ export interface CtxProps<TData = unknown> {
     | MenuEntry<TData>[]
     | ((context: CtxSelect<TData>) => MenuEntry<TData>[])
   portalTarget?: HTMLElement | null
+  /* kept for call-site compatibility; a rail sizes to its own content and only
+     uses this as the minimum width of a stacked one. */
   width?: number
   vwprPddn?: number
   className?: string
   ariaLabel?: string
 }
 
-type MenuPanelSide = 'right' | 'left'
+type RailKind = 'art' | 'icon' | 'text'
+type GrowDir = 'up' | 'down'
+type AnyItem = MenuItem<unknown>
+type AnyEntry = MenuEntry<unknown>
 
-interface CtxPnlLytStt {
-  style: CssProps
-  side: MenuPanelSide
-  childSide: MenuPanelSide
+interface RailPlace {
+  left: number
+  top: number
+  stem: StemPlace | null
+}
+
+interface StemPlace {
+  axis: 'x' | 'y'
+  dir: 'start' | 'end'
+  left: number
+  top: number
+  length: number
+}
+
+interface CtxLevel {
+  entries: AnyEntry[]
+  label: string
+  preview: ReactNode | null
 }
 
 export function useCtxMenu<TData = unknown>(): CtxCtrl<TData> {
   const [state, setState] = useState<CtxState<TData> | null>(null)
-  const visibility = useAnimVis(MENUEXITDURM)
+  const visibility = useAnimatedVisibility(MENUEXITDURM)
 
   const close = useCallback(() => {
     visibility.hide(() => {
@@ -132,8 +165,7 @@ export function useCtxMenu<TData = unknown>(): CtxCtrl<TData> {
         event.stopPropagation()
       }
 
-      // capture pointer location and event target once so the menu and any
-      // action handlers can derive context without holding the original event.
+      // Snapshot coordinates and target so handlers never retain SyntheticEvent.
       setState({
         clientX: event.clientX,
         clientY: event.clientY,
@@ -159,40 +191,337 @@ export function useCtxMenu<TData = unknown>(): CtxCtrl<TData> {
   }
 }
 
-export function ContextMenu<TData = unknown>({
-                                           controller,
-                                           items,
-                                           portalTarget,
-                                           width = DEFMENUWDTH,
-                                           vwprPddn: vwprPddn = DEFVWPRPDDN,
-                                           className = '',
-                                           ariaLabel = 'Context menu',
-                                         }: CtxProps<TData>) {
-  const menuRef = useRef<HTMLDivElement | null>(null)
-  const sbmnClsTmrRe = useRef<number | null>(null)
-  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
-  const submenuRefs = useRef<Array<HTMLDivElement | null>>([])
-  const frameRef = useRef<number | null>(null)
+function isItem(entry: AnyEntry): entry is AnyItem {
+  return entry.type !== 'separator'
+}
 
-  const ntlPntrRef = useRef<{ x: number; y: number } | null>(null)
+function onlyItems(entries: AnyEntry[]): AnyItem[] {
+  return entries.filter(isItem)
+}
+
+function mkEntGrps(entries: AnyEntry[]): AnyItem[][] {
+  const groups: AnyItem[][] = []
+  let current: AnyItem[] = []
+
+  for (const entry of entries) {
+    if (!isItem(entry)) {
+      if (current.length > 0) {
+        groups.push(current)
+        current = []
+      }
+      continue
+    }
+
+    current.push(entry)
+  }
+
+  if (current.length > 0) {
+    groups.push(current)
+  }
+
+  return groups
+}
+
+/* A rail sweeps as bare wells only when every entry can be told apart without a
+   word. Anything short of that shows labels, and stacks if it then runs long. */
+function getRailKind(items: AnyItem[]): RailKind {
+  if (items.length === 0) return 'text'
+  if (items.every((item) => Boolean(item.art))) return 'art'
+  if (items.every((item) => Boolean(item.icon))) return 'icon'
+  return 'text'
+}
+
+/* Roughly how wide this rail would be lying across, in px. Deciding from the
+   content rather than a measured pass means a rail is born in the right
+   orientation instead of being laid out twice. */
+function estRailWidth(items: AnyItem[], readPx: number): number {
+  return items.reduce((total, item) => {
+    const text = labelText(item.label) ?? ''
+    const cell = clampTo(text.length * 6.6 + 20, 54, 152)
+    return total + cell
+  }, 0) + readPx
+}
+
+function isItemDsbld(item: AnyItem): boolean {
+  return Boolean(item.disabled) || (!item.onSelect && !item.submenu && !item.preview)
+}
+
+function isItemBrnch(item: AnyItem): boolean {
+  return Boolean(item.submenu || item.preview)
+}
+
+function maxTreeDepth(entries: AnyEntry[], guard = 0): number {
+  if (guard > 6) return guard
+
+  let deepest = 1
+
+  for (const entry of entries) {
+    if (!isItem(entry) || !Array.isArray(entry.submenu)) continue
+    deepest = Math.max(deepest, 1 + maxTreeDepth(entry.submenu, guard + 1))
+  }
+
+  return deepest
+}
+
+function clampTo(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
+function labelText(label: ReactNode): string | undefined {
+  return typeof label === 'string' ? label : undefined
+}
+
+function readTail(item: AnyItem): ReactNode {
+  if (item.hint) return item.hint
+  if (Array.isArray(item.submenu)) return `${onlyItems(item.submenu).length} options`
+  if (item.submenu) return 'more'
+  if (item.preview) return 'preview'
+  if (item.danger) return 'destructive'
+  return 'select'
+}
+
+interface CtxRailProps {
+  entries: AnyEntry[]
+  preview: ReactNode | null
+  label: string
+  level: number
+  openId: string | null
+  minWidth: number
+  className: string
+  ariaLabel: string
+  stateAttrs: Record<string, string | undefined>
+  place: (level: number, element: HTMLDivElement, col: boolean) => RailPlace
+  onRegister: (level: number, element: HTMLDivElement | null) => void
+  onHoverItem: (level: number, item: AnyItem, element: HTMLButtonElement) => void
+  onLeaveRail: (level: number) => void
+  onSelectItem: (item: AnyItem) => void
+  onKeyDown: (level: number, col: boolean, event: RctKbdVnt<HTMLDivElement>) => void
+}
+
+function CtxRail({
+  entries,
+  preview,
+  label,
+  level,
+  openId,
+  minWidth,
+  className,
+  ariaLabel,
+  stateAttrs,
+  place,
+  onRegister,
+  onHoverItem,
+  onLeaveRail,
+  onSelectItem,
+  onKeyDown,
+}: CtxRailProps) {
+  const railRef = useRef<HTMLDivElement | null>(null)
+  const stemRef = useRef<HTMLSpanElement | null>(null)
+  const [hotId, setHotId] = useState<string | null>(null)
+
+  const groups = useMemo(() => mkEntGrps(entries), [entries])
+  const items = useMemo(() => onlyItems(entries), [entries])
+  const kind = useMemo(() => getRailKind(items), [items])
+
+  /* Only a rail of bare words can outrun a sweep: art and icon wells stay
+     compact however many there are, so they never stand up. */
+  const col = useMemo(() => {
+    if (preview || kind !== 'text') return false
+
+    const budget = Math.min(window.innerWidth - DEFVWPRPDDN * 2, COLBDGTPX)
+    return estRailWidth(items, 138) > budget
+  }, [items, kind, preview])
+
+  /* Position is geometry, not render state: the rail is measured and moved in
+     the same layout pass, before the browser paints it. */
+  useLayoutEffect(() => {
+    const element = railRef.current
+    if (!element) return
+
+    const spot = place(level, element, col)
+
+    element.style.left = `${spot.left}px`
+    element.style.top = `${spot.top}px`
+    element.dataset.placed = 'true'
+
+    const stemEl = stemRef.current
+    if (!stemEl) return
+
+    if (!spot.stem) {
+      stemEl.hidden = true
+      return
+    }
+
+    stemEl.hidden = false
+    stemEl.dataset.axis = spot.stem.axis
+    stemEl.dataset.dir = spot.stem.dir
+    stemEl.style.left = `${spot.stem.left}px`
+    stemEl.style.top = `${spot.stem.top}px`
+    stemEl.style.height = spot.stem.axis === 'y' ? `${spot.stem.length}px` : ''
+    stemEl.style.width = spot.stem.axis === 'x' ? `${spot.stem.length}px` : ''
+  }, [col, level, place, entries])
+
+  useEffect(() => {
+    onRegister(level, railRef.current)
+    return () => onRegister(level, null)
+  }, [level, onRegister])
+
+  const readItem = items.find((item) => item.id === (hotId ?? openId)) ?? null
+
+  const style: CssProps = col ? { minWidth: `${minWidth}px` } : {}
+
+  return (
+    <>
+      {level > 0 ? (
+        <span
+          ref={stemRef} className="floating-context-menu__stem"
+          {...stateAttrs}
+          hidden
+          aria-hidden="true"
+        />
+      ) : null}
+
+    <AppPopupSurface
+      ref={railRef}
+      className={`floating-context-menu ${preview ? 'floating-context-menu--preview' : ''} ${className}`.trim()}
+      open={stateAttrs['data-open'] === 'true'}
+      closing={stateAttrs['data-closing'] === 'true'}
+      style={style}
+      role={preview ? 'presentation' : 'menu'}
+      aria-label={preview ? undefined : ariaLabel}
+      aria-hidden={preview ? 'true' : undefined}
+      tabIndex={preview ? undefined : -1}
+      data-level={level}
+      data-col={col ? 'true' : undefined}
+      data-kind={kind}
+      {...stateAttrs}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onMouseLeave={() => {
+        setHotId(null)
+        onLeaveRail(level)
+      }}
+      onKeyDown={(event) => {
+        if (!preview) onKeyDown(level, col, event)
+      }}
+    >
+      {preview ? (
+        <div className="floating-context-menu__preview">{preview}</div>
+      ) : (
+        <>
+          <div className="floating-context-menu__cells">
+            {groups.map((group, groupIndex) => (
+              <Fragment key={`grp:${level}:${groupIndex}`}>
+                {groupIndex > 0 && !col ? (
+                  <span className="floating-context-menu__gap" aria-hidden="true" />
+                ) : null}
+                {group.map((item, itemIndex) => {
+                  const disabled = isItemDsbld(item)
+                  const branching = isItemBrnch(item)
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button" className="floating-context-menu__item"
+                      role="menuitem"
+                      data-id={item.id}
+                      disabled={disabled}
+                      data-danger={item.danger ? 'true' : undefined}
+                      data-hot={hotId === item.id ? 'true' : undefined}
+                      data-open={openId === item.id ? 'true' : undefined}
+                      data-branch={branching ? 'true' : undefined}
+                      aria-haspopup={item.submenu ? 'menu' : undefined}
+                      aria-expanded={item.submenu ? openId === item.id : undefined}
+                      aria-label={col || kind === 'text' ? undefined : labelText(item.label)}
+                      style={{ '--well-index': itemIndex } as CssProps}
+                      onMouseEnter={(event) => {
+                        setHotId(item.id)
+                        onHoverItem(level, item, event.currentTarget)
+                      }}
+                      onFocus={(event) => {
+                        setHotId(item.id)
+                        onHoverItem(level, item, event.currentTarget)
+                      }}
+                      onClick={() => onSelectItem(item)}
+                    >
+                      {item.art ? (
+                        <span className="floating-context-menu__art" aria-hidden="true">
+                          <img src={item.art} alt="" loading="lazy" />
+                        </span>
+                      ) : null}
+
+                      {item.icon && !item.art ? (
+                        <span className="floating-context-menu__icon">{item.icon}</span>
+                      ) : null}
+
+                      {col || kind === 'text' ? (
+                        <span className="floating-context-menu__label">{item.label}</span>
+                      ) : null}
+
+                      {col && item.hint ? (
+                        <span className="floating-context-menu__hint">{item.hint}</span>
+                      ) : null}
+
+                      {col && item.submenu ? (
+                        <i className="floating-context-menu__chevron" aria-hidden="true" />
+                      ) : null}
+
+                      {!col && branching ? (
+                        <span className="floating-context-menu__dot" aria-hidden="true" />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </Fragment>
+            ))}
+          </div>
+
+          <div className="floating-context-menu__read"
+            data-idle={col || !readItem ? 'true' : undefined}
+            data-danger={!col && readItem?.danger ? 'true' : undefined}
+            aria-hidden="true"
+          >
+            {col ? (
+              <>
+                <b>{label}</b>
+                <em>{items.length}</em>
+              </>
+            ) : readItem ? (
+              <>
+                <b>{readItem.label}</b>
+                <em>{readTail(readItem)}</em>
+              </>
+            ) : (
+              <b>{label}</b>
+            )}
+          </div>
+        </>
+      )}
+    </AppPopupSurface>
+    </>
+  )
+}
+
+function CtxTree<TData>({
+  controller,
+  items,
+  width = 178,
+  vwprPddn = DEFVWPRPDDN,
+  className = '',
+  ariaLabel = 'Context menu',
+  portalTarget: rslvPrtlTgt,
+}: Omit<CtxProps<TData>, 'portalTarget'> & { portalTarget: HTMLElement }) {
+  const [path, setPath] = useState<string[]>([])
+
+  const growRef = useRef<GrowDir>('down')
+  const railsRef = useRef<Record<number, HTMLDivElement | null>>({})
+  const colsRef = useRef<Record<number, boolean>>({})
+  const anchorRef = useRef<Record<number, DOMRect>>({})
+  const closeTmrRef = useRef<number | null>(null)
   const hvrRmdRef = useRef(false)
-
-  const [submenuPath, setSbmnPath] = useState<string[]>([])
-  const [sbmnLyts, setSbmnLyts] = useState<CtxPnlLytStt[]>([])
-  const [previewState, setPrvwStt] = useState<{
-    content: ReactNode
-    layout: CtxPnlLytStt
-  } | null>(null)
-
-  const [menuLayout, setMenuLyt] = useState<CssProps>({
-    left: `${vwprPddn}px`,
-    top: `${vwprPddn}px`,
-    width: `${width}px`,
-  })
-
-  const [menuSide, setMenuSide] = useState<MenuPanelSide>('right')
-
-  const rslvPrtlTgt = portalTarget ?? bodyPortal()
+  const scopeRef = useRef<HTMLDivElement | null>(null)
 
   const context = useMemo<CtxSelect<TData>>(
     () => ({
@@ -211,1004 +540,395 @@ export function ContextMenu<TData = unknown>({
     ],
   )
 
-  const resolveTimers = useMemo(
-    () => (typeof items === 'function' ? items(context) : items),
+  const rootEntries = useMemo(
+    () => (typeof items === 'function' ? items(context) : items) as AnyEntry[],
     [context, items],
   )
 
-  const getItemRefKe = useCallback(
-    (level: number, itemId: string) => `${level}:${itemId}`,
-    [],
-  )
+  // Each open id resolves the next rail by walking the chosen path from the root.
+  const levels = useMemo<CtxLevel[]>(() => {
+    const chain: CtxLevel[] = [
+      { entries: rootEntries, label: ariaLabel, preview: null },
+    ]
 
-  const getItemIdFro = useCallback(
-    (refKey: string) => refKey.slice(refKey.indexOf(':') + 1),
-    [],
-  )
+    let current = rootEntries
 
-  const resEnts = useCallback(
-    (
-      entries:
-        | MenuEntry<TData>[]
-        | ((context: CtxSelect<TData>) => MenuEntry<TData>[]),
-    ) => (typeof entries === 'function' ? entries(context) : entries),
-    [context],
-  )
+    for (const itemId of path) {
+      const item = onlyItems(current).find((entry) => entry.id === itemId)
+      if (!item) break
 
-  const findItemById = useCallback(
-    (
-      entries: MenuEntry<TData>[],
-      itemId: string,
-    ): MenuItem<TData> | null => {
-      const item = entries.find(
-        (entry): entry is MenuItem<TData> =>
-          entry.type !== 'separator' && entry.id === itemId,
-      )
+      const ownLabel = labelText(item.label) ?? ''
 
-      return item ?? null
-    },
-    [],
-  )
+      if (item.submenu) {
+        const next = (
+          typeof item.submenu === 'function'
+            ? item.submenu(context as CtxSelect<unknown>)
+            : item.submenu
+        ) as AnyEntry[]
 
-  const findSbmnItem = useCallback(
-    (
-      entries: MenuEntry<TData>[],
-      itemId: string,
-    ): MenuItem<TData> | null => {
-      const item = findItemById(entries, itemId)
-      return item?.submenu ? item : null
-    },
-    [findItemById],
-  )
+        if (onlyItems(next).length === 0) break
 
-  const resTmsAtPath = useCallback(
-    (path: string[]): MenuEntry<TData>[] => {
-      let currentItems = resolveTimers
-
-      // each submenu level is resolved by walking the chosen item path from the
-      // root menu, stopping early if any submenu stops existing.
-      for (const itemId of path) {
-        const item = findSbmnItem(currentItems, itemId)
-
-        if (!item?.submenu) {
-          return []
-        }
-
-        currentItems = resEnts(item.submenu)
-      }
-
-      return currentItems
-    },
-    [findSbmnItem, resEnts, resolveTimers],
-  )
-
-  const mkEntGrps = useCallback((entries: MenuEntry<TData>[]) => {
-    const groups: MenuItem<TData>[][] = []
-    let currentGroup: MenuItem<TData>[] = []
-
-    for (const entry of entries) {
-      if (entry.type === 'separator') {
-        if (currentGroup.length > 0) {
-          groups.push(currentGroup)
-          currentGroup = []
-        }
-
+        chain.push({ entries: next, label: ownLabel, preview: null })
+        current = next
         continue
       }
 
-      currentGroup.push(entry)
-    }
+      if (item.preview) {
+        const node = typeof item.preview === 'function'
+          ? item.preview(context as CtxSelect<unknown>)
+          : item.preview
 
-    if (currentGroup.length > 0) {
-      groups.push(currentGroup)
-    }
-
-    const totalItems = groups.reduce((sum, group) => sum + group.length, 0)
-    let runningIndex = 0
-
-    return groups.map((group) => group.map((item) => {
-      const globalIndex = runningIndex
-      runningIndex += 1
-
-      return {
-        item,
-        globalIndex,
-        reverseIndex: Math.max(0, totalItems - globalIndex - 1),
+        chain.push({ entries: [], label: ownLabel, preview: node })
       }
-    }))
-  }, [])
 
-  const clrSbmnFtrLv = useCallback((level: number) => {
-    setSbmnPath((previous) => previous.slice(0, level))
-    setSbmnLyts((previous) => previous.slice(0, level))
-  }, [])
+      break
+    }
 
-  const clearPreview = useCallback(() => {
-    setPrvwStt(null)
-  }, [])
+    return chain
+  }, [ariaLabel, context, path, rootEntries])
 
-  const clearSubmenu = useCallback(() => {
-    if (sbmnClsTmrRe.current !== null) {
-      window.clearTimeout(sbmnClsTmrRe.current)
-      sbmnClsTmrRe.current = null
+  const clearCloseTmr = useCallback(() => {
+    if (closeTmrRef.current !== null) {
+      window.clearTimeout(closeTmrRef.current)
+      closeTmrRef.current = null
     }
   }, [])
-
-  const schdSbmnCls = useCallback((level: number) => {
-    if (controller.closing) return
-
-    clearSubmenu()
-
-    sbmnClsTmrRe.current = window.setTimeout(() => {
-      sbmnClsTmrRe.current = null
-
-      if (controller.closing) return
-
-      clrSbmnFtrLv(level)
-      clearPreview()
-    }, HVRCLSDLYMS)
-  }, [
-    clearPreview,
-    clearSubmenu,
-    clrSbmnFtrLv,
-    controller.closing,
-  ])
-
-  const keepSbmnOpen = useCallback(() => {
-    clearSubmenu()
-  }, [clearSubmenu])
-
-  const clrMenuTreeS = useCallback(() => {
-    clearSubmenu()
-    setSbmnPath([])
-    setSbmnLyts([])
-    setPrvwStt(null)
-  }, [clearSubmenu])
 
   const clsMenuTree = useCallback(() => {
-    clearSubmenu()
+    clearCloseTmr()
     controller.close()
-  }, [clearSubmenu, controller])
+  }, [clearCloseTmr, controller])
 
-  const clearMeasure = useCallback(() => {
-    if (frameRef.current !== null) {
-      window.cancelAnimationFrame(frameRef.current)
-      frameRef.current = null
-    }
+  const trimTo = useCallback((level: number) => {
+    setPath((previous) => (previous.length <= level ? previous : previous.slice(0, level)))
   }, [])
 
-  const getPrfrFltnS = useCallback((
-    triggerRect: DOMRect,
-    fltnWdth: number,
-    prfrSide: MenuPanelSide,
-  ): MenuPanelSide => {
-    const rghtFitsWith = triggerRect.right <= window.innerWidth
-    const leftFitsWith = triggerRect.left >= 0
-    const rghtFitsCur =
-      triggerRect.right + fltnWdth + vwprPddn <= window.innerWidth
-    const leftFitsCur =
-      triggerRect.left - fltnWdth - vwprPddn >= 0
+  const onRegister = useCallback((level: number, element: HTMLDivElement | null) => {
+    railsRef.current[level] = element
+  }, [])
 
-    if (prfrSide === 'right') {
-      if (rghtFitsCur) return 'right'
-      if (leftFitsCur) return 'left'
-      if (rghtFitsWith) return 'right'
-      if (leftFitsWith) return 'left'
-      return rghtFitsCur || !leftFitsCur ? 'right' : 'left'
-    }
+  /* Placement is the geometry of the whole design: a rail sits under the well
+     that opened it, the staircase commits to one direction at the root, and a
+     stacked rail sends its child out sideways instead of below. */
+  const place = useCallback((
+    level: number,
+    element: HTMLDivElement,
+    col: boolean,
+  ): RailPlace => {
+    colsRef.current[level] = col
 
-    if (leftFitsCur) return 'left'
-    if (rghtFitsCur) return 'right'
-    if (leftFitsWith) return 'left'
-    if (rghtFitsWith) return 'right'
-    return leftFitsCur || !rghtFitsCur ? 'left' : 'right'
-  }, [vwprPddn])
+    const pad = vwprPddn
+    const w = element.offsetWidth
+    const h = element.offsetHeight
+    const maxLeft = window.innerWidth - pad - w
+    const maxTop = window.innerHeight - pad - h
 
-  const mkPnlRect = useCallback((
-    left: number,
-    widthValue: number,
-  ): DOMRect => ({
-    x: left,
-    y: 0,
-    width: widthValue,
-    height: 0,
-    top: 0,
-    right: left + widthValue,
-    bottom: 0,
-    left,
-    toJSON: () => ({}),
-  }) as DOMRect, [])
-
-  const measureMenu = useCallback(() => {
-    // root placement chooses the side that leaves room for first-level
-    // submenus, not just the side that fits the root panel.
-    const maxWidth = Math.max(0, window.innerWidth - vwprPddn * 2)
-    const maxHeight = Math.max(0, window.innerHeight - vwprPddn * 2)
-
-    const measuredRect = menuRef.current?.getBoundingClientRect()
-    const rslvWdth = Math.min(width, maxWidth)
-    const submenuWidth = rslvWdth
-
-    const msrdHght =
-      measuredRect?.height ?? Math.min(maxHeight, resolveTimers.length * 42 + 16)
-
-    const bnddHght = Math.min(msrdHght, maxHeight)
-
-    const maxLeft = Math.max(
-      vwprPddn,
-      window.innerWidth - vwprPddn - rslvWdth,
-    )
-
-    const maxTop = Math.max(
-      vwprPddn,
-      window.innerHeight - vwprPddn - bnddHght,
-    )
-
-    const resRootLeft = (side: MenuPanelSide) => {
-      const desiredLeft = side === 'right'
-        ? controller.clientX
-        : controller.clientX - rslvWdth
-
-      return Math.min(Math.max(vwprPddn, desiredLeft), maxLeft)
-    }
-
-    const rightLeft = resRootLeft('right')
-    const leftLeft = resRootLeft('left')
-    const rghtFcngSide = getPrfrFltnS(
-      mkPnlRect(rightLeft, rslvWdth),
-      submenuWidth,
-      'right',
-    )
-    const leftFcngSide = getPrfrFltnS(
-      mkPnlRect(leftLeft, rslvWdth),
-      submenuWidth,
-      'right',
-    )
-
-    let side: MenuPanelSide
-    if (rghtFcngSide === 'right') {
-      side = 'right'
-    } else if (leftFcngSide === 'left') {
-      side = 'left'
-    } else {
-      side = rghtFcngSide
-    }
-
-    const left = side === 'right' ? rightLeft : leftLeft
-    const top = Math.min(Math.max(vwprPddn, controller.clientY), maxTop)
-
-    const originX = controller.clientX - left
-
-    setMenuLyt({
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${rslvWdth}px`,
-      maxHeight: `${maxHeight}px`,
-      '--floating-context-menu-origin': `${originX}px ${controller.clientY - top}px`,
-    } as CssProps)
-
-    setMenuSide(side)
-  }, [
-    controller.clientX,
-    controller.clientY,
-    resolveTimers.length,
-    getPrfrFltnS,
-    mkPnlRect,
-    vwprPddn,
-    width,
-  ])
-
-  const schdMsrMenu = useCallback(() => {
-    clearMeasure()
-
-    frameRef.current = window.requestAnimationFrame(() => {
-      frameRef.current = null
-      measureMenu()
+    const atCursor = (): RailPlace => ({
+      left: clampTo(controller.clientX, pad, maxLeft),
+      top: clampTo(controller.clientY, pad, maxTop),
+      stem: null,
     })
-  }, [clearMeasure, measureMenu])
 
-  const getPnlChldSi = useCallback((panelLevel: number): MenuPanelSide => {
-    if (panelLevel === 0) {
-      return menuSide
-    }
+    if (level === 0) return atCursor()
 
-    return sbmnLyts[panelLevel - 1]?.childSide ?? 'right'
-  }, [menuSide, sbmnLyts])
+    const anchor = anchorRef.current[level - 1]
+    const parent = railsRef.current[level - 1]
+    if (!anchor || !parent) return atCursor()
 
-  const getChldPnlPl = useCallback((
-    parentPath: string[],
-    itemId: string,
-    panelLevel: number,
-    pnlChldSide: MenuPanelSide,
-    fltnWdth: number,
-  ): MenuPanelSide => {
-    const childLayout = sbmnLyts[parentPath.length]
-    const childPath = [...parentPath, itemId]
-    const isOpenPath =
-      submenuPath.length >= childPath.length
-      && childPath.every((value, index) => submenuPath[index] === value)
+    const parentRect = parent.getBoundingClientRect()
 
-    if (isOpenPath && childLayout) {
-      // preserve the measured side for already-open paths to avoid submenu
-      // jitter while pointer intent moves between parent and child panels.
-      return childLayout.side
-    }
+    if (colsRef.current[level - 1] === true) {
+      let left = parentRect.right + RAILGAP
+      let dir: StemPlace['dir'] = 'end'
 
-    const triggerRect =
-      itemRefs.current[getItemRefKe(panelLevel, itemId)]?.getBoundingClientRect()
-
-    if (!triggerRect) {
-      return pnlChldSide
-    }
-
-    return getPrfrFltnS(triggerRect, fltnWdth, pnlChldSide)
-  }, [getItemRefKe, getPrfrFltnS, sbmnLyts, submenuPath])
-
-  const openSubmenu = useCallback(
-    (parentPath: string[], itemId: string, panelLevel: number) => {
-      const currentItems = resTmsAtPath(parentPath)
-      const item = findSbmnItem(currentItems, itemId)
-
-      if (!item?.submenu) {
-        clrSbmnFtrLv(panelLevel)
-        return
+      if (left + w + pad > window.innerWidth) {
+        left = parentRect.left - w - RAILGAP
+        dir = 'start'
       }
 
-      const triggerRect =
-        itemRefs.current[getItemRefKe(panelLevel, itemId)]?.getBoundingClientRect()
+      left = clampTo(left, pad, maxLeft)
 
-      if (!triggerRect) {
-        return
-      }
-
-      const submenuItems = resEnts(item.submenu)
-
-      if (!submenuItems.some((entry) => entry.type !== 'separator')) {
-        clrSbmnFtrLv(panelLevel)
-        return
-      }
-
-      const submenuWidth = Math.min(
-        width,
-        Math.max(0, window.innerWidth - vwprPddn * 2),
-      )
-
-      const stmtHght = Math.min(
-        Math.max(0, window.innerHeight - vwprPddn * 2),
-        submenuItems.length * 42 + 16,
-      )
-
-      const prntChldSide = getPnlChldSi(panelLevel)
-      const side = getChldPnlPl(parentPath, itemId, panelLevel, prntChldSide, submenuWidth)
-
-      const left = side === 'left'
-        ? Math.max(
-          vwprPddn,
-          triggerRect.left - submenuWidth - DEFSBMNFFST,
-        )
-        : Math.min(
-          window.innerWidth - vwprPddn - submenuWidth,
-          triggerRect.right + DEFSBMNFFST,
-        )
-
-      const top = Math.min(
-        Math.max(vwprPddn, triggerRect.top - 4),
-        Math.max(vwprPddn, window.innerHeight - vwprPddn - stmtHght),
-      )
-      const childSide = getPrfrFltnS(
-        mkPnlRect(left, submenuWidth),
-        submenuWidth,
-        'right',
-      )
-
-      const nextPath = [...parentPath, itemId]
-      const previousPath = submenuPath
-
-      const isLrdyOpen =
-        previousPath.length === nextPath.length &&
-        previousPath.every((value, index) => value === nextPath[index])
-
-      if (isLrdyOpen) {
-        return
-      }
-
-      setSbmnPath(nextPath)
-
-      setSbmnLyts((previous) => {
-        const nextLayouts = previous.slice(0, parentPath.length)
-
-        nextLayouts[parentPath.length] = {
-          side,
-          childSide,
-          style: {
-            left: `${left}px`,
-            top: `${top}px`,
-            width: `${submenuWidth}px`,
-            maxHeight: `${Math.max(0, window.innerHeight - vwprPddn * 2)}px`,
-            '--floating-context-menu-origin': side === 'left' ? '100% 0' : '0 0',
-          } as CssProps,
-        }
-
-        return nextLayouts
-      })
-    },
-    [
-      mkPnlRect,
-      clrSbmnFtrLv,
-      getChldPnlPl,
-      findSbmnItem,
-      getItemRefKe,
-      getPnlChldSi,
-      getPrfrFltnS,
-      resEnts,
-      resTmsAtPath,
-      submenuPath,
-      vwprPddn,
-      width,
-    ],
-  )
-
-  const openPreview = useCallback(
-    (parentPath: string[], itemId: string, panelLevel: number) => {
-      const currentItems = resTmsAtPath(parentPath)
-      const item = findItemById(currentItems, itemId)
-
-      // previews resolve from the same context as actions so they reflect the
-      // clicked payload without storing per-item preview state in callers.
-      if (!item?.preview) {
-        clearPreview()
-        return
-      }
-
-      const triggerRect =
-        itemRefs.current[getItemRefKe(panelLevel, itemId)]?.getBoundingClientRect()
-
-      if (!triggerRect) {
-        clearPreview()
-        return
-      }
-
-      const previewWidth = Math.min(
-        336,
-        Math.max(240, window.innerWidth - vwprPddn * 2),
-      )
-
-      const stmtHght = Math.min(
-        Math.max(0, window.innerHeight - vwprPddn * 2),
-        288,
-      )
-
-      const side = getPnlChldSi(panelLevel)
-
-      const left = side === 'left'
-        ? Math.max(
-          vwprPddn,
-          triggerRect.left - previewWidth - DEFSBMNFFST,
-        )
-        : Math.min(
-          window.innerWidth - vwprPddn - previewWidth,
-          triggerRect.right + DEFSBMNFFST,
-        )
-
-      const top = Math.min(
-        Math.max(vwprPddn, triggerRect.top - 4),
-        Math.max(vwprPddn, window.innerHeight - vwprPddn - stmtHght),
-      )
-
-      setPrvwStt({
-        content: typeof item.preview === 'function' ? item.preview(context) : item.preview,
-        layout: {
-          side,
-          childSide: side,
-          style: {
-            left: `${left}px`,
-            top: `${top}px`,
-            width: `${previewWidth}px`,
-            maxHeight: `${Math.max(0, window.innerHeight - vwprPddn * 2)}px`,
-            '--floating-context-menu-origin': side === 'left' ? '100% 0' : '0 0',
-          } as CssProps,
+      return {
+        left,
+        top: clampTo(anchor.top - 10, pad, maxTop),
+        stem: {
+          axis: 'x',
+          dir,
+          top: anchor.top + anchor.height / 2 - 1,
+          left: dir === 'end' ? parentRect.right : left + w,
+          length: dir === 'end'
+            ? Math.max(0, left - parentRect.right)
+            : Math.max(0, parentRect.left - (left + w)),
         },
-      })
-    },
-    [
-      clearPreview,
-      context,
-      findItemById,
-      getItemRefKe,
-      getPnlChldSi,
-      resTmsAtPath,
-      vwprPddn,
-    ],
-  )
+      }
+    }
 
-  const onMenuPntrMo = useCallback((event: RctPntrVnt<HTMLDivElement>) => {
-    if (hvrRmdRef.current) return
+    const grow = growRef.current
+    const left = clampTo(anchor.left, pad, maxLeft)
+    const top = clampTo(
+      grow === 'up' ? anchor.top - RAILGAP - h : anchor.bottom + RAILGAP,
+      pad,
+      maxTop,
+    )
 
-    const initial = ntlPntrRef.current
+    return {
+      left,
+      top,
+      stem: {
+        axis: 'y',
+        dir: grow === 'up' ? 'start' : 'end',
+        left: anchor.left + anchor.width / 2 - 1,
+        top: grow === 'up' ? top + h : anchor.bottom,
+        length: grow === 'up'
+          ? Math.max(0, anchor.top - (top + h))
+          : Math.max(0, top - anchor.bottom),
+      },
+    }
+  }, [controller.clientX, controller.clientY, vwprPddn])
 
-    if (!initial) {
+  const openBranch = useCallback((level: number, item: AnyItem) => {
+    setPath((previous) => {
+      if (previous.length === level + 1 && previous[level] === item.id) {
+        return previous
+      }
+
+      return [...previous.slice(0, level), item.id]
+    })
+  }, [])
+
+  const onHoverItem = useCallback((
+    level: number,
+    item: AnyItem,
+    element: HTMLButtonElement,
+  ) => {
+    if (!hvrRmdRef.current) return
+
+    clearCloseTmr()
+    anchorRef.current[level] = element.getBoundingClientRect()
+
+    if (isItemDsbld(item) || !isItemBrnch(item)) {
+      trimTo(level)
+      return
+    }
+
+    openBranch(level, item)
+  }, [clearCloseTmr, openBranch, trimTo])
+
+  const onLeaveRail = useCallback((level: number) => {
+    if (controller.closing) return
+
+    clearCloseTmr()
+
+    closeTmrRef.current = window.setTimeout(() => {
+      closeTmrRef.current = null
+      if (controller.closing) return
+      trimTo(level)
+    }, HVRCLSDLYMS)
+  }, [clearCloseTmr, controller.closing, trimTo])
+
+  const onSelectItem = useCallback((item: AnyItem) => {
+    if (isItemDsbld(item)) return
+
+    // Touch has no hover, so tapping a branch opens it instead of committing.
+    if (isItemBrnch(item)) {
       hvrRmdRef.current = true
       return
     }
 
-    const dx = Math.abs(event.clientX - initial.x)
-    const dy = Math.abs(event.clientY - initial.y)
+    clsMenuTree()
+    item.onSelect?.(context as CtxSelect<unknown>)
+  }, [clsMenuTree, context])
 
-    if (dx > 3 || dy > 3) {
-      hvrRmdRef.current = true
-    }
+  const wellsAt = useCallback((level: number) => {
+    const rail = railsRef.current[level]
+    if (!rail) return [] as HTMLButtonElement[]
+
+    return Array.from(
+      rail.querySelectorAll<HTMLButtonElement>('.floating-context-menu__item:not(:disabled)'),
+    )
   }, [])
 
+  const focusIn = useCallback((level: number, direction: 1 | -1) => {
+    const wells = wellsAt(level)
+    if (wells.length === 0) return
+
+    const activeIndex = wells.findIndex((well) => well === document.activeElement)
+    const nextIndex = activeIndex === -1
+      ? (direction === 1 ? 0 : wells.length - 1)
+      : (activeIndex + direction + wells.length) % wells.length
+
+    wells[nextIndex]?.focus()
+  }, [wellsAt])
+
+  const onKeyDown = useCallback((
+    level: number,
+    col: boolean,
+    event: RctKbdVnt<HTMLDivElement>,
+  ) => {
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      event.preventDefault()
+      clsMenuTree()
+      return
+    }
+
+    hvrRmdRef.current = true
+
+    // Along the rail steps between wells; across it enters or leaves a level.
+    const alongNext = col ? 'ArrowDown' : 'ArrowRight'
+    const alongPrev = col ? 'ArrowUp' : 'ArrowLeft'
+    const intoKey = col ? 'ArrowRight' : (growRef.current === 'up' ? 'ArrowUp' : 'ArrowDown')
+    const backKey = col ? 'ArrowLeft' : (growRef.current === 'up' ? 'ArrowDown' : 'ArrowUp')
+
+    if (event.key === alongNext) {
+      event.preventDefault()
+      focusIn(level, 1)
+      return
+    }
+
+    if (event.key === alongPrev) {
+      event.preventDefault()
+      focusIn(level, -1)
+      return
+    }
+
+    if (event.key === intoKey) {
+      event.preventDefault()
+
+      const activeId = (document.activeElement as HTMLElement | null)?.dataset?.id
+      const item = activeId
+        ? onlyItems(levels[level]?.entries ?? []).find((entry) => entry.id === activeId)
+        : null
+
+      if (item && item.submenu && !isItemDsbld(item)) {
+        openBranch(level, item)
+      }
+
+      window.requestAnimationFrame(() => focusIn(level + 1, 1))
+      return
+    }
+
+    if (event.key === backKey) {
+      event.preventDefault()
+      const parent = Math.max(0, level - 1)
+      trimTo(parent)
+      window.requestAnimationFrame(() => focusIn(parent, 1))
+    }
+  }, [clsMenuTree, focusIn, levels, openBranch, trimTo])
+
+  // Hover must not fire on whatever already sits under the cursor at open time.
   useEffect(() => {
     if (!controller.isOpen) {
       hvrRmdRef.current = false
-      ntlPntrRef.current = null
       return
     }
 
     hvrRmdRef.current = false
-    ntlPntrRef.current = {
-      x: controller.clientX,
-      y: controller.clientY,
-    }
     const armTimer = window.setTimeout(() => {
       hvrRmdRef.current = true
-    }, 90)
+    }, HVRARMMS)
+
     return () => window.clearTimeout(armTimer)
   }, [controller.clientX, controller.clientY, controller.isOpen])
 
   useEffect(() => {
     if (!controller.isOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      clrMenuTreeS()
+      anchorRef.current = {}
+      colsRef.current = {}
       return
     }
 
-    if (!resolveTimers.some((item) => item.type !== 'separator')) {
+    if (onlyItems(rootEntries).length === 0) {
       clsMenuTree()
       return
     }
 
-    schdMsrMenu()
+    // A deep menu opened low on the screen climbs instead of running off it.
+    const need = Math.max(0, maxTreeDepth(rootEntries) - 1) * RAILSTEPPX
+    growRef.current =
+      controller.clientY + RAILSTEPPX + need + vwprPddn > window.innerHeight ? 'up' : 'down'
 
     const onPntrDown = (event: PointerEvent) => {
       const target = event.target as Node
+      const inside = Object.values(railsRef.current).some((rail) => rail?.contains(target))
 
-      if (
-        menuRef.current?.contains(target) ||
-        submenuRefs.current.some((submenuRef) => submenuRef?.contains(target))
-      ) {
-        return
-      }
-
-      clsMenuTree()
+      if (!inside) clsMenuTree()
     }
 
-    const onWndwChng = () => {
-      schdMsrMenu()
-      clrMenuTreeS()
-    }
+    const onWndwChng = () => clsMenuTree()
 
     document.addEventListener('pointerdown', onPntrDown)
     window.addEventListener('scroll', onWndwChng, true)
     window.addEventListener('resize', onWndwChng)
 
     return () => {
-      clearMeasure()
       document.removeEventListener('pointerdown', onPntrDown)
       window.removeEventListener('scroll', onWndwChng, true)
       window.removeEventListener('resize', onWndwChng)
     }
   }, [
-    clearMeasure,
-    clrMenuTreeS,
     clsMenuTree,
+    controller.clientY,
     controller.isOpen,
-    resolveTimers,
-    schdMsrMenu,
+    rootEntries,
+    vwprPddn,
   ])
 
-  const fcsSblnItem = useCallback((direction: 1 | -1) => {
-    const menu = menuRef.current
+  useEffect(() => clearCloseTmr, [clearCloseTmr])
 
-    if (!menu) {
-      return
+  useLayoutEffect(() => {
+    if (controller.eventTarget instanceof HTMLElement && scopeRef.current) {
+      syncAppPopupTokens(controller.eventTarget, scopeRef.current)
     }
+  })
 
-    const items = Array.from(
-      menu.querySelectorAll<HTMLButtonElement>(
-        '.floating-context-menu__item:not(:disabled)',
-      ),
-    )
+  const stateAttrs = useMemo(() => ({
+    'data-open': controller.open ? 'true' : undefined,
+    'data-closing': controller.closing ? 'true' : undefined,
+  }), [controller.closing, controller.open])
 
-    if (items.length === 0) {
-      return
-    }
+  return createPortal(
+    <div ref={scopeRef} className="app-popup-portal-scope">
+      {levels.map((level, index) => (
+        <CtxRail
+          key={`rail:${index}:${path.slice(0, index).join('>')}`}
+          entries={level.entries}
+          preview={level.preview}
+          label={level.label}
+          level={index}
+          openId={path[index] ?? null}
+          minWidth={width}
+          className={className}
+          ariaLabel={index === 0 ? ariaLabel : `${level.label} submenu`}
+          stateAttrs={stateAttrs}
+          place={place}
+          onRegister={onRegister}
+          onHoverItem={onHoverItem}
+          onLeaveRail={onLeaveRail}
+          onSelectItem={onSelectItem}
+          onKeyDown={onKeyDown}
+        />
+      ))}
 
-    const activeIndex = items.findIndex((item) => item === document.activeElement)
-
-    const nextIndex =
-      activeIndex === -1
-        ? 0
-        : (activeIndex + direction + items.length) % items.length
-
-    items[nextIndex]?.focus()
-  }, [])
-
-  const fcsFrstItemI = useCallback((panelLevel: number) => {
-    const panel = panelLevel === 0 ? menuRef.current : submenuRefs.current[panelLevel - 1]
-
-    const frstOnItem = panel?.querySelector<HTMLButtonElement>(
-      '.floating-context-menu__item:not(:disabled)',
-    )
-
-    frstOnItem?.focus()
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      clearSubmenu()
-    }
-  }, [clearSubmenu])
-
-  const sbmnPnls = useMemo(() => {
-    return submenuPath
-      .map((itemId, levelIndex) => {
-        const parentPath = submenuPath.slice(0, levelIndex)
-        const parentItems = resTmsAtPath(parentPath)
-        const item = findSbmnItem(parentItems, itemId)
-        const tmsForLvl = item?.submenu ? resEnts(item.submenu) : []
-
-        return {
-          item,
-          items: tmsForLvl,
-          layout: sbmnLyts[levelIndex],
-          panelLevel: levelIndex + 1,
-          parentPath,
-        }
-      })
-      .filter(
-        (
-          panel,
-        ): panel is {
-          item: MenuItem<TData>
-          items: MenuEntry<TData>[]
-          layout: CtxPnlLytStt
-          panelLevel: number
-          parentPath: string[]
-        } => Boolean(panel.item && panel.items.length > 0 && panel.layout),
-      )
-  }, [
-    findSbmnItem,
-    resEnts,
-    resTmsAtPath,
-    sbmnLyts,
-    submenuPath,
-  ])
-
-  const rootGroups = useMemo(
-    () => mkEntGrps(resolveTimers),
-    [mkEntGrps, resolveTimers],
+    </div>,
+    rslvPrtlTgt,
   )
+}
 
-  if (!controller.isOpen || !rslvPrtlTgt) {
+export function ContextMenu<TData = unknown>(props: CtxProps<TData>) {
+  const { controller, portalTarget } = props
+  const target = portalTarget ?? bodyPortal()
+
+  if (!controller.isOpen || !target) {
     return null
   }
 
-  const viewMenuItem = (item: MenuItem<TData>, panelLevel: number) => {
-    const hasSubmenu = Boolean(item.submenu)
-    const disabled = item.disabled || (!item.onSelect && !hasSubmenu)
-    const expanded = submenuPath[panelLevel] === item.id
-    const dimmed = submenuPath.length > panelLevel && !expanded
-    const parentPath = submenuPath.slice(0, panelLevel)
-
-    return ({ globalIndex, reverseIndex, side }: {
-      globalIndex: number
-      reverseIndex: number
-      side: MenuPanelSide
-    }) => {
-      const chevron = hasSubmenu ? (
-        <span className="floating-context-menu__chevron" aria-hidden="true" />
-      ) : null
-
-      const icon = item.icon ? (
-        <span className="floating-context-menu__icon">{item.icon}</span>
-      ) : null
-
-      return (
-        <button
-          key={item.id}
-          ref={(element) => {
-            itemRefs.current[getItemRefKe(panelLevel, item.id)] = element
-          }}
-          type="button"
-          className="floating-context-menu__item"
-          role="menuitem"
-          disabled={disabled}
-          data-danger={item.danger ? 'true' : undefined}
-          data-submenu={hasSubmenu ? 'true' : undefined}
-          data-side={side}
-          data-expanded={expanded ? 'true' : undefined}
-          data-dimmed={dimmed ? 'true' : undefined}
-          aria-haspopup={hasSubmenu ? 'menu' : undefined}
-          aria-expanded={hasSubmenu ? expanded : undefined}
-          style={{
-            '--bubble-index': globalIndex,
-            '--bubble-rev-index': reverseIndex,
-          } as CssProps}
-          onMouseEnter={() => {
-            if (!hvrRmdRef.current) {
-              return
-            }
-
-            keepSbmnOpen()
-
-            if (hasSubmenu) {
-              openSubmenu(parentPath, item.id, panelLevel)
-            } else {
-              clrSbmnFtrLv(panelLevel)
-            }
-
-            if (item.preview) {
-              openPreview(parentPath, item.id, panelLevel)
-            } else {
-              clearPreview()
-            }
-          }}
-          onFocus={() => {
-            if (!hvrRmdRef.current) {
-              return
-            }
-
-            keepSbmnOpen()
-
-            if (item.preview) {
-              openPreview(parentPath, item.id, panelLevel)
-            } else {
-              clearPreview()
-            }
-          }}
-          onBlur={() => {
-            clearPreview()
-          }}
-          onClick={() => {
-            if (disabled || hasSubmenu) return
-
-            clsMenuTree()
-            item.onSelect?.(context)
-          }}
-        >
-          <span className="floating-context-menu__item-surface" aria-hidden="true" />
-          <span className="floating-context-menu__item-bracket floating-context-menu__item-bracket--tl" aria-hidden="true" />
-          <span className="floating-context-menu__item-bracket floating-context-menu__item-bracket--br" aria-hidden="true" />
-
-          {side === 'left' ? chevron : null}
-          {icon}
-
-          <span className="floating-context-menu__label">{item.label}</span>
-
-          {item.hint ? (
-            <span className="floating-context-menu__hint">{item.hint}</span>
-          ) : null}
-
-          {side === 'right' ? chevron : null}
-        </button>
-      )
-    }
-  }
-
-  const viewMenuGrps = (
-    groups: Array<Array<{ item: MenuItem<TData>; globalIndex: number; reverseIndex: number }>>,
-    panelLevel: number,
-    side: MenuPanelSide,
-  ) => groups.map((group, groupIndex) => (
-    <div
-      key={`group:${panelLevel}:${groupIndex}`}
-      className="floating-context-menu__group"
-      role="presentation"
-    >
-      {group.map(({ item, globalIndex, reverseIndex }) => (
-        viewMenuItem(item, panelLevel)({ globalIndex, reverseIndex, side })
-      ))}
-    </div>
-  ))
-
-  const rootOpenKey = menuSide === 'left' ? 'ArrowLeft' : 'ArrowRight'
-
-  return createPortal(
-    <>
-      <div
-        ref={menuRef}
-        className={`floating-context-menu ${className}`.trim()}
-        style={menuLayout}
-        role="menu"
-        aria-label={ariaLabel}
-        tabIndex={-1}
-        data-side={menuSide}
-        data-backgrounded={submenuPath.length > 1 ? 'true' : undefined}
-        data-open={controller.open ? 'true' : undefined}
-        data-closing={controller.closing ? 'true' : undefined}
-        onPointerMove={onMenuPntrMo}
-        onMouseEnter={keepSbmnOpen}
-        onMouseLeave={() => {
-          clearPreview()
-          schdSbmnCls(0)
-        }}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' || event.key === 'Tab') {
-            clsMenuTree()
-            return
-          }
-
-          if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            hvrRmdRef.current = true
-            clrSbmnFtrLv(0)
-            fcsSblnItem(1)
-            return
-          }
-
-          if (event.key === 'ArrowUp') {
-            event.preventDefault()
-            hvrRmdRef.current = true
-            clrSbmnFtrLv(0)
-            fcsSblnItem(-1)
-            return
-          }
-
-          if (event.key === rootOpenKey) {
-            event.preventDefault()
-            hvrRmdRef.current = true
-
-            const actItemRefKe = Object.entries(itemRefs.current).find(
-              ([, element]) => element === document.activeElement,
-            )?.[0]
-
-            const rslvItemId = actItemRefKe
-              ? getItemIdFro(actItemRefKe)
-              : null
-
-            if (rslvItemId) {
-              openSubmenu([], rslvItemId, 0)
-
-              window.requestAnimationFrame(() => {
-                fcsFrstItemI(1)
-              })
-            }
-          }
-        }}
-      >
-        {viewMenuGrps(rootGroups, 0, menuSide)}
-      </div>
-
-      {sbmnPnls.map((panel, panelIndex) => {
-        const openKey = panel.layout.childSide === 'left' ? 'ArrowLeft' : 'ArrowRight'
-        const closeKey = panel.layout.side === 'left' ? 'ArrowRight' : 'ArrowLeft'
-        const backgrounded = panel.panelLevel < submenuPath.length - 1
-
-        return (
-          <div
-            key={`${panel.parentPath.join('>')}:${panel.item.id}`}
-            ref={(element) => {
-              submenuRefs.current[panelIndex] = element
-            }}
-            className={`floating-context-menu floating-context-menu--submenu ${className}`.trim()}
-            style={panel.layout.style}
-            role="menu"
-            aria-label={`${String(panel.item.label)} submenu`}
-            tabIndex={-1}
-            data-side={panel.layout.side}
-            data-backgrounded={backgrounded ? 'true' : undefined}
-            data-open={controller.open ? 'true' : undefined}
-            data-closing={controller.closing ? 'true' : undefined}
-            onPointerMove={onMenuPntrMo}
-            onMouseEnter={keepSbmnOpen}
-            onMouseLeave={() => {
-              clearPreview()
-              schdSbmnCls(panel.panelLevel - 1)
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' || event.key === 'Tab') {
-                clsMenuTree()
-                return
-              }
-
-              if (event.key === closeKey) {
-                event.preventDefault()
-                hvrRmdRef.current = true
-
-                clrSbmnFtrLv(panel.panelLevel - 1)
-
-                itemRefs.current[
-                  getItemRefKe(panel.panelLevel - 1, panel.item.id)
-                  ]?.focus()
-
-                return
-              }
-
-              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                event.preventDefault()
-                hvrRmdRef.current = true
-
-                const items = Array.from(
-                  submenuRefs.current[panel.panelLevel - 1]?.querySelectorAll<HTMLButtonElement>(
-                    '.floating-context-menu__item:not(:disabled)',
-                  ) ?? [],
-                )
-
-                if (items.length === 0) {
-                  return
-                }
-
-                const direction = event.key === 'ArrowDown' ? 1 : -1
-
-                const activeIndex = items.findIndex(
-                  (item) => item === document.activeElement,
-                )
-
-                const nextIndex =
-                  activeIndex === -1
-                    ? 0
-                    : (activeIndex + direction + items.length) % items.length
-
-                items[nextIndex]?.focus()
-                return
-              }
-
-              if (event.key === openKey) {
-                event.preventDefault()
-                hvrRmdRef.current = true
-
-                const actItemRefKe = Object.entries(itemRefs.current).find(
-                  ([, element]) => element === document.activeElement,
-                )?.[0]
-
-                const rslvItemId = actItemRefKe
-                  ? getItemIdFro(actItemRefKe)
-                  : null
-
-                if (rslvItemId) {
-                  openSubmenu(panel.parentPath, rslvItemId, panel.panelLevel)
-
-                  window.requestAnimationFrame(() => {
-                    fcsFrstItemI(panel.panelLevel + 1)
-                  })
-                }
-              }
-            }}
-          >
-            {viewMenuGrps(mkEntGrps(panel.items), panel.panelLevel, panel.layout.childSide)}
-          </div>
-        )
-      })}
-
-      {previewState ? (
-        <div
-          className={`floating-context-menu floating-context-menu--preview ${className}`.trim()}
-          style={previewState.layout.style}
-          data-side={previewState.layout.side}
-          data-open={controller.open ? 'true' : undefined}
-          data-closing={controller.closing ? 'true' : undefined}
-          aria-hidden="true"
-        >
-          <div className="floating-context-menu__preview-shell">
-            <span className="floating-context-menu__item-surface" aria-hidden="true" />
-
-            <span className="floating-context-menu__preview-bracket floating-context-menu__preview-bracket--tl" aria-hidden="true" />
-            <span className="floating-context-menu__preview-bracket floating-context-menu__preview-bracket--br" aria-hidden="true" />
-            {previewState.content}
-          </div>
-        </div>
-      ) : null}
-    </>,
-    rslvPrtlTgt,
+  // Keying by the open position remounts the tree for every fresh open, so a
+  // reopen never inherits the previous trail or its measurements.
+  return (
+    <CtxTree
+      {...props}
+      key={`${controller.clientX}:${controller.clientY}`}
+      portalTarget={target}
+    />
   )
 }

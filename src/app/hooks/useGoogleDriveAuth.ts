@@ -15,6 +15,7 @@ import {
   type StrdGglUser,
 } from '@/infra/googleDrive/googleAuth'
 import { getGglAuthNd } from '@/infra/googleDrive/googleAuthEndpoints'
+import { useNavX, type NavX } from '@/app/nav/useNavX'
 
 const DRIVE_SCOPES = [
   'https://www.googleapis.com/auth/drive.appdata',
@@ -120,7 +121,7 @@ function makeGoogleState(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function clrAuthQry(): void {
+function clrAuthQry(navigate: NavX): void {
   // once redirect-mode auth finishes, strip oauth params so refreshes and
   // future routing do not keep replaying the callback state.
   const url = new URL(window.location.href)
@@ -131,11 +132,12 @@ function clrAuthQry(): void {
   url.searchParams.delete('prompt')
   url.searchParams.delete('error')
   url.searchParams.delete('error_description')
-  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  navigate(`${url.pathname}${url.search}${url.hash}`, { replace: true })
 }
 
 // manages the browser-side oauth flow and cached token lifecycle for drive sync.
 export function useGglDrvAut(): UseGglDrvAut {
+  const navigate = useNavX()
   const [initAuthStt] = useState(getNtlGglAut)
   const [accessToken, setAccTok] = useState<string | null>(initAuthStt.accessToken)
   const [user, setUser] = useState<GglDrvUser | null>(initAuthStt.user)
@@ -230,7 +232,7 @@ export function useGglDrvAut(): UseGglDrvAut {
       window.setTimeout(() => {
         setError(params.get('error_description') ?? rdrcRrr)
       }, 0)
-      clrAuthQry()
+      clrAuthQry(navigate)
       return
     }
 
@@ -246,7 +248,7 @@ export function useGglDrvAut(): UseGglDrvAut {
         setError('Google Drive sign-in state did not match. Try signing in again.')
       }, 0)
       sessionStorage.removeItem(DRIVE_STATE_KEY)
-      clrAuthQry()
+      clrAuthQry(navigate)
       return
     }
 
@@ -258,9 +260,9 @@ export function useGglDrvAut(): UseGglDrvAut {
           console.error('failed to exchange google redirect auth code', loginError)
           setError(loginError instanceof Error ? loginError.message : 'Google Drive sign-in failed.')
         })
-        .finally(clrAuthQry)
+        .finally(() => clrAuthQry(navigate))
     }, 0)
-  }, [authUxMode, xchnAuthCode])
+  }, [authUxMode, navigate, xchnAuthCode])
 
   const connect = useGglLgn({
     flow: 'auth-code',

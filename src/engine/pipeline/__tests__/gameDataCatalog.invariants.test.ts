@@ -5,8 +5,28 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { listResonators } from '@/domain/services/catalogService'
+import { listEchoes, listResonators } from '@/domain/services/catalogService'
 import { listSources } from '@/domain/services/gameDataService'
+
+const CANONICAL_LEGACY_ECHO_IDS = [
+  '390070067',
+  '390070068',
+  '390070069',
+  '390070076',
+  '390077013',
+  '390077022',
+  '390077024',
+]
+
+const NON_CATALOG_ECHO_ALIASES = [
+  '6020002',
+  '6020004',
+  '6020006',
+  '6020007',
+  '6020012',
+  '6020019',
+  '6020025',
+]
 
 describe('game-data catalog invariants', () => {
   it('registers generated resonators, echoes, weapons, and echo sets as source packages', () => {
@@ -27,6 +47,23 @@ describe('game-data catalog invariants', () => {
 
     for (const resonator of listResonators()) {
       expect(resonatorKeys).toContain(`resonator:${resonator.id}`)
+    }
+  })
+
+  it('keeps canonical Echo ids instead of same-name combat aliases', () => {
+    // The upstream Encore index exposes PhantomType 2 combat records before
+    // these real Echoes. Keeping the aliases drops the authored multiplier and
+    // behavior packages keyed by the canonical ids.
+    const catalogIds = new Set(listEchoes().map((echo) => echo.id))
+    const sourceIds = new Set(listSources('echo').map((source) => source.id))
+
+    for (const echoId of CANONICAL_LEGACY_ECHO_IDS) {
+      expect(catalogIds.has(echoId), `canonical Echo ${echoId} is missing from the catalog`).toBe(true)
+      expect(sourceIds.has(echoId), `canonical Echo ${echoId} is missing its source package`).toBe(true)
+    }
+
+    for (const echoId of NON_CATALOG_ECHO_ALIASES) {
+      expect(catalogIds.has(echoId), `combat alias ${echoId} leaked into the Echo catalog`).toBe(false)
     }
   })
 

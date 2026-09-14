@@ -1,0 +1,454 @@
+
+
+.app-modal-panel.ssc-modal {
+  --amdl-w: 50rem;
+  height: min(37rem, 88vh);
+}
+
+.ssc-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ssc-tab:hover:not(.active) {
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 42%, var(--picker-modal-border));
+  color: var(--picker-modal-text);
+  background: color-mix(in srgb, var(--picker-modal-accent) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.ssc-native-checkbox {
+  position: absolute !important;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+label:has(.ssc-native-checkbox:checked) .ssc-checkmark {
+  background: var(--picker-modal-accent);
+  border-color: var(--picker-modal-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--picker-modal-accent) 22%, transparent);
+}
+
+label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark {
+  background: color-mix(in srgb, var(--picker-modal-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 68%, var(--picker-modal-border));
+}
+
+label:has(.ssc-native-checkbox:checked)      .ssc-checkmark-icon { display: block; }
+label:has(.ssc-native-checkbox:indeterminate) .ssc-dash-icon      { display: block; }
+label:has(.ssc-native-checkbox:indeterminate) .ssc-checkmark-icon { display: none; }
+
+@keyframes ssc-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ssc-part-row:has(.ssc-native-checkbox:checked) {
+  background: color-mix(in srgb, var(--picker-modal-accent) 3%, transparent);
+  border-color: color-mix(in srgb, var(--picker-modal-accent) 20%, var(--picker-modal-item-border));
+}
+
+:is(.no-entrance-anim, .reduce-animation) .ssc-card {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+
+
+
+.ssc-root .sscr-body {
+  grid-template-columns: 10rem minmax(0, 1fr);
+}
+
+.sscr-rail .amdl__find {
+  flex: none;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-bottom: 0.35rem;
+}
+
+.sscr-sec {
+  padding: 0.35rem 0.5rem 0.3rem;
+  font: 500 0.52rem/1 var(--amdl-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--amdl-muted) 70%, transparent);
+}
+
+.sscr-foot {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.sscr-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sscr-foot-label {
+  font: 500 0.58rem/1.4 var(--amdl-mono);
+  color: var(--amdl-muted);
+}
+
+.sscr-foot-row .sscr-sw {
+  margin-left: auto;
+}
+
+.sscr-foot-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--amdl-muted);
+}
+
+.sscr-foot-count.is-part {
+  color: color-mix(in srgb, var(--amdl-accent) 82%, var(--amdl-text));
+}
+
+
+.sscr-sw {
+  position: relative;
+  flex: none;
+  width: 2.05rem;
+  height: 1.12rem;
+  border-radius: 999px;
+  border: 1px solid var(--amdl-line-soft);
+  background: color-mix(in srgb, var(--amdl-text) 12%, var(--c-transparent));
+  transition: background 220ms ease, border-color 220ms ease;
+}
+
+.sscr-sw::after {
+  content: '';
+  position: absolute;
+  top: 0.11rem;
+  left: 0.12rem;
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--amdl-text) 34%, var(--c-transparent));
+  transition: transform 260ms cubic-bezier(0.34, 1.4, 0.5, 1), background 220ms ease;
+}
+
+label:has(.ssc-native-checkbox:checked) > .sscr-sw,
+label:has(.ssc-native-checkbox:checked) .sscr-sw {
+
+  background: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 88%, var(--amdl-text) 12%);
+  border-color: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 52%, var(--amdl-text) 48%);
+}
+
+label:has(.ssc-native-checkbox:checked) > .sscr-sw::after,
+label:has(.ssc-native-checkbox:checked) .sscr-sw::after {
+  transform: translateX(0.88rem);
+  background: color-mix(in srgb, #fff 86%, var(--sscr-c, transparent));
+}
+
+label:has(.ssc-native-checkbox:indeterminate) .sscr-sw {
+  background: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 24%, color-mix(in srgb, var(--amdl-text) 14%, var(--c-transparent)));
+}
+
+label:has(.ssc-native-checkbox:indeterminate) .sscr-sw::after {
+  transform: translateX(0.44rem);
+  background: color-mix(in srgb, var(--amdl-text) 72%, #fff);
+}
+
+label:has(.ssc-native-checkbox:focus-visible) .sscr-sw {
+  outline: 1px solid color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.reduce-animation .sscr-sw,
+.reduce-animation .sscr-sw::after {
+  transition: none;
+}
+
+
+.sscr-grp .amdl__grp-name {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--modal-bg);
+}
+
+.sscr-grp .amdl__grp-name::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 1rem;
+  background: var(--modal-bg);
+}
+
+.sscr-sort {
+  order: 7;
+  margin-left: 0.5rem;
+}
+
+
+.sscr-sort .liquid-select__trigger {
+  min-width: 0;
+  min-height: 1.5rem;
+  gap: 0.3rem;
+  padding: 0.2rem 0.4rem 0.2rem 0.5rem;
+  border: 1px solid var(--amdl-line-soft);
+  border-radius: 0.45rem;
+  background: var(--amdl-sunk);
+  color: var(--amdl-muted);
+  font: 500 0.6rem/1 var(--amdl-mono);
+}
+
+.sscr-sort .liquid-select__trigger:is(:hover, :focus-visible),
+.sscr-sort.open .liquid-select__trigger {
+  border-color: var(--amdl-line);
+  background: var(--amdl-sunk);
+  color: var(--amdl-text);
+  box-shadow: none;
+}
+
+.sscr-sort .liquid-select__trigger:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--amdl-accent) 55%, var(--c-transparent));
+  outline-offset: 1px;
+}
+
+.sscr-sort .liquid-select__value {
+  font: inherit;
+  font-weight: 500;
+}
+
+.sscr-sort .liquid-select__icon {
+  padding-left: 0;
+  border-left: 0;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.sscr-sort .liquid-select__icon > svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.sscr-blk + .sscr-blk > .sscr-head {
+  border-top: 1px solid var(--amdl-line-soft);
+}
+
+.sscr-head {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+  padding: 0.42rem 0;
+}
+
+.sscr-open {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sscr-open .sscr-title {
+  flex: 1 1 auto;
+}
+
+.sscr-well {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0.11rem;
+  border-radius: 50%;
+}
+
+.sscr-well::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--sscr-c, transparent) 26%, transparent), transparent 72%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sscr-c, transparent) 42%, transparent);
+}
+
+.sscr-well img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sscr-well-fallback {
+  position: relative;
+  font: 500 0.58rem/1 var(--amdl-mono);
+  color: var(--amdl-muted);
+}
+
+.sscr-title {
+  min-width: 0;
+}
+
+.sscr-name {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sscr-title small {
+  display: block;
+  margin-top: 0.06rem;
+  font: 400 0.6rem/1.2 var(--amdl-mono);
+  letter-spacing: 0.08em;
+  color: var(--amdl-muted);
+}
+
+.sscr-chev {
+  flex: none;
+  color: color-mix(in srgb, var(--amdl-text) 30%, var(--c-transparent));
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1), color 200ms ease;
+}
+
+.sscr-blk.is-open .sscr-chev {
+  transform: rotate(90deg);
+  color: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 75%, var(--amdl-text));
+}
+
+.sscr-blk.is-open .sscr-name {
+  color: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 62%, var(--amdl-text));
+}
+
+.reduce-animation .sscr-chev {
+  transition: none;
+}
+
+.sscr-count {
+  font: 500 0.72rem/1 var(--amdl-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--amdl-muted);
+  white-space: nowrap;
+}
+
+.sscr-count.is-part {
+  color: color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 88%, var(--amdl-text));
+}
+
+.sscr-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.sscr-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sscr-blk.is-open .sscr-fold {
+  grid-template-rows: 1fr;
+}
+
+.reduce-animation .sscr-fold,
+.no-entrance-anim .sscr-fold {
+  transition: none;
+}
+
+.sscr-fold-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.sscr-parts {
+  padding: 0.1rem 0 0.55rem 1.35rem;
+  margin-left: 0.7rem;
+  border-left: 1px solid color-mix(in srgb, var(--sscr-c, var(--amdl-accent)) 55%, transparent);
+}
+
+.sscr-part {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  padding: 0.45rem 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sscr-part:first-child {
+  border-top: 0;
+}
+
+.sscr-part-text {
+  min-width: 0;
+}
+
+.sscr-pc {
+  display: inline-block;
+  min-width: 1rem;
+  margin-right: 0.3rem;
+  text-align: center;
+  font: 500 0.7rem/1 var(--amdl-mono);
+  color: color-mix(in srgb, var(--sscr-c, var(--amdl-text)) 62%, var(--amdl-text));
+}
+
+.sscr-desc {
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--amdl-text);
+}
+
+.sscr-trigger {
+  display: block;
+  margin-top: 0.14rem;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  font-style: italic;
+  color: var(--amdl-muted);
+}
+
+.sscr-part:not(:has(.ssc-native-checkbox:checked)) .sscr-pc {
+  color: color-mix(in srgb, var(--amdl-text) 22%, var(--c-transparent));
+}
+
+.sscr-part:not(:has(.ssc-native-checkbox:checked)) .sscr-desc {
+  color: color-mix(in srgb, var(--amdl-text) 42%, transparent);
+}
+
+.sscr-part:not(:has(.ssc-native-checkbox:checked)) .sscr-trigger {
+  color: color-mix(in srgb, var(--amdl-muted) 45%, transparent);
+}
+
+.sscr-hint {
+  padding-top: 0.9rem;
+}
+
+.sscr-empty {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  color: var(--amdl-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .ssc-root .sscr-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sscr-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--amdl-line);
+    max-height: 11rem;
+  }
+}

@@ -6,7 +6,6 @@
 */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter as BrwsRtr } from 'react-router-dom'
 import { initGameData } from '@/data/gameData/index'
 import { readPersistedGameDataMode } from '@/infra/persistence/gameDataMode'
 import '@/index.css'
@@ -21,11 +20,9 @@ initGameData({ mode: gameDataMode }).then(async () => {
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <BrwsRtr>
-        <AppProviders>
-          <AppRoot />
-        </AppProviders>
-      </BrwsRtr>
+      <AppProviders>
+        <AppRoot />
+      </AppProviders>
     </StrictMode>,
   )
 

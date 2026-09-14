@@ -2,14 +2,23 @@
   Author: Runor Ewhro
   Description: Portal-mounted toast renderer that animates store-driven status
                notifications in the configured screen position.
+
+               The slab says its tone once, with the glyph. The rule along its
+               top says time instead: it drains over the toast's own duration,
+               and a held notice (duration 0) has no drain to run, so the two
+               are told apart by geometry rather than by reading either.
 */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X, CheckCircle2, AlertTriangle as AlertIcon, XCircle, Info } from 'lucide-react'
-import { useTstStr, type Toast, type TstPstn, type ToastVariant } from '@/shared/util/toastStore.ts'
+import { DEF_PSTN, useTstStr, type Toast, type TstPstn, type ToastVariant } from '@/shared/util/toastStore.ts'
 
-const EXIT_MS = 340
+const EXIT_MS = 240
+// the store's own fallback, repeated here because the rule has to drain over
+// the same span the dismissal timer is counting
+const DEF_LIFE = 4000
 
 const PSTN_CLSS: Record<TstPstn, string> = {
   'top-left': 'toast-container--top-left',
@@ -25,6 +34,25 @@ const VAR_CNS: Record<ToastVariant, typeof Info> = {
   success: CheckCircle2,
   warning: AlertIcon,
   error: XCircle,
+}
+
+/*
+  Most of what the app reports is a count: rows copied, echoes cleaned, entries
+  pasted. The figures are lifted into the data face and made tabular so the
+  number leads the line, while the sentence around it stays in the page's type.
+  Only a plain string can be walked; anything richer is left exactly as given.
+*/
+function withFigures(content: ReactNode): ReactNode {
+  if (typeof content !== 'string') {
+    return content
+  }
+
+  const parts = content.split(/(\d[\d,]*)/g)
+  return parts.map((part, index) => (
+    /^\d/.test(part)
+      ? <span className="toast-item__n" key={index}>{part}</span>
+      : part
+  ))
 }
 
 function ToastItem({ toast }: { toast: Toast }) {
@@ -57,10 +85,14 @@ function ToastItem({ toast }: { toast: Toast }) {
     }
   }
 
-  const position = toast.position ?? 'top-center'
+  const position = toast.position ?? DEF_PSTN
   const isTop = position.startsWith('top')
   const variant = toast.variant ?? 'default'
   const Icon = VAR_CNS[variant]
+  // duration 0 is a notice that waits to be dismissed rather than one that runs out
+  const life = toast.duration ?? DEF_LIFE
+  const held = life <= 0
+  const body = useMemo(() => withFigures(toast.content), [toast.content])
 
   const classes = [
     'toast-item',
@@ -68,6 +100,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     isTop ? 'toast-item--top' : 'toast-item--bottom',
     entered && !toast.exiting ? 'toast-item--active' : '',
     toast.exiting ? 'toast-item--exiting' : '',
+    held ? 'toast-item--held' : '',
     toast.onClick ? 'toast-item--clickable' : '',
   ].filter(Boolean).join(' ')
 
@@ -79,15 +112,15 @@ function ToastItem({ toast }: { toast: Toast }) {
       onClick={toast.onClick ? handleClick : undefined}
       tabIndex={toast.onClick ? 0 : undefined}
       onKeyDown={toast.onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() } : undefined}
+      style={{ '--toast-life': `${life}ms` } as CSSProperties}
     >
-      <div className="toast-item__icon">
-        <Icon size="1rem" />
-      </div>
-      <div className="toast-item__content">{toast.content}</div>
+      <span className="toast-item__icon" aria-hidden="true">
+        <Icon size="0.92rem" strokeWidth={2} />
+      </span>
+      <div className="toast-item__content">{body}</div>
       {toast.action && (
         <button
-          type="button"
-          className="toast-item__action"
+          type="button" className="toast-item__action"
           onClick={(e) => {
             e.stopPropagation()
             toast.action!.onClick()
@@ -99,8 +132,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       )}
       {!toast.onClick && (
         <button
-          type="button"
-          className="toast-item__dismiss"
+          type="button" className="toast-item__dismiss"
           aria-label="Dismiss"
           onClick={onDsms}
         >
@@ -116,7 +148,7 @@ export function NtfcTstCntn() {
 
   const grouped = new Map<TstPstn, Toast[]>()
   for (const toast of toasts) {
-    const pos = toast.position ?? 'top-center'
+    const pos = toast.position ?? 'bottom-right'
     const list = grouped.get(pos)
     if (list) list.push(toast)
     else grouped.set(pos, [toast])

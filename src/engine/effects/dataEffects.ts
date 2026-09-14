@@ -20,16 +20,23 @@ import type {
   EffectOp,
   EffectContext,
   FormExpr,
+  BaseStatFld,
+  BaseStatKey,
+  TopBuffStatK,
 } from '@/domain/gameData/contracts'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import { isNoEnemy } from '@/domain/entities/appState'
-import type { CombatGraph } from '@/domain/entities/combatGraph'
+import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
-import type { SlotId } from '@/domain/entities/session'
 import type {
   FinalStats,
+  AttributeKey,
+  ModBuff,
+  NegEffectBuff,
+  NegEffectKey,
   ResBaseStats,
+  SkillTypeKey,
   SkillDef,
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
@@ -76,7 +83,7 @@ export interface CandFxNpt {
   enemy?: EnemyProfile
 }
 
-interface FfctCtxEnt {
+export interface EffectContextRow {
   baseContext: EffectContext
   // effects are bucketed by when they mutate runtime or skill data so graph
   // contexts can reuse the same source expansion without re-querying registries.
@@ -85,7 +92,7 @@ interface FfctCtxEnt {
   skillEffects: EffectDef[]
 }
 
-const grphFfctCtxC = new WeakMap<CombatGraph, Partial<Record<SlotId, FfctCtxEnt[]>>>()
+const grphFfctCtxC = new WeakMap<CombatGraph, Partial<Record<SlotId, EffectContextRow[]>>>()
 
 // check whether effect options use combat graph mode
 function isGrphPtns(options: DataFfctPtns): options is GrphDataFfct {
@@ -110,7 +117,7 @@ function resSrcRt(
   return runtimesById[sourceId] ?? null
 }
 
-function mkFfctCtxEnt(baseContext: EffectContext): FfctCtxEnt {
+function mkFfctCtxEnt(baseContext: EffectContext): EffectContextRow {
   const registry = getGameData()
 
   return {
@@ -164,10 +171,10 @@ function mkEchoSetCnt(
   }))
 }
 
-function mkGrphFfctCt(
+export function listGraphEffectRows(
     graph: CombatGraph,
     targetSlotId: SlotId,
-): FfctCtxEnt[] {
+): EffectContextRow[] {
   const cachedBySlot = grphFfctCtxC.get(graph)
   const cchdEnts = cachedBySlot?.[targetSlotId]
   if (cchdEnts) {
@@ -239,7 +246,7 @@ function mkGrphFfctCt(
 function mkLegFfctCtx(
     tgtRt: ResRuntime,
     options: LegDataFfctP,
-): FfctCtxEnt[] {
+): EffectContextRow[] {
   const resDtlsById = getResDtlsBy()
   const teamRuntime = options.teamRuntime ?? tgtRt
   const runtimesById = options.runtimesById ?? {}
@@ -307,9 +314,9 @@ function mkLegFfctCtx(
 function makeEffectRows(
     tgtRt: ResRuntime,
     options: DataFfctPtns = {},
-): FfctCtxEnt[] {
+): EffectContextRow[] {
   if (isGrphPtns(options)) {
-    return mkGrphFfctCt(options.graph, options.targetSlotId)
+    return listGraphEffectRows(options.graph, options.targetSlotId)
   }
 
   return mkLegFfctCtx(tgtRt, options)
@@ -320,11 +327,19 @@ function mkDynmCtx(
     options: DataFfctPtns,
     pool?: UnifiedBuffPool,
 ): EffectContext {
+  /*
+    Resolving a source's final stats is a full pre-stats pass, and only a
+    formula that reaches for `sourceFinalStats` ever needs one. Hand it over as
+    a getter so the cost lands on the effects that actually read it instead of
+    on every context built.
+  */
   return {
     ...baseContext,
     pool,
     baseStats: options.baseStats,
-    sourceFinalStats: options.sourceStats?.[baseContext.sourceRuntime.id],
+    get sourceFinalStats() {
+      return options.sourceStats?.[baseContext.sourceRuntime.id]
+    },
     finalStats: options.finalStats,
     enemy: options.enemy,
     effectScalesByRuntimePath: options.effectScalesByRuntimePath ?? baseContext.effectScalesByRuntimePath,
@@ -335,7 +350,10 @@ function mkDynmCtx(
 function mkEvalScp(context: EffectContext): EffectScope {
   return {
     sourceRuntime: context.sourceRuntime,
-    sourceFinalStats: context.sourceFinalStats,
+    // kept lazy so an unread source never pays for its stat resolution
+    get sourceFinalStats() {
+      return context.sourceFinalStats
+    },
     targetRuntime: context.targetRuntime,
     activeRuntime: context.activeRuntime,
     context,
@@ -469,77 +487,139 @@ function formExprScale(
 }
 
 // apply one runtime operation to the shared buff pool
-function applyRtOp(
-    pool: UnifiedBuffPool,
-    operation: EffectOp,
-    scope: EffectScope,
-    effectScale = 1,
-): void {
-  if (
-      operation.type === 'add_skill_mod' ||
-      operation.type === 'add_skill_multiplier' ||
-      operation.type === 'add_skill_hit_multiplier' ||
-      operation.type === 'add_skill_scalar' ||
-      operation.type === 'scale_skill_multiplier'
-  ) {
-    return
+const RT_OP_BASE = 1
+const RT_OP_FIXED = 2
+const RT_OP_TOP = 3
+const RT_OP_ATTRIBUTE = 4
+const RT_OP_SKILL_TYPE = 5
+const RT_OP_NEGATIVE = 6
+const RT_OP_IMMUNITY = 7
+
+type RuntimeImmunityOp = Extract<EffectOp, { type: 'add_immunity' }>
+
+interface CompiledRuntimeEffect {
+  readonly opcodes: Uint8Array
+  readonly keysA: readonly string[]
+  readonly keysB: readonly string[]
+  readonly formulas: ReadonlyArray<FormExpr | null>
+  readonly immunities: ReadonlyArray<RuntimeImmunityOp['scope'] | null>
+  readonly groups: Int32Array
+}
+
+const runtimeEffectPrograms = new WeakMap<EffectDef, CompiledRuntimeEffect>()
+
+function compileRuntimeEffect(effect: EffectDef): CompiledRuntimeEffect {
+  const cached = runtimeEffectPrograms.get(effect)
+  if (cached) return cached
+
+  const opcodes: number[] = []
+  const keysA: string[] = []
+  const keysB: string[] = []
+  const formulas: Array<FormExpr | null> = []
+  const immunities: Array<RuntimeImmunityOp['scope'] | null> = []
+  const groups: number[] = []
+  const emit = (
+      opcode: number,
+      keyA = '',
+      keyB = '',
+      formula: FormExpr | null = null,
+      immunity: RuntimeImmunityOp['scope'] | null = null,
+      group = 0,
+  ): void => {
+    opcodes.push(opcode)
+    keysA.push(keyA)
+    keysB.push(keyB)
+    formulas.push(formula)
+    immunities.push(immunity)
+    groups.push(group)
   }
 
-  // immunity ops carry a scope instead of a numeric value; merge into the pool's immunity set
-  if (operation.type === 'add_immunity') {
-    const { scope: immScope } = operation
-    if (immScope.target === 'all') {
-      pool.immunities.all = true
-    } else if (immScope.target === 'element') {
-      pool.immunities.elements.push(...immScope.keys)
-    } else if (immScope.target === 'skillType') {
-      pool.immunities.skillTypes.push(...immScope.keys)
-    } else {
-      pool.immunities.negativeEffects.push(...immScope.keys)
-    }
-    return
-  }
-
-  const value = evalForm(operation.value, scope) * Math.min(effectScale, formExprScale(operation.value, scope))
-
-  if (operation.type === 'add_base_stat') {
-    pool[operation.stat][operation.field] += value
-    return
-  }
-
-  if (operation.type === 'set_final_stat') {
-    pool.fixedStats[operation.stat] = value
-    return
-  }
-
-  if (operation.type === 'add_top_stat') {
-    pool[operation.stat] += value
-    return
-  }
-
-  if (operation.type === 'add_attribute_mod') {
-    const attributes = Array.isArray(operation.attribute) ? operation.attribute : [operation.attribute]
-    for (const attr of attributes) {
-      pool.attribute[attr][operation.mod] += value
-    }
-    return
-  }
-
-  if (operation.type === 'add_skilltype_mod') {
-    const skillTypes = Array.isArray(operation.skillType) ? operation.skillType : [operation.skillType]
-    for (const st of skillTypes) {
-      pool.skillType[st][operation.mod] += value
-    }
-    return
-  }
-
-  if (operation.type === 'add_negative_effect_mod') {
-    const negFfct = Array.isArray(operation.negativeEffect)
+  for (let operationIndex = 0; operationIndex < effect.operations.length; operationIndex += 1) {
+    const operation = effect.operations[operationIndex]
+    if (!operation) continue
+    if (operation.type === 'add_immunity') {
+      emit(RT_OP_IMMUNITY, '', '', null, operation.scope, operationIndex)
+    } else if (operation.type === 'add_base_stat') {
+      emit(RT_OP_BASE, operation.stat, operation.field, operation.value, null, operationIndex)
+    } else if (operation.type === 'set_final_stat') {
+      emit(RT_OP_FIXED, operation.stat, '', operation.value, null, operationIndex)
+    } else if (operation.type === 'add_top_stat') {
+      emit(RT_OP_TOP, operation.stat, '', operation.value, null, operationIndex)
+    } else if (operation.type === 'add_attribute_mod') {
+      const attributes = Array.isArray(operation.attribute) ? operation.attribute : [operation.attribute]
+      for (const attribute of attributes) {
+        emit(RT_OP_ATTRIBUTE, attribute, operation.mod, operation.value, null, operationIndex)
+      }
+    } else if (operation.type === 'add_skilltype_mod') {
+      const skillTypes = Array.isArray(operation.skillType) ? operation.skillType : [operation.skillType]
+      for (const skillType of skillTypes) {
+        emit(RT_OP_SKILL_TYPE, skillType, operation.mod, operation.value, null, operationIndex)
+      }
+    } else if (operation.type === 'add_negative_effect_mod') {
+      const negativeEffects = Array.isArray(operation.negativeEffect)
         ? operation.negativeEffect
         : [operation.negativeEffect]
+      for (const negativeEffect of negativeEffects) {
+        emit(RT_OP_NEGATIVE, negativeEffect, operation.mod, operation.value, null, operationIndex)
+      }
+    }
+  }
 
-    for (const key of negFfct) {
-      pool.negativeEffect[key][operation.mod] += value
+  const program: CompiledRuntimeEffect = {
+    opcodes: Uint8Array.from(opcodes),
+    keysA,
+    keysB,
+    formulas,
+    immunities,
+    groups: Int32Array.from(groups),
+  }
+  runtimeEffectPrograms.set(effect, program)
+  return program
+}
+
+function executeRuntimeEffect(
+    pool: UnifiedBuffPool,
+    effect: EffectDef,
+    scope: EffectScope,
+    effectScale: number,
+): void {
+  const program = compileRuntimeEffect(effect)
+  let previousGroup = -1
+  let previousValue = 0
+  for (let index = 0; index < program.opcodes.length; index += 1) {
+    const opcode = program.opcodes[index]
+    if (opcode === RT_OP_IMMUNITY) {
+      const immunity = program.immunities[index]
+      if (!immunity) continue
+      if (immunity.target === 'all') pool.immunities.all = true
+      else if (immunity.target === 'element') pool.immunities.elements.push(...immunity.keys)
+      else if (immunity.target === 'skillType') pool.immunities.skillTypes.push(...immunity.keys)
+      else pool.immunities.negativeEffects.push(...immunity.keys)
+      continue
+    }
+
+    const formula = program.formulas[index]
+    if (!formula) continue
+    const group = program.groups[index] ?? -1
+    const value = group === previousGroup
+      ? previousValue
+      : evalForm(formula, scope) * Math.min(effectScale, formExprScale(formula, scope))
+    previousGroup = group
+    previousValue = value
+    const keyA = program.keysA[index] ?? ''
+    const keyB = program.keysB[index] ?? ''
+    if (opcode === RT_OP_BASE) {
+      pool[keyA as BaseStatKey][keyB as BaseStatFld] += value
+    } else if (opcode === RT_OP_FIXED) {
+      pool.fixedStats[keyA as BaseStatKey] = value
+    } else if (opcode === RT_OP_TOP) {
+      pool[keyA as TopBuffStatK] += value
+    } else if (opcode === RT_OP_ATTRIBUTE) {
+      pool.attribute[keyA as AttributeKey | 'all'][keyB as keyof ModBuff] += value
+    } else if (opcode === RT_OP_SKILL_TYPE) {
+      pool.skillType[keyA as SkillTypeKey][keyB as keyof ModBuff] += value
+    } else if (opcode === RT_OP_NEGATIVE) {
+      pool.negativeEffect[keyA as NegEffectKey][keyB as keyof NegEffectBuff] += value
     }
   }
 }
@@ -570,9 +650,7 @@ export function applyCandRt(
     }
 
     const effectScale = effectConditionScale(effect.condition, scope)
-    for (const operation of effect.operations) {
-      applyRtOp(pool, operation, scope, effectScale)
-    }
+    executeRuntimeEffect(pool, effect, scope, effectScale)
   }
 
   return pool
@@ -791,9 +869,7 @@ export function applyRtDataF(
       }
 
       const effectScale = effectConditionScale(effect.condition, scope)
-      for (const operation of effect.operations) {
-        applyRtOp(next, operation, scope, effectScale)
-      }
+      executeRuntimeEffect(next, effect, scope, effectScale)
     }
   }
 
@@ -841,9 +917,7 @@ export function applyEnemyRtDataF(
     }
 
     const effectScale = effectConditionScale(effect.condition, scope)
-    for (const operation of effect.operations) {
-      applyRtOp(next, operation, scope, effectScale)
-    }
+    executeRuntimeEffect(next, effect, scope, effectScale)
   }
 
   return next

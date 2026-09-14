@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Builds and caches the full game-data source package list
-               and the derived registry used across the calculator.
+               and the derived registry used across Simulation tools.
 */
 
 import { initEchoCat } from '@/data/gameData/catalog/echoes'

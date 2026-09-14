@@ -20,16 +20,14 @@ import type {
   DrctSuggCtx,
   MainStatSuwo,
   MainStatPrep,
-  RandomPrep,
   PrepSetPlanS,
   PrepWeaponPlan,
-  RandSuggsNpt,
   RotSuggCtx,
   SetPlanSuggs,
   SuggestContext,
   SuggestInput,
 } from '@/engine/suggestions/types'
-import { runResSmlt } from '@/engine/pipeline'
+import { materializeResRotation, runResSmlt } from '@/engine/pipeline'
 import type { SimResult } from '@/engine/pipeline/types'
 import { stripEchoes } from '@/engine/optimizer/compiler/shared'
 import { buildSetRows, listDynamicSetStateParts, makeSetMask } from '@/engine/optimizer/encode/sets'
@@ -37,13 +35,15 @@ import { mkGnrcMainEc, mkMainEchoRo, encEchoRows } from '@/engine/optimizer/enco
 import { compOptTgtCt } from '@/engine/optimizer/target/context'
 import { packTargetCtx } from '@/engine/optimizer/context/pack'
 import { evalTarget } from '@/engine/optimizer/target/evaluate'
-import { applyPersRot } from '@/engine/optimizer/rotation/runtime'
-import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph'
+import { applyRotationProgram } from '@/engine/optimizer/rotation/runtime'
 import { countEchoSets, makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { makeSkillCtx, prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
-import { mkPrepRotNvr, runFeatSmlt } from '@/engine/rotation/system'
 import { makeOptContext } from '@/engine/optimizer/context/compiled'
+import {
+  buildRotationCombatContexts,
+  packRotationTargetContexts,
+} from '@/engine/optimizer/rotation/targetContexts'
 import { selOptTgtSkl, type OptTargetSkill } from '@/engine/optimizer/target/selectedSkill'
 import { CTX_FLOATS, MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants'
 import type { PrepOptTgtCt } from '@/engine/optimizer/target/context'
@@ -254,7 +254,7 @@ export function resSuggDmg(
 ): number {
   if (input.rotationMode) {
     return sumOptRotDmg(
-      simulation.rotations.personal.entries,
+      simulation.rotation.sequence.entries,
       input.runtime.id,
       { includeEchoAttacks: input.includeEchoAttacks },
     )
@@ -286,7 +286,7 @@ export function mkSuggWghtMa(
   }
 
   // rotation mode blends weights from all eligible rotation targets
-  const entries = simulation.rotations.personal.entries.filter((entry) =>
+  const entries = simulation.rotation.sequence.entries.filter((entry) =>
       isOptRotTgt(entry, input.runtime.id, { includeEchoAttacks: input.includeEchoAttacks }),
   )
   if (entries.length === 0) {
@@ -320,29 +320,9 @@ export function mkSuggWghtMa(
   return weights
 }
 
-// pull all weights toward or away from the average according to bias
-export function applyWghtBia(
-    weights: OptStatWeight,
-    bias: number,
-): OptStatWeight {
-  const entries = Object.entries(weights)
-  if (entries.length === 0) {
-    return weights
-  }
-
-  const avg = entries.reduce((sum, [, value]) => sum + (value ?? 0), 0) / entries.length
-
-  return Object.fromEntries(
-      entries.map(([key, value]) => [
-        key,
-        Math.max(0.05, avg + (((value ?? 0) - avg) * Math.max(0, Math.min(1, bias)))),
-      ]),
-  )
-}
-
 // build the packed direct-target evaluation context used for fast scoring
 export function mkDrctSuggCt(
-    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    input: SuggestInput,
     simulation: SimResult,
 ): DrctSuggCtx | null {
   const entry = getLgblDrctE(simulation, input)
@@ -405,11 +385,11 @@ export function mkDrctSuggCt(
 
 // extract all rotation feature targets that should contribute to suggestion scoring
 function mkRotTrgt(
-    simulation: { rotations: { personal: { entries: FeatureResult[] } } },
+    entries: FeatureResult[],
     resonatorId: string,
     includeEchoAttacks = false,
 ): RotTgtCtx[] {
-  return simulation.rotations.personal.entries
+  return entries
       .filter((entry) => isOptRotTgt(entry, resonatorId, { includeEchoAttacks }))
       .map((entry) => ({
         skill: entry.skill,
@@ -420,7 +400,7 @@ function mkRotTrgt(
 
 // build the packed multi-context rotation evaluation context
 export function mkRotSuggCtx(
-    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    input: SuggestInput,
     simulation: SimResult,
 ): RotSuggCtx | null {
   const seed = getResSeedBy(input.runtime.id)
@@ -428,42 +408,31 @@ export function mkRotSuggCtx(
     return null
   }
 
-  // apply the personal rotation to a stripped runtime so setup effects are reflected
-  const rotRt = applyPersRot(
+  // apply the rotation program to a stripped runtime so setup effects are reflected
+  const rotRt = applyRotationProgram(
       stripEchoes(input.runtime),
-      input.runtime.rotation.personalItems,
+      input.runtime.rotation.sequence,
       { ignoreLoops: true },
   )
   const participants = makeRuntimeMap(rotRt, input.runtimesById)
 
-  // build a transient graph and active combat context for rotation simulation
-  const graph = makeCombatGraph({
-    actRt: rotRt,
-    activeSeed: seed,
-    partRts: participants,
-    targetsByRes: {
-      [rotRt.id]: input.selectedTargets ?? {},
-    },
-  })
-
-  const activeContext = makeCombatEnv({
-    graph,
-    targetSlotId: 'active',
+  const materialized = materializeResRotation({
+    runtime: rotRt,
+    seed,
     enemy: input.enemy,
-  })
-
-  const rotNvrn = mkPrepRotNvr(activeContext, seed)
-  const simulated = runFeatSmlt(activeContext, seed, participants, rotNvrn, undefined, {
-    mode: 'personal',
+    items: rotRt.rotation.sequence,
+    runtimesById: participants,
+    selectedTargets: input.selectedTargets ?? {},
     detail: 'summary',
   })
+  const { graph, context: activeContext } = materialized
   const targets = input.includeEchoAttacks
       ? [
-        ...mkRotTrgt(simulated, input.runtime.id),
-        ...mkRotTrgt(simulation, input.runtime.id, true)
+        ...mkRotTrgt(materialized.entries, input.runtime.id),
+        ...mkRotTrgt(simulation.rotation.sequence.entries, input.runtime.id, true)
           .filter((target) => target.skill.tab === 'echoAttacks'),
       ]
-      : mkRotTrgt(simulated, input.runtime.id)
+      : mkRotTrgt(materialized.entries, input.runtime.id)
 
   const fllbSkll = targets[0]
       ? selOptTgtSkl(targets[0].skill)
@@ -474,100 +443,27 @@ export function mkRotSuggCtx(
   }
 
   // cache one combat context per resonator that participates in rotation targets
-  const cmbtByResId: Record<string, ReturnType<typeof makeCombatEnv>> = {
-    [rotRt.id]: activeContext,
-  }
-
-  for (const target of targets) {
-    if (cmbtByResId[target.resonatorId]) {
-      continue
-    }
-
-    const slotId = findCombatPart(graph, target.resonatorId)
-    if (!slotId) {
-      continue
-    }
-
-    cmbtByResId[target.resonatorId] = makeCombatEnv({
-      graph,
-      targetSlotId: slotId,
-      enemy: input.enemy,
-    })
-  }
+  const cmbtByResId = buildRotationCombatContexts(
+    graph,
+    activeContext,
+    rotRt.id,
+    targets,
+    input.enemy,
+  )
 
   const setRows = setRowOpts(input, rotRt)
   const setRtMask = makeSetMask(rotRt, input.setConds, setRows)
-  const contexts = new Float32Array(targets.length * CTX_FLOATS)
-  const contextWeight = new Float32Array(targets.length)
-  let displayContext: Float32Array | null = null
-  let displayLowestPositive = Number.POSITIVE_INFINITY
-  let displayLowestCrit = Number.POSITIVE_INFINITY
-  let displayLowestZero = Number.POSITIVE_INFINITY
-
-  // pack one optimizer context per rotation target
-  for (let index = 0; index < targets.length; index += 1) {
-    const target = targets[index]
-    const ownerCombat = cmbtByResId[target.resonatorId] ?? activeContext
-
-    const skill = input.includeEchoAttacks && target.skill.tab === 'echoAttacks'
+  const packed = packRotationTargetContexts({
+    targets,
+    combatByResonatorId: cmbtByResId,
+    activeContext,
+    enemy: input.enemy,
+    shape: { comboN: 5, comboK: 5, comboCount: 1, setRtMask },
+    prepareSkill: (target, ownerCombat) =>
+      input.includeEchoAttacks && target.skill.tab === 'echoAttacks'
         ? prepSuggSkill(ownerCombat.runtime, target.resonatorId, target.skill, ownerCombat)
-        : target.skill
-
-    const compiled = makeOptContext({
-      resonatorId: target.resonatorId,
-      runtime: ownerCombat.runtime,
-      skill,
-      finalStats: ownerCombat.finalStats,
-      enemy: input.enemy,
-      combatState: ownerCombat.runtime.state.combat,
-    })
-
-    const pckdCtx = packTargetCtx({
-      compiled,
-      skill,
-      runtime: ownerCombat.runtime,
-      comboN: 5,
-      comboK: 5,
-      comboCount: 1,
-      comboBaseIndex: 0,
-      lockEchoIdx: -1,
-      setRtMask: setRtMask,
-    })
-
-    targets[index] = {
-      ...target,
-      skill,
-    }
-    contexts.set(pckdCtx, index * CTX_FLOATS)
-    contextWeight[index] = target.weight
-
-    // Match rotation optimizer result presentation: use a normal damage target,
-    // preferring the lowest positive weight and then the lowest crit aggregate.
-    // Benchmark damage still sums every context; this one only resolves the
-    // representative combat stat line shown beside that score.
-    if (skill.archetype === 'skillDamage') {
-      const critSum = compiled.statCritRate + compiled.statCritDmg
-      const displayValue = Number.isFinite(target.weight) ? target.weight : 1
-      if (
-        displayValue > 0
-        && (
-          displayValue < displayLowestPositive
-          || (displayValue === displayLowestPositive && critSum < displayLowestCrit)
-        )
-      ) {
-        displayLowestPositive = displayValue
-        displayLowestCrit = critSum
-        displayContext = new Float32Array(pckdCtx)
-      } else if (
-        displayLowestPositive === Number.POSITIVE_INFINITY
-        && displayValue === 0
-        && critSum < displayLowestZero
-      ) {
-        displayLowestZero = critSum
-        displayContext = new Float32Array(pckdCtx)
-      }
-    }
-  }
+        : target.skill,
+  })
 
   return {
     mode: 'rotation',
@@ -576,14 +472,14 @@ export function mkRotSuggCtx(
     selectedSkill: fllbSkll,
     sourceBaseStats: activeContext.baseStats,
     sourceFinals: activeContext.finalStats,
-    contexts,
+    contexts: packed.contexts,
     contextStride: CTX_FLOATS,
-    contextWeight: contextWeight,
+    contextWeight: packed.contextWeight,
     contextCount: targets.length,
-    displayContext,
+    displayContext: packed.displayContext,
     pool: activeContext.buffs,
-    sklls: targets.map((target) => target.skill),
-    resIds: targets.map((target) => target.resonatorId),
+    sklls: packed.targets.map((target) => target.skill),
+    resIds: packed.targets.map((target) => target.resonatorId),
     enemy: input.enemy,
     setRtMask,
     setConstLut: buildSetRows(rotRt, input.setConds, setRows),
@@ -592,7 +488,7 @@ export function mkRotSuggCtx(
 
 // choose the correct evaluation context based on direct or rotation mode
 export function mkSuggVltnCt(
-    input: MainStatSuwo | SetPlanSuggs | RandSuggsNpt,
+    input: SuggestInput,
     simulation: SimResult,
 ): SuggestContext | null {
   return input.rotationMode
@@ -613,6 +509,8 @@ export function mkPrepMainSt(
   }
 
   return {
+    scenarioId: input.scenarioId,
+    memberId: input.memberId,
     context,
     rotationMode: input.rotationMode,
     qppdChs: input.runtime.build.echoes,
@@ -632,6 +530,8 @@ export function mkPrepSetPla(
   }
 
   return {
+    scenarioId: input.scenarioId,
+    memberId: input.memberId,
     context,
     rotationMode: input.rotationMode,
     qppdChs: input.runtime.build.echoes,
@@ -688,40 +588,21 @@ export function mkPrepWpnSu(
   }
 
   return {
+    scenarioId: input.scenarioId,
+    memberId: input.memberId,
+    runtime: clean.runtime,
     context,
     qppdChs: input.runtime.build.echoes,
     seed: input.seed,
     enemy: input.enemy,
     runtimesById: input.runtimesById,
     selectedTargets: input.selectedTargets,
+    includeEchoAttacks: input.includeEchoAttacks,
     weaponType: input.seed.weaponType,
     level: input.runtime.build.weapon.level,
     rank: input.runtime.build.weapon.rank,
     settings: input.weapon,
     topK: input.topK,
-  }
-}
-
-export function mkPrepRandSu(
-    input: RandSuggsNpt,
-    simulation: SimResult,
-): RandomPrep | null {
-  const context = mkSuggVltnCt(input, simulation)
-  if (!context) {
-    return null
-  }
-
-  const rawWeightMap = mkSuggWghtMa(simulation, input, input.settings.bias)
-
-  return {
-    context,
-    qppdChs: input.runtime.build.echoes,
-    runtimeId: input.runtime.id,
-    rawWeightMap,
-    statWeight: applyWghtBia(rawWeightMap, input.settings.bias),
-    settings: input.settings,
-    resultsLimit: input.resultsLimit,
-    candCnt: input.candCnt,
   }
 }
 

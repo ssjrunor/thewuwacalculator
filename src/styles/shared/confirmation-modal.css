@@ -32,7 +32,7 @@
 
 .confirmation-modal {
   --confirm-accent: var(--picker-modal-accent, var(--accent, #6b7cff));
-  --confirm-line: color-mix(in srgb, var(--picker-modal-border, rgba(27, 36, 53, 0.14)) 80%, transparent);
+  --confirm-line: var(--picker-modal-border, var(--border, rgba(27, 36, 53, 0.14)));
 
   width: min(26rem, calc(100vw - 2rem));
   padding: 0;
@@ -42,6 +42,11 @@
 
 .confirmation-modal--danger {
   --confirm-accent: var(--danger, #ef4444);
+}
+
+
+.confirmation-modal--warn {
+  --confirm-accent: var(--amdl-warn, #c8862a);
 }
 
 .confirmation-modal::before {

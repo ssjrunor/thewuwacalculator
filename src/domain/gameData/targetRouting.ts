@@ -6,13 +6,32 @@
 
 const ROUTE_SOURCE_SEP = '@'
 
+export interface ScopedTargetOwnerKey {
+  sourceRuntimeId: string | null
+  ownerKey: string
+}
+
 export function scopedTargetOwnerKey(sourceRuntimeId: string, ownerKey: string): string {
   return `${sourceRuntimeId}${ROUTE_SOURCE_SEP}${ownerKey}`
 }
 
 export function unscopedTargetOwnerKey(routeKey: string): string {
+  return splitScopedTargetOwnerKey(routeKey).ownerKey
+}
+
+export function splitScopedTargetOwnerKey(routeKey: string): ScopedTargetOwnerKey {
   const sepIndex = routeKey.indexOf(ROUTE_SOURCE_SEP)
-  return sepIndex === -1 ? routeKey : routeKey.slice(sepIndex + ROUTE_SOURCE_SEP.length)
+  if (sepIndex === -1) {
+    return {
+      sourceRuntimeId: null,
+      ownerKey: routeKey,
+    }
+  }
+
+  return {
+    sourceRuntimeId: routeKey.slice(0, sepIndex) || null,
+    ownerKey: routeKey.slice(sepIndex + ROUTE_SOURCE_SEP.length),
+  }
 }
 
 export function getScopedTargetSelection(

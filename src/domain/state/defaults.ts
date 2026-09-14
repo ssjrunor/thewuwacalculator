@@ -1,26 +1,38 @@
 /*
   Author: Runor Ewhro
   Description: Provides default state factories and initialization helpers for
-               resonators, teams, optimizer context, and persisted app state.
+               resonators, teams, optimizer settings, and persisted app state.
 */
 
-import type {
-  LeftPaneView,
-  PersistedState,
-  ThemeMode,
-  ThemePref,
-  EnemyProfile,
-  CalcState,
-  UiState,
+import {
+  NONE_ENEMY_ID,
+  type HydratedAppState,
+  type LeftPaneView,
+  type PersistedState,
+  type LegacyProfileMap,
+  type ThemeMode,
+  type ThemePref,
+  type EnemyProfile,
+  type SimulationState,
+  type UiState,
 } from '@/domain/entities/appState'
 import { DEF_UI_PREFS } from '@/domain/entities/preferences'
 import type {
-  InvEchoEnt,
-  InventoryEntry,
-  InvRotEnt,
+  SavedEcho,
+  SavedBuild,
+  SavedRotation,
+  SavedScenario,
+  SavedArtifactLibrary,
 } from '@/domain/entities/inventoryStorage'
-import { dedupeInvEchoUids, getEchoNstnSig } from '@/domain/entities/inventoryStorage'
-import type { OptContext, OptSets } from '@/domain/entities/optimizer'
+import {
+  cloneRotationNodes,
+  dedupeEchoUids,
+  getEchoSignature,
+  normalizeDuration,
+  normalizeRotNote,
+} from '@/domain/entities/inventoryStorage'
+import type { OptSets } from '@/domain/entities/optimizer'
+import type { CombatSession } from '@/domain/entities/session'
 import {
   cloneSntSet,
   DEF_SET_COND,
@@ -38,12 +50,11 @@ import {
 } from '@/domain/entities/themes'
 import { mkDefPckrFre, normalizePckrFreqState } from '@/domain/state/pickerFrequency'
 import {
-  DEF_BODY_FONT,
-  getPrstBodyF,
-} from '@/modules/settings/model/typography'
-import { DEF_BG_KEY } from '@/modules/settings/model/backgroundTheme'
-import { getSystTheme } from '@/shared/lib/systemTheme'
-import { DEF_ENEMY_PROF } from '@/domain/entities/enemy'
+  DEF_BG_KEY,
+  DEFAULT_BODY_FONT,
+  getPresetFontUrl,
+} from '@/domain/entities/appearance'
+import { DEF_ENEMY_ID, DEF_ENEMY_PROF } from '@/domain/entities/enemy'
 import type {
   ResRuntime,
   ResSeed,
@@ -64,19 +75,80 @@ import type {
   SlotRatingState,
 } from '@/domain/entities/profile'
 import {
+  combatScenarioId,
+  contextScenarioMember,
+  makeScenarioTeam,
+  teamMemberId,
+  type CombatScenario,
+  type EnvironmentManualEffect,
+  type ScenarioTargetRouting,
+  type ScenarioTeamMember,
+  type TeamMemberId,
+} from '@/domain/entities/combatScenario'
+import {
   cloneOptInventorySelection,
   makeOptInventorySelection,
 } from '@/domain/entities/profile'
-import { runtimeSig } from '@/domain/state/runtimeSignature.ts'
+import {
+  makeCombatEnvironment,
+  makeMemberManualEffect,
+} from '@/domain/state/scenarioEnvironment'
+import {
+  scenarioIdForContextResonator,
+  type ScenarioWorkspace,
+} from '@/domain/entities/scenarioLibrary'
 
-export type PersistedUnknown = Omit<PersistedState, 'version' | 'ui'> & {
+type LegacyCombatWorkspace = {
+  currentScenario?: CombatScenario
+}
+
+type LegacyScenarioDocument = {
+  id?: string
+  name?: string
+  createdAt?: number
+  updatedAt?: number
+  scenario: CombatScenario
+}
+
+type UnknownCombatWorkspace = Partial<ScenarioWorkspace> & {
+  scenario?: CombatScenario
+  documentsById?: Record<string, LegacyScenarioDocument>
+}
+
+type LegacyCalculatorState = Partial<SimulationState> & {
+  runtimeRevision?: number
+  profiles?: LegacyProfileMap
+  inventoryEchoes?: SavedEcho[]
+  inventoryBuilds?: SavedBuild[]
+  inventoryRotations?: SavedRotation[]
+  session?: CombatSession
+  workspace?: LegacyCombatWorkspace
+  optimizerContext?: {
+    resonatorId?: string | null
+    settings?: Partial<OptSets> | null
+  } | null
+}
+
+export type PersistedUnknown = Omit<PersistedState, 'version' | 'ui' | 'simulation' | 'combat' | 'library'> & {
   version: number
-  ui: Omit<UiState, 'themePreference' | 'historyMax' | 'itemFreq' | 'preferences' | 'suggsViewMode'> & {
+  combat?: UnknownCombatWorkspace
+  library?: Partial<SavedArtifactLibrary>
+  simulation: LegacyCalculatorState
+  ui: Omit<
+    UiState,
+    | 'themePreference'
+    | 'historyMax'
+    | 'itemFreq'
+    | 'preferences'
+    | 'suggsViewMode'
+    | 'rotationEditorPreferences'
+  > & {
     themePreference?: UiState['themePreference']
     historyMax?: UiState['historyMax']
     itemFreq?: UiState['itemFreq']
     preferences?: UiState['preferences']
     suggsViewMode?: UiState['suggsViewMode']
+    rotationEditorPreferences?: UiState['rotationEditorPreferences']
   }
 }
 import type {
@@ -88,8 +160,12 @@ import { NONE_WPN_ID } from '@/domain/entities/runtime'
 import type { AttributeKey, BaseStatBuff, ModBuff } from '@/domain/entities/stats'
 import { getResSeedBy, listResSds } from '@/domain/services/resonatorSeedService'
 import { getWpnById, listWpnsByTy } from '@/domain/services/weaponCatalogService'
-import { getEchoById } from '@/domain/services/echoCatalogService'
 import type { RotationNode } from '@/domain/gameData/contracts'
+import { migrateLegacyRotationItems } from '@/domain/gameData/loopPasses.ts'
+import {
+  normalizeFeatureAttachments,
+  stripFeatureAttachments,
+} from '@/domain/gameData/rotationAttached'
 import { writeRtPath } from '@/domain/gameData/runtimePath'
 import { normResRtCnt } from '@/domain/gameData/controlOptions'
 import { normNegFfctC } from '@/domain/gameData/negativeEffects'
@@ -100,10 +176,10 @@ import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import { getGameData } from '@/data/gameData'
 import { listResRttn, listStatesFor } from '@/domain/services/gameDataService'
 import { makeSourceKey } from '@/domain/gameData/registry'
+import { splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting'
 import {
   cloneEnemyPr,
   cloneBuffs,
-  cloneResRtSt,
   cloneRotation,
   cloneSkllLvl,
   cloneTrcNode,
@@ -114,12 +190,18 @@ import {
   catWpnAtk,
 } from '@/domain/state/weaponState'
 import { APP_STATE_VER } from '@/domain/state/schema'
+import { makeDefaultRotationEditorPreferences } from '@/domain/entities/rotationEditorPreferences'
+import {
+  repairEchoLoadoutForCatalog,
+  repairSavedEchoForCatalog,
+} from '@/domain/state/echoCatalogRepair'
 import {
   allOptSetIds,
   normOptSets,
 } from '@/engine/optimizer/config/allowedSets'
 
 export const DEF_RES_ID = '1506'
+
 export const MAX_RES_LVL = 90
 export const MAX_SKILL_LEVEL = 10
 export const MAX_WPN_LVL = 90
@@ -127,7 +209,7 @@ export const MAX_WPN_LVL = 90
 function getFallbackSeed(): ResSeed {
   const seed = getResSeedBy(DEF_RES_ID) ?? listResSds()[0]
   if (!seed) {
-    throw new Error('Cannot initialize calculator state without resonator game data.')
+    throw new Error('Cannot initialize Simulation state without resonator game data.')
   }
 
   return seed
@@ -146,12 +228,14 @@ function hasSource(type: 'resonator' | 'weapon' | 'echo' | 'echoSet' | 'enemy', 
 }
 
 // default saved rotation preferences
-export function mkDefSvdRotP(): UiState['savedRotationPreferences'] {
+export function defaultSavedPrefs(): UiState['savedRotationPreferences'] {
   return {
     sortBy: 'date',
     sortOrder: 'desc',
-    filterMode: 'all',
+    contributionFilter: 'unset',
     autoSearchActiveResonator: false,
+    showLiveRotation: false,
+    scaleToSelected: true,
   }
 }
 
@@ -424,28 +508,6 @@ export function cloneOptSets(
   }
 }
 
-function normEchoForCatalog(echo: EchoInstance | null | undefined): EchoInstance | null {
-  if (!echo) {
-    return null
-  }
-
-  const definition = getEchoById(echo.id)
-  if (!definition) {
-    return null
-  }
-
-  return {
-    ...echo,
-    set: definition.sets.includes(echo.set)
-      ? echo.set
-      : definition.sets[0] ?? echo.set,
-  }
-}
-
-function normEchoesForCatalog(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
-  return echoes.map(normEchoForCatalog)
-}
-
 function normWeaponForSeed(
     seed: Pick<ResSeed, 'defaultWeaponId' | 'weaponType'>,
     weapon: Pick<WeaponState, 'id' | 'level' | 'rank'>,
@@ -486,16 +548,37 @@ function preserveTeamWeaponForSeed(
   }
 }
 
+function isKnownCombatTarget(enemy: EnemyProfile): boolean {
+  if (!enemy.id) {
+    return false
+  }
+
+  // Custom targets and the unset/default placeholders are scenario-owned
+  // identities, not effect-source packages.
+  if (
+    enemy.source === 'custom'
+    || enemy.id === NONE_ENEMY_ID
+    || enemy.id === DEF_ENEMY_ID
+  ) {
+    return true
+  }
+
+  if (hasSource('enemy', enemy.id)) {
+    return true
+  }
+
+  // Most catalog enemies have no effect package, so sourcesByKey cannot be
+  // used as catalog membership. Preserve numeric catalog ids and drop the
+  // obviously unknown ones used by cross-catalog repair.
+  return enemy.source === 'catalog' && /^\d+$/.test(enemy.id)
+}
+
 function normEnemyForCatalog(enemy: EnemyProfile | undefined): EnemyProfile {
-  if (!enemy) {
+  if (!enemy || !isKnownCombatTarget(enemy)) {
     return makeEnemy()
   }
 
-  if (enemy.source === 'custom' || hasSource('enemy', enemy.id)) {
-    return cloneEnemyPr(enemy)
-  }
-
-  return makeEnemy()
+  return cloneEnemyPr(enemy)
 }
 
 function normFeatureNodesForCatalog(nodes: RotationNode[]): RotationNode[] {
@@ -511,9 +594,24 @@ function normFeatureNodesForCatalog(nodes: RotationNode[]): RotationNode[] {
 
   for (const node of nodes) {
     if (node.type === 'feature') {
-      if (hasFeatureId(node.featureId)) {
-        next.push(node)
+      if (!hasFeatureId(node.featureId)) {
+        continue
       }
+      const attachedFeatures = (node.attached?.features ?? [])
+        .filter((feature) => feature.type === 'feature' && hasFeatureId(feature.featureId))
+        .map(stripFeatureAttachments)
+      const attachedConditions = (node.attached?.conditions ?? [])
+        .filter((condition) => condition.type === 'condition')
+      const sanitized = node.attached
+        ? {
+          ...node,
+          attached: {
+            conditions: attachedConditions,
+            features: attachedFeatures,
+          },
+        }
+        : node
+      next.push(normalizeFeatureAttachments(sanitized))
       continue
     }
 
@@ -531,6 +629,19 @@ function normFeatureNodesForCatalog(nodes: RotationNode[]): RotationNode[] {
       continue
     }
 
+    if (node.type === 'loop' && node.kind === 'start' && node.passForks) {
+      next.push({
+        ...node,
+        passForks: Object.fromEntries(
+          Object.entries(node.passForks).map(([run, body]) => [
+            run,
+            normFeatureNodesForCatalog(body),
+          ]),
+        ),
+      })
+      continue
+    }
+
     next.push(node)
   }
 
@@ -540,8 +651,8 @@ function normFeatureNodesForCatalog(nodes: RotationNode[]): RotationNode[] {
 function normRotationForCatalog(rotation: RotationState): RotationState {
   return {
     ...rotation,
-    personalItems: normFeatureNodesForCatalog(rotation.personalItems),
-    teamItems: normFeatureNodesForCatalog(rotation.teamItems),
+    sequence: normFeatureNodesForCatalog(migrateLegacyRotationItems(rotation.sequence)),
+    program: normFeatureNodesForCatalog(migrateLegacyRotationItems(rotation.program)),
   }
 }
 
@@ -634,16 +745,13 @@ function getSeedStts(seed: ResSeed) {
 // create the default rotation state for a resonator
 export function mkDefRot(seed: ResSeed): RotationState {
   const defRot = seed.rotations?.[0] ?? listResRttn(seed.id)[0]
+  const defaultItems = defRot?.items ?? []
 
-  return {
-    view: 'personal',
-    personalItems: cloneRotation({
-      view: 'personal',
-      personalItems: defRot?.items ?? [],
-      teamItems: [],
-    }).personalItems,
-    teamItems: [],
-  }
+  return cloneRotation({
+    sequence: defaultItems,
+    program: defaultItems,
+    lastRanAt: null,
+  })
 }
 
 // create a default persisted resonator profile
@@ -886,40 +994,10 @@ export function matTeamMemRt(
   }
 }
 
-// create an optimizer context from a runtime snapshot
-export function mkOptCtxFrom(
-    runtime: ResRuntime,
-    settings?: Partial<OptSets> | null,
-): OptContext {
-  return {
-    resonatorId: runtime.id,
-    runtime: cloneResRtSt(runtime),
-    sourceRuntimeSig: runtimeSig(runtime),
-    settings: cloneOptSets(settings),
-  }
-}
-
-// clone an optimizer context safely
-export function cloneOptCtxS(
-    context?: OptContext | null,
-): OptContext | null {
-  if (!context) {
-    return null
-  }
-  const runtime = cloneResRtSt(context.runtime)
-
-  return {
-    resonatorId: context.resonatorId,
-    runtime,
-    sourceRuntimeSig: context.sourceRuntimeSig || runtimeSig(runtime),
-    settings: cloneOptSets(context.settings),
-  }
-}
-
 function relinkEquippedEchoUids(
-    profiles: CalcState['profiles'],
-    inventoryEchoes: InvEchoEnt[],
-): CalcState['profiles'] {
+    profiles: LegacyProfileMap,
+    inventoryEchoes: SavedEcho[],
+): LegacyProfileMap {
   if (inventoryEchoes.length === 0) {
     return profiles
   }
@@ -928,7 +1006,7 @@ function relinkEquippedEchoUids(
   const invBySig = new Map<string, EchoInstance>()
   for (const entry of inventoryEchoes) {
     invByUid.set(entry.echo.uid, entry.echo)
-    const sig = getEchoNstnSig(entry.echo)
+    const sig = getEchoSignature(entry.echo)
     if (!invBySig.has(sig)) {
       invBySig.set(sig, entry.echo)
     }
@@ -943,9 +1021,9 @@ function relinkEquippedEchoUids(
             return echo
           }
 
-          const sig = getEchoNstnSig(echo)
+          const sig = getEchoSignature(echo)
           const currentInvEcho = invByUid.get(echo.uid)
-          if (currentInvEcho && getEchoNstnSig(currentInvEcho) === sig) {
+          if (currentInvEcho && getEchoSignature(currentInvEcho) === sig) {
             return echo
           }
 
@@ -982,20 +1060,303 @@ function relinkEquippedEchoUids(
   return changed ? nextProfiles : profiles
 }
 
-// initialize calculator state with current defaults
-function mkInitCalcSt(base?: CalcState): CalcState {
-  const rtRvsn = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
+function legacyMemberControls(
+  controls: Record<string, boolean | number | string>,
+  resonatorId: string,
+  primary: boolean,
+): Record<string, boolean | number | string> {
+  if (primary) {
+    return Object.fromEntries(
+      Object.entries(controls).filter(([key]) => !key.startsWith('team:')),
+    )
+  }
+
+  const prefix = `team:${resonatorId}:`
+  return Object.fromEntries(
+    Object.entries(controls)
+      .filter(([key]) => key.startsWith(prefix) && !key.startsWith(`${prefix}__mb:`))
+      .map(([key, value]) => [key.slice(prefix.length), value]),
+  )
+}
+
+function profileScenarioMember(
+  profile: ResProf,
+  controls: Record<string, boolean | number | string>,
+): ScenarioTeamMember {
+  const seed = getResSeedBy(profile.resonatorId)
+  return {
+    id: teamMemberId(profile.resonatorId),
+    resonatorId: profile.resonatorId,
+    progression: {
+      level: profile.runtime.progression.level,
+      sequence: profile.runtime.progression.sequence,
+      skillLevels: cloneSkllLvl(profile.runtime.progression.skillLevels),
+      traceNodes: cloneTrcNode(profile.runtime.progression.traceNodes),
+    },
+    loadout: {
+      weapon: seed
+        ? normWeaponForSeed(seed, profile.runtime.build.weapon)
+        : cloneWpnMkSt(profile.runtime.build.weapon),
+      echoes: repairEchoLoadoutForCatalog(profile.runtime.build.echoes),
+    },
+    local: {
+      controls,
+      setConditionals: cloneSntSet(profile.runtime.local.setConditionals),
+      optimizerInventory: cloneOptInventorySelection(profile.runtime.local.optimizerInventory),
+    },
+  }
+}
+
+export function makeScenarioMemberFromProfile(profile: ResProf): ScenarioTeamMember {
+  return profileScenarioMember(
+    profile,
+    legacyMemberControls(profile.runtime.local.controls, profile.resonatorId, true),
+  )
+}
+
+function compactScenarioMember(
+  compact: TeamMemRt,
+  activeProfile: ResProf,
+): ScenarioTeamMember | null {
+  const seed = getResSeedBy(compact.id)
+  if (!seed) return null
+
+  const weapon = compact.build.weapon.id && getWpnById(compact.build.weapon.id)
+    ? compact.build.weapon
+    : mkDefSeedWpnMkSt(seed)
+
+  return {
+    id: teamMemberId(seed.id),
+    resonatorId: seed.id,
+    progression: {
+      level: MAX_RES_LVL,
+      sequence: compact.base.sequence,
+      skillLevels: mkMaxSkllLvl(),
+      traceNodes: mkMaxTrcNode(seed),
+    },
+    loadout: {
+      weapon: {
+        ...catTmWpnAtk(weapon, MAX_WPN_LVL),
+        level: MAX_WPN_LVL,
+      },
+      echoes: repairEchoLoadoutForCatalog(compact.build.echoes),
+    },
+    local: {
+      controls: legacyMemberControls(activeProfile.runtime.local.controls, seed.id, false),
+      setConditionals: cloneSntSet(DEF_SET_COND),
+      optimizerInventory: makeOptInventorySelection(),
+    },
+  }
+}
+
+function legacyScenarioRouting(
+  profile: ResProf,
+  members: readonly ScenarioTeamMember[],
+): ScenarioTargetRouting {
+  const primary = members[0]
+  const memberByResonatorId = new Map(
+    members.map((member) => [member.resonatorId, member]),
+  )
+  const bySourceMemberId = Object.fromEntries(
+    members.map((member) => [member.id, {}]),
+  ) as Record<TeamMemberId, Record<string, TeamMemberId | null>>
+
+  for (const [routeKey, targetResonatorId] of Object.entries(
+    profile.runtime.routing.selectedTargetsByOwnerKey,
+  )) {
+    const split = splitScopedTargetOwnerKey(routeKey)
+    const source = split.sourceRuntimeId
+      ? memberByResonatorId.get(split.sourceRuntimeId)
+      : primary
+    if (!source) continue
+    const target = targetResonatorId
+      ? memberByResonatorId.get(targetResonatorId) ?? null
+      : null
+    if (targetResonatorId && !target) continue
+    bySourceMemberId[source.id][split.ownerKey] = target?.id ?? null
+  }
+
+  return { bySourceMemberId }
+}
+
+export function makeScenarioFromProfiles(
+  profiles: LegacyProfileMap,
+  session: CombatSession | null | undefined,
+  revision: number,
+  activeOverride?: string | null,
+): CombatScenario {
+  const fallbackSeed = getFallbackSeed()
+  const requestedActive = activeOverride ?? session?.activeResonatorId
+  const activeId = requestedActive && profiles[requestedActive] && getResSeedBy(requestedActive)
+    ? requestedActive
+    : Object.keys(profiles).find((id) => Boolean(getResSeedBy(id))) ?? fallbackSeed.id
+  const activeProfile = profiles[activeId]
+    ?? makeResProfile(getResSeedBy(activeId) ?? fallbackSeed)
+  const primary = profileScenarioMember(
+    activeProfile,
+    legacyMemberControls(activeProfile.runtime.local.controls, activeProfile.resonatorId, true),
+  )
+  const members = [
+    primary,
+    ...activeProfile.runtime.teamRuntimes.flatMap((compact) => {
+      if (!compact || compact.id === primary.resonatorId) return []
+      const member = compactScenarioMember(compact, activeProfile)
+      return member ? [member] : []
+    }),
+  ].slice(0, 3)
+  const team = makeScenarioTeam(members)
+  const manualBuffsByResonatorId = new Map<string, ManualBuffs>([
+    [activeProfile.resonatorId, activeProfile.runtime.local.manualBuffs],
+    ...activeProfile.runtime.teamRuntimes.flatMap((compact) => compact
+      ? [[compact.id, compact.manualBuffs ?? makeCustomBuff()] as const]
+      : []),
+  ])
+  const routing = legacyScenarioRouting(activeProfile, team.members)
+
+  return {
+    id: combatScenarioId('workspace'),
+    revision,
+    team,
+    contextMemberId: team.members[0].id,
+    target: normEnemyForCatalog(session?.enemyProfile ?? makeEnemy()),
+    environment: makeCombatEnvironment(
+      activeProfile.runtime.local.combat,
+      routing,
+      team.members.map((member) => makeMemberManualEffect(
+        member.id,
+        manualBuffsByResonatorId.get(member.resonatorId) ?? makeCustomBuff(),
+      )),
+    ),
+    program: cloneRotation(activeProfile.runtime.rotation),
+    initialOnFieldMemberId: team.members[0].id,
+  }
+}
+
+function normalizeScenario(
+  scenario: CombatScenario,
+  fallback: CombatScenario,
+  revision: number,
+): CombatScenario {
+  const members = scenario.team?.members?.flatMap((member) => {
+    const seed = getResSeedBy(member.resonatorId)
+    if (!seed) return []
+    return [{
+      ...member,
+      id: teamMemberId(String(member.id || member.resonatorId)),
+      resonatorId: seed.id,
+      progression: {
+        ...member.progression,
+        skillLevels: cloneSkllLvl(member.progression.skillLevels),
+        traceNodes: cloneTrcNode(member.progression.traceNodes),
+      },
+      loadout: {
+        weapon: preserveWeaponForSeed(seed, member.loadout.weapon),
+        echoes: repairEchoLoadoutForCatalog(member.loadout.echoes),
+      },
+      local: {
+        controls: { ...member.local.controls },
+        setConditionals: cloneSntSet(member.local.setConditionals),
+        optimizerInventory: cloneOptInventorySelection(member.local.optimizerInventory),
+      },
+    } satisfies ScenarioTeamMember]
+  }) ?? []
+  if (members.length === 0) return fallback
+
+  const team = makeScenarioTeam(members.slice(0, 3))
+  const ids = new Set(team.members.map((member) => member.id))
+  const bySourceMemberId = Object.fromEntries(team.members.map((member) => {
+    const routes = scenario.environment?.routing?.bySourceMemberId?.[member.id] ?? {}
+    return [member.id, Object.fromEntries(
+      Object.entries(routes).filter(([, target]) => target === null || ids.has(target)),
+    )]
+  })) as Record<TeamMemberId, Record<string, TeamMemberId | null>>
+
+  return {
+    ...scenario,
+    id: combatScenarioId(String(scenario.id || 'workspace')),
+    revision: Math.max(revision, Math.floor(scenario.revision ?? 0)),
+    team,
+    contextMemberId: ids.has(scenario.contextMemberId)
+      ? scenario.contextMemberId
+      : team.members[0].id,
+    target: normEnemyForCatalog(scenario.target ?? fallback.target),
+    environment: {
+      ...fallback.environment,
+      ...(scenario.environment ?? {}),
+      combatState: {
+        ...fallback.environment.combatState,
+        ...(scenario.environment?.combatState ?? {}),
+      },
+      manualEffects: scenario.environment?.manualEffects?.flatMap(
+        (effect): EnvironmentManualEffect[] => {
+          if (effect.selector.kind !== 'members') {
+            return [{
+              ...effect,
+              selector: structuredClone(effect.selector),
+              buffs: cloneBuffs(effect.buffs),
+            }]
+          }
+          const memberIds = effect.selector.memberIds.filter((id) => ids.has(id))
+          return memberIds.length > 0
+            ? [{
+              ...effect,
+              selector: { ...effect.selector, memberIds },
+              buffs: cloneBuffs(effect.buffs),
+            }]
+            : []
+        },
+      ) ?? fallback.environment.manualEffects,
+      targetModifiers: {
+        ...fallback.environment.targetModifiers,
+        ...(scenario.environment?.targetModifiers ?? {}),
+        resistanceReduction: {
+          ...fallback.environment.targetModifiers.resistanceReduction,
+          ...(scenario.environment?.targetModifiers?.resistanceReduction ?? {}),
+        },
+      },
+      routing: { bySourceMemberId },
+    },
+    program: normRotationForCatalog(scenario.program ?? fallback.program),
+    initialOnFieldMemberId: ids.has(scenario.initialOnFieldMemberId)
+      ? scenario.initialOnFieldMemberId
+      : team.members[0].id,
+  }
+}
+
+interface InitializedData {
+  simulation: SimulationState
+  library: SavedArtifactLibrary
+  profiles: LegacyProfileMap
+  runtimeRevision: number
+}
+
+// Normalize legacy calculator-owned data once, then split tools from saved artifacts.
+function mkInitData(
+  base?: PersistedUnknown['simulation'],
+  saved?: PersistedUnknown['library'],
+): InitializedData {
+  const runtimeRevision = Math.max(0, Math.floor(base?.runtimeRevision ?? 0))
   const baseProfiles = normProfsCat(structuredClone(base?.profiles ?? {}))
   // inventory uids are unique within the bag; the entry an equipped loadout echo
   // points at keeps its uid, and equipped echoes are passed in to resolve that.
-  const invChs: InvEchoEnt[] = dedupeInvEchoUids(
-    structuredClone(base?.inventoryEchoes ?? []),
+  const invChs: SavedEcho[] = dedupeEchoUids(
+    structuredClone(saved?.echoes ?? base?.inventoryEchoes ?? []).map((entry) => ({
+      ...entry,
+      echo: repairSavedEchoForCatalog(entry.echo),
+    })),
     Object.values(baseProfiles).flatMap((profile) => profile.runtime.build.echoes),
   )
   const profiles = relinkEquippedEchoUids(baseProfiles, invChs)
-  const invBlds: InventoryEntry[] = normBldsCat(structuredClone(base?.inventoryBuilds ?? []))
-  const invRttn: InvRotEnt[] = normRotsCat(structuredClone(base?.inventoryRotations ?? []))
-  const optimizer = normOptCat(cloneOptCtxS(base?.optimizerContext ?? null))
+  const invBlds: SavedBuild[] = normBldsCat(structuredClone(saved?.builds ?? base?.inventoryBuilds ?? []))
+  const invRttn: SavedRotation[] = normRotsCat(structuredClone(saved?.rotations ?? base?.inventoryRotations ?? []))
+  const invScenarios: SavedScenario[] = normScenariosCat(structuredClone(saved?.scenarios ?? []))
+  const optimizerSettings = cloneOptSets(
+    base?.optimizerSettings ?? base?.optimizerContext?.settings ?? null,
+  )
+  const optimizerSettingsResonatorId =
+    base?.optimizerSettingsResonatorId
+    ?? base?.optimizerContext?.resonatorId
+    ?? null
   const weaponSuggests: WeaponPlanSet = structuredClone(base?.weaponSuggests ?? mkDefWpnSug())
 
   const suggsByResId = Object.fromEntries(
@@ -1005,79 +1366,20 @@ function mkInitCalcSt(base?: CalcState): CalcState {
       ]),
   )
 
-  const session = base?.session
-      ? {
-        activeResonatorId: base.session.activeResonatorId,
-        enemyProfile: normEnemyForCatalog(base.session.enemyProfile),
-      }
-      : null
-
-  const fallbackSeed = getFallbackSeed()
-  const actResId =
-    session?.activeResonatorId && getResSeedBy(session.activeResonatorId)
-      ? session.activeResonatorId
-      : fallbackSeed.id
-
-  const nextSssn = session ?? {
-    activeResonatorId: actResId,
-    enemyProfile: makeEnemy(),
-  }
-
-  if (!nextSssn.activeResonatorId || !getResSeedBy(nextSssn.activeResonatorId)) {
-    nextSssn.activeResonatorId = actResId
-  }
-
   return {
-    runtimeRevision: rtRvsn,
+    runtimeRevision,
     profiles,
-    inventoryEchoes: invChs,
-    inventoryBuilds: invBlds,
-    inventoryRotations: invRttn,
-    optimizerContext: optimizer,
-    weaponSuggests,
-    suggestionsByResonatorId: suggsByResId,
-    session: nextSssn,
-  }
-}
-
-function normRtCat(runtime: ResRuntime): ResRuntime {
-  const seed = getResSeedBy(runtime.id)
-  if (!seed) {
-    const fallbackSeed = getFallbackSeed()
-    return makeResRuntime(fallbackSeed)
-  }
-
-  const teamRuntimes: [TeamMemRt | null, TeamMemRt | null] = [
-    runtime.teamRuntimes[0] ? normTmCat(runtime.teamRuntimes[0]) : null,
-    runtime.teamRuntimes[1] ? normTmCat(runtime.teamRuntimes[1]) : null,
-  ]
-  const team = normProfTeam(seed.id, runtime.build.team)
-  const withCatalog = {
-    ...runtime,
-    id: seed.id,
-    build: {
-      ...runtime.build,
-      weapon: normWeaponForSeed(seed, runtime.build.weapon),
-      echoes: normEchoesForCatalog(runtime.build.echoes),
-      team,
+    simulation: {
+      optimizerSettingsResonatorId,
+      optimizerSettings,
+      weaponSuggests,
+      suggestionsByResonatorId: suggsByResId,
     },
-    teamRuntimes,
-    rotation: normRotationForCatalog(runtime.rotation),
-  }
-  const controls = normResRtCnt(withCatalog)
-  const withControls = {
-    ...withCatalog,
-    state: {
-      ...withCatalog.state,
-      controls: normTmNsCtrls(withCatalog, controls),
-    },
-  }
-
-  return {
-    ...withControls,
-    state: {
-      ...withControls.state,
-      combat: normNegFfctC(withControls),
+    library: {
+      echoes: invChs,
+      builds: invBlds,
+      rotations: invRttn,
+      scenarios: invScenarios,
     },
   }
 }
@@ -1091,7 +1393,7 @@ function normTmCat(teamMember: TeamMemRt): TeamMemRt {
     build: {
       ...teamMember.build,
       weapon: preserveTeamWeaponForSeed(seed ?? null, teamMember.build.weapon),
-      echoes: [...teamMember.build.echoes],
+      echoes: repairEchoLoadoutForCatalog(teamMember.build.echoes),
     },
   }
 }
@@ -1177,7 +1479,7 @@ function normPrfLcl(
     base: profile.runtime.progression,
     build: {
       weapon: normWeaponForSeed(seed, profile.runtime.build.weapon),
-      echoes: normEchoesForCatalog(profile.runtime.build.echoes),
+      echoes: repairEchoLoadoutForCatalog(profile.runtime.build.echoes),
       team,
     },
     state: {
@@ -1226,7 +1528,7 @@ function normProfCat(
       build: {
         ...profile.runtime.build,
         weapon: preserveWeaponForSeed(seed ?? null, profile.runtime.build.weapon),
-        echoes: [...profile.runtime.build.echoes],
+        echoes: repairEchoLoadoutForCatalog(profile.runtime.build.echoes),
       },
       local: seed
         ? normPrfLcl(profileId, profile, profile.runtime.local, normProfTeam(profileId, profile.runtime.team), [
@@ -1245,7 +1547,7 @@ function normProfCat(
   }
 }
 
-function normProfsCat(profiles: CalcState['profiles']): CalcState['profiles'] {
+function normProfsCat(profiles: LegacyProfileMap): LegacyProfileMap {
   return Object.fromEntries(
       Object.entries(profiles).map(([resonatorId, profile]) => {
         const normalized = normProfCat(resonatorId, profile)
@@ -1265,7 +1567,7 @@ function catResName(
   return getResSeedBy(resonatorId)?.name ?? (fallback || resonatorId)
 }
 
-function normBldsCat(builds: InventoryEntry[]): InventoryEntry[] {
+function normBldsCat(builds: SavedBuild[]): SavedBuild[] {
   return builds.map((entry) => {
     const seed = getResSeedBy(entry.resonatorId)
 
@@ -1275,118 +1577,236 @@ function normBldsCat(builds: InventoryEntry[]): InventoryEntry[] {
       build: {
         ...entry.build,
         weapon: preserveWeaponForSeed(seed ?? null, entry.build.weapon),
-        echoes: [...entry.build.echoes],
+        echoes: repairEchoLoadoutForCatalog(entry.build.echoes),
       },
     }
   })
 }
 
-function normRotsCat(rotations: InvRotEnt[]): InvRotEnt[] {
+type LegacySavedRotation = {
+  id: string
+  name: string
+  resonatorId?: string
+  duration?: number
+  note?: string
+  items?: RotationNode[]
+  scenario?: CombatScenario
+  snapshot?: ResProf
+  migration?: SavedRotation['migration']
+  createdAt: number
+  updatedAt: number
+}
+
+function savedRotationFallbackScenario(entry: LegacySavedRotation): CombatScenario {
+  const scenarioContextId = entry.scenario?.team.members[0]?.resonatorId
+  const requestedId = entry.resonatorId ?? scenarioContextId
+  const seed = getResSeedBy(requestedId ?? '') ?? getFallbackSeed()
+  const profile = entry.snapshot
+    ? normProfCat(entry.snapshot.resonatorId, entry.snapshot)
+    : makeResProfile(seed)
+  return makeScenarioFromProfiles(
+    { [profile.resonatorId]: profile },
+    null,
+    entry.scenario?.revision ?? 0,
+    profile.resonatorId,
+  )
+}
+
+/** Convert every accepted legacy shape once into the canonical scenario artifact. */
+function normRotsCat(rotations: LegacySavedRotation[]): SavedRotation[] {
   return rotations.map((entry) => {
-    const summary = entry.summary
-      ? {
-        ...entry.summary,
-        members: entry.summary.members?.map((member) => ({
-          ...member,
-          name: catResName(member.id, member.name),
-        })),
+    const fallback = savedRotationFallbackScenario(entry)
+    const scenario = entry.scenario
+      ? normalizeScenario(entry.scenario, fallback, entry.scenario.revision)
+      : {
+        ...fallback,
+        id: combatScenarioId(`saved-rotation:${entry.id}`),
+        program: {
+          ...fallback.program,
+          program: cloneRotationNodes(entry.items ?? []),
+        },
       }
-      : undefined
-
-    if (!entry.snapshot) {
-      return {
-        ...entry,
-        resonatorName: catResName(entry.resonatorId, entry.resonatorName),
-        ...(summary ? { summary } : {}),
-      }
-    }
-
-    const snapshot = normProfCat(entry.snapshot.resonatorId, entry.snapshot)
 
     return {
-      ...entry,
-      resonatorName: catResName(entry.resonatorId, entry.resonatorName),
-      snapshot,
-      ...(summary ? { summary } : {}),
+      id: entry.id,
+      name: entry.name,
+      duration: normalizeDuration(entry.duration),
+      note: normalizeRotNote(entry.note),
+      scenario: structuredClone(scenario),
+      ...(entry.migration ? { migration: { ...entry.migration } } : {}),
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
     }
   })
 }
 
-function normOptCat(context: OptContext | null): OptContext | null {
-  if (!context) {
-    return null
-  }
-  const seed = getResSeedBy(context.resonatorId)
-  if (!seed || context.runtime.id !== seed.id) {
-    return context
-  }
-
-  const runtime = normRtCat(context.runtime)
-
-  return {
-    ...context,
-    resonatorId: seed.id,
-    runtime,
-    sourceRuntimeSig: context.sourceRuntimeSig || runtimeSig(runtime),
-  }
+function normScenariosCat(entries: SavedScenario[]): SavedScenario[] {
+  return entries.map((entry) => {
+    const context = entry.scenario.team.members.find(
+      (member) => member.id === entry.scenario.contextMemberId,
+    ) ?? entry.scenario.team.members[0]
+    const seed = getResSeedBy(context.resonatorId) ?? getFallbackSeed()
+    const fallback = makeScenarioFromProfiles(
+      { [seed.id]: makeResProfile(seed) },
+      null,
+      entry.scenario.revision,
+      seed.id,
+    )
+    return {
+      ...entry,
+      name: entry.name.trim() || `${seed.name} Scenario`,
+      note: normalizeRotNote(entry.note),
+      scenario: structuredClone(normalizeScenario(
+        entry.scenario,
+        fallback,
+        entry.scenario.revision,
+      )),
+    }
+  })
 }
 
 // initialize a loaded persisted app state
 export function initAppState(
     state: PersistedUnknown,
-): PersistedState {
+): HydratedAppState {
   const rawUi = state.ui
+  const initialized = mkInitData(state.simulation, state.library)
+  const { simulation, library, profiles, runtimeRevision } = initialized
+  const legacyScenario = makeScenarioFromProfiles(
+    profiles,
+    state.simulation.session,
+    runtimeRevision,
+  )
+  const storedScenario = state.combat?.scenario
+    ?? state.simulation.workspace?.currentScenario
+  const scenario = storedScenario
+    ? normalizeScenario(storedScenario, legacyScenario, runtimeRevision)
+    : legacyScenario
+  const storedScenarios = state.combat?.scenariosById
+    ?? Object.fromEntries(Object.entries(state.combat?.documentsById ?? {}).map(
+      ([id, document]) => [id, document.scenario],
+    ))
+  const normalizedScenarios = Object.fromEntries(Object.entries(storedScenarios).map(([id, candidate]) => {
+    const scenarioId = combatScenarioId(id)
+    const normalized = normalizeScenario(candidate, scenario, runtimeRevision)
+    return [scenarioId, { ...normalized, id: scenarioId }]
+  })) as ScenarioWorkspace['scenariosById']
+  const selectedStoredId = state.combat?.selectedScenarioId
+  const selectedStored = selectedStoredId ? normalizedScenarios[selectedStoredId] : null
+  const selectedScenario = selectedStored ?? scenario
+  const selectedId = selectedStored?.id ?? selectedScenario.id
+  normalizedScenarios[selectedId] = selectedScenario
+
+  const sourceOrder = [
+    ...(state.combat?.order ?? []),
+    ...Object.keys(normalizedScenarios).map(combatScenarioId),
+  ].filter((id, index, values) => values.indexOf(id) === index && Boolean(normalizedScenarios[id]))
+  const selectedContextId = contextScenarioMember(selectedScenario).resonatorId
+  const contextIds = new Set<string>()
+  const order = sourceOrder.filter((id) => {
+    const candidate = normalizedScenarios[id]
+    if (!candidate) return false
+    const contextId = contextScenarioMember(candidate).resonatorId
+    if (contextId === selectedContextId && id !== selectedId) return false
+    if (contextIds.has(contextId)) return false
+    contextIds.add(contextId)
+    return true
+  })
+  if (!order.includes(selectedId)) order.unshift(selectedId)
+
+  let combat: ScenarioWorkspace = {
+    selectedScenarioId: selectedId,
+    order,
+    scenariosById: Object.fromEntries(order.map((id) => [id, normalizedScenarios[id]])),
+  }
+
+  for (const profile of Object.values(profiles)) {
+    if (scenarioIdForContextResonator(combat, profile.resonatorId)) continue
+    const id = combatScenarioId(`legacy:${profile.resonatorId}`)
+    const migrated = {
+      ...makeScenarioFromProfiles(
+        profiles,
+        { activeResonatorId: profile.resonatorId, enemyProfile: selectedScenario.target },
+        runtimeRevision,
+        profile.resonatorId,
+      ),
+      id,
+    }
+    combat = {
+      ...combat,
+      order: [...combat.order, id],
+      scenariosById: { ...combat.scenariosById, [id]: migrated },
+    }
+  }
   const themePref: ThemePref = state.ui.themePreference
     ?? (state.ui.theme === 'background' ? 'background' : 'system')
 
   return {
-    ...state,
     version: APP_STATE_VER,
     ui: {
       ...rawUi,
       themePreference: themePref,
       backgroundImageKey: rawUi.backgroundImageKey ?? DEF_BG_KEY,
       backgroundTextMode: rawUi.backgroundTextMode ?? 'light',
-      bodyFontName: rawUi.bodyFontName ?? DEF_BODY_FONT,
-      bodyFontUrl: rawUi.bodyFontUrl ?? getPrstBodyF(rawUi.bodyFontName ?? DEF_BODY_FONT),
+      bodyFontName: rawUi.bodyFontName ?? DEFAULT_BODY_FONT,
+      bodyFontUrl: rawUi.bodyFontUrl ?? getPresetFontUrl(rawUi.bodyFontName ?? DEFAULT_BODY_FONT),
       optimizerCpuHintSeen: rawUi.optimizerCpuHintSeen ?? false,
       optimizerUseSprite: rawUi.optimizerUseSprite ?? true,
       compressedExports: rawUi.compressedExports ?? true,
+      rotationEditorPreferences: {
+        ...makeDefaultRotationEditorPreferences(),
+        ...rawUi.rotationEditorPreferences,
+        statKeys: rawUi.rotationEditorPreferences?.statKeys
+          ? [...rawUi.rotationEditorPreferences.statKeys]
+          : makeDefaultRotationEditorPreferences().statKeys,
+        groupOrder: rawUi.rotationEditorPreferences?.groupOrder
+          ? [...rawUi.rotationEditorPreferences.groupOrder]
+          : makeDefaultRotationEditorPreferences().groupOrder,
+      },
       preferences: {
         ...DEF_UI_PREFS,
         ...(rawUi.preferences ?? {}),
       },
       suggsViewMode: rawUi.suggsViewMode ?? 'mainStats',
       compactInv: rawUi.compactInv ?? false,
+      groupInv: rawUi.groupInv ?? false,
       seeEquipped: rawUi.seeEquipped ?? false,
       historyMax: rawUi.historyMax ?? 10,
       itemFreq: normalizePckrFreqState(rawUi.itemFreq),
       savedRotationPreferences: {
-        ...mkDefSvdRotP(),
+        ...defaultSavedPrefs(),
         ...rawUi.savedRotationPreferences,
       },
     },
-    calculator: mkInitCalcSt(state.calculator),
+    combat,
+    library,
+    simulation: {
+      ...simulation,
+      // v28 snapshots predate the owner key. Their one settings object belongs
+      // to the scenario that was selected when the snapshot was written.
+      optimizerSettingsResonatorId:
+        simulation.optimizerSettingsResonatorId ?? selectedContextId,
+    },
   }
 }
 
 // create the full default app state
 export function makeAppState(
-    theme: ThemeMode = getSystTheme(),
+    theme: ThemeMode = 'dark',
     leftPaneView: LeftPaneView = 'resonators',
-): PersistedState {
+): HydratedAppState {
   return initAppState({
     version: APP_STATE_VER,
     ui: {
       theme,
-      themePreference: 'background' === theme ? 'background' : 'system',
+      themePreference: 'background' === theme ? 'background' : 'dark',
       lightVariant: LIGHT_THEMES[0],
       darkVariant: DARK_THEMES[0],
       backgroundVariant: BG_THEMES[0],
       backgroundImageKey: DEF_BG_KEY,
-      backgroundTextMode: 'light',
-      bodyFontName: DEF_BODY_FONT,
-      bodyFontUrl: getPrstBodyF(DEF_BODY_FONT),
+      backgroundTextMode: 'dark',
+      bodyFontName: DEFAULT_BODY_FONT,
+      bodyFontUrl: getPresetFontUrl(DEFAULT_BODY_FONT),
       blurMode: false,
       entranceAnimations: true,
       preferences: DEF_UI_PREFS,
@@ -1394,6 +1814,7 @@ export function makeAppState(
       suggsViewMode: 'mainStats',
       showSubHits: false,
       compactInv: false,
+      groupInv: false,
       seeEquipped: true,
       haveHistory: true,
       historyMax: 10,
@@ -1401,8 +1822,9 @@ export function makeAppState(
       optimizerCpuHintSeen: false,
       optimizerUseSprite: true,
       compressedExports: true,
-      savedRotationPreferences: mkDefSvdRotP(),
+      rotationEditorPreferences: makeDefaultRotationEditorPreferences(),
+      savedRotationPreferences: defaultSavedPrefs(),
     },
-    calculator: mkInitCalcSt(),
+    simulation: {},
   })
 }

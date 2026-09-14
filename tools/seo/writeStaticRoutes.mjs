@@ -43,7 +43,7 @@ function absoluteUrl(pathname) {
 // failure. That lets direct unknown URLs still receive a valid shell while known
 // routes get the stronger canonical and social metadata from seoRoutes.json.
 function resolveRoute(pathname) {
-  const normalized = pathname === '/' ? '/calculator' : pathname.replace(/\/+$/, '') || '/calculator'
+  const normalized = pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/'
   const route = routeByPath.get(normalized)
   const title = route?.title ?? config.defaultTitle
   const description = route?.description ?? config.defaultDescription
@@ -249,6 +249,9 @@ function buildRobots() {
 if (syncPublic) {
   writeFile(path.join(publicDir, 'sitemap.xml'), buildSitemap())
   writeFile(path.join(publicDir, 'robots.txt'), buildRobots())
+  const sourceIndexPath = path.join(root, 'index.html')
+  const sourceIndex = fs.readFileSync(sourceIndexPath, 'utf8')
+  writeFile(sourceIndexPath, htmlForRoute(sourceIndex, resolveRoute('/')))
 }
 
 // During postbuild, Vite has already copied static assets and emitted the root
@@ -261,7 +264,7 @@ if (fs.existsSync(distDir)) {
   const indexPath = path.join(distDir, 'index.html')
   if (fs.existsSync(indexPath)) {
     const baseHtml = fs.readFileSync(indexPath, 'utf8')
-    const rootRoute = resolveRoute('/calculator')
+    const rootRoute = resolveRoute('/')
     writeFile(indexPath, htmlForRoute(baseHtml, rootRoute))
 
     // Nested index.html files let static hosting serve clean URLs without a

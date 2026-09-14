@@ -1,31 +1,30 @@
 /*
   Author: Runor Ewhro
-  Description: Registers rotation exports with the import surface, normalizing
-               all supported payload shapes before save/load decisions run.
+  Description: Owns rotation import behavior and state transitions for the handlers module.
 */
 
 import { useMemo } from 'react'
-import type { InvRotEnt } from '@/domain/entities/inventoryStorage.ts'
+import type { SavedRotation } from '@/domain/entities/inventoryStorage.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import {
-  normMprtRotEntries,
-  type NormMprtRot,
-} from '@/modules/calculator/features/rotation/lib/savedRotations.ts'
-import { useApplyImportedRot } from '@/modules/calculator/features/rotation/lib/useApplyImportedRot.ts'
+  normalizeImportedRotationEntries,
+  type NormalizedImportedRotation,
+} from '@/infra/imports/rotationPayload.ts'
+import { useLoadRotation } from './useLoadRotation.ts'
 import type { ImportHandler } from '@/infra/imports/types.ts'
 
 export const ROTATION_IMPORT_KIND = 'rotation'
 
-export function useRotationImportHandler(): ImportHandler<NormMprtRot[]> {
+export function useRotationImportHandler(): ImportHandler<NormalizedImportedRotation[]> {
   const addRotToInv = useAppStore((state) => state.addInvRot)
-  const applyImportedRot = useApplyImportedRot()
+  const loadRotation = useLoadRotation()
   const showToast = useTstStr((state) => state.show)
 
-  return useMemo<ImportHandler<NormMprtRot[]>>(() => ({
+  return useMemo<ImportHandler<NormalizedImportedRotation[]>>(() => ({
     kind: ROTATION_IMPORT_KIND,
     detect: (parsed) => {
-      const entries = normMprtRotEntries(parsed)
+      const entries = normalizeImportedRotationEntries(parsed)
       return entries.length > 0 ? entries : null
     },
     review: (entries) => {
@@ -40,9 +39,9 @@ export function useRotationImportHandler(): ImportHandler<NormMprtRot[]> {
       }
     },
     apply: (entries, variant) => {
-      const added: InvRotEnt[] = []
+      const added: SavedRotation[] = []
       for (const entry of entries) {
-        const addedEntry = addRotToInv({ ...entry, resonatorName: entry.resName })
+        const addedEntry = addRotToInv(entry)
         if (addedEntry) added.push(addedEntry)
       }
 
@@ -57,7 +56,7 @@ export function useRotationImportHandler(): ImportHandler<NormMprtRot[]> {
       }
 
       if (variant === 'primary') {
-        applyImportedRot(first)
+        loadRotation(first)
         showToast({
           content: `Imported and loaded "${first.name}".`,
           variant: 'success',
@@ -72,5 +71,5 @@ export function useRotationImportHandler(): ImportHandler<NormMprtRot[]> {
         duration: 3000,
       })
     },
-  }), [addRotToInv, applyImportedRot, showToast])
+  }), [addRotToInv, loadRotation, showToast])
 }

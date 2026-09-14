@@ -1,14 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: Exposes a small confirmation-dialog controller so callers can
-               request confirm flows without owning the modal state directly.
+  Description: Owns use confirmation behavior and state transitions for the hooks module.
 */
 
 import { useCallback } from 'react'
 import type { ReactNode } from 'react'
-import { useAppMdlVl } from '@/shared/ui/useAppModal'
+import { useAppModalValue } from '@/shared/ui/useAppModal'
+import type { ConfirmControl } from '@/shared/ui/ConfirmationModal.tsx'
 
-interface CnfrStt {
+interface ConfirmRequest {
   title: string
   message: ReactNode
   confirmLabel?: string
@@ -21,15 +21,17 @@ interface CnfrStt {
   onSecondary?: () => void
 }
 
-export function useCnfr() {
-  const modal = useAppMdlVl<CnfrStt>()
+export function useConfirm(): ConfirmControl & {
+  confirm: (value: ConfirmRequest) => void
+} {
+  const modal = useAppModalValue<ConfirmRequest>()
 
-  const onCnfr = useCallback(() => {
+  const confirmChoice = useCallback(() => {
     modal.value?.onConfirm()
     modal.hide()
   }, [modal])
 
-  const onScnd = useCallback(() => {
+  const secondChoice = useCallback(() => {
     modal.value?.onSecondary?.()
     modal.hide()
   }, [modal])
@@ -45,8 +47,8 @@ export function useCnfr() {
     secondaryLabel: modal.value?.secondaryLabel,
     variant: modal.value?.variant,
     confirm: modal.show,
-    onConfirm: onCnfr,
-    onSecondary: modal.value?.onSecondary ? onScnd : undefined,
+    onConfirm: confirmChoice,
+    onSecondary: modal.value?.onSecondary ? secondChoice : undefined,
     onCancel: modal.hide,
   }
 }

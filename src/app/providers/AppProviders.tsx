@@ -1,4 +1,9 @@
 /*
+  Author: Runor Ewhro
+  Description: Implements the AppProviders logic for the providers module.
+*/
+
+/*
   Author      : Runor Ewhro
   Description : Wraps the application in global providers and manages
                 debounced persistence flushing and global providers.
@@ -15,16 +20,16 @@ import {
 import { selectPersisted } from '@/domain/state/serialization'
 import {
   applyBgColor,
-  applyBgToDoc,
+  applyBgToDocument,
   dtctBgClr,
   dtctBgTxtMod,
-  getImmBgUrl,
-  readActBgKey,
+  getImmediateBgUrl,
+  readActiveBgKey,
   readStoredBg,
   resolveBg,
-  writeStrdBgC,
-} from '@/modules/settings/model/backgroundTheme'
-import { applyBodyFon } from '@/modules/settings/model/typography'
+  writeStoredBgColor,
+} from '@/modules/calibration/model/backgroundTheme'
+import { applyBodyFon } from '@/modules/calibration/model/typography'
 import { AppTltpProv } from '@/shared/ui/Tooltip'
 import { AppCtxMenuPr } from '@/shared/ui/AppContextMenu'
 import { FltnSelCtnsP } from '@/shared/ui/FloatingSelectionActions'
@@ -99,7 +104,6 @@ export function AppProviders({ children }: AppPrvdPrps) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
-    // keep the resolved ui theme in lockstep with the system while system mode is selected.
     const applySystThe = () => {
       syncThemeWit(getSystTheme())
     }
@@ -124,7 +128,7 @@ export function AppProviders({ children }: AppPrvdPrps) {
         return
       }
 
-      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActBgKey()
+      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActiveBgKey()
       if (activeKey && activeKey === lastPpldBgKe) {
         const storedMainColor = readStoredBg()
         if (storedMainColor) {
@@ -133,11 +137,11 @@ export function AppProviders({ children }: AppPrvdPrps) {
         return
       }
 
-      const mmdtWllpUrl = activeKey ? getImmBgUrl(activeKey) : null
+      const mmdtWllpUrl = activeKey ? getImmediateBgUrl(activeKey) : null
       if (mmdtWllpUrl) {
         clnpRslvWllp?.()
         clnpRslvWllp = null
-        applyBgToDoc(mmdtWllpUrl)
+        applyBgToDocument(mmdtWllpUrl)
         lastPpldBgKe = activeKey
 
         const storedMainColor = readStoredBg()
@@ -155,7 +159,7 @@ export function AppProviders({ children }: AppPrvdPrps) {
 
       clnpRslvWllp?.()
       clnpRslvWllp = resolved.revoke ?? null
-      applyBgToDoc(resolved.url)
+      applyBgToDocument(resolved.url)
       lastPpldBgKe = activeKey
 
       const storedMainColor = readStoredBg()
@@ -200,7 +204,7 @@ export function AppProviders({ children }: AppPrvdPrps) {
     let cancelled = false
 
     const syncBgTextMo = async () => {
-      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActBgKey()
+      const activeKey = useAppStore.getState().ui.backgroundImageKey || readActiveBgKey()
       const nextTextMode = await dtctBgTxtMod(activeKey)
       if (!cancelled && nextTextMode !== bgTextMode) {
         setBgTextMod(nextTextMode)
@@ -214,7 +218,7 @@ export function AppProviders({ children }: AppPrvdPrps) {
 
       const nextMainClr = await dtctBgClr(activeKey, nextTextMode)
       if (!cancelled) {
-        writeStrdBgC(nextMainClr)
+        writeStoredBgColor(nextMainClr)
         applyBgColor(nextMainClr)
       }
     }

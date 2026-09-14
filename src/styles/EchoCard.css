@@ -1,0 +1,251 @@
+
+
+.ecr-card {
+  --ecr-snt: var(--snt, var(--muted));
+  --ecr-mono: var(--mono-font);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--text) 2%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, var(--c-transparent));
+}
+
+.ecr-card.is-main {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ecr-snt) 30%, var(--c-transparent));
+}
+
+.ecr-card--live { cursor: pointer; }
+
+.ecr-card--live:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ecr-snt) 24%, var(--c-transparent)),
+    0 14px 30px -24px color-mix(in srgb, var(--ecr-snt) 75%, var(--c-black, #000));
+}
+
+.ecr-card.focus-selected {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--resonator-accent, var(--accent)) 62%, var(--c-transparent));
+}
+
+.reduce-animation .ecr-card--live:hover { transform: none; }
+
+.ecr-card__band {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.65rem 0.62rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ecr-snt) 11%, var(--c-transparent)),
+    color-mix(in srgb, var(--ecr-snt) 3%, var(--c-transparent))
+  );
+}
+
+.ecr-card.is-main .ecr-card__band {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ecr-snt) 22%, var(--c-transparent)),
+    color-mix(in srgb, var(--ecr-snt) 6%, var(--c-transparent))
+  );
+}
+
+.ecr-card__band::after {
+  content: '';
+  position: absolute;
+  left: 0.65rem;
+  right: 0.65rem;
+  bottom: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--ecr-snt) 45%, var(--c-transparent));
+}
+
+.inv-card.ecr-card .ecr-card__disc {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.inv-card.ecr-card .ecr-card__coin {
+  left: 2rem;
+  top: 0.62rem;
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.inv-card.ecr-card .ecr-card__k { font-size: .5rem; }
+
+.inv-card.ecr-card .echo-stat-glyph { width: .6rem !important; height: .6rem !important; }
+.inv-card.ecr-card .ecr-card__line { padding-top: .1rem; }
+.inv-card.ecr-card .inv-card__nameline { padding-top: .25rem; }
+.inv-card.ecr-card .ecr-card__lead .echo-stat-glyph { width: .9rem !important; height: .9rem !important; }
+.inv-card.ecr-card .ecr-card__lead b { font-size: 1rem; }
+
+.ecr-card__disc {
+  position: relative;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 45%, var(--c-transparent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ecr-snt) 42%, var(--c-transparent));
+}
+
+.ecr-card__disc img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 26%;
+  transform: scale(1.22);
+}
+
+.ecr-card__coin {
+  position: absolute;
+  left: 2.15rem;
+  top: 0.52rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 16%, var(--c-transparent));
+}
+
+.ecr-card__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.16rem;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.ecr-card__lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.ecr-card__lead b {
+  font: 800 1.15rem/1 var(--ecr-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.ecr-card__sec {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  font: 700 0.64rem/1 var(--ecr-mono);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.68;
+}
+
+.ecr-card__pip {
+  width: 0.3rem;
+  height: 0.3rem;
+  flex: none;
+  border-radius: 1px;
+  background: var(--ecr-snt);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ecr-snt) 70%, var(--c-transparent));
+}
+
+.ecr-card__list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.65rem 0.5rem;
+}
+
+.ecr-card__line {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  min-width: 0;
+  padding: 0.26rem 0;
+}
+
+.ecr-card__line + .ecr-card__line {
+  border-top: 1px solid color-mix(in srgb, var(--text) 6%, var(--c-transparent));
+}
+
+.ecr-card__line--void { min-height: 1.52rem; }
+
+.ecr-card__k {
+  flex: 1;
+  font: 500 0.6rem/1 var(--ecr-mono);
+  color: color-mix(in srgb, var(--text) 50%, var(--c-transparent));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ecr-card__line b {
+  font: 700 0.69rem/1 var(--ecr-mono);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 88%, var(--c-transparent));
+}
+
+.ecr-card__ribbon {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding: 0 0.65rem 0.52rem;
+}
+
+
+.ecr-card__ribbon::before,
+.ecr-card__ribbon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 0.28rem;
+}
+
+.ecr-card__ribbon::before {
+  right: 0;
+  background: color-mix(in srgb, var(--text) 7%, var(--c-transparent));
+}
+
+.ecr-card__ribbon::after {
+  width: var(--ecr-fill, 0%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ecr-grade, var(--ecr-snt)) 34%, var(--c-transparent)),
+    color-mix(in srgb, var(--ecr-grade, var(--ecr-snt)) 85%, var(--c-transparent))
+  );
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ecr-card__cv {
+  font: 700 0.62rem/1 var(--ecr-mono);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--ecr-cv, var(--muted)) 55%, var(--text));
+  white-space: nowrap;
+}
+
+
+.ecr-card:not(.is-scored) .ecr-card__cv {
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ecr-card__score {
+  margin-left: auto;
+  font: 800 0.9rem/1 var(--ecr-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--ecr-grade, var(--text)) 62%, var(--text));
+  transition: color 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+}

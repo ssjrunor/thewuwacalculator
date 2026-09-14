@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Provides helpers and catalog data for negative effects,
-               including archetype mapping, team visibility, and per-
-               resonator display/max-stack overrides used by the ui.
+  Description: Implements negative effects data-flow and calculation invariants.
 */
 
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
@@ -235,9 +233,28 @@ function resTeamSrcRt(
   }
 }
 
-// resolve the visible negative effects for a team by scanning the resonator-
-// keyed catalog and merging duplicate entries by highest max override
+/*
+  Resolving a team's negative effects walks every member's source entries and
+  evaluates a condition per entry. It reads nothing but the runtime it is given,
+  and a runtime is immutable, so the answer is cached against that identity.
+  Rotation execution asks this question once per skill resolution, which is
+  hundreds of times per run over a handful of distinct runtimes.
+*/
+const negEffectsByRt = new WeakMap<ResRuntime, RslvNegFfctE[]>()
+const negEffectsByKey = new WeakMap<ResRuntime, Map<NegEffectKey, RslvNegFfctE>>()
+
 export function negEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
+  const cached = negEffectsByRt.get(runtime)
+  if (cached) {
+    return cached
+  }
+
+  const resolvedEntries = resolveNegEffectsFor(runtime)
+  negEffectsByRt.set(runtime, resolvedEntries)
+  return resolvedEntries
+}
+
+function resolveNegEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
   const resolved = new Map<NegEffectKey, RslvNegFfctE>()
   const nqMemIds = Array.from(
       new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
@@ -354,7 +371,13 @@ export function getNegFfctEn(
     runtime: ResRuntime,
     key: NegEffectKey,
 ): RslvNegFfctE | null {
-  return negEffectsFor(runtime).find((entry) => entry.key === key) ?? null
+  let byKey = negEffectsByKey.get(runtime)
+  if (!byKey) {
+    byKey = new Map(negEffectsFor(runtime).map((entry) => [entry.key, entry]))
+    negEffectsByKey.set(runtime, byKey)
+  }
+
+  return byKey.get(key) ?? null
 }
 
 export function getNegFfctFf(
@@ -404,7 +427,7 @@ export function isNegFfctVsb(
     runtime: ResRuntime,
     key: NegEffectKey,
 ): boolean {
-  return negEffectsFor(runtime).some((entry) => entry.key === key)
+  return getNegFfctEn(runtime, key) !== null
 }
 
 // map a negative effect archetype to its combat state key

@@ -6,7 +6,7 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { CombatGraph } from '@/domain/entities/combatGraph'
+import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type {
   SkillAggType,
@@ -15,7 +15,7 @@ import type {
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
 import type { FeatureResult } from '@/domain/gameData/contracts'
-import type { SlotId } from '@/domain/entities/session'
+import type { NumericTeamState } from '@/engine/effects/numericTeam.ts'
 
 // minimal input needed to resolve a combat context from a graph
 export interface GrphCmbtCtxN {
@@ -51,24 +51,27 @@ export interface CombatContext {
 
   // slot this context represents inside the graph
   targetSlotId: SlotId
+
+  /** Packed Simulation kernel backing this compatibility projection. */
+  numericTeam: NumericTeamState
+  numericLane: number
 }
 
-// compact total bundle used across personal/team rotation summaries
+// compact total bundle used by rotation summaries
 export interface DamageTotals {
   normal: number
   crit: number
   avg: number
 }
 
-// one grouped simulation view, such as personal or team rotation output
-export interface RotSmltGrp {
+export interface RotationSimulationResult {
   // all feature rows belonging to this rotation grouping
   entries: FeatureResult[]
 
   // top-level damage total for the group
   total: DamageTotals
 
-  // totals split by aggregation type such as damage/healing/shield
+  /** Kept separate so healing/shield output can be displayed, never scored as damage. */
   totalsByGroup: Record<SkillAggType, DamageTotals>
 }
 
@@ -80,21 +83,20 @@ export interface SimResult {
   // every simulated feature row
   allFeatures: FeatureResult[]
 
-  // grouped personal/team rotation summaries
-  rotations: {
-    personal: RotSmltGrp
-    team: RotSmltGrp
+  // independently executed compact sequence and advanced program
+  rotation: {
+    sequence: RotationSimulationResult
+    program: RotationSimulationResult
   }
 
   // flattened non-subhit skill rows exposed for general UI use
   allSkills: FeatureResult[]
 
-  // default per-skill view, typically mapped to personal rotation entries
+  // flattened rotation rows retained for general result consumers
   perSkill: FeatureResult[]
 
-  // default total, typically mapped to the personal rotation total
+  // rotation damage total
   total: DamageTotals
 
-  // default aggregation buckets, typically mapped to the personal view
   totalsByGroup: Record<SkillAggType, DamageTotals>
 }

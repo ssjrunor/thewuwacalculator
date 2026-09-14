@@ -14,17 +14,19 @@ import {
   mrgBaseStatB,
   mergeModBuff,
 } from '@/engine/resolvers/buffPool'
-import { calcFinalStats } from '@/engine/formulas/finalStats'
-import { applyRtDataF, applyEnemyRtDataF } from '@/engine/effects/dataEffects'
 import { applyMnlBffs } from '@/engine/manualBuffs'
-import type { FinalStats, UnifiedBuffPool } from '@/domain/entities/stats'
+import type { UnifiedBuffPool } from '@/domain/entities/stats'
 import { isNoWeaponId, type EchoInstance, type ResRuntime } from '@/domain/entities/runtime'
 import { getWpnById } from '@/domain/services/weaponCatalogService'
 import type { AttributeKey } from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { CombatGraph } from '@/domain/entities/combatGraph'
-import type { SlotId } from '@/domain/entities/session'
-import { wpnAtkAt } from '@/domain/state/weaponState'
+import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
+import {
+  createNumericTeam,
+  materializeNumericContext,
+  type NumericTeamState,
+} from '@/engine/effects/numericTeam.ts'
+import { applyEnvironmentTargetModifiers } from '@/domain/state/scenarioEnvironment'
 
 // echo stat keys that should be routed into elemental damage bonus buckets
 const TTRBECHOSTAT = new Set<string>([
@@ -36,14 +38,13 @@ const SKLLTYPEECHO = new Set<string>([
   'basicAtk', 'heavyAtk', 'resonanceSkill', 'resonanceLiberation',
 ])
 
-// cache of "source pre-stats final stats" keyed first by graph, then by enemy
-// used so repeated combat-context builds for the same graph/enemy pair do not
-// recompute every participant's pre-stats final snapshot
-const srcFnlSttsCc = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Record<string, FinalStats>>>()
-
 // cache of full combat contexts keyed by graph -> enemy -> target slot
 // this avoids rebuilding the same slot context multiple times in one graph state
 const cmbtCtxCch = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Partial<Record<SlotId, CombatContext>>>>()
+
+// One compiled Simulation program owns all three participant lanes. Contexts
+// are merely cold projections of these arrays for existing UI consumers.
+const numericTeamCache = new WeakMap<CombatGraph, WeakMap<EnemyProfile, NumericTeamState>>()
 
 // read a value from a graph/enemy nested weakmap cache
 function getGrphEnemy<T>(
@@ -197,51 +198,29 @@ export function mkRtBaseBuff(runtime: ResRuntime): UnifiedBuffPool {
   return pool
 }
 
-// compute each participant's final stats after only pre-stats effects have been applied
-// these source snapshots are later used by cross-character effects that depend on source stats
-export function mkSrcPreStts(input: GrphCmbtCtxN): Record<string, FinalStats> {
-  const cached = getGrphEnemy(srcFnlSttsCc, input.graph, input.enemy)
-  if (cached) {
-    return cached
-  }
-
-  const fnlSttsById: Record<string, FinalStats> = {}
-
-  for (const participant of Object.values(input.graph.participants)) {
-    const sourcePool = mkRtBaseBuff(participant.runtime)
-
-    // apply only pre-stats data effects for the source participant
-    const preStatsPool = applyRtDataF(
-        participant.runtime,
-        sourcePool,
-        {
-          graph: input.graph,
-          targetSlotId: participant.slotId,
-          baseStats: participant.baseStats,
-          enemy: input.enemy,
-        },
-        'preStats',
-    )
-
-    // convert the pre-stats pool into final stats so other effects can reference them
-    fnlSttsById[participant.resonatorId] = calcFinalStats(
-        participant.baseStats,
-        preStatsPool,
-        wpnAtkAt(
-            participant.runtime.build.weapon.id,
-            participant.runtime.build.weapon.level,
-        ),
-    )
-  }
-
-  setGrphEnemy(srcFnlSttsCc, input.graph, input.enemy, fnlSttsById)
-  return fnlSttsById
-}
-
 // build the full combat context for one target slot
 // this performs a two-stage effect pass:
 // 1. pre-stats effects to produce a pre-stats final snapshot
 // 2. post-stats effects that may depend on those final stats
+export function getNumericCombatTeam(input: GrphCmbtCtxN): NumericTeamState {
+  let team = getGrphEnemy(numericTeamCache, input.graph, input.enemy)
+  if (!team) {
+    const basePools: Partial<Record<SlotId, UnifiedBuffPool>> = {}
+    for (const participant of Object.values(input.graph.participants)) {
+      const pool = mkRtBaseBuff(participant.runtime)
+      const environmentBuffs = input.graph.environmentBuffsByMemberId?.[participant.memberId]
+      if (environmentBuffs) applyMnlBffs(pool, environmentBuffs)
+      if (input.graph.environmentTargetModifiers) {
+        applyEnvironmentTargetModifiers(pool, input.graph.environmentTargetModifiers)
+      }
+      basePools[participant.slotId] = pool
+    }
+    team = createNumericTeam({ graph: input.graph, enemy: input.enemy, basePools })
+    setGrphEnemy(numericTeamCache, input.graph, input.enemy, team)
+  }
+  return team
+}
+
 export function makeCombatEnv(input: GrphCmbtCtxN): CombatContext {
   const cachedBySlot = getGrphEnemy(cmbtCtxCch, input.graph, input.enemy)
   const cchdCtx = cachedBySlot?.[input.targetSlotId]
@@ -249,86 +228,9 @@ export function makeCombatEnv(input: GrphCmbtCtxN): CombatContext {
     return cchdCtx
   }
 
-  const tgtPart = input.graph.participants[input.targetSlotId]
-  if (!tgtPart) {
-    throw new Error(`Missing combat graph participant for slot ${input.targetSlotId}`)
-  }
+  const team = getNumericCombatTeam(input)
 
-  const runtime = tgtPart.runtime
-  const baseStats = tgtPart.baseStats
-
-  // start from the runtime's full base buff pool
-  const pool = mkRtBaseBuff(runtime)
-
-  // gather cached/derived pre-stats final snapshots for all source participants
-  const srcFnlSttsBy = mkSrcPreStts(input)
-
-  // first pass: effects that alter the pool before final stat calculation
-  const preStatsPool = applyRtDataF(
-      runtime,
-      pool,
-      {
-        graph: input.graph,
-        targetSlotId: input.targetSlotId,
-        baseStats,
-        sourceStats: srcFnlSttsBy,
-        enemy: input.enemy,
-      },
-      'preStats',
-  )
-
-  // apply enemy-sourced debuffs/immunities once into the target pool before final stats are derived
-  applyEnemyRtDataF(
-      runtime,
-      preStatsPool,
-      {
-        graph: input.graph,
-        targetSlotId: input.targetSlotId,
-        baseStats,
-        sourceStats: srcFnlSttsBy,
-        enemy: input.enemy,
-      },
-      'preStats',
-  )
-
-  // calculate final stats after the pre-stats pass so post-stats effects can reference them
-  const preSttsFnlSt = calcFinalStats(
-      baseStats,
-      preStatsPool,
-      wpnAtkAt(runtime.build.weapon.id, runtime.build.weapon.level),
-  )
-
-  // second pass: effects that need the already-computed final stats
-  const ffctDjstPool = applyRtDataF(
-      runtime,
-      preStatsPool,
-      {
-        graph: input.graph,
-        targetSlotId: input.targetSlotId,
-        baseStats,
-        finalStats: preSttsFnlSt,
-        sourceStats: srcFnlSttsBy,
-        enemy: input.enemy,
-      },
-      'postStats',
-  )
-
-  // recompute final stats from the post-stats-adjusted pool
-  const finalStats = calcFinalStats(
-      baseStats,
-      ffctDjstPool,
-      wpnAtkAt(runtime.build.weapon.id, runtime.build.weapon.level),
-  )
-
-  const context = {
-    runtime,
-    baseStats,
-    enemy: input.enemy,
-    buffs: ffctDjstPool,
-    finalStats,
-    graph: input.graph,
-    targetSlotId: input.targetSlotId,
-  }
+  const context = materializeNumericContext(team, input.graph, input.targetSlotId, input.enemy)
 
   // store this slot context in the cache for future reuse
   const nextCchdBySl = cachedBySlot ?? {}

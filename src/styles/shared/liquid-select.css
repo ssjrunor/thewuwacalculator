@@ -1,7 +1,6 @@
 
 
 .liquid-select {
-  --liquid-select-enter-offset: 0.5rem;
   --liquid-select-accent: var(--resonator-accent, var(--accent, #6b7cff));
   --liquid-select-text: var(--input-color, var(--text, #1b2435));
   --liquid-select-input-border: var(--input-border, var(--border, rgba(27, 36, 53, 0.14)));
@@ -12,16 +11,8 @@
   z-index: 1;
 }
 
-.rotation-toolbar-field .liquid-select {
-  width: 100%;
-}
-
 .liquid-select.open {
   z-index: 50;
-}
-
-.liquid-select--up {
-  --liquid-select-enter-offset: -0.5rem;
 }
 
 .liquid-select__trigger {
@@ -121,71 +112,39 @@
 }
 
 .liquid-select__menu {
-  position: fixed;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.25rem;
-
+  width: max-content;
   height: auto;
   min-height: 0;
+  gap: 0.2rem;
+  padding: 0.25rem;
   overflow-y: auto;
-
-  color: var(--liquid-select-text);
-  z-index: var(--liquid-select-menu-z-index);
-  width: fit-content;
-
-  background: var(--bg);
-
   overscroll-behavior: contain;
-  border-radius: 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--liquid-select-accent) 12%, var(--liquid-select-input-border));
-  box-shadow: var(--ui-surface-shadow);
   scroll-behavior: smooth;
-}
-
-.liquid-select__menu--down {
-  transform-origin: 50% 0;
-}
-
-.liquid-select__menu--up {
-  transform-origin: 50% 100%;
-}
-
-.liquid-select__menu:focus {
+  color: var(--liquid-select-text);
   outline: none;
 }
 
-.liquid-select__menu[data-state='open'] {
-  animation: liquid-select-menu-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.liquid-select__menu[data-state='closed'] {
-  animation: liquid-select-menu-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
-  pointer-events: none;
-}
-
 .liquid-select__option {
-  flex-shrink: 0;
-  font-size: 0.8rem;
   position: relative;
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: .3rem .4rem;
+  padding: 0.3rem 0.4rem;
   overflow: hidden;
-  border-radius: .5rem;
+  border-radius: 0.5rem;
   color: var(--liquid-select-text);
+  font-size: 0.8rem;
   cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .liquid-select__option-label {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
@@ -199,8 +158,8 @@
   flex: 0 0 auto;
   width: 1.4em;
   height: 1.4em;
-  object-fit: contain;
   border-radius: 0.2rem;
+  object-fit: contain;
 }
 
 .liquid-select__option-check {
@@ -225,7 +184,8 @@
   opacity: 1;
 }
 
-.liquid-select__group {
+.liquid-select__group,
+.liquid-select__group-options {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -237,18 +197,12 @@
 
 .liquid-select__group-label {
   padding: 0.2rem 0.45rem 0.1rem;
+  color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
   user-select: none;
-}
-
-.liquid-select__group-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
 }
 
 .liquid-select__menu::-webkit-scrollbar {
@@ -260,39 +214,10 @@
   background: color-mix(in srgb, var(--liquid-select-accent) 32%, transparent);
 }
 
-@keyframes liquid-select-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--liquid-select-enter-offset)) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes liquid-select-menu-out {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateY(calc(var(--liquid-select-enter-offset) * -0.55)) scale(0.99);
-  }
-}
-
 :is(.no-entrance-anim, .reduce-animation) .liquid-select__trigger,
 :is(.no-entrance-anim, .reduce-animation) .liquid-select__icon,
 :is(.no-entrance-anim, .reduce-animation) .liquid-select__icon > svg,
 :is(.no-entrance-anim, .reduce-animation) .liquid-select__option,
 :is(.no-entrance-anim, .reduce-animation) .liquid-select__option-check {
   transition: none;
-}
-
-:is(.no-entrance-anim, .reduce-animation) .liquid-select__menu[data-state='open'],
-:is(.no-entrance-anim, .reduce-animation) .liquid-select__menu[data-state='closed'] {
-  animation: none;
 }

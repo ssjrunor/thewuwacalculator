@@ -5,16 +5,26 @@
 */
 
 import { z } from 'zod'
-import { DEF_BENCH_RPT, DEF_UI_PREFS } from '@/domain/entities/preferences'
-import { DEF_BODY_FONT, getPrstBodyF } from '@/modules/settings/model/typography'
+import { DEF_UI_PREFS } from '@/domain/entities/preferences'
+import { DEFAULT_BODY_FONT, getPresetFontUrl } from '@/domain/entities/appearance'
 import { DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
 import { makeOptInventorySelection } from '@/domain/entities/profile'
+import {
+  DEFAULT_ROTATION_EDITOR_STAT_KEYS,
+  ROTATION_EDITOR_DAMAGE_DECIMALS,
+  ROTATION_EDITOR_REGISTER_GROUPS,
+  ROTATION_EDITOR_STAT_KEYS,
+  makeDefaultRotationEditorPreferences,
+} from '@/domain/entities/rotationEditorPreferences'
 import {
   BG_THEMES,
   DARK_THEMES,
   LIGHT_THEMES,
 } from '@/domain/entities/themes'
 import { mnlBffsSchm } from '@/domain/state/manualBuffsSchema'
+import { migrateLegacySavedRotationRecord } from '@/domain/state/savedRotationMigration.ts'
+import { migrateLegacyRotationItems } from '@/domain/gameData/loopPasses.ts'
+import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import {
   mkDefPckrFre,
   mkEmptyPckrFreqBkt,
@@ -132,11 +142,18 @@ const invChsEntSch = z.object({
 }).strict()
 
 // shared weapon build snapshot
-const wpnMkSchm = z.object({
+const wpnMkSchm = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+  const weapon = { ...value } as Record<string, unknown>
+  delete weapon.baseAtk
+  return weapon
+}, z.object({
   id: z.string().nullable(),
   level: z.number(),
   rank: z.number(),
-})
+}).strict())
 
 // teammate weapon storage omits fixed level and resolves it at runtime
 const teamMemWpnMk = z.object({
@@ -145,7 +162,14 @@ const teamMemWpnMk = z.object({
 })
 
 // saved build entry
-const svdMkSchm = z.object({
+const svdMkSchm = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+  const build = { ...value } as Record<string, unknown>
+  delete build.resonatorName
+  return build
+}, z.object({
   id: z.string(),
   name: z.string(),
   resonatorId: z.string(),
@@ -155,7 +179,7 @@ const svdMkSchm = z.object({
   }).strict(),
   createdAt: z.number(),
   updatedAt: z.number(),
-})
+}).strict())
 
 // shared base progression state
 const baseSttSchm = z.object({
@@ -374,83 +398,164 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
     ]),
 )
 
-const rotWhenRuleS = z.object({
-  condition: condExprSchm.optional(),
+// Input-only compatibility shape. rotItemsSchm migrates and removes it.
+const legacyRotWhenRuleS = z.object({
   loops: z.array(z.object({
     loopId: z.string(),
     runs: z.array(z.number().int().positive()),
   }).strict()).optional(),
+  overrides: z.array(z.object({
+    runs: z.record(z.string(), z.number().int().positive()),
+    multiplier: z.number().optional(),
+    times: z.number().optional(),
+    ratio: z.number().optional(),
+    changes: z.array(rtChngSchm).optional(),
+  }).strict()).optional(),
 }).strict()
 
 // recursive rotation node schema
+const rotEditorSectionS = z.enum(['preamble', 'main'])
+const rotNoteNodeS = z.object({
+  id: z.string(),
+  type: z.literal('note'),
+  label: z.string().optional(),
+  color: z.string().optional(),
+  text: z.string(),
+  editorSection: rotEditorSectionS.optional(),
+}).strict()
+const rotNoteFieldS = { note: rotNoteNodeS.optional() }
+
 const rotNodeSchm: z.ZodTypeAny = z.lazy(() =>
     z.discriminatedUnion('type', [
+      rotNoteNodeS,
       z.object({
         id: z.string(),
         type: z.literal('feature'),
         resonatorId: z.string().optional(),
         enabled: z.boolean().optional(),
-        when: rotWhenRuleS.optional(),
+        when: legacyRotWhenRuleS.optional(),
+        editorSection: rotEditorSectionS.optional(),
         featureId: z.string(),
         multiplier: z.number().optional(),
         negativeEffectStacks: z.number().optional(),
         negativeEffectInstances: z.number().optional(),
         negativeEffectStableWidth: z.number().optional(),
+        // legacy pre-attach write list; loaders fold this into attached.conditions
         changes: z.array(rtChngSchm).optional(),
-        condition: condExprSchm.optional(),
+        attached: z.object({
+          conditions: z.array(rotNodeSchm),
+          features: z.array(rotNodeSchm),
+        }).strict().optional(),
+        ...rotNoteFieldS,
       }).strict(),
       z.object({
         id: z.string(),
         type: z.literal('condition'),
         resonatorId: z.string().optional(),
         enabled: z.boolean().optional(),
-        when: rotWhenRuleS.optional(),
+        when: legacyRotWhenRuleS.optional(),
+        editorSection: rotEditorSectionS.optional(),
         label: z.string().optional(),
-        condition: condExprSchm.optional(),
         changes: z.array(rtChngSchm),
+        ...rotNoteFieldS,
       }).strict(),
       z.object({
         id: z.string(),
         type: z.literal('repeat'),
         resonatorId: z.string().optional(),
         enabled: z.boolean().optional(),
-        when: rotWhenRuleS.optional(),
-        condition: condExprSchm.optional(),
+        when: legacyRotWhenRuleS.optional(),
+        editorSection: rotEditorSectionS.optional(),
+        label: z.string().optional(),
+        color: z.string().optional(),
         times: z.union([z.number(), formExprSchm]),
+        ratio: z.union([z.number(), formExprSchm]).optional(),
+        setup: z.array(rotNodeSchm).optional(),
         items: z.array(rotNodeSchm),
+        ...rotNoteFieldS,
       }).strict(),
       z.object({
         id: z.string(),
         type: z.literal('uptime'),
         resonatorId: z.string().optional(),
         enabled: z.boolean().optional(),
-        when: rotWhenRuleS.optional(),
-        condition: condExprSchm.optional(),
+        when: legacyRotWhenRuleS.optional(),
+        editorSection: rotEditorSectionS.optional(),
+        label: z.string().optional(),
+        color: z.string().optional(),
         ratio: z.union([z.number(), formExprSchm]),
         setup: z.array(rotNodeSchm).optional(),
         items: z.array(rotNodeSchm),
+        ...rotNoteFieldS,
       }).strict(),
       z.object({
         id: z.string(),
         type: z.literal('loop'),
         resonatorId: z.string().optional(),
         enabled: z.boolean().optional(),
-        when: rotWhenRuleS.optional(),
+        when: legacyRotWhenRuleS.optional(),
+        editorSection: rotEditorSectionS.optional(),
         kind: z.enum(['start', 'end']),
         loopId: z.string(),
         label: z.string().optional(),
         color: z.string().optional(),
         runs: z.number().int().positive().optional(),
+        // lazy per-run bodies; keys are 1-based run numbers as strings
+        passForks: z.record(z.string(), z.array(rotNodeSchm)).optional(),
+        ...rotNoteFieldS,
       }).strict(),
-    ]),
+    ]).superRefine((node, ctx) => {
+      if (node.type === 'loop' && node.kind === 'end' && node.note) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['note'],
+          message: 'Loop end markers cannot own notes',
+        })
+      }
+      if (node.type === 'feature' && node.attached) {
+        node.attached.conditions.forEach((condition, index) => {
+          if ((condition as { type?: unknown }).type !== 'condition') {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['attached', 'conditions', index],
+              message: 'Feature condition attachments must be condition nodes',
+            })
+          }
+        })
+        node.attached.features.forEach((feature, index) => {
+          if ((feature as { type?: unknown }).type !== 'feature') {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['attached', 'features', index],
+              message: 'Feature attachments must be feature nodes',
+            })
+          }
+        })
+      }
+    }),
+)
+
+const rotItemsSchm = z.array(rotNodeSchm).transform((items) =>
+  migrateLegacyRotationItems(items as RotationNode[]),
 )
 
 // saved rotation state
-const rotSttSchm = z.object({
-  view: z.enum(['personal', 'team', 'saved']),
-  personalItems: z.array(rotNodeSchm),
-  teamItems: z.array(rotNodeSchm),
-}).strict()
+const rotSttSchm = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+
+  const stored = value as Record<string, unknown>
+  return {
+    sequence: stored.sequence ?? stored.items ?? stored.personalItems ?? [],
+    program: stored.program ?? stored.runItems ?? stored.teamItems ?? [],
+    lastRanAt: stored.lastRanAt ?? null,
+  }
+}, z.object({
+  sequence: rotItemsSchm,
+  program: rotItemsSchm,
+  lastRanAt: z.number().nullable().default(null),
+}).strict())
 
 // optimizer settings payload
 const optSetsSchm = z.object({
@@ -501,32 +606,6 @@ const teamMemRtSch = z.object({
     echoes: z.array(echoNstnSchm.nullable()),
   }).strict(),
   manualBuffs: mnlBffsSchm,
-}).strict()
-
-// live resonator runtime state
-const resRtSttSchm = z.object({
-  id: z.string(),
-  base: baseSttSchm,
-  build: z.object({
-    weapon: wpnMkSchm,
-    echoes: z.array(echoNstnSchm.nullable()),
-    team: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
-  }).strict(),
-  state: z.object({
-    controls: prssCntrSchm,
-    manualBuffs: mnlBffsSchm,
-    combat: cmbtSttSchm,
-  }).strict(),
-  rotation: rotSttSchm,
-  teamRuntimes: z.tuple([teamMemRtSch.nullable(), teamMemRtSch.nullable()]),
-}).strict()
-
-// optimizer context stored in persistence
-const optCtxSchm = z.object({
-  resonatorId: z.string(),
-  runtime: resRtSttSchm,
-  sourceRuntimeSig: z.string().default(''),
-  settings: optSetsSchm,
 }).strict()
 
 // resonator suggestion settings
@@ -621,45 +700,61 @@ const resProfSchm = z.object({
   }).strict(),
 }).strict()
 
-// compact damage total snapshot
-const dmgTtlsSnapS = z.object({
-  normal: z.number(),
-  avg: z.number(),
-  crit: z.number(),
-}).strict()
-
-// teammate contribution snapshot
-const teamMemCntrS = z.object({
-  id: z.string(),
-  contribution: dmgTtlsSnapS,
-})
-
-// saved rotation summary snapshot
-const rotEntSmmrSc = z.object({
-  total: dmgTtlsSnapS,
-  members: z.array(teamMemCntrS).optional(),
-}).strict()
-
 // saved inventory rotation entry
-const invRotSchm = z.object({
+const invRotSchm = z.preprocess((value) => {
+  const migrated = migrateLegacySavedRotationRecord(value)
+  if (!migrated || typeof migrated !== 'object' || Array.isArray(migrated)) {
+    return migrated
+  }
+  const entry = { ...migrated } as Record<string, unknown>
+  delete entry.resonatorName
+  if (entry.scenario) {
+    delete entry.resonatorId
+    delete entry.team
+    delete entry.items
+    delete entry.snapshot
+  }
+  const migration = entry.migration
+  return migration && typeof migration === 'object' && !Array.isArray(migration)
+    ? {
+      ...entry,
+      migration: {
+        ...migration,
+        source: (migration as Record<string, unknown>).source === 'advanced-personal'
+          ? 'advanced-sequence'
+          : (migration as Record<string, unknown>).source,
+      },
+    }
+    : entry
+}, z.object({
   id: z.string(),
   name: z.string(),
-  mode: z.enum(['personal', 'team']),
-  resonatorId: z.string(),
+  resonatorId: z.string().optional(),
+  resonatorName: z.string().optional(),
   duration: z.number().default(0),
   note: z.string().default(''),
   team: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]).optional(),
-  items: z.array(rotNodeSchm),
+  items: rotItemsSchm.optional(),
+  scenario: z.lazy(() => combatScenarioSchm).optional(),
   snapshot: resProfSchm.optional(),
-  summary: rotEntSmmrSc.optional(),
+  migration: z.object({
+    source: z.literal('advanced-sequence'),
+    acknowledged: z.boolean(),
+  }).strict().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
-})
+}).strict().superRefine((entry, context) => {
+  if (entry.scenario) return
+  if (!entry.resonatorId || !entry.items) {
+    context.addIssue({
+      code: 'custom',
+      path: ['scenario'],
+      message: 'A saved rotation requires a scenario snapshot',
+    })
+  }
+}))
 
-// combat session persistence
-const cmbtSssnSchm = z.object({
-  activeResonatorId: z.string().nullable(),
-  enemyProfile: z.object({
+const enemyProfSchm = z.object({
     id: z.string(),
     level: z.number(),
     class: z.number(),
@@ -677,15 +772,243 @@ const cmbtSssnSchm = z.object({
       5: z.number(),
       6: z.number(),
     }).strict(),
+  }).strict()
+
+// Legacy active/target projection accepted only while importing old snapshots.
+const cmbtSssnSchm = z.object({
+  activeResonatorId: z.string().nullable(),
+  enemyProfile: enemyProfSchm,
+}).strict()
+
+const scenarioMemberSchm = z.object({
+  id: z.string(),
+  resonatorId: z.string(),
+  progression: baseSttSchm,
+  loadout: z.object({
+    weapon: wpnMkSchm,
+    echoes: z.array(echoNstnSchm.nullable()),
+  }).strict(),
+  local: z.object({
+    controls: prssCntrSchm,
+    setConditionals: sntSetConS.default(DEF_SET_COND),
+    optimizerInventory: z.object({
+      mode: z.enum(['include', 'exclude']).default('exclude'),
+      echoUids: z.array(z.string()).default([]),
+    }).strict().default(makeOptInventorySelection()),
   }).strict(),
 }).strict()
 
+const combatScenarioSchm = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const scenario = { ...value } as Record<string, unknown>
+  const rawEnvironment = scenario.environment
+  if (rawEnvironment && typeof rawEnvironment === 'object' && !Array.isArray(rawEnvironment)) {
+    const legacy = rawEnvironment as Record<string, unknown>
+    scenario.target ??= legacy.enemy
+    scenario.combatState ??= legacy.combat
+  }
+  const team = scenario.team && typeof scenario.team === 'object' && !Array.isArray(scenario.team)
+    ? scenario.team as Record<string, unknown>
+    : null
+  const members = Array.isArray(team?.members)
+    ? team.members.map((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+      const member = { ...value } as Record<string, unknown>
+      const local = member.local && typeof member.local === 'object' && !Array.isArray(member.local)
+        ? { ...(member.local as Record<string, unknown>) }
+        : null
+      if (local) {
+        member.local = local
+      }
+      return member
+    })
+    : []
+  const legacyManualEffects = members.flatMap((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+    const member = value as Record<string, unknown>
+    const local = member.local as Record<string, unknown> | null
+    const buffs = local?.manualBuffs
+    if (!local || !buffs) return []
+    delete local.manualBuffs
+    return [{
+      id: `member:${String(member.id)}:manual`,
+      enabled: true,
+      selector: { kind: 'members', memberIds: [member.id] },
+      buffs,
+    }]
+  })
+  if (team) scenario.team = { ...team, members }
+  const environment = rawEnvironment && typeof rawEnvironment === 'object'
+    && !Array.isArray(rawEnvironment)
+    && 'combatState' in rawEnvironment
+    ? { ...(rawEnvironment as Record<string, unknown>) }
+    : {
+      combatState: scenario.combatState,
+      manualEffects: legacyManualEffects,
+      targetModifiers: {
+        defenseReduction: 0,
+        resistanceReduction: {},
+        damageTakenAmplification: 0,
+      },
+      routing: scenario.routing,
+    }
+  environment.manualEffects ??= legacyManualEffects
+  environment.targetModifiers ??= {
+    defenseReduction: 0,
+    resistanceReduction: {},
+    damageTakenAmplification: 0,
+  }
+  scenario.environment = environment
+  scenario.contextMemberId ??= (members[0] as Record<string, unknown> | undefined)?.id
+  delete scenario.combatState
+  delete scenario.routing
+  return scenario
+}, z.object({
+  id: z.string(),
+  revision: z.number().int().nonnegative(),
+  team: z.object({
+    members: z.array(scenarioMemberSchm)
+      .min(1)
+      .max(3)
+      .refine(
+        (members) => new Set(members.map((member) => member.id)).size === members.length,
+        'Scenario member ids must be unique',
+      )
+      .refine(
+        (members) => new Set(members.map((member) => member.resonatorId)).size === members.length,
+        'Scenario resonators must be unique',
+      ),
+  }).strict(),
+  contextMemberId: z.string(),
+  target: enemyProfSchm,
+  environment: z.object({
+    combatState: cmbtSttSchm,
+    manualEffects: z.array(z.object({
+      id: z.string(),
+      enabled: z.boolean(),
+      label: z.string().optional(),
+      selector: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('all') }).strict(),
+        z.object({ kind: z.literal('members'), memberIds: z.array(z.string()) }).strict(),
+        z.object({ kind: z.literal('attribute'), attributes: z.array(ttrbSchm) }).strict(),
+        z.object({ kind: z.literal('weaponType'), weaponTypes: z.array(z.number()) }).strict(),
+      ]),
+      buffs: mnlBffsSchm,
+    }).strict()).refine(
+      (effects) => new Set(effects.map((effect) => effect.id)).size === effects.length,
+      'Environment effect ids must be unique',
+    ),
+    targetModifiers: z.object({
+      defenseReduction: z.number(),
+      resistanceReduction: z.partialRecord(ttrbSchm, z.number()),
+      damageTakenAmplification: z.number(),
+    }).strict(),
+    routing: z.object({
+      bySourceMemberId: z.record(
+        z.string(),
+        z.record(z.string(), z.string().nullable()),
+      ),
+    }).strict(),
+  }).strict(),
+  program: rotSttSchm,
+  initialOnFieldMemberId: z.string(),
+}).strict().superRefine((scenario, context) => {
+  const memberIds = new Set(scenario.team.members.map((member) => member.id))
+  if (!memberIds.has(scenario.contextMemberId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['contextMemberId'],
+      message: 'Scenario context member must belong to the team',
+    })
+  }
+  if (!memberIds.has(scenario.initialOnFieldMemberId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['initialOnFieldMemberId'],
+      message: 'Initial on-field member must belong to the team',
+    })
+  }
+  for (const [sourceMemberId, routes] of Object.entries(
+    scenario.environment.routing.bySourceMemberId,
+  )) {
+    if (!memberIds.has(sourceMemberId)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['environment', 'routing', 'bySourceMemberId', sourceMemberId],
+        message: 'Routing source must belong to the scenario team',
+      })
+    }
+    for (const [routeId, targetMemberId] of Object.entries(routes)) {
+      if (targetMemberId !== null && !memberIds.has(targetMemberId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['environment', 'routing', 'bySourceMemberId', sourceMemberId, routeId],
+          message: 'Routing target must belong to the scenario team',
+        })
+      }
+    }
+  }
+  scenario.environment.manualEffects.forEach((effect, effectIndex) => {
+    if (effect.selector.kind !== 'members') return
+    effect.selector.memberIds.forEach((memberId, memberIndex) => {
+      if (!memberIds.has(memberId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['environment', 'manualEffects', effectIndex, 'selector', 'memberIds', memberIndex],
+          message: 'Environment effect member must belong to the scenario team',
+        })
+      }
+    })
+  })
+}))
+
+/** Validate and normalize a standalone scenario carried by an import artifact. */
+export function parseCombatScenario(value: unknown) {
+  return combatScenarioSchm.safeParse(value)
+}
+
 // saved rotation page ui preferences
-const svdRotPrefsS = z.object({
+const svdRotPrefsS = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value
+  }
+  const preferences = { ...value } as Record<string, unknown>
+  delete preferences.filterMode
+  return preferences
+}, z.object({
   sortBy: z.enum(['date', 'name', 'avg', 'dps']).default('date'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  filterMode: z.enum(['all', 'personal', 'team']).default('all'),
+  contributionFilter: z.enum(['unset', 'solo', 'duo', 'trio']).default('unset'),
   autoSearchActiveResonator: z.boolean().default(false),
+  showLiveRotation: z.boolean().default(false),
+  scaleToSelected: z.boolean().default(true),
+}).strict())
+
+const rotEditorPrefsS = z.object({
+  view: z.enum(['tree', 'flat']).default('tree'),
+  ghostRepeats: z.boolean().default(true),
+  showPriors: z.boolean().default(false),
+  statKeys: z.array(z.enum(ROTATION_EDITOR_STAT_KEYS))
+    .max(ROTATION_EDITOR_STAT_KEYS.length)
+    .refine((keys) => new Set(keys).size === keys.length, 'Rotation editor columns must be unique')
+    .default([...DEFAULT_ROTATION_EDITOR_STAT_KEYS]),
+  groupOrder: z.array(z.enum(ROTATION_EDITOR_REGISTER_GROUPS))
+    .length(ROTATION_EDITOR_REGISTER_GROUPS.length)
+    .refine((groups) => new Set(groups).size === groups.length, 'Rotation editor groups must be unique')
+    .default([...ROTATION_EDITOR_REGISTER_GROUPS]),
+  dockPane: z.boolean().default(false),
+  damageBasis: z.enum(['avg', 'full']).default('avg'),
+  decimals: z.union(ROTATION_EDITOR_DAMAGE_DECIMALS.map((value) => (
+    z.literal(value)
+  )) as [
+    z.ZodLiteral<0>,
+    z.ZodLiteral<1>,
+    z.ZodLiteral<2>,
+    z.ZodLiteral<3>,
+    z.ZodLiteral<4>,
+  ]).default(2),
+  percentDisplay: z.enum(['percent', 'factor']).default('percent'),
+  savedView: z.enum(['off', 'list', 'groups']).default('off'),
 }).strict()
 
 const histMaxSchm = z.union([
@@ -749,24 +1072,45 @@ const pckrFreqSttS = z.preprocess(normalizePckrFreqState, z.object({
   }),
 }).strict().default(mkDefPckrFre))
 
-export const APP_STATE_VER = 22 as const
+export const APP_STATE_VER = 28 as const
 
-function normalizeBenchPrefs(value: unknown): unknown {
+function normalizeSimulationPrefs(value: unknown): unknown {
   if (!value || typeof value !== 'object') {
     return value
   }
 
   const prefs = value as Record<string, unknown>
-  if ('showBenchStates' in prefs) {
-    return prefs
-  }
+  const legacyCards = prefs.benchmarkCards
+  const cards = prefs.showcaseCards ?? legacyCards
+  const showcaseCards = cards && typeof cards === 'object' && !Array.isArray(cards)
+    ? Object.fromEntries(Object.entries(cards as Record<string, unknown>).map(([id, config]) => {
+        if (!config || typeof config !== 'object' || Array.isArray(config)) return [id, config]
+        const card = config as Record<string, unknown>
+        const style = card.style && typeof card.style === 'object' && !Array.isArray(card.style)
+          ? card.style as Record<string, unknown>
+          : null
+        const customCss = typeof style?.customCss === 'string'
+          ? style.customCss.replaceAll('.bench-', '.workspace-').replaceAll('--bench-', '--workspace-')
+          : style?.customCss
+        return [id, style ? { ...card, style: { ...style, customCss } } : card]
+      }))
+    : {}
 
-  return {
+  const normalized: Record<string, unknown> = {
     ...prefs,
-    showBenchStates: typeof prefs.showBenchStates === 'boolean'
-      ? prefs.showBenchStates
-      : DEF_UI_PREFS.showBenchStates,
+    showEvaluationStates: typeof prefs.showEvaluationStates === 'boolean'
+      ? prefs.showEvaluationStates
+      : typeof prefs.showBenchStates === 'boolean' ? prefs.showBenchStates : DEF_UI_PREFS.showEvaluationStates,
+    animatedRailPortraits: typeof prefs.animatedRailPortraits === 'boolean'
+      ? prefs.animatedRailPortraits
+      : typeof prefs.benchAnim2d === 'boolean' ? prefs.benchAnim2d : DEF_UI_PREFS.animatedRailPortraits,
+    showcaseCards,
   }
+  delete normalized.showBenchStates
+  delete normalized.benchAnim2d
+  delete normalized.benchmarkCards
+  delete normalized.benchmarkViewMode
+  return normalized
 }
 
 const uiPersistSchema = z.object({
@@ -776,21 +1120,20 @@ const uiPersistSchema = z.object({
   darkVariant: z.enum(DARK_THEMES),
   backgroundVariant: z.enum(BG_THEMES),
   backgroundImageKey: z.string().default('builtin:wallpaperflare1.jpg'),
-  backgroundTextMode: z.enum(['light', 'dark']).default('light'),
-  bodyFontName: z.string().default(DEF_BODY_FONT),
-  bodyFontUrl: z.string().default(getPrstBodyF(DEF_BODY_FONT)),
+  backgroundTextMode: z.enum(['light', 'dark']).default('dark'),
+  bodyFontName: z.string().default(DEFAULT_BODY_FONT),
+  bodyFontUrl: z.string().default(getPresetFontUrl(DEFAULT_BODY_FONT)),
   blurMode: uiBoolSchm(false),
   entranceAnimations: uiBoolSchm(true),
-  preferences: z.preprocess(normalizeBenchPrefs, z.object({
+  preferences: z.preprocess(normalizeSimulationPrefs, z.object({
     ctxMenu: z.boolean().default(DEF_UI_PREFS.ctxMenu),
     updateToast: z.boolean().default(DEF_UI_PREFS.updateToast),
     gameBetaData: z.boolean().default(DEF_UI_PREFS.gameBetaData),
     recommendedMenuItems: z.boolean().default(DEF_UI_PREFS.recommendedMenuItems),
-    showBenchStates: z.boolean().default(DEF_UI_PREFS.showBenchStates),
+    showEvaluationStates: z.boolean().default(DEF_UI_PREFS.showEvaluationStates),
     maxResOnInit: z.boolean().default(DEF_UI_PREFS.maxResOnInit),
-    benchmarkViewMode: z.enum(['benchmark', 'showcase']).default(DEF_UI_PREFS.benchmarkViewMode),
-    benchAnim2d: z.boolean().default(DEF_UI_PREFS.benchAnim2d),
-    benchmarkCards: z.record(
+    animatedRailPortraits: z.boolean().default(DEF_UI_PREFS.animatedRailPortraits),
+    showcaseCards: z.record(
       z.string(),
       z.object({
         style: z.object({
@@ -849,16 +1192,11 @@ const uiPersistSchema = z.object({
         }),
       }),
     ).default({}),
-    benchRptSettings: z.object({
-      rotationFeatures: z.boolean().default(DEF_BENCH_RPT.rotationFeatures),
-      activeStateSources: z.boolean().default(DEF_BENCH_RPT.activeStateSources),
-      upgradePaths: z.boolean().default(DEF_BENCH_RPT.upgradePaths),
-      buildDetails: z.boolean().default(DEF_BENCH_RPT.buildDetails),
-      echoStatsTable: z.boolean().default(DEF_BENCH_RPT.echoStatsTable),
-      benchmarkTargets: z.boolean().default(DEF_BENCH_RPT.benchmarkTargets),
-    }).default(DEF_BENCH_RPT),
+    showcaseLayout: z.enum(['classic', 'seal']).default(DEF_UI_PREFS.showcaseLayout),
     uploadPersist: z.enum(['indexeddb', 'imgbb']).nullable().default(DEF_UI_PREFS.uploadPersist),
     imgbbApiKey: z.string().default(DEF_UI_PREFS.imgbbApiKey),
+    playerId: z.string().default(DEF_UI_PREFS.playerId),
+    playerUid: z.string().default(DEF_UI_PREFS.playerUid),
   }).default(DEF_UI_PREFS)),
   leftPaneView: z.enum([
     'resonators',
@@ -873,23 +1211,27 @@ const uiPersistSchema = z.object({
   suggsViewMode: z.enum(['mainStats', 'setPlans', 'weapons', 'random', 'substats']).default('mainStats'),
   showSubHits: z.boolean(),
   compactInv: z.boolean().default(false),
+  groupInv: z.boolean().default(false),
   seeEquipped: z.boolean().default(true),
   haveHistory: z.boolean().default(true),
   historyMax: histMaxSchm,
   itemFreq: pckrFreqSttS,
   optimizerCpuHintSeen: z.boolean().default(false),
   // portrait-mode preference for the optimizer (sprite vs profile art). a
-  // display preference, not resonator-scoped, so it persists globally rather
-  // than living in the per-resonator optimizer context.
+  // display preference, not resonator-scoped, so it persists globally with
+  // other UI preferences.
   optimizerUseSprite: z.boolean().default(true),
   // export files default to the compact .wwcalc format; plain json is the
   // readable fallback.
   compressedExports: z.boolean().default(true),
+  rotationEditorPreferences: rotEditorPrefsS.default(makeDefaultRotationEditorPreferences()),
   savedRotationPreferences: svdRotPrefsS.default({
     sortBy: 'date',
     sortOrder: 'desc',
-    filterMode: 'all',
+    contributionFilter: 'unset',
     autoSearchActiveResonator: false,
+    showLiveRotation: false,
+    scaleToSelected: true,
   }),
 }).strict()
 
@@ -913,6 +1255,7 @@ export const prssUiLytSch = z.object({
   suggsViewMode: uiPersistSchema.shape.suggsViewMode,
   showSubHits: uiPersistSchema.shape.showSubHits,
   compactInv: uiPersistSchema.shape.compactInv,
+  groupInv: uiPersistSchema.shape.groupInv,
   seeEquipped: uiPersistSchema.shape.seeEquipped,
   haveHistory: uiPersistSchema.shape.haveHistory,
   historyMax: uiPersistSchema.shape.historyMax,
@@ -920,16 +1263,16 @@ export const prssUiLytSch = z.object({
   optimizerCpuHintSeen: uiPersistSchema.shape.optimizerCpuHintSeen,
   optimizerUseSprite: uiPersistSchema.shape.optimizerUseSprite,
   compressedExports: uiPersistSchema.shape.compressedExports,
+  rotationEditorPreferences: uiPersistSchema.shape.rotationEditorPreferences,
 }).strict()
 
 export const prssUiSvdRot = z.object({
   savedRotationPreferences: uiPersistSchema.shape.savedRotationPreferences,
 }).strict()
 
-const prssCalcPrfl = z.object({
-  runtimeRevision: z.number().int().nonnegative().default(0),
-  profiles: z.record(z.string(), resProfSchm),
-  optimizerContext: optCtxSchm.nullable().default(null),
+const prssSimulationTools = z.object({
+  optimizerSettingsResonatorId: z.string().nullable().optional(),
+  optimizerSettings: optSetsSchm.optional(),
   weaponSuggests: wpnSuggSetS.default({
     mode: 'both',
     target: 'max',
@@ -953,52 +1296,261 @@ const prssCalcPrfl = z.object({
   suggestionsByResonatorId: z.record(z.string(), resSuggsSttS).default({}),
 }).strict()
 
-const prssCalcInvS = z.object({
+const prssSimulationInvS = z.object({
   inventoryEchoes: z.array(invChsEntSch),
   inventoryBuilds: z.array(svdMkSchm),
   inventoryRotations: z.array(invRotSchm),
 }).strict()
 
-export const prssCalcPrgd = z.object({
-  runtimeRevision: prssCalcPrfl.shape.runtimeRevision,
-  profiles: prssCalcPrfl.shape.profiles,
+const savedScenarioSchm = z.object({
+  id: z.string(),
+  name: z.string(),
+  note: z.string().default(''),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  scenario: combatScenarioSchm,
 }).strict()
 
-export const prssCalcOptC = z.object({
-  optimizerContext: prssCalcPrfl.shape.optimizerContext,
+const savedArtifactLibrarySchm = z.object({
+  echoes: z.array(invChsEntSch),
+  builds: z.array(svdMkSchm),
+  rotations: z.array(invRotSchm),
+  scenarios: z.array(savedScenarioSchm),
 }).strict()
 
-export const prssCalcSugg = z.object({
-  weaponSuggests: prssCalcPrfl.shape.weaponSuggests,
-  suggestionsByResonatorId: prssCalcPrfl.shape.suggestionsByResonatorId,
+export const prssCombatWorkspace = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const workspace = { ...value } as Record<string, unknown>
+  if (workspace.scenariosById) {
+    delete workspace.scenario
+    return workspace
+  }
+  if (workspace.documentsById && typeof workspace.documentsById === 'object') {
+    const documents = workspace.documentsById as Record<string, { scenario?: unknown }>
+    return {
+      selectedScenarioId: workspace.selectedScenarioId,
+      order: workspace.order,
+      scenariosById: Object.fromEntries(Object.entries(documents).map(
+        ([id, document]) => [id, document?.scenario],
+      )),
+    }
+  }
+  const scenario = workspace.scenario
+  if (!scenario || typeof scenario !== 'object' || Array.isArray(scenario)) return value
+  const id = String((scenario as Record<string, unknown>).id ?? 'workspace')
+  return {
+    selectedScenarioId: id,
+    order: [id],
+    scenariosById: { [id]: scenario },
+  }
+}, z.object({
+  selectedScenarioId: z.string(),
+  order: z.array(z.string()),
+  scenariosById: z.record(z.string(), combatScenarioSchm),
+}).strict().superRefine((workspace, context) => {
+  const scenarioIds = Object.keys(workspace.scenariosById)
+  const orderIds = new Set(workspace.order)
+  if (scenarioIds.length === 0) {
+    context.addIssue({ code: 'custom', path: ['scenariosById'], message: 'At least one scenario is required' })
+  }
+  if (!workspace.scenariosById[workspace.selectedScenarioId]) {
+    context.addIssue({ code: 'custom', path: ['selectedScenarioId'], message: 'Selected scenario must exist' })
+  }
+  if (orderIds.size !== workspace.order.length
+    || scenarioIds.some((id) => !orderIds.has(id))
+    || workspace.order.some((id) => !workspace.scenariosById[id])) {
+    context.addIssue({ code: 'custom', path: ['order'], message: 'Scenario order must contain every scenario once' })
+  }
+  const contextOwners = new Set<string>()
+  for (const [id, scenario] of Object.entries(workspace.scenariosById)) {
+    if (scenario.id !== id) {
+      context.addIssue({
+        code: 'custom',
+        path: ['scenariosById', id],
+        message: 'Scenario key and identity must match',
+      })
+    }
+    const member = scenario.team.members.find((entry) => entry.id === scenario.contextMemberId)
+    const resonatorId = member?.resonatorId
+    if (resonatorId && contextOwners.has(resonatorId)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['scenariosById', id, 'contextMemberId'],
+        message: 'Each context resonator can own only one working scenario',
+      })
+    }
+    if (resonatorId) contextOwners.add(resonatorId)
+  }
+}))
+
+export const prssSimulationOptS = z.object({
+  // Optional only while reading v28 records written before settings gained an
+  // owner key. initAppState backfills the selected context resonator.
+  optimizerSettingsResonatorId: z.string().nullable().optional(),
+  optimizerSettings: optSetsSchm,
 }).strict()
 
-export const prssCalcInvC = z.object({
-  inventoryEchoes: prssCalcInvS.shape.inventoryEchoes,
+export const prssSimulationSugg = z.object({
+  weaponSuggests: prssSimulationTools.shape.weaponSuggests,
+  suggestionsByResonatorId: prssSimulationTools.shape.suggestionsByResonatorId,
 }).strict()
 
-export const prssCalcInvB = z.object({
-  inventoryBuilds: prssCalcInvS.shape.inventoryBuilds,
+export const prssSimulationInvC = z.object({
+  echoes: savedArtifactLibrarySchm.shape.echoes,
 }).strict()
 
-export const prssCalcInvR = z.object({
-  inventoryRotations: prssCalcInvS.shape.inventoryRotations,
+export const prssSimulationInvB = z.object({
+  builds: savedArtifactLibrarySchm.shape.builds,
+}).strict()
+
+export const prssSimulationInvR = z.object({
+  rotations: savedArtifactLibrarySchm.shape.rotations,
+}).strict()
+
+export const prssInvScenarios = z.object({
+  scenarios: savedArtifactLibrarySchm.shape.scenarios,
 }).strict()
 
 function makePersistSchema(version: typeof APP_STATE_VER) {
   return z.object({
     version: z.literal(version),
     ui: z.preprocess(stripLegacyMainMode, uiPersistSchema),
-    calculator: z.object({
-      ...prssCalcPrfl.shape,
-      ...prssCalcInvS.shape,
-      session: cmbtSssnSchm,
+    // Optional only at the schema boundary so v22 state can materialize its
+    // first scenario from legacy profiles/session during initialization.
+    combat: prssCombatWorkspace.optional(),
+    library: savedArtifactLibrarySchm.optional(),
+    simulation: z.object({
+      ...prssSimulationTools.shape,
+      runtimeRevision: z.number().int().nonnegative().optional(),
+      profiles: z.record(z.string(), resProfSchm).optional(),
+      inventoryEchoes: prssSimulationInvS.shape.inventoryEchoes.optional(),
+      inventoryBuilds: prssSimulationInvS.shape.inventoryBuilds.optional(),
+      inventoryRotations: prssSimulationInvS.shape.inventoryRotations.optional(),
+      session: cmbtSssnSchm.optional(),
+      workspace: z.object({ currentScenario: combatScenarioSchm.optional() }).passthrough().optional(),
     }).strict(),
   }).strict()
 }
 
+function collapseLegacyScenarioContexts(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const workspace = value as Record<string, unknown>
+  const rawScenarios = workspace.scenariosById && typeof workspace.scenariosById === 'object'
+    ? workspace.scenariosById as Record<string, unknown>
+    : workspace.documentsById && typeof workspace.documentsById === 'object'
+      ? Object.fromEntries(Object.entries(workspace.documentsById as Record<string, unknown>).map(
+        ([id, document]) => [
+          id,
+          document && typeof document === 'object' && !Array.isArray(document)
+            ? (document as Record<string, unknown>).scenario
+            : undefined,
+        ],
+      ))
+      : null
+  if (!rawScenarios) return value
+
+  const selectedId = typeof workspace.selectedScenarioId === 'string'
+    ? workspace.selectedScenarioId
+    : null
+  const rawOrder = Array.isArray(workspace.order)
+    ? workspace.order.filter((id): id is string => typeof id === 'string')
+    : Object.keys(rawScenarios)
+  const contextIdFor = (scenario: unknown): string | null => {
+    if (!scenario || typeof scenario !== 'object' || Array.isArray(scenario)) return null
+    const record = scenario as Record<string, unknown>
+    if (!record.team || typeof record.team !== 'object' || Array.isArray(record.team)) return null
+    const members = (record.team as Record<string, unknown>).members
+    if (!Array.isArray(members)) return null
+    const contextMemberId = record.contextMemberId
+    const member = members.find((candidate) => (
+      candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+      && (candidate as Record<string, unknown>).id === contextMemberId
+    )) as Record<string, unknown> | undefined
+    return typeof member?.resonatorId === 'string' ? member.resonatorId : null
+  }
+
+  const selectedContext = selectedId ? contextIdFor(rawScenarios[selectedId]) : null
+  const seen = new Set<string>()
+  const order = rawOrder.filter((id) => {
+    const contextId = contextIdFor(rawScenarios[id])
+    if (!contextId) return true
+    if (contextId === selectedContext && id !== selectedId) return false
+    if (seen.has(contextId)) return false
+    seen.add(contextId)
+    return true
+  })
+  if (selectedId && rawScenarios[selectedId] && !order.includes(selectedId)) order.unshift(selectedId)
+
+  return {
+    selectedScenarioId: selectedId ?? order[0],
+    order,
+    scenariosById: Object.fromEntries(order.map((id) => [id, rawScenarios[id]])),
+  }
+}
+
+function migratePersistedVersion(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const record = value as Record<string, unknown>
+  if (![22, 23, 24, 25, 26, 27].includes(Number(record.version))) return value
+
+  const legacySimulation = record.simulation ?? record.calculator
+  const simulation = legacySimulation && typeof legacySimulation === 'object'
+    && !Array.isArray(legacySimulation)
+    ? { ...(legacySimulation as Record<string, unknown>) }
+    : {}
+  const workspace = simulation.workspace
+  delete simulation.workspace
+  const optimizerContext = simulation.optimizerContext
+  if (
+    !simulation.optimizerSettings
+    && optimizerContext
+    && typeof optimizerContext === 'object'
+    && !Array.isArray(optimizerContext)
+  ) {
+    simulation.optimizerSettings = (optimizerContext as Record<string, unknown>).settings
+  }
+  if (
+    !simulation.optimizerSettingsResonatorId
+    && optimizerContext
+    && typeof optimizerContext === 'object'
+    && !Array.isArray(optimizerContext)
+  ) {
+    simulation.optimizerSettingsResonatorId =
+      (optimizerContext as Record<string, unknown>).resonatorId ?? null
+  }
+  delete simulation.optimizerContext
+  const legacyScenario = workspace && typeof workspace === 'object'
+    && !Array.isArray(workspace)
+    ? (workspace as Record<string, unknown>).currentScenario
+    : undefined
+  const currentRecord = { ...record }
+  delete currentRecord.calculator
+
+  return {
+    ...currentRecord,
+    version: APP_STATE_VER,
+    library: record.library ?? {
+      echoes: simulation.inventoryEchoes ?? [],
+      builds: simulation.inventoryBuilds ?? [],
+      rotations: simulation.inventoryRotations ?? [],
+      scenarios: [],
+    },
+    ...(record.combat
+      ? { combat: Number(record.version) === 25
+        ? collapseLegacyScenarioContexts(record.combat)
+        : record.combat }
+      : legacyScenario
+        ? { combat: { scenario: legacyScenario } }
+        : {}),
+    simulation,
+  }
+}
+
 // root persisted app state schema
-export const persistedSchema = makePersistSchema(APP_STATE_VER)
+export const persistedSchema = z.preprocess(
+  migratePersistedVersion,
+  makePersistSchema(APP_STATE_VER),
+)
 
 export const prssUiPprnSl = z.object({
   version: z.literal(APP_STATE_VER),
@@ -1015,39 +1567,37 @@ export const prssUiSvdRoh = z.object({
   ui: prssUiSvdRot,
 }).strict()
 
-export const prssSssnSlcS = z.object({
+export const prssCmbtWrkspSlcS = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: z.object({
-    session: cmbtSssnSchm,
-  }).strict(),
+  combat: prssCombatWorkspace,
 }).strict()
 
-export const prssPrflSlcS = z.object({
+export const prssOptSettingsSl = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: prssCalcPrgd,
-}).strict()
-
-export const prssOptCtxSl = z.object({
-  version: z.literal(APP_STATE_VER),
-  calculator: prssCalcOptC,
+  simulation: prssSimulationOptS,
 }).strict()
 
 export const prssSuggsSlc = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: prssCalcSugg,
+  simulation: prssSimulationSugg,
 }).strict()
 
 export const prssInvChsSl = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: prssCalcInvC,
+  library: prssSimulationInvC,
 }).strict()
 
 export const prssInvBldsS = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: prssCalcInvB,
+  library: prssSimulationInvB,
 }).strict()
 
 export const prssInvRttnS = z.object({
   version: z.literal(APP_STATE_VER),
-  calculator: prssCalcInvR,
+  library: prssSimulationInvR,
+}).strict()
+
+export const prssInvScenariosSl = z.object({
+  version: z.literal(APP_STATE_VER),
+  library: prssInvScenarios,
 }).strict()

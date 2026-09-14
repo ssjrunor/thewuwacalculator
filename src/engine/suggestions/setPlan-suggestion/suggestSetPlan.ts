@@ -408,8 +408,8 @@ export function runSetSggs(
     return { baseAvg: 0, results: [], isRotation: rotationMode }
   }
 
-  const curChs = prepared.qppdChs
-  const nonNullCount = curChs.filter((echo) => echo != null).length
+  const currentEchoes = prepared.qppdChs
+  const nonNullCount = currentEchoes.filter((echo) => echo != null).length
 
   // no equipped echoes means there is nothing meaningful to assign sets onto
   if (nonNullCount === 0) {
@@ -432,14 +432,14 @@ export function runSetSggs(
     thrPcSets: thrPcSets,
     topK: prepared.topK ?? topK,
     exhaustive: true,
-    qppdChs: curChs,
+    qppdChs: currentEchoes,
   })
 
   // remove plans that either exceed the number of equipped echoes
   // or cannot actually be realized on the current echo collection
   const filtered = results.filter((result) =>
       result.setPlan.reduce((sum, entry) => sum + entry.pieces, 0) <= nonNullCount &&
-      isSetPlanFsb(result.setPlan, curChs),
+      isSetPlanFsb(result.setPlan, currentEchoes),
   )
 
   return {
@@ -452,8 +452,8 @@ export function runSetSggs(
 export function runPrepSetSg(
     input: PrepSetPlanS,
 ): SetPlanSugoi {
-  const curChs = input.qppdChs
-  const nonNullCount = curChs.filter((echo) => echo != null).length
+  const currentEchoes = input.qppdChs
+  const nonNullCount = currentEchoes.filter((echo) => echo != null).length
   if (nonNullCount === 0) {
     return { baseAvg: 0, results: [], isRotation: input.rotationMode }
   }
@@ -468,12 +468,12 @@ export function runPrepSetSg(
     thrPcSets: thrPcSets,
     topK: input.topK ?? 10,
     exhaustive: true,
-    qppdChs: curChs,
+    qppdChs: currentEchoes,
   })
 
   const filtered = results.filter((result) =>
       result.setPlan.reduce((sum, entry) => sum + entry.pieces, 0) <= nonNullCount
-      && isSetPlanFsb(result.setPlan, curChs),
+      && isSetPlanFsb(result.setPlan, currentEchoes),
   )
 
   return {

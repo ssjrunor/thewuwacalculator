@@ -569,7 +569,7 @@
   background: var(--docs-ghost);
 }
 
-.docs-scale__tick[data-anchor='benchmark'] .docs-scale__tick-mark,
+.docs-scale__tick[data-anchor='reference'] .docs-scale__tick-mark,
 .docs-scale__tick[data-anchor='perfection'] .docs-scale__tick-mark {
   height: 2.1rem;
   background: var(--docs-faint);

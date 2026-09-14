@@ -1,13 +1,11 @@
 /*
   Author: Runor Ewhro
-  Description: Defines shared application state types and constants for ui,
-               enemy data, calculator state, and persisted app storage.
+  Description: Defines app state data contracts and state invariants.
 */
 
 import type { ResProf } from './profile'
-import type { CombatSession } from './session'
-import type { InvEchoEnt, InventoryEntry, InvRotEnt } from './inventoryStorage'
-import type { OptContext } from './optimizer'
+import type { SavedArtifactLibrary } from './inventoryStorage'
+import type { OptSets } from './optimizer'
 import type { SuggestState, SuggsViewMod, WeaponPlanSet } from './suggestions'
 import type {
   BlurMode,
@@ -17,6 +15,9 @@ import type {
 } from './themes'
 import type { AttributeKey } from './stats'
 import type { UiPrefs } from './preferences'
+import type { RotationEditorPreferences } from './rotationEditorPreferences'
+import type { ScenarioWorkspace } from './scenarioLibrary'
+import type { ResonatorId } from './runtime'
 
 export type ThemeMode = 'light' | 'dark' | 'background'
 export type ThemePref = 'system' | ThemeMode
@@ -101,7 +102,7 @@ export const ATTR_ENEMY_RES: Record<AttributeKey, EnemyResistN> = {
   havoc: 6,
 }
 
-// available left pane tabs in the calculator ui
+// available left pane tabs in the legacy workspace UI
 export type LeftPaneView =
     | 'resonators'
     | 'buffs'
@@ -161,28 +162,36 @@ export interface UiState {
   optimizerCpuHintSeen: boolean
   optimizerUseSprite: boolean
   compressedExports: boolean
+  groupInv: boolean
+  rotationEditorPreferences: RotationEditorPreferences
   savedRotationPreferences: {
     sortBy: 'date' | 'name' | 'avg' | 'dps'
     sortOrder: 'asc' | 'desc'
-    filterMode: 'all' | 'personal' | 'team'
+    contributionFilter: 'unset' | 'solo' | 'duo' | 'trio'
     autoSearchActiveResonator: boolean
+    showLiveRotation: boolean
+    scaleToSelected: boolean
   }
 }
 
-export interface CalcState {
-  runtimeRevision: number
-  profiles: Record<string, ResProf>
-  session: CombatSession
-  inventoryEchoes: InvEchoEnt[]
-  inventoryBuilds: InventoryEntry[]
-  inventoryRotations: InvRotEnt[]
-  optimizerContext: OptContext | null
+export interface SimulationState {
+  /** Resonator whose derived build choices the current optimizer settings belong to. */
+  optimizerSettingsResonatorId: ResonatorId | null
+  optimizerSettings: OptSets
   weaponSuggests: WeaponPlanSet
   suggestionsByResonatorId: Record<string, SuggestState>
 }
 
+export type LegacyProfileMap = Record<string, ResProf>
+
 export interface PersistedState {
-  version: 22
+  version: 28
   ui: UiState
-  calculator: CalcState
+  /** Canonical live combat ownership, independent of Simulation tooling. */
+  combat: ScenarioWorkspace
+  /** User-authored snapshots, independent from any Simulation surface. */
+  library: SavedArtifactLibrary
+  simulation: SimulationState
 }
+
+export type HydratedAppState = PersistedState

@@ -18,43 +18,41 @@
   --sidebar-bg: rgba(255, 255, 255, 0.9);
   --hover: rgba(0, 0, 0, 0.05);
   --shadow: 0 12px 28px rgba(17, 33, 66, 0.16);
+
+
+  --chrome-height: 3rem;
+  --chrome-accent: var(--accent);
+  --chrome-wash-soft: color-mix(in srgb, var(--chrome-accent) 6.7%, transparent);
+  --chrome-line: color-mix(in srgb, var(--item-border) 95%, var(--text));
   min-height: 100%;
   color: var(--text);
   transition: background 0.3s ease, color 0.3s ease;
 }
 
-.app-shell::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--text) 3%, transparent) 0 1px,
-      transparent 1px 5px
-  );
-  opacity: 0.75;
-}
 
-.frosted-aurora.app-shell::after {
-  content: '';
+
+
+.app-wallpaper {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -2;
   pointer-events: none;
-  background-image: var(--background-wallpaper-image, none);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 
-.frosted-aurora.app-shell:not(.blur-off)::after {
+
+.frosted-aurora.app-shell .app-wallpaper {
+  background-image: var(--background-wallpaper-image, none);
+}
+
+.frosted-aurora.app-shell:not(.blur-off) .app-wallpaper {
   filter: blur(10px);
   transition: filter 0.3s ease;
 }
 
-.frosted-aurora.app-shell.blur-off::after {
+.frosted-aurora.app-shell.blur-off .app-wallpaper {
   filter: none;
 }
 
@@ -122,141 +120,7 @@
   min-height: 0;
   overflow: auto;
   padding: 0;
-  border-top-left-radius: 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--chrome-line) 50%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--chrome-line) 50%, transparent);
   transition: all 0.3s ease;
-}
-
-.mobile-overlay {
-  position: fixed;
-  top: 3rem;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-top: 1px solid var(--chrome-line);
-  z-index: 999;
-  opacity: 0;
-  backdrop-filter: blur(2px);
-  pointer-events: none;
-  transition: opacity 300ms ease 100ms;
-}
-
-.mobile-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.mobile-overlay:not(.closing) {
-  animation: fadeInOverlay 0.4s ease;
-}
-
-@keyframes fadeInOverlay {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.calculator-page {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 0.72rem;
-  min-height: calc(100vh - 5.55rem);
-}
-
-.calculator-toolbar {
-  display: flex;
-  gap: 0.45rem;
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  backdrop-filter: blur(8px);
-  padding: 0.5rem;
-}
-
-.toolbar-tab {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--muted);
-  border-radius: 10px;
-  padding: 0.4rem 0.55rem;
-  display: grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  gap: 0.45rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.toolbar-tab:hover,
-.toolbar-tab.active {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
-}
-
-.toolbar-tab-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  min-height: 2rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 0.1rem;
-}
-
-.toolbar-tab-icon img {
-  width: 1.4rem;
-  height: 1.4rem;
-  object-fit: contain;
-}
-
-.toolbar-tab-label {
-  font-size: 0.86rem;
-}
-
-.mode-toolbar {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  backdrop-filter: blur(8px);
-  padding: 0.62rem;
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.mode-toolbar-title {
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.mode-toolbar-meta {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.mode-toolbar-meta span {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.74rem;
-  padding: 0.17rem 0.45rem;
-}
-
-.mode-toolbar-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .split {
@@ -416,75 +280,6 @@ body.split-resizing * {
   justify-content: flex-end;
 }
 
-.calc-tooltip {
-  position: relative;
-}
-
-.calc-tooltip::before,
-.calc-tooltip::after {
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.calc-tooltip::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  width: 0.7rem;
-  height: 0.7rem;
-  background: rgba(20, 24, 31, 0.96);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  transform: translateX(-50%) rotate(45deg) translateY(0.2rem);
-  z-index: 30;
-}
-
-.calc-tooltip::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(20, 24, 31, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.25rem 0.45rem;
-  color: #f9fafb;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  border-radius: 0.85rem;
-  white-space: pre-wrap;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  text-align: left;
-  z-index: 31;
-  box-shadow:
-    0 0.9rem 1.8rem rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(255, 255, 255, 0.03);
-  max-width: 12rem;
-  width: max-content;
-}
-
-.calc-tooltip.tooltip-wide::after {
-  max-width: 18rem;
-}
-
-.calc-tooltip:is(:hover, :focus-visible)::before,
-.calc-tooltip:is(:hover, :focus-visible)::after {
-  opacity: 1;
-}
-
-.calc-tooltip:is(:hover, :focus-visible)::before {
-  transform: translateX(-50%) rotate(45deg) translateY(-0.02rem);
-}
-
-.calc-tooltip:is(:hover, :focus-visible)::after {
-  transform: translateX(-50%) translateY(-0.24rem);
-}
-
 .damage-tooltip-wrapper {
   display: inline-block;
 }
@@ -520,12 +315,6 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .rotation-pane > .pane-section,
 :is(.no-entrance-anim, .reduce-animation) .rotation-list-container > *,
 :is(.no-entrance-anim, .reduce-animation) .rotation-saved-list > *,
-:is(.no-entrance-anim, .reduce-animation) .character-overview-pane > .character-overview-header,
-:is(.no-entrance-anim, .reduce-animation) .character-overview-content > .overview-resonator-strip,
-:is(.no-entrance-anim, .reduce-animation) .overview-mosaic > .overview-cell,
-:is(.no-entrance-anim, .reduce-animation) .overview-dashboard-left > .overview-stats-tree,
-:is(.no-entrance-anim, .reduce-animation) .overview-dashboard-layout > .calculator-hero-state-summary,
-:is(.no-entrance-anim, .reduce-animation) .calculator-hero-state-column > .calculator-hero-state-card,
 :is(.no-entrance-anim, .reduce-animation) .optimizer-pane > .sticky-wrapper,
 :is(.no-entrance-anim, .reduce-animation) .optimizer-pane > .optimizer-details,
 :is(.no-entrance-anim, .reduce-animation) .optimizer-details > .optimizer-character-settings,
@@ -540,7 +329,6 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .suggestions-pane > .suggestions-controls,
 :is(.no-entrance-anim, .reduce-animation) .suggestions-pane > .suggestions-list,
 :is(.no-entrance-anim, .reduce-animation) .suggestions-list > .main-stat-card,
-:is(.no-entrance-anim, .reduce-animation) .page-grid > *,
 :is(.no-entrance-anim, .reduce-animation) .page-hero,
 :is(.no-entrance-anim, .reduce-animation) .page-bento > .page-tile,
 :is(.no-entrance-anim, .reduce-animation) .not-found-center,
@@ -553,16 +341,7 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .settings-prefs-panel > .tile-header,
 :is(.no-entrance-anim, .reduce-animation) .settings-prefs-categories > .settings-prefs-category,
 :is(.no-entrance-anim, .reduce-animation) .rotation-loop-card,
-:is(.no-entrance-anim, .reduce-animation) .rotation-when-plate,
-:is(.no-entrance-anim, .reduce-animation) .rotation-when-rung,
-:is(.no-entrance-anim, .reduce-animation) .rotation-when-editor__empty-orbit-ring,
-:is(.no-entrance-anim, .reduce-animation) .toolbar-icon-button,
-:is(.no-entrance-anim, .reduce-animation) .hamburger-button,
-:is(.no-entrance-anim, .reduce-animation) .toolbar-title,
-:is(.no-entrance-anim, .reduce-animation) .tps-triad > *,
-:is(.no-entrance-anim, .reduce-animation) .sidebar-content > *,
-:is(.no-entrance-anim, .reduce-animation) .sidebar-footer > *,
-:is(.no-entrance-anim, .reduce-animation) .toolbar-group {
+:is(.no-entrance-anim, .reduce-animation) .tps-triad > * {
 
   animation-duration: 0.01ms !important;
   animation-delay: 0ms !important;
@@ -572,12 +351,6 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .settings-pref-branch,
 :is(.no-entrance-anim, .reduce-animation) .settings-pref-branch[data-open="true"] {
   transition: opacity 0.12s ease, grid-template-rows 0.12s ease !important;
-  transform: none !important;
-  filter: none !important;
-}
-
-:is(.no-entrance-anim, .reduce-animation) .rotation-when-rung {
-  opacity: 1 !important;
   transform: none !important;
   filter: none !important;
 }

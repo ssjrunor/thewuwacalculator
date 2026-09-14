@@ -1,25 +1,20 @@
 /*
   Author: Runor Ewhro
-  Description: builds, mutates, and validates suggestion echo loadouts,
-               including main-stat filtering, set-plan application,
-               random loadout generation, and Energy Regen injection.
+  Description: builds, mutates, and validates durable main-stat and set-plan
+               suggestion Echo loadouts.
 */
 
 import type { EchoDef } from '@/domain/entities/catalog'
-import type { RandGnrtSetP } from '@/domain/entities/suggestions'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { makeEchoUid } from '@/domain/entities/runtime'
 import { getEchoById, getEchoSets, listEchoes, listChsByCos } from '@/domain/services/echoCatalogService'
 import {
   ECHO_MAIN_STATS,
   ECHO_SIDE_STATS,
-  SUBSTAT_KEYS,
-  getSbstStepP,
 } from '@/data/gameData/catalog/echoStats'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
 import type { OptStatWeight } from '@/engine/optimizer/search/filtering.ts'
 import type { SetPlanEntry } from '@/engine/suggestions/types'
-import { getRandSbst, randSubVl } from '@/engine/suggestions/randomEchoes/lib/substats'
 import { MAIN_STAT_IDS } from '@/engine/suggestions/MAIN_STAT_FILTER_ORDER.ts'
 
 // elemental bonus main stats are handled as a grouped "bonus" filter,
@@ -31,9 +26,6 @@ const ELEMENT_KEYS = new Set(['aero', 'glacio', 'fusion', 'spectro', 'havoc', 'e
 const THRPCSETIDS = new Set(
     ECHO_SET_DEFS.filter((entry) => entry.setMax === 3).map((entry) => entry.id),
 )
-
-// cached copy of valid substat keys used for randomized substat generation
-const RANDSBSTKEYS = [...SUBSTAT_KEYS]
 
 export type SuggMainStat = (typeof MAIN_STAT_IDS)[number]
 
@@ -119,30 +111,6 @@ function mkEchoNstnyk(
     },
     substats: { ...(options.substats ?? {}) },
   }
-}
-
-// generic weighted random picker with a tiny minimum floor on weights
-// so candidates with near-zero priority still remain possible.
-function wghtRandPick<T>(
-    items: T[],
-    getWeight: (item: T) => number,
-): T {
-  if (items.length === 0) {
-    throw new Error('Cannot pick from an empty collection')
-  }
-
-  const weights = items.map((item) => Math.max(0.0001, getWeight(item)))
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
-
-  let roll = Math.random() * totalWeight
-  for (let index = 0; index < items.length; index += 1) {
-    roll -= weights[index]
-    if (roll <= 0) {
-      return items[index]
-    }
-  }
-
-  return items[items.length - 1]
 }
 
 // convert internal stat keys into main-stat filter labels
@@ -726,321 +694,6 @@ export function mkSetPlanCnd(slotCount: number): SetPlanEntry[][] {
 
   if (ECHO_SET_DEFS.length > 0) setPlanCache.set(slotCount, plans)
   return plans
-}
-
-// expand random set preferences into a slot-aligned target set list,
-// again preferring to keep the requested main echo compatible with slot 0.
-function mkRandSetTrg(
-    slotCount: number,
-    mainEchoDef: EchoDef | null,
-    preferences: RandGnrtSetP[],
-): Array<number | null> {
-  const targets = new Array<number | null>(slotCount).fill(null)
-
-  const pieces = preferences
-      .filter((entry) => entry.count > 0)
-      .flatMap((entry) => Array.from({ length: entry.count }, () => entry.setId))
-
-  if (pieces.length === 0) {
-    return targets
-  }
-
-  // reserve a compatible preferred set for the main echo when possible
-  if (mainEchoDef) {
-    const prfrMainSet = pieces.find((setId) => mainEchoDef.sets.includes(setId))
-    if (prfrMainSet != null) {
-      targets[0] = prfrMainSet
-      pieces.splice(pieces.indexOf(prfrMainSet), 1)
-    }
-  }
-
-  let pieceIndex = 0
-  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
-    if (targets[slotIndex] != null) {
-      continue
-    }
-    if (pieceIndex >= pieces.length) {
-      break
-    }
-
-    targets[slotIndex] = pieces[pieceIndex]
-    pieceIndex += 1
-  }
-
-  return targets
-}
-
-// choose a primary key from allowed options using optimizer weights,
-// while heavily de-prioritizing non-selected elemental bonus stats.
-function mkWghtPrmrKe(
-    options: Array<{ key: string; value: number }>,
-    weights: OptStatWeight,
-    selectedBonus: string | null,
-): string {
-  return wghtRandPick(options, ({ key }) => {
-    if (ELEMENT_KEYS.has(key) && selectedBonus && key !== selectedBonus) {
-      return 0.01
-    }
-
-    return (weights[key] ?? 0) + 0.05
-  }).key
-}
-
-// build one randomized set of up to five unique substats
-function mkRandSbst(
-    weights: OptStatWeight,
-    rollQuality: number,
-    bias: number,
-): Record<string, number> {
-  const substats: Record<string, number> = {}
-
-  while (
-      Object.keys(substats).length < RANDSBSTKEYS.length &&
-      Object.keys(substats).length < 5
-      ) {
-    const key = getRandSbst(bias, false, weights)
-
-    if (!substats[key]) {
-      substats[key] = randSubVl(key, rollQuality)
-    }
-  }
-
-  return substats
-}
-
-// simple weighted substat score used when deciding what ER should replace
-function getSbstScr(
-    key: string,
-    value: number,
-    weights: OptStatWeight,
-): number {
-  return (weights[key] ?? 0) * value
-}
-
-// choose an ER split across echoes that minimally exceeds the remaining target
-function findBestNrgy(target: number, rollQuality: number, maxEchoes: number): number[] {
-  const options = getSbstStepP('energyRegen')
-
-  if (target <= 0 || options.length === 0) {
-    return new Array(maxEchoes).fill(0)
-  }
-
-  // narrow search around the requested roll quality
-  const targetIndex = Math.round(
-      Math.max(0, Math.min(1, rollQuality)) * Math.max(0, options.length - 1),
-  )
-
-  const narrowed = options.slice(
-      Math.max(0, targetIndex - 1),
-      Math.min(options.length, targetIndex + 2),
-  )
-
-  let bestSum = Number.POSITIVE_INFINITY
-  let bestCombo = new Array(maxEchoes).fill(0)
-
-  const stack: Array<{ combo: number[]; sum: number }> = [{ combo: [], sum: 0 }]
-  const maxValue = narrowed[narrowed.length - 1] ?? 0
-
-  while (stack.length > 0) {
-    const current = stack.pop()
-    if (!current) {
-      continue
-    }
-
-    if (current.sum >= target) {
-      if (current.sum < bestSum) {
-        bestSum = current.sum
-        bestCombo = [...current.combo, ...new Array(maxEchoes - current.combo.length).fill(0)]
-      }
-      continue
-    }
-
-    if (current.combo.length >= maxEchoes) {
-      continue
-    }
-
-    const rmnnSlts = maxEchoes - current.combo.length
-
-    // prune paths that can no longer hit the target even with max rolls
-    if (current.sum + (rmnnSlts * maxValue) < target) {
-      continue
-    }
-
-    for (const value of narrowed) {
-      if (current.sum + value >= bestSum) {
-        continue
-      }
-
-      stack.push({
-        combo: [...current.combo, value],
-        sum: current.sum + value,
-      })
-    }
-  }
-
-  return bestCombo
-}
-
-// inject enough ER into the generated loadout to satisfy the target,
-// replacing the weakest substat when necessary.
-function njctNrgyRgn(
-    echoes: Array<EchoInstance | null>,
-    tgtNrgyRgn: number,
-    rollQuality: number,
-    weights: OptStatWeight,
-): Array<EchoInstance | null> {
-  if (tgtNrgyRgn <= 0) {
-    return echoes
-  }
-
-  const xstnNrgyRgn = echoes.reduce((sum, echo) => (
-      echo
-          ? sum
-          + (echo.mainStats.primary.key === 'energyRegen' ? echo.mainStats.primary.value : 0)
-          + (echo.substats.energyRegen ?? 0)
-          : sum
-  ), 0)
-
-  const rmnnTgt = Math.max(0, tgtNrgyRgn - xstnNrgyRgn)
-  if (rmnnTgt <= 0) {
-    return echoes
-  }
-
-  const erPlan = findBestNrgy(rmnnTgt, rollQuality, echoes.length)
-
-  return echoes.map((echo, slotIndex) => {
-    if (!echo) {
-      return null
-    }
-
-    const erValue = erPlan[slotIndex] ?? 0
-    if (erValue <= 0) {
-      return cloneEchoWit(echo, slotIndex)
-    }
-
-    const next = cloneEchoWit(echo, slotIndex)
-
-    // overwrite existing ER if already present
-    if ('energyRegen' in next.substats) {
-      next.substats.energyRegen = erValue
-      return next
-    }
-
-    // add ER directly if there is still substat space
-    if (Object.keys(next.substats).length < 5) {
-      next.substats.energyRegen = erValue
-      return next
-    }
-
-    // otherwise replace the current weakest substat
-    let worstKey: string | null = null
-    let worstScore = Number.POSITIVE_INFINITY
-
-    for (const [key, value] of Object.entries(next.substats)) {
-      const score = getSbstScr(key, value, weights)
-      if (score < worstScore) {
-        worstScore = score
-        worstKey = key
-      }
-    }
-
-    if (worstKey) {
-      delete next.substats[worstKey]
-    }
-
-    next.substats.energyRegen = erValue
-    return next
-  })
-}
-
-// build a fully randomized echo loadout from a fixed cost plan and weighted config.
-// the result respects preferred main echo, set preferences, main-stat filters,
-// random substats, and optional ER injection.
-export function mkRandEchoLd(params: {
-  costPlan: readonly number[]
-  weights: OptStatWeight
-  mainStatCnfg: SuggMainStsc
-  bias: number
-  tgtNrgyRgn: number
-  rollQuality: number
-  mainEchoId: string | null
-  setPrefs: RandGnrtSetP[]
-  fxdPrmrKeys?: readonly string[]
-}): Array<EchoInstance | null> {
-  const {
-    costPlan,
-    weights,
-    mainStatCnfg: mainStatCnfg,
-    bias,
-    tgtNrgyRgn: trgtNrgyRgn,
-    rollQuality,
-    mainEchoId,
-    setPrefs: setPrefsList,
-    fxdPrmrKeys: fxdPrmrKeys,
-  } = params
-
-  const mainEchoDef = mainEchoId ? getEchoById(mainEchoId) : null
-  const targetSets = mkRandSetTrg(costPlan.length, mainEchoDef, setPrefsList)
-
-  const usedKeys = new Set<string>()
-  const echoes: Array<EchoInstance | null> = []
-
-  for (let slotIndex = 0; slotIndex < costPlan.length; slotIndex += 1) {
-    const cost = costPlan[slotIndex]
-    const targetSet = targetSets[slotIndex]
-
-    // an id is only used up for the set it lands in; reuse across sets is legal.
-    const slotKey = (id: string, sets: number[]) =>
-        echoSetKey(id, targetSet ?? (sets[0] ?? 0))
-
-    // slot 0 can be forced to use the requested main echo if costs line up
-    const candidates = (
-        slotIndex === 0 &&
-        mainEchoDef &&
-        mainEchoDef.cost === cost
-    )
-        ? [mainEchoDef]
-        : listChsByCos(cost).filter((entry) => !usedKeys.has(slotKey(entry.id, entry.sets)))
-
-    const bySet = targetSet != null
-        ? candidates.filter((entry) => entry.sets.includes(targetSet))
-        : candidates
-
-    const pool = bySet.length > 0 ? bySet : candidates
-
-    const definition = wghtRandPick(
-        pool.length > 0 ? pool : listChsByCos(cost),
-        (entry) => (targetSet != null && entry.sets.includes(targetSet) ? 4 : 1),
-    )
-
-    const realizedSet = targetSet != null && definition.sets.includes(targetSet)
-        ? targetSet
-        : (definition.sets[0] ?? 0)
-    usedKeys.add(echoSetKey(definition.id, realizedSet))
-
-    const fxdPrmrKey = fxdPrmrKeys?.[slotIndex]
-    const mainStatPtns = mkMainStatPt(cost, mainStatCnfg)
-
-    // fixed primary keys, when valid, override normal weighted main-stat selection
-    const primaryKey = mkWghtPrmrKe(
-        fxdPrmrKey && mainStatPtns.some((option) => option.key === fxdPrmrKey)
-            ? [{ key: fxdPrmrKey, value: ECHO_MAIN_STATS[cost]?.[fxdPrmrKey] ?? 0 }]
-            : mainStatPtns,
-        weights,
-        mainStatCnfg.selBonus,
-    )
-
-    echoes.push(
-        mkEchoNstnyk(definition, {
-          slotIndex,
-          setId: targetSet,
-          primaryKey,
-          substats: mkRandSbst(weights, rollQuality, bias),
-        }),
-    )
-  }
-
-  return njctNrgyRgn(echoes, trgtNrgyRgn, rollQuality, weights)
 }
 
 // build a deterministic signature for only the main-stat layout of a loadout.

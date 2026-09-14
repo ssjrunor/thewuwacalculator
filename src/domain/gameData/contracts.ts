@@ -66,6 +66,7 @@ export interface SrcSttCondPt {
 
 export interface SourceState {
   id: string
+  /** Label shown beside the state/enabler control. */
   label: string
   source: DataSrcRef
   ownerKey: string
@@ -316,6 +317,7 @@ export type EffectOp =
 
 export interface EffectDef {
   id: string
+  /** Human-facing name of the effect, distinct from any state control label. */
   label: string
   description?: string
   source: DataSrcRef
@@ -368,37 +370,51 @@ export type RtChng =
 }
 
 // shared base for rotation nodes
+export type RotationEditorSection = 'preamble' | 'main'
+
+export interface RotationNoteNode {
+  id: string
+  type: 'note'
+  label?: string
+  color?: string
+  text: string
+  editorSection?: RotationEditorSection
+}
+
 interface RotNodeBase {
   id: string
   resonatorId?: string
   enabled?: boolean
-  when?: RotWhenRule
+  /** display-only section used by the rotation editor; execution stays flat */
+  editorSection?: RotationEditorSection
+  /** At most one display-only annotation owned by this logical node. */
+  note?: RotationNoteNode
 }
 
 export interface FeatDef {
   id: string
   label: string
   source: DataSrcRef
-  kind: 'skill'
   skillId: string
-  variant?: 'skill' | 'subHit'
+  variant?: 'subHit'
   hitIndex?: number
-  condition?: CondExpr
-  tags?: string[]
-  after?: RotationNode[]
 }
 
 export type RotVl = number | FormExpr
 
-export interface RotWhenRule {
-  condition?: CondExpr
-  loops?: Array<{
-    loopId: string
-    runs: number[]
-  }>
+/**
+ * Nodes a feature can carry with it. Conditions run first and their writes
+ * apply to the parent feature and to sibling attached features (local scope).
+ * Attached features are full feature hits; parent multiplier scales them.
+ * Nested attach on attached features is not allowed.
+ */
+export interface FeatureAttachments {
+  conditions: Array<Extract<RotationNode, { type: 'condition' }>>
+  features: Array<Extract<RotationNode, { type: 'feature' }>>
 }
 
 export type RotationNode =
+    | RotationNoteNode
     | (RotNodeBase & {
   type: 'feature'
   featureId: string
@@ -406,24 +422,34 @@ export type RotationNode =
   negativeEffectStacks?: number
   negativeEffectInstances?: number
   negativeEffectStableWidth?: number
+  /**
+   * @deprecated Prefer `attached.conditions`. Still accepted on load and
+   * normalized into condition nodes before execution.
+   */
   changes?: RtChng[]
-  condition?: CondExpr
+  /** Child conditions and features authored against this skill hit. */
+  attached?: FeatureAttachments
 })
     | (RotNodeBase & {
   type: 'condition'
   label?: string
-  condition?: CondExpr
   changes: RtChng[]
 })
     | (RotNodeBase & {
   type: 'repeat'
-  condition?: CondExpr
+  label?: string
+  color?: string
   times: RotVl
+  /** Optional uptime share for the same body; omitted means fully active. */
+  ratio?: RotVl
+  /** Optional full-strength setup which opens the block before its scaled body. */
+  setup?: RotationNode[]
   items: RotationNode[]
 })
     | (RotNodeBase & {
   type: 'uptime'
-  condition?: CondExpr
+  label?: string
+  color?: string
   ratio: RotVl
   setup?: RotationNode[]
   items: RotationNode[]
@@ -435,6 +461,12 @@ export type RotationNode =
   label?: string
   color?: string
   runs?: number
+  /**
+   * Lazy divergent run bodies (1-based keys as strings). Each stored body is
+   * a transition inherited by later runs until another fork replaces it; the
+   * in-document template between markers is the initial body.
+   */
+  passForks?: Record<string, RotationNode[]>
 })
     | ({
   id: string
@@ -442,7 +474,13 @@ export type RotationNode =
   kind: 'end'
   loopId: string
   enabled?: boolean
+  editorSection?: RotationEditorSection
 })
+
+/** Per-run bodies on a loop start; keys are 1-based run numbers as strings. */
+export type LoopPassForks = NonNullable<
+  Extract<RotationNode, { type: 'loop'; kind: 'start' }>['passForks']
+>
 
 export interface RotDef {
   id: string
@@ -542,6 +580,38 @@ export interface FeatureResult {
   crit: number
   avg: number
   subHits: SkillSubHit[]
+  /**
+   * Register values captured at the exact feature evaluation. Basic and
+   * global values are the owner's resolved snapshot; skill-scoped factors are
+   * already aggregated for this skill.
+   */
+  effectiveStats?: {
+    atk: number | null
+    hp: number | null
+    def: number | null
+    /** the resolved skill scaling after feature and formula multipliers */
+    multiplier: number | null
+    critRate: number | null
+    critDmg: number | null
+    bonus: number | null
+    amplify: number | null
+    /*
+      the rest of what the row was worked out against. the enemy-facing four
+      are layered the way crit and bonus are: the sheet's figure is only the
+      first of six, with the rest arriving from the attribute, skill type and
+      skill buffs in force, so they are resolved per skill rather than read off
+      the final stats.
+    */
+    energyRegen: number | null
+    defIgnore: number | null
+    defShred: number | null
+    dmgVuln: number | null
+    /** the enemy's resistance to this element after every shred */
+    resistance: number | null
+    tuneBreakBoost: number | null
+    finalDmg: number | null
+    flatDmg: number | null
+  }
   loopRuns?: Record<string, number>
   loopRunCounts?: Record<string, number>
 }

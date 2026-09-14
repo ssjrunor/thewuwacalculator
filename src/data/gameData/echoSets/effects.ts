@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Builds data-driven echo set source packages from cached
-               JSON definitions loaded during calculator bootstrap.
+               JSON definitions loaded during Simulation bootstrap.
 */
 
 import type {
@@ -452,8 +452,8 @@ function mkSetPkg(def: SetDef): SrcPkg {
         )
       }
     } else {
-      // stack/step state: derive the maximum reachable value from the step and max values.
-      // perStep is still rendered like a stack control for now, but it stays distinct in data.
+      // Stack and per-step states share a bounded numeric control, but retain
+      // distinct data kinds because their downstream evaluation differs.
       const maxStacks = stateMaxVal(state) as number
 
       const sourceState = mkStckStt(

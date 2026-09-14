@@ -1,7 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Draggable floating queue bubble that exposes quick resonator
-               switching and remembers its snapped screen position.
+  Description: Owns resonator queue bubble behavior and state transitions for the ui module.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -145,7 +144,9 @@ export function ResQBbbl() {
     top: pos?.y ?? undefined,
     // Before first measurement, park off-screen so it doesn't flash at 0,0
     ...(!pos ? { right: SNAP_MARGIN, bottom: SNAP_MARGIN, left: 'auto', top: 'auto' } : {}),
-    transition: dragging ? 'none' : 'left 320ms cubic-bezier(0.22, 1, 0.36, 1), top 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+    transition: dragging
+      ? 'opacity 180ms ease'
+      : 'left 320ms cubic-bezier(0.22, 1, 0.36, 1), top 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease',
     touchAction: 'none',
   }
 
@@ -153,15 +154,13 @@ export function ResQBbbl() {
     <div ref={bubbleRef} className="resonator-queue-bubble" style={style}>
       <img
         src={queue[0].icon}
-        alt={queue[0].name}
-        className="resonator-queue-bubble__icon"
+        alt={queue[0].name} className="resonator-queue-bubble__icon"
         draggable={false}
         onError={withDefResMg}
         onClick={() => swtcToRes(queue[0].id)}
         title={`Switch to ${queue[0].name}`}
       />
-      <div
-        className="resonator-queue-bubble__grip"
+      <div className="resonator-queue-bubble__grip"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -171,8 +170,7 @@ export function ResQBbbl() {
       {queue.length > 1 && (
         <img
           src={queue[1].icon}
-          alt={queue[1].name}
-          className="resonator-queue-bubble__icon"
+          alt={queue[1].name} className="resonator-queue-bubble__icon"
           draggable={false}
           onError={withDefResMg}
           onClick={() => swtcToRes(queue[1].id)}

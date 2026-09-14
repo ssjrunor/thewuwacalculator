@@ -4,7 +4,7 @@
                privacy policy when they want more detail.
 */
 
-import { useNavigate } from 'react-router-dom'
+import { useNavX } from '@/app/nav/useNavX'
 import { Cookie } from 'lucide-react'
 
 interface CkBnnrPrps {
@@ -15,7 +15,7 @@ interface CkBnnrPrps {
 }
 
 export function CookieBanner({ visible, open, closing, onAccept }: CkBnnrPrps) {
-  const navigate = useNavigate()
+  const navigate = useNavX()
 
   if (!visible) return null
 
@@ -32,8 +32,7 @@ export function CookieBanner({ visible, open, closing, onAccept }: CkBnnrPrps) {
         <p className="cookie-banner__text">
           Cookies are used for basic analytics only, nothing personal, nothing sold.{' '}
           <button
-            type="button"
-            className="cookie-banner__link"
+            type="button" className="cookie-banner__link"
             onClick={() => navigate('/privacy')}
           >
             Privacy Policy
@@ -41,8 +40,7 @@ export function CookieBanner({ visible, open, closing, onAccept }: CkBnnrPrps) {
         </p>
       </div>
       <button
-        type="button"
-        className="cookie-banner__accept"
+        type="button" className="cookie-banner__accept"
         onClick={onAccept}
       >
         Got it~

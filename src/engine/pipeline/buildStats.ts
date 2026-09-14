@@ -3,7 +3,7 @@
   Description: derives a resonator's "build" stats: base stats, equipped gear,
                and every effect whose activation is fixed by that concrete
                build. Toggleable combat state, stacks, active targeting, manual
-               inputs, and enemy state remain excluded. Not benchmark-specific.
+               inputs, and enemy state remain excluded. Not evaluation-specific.
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime'

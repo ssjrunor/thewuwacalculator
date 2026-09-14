@@ -9,15 +9,15 @@ import type {
   FeatDef,
   SourceState,
 } from '@/domain/gameData/contracts'
-import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
+import { isNoWeaponId, type ResRuntime, type ResSeed } from '@/domain/entities/runtime'
 import type { SkillDef } from '@/domain/entities/stats'
 import {
   listFeatsFor,
   listSkillsFor,
   listStatesFor,
 } from '@/domain/services/gameDataService'
+import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
 import {
-  prmCompFeatE,
   prmCompSkllE,
   prmCompSttEx,
 } from '@/engine/effects/evaluator'
@@ -157,7 +157,6 @@ export function makeRuntimeCat(
   }
 
   prmCompSkllE(seed.skills ?? [])
-  prmCompFeatE(seed.features ?? [])
   prmCompSttEx(seed.states ?? [])
 
   const skills = [...catalog.skills]
@@ -205,6 +204,51 @@ export function makeRuntimeCat(
 
   tchCchEnt(prepCch, signature, prepared)
   return prepared
+}
+
+/*
+  states exposed by rotation conditions come from every equipped source, not
+  just the resonator and main echo used by the feature catalog. keep this list
+  in the domain service so authoring and execution resolve the same metadata.
+*/
+export function listEquippedSourceStates(
+  runtime: ResRuntime,
+  seed?: ResSeed | null,
+): SourceState[] {
+  const states: SourceState[] = []
+  const push = (entries: SourceState[]) => states.push(...entries)
+
+  push(makeRuntimeCat(runtime, seed).states)
+
+  const weaponId = runtime.build.weapon.id
+  if (!isNoWeaponId(weaponId)) {
+    push(listStatesFor('weapon', weaponId))
+  }
+
+  const echoIdsBySet = new Map<string, Set<string>>()
+  for (const echo of runtime.build.echoes) {
+    if (!echo) {
+      continue
+    }
+    const setId = String(echo.set)
+    const echoIds = echoIdsBySet.get(setId) ?? new Set<string>()
+    echoIds.add(echo.id)
+    echoIdsBySet.set(setId, echoIds)
+  }
+
+  for (const [setId, echoIds] of echoIdsBySet) {
+    const definition = getEchoSetDe(Number(setId))
+    if (!definition) {
+      continue
+    }
+
+    const required = definition.setMax === 1 ? 1 : definition.setMax === 3 ? 3 : 5
+    if (echoIds.size >= required) {
+      push(listStatesFor('echoSet', setId))
+    }
+  }
+
+  return states
 }
 
 // list all runtime skills

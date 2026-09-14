@@ -1,30 +1,35 @@
 /*
   Author: Runor Ewhro
   Description: Defines memoized store selectors for active runtime, combat,
-               optimizer, team lookup, and calculator-derived state.
+               Optimizer, team lookup, and Simulation-derived state.
 */
 
 import {type AppStore} from '@/domain/state/store'
-import type { CalcState } from '@/domain/entities/appState'
+import type { LegacyProfileMap } from '@/domain/entities/appState'
 import type { EnemyProfile } from '@/domain/entities/appState'
+import {
+  contextScenarioMember,
+  type CombatScenario,
+  type TeamMemberId,
+} from '@/domain/entities/combatScenario'
+import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import type { OptContext } from '@/domain/entities/optimizer'
 import {
   mkInitRtLkp,
-  mkWorkRtBndl,
-  getActResId,
 } from '@/domain/state/runtimeAdapters'
-import { mkCmbtGrphFr } from '@/domain/state/combatGraph'
-import { mkPrepWork, type PrepWork } from '@/engine/pipeline/preparedWorkspace'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import type { PrepWork } from '@/engine/pipeline/preparedWorkspace'
 import { mkInvSgDrvd, type InvSgDrvd } from '@/domain/state/inventoryUsage'
+import { prepareCombatScenarioForUi } from '@/engine/pipeline/combatScenario'
+import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
+import { projectScenarioWorkspaceProfiles } from '@/domain/state/scenarioRuntime'
 
-interface WorkDrvdStt {
+export interface WorkDrvdStt {
+  scenario: CombatScenario | null
   prepWork: PrepWork
   actRt: ResRuntime | null
   partRtsById: Record<string, ResRuntime>
   actTgtSels: Record<string, string | null>
-  combatGraph: ReturnType<typeof mkCmbtGrphFr>
+  combatGraph: CombatGraph | null
 }
 
 interface VrvwDrvdStt extends WorkDrvdStt {
@@ -32,89 +37,70 @@ interface VrvwDrvdStt extends WorkDrvdStt {
 }
 
 interface PrepWorkCchE {
-  rtRev: number
-  actResId: string | null
-  enemyProfile: EnemyProfile
+  scenario: CombatScenario
   value: WorkDrvdStt
 }
 
 interface InitRtLkpCch {
-  rtRev: number
+  workspace: AppStore['combat']
   value: Record<string, ResRuntime>
 }
 
 let workDrvdCch: PrepWorkCchE | null = null
 let vrvwDrvdCch: {
-  rtRev: number
-  actResId: string | null
-  enemyProfile: EnemyProfile
+  scenario: CombatScenario
+  workspace: AppStore['combat']
   value: VrvwDrvdStt
 } | null = null
 let initRtLkpCch: InitRtLkpCch | null = null
+let profilesCch: {
+  workspace: AppStore['combat']
+  value: LegacyProfileMap
+} | null = null
 let invSgCch: {
-  profiles: CalcState['profiles']
-  invBuilds: CalcState['inventoryBuilds']
+  profiles: LegacyProfileMap
+  invBuilds: AppStore['library']['builds']
   seeEquipped: boolean
   value: InvSgDrvd
 } | null = null
 
-function mkWorkDrvd(calculator: CalcState): WorkDrvdStt {
-  const workspace = mkWorkRtBndl(calculator)
-  const combatGraph = mkCmbtGrphFr(calculator, workspace)
-  const activeSeed = workspace.actRt ? getResSeedBy(workspace.actRt.id) : null
-  const enemyProfile = calculator.session.enemyProfile
+function mkWorkDrvd(scenario: CombatScenario): WorkDrvdStt {
+  const prepared = prepareCombatScenarioForUi(scenario)
 
   return {
-    prepWork: mkPrepWork({
-      revision: calculator.runtimeRevision,
-      runtime: workspace.actRt,
-      seed: activeSeed,
-      enemy: enemyProfile,
-      prtcRntmById: workspace.partRtsById,
-      activeTarget: workspace.actTgtSels,
-      combatGraph,
-    }),
-    actRt: workspace.actRt,
-    partRtsById: workspace.partRtsById,
-    actTgtSels: workspace.actTgtSels,
-    combatGraph,
+    scenario,
+    prepWork: prepared.workspace,
+    actRt: prepared.subjectRuntime,
+    partRtsById: prepared.runtimesById,
+    actTgtSels: prepared.selectedTargets,
+    combatGraph: prepared.workspace.combatGraph,
   }
 }
 
 export function selWorkDrvd(state: AppStore): WorkDrvdStt {
-  const actResId = getActResId(state.calculator)
-  const enemyProfile = state.calculator.session.enemyProfile
+  const scenario = selectedCombatScenario(state.combat)
   const cached = workDrvdCch
 
-  if (
-    cached
-    && cached.rtRev === state.calculator.runtimeRevision
-    && cached.actResId === actResId
-    && cached.enemyProfile === enemyProfile
-  ) {
+  if (cached?.scenario === scenario) {
     return cached.value
   }
 
-  const value = mkWorkDrvd(state.calculator)
+  const value = mkWorkDrvd(scenario)
   workDrvdCch = {
-    rtRev: state.calculator.runtimeRevision,
-    actResId: actResId,
-    enemyProfile,
+    scenario,
     value,
   }
   return value
 }
 
 export function selVrvwDrvd(state: AppStore): VrvwDrvdStt {
-  const actResId = getActResId(state.calculator)
-  const enemyProfile = state.calculator.session.enemyProfile
+  const scenario = selectedCombatScenario(state.combat)
   const cached = vrvwDrvdCch
 
   if (
     cached
-    && cached.rtRev === state.calculator.runtimeRevision
-    && cached.actResId === actResId
-    && cached.enemyProfile === enemyProfile
+    && cached.scenario === scenario
+    && cached.workspace === state.combat
   ) {
     return cached.value
   }
@@ -127,23 +113,43 @@ export function selVrvwDrvd(state: AppStore): VrvwDrvdStt {
   }
 
   vrvwDrvdCch = {
-    rtRev: state.calculator.runtimeRevision,
-    actResId: actResId,
-    enemyProfile,
+    scenario,
+    workspace: state.combat,
     value,
   }
 
   return value
 }
 
+export function selCombatScenario(state: AppStore): CombatScenario | null {
+  return selWorkDrvd(state).scenario
+}
+
+export function selSubjectMemberId(state: AppStore): TeamMemberId | null {
+  return selectedCombatScenario(state.combat).team.members[0]?.id ?? null
+}
+
+export function selSubjectResonatorId(state: AppStore): string | null {
+  return selectedCombatScenario(state.combat).team.members[0]?.resonatorId ?? null
+}
+
+export function selContextMemberId(state: AppStore): TeamMemberId | null {
+  return contextScenarioMember(selectedCombatScenario(state.combat)).id
+}
+
+export function selContextResonatorId(state: AppStore): string | null {
+  return contextScenarioMember(selectedCombatScenario(state.combat)).resonatorId
+}
+
 // select the active resonator id
+/** @deprecated Use the scenario subject selectors; this aliases member zero during migration. */
 export function selActResId(state: AppStore): string | null {
-  return getActResId(state.calculator)
+  return selSubjectResonatorId(state)
 }
 
 // select the current enemy profile
 export function selEnemyProf(state: AppStore): EnemyProfile {
-  return state.calculator.session.enemyProfile
+  return selectedCombatScenario(state.combat).target
 }
 
 // select the participant runtime lookup
@@ -154,16 +160,27 @@ export function selPartRtLkp(state: AppStore): Record<string, ResRuntime> {
 // select the initialized runtime lookup
 export function selInitRtLkp(state: AppStore): Record<string, ResRuntime> {
   const cached = initRtLkpCch
-  if (cached && cached.rtRev === state.calculator.runtimeRevision) {
+  if (
+    cached
+    && cached.workspace === state.combat
+  ) {
     return cached.value
   }
 
-  const value = mkInitRtLkp(state.calculator)
+  const value = mkInitRtLkp(state.combat)
   initRtLkpCch = {
-    rtRev: state.calculator.runtimeRevision,
+    workspace: state.combat,
     value,
   }
 
+  return value
+}
+
+export function selScenarioProfiles(state: AppStore): LegacyProfileMap {
+  const cached = profilesCch
+  if (cached?.workspace === state.combat) return cached.value
+  const value = projectScenarioWorkspaceProfiles(state.combat)
+  profilesCch = { workspace: state.combat, value }
   return value
 }
 
@@ -185,27 +202,23 @@ export function selActRt(state: AppStore): ResRuntime | null {
 // select app-level inventory ownership indexes
 export function selInvSg(state: AppStore): InvSgDrvd {
   const cached = invSgCch
+  const profiles = selScenarioProfiles(state)
   if (
     cached
-    && cached.profiles === state.calculator.profiles
-    && cached.invBuilds === state.calculator.inventoryBuilds
+    && cached.profiles === profiles
+    && cached.invBuilds === state.library.builds
     && state.ui.seeEquipped === cached.seeEquipped
   ) {
     return cached.value
   }
 
   const value = mkInvSgDrvd(
-    state.calculator.profiles, state.calculator.inventoryBuilds, state.ui.seeEquipped)
+    profiles, state.library.builds, state.ui.seeEquipped)
   invSgCch = {
-    profiles: state.calculator.profiles,
-    invBuilds: state.calculator.inventoryBuilds,
+    profiles,
+    invBuilds: state.library.builds,
     seeEquipped: state.ui.seeEquipped,
     value,
   }
   return value
-}
-
-// select the optimizer context
-export function selOptCtx(state: AppStore): OptContext | null {
-  return state.calculator.optimizerContext
 }

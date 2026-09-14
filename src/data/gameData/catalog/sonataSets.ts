@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Cached Sonata set metadata loaded from JSON during
-               calculator bootstrap.
+               Simulation bootstrap.
 */
 
 export interface SntSetDef {

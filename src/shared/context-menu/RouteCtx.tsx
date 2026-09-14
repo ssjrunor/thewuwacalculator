@@ -4,62 +4,49 @@
                such as navigation, history, inventory access, and reset flows.
 */
 
-import { createContext as mkCtx, useCallback, useContext, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { useCnfr } from '@/app/hooks/useConfirmation'
+import { useConfirm } from '@/app/hooks/useConfirmation'
+import { useNavX } from '@/app/nav/useNavX'
 import { selActResId } from '@/domain/state/selectors'
 import { useAppStore } from '@/domain/state/store'
-import { TeamConsoleHost } from '@/modules/calculator/features/teams/ConsoleHost.tsx'
+import { TeamConsoleHost } from '@/modules/simulation/features/teams/ConsoleHost.tsx'
+import { WeaponConsoleHost } from '@/modules/simulation/features/weapons/WeaponConsole.tsx'
+import { EchoConsoleHost } from '@/modules/simulation/features/echoes/EchoConsole.tsx'
 import { AppSttsMdl } from '@/shared/ui/AppStatusModal'
-import { CnfrMdl } from '@/shared/ui/ConfirmationModal'
+import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
 import { useAppModal } from '@/shared/ui/useAppModal'
 import { routeCtxBuilder } from '@/shared/context-menu/routeCtxBuilders.tsx'
 import {
-  rtCalcVws,
+  legacyCalculatorViews,
   rtNavLnks,
-  type RtCalcView,
-  type RouteNavLink,
 } from '@/shared/ui/routeChromeConfig'
+import {
+  RouteMenuContext,
+  type RouteHistoryScope,
+  type RouteMenuValue,
+} from '@/shared/context-menu/routeMenuContext'
+import {
+  SIMULATION_ROUTES,
+  isSimulationRoute,
+  isSimulationSurfaceRoute,
+} from '@/shared/lib/appRoutes'
 import { useTstStr } from '@/shared/util/toastStore'
-
-interface RtCtxVl {
-  pageLinks: RouteNavLink[]
-  clclVws: RtCalcView[]
-  actions: {
-    navigateTo: (to: string) => void
-    undo: () => void
-    redo: () => void
-    openInv: () => void
-    tgglOpt: () => void
-    tgglBnch: () => void
-    openStatus: () => void
-    rstActRes: () => void
-  }
-  builders: {
-    routeChrome: {
-      undoRedo: () => ReturnType<typeof routeCtxBuilder.routeChrome.undoRedo>
-      pages: () => ReturnType<typeof routeCtxBuilder.routeChrome.pages>
-      actions: () => ReturnType<typeof routeCtxBuilder.routeChrome.actions>
-      reset: () => ReturnType<typeof routeCtxBuilder.routeChrome.reset>
-      bttmSec: () => ReturnType<typeof routeCtxBuilder.routeChrome.bttmSctn>
-      clclSec: () => ReturnType<typeof routeCtxBuilder.routeChrome.calcSctn>
-    }
-  }
-}
-
-const RouteCtx = mkCtx<RtCtxVl | null>(null)
 
 export function RtMenuProv({ children }: { children: ReactNode }) {
   const location = useLocation()
-  const navigate = useNavigate()
-  const confirmation = useCnfr()
+  const navigate = useNavX()
+  const confirmation = useConfirm()
   const appStatus = useAppModal()
   const showToast = useTstStr((state) => state.show)
+  const [historyScope, setHistoryScope] = useState<RouteHistoryScope | null>(null)
+  const simulationActive = isSimulationRoute(location.pathname)
+  const optimizerActive = isSimulationSurfaceRoute(location.pathname, 'optimizer')
+  const modulationActive = isSimulationSurfaceRoute(location.pathname, 'modulation')
   const {
     setInventoryOpen: setInvOpen,
-    ensureInventoryHydrated: ensInvHydr,
     resetResonator: rstRes,
     undo,
     redo,
@@ -72,7 +59,6 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   } = useAppStore(
     useShallow((state) => ({
       setInventoryOpen: state.setInvOpen,
-      ensureInventoryHydrated: state.ensInvHydr,
       resetResonator: state.resetRes,
       undo: state.undo,
       redo: state.redo,
@@ -85,11 +71,36 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     })),
   )
 
-  const canUndo = haveHistory && historyPast.length > 0
-  const canRedo = haveHistory && hstrFtr.length > 0
+  const canUndo = historyScope
+    ? historyScope.past.length > 0
+    : haveHistory && historyPast.length > 0
+  const canRedo = historyScope
+    ? historyScope.future.length > 0
+    : haveHistory && hstrFtr.length > 0
   // undo entries are shown newest-first while redo entries stay forward order.
-  const undoHistory = useMemo(() => haveHistory ? historyPast.slice().reverse() : [], [haveHistory, historyPast])
-  const redoHistory = useMemo(() => haveHistory ? hstrFtr.slice() : [], [haveHistory, hstrFtr])
+  const undoHistory = useMemo(
+    () => historyScope
+      ? historyScope.past.slice().reverse()
+      : haveHistory ? historyPast.slice().reverse() : [],
+    [haveHistory, historyPast, historyScope],
+  )
+  const redoHistory = useMemo(
+    () => historyScope
+      ? historyScope.future.slice()
+      : haveHistory ? hstrFtr.slice() : [],
+    [haveHistory, historyScope, hstrFtr],
+  )
+  const effectiveUndo = historyScope?.undo ?? undo
+  const effectiveRedo = historyScope?.redo ?? redo
+  const effectiveUndoTo = historyScope?.undoTo ?? undoTo
+  const effectiveRedoTo = historyScope?.redoTo ?? redoTo
+
+  const registerHistoryScope = useCallback((scope: RouteHistoryScope) => {
+    setHistoryScope(scope)
+    return () => {
+      setHistoryScope((current) => current === scope ? null : current)
+    }
+  }, [])
 
   const isNvgtLinkAc = useCallback((to: string) => (
     to === location.pathname || (to !== '/' && location.pathname.startsWith(`${to}/`))
@@ -100,19 +111,26 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   }, [navigate])
 
   const openInv = useCallback(() => {
-    if (location.pathname !== '/calculator' && !location.pathname.startsWith('/calculator/')) {
-      navigate('/calculator')
+    if (!simulationActive) {
+      navigate(SIMULATION_ROUTES.modulation)
     }
     setInvOpen(true)
-  }, [location.pathname, navigate, setInvOpen])
+  }, [navigate, setInvOpen, simulationActive])
 
   const tglOpt = useCallback(() => {
-    ensInvHydr()
-    navigate(location.pathname === '/calculator/optimizer' ? '/calculator' : '/calculator/optimizer')
-  }, [ensInvHydr, location.pathname, navigate])
+    navigate(optimizerActive ? SIMULATION_ROUTES.modulation : SIMULATION_ROUTES.optimizer)
+  }, [navigate, optimizerActive])
 
-  const tglBnch = useCallback(() => {
-    navigate(location.pathname === '/calculator/benchmark' ? '/calculator' : '/calculator/benchmark')
+  const openModulation = useCallback(() => {
+    navigate(SIMULATION_ROUTES.modulation)
+  }, [navigate])
+
+  const tglRotEd = useCallback(() => {
+    navigate(
+      isSimulationSurfaceRoute(location.pathname, 'rotation')
+        ? SIMULATION_ROUTES.modulation
+        : SIMULATION_ROUTES.rotation,
+    )
   }, [location.pathname, navigate])
 
   const openStatus = useCallback(() => {
@@ -149,8 +167,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         canRedo,
         undoHistory,
         redoHistory,
-        onUndoTo: undoTo,
-        onRedoTo: redoTo,
+        onUndoTo: effectiveUndoTo,
+        onRedoTo: effectiveRedoTo,
       }),
       pages: () => routeCtxBuilder.routeChrome.pages({
         pages: rtNavLnks,
@@ -158,11 +176,11 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onNavigate: navigateTo,
       }),
       actions: () => routeCtxBuilder.routeChrome.actions({
-        optAct: location.pathname === '/calculator/optimizer',
-        bnchAct: location.pathname === '/calculator/benchmark',
+        optAct: optimizerActive,
+        modulationActive,
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglBnch: tglBnch,
+        onOpenModulation: openModulation,
         onOpenStatus: openStatus,
       }),
       reset: () => routeCtxBuilder.routeChrome.reset({
@@ -177,20 +195,20 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         canRedo,
         undoHistory,
         redoHistory,
-        onUndo: undo,
-        onRedo: redo,
-        onUndoTo: undoTo,
-        onRedoTo: redoTo,
-        optAct: location.pathname === '/calculator/optimizer',
-        bnchAct: location.pathname === '/calculator/benchmark',
+        onUndo: effectiveUndo,
+        onRedo: effectiveRedo,
+        onUndoTo: effectiveUndoTo,
+        onRedoTo: effectiveRedoTo,
+        optAct: optimizerActive,
+        modulationActive,
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglBnch: tglBnch,
+        onOpenModulation: openModulation,
         onOpenStatus: openStatus,
         canReset: Boolean(actResId),
         onReset: rstActRes,
       }),
-      clclSec: () => routeCtxBuilder.routeChrome.calcSctn({
+      simulationSection: () => routeCtxBuilder.routeChrome.simulationSection({
         pages: rtNavLnks,
         isPageCur: isNvgtLinkAc,
         onNavigate: navigateTo,
@@ -198,15 +216,15 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         canRedo,
         undoHistory,
         redoHistory,
-        onUndo: undo,
-        onRedo: redo,
-        onUndoTo: undoTo,
-        onRedoTo: redoTo,
-        optAct: location.pathname === '/calculator/optimizer',
-        bnchAct: location.pathname === '/calculator/benchmark',
+        onUndo: effectiveUndo,
+        onRedo: effectiveRedo,
+        onUndoTo: effectiveUndoTo,
+        onRedoTo: effectiveRedoTo,
+        optAct: optimizerActive,
+        modulationActive,
         onOpenInv: openInv,
         onTgglOpt: tglOpt,
-        onTgglBnch: tglBnch,
+        onOpenModulation: openModulation,
         onOpenStatus: openStatus,
         canReset: Boolean(actResId),
         onReset: rstActRes,
@@ -214,34 +232,39 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     },
   }), [
     actResId,
+    modulationActive,
     canRedo,
     canUndo,
     redoHistory,
-    redoTo,
+    effectiveRedo,
+    effectiveRedoTo,
+    effectiveUndo,
+    effectiveUndoTo,
     isNvgtLinkAc,
     navigateTo,
     openInv,
     openStatus,
     rstActRes,
-    redo,
     tglOpt,
-    tglBnch,
-    undo,
+    openModulation,
     undoHistory,
-    undoTo,
-    location.pathname,
+    optimizerActive,
   ])
 
-  const value = useMemo<RtCtxVl>(() => ({
+  const value = useMemo<RouteMenuValue>(() => ({
     pageLinks: rtNavLnks,
-    clclVws: rtCalcVws,
+    legacyCalculatorViews,
     actions: {
       navigateTo,
-      undo,
-      redo,
+      undo: effectiveUndo,
+      redo: effectiveRedo,
+      canUndo: () => canUndo,
+      canRedo: () => canRedo,
+      registerHistoryScope,
       openInv: openInv,
       tgglOpt: tglOpt,
-      tgglBnch: tglBnch,
+      openModulation,
+      tgglRotEd: tglRotEd,
       openStatus,
       rstActRes: rstActRes,
     },
@@ -249,33 +272,23 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
   }), [
     builders,
     navigateTo,
-    redo,
+    canRedo,
+    canUndo,
+    effectiveRedo,
+    effectiveUndo,
     openInv,
     openStatus,
     rstActRes,
     tglOpt,
-    tglBnch,
-    undo,
+    openModulation,
+    tglRotEd,
+    registerHistoryScope,
   ])
 
   return (
-    <RouteCtx.Provider value={value}>
+    <RouteMenuContext.Provider value={value}>
       {children}
-      <CnfrMdl
-        visible={confirmation.visible}
-        open={confirmation.open}
-        closing={confirmation.closing}
-        portalTarget={typeof document !== 'undefined' ? document.body : null}
-        title={confirmation.title}
-        message={confirmation.message}
-        confirmLabel={confirmation.confirmLabel}
-        cancelLabel={confirmation.cancelLabel}
-        secondaryLabel={confirmation.secondaryLabel}
-        variant={confirmation.variant}
-        onConfirm={confirmation.onConfirm}
-        onSecondary={confirmation.onSecondary}
-        onCancel={confirmation.onCancel}
-      />
+      <ConfirmHost control={confirmation} portalTarget={typeof document !== 'undefined' ? document.body : null} />
       <AppSttsMdl
         visible={appStatus.visible}
         open={appStatus.open}
@@ -283,15 +296,8 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
         onClose={appStatus.hide}
       />
       <TeamConsoleHost />
-    </RouteCtx.Provider>
+      <WeaponConsoleHost />
+      <EchoConsoleHost />
+    </RouteMenuContext.Provider>
   )
-}
-
-export function useRtChrmMen(): RtCtxVl {
-  const context = useContext(RouteCtx)
-  if (!context) {
-    throw new Error('useRouteChromeMenu must be used within RouteMenuProvider')
-  }
-
-  return context
 }

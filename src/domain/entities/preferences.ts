@@ -4,10 +4,13 @@
                shared ui preferences object.
 */
 
-export type BenchmarkViewMode = 'benchmark' | 'showcase'
-
 // Which value column(s) the showcase stat ladder emphasizes. 'build' is the default.
 export type StatsColumnHighlight = 'build' | 'combat' | 'both'
+
+// Which composition the showcase card is drawn in. 'classic' is the split card;
+// 'seal' layers the card over the portrait and strikes the grade onto a ribbon.
+// Only the showcase reads it: the Build Lab rail always stays classic.
+export type ShowcaseLayout = 'classic' | 'seal'
 
 // Per-text-type typography overrides for the showcase card. Each slot is a
 // typographic ROLE that cuts across the whole card: numeric readouts, proper
@@ -30,7 +33,7 @@ export const TEXT_SLOTS: TextSlot[] = ['numbers', 'names', 'labels', 'muted', 'd
 // Per-resonator showcase-card customization. Every field is nullable; null means
 // "use the resonator default", so an untouched card carries no overrides. Image
 // fields hold a URL (imgur link, or a data URL on localhost where imgur is blocked).
-export interface BenchmarkCardStyle {
+export interface ShowcaseCardStyle {
   accent: string | null
   surface: string | null
   text: string | null
@@ -65,7 +68,7 @@ export interface BenchmarkCardStyle {
   customCss: string | null
 }
 
-export interface BenchmarkCardHidden {
+export interface ShowcaseCardHidden {
   score: boolean
   damage: boolean
   cv: boolean
@@ -79,21 +82,12 @@ export interface BenchmarkCardHidden {
   relStats: boolean
 }
 
-export interface BenchmarkCardConfig {
-  style: BenchmarkCardStyle
-  hidden: BenchmarkCardHidden
+export interface ShowcaseCardConfig {
+  style: ShowcaseCardStyle
+  hidden: ShowcaseCardHidden
 }
 
-export interface BenchRptSettings {
-  rotationFeatures: boolean
-  activeStateSources: boolean
-  upgradePaths: boolean
-  buildDetails: boolean
-  echoStatsTable: boolean
-  benchmarkTargets: boolean
-}
-
-export const DEF_BENCH_CARD_STYLE: BenchmarkCardStyle = {
+export const DEF_SHOWCASE_CARD_STYLE: ShowcaseCardStyle = {
   accent: null,
   surface: null,
   text: null,
@@ -125,7 +119,7 @@ export const DEF_BENCH_CARD_STYLE: BenchmarkCardStyle = {
   customCss: null,
 }
 
-export const DEF_BENCH_HIDE: BenchmarkCardHidden = {
+export const DEF_SHOWCASE_HIDE: ShowcaseCardHidden = {
   score: false,
   damage: false,
   cv: false,
@@ -139,28 +133,20 @@ export const DEF_BENCH_HIDE: BenchmarkCardHidden = {
   relStats: true,
 }
 
-export const DEF_BENCH_RPT: BenchRptSettings = {
-  rotationFeatures: true,
-  activeStateSources: true,
-  upgradePaths: true,
-  buildDetails: true,
-  echoStatsTable: true,
-  benchmarkTargets: true,
-}
-
 export interface UiPrefs {
   ctxMenu: boolean
   updateToast: boolean
   gameBetaData: boolean
   recommendedMenuItems: boolean
-  showBenchStates: boolean
+  showEvaluationStates: boolean
   maxResOnInit: boolean
-  benchmarkViewMode: BenchmarkViewMode
-  benchAnim2d: boolean
-  benchmarkCards: Record<string, BenchmarkCardConfig>
-  benchRptSettings: BenchRptSettings
+  animatedRailPortraits: boolean
+  showcaseCards: Record<string, ShowcaseCardConfig>
+  showcaseLayout: ShowcaseLayout
   uploadPersist: UploadPersistMode | null
   imgbbApiKey: string
+  playerId: string
+  playerUid: string
 }
 
 // How an uploaded image's bytes are kept. 'session' lives only until reload;
@@ -172,12 +158,13 @@ export const DEF_UI_PREFS: UiPrefs = {
   updateToast: true,
   gameBetaData: true,
   recommendedMenuItems: false,
-  showBenchStates: false,
+  showEvaluationStates: false,
   maxResOnInit: true,
-  benchmarkViewMode: 'benchmark',
-  benchAnim2d: true,
-  benchmarkCards: {},
-  benchRptSettings: DEF_BENCH_RPT,
+  animatedRailPortraits: true,
+  showcaseCards: {},
+  showcaseLayout: 'classic',
   uploadPersist: null,
   imgbbApiKey: '',
+  playerId: '',
+  playerUid: '',
 }

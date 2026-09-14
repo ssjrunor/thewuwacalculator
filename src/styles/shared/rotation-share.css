@@ -1,191 +1,42 @@
-.app-modal-panel.rot-share-modal {
-  width: min(30rem, calc(100vw - 2rem));
-  padding: 0;
-  overflow: hidden;
+.rot-share-modal {
+  --amdl-w: 30rem;
 }
 
 .rot-share {
   --rs-accent: var(--resonator-accent, var(--accent, #20bfb9));
-  --rs-line: color-mix(in srgb, var(--text, #1b2435) 12%, transparent);
-  --rs-fill: color-mix(in srgb, var(--text, #1b2435) 3%, transparent);
-  padding: 1.5rem 1.4rem 1.25rem;
 }
 
-.rot-share__head {
-  margin-bottom: 1.35rem;
-}
 
-.rot-share__eyebrow {
-  display: block;
-  margin-bottom: 0.55rem;
-  font-family: var(--mono-font);
-  font-size: 0.62rem;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--rs-accent);
-}
-
-.rot-share__title {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--text);
-}
-
-.rot-share__note {
-  margin: 0.45rem 0 0;
-  font-family: var(--mono-font);
-  font-size: 0.66rem;
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-.rot-share__channel {
-  margin-bottom: 1rem;
-}
-
-.rot-share__label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-family: var(--mono-font);
-  font-size: 0.6rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.rot-share__field {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  border: 1px solid var(--rs-line);
-  border-radius: 0.6rem;
-  background: var(--rs-fill);
-  overflow: hidden;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
-}
-
-.rot-share__field.is-copied {
-  border-color: color-mix(in srgb, var(--rs-accent) 60%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rs-accent) 40%, transparent);
-}
-
-.rot-share__code {
-  flex: 1 1 auto;
-  min-width: 0;
-  align-self: center;
-  padding: 0.5rem 0.75rem;
-  font-family: var(--mono-font);
-  font-size: 0.72rem;
-  line-height: 1;
-  color: var(--text);
-  word-break: break-all;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-}
-
-.rot-share__code--link {
-  max-height: 3.4rem;
-  overflow-y: auto;
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-.rot-share__loading {
-  flex: 1 1 auto;
-  padding: 0.7rem 0.75rem;
-  font-family: var(--mono-font);
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.rot-share__copy {
-  flex: 0 0 auto;
+.rot-share__take {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0 0.85rem;
-  border: 0;
-  border-left: 1px solid var(--rs-line);
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text);
-  font-family: var(--mono-font);
-  font-size: 0.64rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 160ms ease, color 160ms ease;
+  min-width: 0;
 }
 
-.rot-share__copy:hover:not(:disabled),
-.rot-share__copy:focus-visible {
-  background: color-mix(in srgb, var(--rs-accent) 16%, transparent);
-  color: color-mix(in srgb, var(--rs-accent) 88%, var(--text));
-  outline: none;
-}
-
-.rot-share__field.is-copied .rot-share__copy {
-  color: color-mix(in srgb, var(--rs-accent) 90%, var(--text));
-}
-
-.rot-share__copy:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.rot-share__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1.3rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--rs-line);
-}
-
-.rot-share__export {
+.rot-share__take .amdl__act {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.75rem;
-  border: 1px solid var(--rs-line);
-  border-radius: 0.55rem;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease;
+  gap: 0.3rem;
+  flex: none;
 }
 
-.rot-share__export:hover,
-.rot-share__export:focus-visible {
-  border-color: color-mix(in srgb, var(--rs-accent) 45%, var(--rs-line));
-  background: color-mix(in srgb, var(--rs-accent) 8%, transparent);
-  outline: none;
+.rot-share__code {
+  min-width: 0;
+  max-width: 15rem;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid var(--amdl-line-soft);
+  border-radius: 0.45rem;
+  background: var(--amdl-sunk);
+  font: 500 0.7rem/1.2 var(--amdl-mono);
+  color: var(--amdl-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rot-share__done {
-  padding: 0.45rem 1.1rem;
-  border: 1px solid color-mix(in srgb, var(--rs-accent) 40%, transparent);
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--rs-accent) 16%, transparent);
-  color: color-mix(in srgb, var(--rs-accent) 85%, var(--text));
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 160ms ease;
-}
-
-.rot-share__done:hover,
-.rot-share__done:focus-visible {
-  background: color-mix(in srgb, var(--rs-accent) 24%, transparent);
-  outline: none;
+.rot-share__code--link {
+  color: var(--amdl-muted);
 }
 
 .import-surface-token {
@@ -248,4 +99,33 @@
   background: color-mix(in srgb, var(--confirm-accent, var(--accent)) 16%, transparent);
   color: color-mix(in srgb, var(--confirm-accent, var(--accent)) 88%, var(--picker-modal-text, var(--text)));
   outline: none;
+}
+
+
+.rot-share__take {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.rot-share__take .amdl__act {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.rot-share__code {
+  min-width: 0;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid var(--amdl-line-soft);
+  border-radius: 0.45rem;
+  background: var(--amdl-sunk);
+  font: 500 0.7rem/1.2 var(--amdl-mono);
+  color: var(--amdl-text);
 }

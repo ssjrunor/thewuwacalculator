@@ -1,47 +1,24 @@
 /*
   Author: Runor Ewhro
-  Description: Centralizes authored app-status metadata and route shortcuts in
-               one modal entry point.
+  Description: Owns app status modal behavior and state transitions for the ui module.
 */
 
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useNavX } from '@/app/nav/useNavX'
+import { listResonators, listEchoes } from '@/domain/services/catalogService'
+import { getWeapons } from '@/data/gameData/weapons/weaponDataStore'
+import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
+import { loadEnemyCat } from '@/domain/services/enemyCatalogService'
 import { AppModal } from '@/shared/ui/AppModal'
-import { CURRENT_VERSION } from '@/shared/lib/appMetadata'
+import { ModalHeader } from '@/shared/ui/AppModalShell'
+import { Tooltip } from '@/shared/ui/Tooltip'
 import { getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
+import { STATE_LABELS, STATUS_DATA } from '@/data/content/appStatus'
+import { whatsNewHref } from '@/shared/lib/appRoutes'
 
-const STATUS_DATA = {
-  lastUpdated: '06/09/2026',
-  overallState: 'stable' as const,
-  patchVersion: CURRENT_VERSION,
-  dataSources: [
-    { label: 'Encore', href: 'https://encore.moe/new?lang=en' },
-    { label: 'Nanoka', href: 'https://ww.nanoka.cc/' },
-  ],
-  notes: [
-    'HEWO~! (˶˃ ᵕ ˂˶)',
-    '3.7.0 beta is here, HSIN & SUOMING along with other 3.7.0 beta stuff have been added to the calculator. Except enemies, as usual.',
-    'A reminder, there\'s a discord server up, if you\'d like to make suggestions or report bugs you unfortunately found... or you just wanna join a discord, feel free.',
-    'Take care~!'
-  ],
-  coverage: [
-    { title: 'Resonators', status: 'ok' as const,  desc: 'All resonators supported.' },
-    { title: 'Weapons',    status: 'ok' as const,  desc: 'All weapons supported.' },
-    { title: 'Echoes',     status: 'ok' as const,  desc: 'All echoes and sonata sets supported.' },
-    { title: 'Enemies',    status: 'ok' as const,  desc: 'All but 3.7 enemies supported.' },
-  ],
-  recentChanges: [
-    '3.7.0 beta update.',
-  ],
-  knownIssues: [
-    "there's none."
-  ]
-}
-
-const STATE_LABELS = {
-  stable:   'NOMINAL',
-  degraded: 'DEGRADED',
-  wip:      'IN PROGRESS',
-} as const
+// kept re-exported so the head's stamp keeps its one import
+export { APP_CONDITION } from '@/data/content/appStatus'
 
 interface AppSttsMdlPr {
   visible: boolean
@@ -51,119 +28,176 @@ interface AppSttsMdlPr {
 }
 
 export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsMdlPr) {
-  const navigate = useNavigate()
+  const navigate = useNavX()
   const linkedWhatsNew = getLinkedWhatsNew(ltstCurChngE)
-  const latestRoute = linkedWhatsNew ? '/changelog/whatsnew' : '/changelog'
+  const latestRoute = linkedWhatsNew ? whatsNewHref() : '/changelog'
   const latestLabel = linkedWhatsNew ? "See What's New" : 'See Changelog'
+  // the enemy catalog is fetched, so its count arrives after the rest
+  const [enemyCount, setEnemyCount] = useState<number | null>(null)
+  useEffect(() => {
+    let live = true
+    void loadEnemyCat()
+      .then((entries) => { if (live) setEnemyCount(entries.length) })
+      .catch(() => { if (live) setEnemyCount(null) })
+    return () => { live = false }
+  }, [])
+
+  const catalogSize: Record<string, number | null> = {
+    resonators: listResonators().length,
+    weapons: getWeapons().length,
+    echoes: listEchoes().length,
+    enemies: enemyCount,
+  }
+
+  const coveredCount = STATUS_DATA.coverage.filter((item) => item.status === 'ok').length
+  const downDomains = STATUS_DATA.coverage.filter((item) => item.status !== 'ok').map((item) => item.title)
 
   return (
     <AppModal
       state={{ visible, open, closing }}
       variant="app-status"
-      ariaLabel="Calculator Status"
+      ariaLabel="Simulation Status"
       onClose={onClose}
     >
-      <div className="app-status-modal__header">
-        <span className="app-status-modal__eyebrow">Calculator Status</span>
-        <span className="app-status-modal__title">System Report</span>
-      </div>
+      <ModalHeader over="Simulation Status" title="System Report" onClose={onClose}>
+        <span className={`amdl__tag${STATUS_DATA.overallState === 'stable' ? ' is-accent' : ''}`}>
+          {STATE_LABELS[STATUS_DATA.overallState]}
+        </span>
+      </ModalHeader>
 
-      <div className="app-status-bento">
+      <div className="dsp-wrap">
+        {STATUS_DATA.wallpaper ? (
+          <>
+            <span className="dsp__art"
+              style={{
+                backgroundImage: `url("${STATUS_DATA.wallpaper.src}")`,
+                backgroundPosition: STATUS_DATA.wallpaper.pos,
+                '--dsp-art-dir': STATUS_DATA.wallpaper.dir,
+              } as CSSProperties}
+              aria-hidden="true"
+            />
+          </>
+        ) : null}
 
-        <div className="app-status-hero">
-          <div className="app-status-hero__notes-label">Dev Notes</div>
-          <div className="app-status-hero__notes">
+        <div className="dsp">
+          <div className="dsp__from">
+            <span className={`amdl__dot${STATUS_DATA.overallState === 'stable' ? '' : ' is-warn'}`} aria-hidden="true" />
+            From the dev · {STATUS_DATA.lastUpdated}
+          </div>
+
+          <div className="dsp__lines">
             {STATUS_DATA.notes.map((note, i) => (
-              <p key={i} className="app-status-hero__note">{note}</p>
+              i === 0
+                ? <p key={i} className="dsp__hey">{note}</p>
+                : <p key={i} className="dsp__line">{note}</p>
             ))}
           </div>
-          <div className="app-status-hero__footer">
-            <div className="app-status-hero__stat">
-              <span className="app-status-hero__stat-label">Status</span>
-              <span className="app-status-hero__stat-value app-status-hero__stat-value--status">
-                <span className="app-status-hero__dot" aria-hidden="true" />
-                {STATE_LABELS[STATUS_DATA.overallState]}
-              </span>
+
+          {STATUS_DATA.recentChanges.length > 0 ? (
+            <div className="dsp__latest">
+              <b>{STATUS_DATA.recentChanges.length === 1 ? 'Latest' : 'Lately'}</b>
+              <ul className="dsp__latest-list">
+                {STATUS_DATA.recentChanges.map((entry, i) => <li key={i}>{entry}</li>)}
+              </ul>
             </div>
-            <div className="app-status-hero__stat">
-              <span className="app-status-hero__stat-label">Patch</span>
-              <span className="app-status-hero__stat-value">v{STATUS_DATA.patchVersion}</span>
-            </div>
-            <div className="app-status-hero__stat">
-              <span className="app-status-hero__stat-label">Sources</span>
-              <div className="app-status-hero__source-links">
-                {STATUS_DATA.dataSources.map((source) => (
-                  <a
-                    key={source.label}
-                    className="app-status-hero__stat-value app-status-hero__stat-value--link"
-                    href={source.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {source.label}
-                    <svg className="app-status-hero__ext-icon" viewBox="0 0 10 10" aria-hidden="true">
-                      <path d="M1 9 9 1M9 1H4M9 1v5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                    </svg>
-                  </a>
-                ))}
+          ) : null}
+        </div>
+
+        <div className="dsp__stamp">
+          <span>PATCH <b>v{STATUS_DATA.patchVersion}</b></span>
+          <span className="dsp__sep">·</span>
+
+          <Tooltip
+            placement="top"
+            content={
+              <div className="cov">
+                <div className="cov__head">
+                  <b>Coverage</b>
+                  <i className={downDomains.length > 0 ? 'is-down' : undefined}>
+                    {downDomains.length > 0
+                      ? `${coveredCount} of ${STATUS_DATA.coverage.length}`
+                      : 'all current'}
+                  </i>
+                </div>
+                {STATUS_DATA.coverage.map((item) => {
+                  const size = catalogSize[item.key]
+                  return (
+                    <div key={item.key} className="cov__row">
+                    <span className="cov__k">
+                      {item.title}
+                      {item.status !== 'ok' && item.note ? <em>{item.note}</em> : null}
+                    </span>
+                      <span className={`cov__n${item.status === 'ok' ? '' : ' is-down'}`}>
+                      {size === null ? '—' : size.toLocaleString()}
+                        {item.key === 'echoes' ? <u>· {SONATA_SETS.length} sets</u> : null}
+                    </span>
+                    </div>
+                  )
+                })}
+                <div className="cov__foot">
+                  <span className={`amdl__dot${downDomains.length > 0 ? ' is-warn' : ''}`} aria-hidden="true" />
+                  Patch {STATUS_DATA.patchVersion} · ingested {STATUS_DATA.lastUpdated}
+                </div>
               </div>
-            </div>
-            <div className="app-status-hero__stat">
-              <span className="app-status-hero__stat-label">Updated</span>
-              <span className="app-status-hero__stat-value">{STATUS_DATA.lastUpdated}</span>
-            </div>
-          </div>
-        </div>
-
-        {STATUS_DATA.coverage.map((item, i) => (
-          <div
-            key={item.title}
-            className={`app-status-card app-status-card--${item.status} app-status-card--${i + 1}`}
+            }
           >
-            <div className="app-status-card__top">
-              <span className="app-status-card__label">{item.title}</span>
-              <span
-                className={`app-status-card__dot app-status-card__dot--${item.status}`}
-                aria-hidden="true"
-              />
-            </div>
-            <p className="app-status-card__desc">{item.desc}</p>
-          </div>
-        ))}
+          <span className="dsp__probe" tabIndex={0}>
+            COVERAGE{' '}
+            <b className={downDomains.length > 0 ? 'is-down' : undefined}>
+              {coveredCount}/{STATUS_DATA.coverage.length}
+            </b>
+          </span>
+          </Tooltip>
 
-        <div className="app-status-changes">
-          <div className="app-status-panel__eyebrow">Recent Changes / Updates</div>
-          {STATUS_DATA.recentChanges.map((entry, i) => (
-            <div key={i} className={`app-status-item app-status-item--${i + 1}`}>
-              <span className="app-status-item__marker" aria-hidden="true">›</span>
-              <span className="app-status-item__text">{entry}</span>
-            </div>
-          ))}
-        </div>
+          <span className="dsp__sep">·</span>
 
-        <div className="app-status-issues">
-          <div className="app-status-panel__eyebrow">Known Issues</div>
-          {STATUS_DATA.knownIssues.map((issue, i) => (
-            <div key={i} className={`app-status-item app-status-item--iss${i + 1}`}>
-              <span className="app-status-item__marker app-status-item__marker--warn" aria-hidden="true">!</span>
-              <span className="app-status-item__text">{issue}</span>
-            </div>
-          ))}
+          {STATUS_DATA.knownIssues.length > 0 ? (
+            <Tooltip
+              placement="top"
+              content={
+                <ul className="dsp__tip">
+                  {STATUS_DATA.knownIssues.map((issue, i) => (
+                    <li key={i}>
+                      <span className="amdl__dot is-warn" aria-hidden="true" />
+                      <span>{issue}</span>
+                    </li>
+                  ))}
+                </ul>
+              }
+            >
+            <span className="dsp__probe" tabIndex={0}>
+              ISSUES <b className="is-down">{STATUS_DATA.knownIssues.length}</b>
+            </span>
+            </Tooltip>
+          ) : (
+            <span>ISSUES <b>0</b></span>
+          )}
+
+          <span className="dsp__sep">·</span>
+          <span>
+          VIA{' '}
+            {STATUS_DATA.dataSources.map((source, i) => (
+              <span key={source.label}>
+              {i > 0 ? ', ' : ''}
+                <a className="dsp__link" href={source.href} target="_blank" rel="noopener noreferrer">
+                {source.label}
+              </a>
+            </span>
+            ))}
+        </span>
         </div>
 
       </div>
 
-      <div className="app-status-modal__footer">
+      <div className="amdl__foot">
         <button
-          type="button"
-          className="app-status-modal__btn"
+          type="button" className="amdl__act"
           onClick={onClose}
         >
           Close
         </button>
         <button
-          type="button"
-          className="app-status-modal__btn"
+          type="button" className="amdl__act"
           onClick={() => { navigate(latestRoute); onClose() }}
         >
           {latestLabel}

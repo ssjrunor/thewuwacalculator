@@ -1,0 +1,268 @@
+
+
+.rcon {
+  height: var(--rte-cns-h);
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.85rem 0.35rem;
+  gap: 0.25rem;
+}
+
+.rcon--empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.rcon__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  height: 1rem;
+}
+
+.rcon__count,
+.rcon__read {
+  font: 400 0.66rem/1 var(--mono-font);
+  color: var(--muted);
+}
+
+.rcon__count {
+  font-size: 0.6rem;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.rcon__fill {
+  flex: 1;
+}
+
+.rcon__read {
+  min-width: 0;
+  max-width: 62%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rcon__read b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.rcon__flag {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+
+.rcon__pass {
+  opacity: 0.75;
+}
+
+.rcon__plot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.rcon__plot[data-pick='on'] {
+  cursor: pointer;
+}
+
+.rcon__plot:focus-visible {
+  outline: 2px solid var(--rte-res);
+  outline-offset: -2px;
+  border-radius: 0.4rem;
+}
+
+.rcon__plot > svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+
+
+.rcon__hair {
+  stroke: var(--rte-line);
+  stroke-width: 1;
+}
+
+.rcon__rule {
+  stroke: var(--rte-line-strong);
+  stroke-width: 1;
+}
+
+.rcon__tick {
+  stroke: var(--muted);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.rcon__ord {
+  font: 400 7px var(--mono-font);
+  fill: var(--muted);
+  opacity: 0.7;
+}
+
+.rcon__track {
+  font: 500 8px var(--mono-font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  fill: var(--muted);
+}
+
+.rcon__note {
+  font: 400 7px var(--mono-font);
+  fill: var(--muted);
+  opacity: 0.7;
+}
+
+
+
+.rcon__cell {
+  fill: var(--text);
+  opacity: 0.1;
+}
+
+.rcon__cell[data-head='on'] {
+  opacity: 0.17;
+}
+
+.rcon__cell[data-tint='on'] {
+  opacity: 0.26;
+}
+
+.rcon__cell[data-tint='on'][data-head='on'] {
+  opacity: 0.4;
+}
+
+.rcon__cellkey {
+  fill: var(--text);
+  opacity: 0.35;
+}
+
+.rcon__cellkey[data-head='on'] {
+  opacity: 0.7;
+}
+
+.rcon__bandlbl {
+  font: 500 7px var(--mono-font);
+  letter-spacing: 0.08em;
+  fill: var(--text);
+  opacity: 0.82;
+}
+
+.rcon__bandrun {
+  font: 500 7px var(--mono-font);
+  fill: var(--text);
+  opacity: 0.6;
+}
+
+
+.rcon__seam {
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-opacity: 0.3;
+}
+
+.rcon__seam[data-kind='pass'] {
+  stroke: var(--muted);
+  stroke-dasharray: 1.5 3.5;
+  stroke-opacity: 0.5;
+}
+
+
+
+.rcon__who {
+  font: 600 8.5px var(--mono-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--text);
+}
+
+.rcon__face {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--rte-sunk);
+  pointer-events: none;
+}
+
+
+
+
+.rcon__gone {
+  stroke: var(--muted);
+  stroke-width: 1;
+  opacity: 0.45;
+}
+
+
+
+.rcon__statefill {
+  fill: var(--text);
+  opacity: 0.06;
+}
+
+.rcon__stateline {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.3;
+}
+
+.rcon__statedot {
+  fill: var(--rte-res);
+}
+
+.rcon__statename {
+  font: 500 7.5px var(--mono-font);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--muted);
+  opacity: 0.8;
+}
+
+.rcon__stateval {
+  font: 500 7.5px var(--mono-font);
+  fill: var(--muted);
+}
+
+
+
+.rcon__probe line {
+  stroke: var(--text);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+.rcon__probe circle {
+  fill: var(--text);
+  opacity: 0.55;
+}
+
+.rcon__head-mark line {
+  stroke-width: 1;
+}
+
+
+.rcon__head-mark.is-parked line {
+  stroke-dasharray: 2 3;
+  opacity: 0.8;
+}
+
+.rcon__chip {
+  font: 600 7.5px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rcon__head-mark,
+  .rcon__probe {
+    transition: opacity 160ms ease;
+  }
+}

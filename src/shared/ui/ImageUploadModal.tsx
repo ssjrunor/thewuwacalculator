@@ -1,22 +1,19 @@
 /*
   Author: Runor Ewhro
-  Description: shared image picker modal. Upload a file or paste a link, and on
-               first upload choose how the image is kept (session / this device /
-               ImgBB). The persistence choice and ImgBB key write through to the
-               saved Upload preference so the modal only asks once.
+  Description: Owns image upload modal behavior and state transitions for the ui module.
 */
 
 import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { AppModal } from '@/shared/ui/AppModal'
-import type { AppMdlStt } from '@/shared/ui/AppModal'
+import type { AppModalState } from '@/shared/ui/AppModal'
 import { Expandable } from '@/shared/ui/Expandable'
 import { useAppStore } from '@/domain/state/store'
 import { storeUploadedImage } from '@/shared/lib/imageUpload.ts'
 import type { StoredImage, UploadMode } from '@/shared/lib/imageUpload.ts'
 
 interface ImageUploadModalProps {
-  state: AppMdlStt
+  state: AppModalState
   title?: string
   initialCredit?: string
   onClose: () => void
@@ -31,16 +28,14 @@ const MODE_COPY: Record<UploadMode, { label: string; blurb: string }> = {
 
 type ScaleKey = 'recommended' | 'compact' | 'original'
 
-// Cap the longest edge before storing. The card never renders past ~portrait size,
-// so 2048px is the high-quality default; 'original' opts out for users who want it.
+// Default compression caps the longest edge; `original` bypasses scaling.
 const SCALE_COPY: Record<ScaleKey, { label: string; sub: string; maxEdge: number | null }> = {
   recommended: { label: 'Recommended', sub: '2048px', maxEdge: 2048 },
   compact: { label: 'Compact', sub: '1280px', maxEdge: 1280 },
   original: { label: 'Original', sub: 'Full size', maxEdge: null },
 }
 
-// The shell stays mounted with the dialog; the body remounts fresh on each open
-// (keyed below) so its form state resets without a setState-in-effect.
+// Key the body by open cycle to initialize form state without effect-driven reset.
 export function ImageUploadModal({ state, title = 'Add image', initialCredit = '', onClose, onApply }: ImageUploadModalProps) {
   return (
     <AppModal state={state} ariaLabel={title} onClose={onClose}>
@@ -121,8 +116,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
             Artist credit <span className="iu-field-opt">optional</span>
           </label>
           <input
-            type="text"
-            className="iu-input"
+            type="text" className="iu-input"
             placeholder="@artist or source"
             value={credit}
             onChange={(event) => setCredit(event.target.value)}
@@ -133,8 +127,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
         {tab === 'link' ? (
           <div className="iu-section">
             <input
-              type="url"
-              className="iu-input"
+              type="url" className="iu-input"
               placeholder="https://…"
               value={linkUrl}
               onChange={(event) => setLinkUrl(event.target.value)}
@@ -171,8 +164,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
                         type="button"
                         role="radio"
                         aria-checked={scale === key}
-                        data-on={scale === key ? 'true' : undefined}
-                        className="iu-scale-opt"
+                        data-on={scale === key ? 'true' : undefined} className="iu-scale-opt"
                         onClick={() => setScale(key)}
                       >
                         <span className="iu-scale-opt-label">{SCALE_COPY[key].label}</span>
@@ -194,8 +186,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
                         type="button"
                         role="radio"
                         aria-checked={chosenMode === mode}
-                        data-on={chosenMode === mode ? 'true' : undefined}
-                        className="iu-mode"
+                        data-on={chosenMode === mode ? 'true' : undefined} className="iu-mode"
                         onClick={() => setChosenMode(mode)}
                       >
                         <span className="iu-mode-label">{MODE_COPY[mode].label}</span>
@@ -209,8 +200,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
                   <div className="iu-field">
                     <label className="iu-field-label">ImgBB API key</label>
                     <input
-                      type="text"
-                      className="iu-input"
+                      type="text" className="iu-input"
                       placeholder="Paste your ImgBB key"
                       value={keyInput}
                       onChange={(event) => setKeyInput(event.target.value)}
@@ -230,8 +220,7 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
         )}
 
         {tab === 'upload' && file && !uploadPersist ? (
-          <Expandable
-            className="iu-why"
+          <Expandable className="iu-why"
             triggerClass="iu-why-toggle"
             chevronSize={13}
             innerClass="iu-why-body"

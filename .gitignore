@@ -20,3 +20,13 @@ prod-app.json
 
 /public/card-presets
 /public/assets/game/resonators/spine/portrait/
+
+/rotation-language-examples
+/ref
+
+# source art for the index's key art; the shipped webps live in public/assets/home
+/home
+
+# local development and OCR artifacts; neither is loaded by the application
+/dev-app-state-test.json
+/eng.traineddata

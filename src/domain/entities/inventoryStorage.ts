@@ -5,11 +5,12 @@
 */
 
 import type { EchoInstance, ResonatorId, TeamSlots, WeaponState } from './runtime'
-import type { ResProf } from './profile'
+import type { CombatScenario, ScenarioTeamMember } from './combatScenario'
+import { contextScenarioMember } from './combatScenario'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import { makeEchoUid } from './runtime'
 
-export interface InvEchoEnt {
+export interface SavedEcho {
   id: string
   echo: EchoInstance
   createdAt: number
@@ -21,7 +22,7 @@ export interface SavedBuildSnap {
   echoes: Array<EchoInstance | null>
 }
 
-export interface InventoryEntry {
+export interface SavedBuild {
   id: string
   name: string
   resonatorId: ResonatorId
@@ -31,37 +32,36 @@ export interface InventoryEntry {
   updatedAt: number
 }
 
-export interface DmgTtlsSnap {
-  normal: number
-  avg: number
-  crit: number
-}
-
-export interface TeamMemCntr {
-  id: ResonatorId
-  name: string
-  contribution: DmgTtlsSnap
-}
-
-export interface RotEntSmmr {
-  total: DmgTtlsSnap
-  members?: TeamMemCntr[]
-}
-
-export interface InvRotEnt {
+export interface SavedRotation {
   id: string
   name: string
-  mode: 'personal' | 'team'
-  resonatorId: ResonatorId
-  resonatorName: string
   duration: number
   note: string
-  team?: TeamSlots
-  items: RotationNode[]
-  snapshot?: ResProf
-  summary?: RotEntSmmr
+  /** Exact, immutable authored combat state represented by this saved run. */
+  scenario: CombatScenario
+  migration?: {
+    source: 'advanced-sequence'
+    acknowledged: boolean
+  }
   createdAt: number
   updatedAt: number
+}
+
+export interface SavedScenario {
+  id: string
+  name: string
+  note: string
+  /** Exact immutable combat-state snapshot; its live identity is remapped on load. */
+  scenario: CombatScenario
+  createdAt: number
+  updatedAt: number
+}
+
+export interface SavedArtifactLibrary {
+  echoes: SavedEcho[]
+  builds: SavedBuild[]
+  rotations: SavedRotation[]
+  scenarios: SavedScenario[]
 }
 
 // memoized comparison signatures
@@ -103,7 +103,7 @@ function makeRotNodeId(prefix = 'rotation'): string {
 }
 
 // deep clone rotation nodes and optionally regenerate ids
-export function cloneRotNds(
+export function cloneRotationNodes(
     items: RotationNode[],
     options?: { freshIds?: boolean },
 ): RotationNode[] {
@@ -126,12 +126,27 @@ export function cloneRotNds(
   const cloneNodes = (nodes: RotationNode[]): RotationNode[] => nodes.map((node) => {
     const clonedNode = structuredClone(node) as RotationNode
     const nextId = options?.freshIds ? makeRotNodeId(clonedNode.type) : clonedNode.id
-    delete (clonedNode as { condition?: unknown }).condition
-
+    if ('note' in clonedNode && clonedNode.note && options?.freshIds) {
+      clonedNode.note.id = makeRotNodeId('note')
+    }
     if (clonedNode.type === 'feature') {
       return {
         ...clonedNode,
         id: nextId,
+        ...(clonedNode.attached
+          ? {
+            attached: {
+              conditions: cloneNodes(clonedNode.attached.conditions) as Extract<
+                RotationNode,
+                { type: 'condition' }
+              >[],
+              features: cloneNodes(clonedNode.attached.features) as Extract<
+                RotationNode,
+                { type: 'feature' }
+              >[],
+            },
+          }
+          : {}),
       }
     }
 
@@ -140,6 +155,10 @@ export function cloneRotNds(
         ...clonedNode,
         id: nextId,
       }
+    }
+
+    if (clonedNode.type === 'note') {
+      return { ...clonedNode, id: nextId }
     }
 
     if (clonedNode.type === 'repeat') {
@@ -152,6 +171,18 @@ export function cloneRotNds(
 
     if (clonedNode.type === 'loop') {
       const loopId = getFrshLoopI(clonedNode.loopId)
+      if (clonedNode.kind === 'start' && clonedNode.passForks) {
+        const passForks: Record<string, RotationNode[]> = {}
+        for (const [key, body] of Object.entries(clonedNode.passForks)) {
+          passForks[key] = cloneNodes(body)
+        }
+        return {
+          ...clonedNode,
+          id: nextId,
+          loopId,
+          passForks,
+        }
+      }
       return {
         ...clonedNode,
         id: nextId,
@@ -159,12 +190,16 @@ export function cloneRotNds(
       }
     }
 
-    return {
-      ...clonedNode,
-      id: nextId,
-      setup: clonedNode.setup ? cloneNodes(clonedNode.setup) : clonedNode.setup,
-      items: cloneNodes(clonedNode.items),
+    if (clonedNode.type === 'uptime') {
+      return {
+        ...clonedNode,
+        id: nextId,
+        setup: clonedNode.setup ? cloneNodes(clonedNode.setup) : clonedNode.setup,
+        items: cloneNodes(clonedNode.items),
+      }
     }
+
+    return clonedNode
   })
 
   return cloneNodes(items)
@@ -176,7 +211,7 @@ export function cloneEchoFor(echo: EchoInstance, slotIndex: number): EchoInstanc
 }
 
 // compare echoes by uid only
-export function areSameEchoN(
+export function sameEchoUid(
     left: EchoInstance | null | undefined,
     right: EchoInstance | null | undefined,
 ): boolean {
@@ -192,26 +227,57 @@ export function areSameEchoN(
 }
 
 // clone an entire echo loadout
-export function cloneEchoLdt(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
+export function cloneEchoLoadout(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
   return echoes.map((echo, index) => (echo ? cloneEchoNst(echo, index) : null))
 }
 
+export interface SaveEchoResult {
+  savedCount: number
+  nextEchoes: Array<EchoInstance | null> | null
+}
+
+/** Save selected slots and replace local entries when inventory assigns new identity. */
+export function saveEchoSlots(
+  echoes: Array<EchoInstance | null>,
+  slotIndexes: readonly number[],
+  addEcho: (echo: EchoInstance) => SavedEcho | null | undefined,
+): SaveEchoResult {
+  let savedCount = 0
+  let nextEchoes: Array<EchoInstance | null> | null = null
+
+  for (const slotIndex of slotIndexes) {
+    const echo = echoes[slotIndex]
+    if (!echo) continue
+
+    const saved = addEcho(echo)
+    if (!saved) continue
+    savedCount += 1
+
+    if (!sameEchoUid(saved.echo, echo)) {
+      nextEchoes ??= [...echoes]
+      nextEchoes[slotIndex] = cloneEchoFor(saved.echo, slotIndex)
+    }
+  }
+
+  return { savedCount, nextEchoes }
+}
+
 // clone a saved build snapshot
-export function cloneBuildSnap(build: SavedBuildSnap): SavedBuildSnap {
+export function cloneBuildSnapshot(build: SavedBuildSnap): SavedBuildSnap {
   return {
     weapon: { ...build.weapon },
-    echoes: cloneEchoLdt(build.echoes),
+    echoes: cloneEchoLoadout(build.echoes),
   }
 }
 
 // keep saved rotation duration numeric and treat non-positive values as unset
-export function normInvRotDu(value: unknown): number {
+export function normalizeDuration(value: unknown): number {
   const numericValue = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0
 }
 
 // keep saved rotation notes string-backed without forcing trimmed content
-export function normInvRotNo(value: unknown): string {
+export function normalizeRotNote(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
@@ -239,7 +305,7 @@ function normCmprEcho(echo: EchoInstance) {
   return signature
 }
 
-export function getEchoNstnSig(echo: EchoInstance): string {
+export function getEchoSignature(echo: EchoInstance): string {
   return normCmprEcho(echo)
 }
 
@@ -279,7 +345,7 @@ export function getBuildSig(build: SavedBuildSnap): string {
 }
 
 // compare two echo instances by their comparable fields
-export function areEchoNstnQ(
+export function equalEchoes(
     left: EchoInstance | null | undefined,
     right: EchoInstance | null | undefined,
 ): boolean {
@@ -295,7 +361,7 @@ export function areEchoNstnQ(
 }
 
 // compare two saved build snapshots
-export function areMkSnpsQvl(
+export function equalBuildSnapshots(
     left: SavedBuildSnap,
     right: SavedBuildSnap,
 ): boolean {
@@ -304,12 +370,12 @@ export function areMkSnpsQvl(
 
 // returns the entries with uids made unique within the bag. a uid identifies one
 // physical echo, and loadout slots reference their inventory echo by uid (see
-// mkInvEchoSgB). when entries share a uid, the one whose stats match an equipped
+// indexEquippedEchoes). when entries share a uid, the one whose stats match an equipped
 // loadout echo keeps it and the rest receive new uids.
-export function dedupeInvEchoUids(
-    entries: InvEchoEnt[],
+export function dedupeEchoUids(
+    entries: SavedEcho[],
     equippedEchoes?: Iterable<EchoInstance | null | undefined>,
-): InvEchoEnt[] {
+): SavedEcho[] {
   const idxByUid = new Map<string, number[]>()
   entries.forEach((entry, index) => {
     const uid = entry.echo.uid
@@ -377,7 +443,7 @@ export function dedupeInvEchoUids(
 }
 
 // create an inventory echo entry
-export function makeInvEcho(echo: EchoInstance, now = Date.now()): InvEchoEnt {
+export function makeSavedEcho(echo: EchoInstance, now = Date.now()): SavedEcho {
   return {
     id: makeStoreId(),
     echo: cloneEchoNst(echo),
@@ -387,51 +453,79 @@ export function makeInvEcho(echo: EchoInstance, now = Date.now()): InvEchoEnt {
 }
 
 // create an inventory build entry
-export function makeInvBuild(input: {
+export function makeSavedBuild(input: {
   name: string
   resonatorId: ResonatorId
   resonatorName: string
   build: SavedBuildSnap
-}, now = Date.now()): InventoryEntry {
+}, now = Date.now()): SavedBuild {
   return {
     id: makeStoreId(),
     name: input.name,
     resonatorId: input.resonatorId,
     resonatorName: input.resonatorName,
-    build: cloneBuildSnap(input.build),
+    build: cloneBuildSnapshot(input.build),
     createdAt: now,
     updatedAt: now,
   }
 }
 
 // create an inventory rotation entry
-export function makeInvRot(input: {
+export function makeSavedRotation(input: {
   name: string
-  mode: 'personal' | 'team'
-  resonatorId: ResonatorId
-  resonatorName: string
   duration?: number
   note?: string
-  team?: TeamSlots
-  items: RotationNode[]
-  snapshot?: ResProf
-  summary?: RotEntSmmr
-}, now = Date.now()): InvRotEnt {
+  scenario: CombatScenario
+}, now = Date.now()): SavedRotation {
   return {
     id: makeStoreId(),
     name: input.name,
-    mode: input.mode,
-    resonatorId: input.resonatorId,
-    resonatorName: input.resonatorName,
-    duration: normInvRotDu(input.duration),
-    note: normInvRotNo(input.note),
-    ...(input.team ? { team: [...input.team] as TeamSlots } : {}),
-    items: cloneRotNds(input.items),
-    ...(input.snapshot ? { snapshot: structuredClone(input.snapshot) } : {}),
-    ...(input.summary ? { summary: structuredClone(input.summary) } : {}),
+    duration: normalizeDuration(input.duration),
+    note: normalizeRotNote(input.note),
+    scenario: structuredClone(input.scenario),
     createdAt: now,
     updatedAt: now,
   }
+}
+
+export function makeSavedScenario(input: {
+  name: string
+  note?: string
+  scenario: CombatScenario
+}, now = Date.now()): SavedScenario {
+  return {
+    id: makeStoreId(),
+    name: input.name,
+    note: normalizeRotNote(input.note),
+    scenario: structuredClone(input.scenario),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+export function savedScenarioContextMember(entry: SavedScenario): ScenarioTeamMember {
+  return contextScenarioMember(entry.scenario)
+}
+
+export function savedRotationContextMember(rotation: SavedRotation): ScenarioTeamMember {
+  return contextScenarioMember(rotation.scenario)
+}
+
+export function savedRotationResonatorId(rotation: SavedRotation): ResonatorId {
+  return savedRotationContextMember(rotation).resonatorId
+}
+
+export function savedRotationTeam(rotation: SavedRotation): TeamSlots {
+  const members = rotation.scenario.team.members
+  return [
+    members[0]?.resonatorId ?? null,
+    members[1]?.resonatorId ?? null,
+    members[2]?.resonatorId ?? null,
+  ]
+}
+
+export function savedRotationItems(rotation: SavedRotation): RotationNode[] {
+  return rotation.scenario.program.program
 }
 
 // check whether a build snapshot is effectively empty

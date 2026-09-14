@@ -5,7 +5,7 @@
                context before reusing the packed evaluator.
 */
 
-import type { DataSrcRef, EffectContext, SourceState } from '@/domain/gameData/contracts'
+import type { SourceState } from '@/domain/gameData/contracts'
 import type { ResRuntime, WeaponState } from '@/domain/entities/runtime'
 import type { SkillDef } from '@/domain/entities/stats'
 import type { GenWpn } from '@/domain/entities/weapon'
@@ -17,21 +17,19 @@ import {
   weaponStatsAt,
 } from '@/domain/services/weaponPlan'
 import { listStatesFor } from '@/domain/services/gameDataService'
-import { countEchoSets, makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
-import { applyCandSk } from '@/engine/effects/dataEffects'
+import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
+import { prepareNumericSkill } from '@/engine/effects/numericTeam.ts'
 import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
 import { makeCombatGraph } from '@/domain/state/combatGraph'
 import { listRtSkills } from '@/domain/services/runtimeSourceService'
 import { prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
 import { makeOptContext } from '@/engine/optimizer/context/compiled'
 import { packTargetCtx } from '@/engine/optimizer/context/pack'
-import { CTX_FLOATS } from '@/engine/optimizer/config/constants'
 import { selOptTgtSkl } from '@/engine/optimizer/target/selectedSkill'
-import { evalSuggChs } from '@/engine/suggestions/shared'
+import { evalSuggChs, resSuggDmg, runSuggSmlt } from '@/engine/suggestions/shared'
 import type {
   DrctSuggCtx,
   PrepWeaponPlan,
-  RotSuggCtx,
   SuggestContext,
   WeaponEntry,
 } from '@/engine/suggestions/types'
@@ -43,21 +41,18 @@ interface WpnStat {
   statVal: number
 }
 
-// choose which passive variants are part of the active search space.
 function resModes(input: PrepWeaponPlan): WpnMode[] {
   if (input.settings.mode === 'default') return ['default']
   if (input.settings.mode === 'max') return ['max']
   return input.settings.target === 'default' ? ['default', 'max'] : ['max', 'default']
 }
 
-// select the variant that should rank a weapon card when both variants are shown.
 function resTgtMode(input: PrepWeaponPlan): WpnMode {
   if (input.settings.mode === 'default') return 'default'
   if (input.settings.mode === 'max') return 'max'
   return input.settings.target
 }
 
-// resolve rank-specific passive params for inspect copy.
 function resParams(wpn: GenWpn, rank: number): string[] {
   const ndx = Math.max(0, Math.min(rank - 1, 4))
   return wpn.passive.params.map((group) => group[ndx] ?? '')
@@ -67,8 +62,16 @@ function resWpnStat(wpn: GenWpn, input: PrepWeaponPlan): WpnStat {
   return weaponStatsAt(wpn, input.level)
 }
 
-// resolve the authored default value for one passive state
-// default weapon variants should still include enabled states, just at their normal value.
+function mkWpnSt(wpn: GenWpn, input: PrepWeaponPlan): WeaponState {
+  return {
+    id: wpn.id,
+    level: input.level,
+    rank: resolveWeaponRank(wpn, input.settings),
+    baseAtk: resWpnStat(wpn, input).atk,
+  }
+}
+
+/* An enabled default variant uses the control's authored resting value. */
 function defCtrlVal(st: SourceState): boolean | number | string {
   if (st.defaultValue != null) return st.defaultValue
   if (st.kind === 'toggle') return false
@@ -76,16 +79,14 @@ function defCtrlVal(st: SourceState): boolean | number | string {
   return st.min ?? 0
 }
 
-// resolve the authored max value for one passive state
-// this is the fallback when the user has not overridden the max search value.
+/* A max variant falls back to the highest value allowed by the authored control. */
 function maxCtrlVal(st: SourceState): boolean | number | string {
   if (st.kind === 'toggle') return true
   if (st.kind === 'stack' || st.kind === 'number') return st.max ?? st.defaultValue ?? st.min ?? 0
   return st.defaultValue ?? st.options?.[0]?.id ?? ''
 }
 
-// clamp a stored max override back into the authored control domain
-// stale or invalid values fall back to the state's normal max value.
+/* Persisted overrides may outlive their source data, so constrain them again. */
 function clmpCtrlVal(
     st: SourceState,
     value: boolean | number | string,
@@ -110,8 +111,7 @@ function clmpCtrlVal(
   return opts.some((option) => option.id === str) ? str : maxCtrlVal(st)
 }
 
-// read the sparse config entry for a weapon state
-// missing entries mean the state is enabled and uses authored values.
+/* Missing sparse entries mean enabled with authored values. */
 function stCfgFor(
     settings: WeaponPlanSet,
     id: string,
@@ -120,7 +120,6 @@ function stCfgFor(
   return settings.states?.[id]?.[st.controlKey]
 }
 
-// choose the candidate value for one authored weapon control
 function ctrlVal(
     st: SourceState,
     mode: WpnMode,
@@ -137,7 +136,6 @@ function ctrlVal(
   return cfg?.max == null ? maxCtrlVal(st) : clmpCtrlVal(st, cfg.max)
 }
 
-// materialize the control overlay used by one weapon variant
 function mkCtrls(
     id: string,
     mode: WpnMode,
@@ -157,7 +155,6 @@ function mkCtrls(
   return vals
 }
 
-// build the transient runtime view used for candidate conditions
 function mkCandRt(
     rt: ResRuntime,
     wpn: WeaponState,
@@ -202,46 +199,19 @@ function mkCandCombat(
   })
 }
 
-// build a single-source effect context for the candidate weapon
-function mkFxCtx(
-    rt: ResRuntime,
-    combat: ReturnType<typeof makeCombatEnv>,
-    ctx: SuggestContext,
-    input: PrepWeaponPlan,
-): EffectContext {
-  const base = ctx.effectContext
-
-  return {
-    ...base,
-    source: { type: 'resonator', id: rt.id },
-    target: { type: 'resonator', id: rt.id },
-    sourceRuntime: rt,
-    targetRuntime: rt,
-    activeRuntime: rt,
-    targetRuntimeId: rt.id,
-    activeResonatorId: rt.id,
-    echoSetCounts: countEchoSets(input.qppdChs),
-    baseStats: combat.baseStats,
-    finalStats: combat.finalStats,
-    enemy: ctx.enemy,
-  }
-}
-
 function prepCandSkill(
     rt: ResRuntime,
     combat: ReturnType<typeof makeCombatEnv>,
     skill: SkillDef,
-    cand: Parameters<typeof applyCandSk>[1],
 ): SkillDef {
   const raw = listRtSkills(rt).find((entry) => entry.id === skill.id)
   if (raw) {
     return prprRtSkll(rt, raw, combat)
   }
 
-  return applyCandSk(skill, cand)
+  return prepareNumericSkill(combat.numericTeam, combat.numericLane, skill)
 }
 
-// apply candidate passive effects and return the resulting final stats and skills
 function prepWpnFx(
     wpn: GenWpn,
     mode: WpnMode,
@@ -252,32 +222,11 @@ function prepWpnFx(
   combat: ReturnType<typeof makeCombatEnv>
   sklls: SkillDef[]
 } {
-  const stats = resWpnStat(wpn, input)
   const ctrls = mkCtrls(wpn.id, mode, input.settings)
-  const wpnSt: WeaponState = {
-    id: wpn.id,
-    level: input.level,
-    rank: resolveWeaponRank(wpn, input.settings),
-    baseAtk: stats.atk,
-  }
-  const rt = mkCandRt(ctx.runtime, wpnSt, ctrls)
+  const rt = mkCandRt(ctx.runtime, mkWpnSt(wpn, input), ctrls)
   const combat = mkCandCombat(rt, input)
-  const baseCtx = mkFxCtx(rt, combat, ctx, input)
-  const source: DataSrcRef = { type: 'weapon', id: wpn.id }
-
-  const cand = {
-    baseCtx,
-    source,
-    srcRt: rt,
-    tgtRt: rt,
-    baseStats: combat.baseStats,
-    enemy: combat.enemy,
-    finalStats: combat.finalStats,
-    srcFinal: combat.finalStats,
-  }
-
   const baseSklls = ctx.mode === 'target' ? [ctx.skll] : ctx.sklls
-  const sklls = baseSklls.map((skll) => prepCandSkill(rt, combat, skll, cand))
+  const sklls = baseSklls.map((skll) => prepCandSkill(rt, combat, skll))
 
   return {
     rt,
@@ -286,7 +235,6 @@ function prepWpnFx(
   }
 }
 
-// pack one direct target context for a weapon candidate
 function mkDrctCtx(
     base: DrctSuggCtx,
     wpn: GenWpn,
@@ -328,72 +276,45 @@ function mkDrctCtx(
   }
 }
 
-// pack all rotation target contexts for a weapon candidate
-function mkRotCtx(
-    base: RotSuggCtx,
+// Run each candidate through the complete rotation pipeline. Weapon
+// passives can change setup effects and per-entry overlays, so applying them to
+// the already-materialized baseline contexts understates the whole rotation.
+function scoreRotWpn(
     wpn: GenWpn,
     mode: WpnMode,
     input: PrepWeaponPlan,
-): RotSuggCtx {
-  const prep = prepWpnFx(wpn, mode, base, input)
-  const fin = prep.combat.finalStats
-  const contexts = new Float32Array(base.contextCount * CTX_FLOATS)
-
-  for (let ndx = 0; ndx < base.contextCount; ndx += 1) {
-    const skll = prep.sklls[ndx] ?? base.sklls[ndx] ?? base.sklls[0]
-    if (!skll) continue
-
-    const comp = makeOptContext({
-      resonatorId: base.resIds[ndx] ?? prep.rt.id,
-      runtime: prep.rt,
-      skill: skll,
-      finalStats: fin,
-      enemy: base.enemy,
-      combatState: prep.rt.state.combat,
-    })
-
-    const pckd = packTargetCtx({
-      compiled: comp,
-      skill: skll,
-      runtime: prep.rt,
-      comboN: 5,
-      comboK: 5,
-      comboCount: 1,
-      comboBaseIndex: 0,
-      lockEchoIdx: -1,
-      setRtMask: base.setRtMask,
-    })
-
-    contexts.set(pckd, ndx * CTX_FLOATS)
+): number {
+  const ctrls = mkCtrls(wpn.id, mode, input.settings)
+  const runtime = mkCandRt(input.runtime, mkWpnSt(wpn, input), ctrls)
+  const suggestionInput = {
+    scenarioId: input.scenarioId,
+    memberId: input.memberId,
+    runtime,
+    seed: input.seed,
+    enemy: input.enemy,
+    runtimesById: input.runtimesById,
+    selectedTargets: input.selectedTargets,
+    tgtFeatId: null,
+    rotationMode: true,
+    includeEchoAttacks: input.includeEchoAttacks,
   }
 
-  return {
-    ...base,
-    runtime: prep.rt,
-    selectedSkill: prep.sklls[0] ? selOptTgtSkl(prep.sklls[0]) : base.selectedSkill,
-    sourceBaseStats: prep.combat.baseStats,
-    sourceFinals: fin,
-    pool: prep.combat.buffs,
-    enemy: prep.combat.enemy,
-    sklls: prep.sklls,
-    contexts,
-  }
+  return resSuggDmg(runSuggSmlt(suggestionInput), suggestionInput)
 }
 
-// score one weapon candidate variant
 function scoreWpn(
     wpn: GenWpn,
     mode: WpnMode,
     input: PrepWeaponPlan,
 ): WeaponEntry {
-  const ctx = input.context.mode === 'target'
-      ? mkDrctCtx(input.context, wpn, mode, input)
-      : mkRotCtx(input.context, wpn, mode, input)
   const stats = resWpnStat(wpn, input)
   const ctrls = mkCtrls(wpn.id, mode, input.settings)
+  const damage = input.context.mode === 'target'
+      ? evalSuggChs(mkDrctCtx(input.context, wpn, mode, input), input.qppdChs)
+      : scoreRotWpn(wpn, mode, input)
 
   return {
-    damage: evalSuggChs(ctx, input.qppdChs),
+    damage,
     weaponId: wpn.id,
     name: wpn.name,
     rarity: wpn.rarity,
@@ -411,7 +332,6 @@ function scoreWpn(
   }
 }
 
-// run weapon suggestions over all compatible weapons and both passive variants
 export function runPrepWpn(
     input: PrepWeaponPlan,
 ): WeaponEntry[] {

@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Two-pane resizable layout wrapper built on react-resizable-panels
-               for calculator and page-shell split views.
+               for Simulation and page-shell split views.
 */
 
 import { useEffect, useRef, useState } from 'react'
@@ -144,8 +144,7 @@ export function RszbSplt({
       {shouldSplit ? (
         <Group
           orientation="horizontal"
-          id={storageKey ?? `${leftId}:${rightId}`}
-          className="split split-inner"
+          id={storageKey ?? `${leftId}:${rightId}`} className="split"
           disableCursor
           groupRef={groupRef}
           defaultLayout={dfltLyt}
@@ -165,8 +164,7 @@ export function RszbSplt({
             {left}
           </Panel>
 
-          <Separator
-            className="gutter"
+          <Separator className="gutter"
             onDoubleClick={resetLayout}
             onPointerDown={onRszStart}
             onPointerUp={onRszEnd}

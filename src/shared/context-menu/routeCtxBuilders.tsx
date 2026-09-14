@@ -4,9 +4,8 @@
                and app-history actions shared by the route chrome.
 */
 
-import { ChartNoAxesColumnIncreasing as ChartInc, LayoutPanelTop as PanelTopIcon, MapPlus, Redo2, RotateCcw, Undo2 } from 'lucide-react'
+import { LayoutPanelTop as PanelTopIcon, LibraryBig, MapPlus, Redo2, RotateCcw, SlidersHorizontal, Undo2 } from 'lucide-react'
 import { FaMicrochip } from 'react-icons/fa6'
-import { GiSchoolBag } from 'react-icons/gi'
 import { RxActivityLog as RxCtvtLog } from 'react-icons/rx'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import type { RouteNavLink } from '@/shared/ui/routeChromeConfig'
@@ -27,10 +26,10 @@ interface RtChrmBttmSc extends RtChrmPgsBld {
   onUndoTo: (index: number) => void
   onRedoTo: (index: number) => void
   optAct: boolean
-  bnchAct: boolean
+  modulationActive: boolean
   onOpenInv: () => void
   onTgglOpt: () => void
-  onTgglBnch: () => void
+  onOpenModulation: () => void
   onOpenStatus: () => void
   canReset: boolean
   onReset: () => void
@@ -108,7 +107,7 @@ export const routeCtxBuilder = {
         {
           id: 'routechrome-inventory',
           label: 'Inventory',
-          icon: <GiSchoolBag size="1em" />,
+          icon: <LibraryBig size="1em" />,
           onSelect: args.onOpenInv,
         },
         {
@@ -120,12 +119,12 @@ export const routeCtxBuilder = {
           onSelect: args.onTgglOpt,
         },
         {
-          id: 'routechrome-benchmark',
-          label: 'Benchmark',
-          icon: <ChartInc size="1em" />,
-          hint: args.bnchAct ? 'Current' : undefined,
-          disabled: args.bnchAct,
-          onSelect: args.onTgglBnch,
+          id: 'routechrome-modulation',
+          label: 'Modulation',
+          icon: <SlidersHorizontal size="1em" />,
+          hint: args.modulationActive ? 'Current' : undefined,
+          disabled: args.modulationActive,
+          onSelect: args.onOpenModulation,
         },
         {
           id: 'routechrome-status',
@@ -169,7 +168,7 @@ export const routeCtxBuilder = {
         resetEntry,
       ]
     },
-    calcSctn(args: RtChrmBttmSc): MenuEntry[] {
+    simulationSection(args: RtChrmBttmSc): MenuEntry[] {
       return routeCtxBuilder.routeChrome.bttmSctn(args)
     },
   },

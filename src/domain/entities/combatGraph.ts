@@ -6,11 +6,17 @@
 
 import type { FinalStats, ResBaseStats } from './stats'
 import type { SlotLocalState, SlotRatingState } from './profile'
-import type { SlotId } from './session'
 import type { ResRuntime } from './runtime'
+import type { TeamMemberId } from './combatScenario'
+import type { EnvironmentTargetModifiers } from './combatScenario'
+import type { ManualBuffs } from './manualBuffs'
+
+/** Fixed-width execution coordinate materialized from ordered scenario members. */
+export type SlotId = 'active' | 'team1' | 'team2'
 
 export interface CombatPartSlot {
   slotId: SlotId
+  memberId: TeamMemberId
   resonatorId: string
   local: SlotLocalState
   routing: SlotRatingState
@@ -18,6 +24,7 @@ export interface CombatPartSlot {
 
 export interface CombatPart {
   slotId: SlotId
+  memberId: TeamMemberId
   resonatorId: string
   slot: CombatPartSlot
   runtime: ResRuntime
@@ -31,5 +38,7 @@ export interface CombatPart {
 export interface CombatGraph {
   activeSlotId: SlotId
   participants: Record<SlotId, CombatPart>
+  environmentBuffsByMemberId?: Readonly<Record<TeamMemberId, ManualBuffs>>
+  environmentTargetModifiers?: EnvironmentTargetModifiers
   effectScalesByRuntimePath?: Record<string, Record<string, number>>
 }

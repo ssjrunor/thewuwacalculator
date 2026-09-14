@@ -1,11 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: builds the canonical prepared main surface used by
-               calculator stages, overview summaries, and live simulations.
+  Description: Implements prepared workspace data-flow and calculation invariants.
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { CombatGraph } from '@/domain/entities/combatGraph'
+import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
 import { findCombatPart, makeCombatGraph } from '@/domain/state/combatGraph'
 import { makeRuntimeCat, type PrepRtCat } from '@/domain/services/runtimeSourceService'
@@ -14,15 +13,18 @@ import { prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
 import { smltRot } from '@/engine/pipeline/simulateRotation'
 import type { CombatContext, SimResult } from '@/engine/pipeline/types'
 import type { SkillDef } from '@/domain/entities/stats'
-import type { SlotId } from '@/domain/entities/session'
 import type { DamageFeature } from '@/domain/gameData/contracts'
+import type { RotationNode } from '@/domain/gameData/contracts'
 import {
-  mkDrctFeatRs,
-  mkPrepRotNvr,
-  type PrepRotNvrn,
-  type RotSimulationDetail,
-  type RotSimulationMode,
-} from '@/engine/rotation/system'
+  executeRotationProgram,
+  directFeatureRows,
+  prepareRunEnv,
+  prepareRotationProgram,
+  type RunEnvironment,
+  type ProgramResult,
+  type RunDetail,
+} from '@/engine/rotation/execute'
+import { orderStoredRotationProgram } from '@/engine/rotation/programOrder.ts'
 
 export interface PrepDrctTpt {
   finalStats: CombatContext['finalStats']
@@ -45,7 +47,7 @@ export interface PrepWork {
   actCat: PrepRtCat | null
   visSkll: SkillDef[]
   directOutput: PrepDrctTpt | null
-  rotNvrn: PrepRotNvrn | null
+  rotNvrn: RunEnvironment | null
 }
 
 interface MkPrepWorkNp {
@@ -58,29 +60,43 @@ interface MkPrepWorkNp {
   combatGraph?: CombatGraph | null
 }
 
-// build one combat context for every participant so multiple calculator surfaces
+// Build one combat context for every participant so multiple Simulation surfaces
 // can reuse them without rebuilding the graph repeatedly
 function mkCntx(
     graph: CombatGraph,
     enemy: EnemyProfile,
-): Pick<PrepWork, 'cntxBySlotId' | 'cntxByResId'> {
+): Pick<PrepWork, 'cntxBySlotId' | 'cntxByResId'> & {
+  getBySlotId: (slotId: SlotId) => CombatContext | null
+} {
   const cntxBySlotId: Partial<Record<SlotId, CombatContext>> = {}
   const cntxByResId: Record<string, CombatContext> = {}
+  const cache = new Map<SlotId, CombatContext>()
+
+  const getBySlotId = (slotId: SlotId): CombatContext | null => {
+    const cached = cache.get(slotId)
+    if (cached) return cached
+    const participant = graph.participants[slotId]
+    if (!participant) return null
+    const context = makeCombatEnv({ graph, targetSlotId: slotId, enemy })
+    cache.set(slotId, context)
+    return context
+  }
 
   for (const participant of Object.values(graph.participants)) {
-    const context = makeCombatEnv({
-      graph,
-      targetSlotId: participant.slotId,
-      enemy,
+    Object.defineProperty(cntxBySlotId, participant.slotId, {
+      enumerable: true,
+      get: () => getBySlotId(participant.slotId) ?? undefined,
     })
-
-    cntxBySlotId[participant.slotId] = context
-    cntxByResId[participant.resonatorId] = context
+    Object.defineProperty(cntxByResId, participant.resonatorId, {
+      enumerable: true,
+      get: () => getBySlotId(participant.slotId) ?? undefined,
+    })
   }
 
   return {
     cntxBySlotId: cntxBySlotId,
     cntxByResId: cntxByResId,
+    getBySlotId,
   }
 }
 
@@ -141,22 +157,14 @@ export function mkPrepWork({
       })
 
   const activeSlotId = findCombatPart(graph, runtime.id) ?? graph.activeSlotId
-  const { cntxBySlotId: cntxBySlotId, cntxByResId: cntxByResId } = mkCntx(graph, enemy)
-  const activeContext = activeSlotId ? cntxBySlotId[activeSlotId] ?? null : null
-  const actCat = makeRuntimeCat(runtime, seed)
-  // split direct feature output out here so overview, damage, and rotation
-  // surfaces can all reuse the same expensive direct computation
-  const drctFeats = activeContext && seed ? mkDrctFeatRs(activeContext, seed) : []
-  const directOutput = activeContext
-      ? {
-        finalStats: activeContext.finalStats,
-        allFeatures: drctFeats,
-        allSkills: drctFeats.filter((entry) => entry.feature.variant !== 'subHit'),
-      }
-      : null
+  const contexts = mkCntx(graph, enemy)
+  const activeContext = activeSlotId ? contexts.getBySlotId(activeSlotId) : null
   const rotNvrn = activeContext && seed
-      ? mkPrepRotNvr(activeContext, seed)
+      ? prepareRunEnv(activeContext, seed)
       : null
+  let actCatCache: PrepRtCat | null | undefined
+  let visibleSkillsCache: SkillDef[] | undefined
+  let directOutputCache: PrepDrctTpt | null | undefined
 
   return {
     revision,
@@ -168,21 +176,128 @@ export function mkPrepWork({
     combatGraph: graph,
     activeSlotId,
     activeContext: activeContext,
-    cntxBySlotId: cntxBySlotId,
-    cntxByResId: cntxByResId,
-    actCat: actCat,
-    visSkll: mkVsblSkll(runtime, activeContext, actCat),
-    directOutput,
+    cntxBySlotId: contexts.cntxBySlotId,
+    cntxByResId: contexts.cntxByResId,
+    get actCat() {
+      if (actCatCache === undefined) actCatCache = makeRuntimeCat(runtime, seed)
+      return actCatCache
+    },
+    get visSkll() {
+      if (!visibleSkillsCache) {
+        const catalog = actCatCache === undefined
+          ? (actCatCache = makeRuntimeCat(runtime, seed))
+          : actCatCache
+        visibleSkillsCache = mkVsblSkll(runtime, activeContext, catalog)
+      }
+      return visibleSkillsCache
+    },
+    get directOutput() {
+      if (directOutputCache === undefined) {
+        const drctFeats = activeContext && seed ? directFeatureRows(activeContext, seed) : []
+        directOutputCache = activeContext
+          ? {
+            finalStats: activeContext.finalStats,
+            allFeatures: drctFeats,
+            allSkills: drctFeats.filter((entry) => entry.feature.variant !== 'subHit'),
+          }
+          : null
+      }
+      return directOutputCache
+    },
     rotNvrn: rotNvrn,
   }
+}
+
+const detailedProgramCache = new WeakMap<
+  PrepWork,
+  WeakMap<RotationNode[], ProgramResult>
+>()
+const orderedStoredProgramCache = new WeakMap<RotationNode[], RotationNode[]>()
+
+export interface PreparedDetailedProgramRun {
+  result: ProgramResult
+  /** program normalization/compilation performed by this invocation */
+  prepareMs: number
+  /** numeric rotation execution performed by this invocation */
+  executeMs: number
+  /** true when both preparation and execution were reused */
+  cacheHit: boolean
+}
+
+/** Prepared execution with phase timing for performance-facing consumers. */
+export function runPrepWorkDetailedProgramTimed(
+  prepared: PrepWork,
+  items: RotationNode[],
+  cacheIdentity: RotationNode[] = items,
+): PreparedDetailedProgramRun | null {
+  if (!prepared.activeContext || !prepared.activeSeed || !prepared.rotNvrn) {
+    return null
+  }
+
+  let byProgram = detailedProgramCache.get(prepared)
+  if (!byProgram) {
+    byProgram = new WeakMap()
+    detailedProgramCache.set(prepared, byProgram)
+  }
+
+  const cached = byProgram.get(cacheIdentity)
+  if (cached) {
+    return { result: cached, prepareMs: 0, executeMs: 0, cacheHit: true }
+  }
+
+  const prepareStartedAt = performance.now()
+  const program = prepareRotationProgram(items)
+  const prepareMs = performance.now() - prepareStartedAt
+  const executeStartedAt = performance.now()
+  const result = executeRotationProgram(
+    prepared.rotNvrn,
+    program,
+    { inspect: true, includeSnapshots: true },
+  )
+  const executeMs = performance.now() - executeStartedAt
+  byProgram.set(cacheIdentity, result)
+  return { result, prepareMs, executeMs, cacheHit: false }
+}
+
+/**
+ * Execute one advanced program against an existing workspace while retaining
+ * the complete inspection surface required by the rotation page. The cache is
+ * identity-based: immutable workspace/program inputs share the exact result,
+ * while an edited program array always receives a fresh evaluation.
+ */
+export function runPrepWorkDetailedProgram(
+  prepared: PrepWork,
+  items: RotationNode[],
+  cacheIdentity: RotationNode[] = items,
+): ProgramResult | null {
+  return runPrepWorkDetailedProgramTimed(prepared, items, cacheIdentity)?.result ?? null
+}
+
+/**
+ * Stored editor programs execute their Preamble before their Main section.
+ * Keep that presentation rule at the shared execution boundary so every
+ * consumer reuses the same exact detailed result, including imported programs
+ * whose section markers happen to be interleaved in the persisted array.
+ */
+export function runPrepWorkDetailedStoredProgram(
+  prepared: PrepWork,
+  sourceItems: RotationNode[],
+): ProgramResult | null {
+  let items = orderedStoredProgramCache.get(sourceItems)
+  if (!items) {
+    items = orderStoredRotationProgram(sourceItems)
+    orderedStoredProgramCache.set(sourceItems, items)
+  }
+  return runPrepWorkDetailedProgram(prepared, items, sourceItems)
 }
 
 // run the full simulation from a previously prepared workspace snapshot
 export function runPrepWorkS(
     prepared: PrepWork,
     options: {
-      mode?: RotSimulationMode
-      detail?: RotSimulationDetail
+      sequence?: RotationNode[]
+      program?: RotationNode[]
+      detail?: RunDetail
     } = {},
 ): SimResult | null {
   if (!prepared.activeContext || !prepared.activeSeed || !prepared.actRt) {
@@ -196,7 +311,8 @@ export function runPrepWorkS(
       {
         directOutput: prepared.directOutput,
         rotNvrn: prepared.rotNvrn,
-        mode: options.mode,
+        sequence: options.sequence,
+        program: options.program,
         detail: options.detail,
       },
   )

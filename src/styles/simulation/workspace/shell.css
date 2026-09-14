@@ -1,0 +1,232 @@
+.simulation-workspace {
+  --workspace-line: color-mix(in srgb, var(--border) 50%, transparent);
+  --workspace-line-soft: color-mix(in srgb, var(--resonator-accent, var(--accent)) 9%, var(--item-border, var(--border)));
+  --workspace-wash: color-mix(in srgb, var(--resonator-accent, var(--accent)) 4%, var(--inner-bg));
+  --workspace-up: var(--ok, #1eab62);
+  --workspace-down: var(--danger, #cc3f53);
+  --workspace-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --workspace-ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 800px;
+  overflow: visible;
+  gap: 0.8rem;
+  padding: 0.85rem 0 0.5rem 4rem;
+  color: var(--text);
+  transition: gap 300ms var(--workspace-ease);
+  font-family: var(--body-font);
+}
+
+
+.workspace-ink {
+  --workspace-line-soft: color-mix(in srgb, var(--resonator-accent, var(--accent)) 9%, var(--item-border, var(--border)));
+  --workspace-wash: color-mix(in srgb, var(--resonator-accent, var(--accent)) 4%, var(--inner-bg));
+}
+
+.workspace-eyebrow {
+  font: 600 0.6rem/1 var(--mono-font);
+  font-family: var(--ss-labels-font, var(--mono-font));
+  font-size: calc(0.6rem * var(--ss-labels-scale, 1));
+  font-weight: var(--ss-labels-weight, 600);
+  text-transform: var(--ss-labels-tt, uppercase);
+  letter-spacing: var(--ss-labels-ls, 0.22em);
+  color: var(--ss-labels-color, inherit);
+}
+
+.workspace-notice {
+  padding: 1.4rem 1rem;
+  border-radius: 0.8rem;
+  border: 1px dashed var(--workspace-line);
+  background: var(--workspace-wash);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.workspace-notice--error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--workspace-down) 40%, var(--item-border));
+  background: color-mix(in srgb, var(--workspace-down) 8%, transparent);
+  color: color-mix(in srgb, var(--workspace-down) 80%, var(--text));
+}
+
+.workspace-empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 0.7rem;
+  border: 1px dashed var(--workspace-line-soft);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.workspace-card {
+  --workspace-bg: radial-gradient(135% 90% at 50% -20%, color-mix(in srgb, var(--resonator-accent) 7%, transparent), transparent 62%),
+  var(--bg);
+  position: relative;
+  border-radius: 1.1rem;
+  background: var(--workspace-bg);
+}
+
+.workspace-card--mod {
+  height: 45rem;
+  width: 100%;
+  max-width: 20rem;
+  min-width: 16rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 1.3rem auto;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--resonator-accent) 42%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.workspace-board {
+  position: relative;
+  display: flex;
+  justify-content: space-evenly;
+  flex-direction: row;
+  gap: 2rem;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: gap 300ms var(--workspace-ease), padding 300ms var(--workspace-ease);
+}
+
+.simulation-workspace:has(.workspace-board[data-view='showcase']) {
+  gap: 0;
+}
+
+.workspace-board[data-view='showcase'] {
+  gap: 0;
+  width: 100%;
+  padding: 0;
+  justify-content: flex-start;
+}
+
+.workspace-workspace {
+  display: contents;
+}
+
+.workspace-board[data-view='showcase'] .workspace-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  padding: 1.5rem;
+  align-items: center;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.workspace-main[data-phase='out'] {
+  opacity: 0;
+  transform: translateY(0.4rem);
+  pointer-events: none;
+}
+
+.workspace-rail-build[data-phase='out'],
+.workspace-tune[data-phase='out'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workspace-main[data-phase='out'],
+.workspace-rail-build[data-phase='out'] {
+  content-visibility: hidden;
+}
+
+.workspace-main[data-phase='in'],
+.workspace-rail-build[data-phase='in'],
+.workspace-tune[data-phase='in'] {
+  animation: workspace-surface-fade-in 220ms var(--workspace-ease) both;
+}
+
+.workspace-main[data-phase='out'],
+.workspace-main[data-phase='in'] {
+  will-change: opacity, transform;
+}
+
+@keyframes workspace-surface-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.workspace-rail-port {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-height: 0;
+  z-index: 2;
+  min-width: 0;
+}
+
+.workspace-rail-build {
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 0.7rem;
+  flex: 1 1 auto;
+  padding: 1.05rem 1.05rem 1.3rem 0.35rem;
+  min-width: 0;
+  z-index: 2;
+}
+
+.workspace-board[data-view='showcase'] .workspace-rail-wrapper {
+  flex: 1 1 auto;
+  gap: 1rem;
+}
+
+.workspace-board[data-view='showcase'] .workspace-rail {
+  width: 62rem;
+  flex-direction: row;
+  flex-shrink: 0;
+  height: 45rem;
+  gap: 1rem;
+  align-self: unset;
+  align-items: stretch;
+}
+
+.workspace-board[data-view='showcase'] .workspace-rail-port {
+  flex: 0 0 20rem;
+}
+
+.workspace-board[data-view='showcase'] .workspace-rail-build {
+  display: grid;
+}
+
+.reduce-animation .workspace-board,
+.reduce-animation .workspace-board .workspace-rail,
+.reduce-animation .workspace-board .workspace-main,
+.reduce-animation .workspace-board .workspace-rail-build {
+  transition: none;
+  animation: none;
+}
+
+.reduce-animation .workspace-board .workspace-main,
+.reduce-animation .workspace-board .workspace-rail-build {
+  content-visibility: visible;
+}

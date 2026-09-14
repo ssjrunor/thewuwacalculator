@@ -13,7 +13,6 @@ interface RichDscrPrps {
   accentColor?: string
   className?: string
   xtrKywr?: string[]
-  unstyled?: boolean
 }
 
 export function RichDscr({
@@ -22,7 +21,6 @@ export function RichDscr({
   accentColor,
   className,
   xtrKywr: xtrKywr = [],
-  unstyled = false,
 }: RichDscrPrps) {
   const html = useMemo(
     () => fmtDscr(description, params, accentColor, { xtrKywr: xtrKywr }),
@@ -30,15 +28,6 @@ export function RichDscr({
   )
 
   return (
-    <div
-      className={
-        unstyled
-          ? className
-          : ['rich-description', 'changelog-entries', 'main-echo-description', 'guides', className]
-              .filter(Boolean)
-              .join(' ')
-      }
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className={className ?? 'rich-description'} dangerouslySetInnerHTML={{ __html: html }} />
   )
 }

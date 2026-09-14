@@ -124,7 +124,7 @@ async function onCreateShare({ body, clientId, env, requestUrl }: ShareRequest):
   })
 
   const url = new URL(requestUrl)
-  url.pathname = '/calculator'
+  url.pathname = '/modulation'
   url.search = `?s=${encodeURIComponent(token)}`
   url.hash = ''
 

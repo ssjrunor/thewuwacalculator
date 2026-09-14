@@ -115,12 +115,11 @@ export interface ResSttStt {
   combat: CombatState
 }
 
-export type RotationView = 'personal' | 'team' | 'saved'
-
 export interface RotationState {
-  view: RotationView
-  personalItems: RotationNode[]
-  teamItems: RotationNode[]
+  sequence: RotationNode[]
+  program: RotationNode[]
+  /** When the advanced editor last committed this program through Run. */
+  lastRanAt: number | null
 }
 
 export interface TeamMemRt {
@@ -134,6 +133,11 @@ export interface TeamMemRt {
 }
 
 export interface ResRuntime {
+  /**
+   * Materialized adapter for legacy engine and UI consumers. Scenario state is
+   * authoritative; team, shared combat state, routing, manual buffs, and the
+   * program are projected into this shape and must not become separate owners.
+   */
   id: ResonatorId
   base: ResBaseStt
   build: ResMkStt

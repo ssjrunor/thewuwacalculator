@@ -18,7 +18,6 @@ body,
   --muted: color-mix(in srgb, var(--text) var(--m-muted, 72%), var(--m-muted-target, var(--accent)));
   --accent-2: color-mix(in srgb, var(--accent) 74%, var(--text));
   --highlight: var(--accent);
-  --border: color-mix(in srgb, var(--border-seed, var(--accent)) var(--a-border, 25%), var(--c-transparent));
 
   --box-border: var(--border);
   --grid-border: color-mix(in srgb, var(--border) 78%, var(--c-transparent));
@@ -130,7 +129,7 @@ body,
   --hl-color: var(--highlight);
   --hl-fill: var(--c-transparent);
 
-  --modal-bg: var(--surface-2);
+  --modal-bg: color-mix(in srgb, color-mix(in srgb, var(--text) 3%, var(--c-transparent)) 12%, var(--bg));
   --modal-border: var(--ctrl-border);
   --modal-color: var(--text);
   --modal-shadow: none;
@@ -653,7 +652,7 @@ body,
 
 .emerald-forest {
   --bg: rgb(2, 12, 8);
-  --surface: var(--bg);
+  --surface: color-mix(in srgb, rgb(2, 12, 8) 72%, var(--c-white));
   --text: #e0f0e8;
   --accent: #5eeaaa;
 
@@ -765,7 +764,7 @@ body,
   --bg: #101010;
   --surface: #2a2a2a;
   --text: #e8e8e8;
-  --accent: #00e5ff;
+  --accent: #f5a742;
 
   --shell: #222222;
   --highlight: #ff6a00;
@@ -1106,8 +1105,8 @@ body.frosted-aurora,
   -webkit-backdrop-filter: none !important;
 }
 
-.frosted-aurora .bench-card {
-  --bench-bg: transparent;
+.frosted-aurora .workspace-card {
+  --workspace-bg: transparent;
 }
 
 .frosted-aurora #root,
@@ -1180,15 +1179,6 @@ html.frosted-aurora {
   --chip-color: floralwhite;
 }
 
-.dark-text .hamburger-button span {
-  background-color: var(--text);
-}
-
-.frosted-aurora.light-text .hamburger-button span,
-.frosted-aurora .light-text .hamburger-button span {
-  background-color: var(--text);
-}
-
 .glassy-rainbow .toolbar,
 .glassy-rainbow .sidebar {
   background: transparent;
@@ -1224,42 +1214,12 @@ html.frosted-aurora {
   border-right-color: color-mix(in srgb, var(--accent) 28%, var(--border));
 }
 
-.frosted-aurora.light-text .sidebar-button:hover,
-.frosted-aurora .light-text .sidebar-button:hover {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
-}
-
-.frosted-aurora.dark-text .sidebar-button:hover,
-.frosted-aurora .dark-text .sidebar-button:hover {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
-}
-
 .frosted-aurora .partition {
   background: transparent;
 }
 
 .frosted-aurora .layout {
   background: transparent;
-}
-
-.app-shell:is(
-  .pastel-pink,
-  .pastel-blue,
-  .vibrant-citrus,
-  .glassy-rainbow,
-  .sunlit-haze,
-  .dark,
-  .dark-alt,
-  .cosmic-rainbow,
-  .scarlet-nebula,
-  .emerald-forest,
-  .graphite-pop,
-  .frosted-aurora
-) :is(.card, .calculator-toolbar, .mode-toolbar, .resonator-card, .suggestion-card, .kpi-card) {
-  background: var(--box-bg);
-  border-color: var(--box-border);
-  box-shadow: var(--box-shadow);
-  color: var(--text);
 }
 
 :is(.app-modal-panel, .echo-edit-panel) {
@@ -1320,7 +1280,7 @@ html.frosted-aurora {
   background-clip: text;
 }
 
-.dark-text :is(.rich-description.main-echo-description.guides, .trace-node-tooltip .formula-code) {
+.dark-text :is(.rich-description, .trace-node-tooltip .formula-code) {
   color: var(--text);
 }
 
@@ -1329,26 +1289,17 @@ html.frosted-aurora {
 .frosted-aurora .echo-slot,
 .frosted-aurora .echo-set-bonus,
 .frosted-aurora .echo-totals,
-.frosted-aurora .hero-badge,
 .frosted-aurora .ui-pill-button,
 .frosted-aurora .hero-chip,
-.frosted-aurora .resonator-heading-icons,
-.frosted-aurora .resonator-flow-header,
 .frosted-aurora .pane-section:not(.suggestions-controls),
 .frosted-aurora .rotation-item,
-.frosted-aurora .rotation-saved-item,
 .frosted-aurora .page-tile,
-.frosted-aurora .overview-mosaic,
 .frosted-aurora .overview-cell--echoes,
 .frosted-aurora .overview-stats-tree,
-.frosted-aurora .overview-resonator-pill,
-.frosted-aurora .main-stat-card,
 .frosted-aurora .echo-slot-detail-panel,
 .frosted-aurora .stat-row:nth-child(odd),
 .frosted-aurora .sequence-card-badge,
 .frosted-aurora .sequence-card-status,
-.frosted-aurora .team-member-config-modal__state-row,
-.frosted-aurora .team-member-config-modal__summary-pill,
 .frosted-aurora .toolbar,
 .frosted-aurora .sidebar {
   background-color: color-mix(in srgb, var(--bg-main-color, rgba(255, 255, 255, 0.24)) 55%, rgba(255, 255, 255, 0.09)) !important;
@@ -1371,29 +1322,26 @@ html.frosted-aurora {
   background: color-mix(in srgb, var(--hdr-bg) 18%, var(--item-bg));
 }
 
-.dark-text.frosted-aurora .settings-action-btn,
-.dark-text.frosted-aurora .settings-font-preview-copy,
-.frosted-aurora .view-toggle-button:not(.active) {
-  color: #001f37;
-}
-
-.dark-text.frosted-aurora button,
-.dark-text.frosted-aurora .liquid-select__option {
+.dark-text.frosted-aurora button {
   color: floralwhite;
 }
 
 .frosted-aurora .skills-modal-content-area,
 .frosted-aurora .toast-item,
-.frosted-aurora .char-menu-panel,
 .frosted-aurora .skill-menu-panel,
 .frosted-aurora .app-modal-panel,
 .frosted-aurora .echo-edit-panel,
-.frosted-aurora .liquid-select__menu,
-.frosted-aurora .co-skill-select__menu,
+.frosted-aurora .app-popup,
 .frosted-aurora .opt-results-header,
 .frosted-aurora .opt-pagination,
-.frosted-aurora .suggestions-controls {
+.frosted-aurora .suggestions-controls,
+.frosted-aurora .rsl-row.is-selected,
+.frosted-aurora :is(:is(.rte-row, .rte-cond, .rte-swap).is-selected, :is(.rte-row, .rte-cond, .rte-swap).is-selected:hover) {
   background: var(--bg-main-color, rgba(255, 255, 255, 0.14));
+}
+
+.frosted-aurora {
+  --bg: var(--bg-main-color, rgba(255, 255, 255, 0.14));
 }
 
 @keyframes frosted-aurora-drift {

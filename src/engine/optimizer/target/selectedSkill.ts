@@ -12,7 +12,7 @@ export interface OptTargetSkill {
   // stable skill id used for exact effect matching
   id: string
 
-  // display label used by effects that target a named skill family
+  // display label used by the few effects that target a named skill family
   label: string
 
   // source tab/category the skill belongs to

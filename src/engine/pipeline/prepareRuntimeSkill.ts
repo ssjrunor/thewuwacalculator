@@ -6,17 +6,14 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
 import type { SkillDef } from '@/domain/entities/stats'
 import type { CombatContext } from '@/engine/pipeline/types'
 import { makeCombatGraph } from '@/domain/state/combatGraph'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import { listRtSkills } from '@/domain/services/runtimeSourceService'
-import { applySkllDat } from '@/engine/effects/dataEffects'
-import { resolveSkill } from '@/engine/pipeline/resolveSkill'
-
-const prepSkllCch = new WeakMap<CombatGraph, WeakMap<EnemyProfile, Map<string, SkillDef>>>()
+import { evalRuntimeSkillCondition, resolveSkill } from '@/engine/pipeline/resolveSkill'
+import { evaluateNumericSkillCondition, prepareNumericSkill } from '@/engine/effects/numericTeam.ts'
 
 interface RtSkllCtxNpt {
   // active runtime whose skills are being prepared
@@ -43,32 +40,6 @@ interface RtSkllCtxRsl {
 export interface PrepRtSkllRs extends RtSkllCtxRsl {
   // prepared skill after runtime resolution and skill-data effects
   skill: SkillDef
-}
-
-function mkPrepSkllCc(
-    runtimeId: string,
-    targetSlotId: CombatContext['targetSlotId'],
-    skillId: string,
-): string {
-  return `${targetSlotId}:${runtimeId}:${skillId}`
-}
-
-function getPrepSkllC(
-    context: CombatContext,
-): Map<string, SkillDef> {
-  let cacheByEnemy = prepSkllCch.get(context.graph)
-  if (!cacheByEnemy) {
-    cacheByEnemy = new WeakMap<EnemyProfile, Map<string, SkillDef>>()
-    prepSkllCch.set(context.graph, cacheByEnemy)
-  }
-
-  let cache = cacheByEnemy.get(context.enemy)
-  if (!cache) {
-    cache = new Map<string, SkillDef>()
-    cacheByEnemy.set(context.enemy, cache)
-  }
-
-  return cache
 }
 
 // build a transient combat graph around the active runtime and return the
@@ -105,23 +76,10 @@ export function prprRtSkll(
     skill: SkillDef,
     context: CombatContext,
 ): SkillDef {
-  const cache = getPrepSkllC(context)
-  const cacheKey = mkPrepSkllCc(runtime.id, context.targetSlotId, skill.id)
-  const cached = cache.get(cacheKey)
-  if (cached) {
-    return cached
-  }
-
-  const prepared = applySkllDat(runtime, resolveSkill(runtime, skill), {
-    graph: context.graph,
-    targetSlotId: context.targetSlotId,
-    baseStats: context.baseStats,
-    finalStats: context.finalStats,
-    enemy: context.enemy,
-  })
-
-  cache.set(cacheKey, prepared)
-  return prepared
+  const resolved = resolveSkill(runtime, skill, (condition) =>
+    evaluateNumericSkillCondition(context.numericTeam, context.numericLane, condition)
+      ?? evalRuntimeSkillCondition(runtime, condition))
+  return prepareNumericSkill(context.numericTeam, context.numericLane, resolved)
 }
 
 // locate one runtime skill by id, prepare it, and hide it from callers if

@@ -17,6 +17,14 @@ export type TstPstn =
 
 export type ToastVariant = 'default' | 'success' | 'error' | 'warning'
 
+/*
+  Where a toast stands unless its caller says otherwise. Bottom right keeps the
+  report clear of the head, the rail and the account column, and it is the one
+  corner no surface writes into. A caller can still name its own position, but
+  every corner it picks is another place somebody has to learn to look.
+*/
+export const DEF_PSTN: TstPstn = 'bottom-right'
+
 export interface Toast {
   id: string
   content: ReactNode

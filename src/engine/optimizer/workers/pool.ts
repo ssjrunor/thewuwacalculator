@@ -60,8 +60,11 @@ import { getGameDataMode } from '@/data/gameData'
 
 // guardrails for GPU result collection so per-job and collector heaps do not blow up
 const GPU_RESULT_LIMIT = 65536
-const TGTGPUJOBVRS = 2
-const GPU_COLLECT_MUL = 8
+// Keep GPU result staging close to the requested top-k. Oversampling improves
+// recall but creates large transient readbacks and duplicate heap entries; the
+// optimizer is allowed to trade that accuracy for latency and memory.
+const TGTGPUJOBVRS = 1
+const GPU_COLLECT_MUL = 2
 const WORKER_TASK_MS = 300_000
 const PRGRRATEMIN = 1_500
 const PRGRRATEWND = 8_000
@@ -181,7 +184,7 @@ function hasShrdRryBf(): boolean {
   return typeof SharedArrayBuffer !== 'undefined'
 }
 
-// scale a result limit upward for GPU local collection, but clamp it hard
+// Scale a result limit for GPU local collection, but clamp it hard.
 function clmpTgtGpuRs(resultsLimit: number, oversample: number): number {
   const baseLimit = Math.max(1, Math.floor(resultsLimit || 1))
   return Math.min(
@@ -190,15 +193,15 @@ function clmpTgtGpuRs(resultsLimit: number, oversample: number): number {
   )
 }
 
-// result cap for an individual GPU job before merging. low-memory drops
-// the oversample factor so the GPU output buffer allocates only what the
-// user asked for, not 2-8x.
+// Result cap for an individual GPU job before merging. The aggressive default
+// keeps the output buffer at the requested top-k; low-memory mode remains an
+// explicit compatibility switch for callers that rely on that behavior.
 export function resTgtGpuJob(resultsLimit: number, lowMem = false): number {
   return clmpTgtGpuRs(resultsLimit, lowMem ? 1 : TGTGPUJOBVRS)
 }
 
-// larger result cap for the shared collector that merges job outputs.
-// low-memory collapses the collector oversample to 1 for the same reason.
+// Slightly larger result cap for the shared collector that merges job outputs.
+// It is intentionally much smaller than the old 8x oversample.
 export function resTgtGpuCll(resultsLimit: number, lowMem = false): number {
   return clmpTgtGpuRs(resultsLimit, lowMem ? 1 : GPU_COLLECT_MUL)
 }

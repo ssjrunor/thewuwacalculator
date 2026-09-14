@@ -525,14 +525,30 @@ const ECHO_H = 182
 const SET_W = 32
 const SET_H = 32
 
+// run tasks a few at a time so decoding overlaps the network without flooding it
+async function runPooled<T>(items: T[], task: (item: T) => Promise<void>): Promise<void> {
+  const limit = Math.min(8, items.length)
+  let cursor = 0
+
+  await Promise.all(Array.from({ length: limit }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      await task(items[index])
+    }
+  }))
+}
+
 // preload echo images into processed canvas contexts
 export async function prldEchoMgs(
     echoMap: Record<string, string>,
     echoCache: Record<string, CanvasRenderingContext2D>,
+    onEach?: (done: number, total: number) => void,
 ): Promise<void> {
-  for (const [name, url] of Object.entries(echoMap)) {
-    if (echoCache[name]) continue
+  const entries = Object.entries(echoMap).filter(([name]) => !echoCache[name])
+  let done = 0
 
+  await runPooled(entries, async ([name, url]) => {
     try {
       const img = await loadImage(url)
       const ctx = makeCanvas(ECHO_W, ECHO_H)
@@ -555,17 +571,22 @@ export async function prldEchoMgs(
     } catch {
       // skip failed image loads
     }
-  }
+
+    done += 1
+    onEach?.(done, entries.length)
+  })
 }
 
 // preload set images into canvas contexts
 export async function prldSetMgs(
     setMap: Record<string, string>,
     setCache: Record<string, CanvasRenderingContext2D>,
+    onEach?: (done: number, total: number) => void,
 ): Promise<void> {
-  for (const [name, url] of Object.entries(setMap)) {
-    if (setCache[name]) continue
+  const entries = Object.entries(setMap).filter(([name]) => !setCache[name])
+  let done = 0
 
+  await runPooled(entries, async ([name, url]) => {
     try {
       const img = await loadImage(url)
       const ctx = makeCanvas(SET_W, SET_H)
@@ -576,7 +597,10 @@ export async function prldSetMgs(
     } catch {
       // skip failed image loads
     }
-  }
+
+    done += 1
+    onEach?.(done, entries.length)
+  })
 }
 
 // set matching

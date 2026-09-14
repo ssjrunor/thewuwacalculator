@@ -12,6 +12,11 @@ import {
 } from '@/data/gameData/echoSets/effects.ts'
 
 const PCS = [1, 3, 5] as const
+export type OptSetPieceCount = (typeof PCS)[number]
+
+export function optSetPieceCount(setId: number): OptSetPieceCount {
+  return getEchoSetDe(setId)?.setMax ?? 5
+}
 
 // collect every authored set into its real selector bucket
 // use the catalog ids only when authored set metadata has not hydrated yet.

@@ -1,16 +1,25 @@
 /*
   Author: Runor Ewhro
-  Description: shared portal target lookups for calculator overlays and
+  Description: shared portal target lookups for Simulation overlays and
                dialogs that render into either the page body or main shell.
 */
 
-// resolve the app shell content root used by calculator overlays
+/*
+  Resolve the app shell used by Simulation overlays and dialogs.
+
+  This must be the shell and not the aperture inside it. The aperture carries
+  the page transition's view-transition-name, and a named element is a backdrop
+  root: a backdrop-filter portalled inside it has nothing behind it to sample,
+  so a modal's frosted layer would tint the page without ever blurring it.
+*/
 export function mainPortal(): HTMLElement | null {
   if (typeof document === 'undefined') {
     return null
   }
 
-  return (document.querySelector('.main-content') as HTMLElement | null) ?? document.body
+  return (document.querySelector('.app-shell') as HTMLElement | null)
+    ?? (document.querySelector('.main-content') as HTMLElement | null)
+    ?? document.body
 }
 
 // resolve the top-most open app dialog overlay so floating UI can stay interactive within modals

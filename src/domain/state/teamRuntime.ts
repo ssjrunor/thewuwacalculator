@@ -4,7 +4,7 @@
 */
 
 import type { ResRuntime, TeamMemRt } from '@/domain/entities/runtime'
-import { cloneEchoLdt } from '@/domain/entities/inventoryStorage'
+import { cloneEchoLoadout } from '@/domain/entities/inventoryStorage'
 import { cloneBuffs } from '@/domain/state/runtimeCloning'
 import { catTmWpnAtk } from '@/domain/state/weaponState'
 
@@ -17,7 +17,7 @@ export function teamRuntime(runtime: ResRuntime): TeamMemRt {
     },
     build: {
       weapon: catTmWpnAtk(runtime.build.weapon, 90),
-      echoes: cloneEchoLdt(runtime.build.echoes),
+      echoes: cloneEchoLoadout(runtime.build.echoes),
     },
     manualBuffs: cloneBuffs(runtime.state.manualBuffs),
   }

@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Configures vite, local google auth parity routes, test setup,
-               worker output, and chunk boundaries for the calculator app.
+               worker output, and chunk boundaries for the Simulation app.
 */
 
 import path from 'node:path'
@@ -121,7 +121,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // stable vendor groups keep high-churn calculator code from
+            // stable vendor groups keep high-churn Simulation code from
             // invalidating framework and icon chunks on every feature edit.
             if (
               id.includes('/react/') ||
@@ -153,7 +153,7 @@ export default defineConfig(({ mode }) => ({
             id.includes('/src/data/gameData/') ||
             id.includes('/src/domain/gameData/')
           ) {
-            return 'calculator-effects'
+            return 'simulation-effects'
           }
         },
       },

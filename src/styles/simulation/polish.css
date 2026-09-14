@@ -1,0 +1,316 @@
+.card,
+.echo-row,
+.soft-empty {
+  background: color-mix(in srgb, var(--text) 1%, transparent);
+  backdrop-filter: none;
+  transition: background 300ms ease;
+}
+
+.main-content::before,
+.main-content::after,
+.calculator-workspace::before,
+.calculator-pane.partition::before,
+.inherent-skills-box::before,
+.stats-box::before,
+.damage-box::before,
+.resonator-snapshot-card::after {
+  content: none !important;
+}
+
+.gutter::before {
+  background: color-mix(in srgb, var(--resonator-accent) 44%, var(--text));
+  box-shadow: none;
+}
+
+.gutter::after {
+  width: 0.45rem;
+  height: 3rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--resonator-accent) 16%, var(--box-border));
+  background: color-mix(in srgb, var(--resonator-accent) 8%, transparent);
+  box-shadow: none;
+}
+
+.gutter:is(:hover, :focus-visible)::before,
+.split.is-dragging .gutter::before {
+  box-shadow: none;
+}
+:is(.resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn, .trace-icon) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background 260ms ease,
+    box-shadow 220ms ease,
+    border-radius 220ms ease,
+    opacity 220ms ease,
+    color 220ms ease !important;
+}
+
+.trace-icon {
+  transition: all 300ms ease !important;
+}
+
+button,
+button:focus,
+button:active,
+button:focus-visible,
+button:hover {
+  outline: none !important;
+}
+:is(.resonator-avatar-button, .char-menu-item, .ui-pill-button, .rarity-chip, .chip, .danger-btn, .weapon-filter-btn, .attribute-filter-btn)::before {
+  content: '';
+  position: absolute;
+  inset: -20% auto -20% -42%;
+  width: 40%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.08) 72%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease, background 300ms ease;
+  z-index: 0;
+}
+:is(
+  .resonator-avatar-button,
+  .char-menu-item,
+  .ui-pill-button,
+  .rarity-chip,
+  .chip,
+  .danger-btn,
+  .skill-info-button,
+  .weapon-filter-btn,
+  .attribute-filter-btn
+):is(:hover, :focus-visible)::before {
+  opacity: 1;
+  transform: translateX(380%) skewX(-18deg);
+}
+:is(
+  .resonator-avatar-button,
+  .char-menu-item,
+  .rarity-chip,
+  .chip,
+  .danger-btn,
+  .skill-info-button,
+  .weapon-filter-btn,
+  .attribute-filter-btn
+) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.resonator-avatar-button,
+.resonator-avatar--sprite,
+.co-portrait__ring,
+.res-mate,
+.opt-team__thumb-ring {
+  --avatar-rarity-accent: var(--avatar-rarity-color, var(--resonator-accent));
+  --avatar-rarity-border: color-mix(in srgb, var(--avatar-rarity-accent) 72%, transparent);
+  --avatar-rarity-surface: color-mix(in srgb, var(--avatar-rarity-accent) 11%, transparent);
+}
+
+.resonator-avatar-button::before,
+.resonator-avatar-button::after {
+  content: none !important;
+}
+
+.resonator-avatar-button__frame::before {
+  content: '';
+  position: absolute;
+  inset: -20% auto -20% -42%;
+  width: 40%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.08) 72%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease;
+  z-index: 1;
+}
+
+.resonator-avatar-button:is(:hover, :focus-visible) .resonator-avatar-button__frame::before {
+  opacity: 1;
+  transform: translateX(380%) skewX(-18deg);
+}
+
+.resonator-avatar-button__frame::after {
+  content: '';
+  position: absolute;
+  inset: 0.24rem;
+  border-radius: 1.55rem;
+  background: radial-gradient(circle at 82% 16%, color-mix(in srgb, var(--avatar-rarity-surface) 86%, transparent), transparent 30%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.resonator-avatar-button .resonator-avatar--sprite {
+  border: 1px solid color-mix(in srgb, var(--avatar-rarity-border) 56%, var(--hdr-border));
+  background:
+    radial-gradient(circle at 84% 16%, color-mix(in srgb, var(--avatar-rarity-surface) 72%, transparent), transparent 24%),
+    color-mix(in srgb, var(--avatar-rarity-surface) 14%, var(--hdr-bg));
+}
+
+.resonator-avatar-button:hover,
+.resonator-avatar-button:focus-visible {
+  transform: translateY(-3px) scale(1.015);
+}
+
+.resonator-avatar-button:is(:hover, :focus-visible) .resonator-avatar-button__frame {
+  border-color: color-mix(in srgb, var(--avatar-rarity-border) 44%, var(--box-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1.2rem 2rem color-mix(in srgb, var(--avatar-rarity-border) 18%, transparent);
+}
+
+.ui-pill-button:is(:hover, :focus-visible),
+.chip:is(:hover, :focus-visible) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 42%, var(--item-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+}
+
+.chip {
+  border-color: var(--chip-border, color-mix(in srgb, var(--resonator-accent) 18%, var(--item-border)));
+  background: var(--chip-bg, radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 12%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 6%, transparent));
+  color: var(--chip-color, var(--text));
+  box-shadow: var(--chip-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0.1rem 1.2rem color-mix(in srgb, var(--resonator-accent) 9%, transparent));
+}
+
+.chip:is(:hover, :focus-visible) {
+  border-color: var(--chip-hv-border, color-mix(in srgb, var(--resonator-accent) 42%, var(--item-border)));
+  background: var(--chip-hv-bg, var(--chip-bg));
+  color: var(--chip-hv-color, var(--chip-color, var(--text)));
+  box-shadow: var(--chip-hv-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 16%, transparent));
+  text-shadow: var(--chip-hv-text-shadow, none);
+}
+
+.chip.active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--resonator-accent) 56%, var(--item-border));
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.28), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, white 16%, transparent), transparent 78%),
+    color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+  box-shadow:
+    inset 0 1px #ffffff38,
+    0 .1rem 1.8rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+  text-shadow: none;
+}
+.ui-pill-button.active {
+  transform: translateY(-1px);
+  border-color: var(--ctrl-on-border);
+  background: var(--ctrl-on-bg);
+  color: var(--ctrl-on-color, var(--text));
+  box-shadow: var(--ctrl-on-shadow);
+  font-weight: var(--ctrl-on-fw, 700) !important;
+  text-shadow: var(--ctrl-on-text-shadow, none);
+}
+
+.trace-icon:is(:hover, :focus-visible) {
+  transform: translateY(-2px) scale(1.04);
+  border-color: color-mix(in srgb, var(--resonator-accent) 46%, var(--item-border));
+  box-shadow: 0 0.8rem 1.4rem color-mix(in srgb, var(--resonator-accent) 14%, transparent);
+  z-index: 3;
+}
+
+.trace-icon.active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0.85rem 1.5rem color-mix(in srgb, var(--resonator-accent) 18%, transparent);
+}
+
+.trace-icons,
+.inherent-skills-box {
+  overflow: visible;
+}
+
+.skills-modal-content {
+  --amdl-w: 58rem;
+  transform-origin: 50% 14%;
+}
+
+.skills-modal-content-area {
+  scroll-behavior: smooth;
+}
+
+@keyframes calculator-liquid-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(1.5rem, -1.2rem, 0) scale(1.08);
+  }
+}
+
+@keyframes calculator-liquid-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.frosted-aurora :is(
+  .toolbar,
+  .sidebar,
+  .resonator-snapshot-card,
+  .echo-slot,
+  .echo-set-bonus,
+  .echo-totals,
+  .pane-section,
+  .main-stat-card,
+  .custom-buffs-card,
+  .rotation-item,
+  .rotation-saved-item,
+  .page-tile,
+  .rte-page,
+  .rsl,
+  .rte-bar,
+  .rte-totals,
+  .rsl-axis
+) {
+  background: transparent;
+}
+.frosted-aurora :is(
+  .toolbar-icon-shell,
+  .calculator-overview-pill,
+  .calculator-hero-pill,
+  .ui-pill-button,
+  .chip,
+  .danger-btn,
+  .char-menu-item,
+  .rarity-chip,
+  .weapon-filter-btn,
+  .attribute-filter-btn
+):not(.selected, .active) {
+  border: 1px solid rgb(255 255 255 / 0.15);
+  box-shadow: 0 0.55rem 1rem rgba(15, 23, 42, 0.08);
+}

@@ -31,6 +31,8 @@ export function packTargetSkill(
 ): PackedSkill {
   return {
     mode: 'targetSkill',
+    scenarioId: prepared.scenarioId,
+    memberId: prepared.memberId,
 
     // shared optimizer search settings
     resultsLimit: prepared.resultsLimit,

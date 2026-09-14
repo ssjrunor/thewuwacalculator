@@ -1,16 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: Manages the suggestions worker lifecycle and dispatches
-               typed jobs for main stat, set plan, and random computations.
+  Description: Manages the durable suggestions worker lifecycle and dispatches
+               typed jobs for main-stat, set-plan, and weapon computations.
 */
 
 import type {
   MainStatSugg,
   MainStatPrep,
-  RandomPrep,
   PrepSetPlanS,
   PrepWeaponPlan,
-  RandomEntry,
   SetPlanSuggest,
   SuggsWrkrInM,
   SuggsWrkrOut,
@@ -18,19 +16,15 @@ import type {
 } from '@/engine/suggestions/types'
 import { getGameDataMode } from '@/data/gameData'
 
-// single shared worker instance reused across all suggestion jobs
 let worker: Worker | null = null
 
-// incremental id so each request can be matched to its response
 let nextJobId = 1
 
-// pending job callbacks keyed by worker message id
 const pendingJobs = new Map<number, {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
 }>()
 
-// lazily create the worker and attach message/error handlers once
 function ensureWorker(): Worker {
   if (worker) {
     return worker
@@ -41,7 +35,6 @@ function ensureWorker(): Worker {
       { type: 'module' },
   )
 
-  // resolve or reject the matching pending promise when the worker responds
   worker.onmessage = (event: MessageEvent<SuggsWrkrOut>) => {
     const message = event.data
     const pending = pendingJobs.get(message.id)
@@ -60,7 +53,7 @@ function ensureWorker(): Worker {
     pending.reject(new Error(message.error))
   }
 
-  // if the worker crashes, reject every pending job and clear the queue
+  // A worker failure invalidates every request awaiting that shared instance.
   worker.onerror = (event) => {
     const error = new Error(event.message || 'Suggestions worker failed unexpectedly')
 
@@ -74,7 +67,6 @@ function ensureWorker(): Worker {
   return worker
 }
 
-// run a main-stat suggestion job through the worker
 export function runMainStatS(
     payload: MainStatPrep,
 ): Promise<MainStatSugg[]> {
@@ -97,7 +89,6 @@ export function runMainStatS(
   }) as Promise<MainStatSugg[]>
 }
 
-// run a set-plan suggestion job through the worker
 export function runSetPlanSu(
     payload: PrepSetPlanS,
 ): Promise<SetPlanSuggest[]> {
@@ -120,30 +111,6 @@ export function runSetPlanSu(
   }) as Promise<SetPlanSuggest[]>
 }
 
-// run a random suggestion job through the worker
-export function runRandSuggs(
-    payload: RandomPrep,
-): Promise<RandomEntry[]> {
-  return new Promise((resolve, reject) => {
-    const id = nextJobId++
-
-    pendingJobs.set(id, {
-      resolve: (value) => resolve(value as RandomEntry[]),
-      reject,
-    })
-
-    const message: SuggsWrkrInM = {
-      id,
-      gameDataMode: getGameDataMode(),
-      type: 'random',
-      payload,
-    }
-
-    ensureWorker().postMessage(message)
-  }) as Promise<RandomEntry[]>
-}
-
-// run a weapon suggestion job through the worker
 export function runWpnSuggs(
     payload: PrepWeaponPlan,
 ): Promise<WeaponEntry[]> {

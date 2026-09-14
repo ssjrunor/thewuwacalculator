@@ -293,12 +293,12 @@ export const gdCtgr: GuideCategory[] = [
       ),
       article(
         'rotation-live-saved-and-team-state',
-        'Live, Saved, and Team Rotation State',
+        'Live and Saved Rotation State',
         'Load rotations without mixing up the editor, saved records, and teammate links.',
         section(
           'Rotation locations',
           definitions(
-            ['Live rotation', 'The rotation currently attached to the active resonator in the calculator.'],
+            ['Live rotation', 'The rotation currently attached to the active resonator in the selected scenario.'],
             ['Saved rotation', 'A stored rotation record that can be loaded back into live state.'],
             ['Team rotation link', 'A teammate rotation selected by the team pane for team contribution calculations.'],
             ['Imported rotation', 'A rotation loaded from a JSON payload or older backup format.']
@@ -629,27 +629,26 @@ export const gdCtgr: GuideCategory[] = [
     ],
   },
   {
-    id: 'benchmark',
-    title: 'Benchmark',
-    summary: 'Refresh the benchmark report, read target comparisons, and use the showcase view.',
-    aliases: ['Benchmark', 'Build Benchmark', 'Showcase'],
+    id: 'modulation',
+    title: 'Modulation',
+    summary: 'Tune a build, read its evaluation, and use the Showcase tool.',
+    aliases: ['Modulation', 'Build Evaluation', 'Showcase'],
     articles: [
       article(
-        'benchmark-report',
-        'Benchmark Report',
-        'Read the current build against generated benchmark targets.',
+        'evaluation-report',
+        'Evaluation Report',
+        'Read the current build against generated reference and maximum builds.',
         section(
           'Report sections',
           definitions(
             ['Current build', 'The live build being measured.'],
-            ['100 percent target', 'The generated target build used as the lower benchmark comparison.'],
-            ['200 percent target', 'The generated target build used as the higher benchmark comparison.'],
+            ['100 percent target', 'The generated reference build used as the lower comparison.'],
+            ['200 percent target', 'The generated maximum build used as the higher comparison.'],
             ['Per-step change', 'The table showing how one stat increment changes the selected target.'],
             ['Current build state', 'The table showing how current stat investment is valued by the selected target.']
           ),
           steps(
-            ['Open Benchmark', 'Navigate to the benchmark route for the active build.'],
-            ['Refresh the report', 'Use refresh after changing the build, target, or benchmark settings.'],
+            ['Open Modulation', 'Navigate to Modulation for the active build.'],
             ['Compare target cards', 'Read current, 100 percent, and 200 percent cards side by side.'],
             ['Read stat tables', 'Use per-step rows for next-stat direction and current-state rows for existing investment.']
           ),
@@ -658,18 +657,18 @@ export const gdCtgr: GuideCategory[] = [
       article(
         'showcase-view',
         'Showcase View',
-        'Create a presentation card from the current benchmark context.',
+        'Create a presentation card from the current simulation context.',
         section(
           'Showcase controls',
           definitions(
-            ['Showcase card', 'The presentation view built from the selected resonator, build, stats, and benchmark context.'],
+            ['Showcase card', 'The presentation view built from the selected resonator, build, stats, and evaluation context.'],
             ['Card preset', 'A saved visual layout and style set for the card.'],
             ['Export', 'The action that copies or downloads the rendered card.']
           ),
           steps(
-            ['Open Showcase', 'Switch from the benchmark route into the showcase view.'],
+            ['Open Showcase', 'Open the separate Showcase tool from the Simulation navigation.'],
             ['Choose card settings', 'Select the visual preset, visible stat groups, and any card options shown.'],
-            ['Review displayed data', 'Check the resonator, weapon, echo, stat, and benchmark fields on the card.'],
+            ['Review displayed data', 'Check the resonator, weapon, Echo, stat, and evaluation fields on the card.'],
             ['Export the card', 'Use copy or download from the showcase actions.']
           ),
         ),
@@ -754,14 +753,14 @@ export const gdCtgr: GuideCategory[] = [
             ['Result row', 'One legal candidate build sorted by the selected objective.'],
             ['Preview', 'A non-written view of the candidate build and output.'],
             ['Apply to sim', 'Writes the candidate into optimizer simulation state.'],
-            ['Apply to live', 'Writes the candidate into the normal calculator build state.'],
+            ['Apply to live', 'Writes the candidate into the active scenario build.'],
             ['Delta', 'The difference between the candidate row and the displayed base row.']
           ),
           steps(
             ['Open a result', 'Inspect the candidate echoes, weapon, stats, and output.'],
             ['Preview before writing', 'Use preview to compare without changing live state.'],
             ['Apply to sim', 'Keep experimenting in optimizer state after adopting a candidate there.'],
-            ['Apply to live', 'Move the selected candidate into the active calculator build.']
+            ['Apply to live', 'Move the selected candidate into the active scenario build.']
           ),
         ),
       ),
@@ -1280,11 +1279,11 @@ export const gdCtgr: GuideCategory[] = [
           definitions(
             ['Persisted state', 'Saved browser state that returns after refresh.'],
             ['Session state', 'Temporary UI state that may reset when the surface closes or reloads.'],
-            ['Live calculator state', 'The active resonator, build, rotation, enemy, team, and manual state currently used by calculations.'],
+            ['Live scenario state', 'The active resonator, build, rotation, enemy, team, and manual state currently used by Simulation tools.'],
             ['Derived state', 'Computed output rebuilt from live state rather than stored directly.']
           ),
           steps(
-            ['Edit live state', 'Normal calculator controls update live state and persist where the app stores that domain.'],
+            ['Edit live state', 'Simulation controls update live state and persist where the app stores that domain.'],
             ['Refresh to reload', 'Persisted state returns after page refresh in the same browser profile.'],
             ['Export for transfer', 'Use backup export or sync to move state to another device or browser.']
           ),

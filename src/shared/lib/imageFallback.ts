@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: shared image fallback handlers for calculator and content ui
+  Description: shared image fallback handlers for Simulation and Read UI
                so repeated onerror helpers do not live inside features.
 */
 

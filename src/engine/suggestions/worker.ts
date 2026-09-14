@@ -24,7 +24,6 @@ function loadSuggsCor() {
   return suggsCorePrm
 }
 
-// handle incoming worker jobs and route them to the correct suggestion runner
 self.onmessage = async (event: MessageEvent<SuggsWrkrInM>) => {
   const message = event.data
   const scope = self as DedicatedWorkerGlobalScope
@@ -33,22 +32,17 @@ self.onmessage = async (event: MessageEvent<SuggsWrkrInM>) => {
     await initGameData({ mode: message.gameDataMode })
     const {
       runMainStats: mainRunner,
-      runRandGnrt: randRunner,
       runSetPlanqc: setRunner,
       runWpnSuggs: wpnRunner,
     } = await loadSuggsCor()
 
-    // pick the correct runner based on the message type
     const result =
         message.type === 'mainStats'
             ? mainRunner(message.payload)
             : message.type === 'setPlans'
                 ? setRunner(message.payload)
-                : message.type === 'weapons'
-                    ? wpnRunner(message.payload)
-                    : await randRunner(message.payload)
+                : wpnRunner(message.payload)
 
-    // send a success response back to the main thread
     const response: SuggsWrkrDon = {
       id: message.id,
       ok: true,
@@ -57,7 +51,6 @@ self.onmessage = async (event: MessageEvent<SuggsWrkrInM>) => {
 
     scope.postMessage(response)
   } catch (error) {
-    // send a structured error response back to the main thread
     const response: SuggsWrkrRrr = {
       id: message.id,
       ok: false,

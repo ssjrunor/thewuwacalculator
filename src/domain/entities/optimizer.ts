@@ -1,10 +1,8 @@
 /*
   Author: Runor Ewhro
   Description: Defines optimizer state types for set selections, stat
-               constraints, settings, and runtime-bound optimizer context.
+               constraints, and settings.
 */
-
-import type { ResonatorId, ResRuntime } from './runtime'
 
 export interface OptSetChoice {
   1: number[]
@@ -38,11 +36,4 @@ export interface OptSets {
   // theory mode only: search the best weapon per build and show it as a column.
   includeWeapons: boolean
   statConstraints: Record<string, OptStatCstr>
-}
-
-export interface OptContext {
-  resonatorId: ResonatorId
-  runtime: ResRuntime
-  sourceRuntimeSig: string
-  settings: OptSets
 }

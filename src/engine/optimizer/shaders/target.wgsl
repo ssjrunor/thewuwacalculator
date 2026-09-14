@@ -916,8 +916,7 @@ fn evalMainPos(
             params.dmgAmplify *
             pre.aux0;
         let cr = clamp(pre.packedCritRate, 0.0, 1.0);
-        let critHit = normal * pre.packedCritDmg;
-        avg = cr * critHit + (1.0 - cr) * normal;
+        avg = optimizerAverageDamage(normal, cr, pre.packedCritDmg);
         constraintCritRate = pre.packedCritRate;
         constraintCritDmg = pre.packedCritDmg;
         constraintDmgBonus = pre.packedDmgBonus;
@@ -937,8 +936,7 @@ fn evalMainPos(
             params.dmgAmplify *
             pre.aux0;
         let cr = clamp(pre.packedCritRate, 0.0, 1.0);
-        let critHit = normal * pre.packedCritDmg;
-        avg = cr * critHit + (1.0 - cr) * normal;
+        avg = optimizerAverageDamage(normal, cr, pre.packedCritDmg);
         constraintCritRate = pre.packedCritRate;
         constraintCritDmg = pre.packedCritDmg;
         constraintDmgBonus = pre.packedDmgBonus;
@@ -950,9 +948,7 @@ fn evalMainPos(
             pre.toggles,
         );
         let base = (scaled * multiplier + pre.flatDmg) * baseMul * dmgBonus;
-        let critHit = base * critDmgForDmg;
-        let cr = clamp(critRateForDmg, 0.0, 1.0);
-        avg = cr * critHit + (1.0 - cr) * base;
+        avg = optimizerAverageDamage(base, critRateForDmg, critDmgForDmg);
     }
 
     if (!passes_constraints(

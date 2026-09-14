@@ -6,7 +6,7 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import { cloneEchoLdt, cloneRotNds } from '@/domain/entities/inventoryStorage'
+import { cloneEchoLoadout, cloneRotationNodes } from '@/domain/entities/inventoryStorage'
 import type { ManualBuffs, MnlMod, QuickBuffs } from '@/domain/entities/manualBuffs'
 import type { ResProf, SlotLocalState, SlotRatingState } from '@/domain/entities/profile'
 import { cloneOptInventorySelection } from '@/domain/entities/profile'
@@ -118,11 +118,22 @@ export function cloneWpnMkSt(weapon: WeaponState): WeaponState {
   return catWpnAtk(weapon)
 }
 
-export function cloneRotation(rotation: RotationState): RotationState {
+type RotationStateInput = Partial<RotationState> & {
+  items?: RotationState['sequence']
+  runItems?: RotationState['program']
+  personalItems?: RotationState['sequence']
+  teamItems?: RotationState['program']
+}
+
+export function cloneRotation(rotation: RotationStateInput): RotationState {
+  const sequence = rotation.sequence ?? rotation.items ?? rotation.personalItems ?? []
+  const program = rotation.program ?? rotation.runItems ?? rotation.teamItems ?? []
   return {
-    view: rotation.view,
-    personalItems: cloneRotNds(rotation.personalItems),
-    teamItems: cloneRotNds(rotation.teamItems),
+    sequence: cloneRotationNodes(sequence),
+    program: cloneRotationNodes(program),
+    lastRanAt: typeof rotation.lastRanAt === 'number' && Number.isFinite(rotation.lastRanAt)
+      ? rotation.lastRanAt
+      : null,
   }
 }
 
@@ -167,7 +178,7 @@ export function cloneTeamMem(teamMember: TeamMemRt): TeamMemRt {
     },
     build: {
       weapon: catTmWpnAtk(teamMember.build.weapon, TEAM_WPN_LVL),
-      echoes: cloneEchoLdt(teamMember.build.echoes),
+      echoes: cloneEchoLoadout(teamMember.build.echoes),
     },
     manualBuffs: cloneBuffs(teamMember.manualBuffs),
   }
@@ -188,7 +199,7 @@ export function cloneResRtSt(runtime: ResRuntime): ResRuntime {
     base: cloneResBase(runtime.base),
     build: {
       weapon: cloneWpnMkSt(runtime.build.weapon),
-      echoes: cloneEchoLdt(runtime.build.echoes),
+      echoes: cloneEchoLoadout(runtime.build.echoes),
       team: [...runtime.build.team],
     },
     state: cloneRtSttVl(runtime.state),
@@ -204,7 +215,7 @@ export function cloneResProf(profile: ResProf): ResProf {
       progression: cloneResBase(profile.runtime.progression),
       build: {
         weapon: cloneWpnMkSt(profile.runtime.build.weapon),
-        echoes: cloneEchoLdt(profile.runtime.build.echoes),
+        echoes: cloneEchoLoadout(profile.runtime.build.echoes),
       },
       local: cloneSlotLcl(profile.runtime.local),
       routing: cloneSlotRtn(profile.runtime.routing),

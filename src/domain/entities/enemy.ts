@@ -5,6 +5,7 @@
 */
 
 import type { EnemyProfile, EnemyResistN, EnemyResistT } from '@/domain/entities/appState'
+import type { AttributeKey } from '@/domain/entities/stats'
 
 export type EnemyElemId = EnemyResistN
 export type EnemyClassId = 1 | 2 | 3 | 4
@@ -56,7 +57,7 @@ export const ENEMY_ELEM_TXT: Record<EnemyElemId, string> = {
 }
 
 // attribute keys for enemy elements
-export const ENEMY_ELEM_ATTR: Record<EnemyElemId, string> = {
+export const ENEMY_ELEM_ATTR: Record<EnemyElemId, AttributeKey> = {
   0: 'physical',
   1: 'glacio',
   2: 'fusion',

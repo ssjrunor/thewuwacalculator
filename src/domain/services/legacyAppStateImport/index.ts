@@ -4,14 +4,15 @@
                data into the current persistence schema.
 */
 
-import type { PersistedState, UiState } from '@/domain/entities/appState'
-import type { InventoryEntry, InvEchoEnt } from '@/domain/entities/inventoryStorage'
+import type { HydratedAppState, PersistedState, UiState } from '@/domain/entities/appState'
+import type { SavedBuild, SavedEcho } from '@/domain/entities/inventoryStorage'
 import type { ManualBuffs, MnlMod } from '@/domain/entities/manualBuffs'
 import type { ResProf } from '@/domain/entities/profile'
 import type { TeamMemRt, TeamSlots, TraceNodeBuffs, WeaponState } from '@/domain/entities/runtime'
 import type { AttributeKey, SkillTypeKey } from '@/domain/entities/stats'
 import { makeAppState, makeResProfile, makeSuggest, makeCustomBuff, makeEnemy, makeTeamMember, makeTraceNode, normProfTeam } from '@/domain/state/defaults'
 import { initAppState } from '@/domain/state/defaults'
+import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { cnvrLegEchoL } from './echoes'
 import {
@@ -255,7 +256,7 @@ function mkLegEnemyPr(charInfo: JsonRecord) {
 function mkLegInvChs(
   stores: JsonRecord,
   issues: LegMprtSs[],
-): InvEchoEnt[] {
+): SavedEcho[] {
   // bag imports are not slot-aware because saved inventory echoes are loose
   // items; slot validation is only applied when importing equipped loadouts.
   const echoes = cnvrLegEchoL(
@@ -282,7 +283,7 @@ function mkLegInvBlds(
   stores: JsonRecord,
   statesById: Record<string, JsonRecord>,
   issues: LegMprtSs[],
-): InventoryEntry[] {
+): SavedBuild[] {
   const presets = Array.isArray(stores.echoPresets) ? stores.echoPresets : []
 
   return presets.flatMap((preset, index) => {
@@ -436,7 +437,7 @@ function xtrcLegProfS(charInfo: JsonRecord, issues: LegMprtSs[]): Record<string,
 
 export function mprtLegAppSt(
   parsed: unknown,
-  options: { baseState?: PersistedState } = {},
+  options: { baseState?: PersistedState | HydratedAppState } = {},
 ): LegAppSttMpr {
   const backup = xtrcLegAppBc(parsed)
   const baseState = initAppState(options.baseState ?? makeAppState())
@@ -472,25 +473,31 @@ export function mprtLegAppSt(
   const actResId =
     (rqstActId && profiles[rqstActId] ? rqstActId : null)
     ?? mprtProfIds[0]
-    ?? baseState.calculator.session.activeResonatorId
+    ?? selectedCombatScenario(baseState.combat).team.members[0]?.resonatorId
 
   // initialize again after composing the snapshot so any missing new domains
   // are filled from current defaults without preserving stale optimizer state.
   const snapshot = initAppState({
     ...baseState,
+    // Legacy backups define their encounter through imported profiles/session;
+    // the default scenario must not override that migration input.
+    combat: undefined,
     ui: resLegUi(backup.controls, baseState.ui),
-    calculator: {
+    library: {
+      echoes: mkLegInvChs(backup.stores, issues),
+      builds: mkLegInvBlds(backup.stores, statesById, issues),
+      rotations: [],
+      scenarios: [],
+    },
+    simulation: {
       runtimeRevision: 0,
       profiles,
       session: {
         activeResonatorId: actResId,
         enemyProfile: mkLegEnemyPr(backup.charInfo),
       },
-      inventoryEchoes: mkLegInvChs(backup.stores, issues),
-      inventoryBuilds: mkLegInvBlds(backup.stores, statesById, issues),
-      inventoryRotations: [],
-      optimizerContext: null,
-      weaponSuggests: baseState.calculator.weaponSuggests,
+      optimizerSettings: baseState.simulation.optimizerSettings,
+      weaponSuggests: baseState.simulation.weaponSuggests,
       suggestionsByResonatorId: suggsByResId,
     },
   })
@@ -498,10 +505,10 @@ export function mprtLegAppSt(
   const report: LegMprtRprt = {
     importedProfileIds: mprtProfIds,
     skippedProfileIds: skppProfIds,
-    importedInventoryEchoes: snapshot.calculator.inventoryEchoes.length,
-    importedInventoryBuilds: snapshot.calculator.inventoryBuilds.length,
-    importedInventoryRotations: snapshot.calculator.inventoryRotations.length,
-    importedSuggestionStates: Object.keys(snapshot.calculator.suggestionsByResonatorId).length,
+    importedInventoryEchoes: snapshot.library.echoes.length,
+    importedInventoryBuilds: snapshot.library.builds.length,
+    importedInventoryRotations: snapshot.library.rotations.length,
+    importedSuggestionStates: Object.keys(snapshot.simulation.suggestionsByResonatorId).length,
     issues,
   }
 
@@ -513,7 +520,7 @@ export function mprtLegAppSt(
 
 export function importLegacyApp(
   raw: string,
-  options: { baseState?: PersistedState } = {},
+  options: { baseState?: PersistedState | HydratedAppState } = {},
 ): LegAppSttMpr {
   const backup = prsLegAppBck(raw)
   return mprtLegAppSt(backup, options)

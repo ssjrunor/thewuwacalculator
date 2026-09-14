@@ -5,6 +5,7 @@
 */
 
 import rotShdrCode from '@/engine/optimizer/shaders/rotation.wgsl?raw'
+import { withOptimizerDamageSpec } from '@/engine/optimizer/damageSpec.ts'
 import {
   mkChckBindGr,
   mkChckCmptPp,
@@ -14,6 +15,7 @@ import {
 let cchdRotLyt: GPUBindGroupLayout | null = null
 let cchdRotPpln: GPUComputePipeline | null = null
 let cchdRotBatchPpln: GPUComputePipeline | null = null
+const rotationShaderCode = withOptimizerDamageSpec(rotShdrCode)
 
 // theory batch runs one combo per thread so every combo gets its own candidate
 // slot. inventory uses the default multi-cycle pipeline, where one thread keeps
@@ -85,7 +87,7 @@ export async function getRotGpuPpl(device: GPUDevice): Promise<{
     device,
     label: 'optimizer-rebuild-rotation-pipeline',
     layout: cchdRotLyt,
-    code: rotShdrCode,
+    code: rotationShaderCode,
   })
 
   return {
@@ -106,7 +108,7 @@ export async function getRotBatchPpl(device: GPUDevice): Promise<GPUComputePipel
     device,
     label: 'optimizer-rebuild-rotation-pipeline-batch',
     layout,
-    code: rotShdrCode,
+    code: rotationShaderCode,
     constants: { CYCLES_PER_INVOCATION: BATCH_CYCLES },
   })
 

@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: owns the long-form reference documentation entries used by the
-               docs page, keeping calculator math and benchmark explanations in
+               docs page, keeping simulation math and evaluation explanations in
                structured data rather than page component branches.
 */
 
@@ -23,7 +23,7 @@ export interface DocTableBlock {
   rows: string[][]
 }
 
-/** Renders the live grade ladder from the benchmark module. */
+/** Renders the live grade ladder from the evaluation module. */
 export interface DocLadderBlock {
   type: 'ladder'
   caption: string
@@ -74,8 +74,8 @@ export interface DocTopic {
   sections: DocSection[]
 }
 
-const benchmarkTopic: DocTopic = {
-  id: 'build-benchmark',
+const evaluationTopic: DocTopic = {
+  id: 'build-evaluation',
   code: 'SCORE',
   eyebrow: 'Scoring',
   title: 'Scoring',
@@ -86,7 +86,7 @@ const benchmarkTopic: DocTopic = {
     'Illustrative numbers. The anchors here were measured from S0R1 Phoebe in a team with an S6R5 Rover: Spectro and S0R1 Chisa (Rejuvenating Glow + Moonlit Clouds).',
     'The exact damage at each anchor shifts with the resonator, team, weapon, and scenario, so the curve will not be identical for every character, but it will look like this. The shape of the scale and how the percent maps onto real damage holds.',
   ],
-  aliases: ['benchmark', 'build-score', 'dps-score', 'echo-score', 'cv', 'crit-value'],
+  aliases: ['evaluation', 'build-score', 'dps-score', 'echo-score', 'cv', 'crit-value'],
   sections: [
     {
       id: 'score-request',
@@ -97,7 +97,7 @@ const benchmarkTopic: DocTopic = {
           text: [
             'A build score request starts with the selected resonator state, the latest simulation, the enemy profile, and the other team members. The score cannot be computed from Echo totals alone, because the denominator is generated for the same rotation, team state, enemy, weapon, active controls, Sonata state, and main Echo assumptions.',
             'The returned number is active build damage placed on a generated reference scale. The active build is real. The 100 and 200 reference builds are generated legal builds. The score is therefore a damage comparison inside one standardized combat situation, not a universal account value.',
-            'So scores stay comparable, the benchmark does not score your exact field state. It first normalizes the situation to fixed endgame conditions: the resonator is forced to level 90, every skill level is maxed, every trace node is maxed, and the equipped weapon is taken to its max level. The target is replaced with a standard level 100, 20% RES enemy. Your equipped Echoes, weapon choice and rank, sequence, team, and active controls are kept as set; only the levels and the enemy are standardized.',
+            'So scores stay comparable, the evaluation does not score your exact field state. It first normalizes the situation to fixed endgame conditions: the resonator is forced to level 90, every skill level is maxed, every trace node is maxed, and the equipped weapon is taken to its max level. The target is replaced with a standard level 100, 20% RES enemy. Your equipped Echoes, weapon choice and rank, sequence, team, and active controls are kept as set; only the levels and the enemy are standardized.',
           ],
         },
         {
@@ -112,8 +112,8 @@ const benchmarkTopic: DocTopic = {
             '    teamRuntimeState',
             '}',
             '',
-            'benchmark = buildBenchmark(input)',
-            'score = benchmark.percent * 100',
+            'evaluation = buildEvaluation(input)',
+            'score = evaluation.percent * 100',
           ],
         },
       ],
@@ -133,7 +133,7 @@ const benchmarkTopic: DocTopic = {
           type: 'table',
           columns: ['Loaded data', 'Scoring use'],
           rows: [
-            ['Resonator seed', 'selects the benchmark rotation used to compute active damage and reference damage'],
+            ['Resonator seed', 'selects the evaluation rotation used to compute active damage and reference damage'],
             ['Current resonator state', 'provides weapon, Echoes, active controls, stack values, combat state, and team links'],
             ['Echo stat table', 'defines legal main stats, fixed secondary stats, substat keys, and legal roll values'],
             ['Echo catalog', 'defines cost, set membership, and legal main Echo carriers'],
@@ -144,30 +144,30 @@ const benchmarkTopic: DocTopic = {
       ],
     },
     {
-      id: 'benchmark-context',
-      title: '03 Benchmark Context',
+      id: 'evaluation-context',
+      title: '03 Evaluation Context',
       blocks: [
         {
           type: 'prose',
           text: [
-            'The benchmark uses a set rotation independent of what you (the user) can set. User rotation edits do not define the build-score rotation. The equipped Echoes, weapon, weapon rank, sequence, team, active controls, and combat state remain part of the situation; the resonator/weapon/skill/trace levels and the enemy are the standardized ones described above.',
-            'Set state is rebuilt for benchmark scoring. If the equipped build has a completed utility Sonata set, the benchmark preserves that utility set only with the same active controls and stack values currently present on the selected resonator.',
+            'The evaluation uses a set rotation independent of what you can set. User rotation edits do not define the build-score rotation. The equipped Echoes, weapon, weapon rank, sequence, team, active controls, and combat state remain part of the situation; the resonator, weapon, skill, and trace levels and the enemy are standardized as described above.',
+            'Set state is rebuilt for evaluation scoring. If the equipped build has a completed utility Sonata set, the evaluation preserves that utility set only with the same active controls and stack values currently present on the selected resonator.',
             'BTW! A "Utility" sonata set are just sets i flagged as not entirely dps focused like Moonlit Clouds and Rejuvenating Glow :P'
           ],
         },
         {
           type: 'formula',
           caption: 'FLOW.2',
-          title: 'Benchmark context construction',
+          title: 'Evaluation context construction',
           lines: [
-            'benchmarkRuntime = standardize(currentRuntime)',
+            'evaluationRuntime = standardize(currentRuntime)',
             '    resonator level -> 90',
             '    all skill levels -> max',
             '    all trace nodes -> max',
             '    weapon level -> max (weapon and rank kept)',
             'enemy = standard level 100, 20% RES',
             '',
-            'benchmarkRuntime.rotation = defaultPersonalRotation(resonator)',
+            'evaluationRuntime.rotation.sequence = defaultRotationSequence(resonator)',
             '',
             'utilityPlan = completed utility Sonata sets in equipped Echoes',
             'enabledSetStates = characterSetRule(resonator)',
@@ -189,8 +189,8 @@ const benchmarkTopic: DocTopic = {
         {
           type: 'prose',
           text: [
-            'A build is scored by converting the equipped Echoes into flat stat totals, active Sonata pieces, the selected main Echo effect, and the selected main Echo slot. That Echo contribution is added to the prepared benchmark combat context and evaluated.',
-            'Every damage entry in the benchmark rotation is evaluated against that Echo contribution and multiplied by its rotation contribution weight. The final active damage is the weighted sum across the whole rotation.',
+            'A build is scored by converting the equipped Echoes into flat stat totals, active Sonata pieces, the selected main Echo effect, and the selected main Echo slot. That Echo contribution is added to the prepared evaluation combat context and evaluated.',
+            'Every damage entry in the evaluation rotation is evaluated against that Echo contribution and multiplied by its rotation contribution weight. The final active damage is the weighted sum across the whole rotation.',
           ],
         },
         {
@@ -201,7 +201,7 @@ const benchmarkTopic: DocTopic = {
             'echoContribution = build Echo stat and effect contribution(equipped Echoes)',
             '',
             'activeDamage = 0',
-            'for each damage entry in the benchmark rotation:',
+            'for each damage entry in the evaluation rotation:',
             '    activeDamage += evaluate(entry, echoContribution) * entryWeight',
           ],
         },
@@ -288,6 +288,7 @@ const benchmarkTopic: DocTopic = {
           type: 'prose',
           text: [
             'For each generated Echo/set/main-Echo frame, the search discovers which stats can actually move damage before it enumerates primary main stats and substat fills. It starts from the frame with main stats only, removes the frame\'s current primary main stats, adds one high probe value for every legal stat, scores that full probe, then removes one probed stat at a time. A stat is useful when removing it changes damage.',
+            'The report uses a deterministic beam of the most promising frame families and a bounded main-stat candidate budget. This is intentionally an estimate: it keeps the UI responsive and memory-bounded, but it can miss a theoretically stronger legal reference build.',
             'Useful stats are used to keep main-stat enumeration and substat filling focused. Energy Regen is removed for resonators that intentionally ignore ER. When the equipped build has an ER target, Energy Regen is forced into the useful set so the reference build can satisfy the target even if ER does not increase direct damage.',
           ],
         },
@@ -338,8 +339,8 @@ const benchmarkTopic: DocTopic = {
         {
           type: 'prose',
           text: [
-            'The reference search runs two passes through the same candidates. The 100 anchor uses the benchmark roll model. The 200 anchor uses the maximum roll model. Both assume the game has five Echoes and 25 total substat lines, but the benchmark model deliberately uses a lower line budget, 80% roll quality, per-stat diminishing returns, and a small starting amount on every useful substat.',
-            'A line is one sub stat slot; a full five-Echo build has 25 (5 * 5). The model rates a perfect build at 54 reference rolls and the benchmark build at 48 (≈88.888888888888888888889% of perfection), and every budget below is that ratio applied to the 25 lines. The benchmark model also runs at 80% roll quality, with per-stat diminishing returns and a small starting amount on every useful sub stat.',
+            'The reference search runs two passes through the same candidates. The 100 anchor uses the reference roll model. The 200 anchor uses the maximum roll model. Both assume the game has five Echoes and 25 total substat lines, but the reference model deliberately uses a lower line budget, 80% roll quality, per-stat diminishing returns, and a small starting amount on every useful substat.',
+            'A line is one substat slot; a full five-Echo build has 25 (5 * 5). The model rates a maximum build at 54 reference rolls and the reference build at 48 (about 88.89% of maximum), and every budget below is that ratio applied to the 25 lines. The reference model also runs at 80% roll quality, with per-stat diminishing returns and a small starting amount on every useful substat.',
             'A roll here is just a step value as Wuthering Waves doesn\'t really do rolls. For example, a "roll" of Crit. Rate would be 6.9% - 6.3%, so 0.6%. You dig? You\'re here, you\'re smart, so you probably do (ദ്ദി˙ᗜ˙)'
           ],
         },
@@ -402,7 +403,7 @@ const benchmarkTopic: DocTopic = {
           text: [
             'Energy Regen is treated as a requirement when the equipped build has an ER total and the resonator is not like Lucilla or Phrolova (ER is genuinely useless for them). The reference build first gets whatever ER comes from chosen main stats and active effects. Any remaining ER is reserved from the substat budget.',
             'The reserved ER line count is a feasibility check. The stat total added to the reference build is the exact missing ER amount, not the rounded-up roll count multiplied by the roll value. That keeps the generated build from receiving extra ER just because the reservation had to count whole substat lines.',
-            'Utility Sonata sets are handled as anchor constraints, not as ordinary active-build stats. If the equipped build has a completed utility set at its max piece count, the generated 100 and 200 builds must retain that set id and piece count. The benchmark also carries over the active control values for that utility set, so a utility set with stacks, toggles, or conditional states is scored under the same enabled state.',
+            'Utility Sonata sets are handled as anchor constraints, not as ordinary active-build stats. If the equipped build has a completed utility set at its max piece count, the generated reference and maximum builds must retain that set id and piece count. The evaluation also carries over the active control values for that utility set, so a utility set with stacks, toggles, or conditional states is scored under the same enabled state.',
             'Main Echoes are split the same way. The active build uses the equipped main Echo effect. Reference builds enumerate legal main Echo carriers for each generated frame, but a currently equipped main Echo is locked into the reference search only when it has a non-self support effect. Self-only main Echo effects are treated like normal generated choices, not anchor inputs.',
           ],
         },
@@ -412,7 +413,7 @@ const benchmarkTopic: DocTopic = {
           rows: [
             ['Energy Regen total', 'becomes a target the generated reference build must satisfy unless the resonator ignores ER'],
             ['Completed utility Sonata set', 'becomes a required generated set plan entry with the same set id and max piece count'],
-            ['Utility set controls', 'rebuild the benchmark Sonata rows with the same active values/stacks for preserved utility sets'],
+            ['Utility set controls', 'rebuild the evaluation Sonata rows with the same active values and stacks for preserved utility sets'],
             ['Support main Echo effect', 'locks the generated reference frames to a carrier of that exact main Echo id'],
             ['Self-only main Echo effect', 'does not move anchors; generated frames choose from legal main Echo effects normally'],
           ],
@@ -522,13 +523,13 @@ const benchmarkTopic: DocTopic = {
           caption: 'EQ.5',
           title: 'Build score normalization',
           lines: [
-            'if activeDamage >= benchmarkDamage:',
-            '    percent = 1 + (activeDamage - benchmarkDamage)',
-            '              / (max(perfectionDamage, benchmarkDamage) - benchmarkDamage)',
+            'if activeDamage >= referenceDamage:',
+            '    percent = 1 + (activeDamage - referenceDamage)',
+            '              / (max(maximumDamage, referenceDamage) - referenceDamage)',
             '',
             'else:',
             '    percent = (activeDamage - baselineDamage)',
-            '              / (benchmarkDamage - baselineDamage)',
+            '              / (referenceDamage - baselineDamage)',
             '',
             'buildScore = max(0, percent) * 100',
           ],
@@ -701,7 +702,7 @@ const optimizerTopic: DocTopic = {
           type: 'prose',
           text: [
             'This app\'s optimizer engine is a very delicate and adorable little munchkin (Yes it is). And so a lot of effort is put into making sure it is as efficient, as expressive, as fast and as accurate as it can be all at once. We don\'t want to have it eat up all your memory and run for days now, do we?',
-            'This engine has two very different layers. The outer layer is the full calculator world: authored skills, runtime state, team graph, active controls, rotation execution, set effect toggles, enemy setup, and all the object-rich data needed to describe one real scenario. The inner layer is the packed scorer: fixed-length numeric arrays plus a tiny evaluation routine that can score one candidate build without reopening that outer world.',
+            'This engine has two very different layers. The outer layer is the full Simulation world: authored skills, runtime state, team graph, active controls, rotation execution, set effect toggles, enemy setup, and all the object-rich data needed to describe one real scenario. The inner layer is the packed scorer: fixed-length numeric arrays plus a small evaluation routine that can score one candidate build without reopening that outer world.',
             'The hot loop is the part that runs once per candidate. For Inventory search that can mean hundreds of millions or even BILLIONS of five-Echo candidates (as you saw up there), and the GPU path is explicitly built so this stays viable at that scale. For Theory search the raw catalog cross-product is compacted first, but the remaining canonical builds still need the same repeated scoring. Suggestions are smaller, but they still use the same inner contract because the exact same counterfactual may need to be scored thousands of times.',
             'The fast evaluator is the concrete scorer that consumes those packed inputs. For a single skill target it receives one packed setup for one selected skill. For a rotation target it receives many packed setups, one for each saved damage event from that rotation, and adds them together using stored weights. Either way, the evaluator only reconstructs candidate Echo stats, adds prepared set and main-Echo rows, applies one already-prepared damage formula, and returns damage plus a visible stat line. It does not rebuild the combat graph, replay the rotation, walk authored effect trees, or resolve UI-facing runtime controls on every candidate.',
             'That separation is why terms like "packed", "hot loop", and "fast evaluator" matter. Any logic that remains candidate-dependent after compile time is paid for once per candidate, per legal main-Echo choice, per saved rotation damage event, and sometimes per weapon candidate. So the optimizer and suggestion routes aggressively front-load work: simulate once, prepare once, encode once, then keep the repeated scorer as close to array math as possible.',
@@ -743,7 +744,7 @@ const optimizerTopic: DocTopic = {
           columns: ['Allowed inside the hot loop', 'Pushed out before the hot loop'],
           rows: [
             ['sum encoded Echo stat rows', 'rebuild the combat graph'],
-            ['count distinct set pieces and add prepared set rows', 'replay personal rotation items'],
+            ['count distinct set pieces and add prepared set rows', 'replay the rotation sequence'],
             ['add one chosen main-Echo bonus row', 'resolve authored effect registries'],
             ['apply one packed scoring setup or a stored weighted list of them', 'walk runtime controls to decide scenario logic'],
             ['check min/max stat constraints and keep bounded winners', 'search-space canonicalization and equivalence pruning'],
@@ -838,7 +839,7 @@ const optimizerTopic: DocTopic = {
         {
           type: 'prose',
           text: [
-            'Rotation search starts from the same Echo-free state, then applies the saved personal rotation instructions and simulates the full sequence once under the current team and enemy conditions. That simulation is not repeated inside the hot search loop.',
+            'Rotation search starts from the same Echo-free state, then applies the selected rotation program and simulates it once under the current team and enemy conditions. That simulation is not repeated inside the hot search loop.',
             'After the simulation, the engine keeps only the damage events that can be rescored safely for every candidate build: they must belong to the optimized character and they must belong to one of the supported damage families. Each kept event also carries the weight it contributed inside the original simulated total.',
             'The optimizer objective for rotation search is therefore not “run a rotation again for every candidate”. It is “re-evaluate the stored event list for every candidate, then sum those event damages with the original event weights”.',
           ],
@@ -849,7 +850,7 @@ const optimizerTopic: DocTopic = {
           title: 'Rotation preparation',
           lines: [
             'echoFreeState = current character state with equipped Echoes removed',
-            'preparedRotationState = apply personal rotation edits to echoFreeState',
+            'preparedRotationState = apply rotation program to echoFreeState',
             'fullRotation = simulate the rotation against the fixed enemy',
             '',
             'storedEvents = keep only damage events where',
@@ -1680,4 +1681,4 @@ const negativeEffectsTopic: DocTopic = {
   ],
 }
 
-export const docTopics: DocTopic[] = [benchmarkTopic, optimizerTopic, negativeEffectsTopic]
+export const docTopics: DocTopic[] = [evaluationTopic, optimizerTopic, negativeEffectsTopic]

@@ -7,11 +7,13 @@
 */
 
 import { useEffect, useRef } from 'react'
+import { useNavX } from '@/app/nav/useNavX'
 import { SHR_LINK_FRAG, SHR_REMOTE_PARAM } from '@/shared/lib/shareCodec.ts'
 import { useImportSurface } from './ImportSurface.tsx'
 
 export function ShareLinkWatcher({ enabled }: { enabled: boolean }) {
   const { queryImport } = useImportSurface()
+  const navigate = useNavX()
   const handledRef = useRef(false)
 
   useEffect(() => {
@@ -34,10 +36,10 @@ export function ShareLinkWatcher({ enabled }: { enabled: boolean }) {
     const nextSearch = params.toString()
     const nextHash = hasLocalShare ? '' : window.location.hash
     const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`
-    window.history.replaceState(null, '', nextUrl)
+    navigate(nextUrl, { replace: true })
 
     void queryImport(href)
-  }, [enabled, queryImport])
+  }, [enabled, navigate, queryImport])
 
   return null
 }

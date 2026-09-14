@@ -1,17 +1,16 @@
 /*
   Author: Runor Ewhro
-  Description: Wraps the shared animated-visibility hooks with modal-shaped
-               state and a small reset helper for value-carrying dialogs.
+  Description: Owns use app modal behavior and state transitions for the ui module.
 */
 
 import { useCallback, useMemo, useState } from 'react'
-import { useAnimMdlVl, useAnimVis } from '@/app/hooks/useAnimatedVisibility'
-import type { AppMdlStt } from '@/shared/ui/AppModal'
+import { useAnimatedModalValue, useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import type { AppModalState } from '@/shared/ui/AppModal'
 
-export const APPMDLEXITMS = 320
-const APPMDLOPENDL = 2
+export const MODAL_EXIT_MS = 320
+const MODAL_OPEN_DELAY = 2
 
-function getDlgPrps(state: AppMdlStt): AppMdlStt {
+function getDialogProps(state: AppModalState): AppModalState {
   return {
     visible: state.visible,
     open: state.open,
@@ -20,26 +19,24 @@ function getDlgPrps(state: AppMdlStt): AppMdlStt {
 }
 
 export function useAppModal() {
-  const modal = useAnimVis(APPMDLEXITMS, APPMDLOPENDL)
+  const modal = useAnimatedVisibility(MODAL_EXIT_MS, MODAL_OPEN_DELAY)
 
   return useMemo(() => ({
     ...modal,
-    // many dialog features only care about the visibility triple, so expose
-    // that shape directly to keep call sites compact.
-    dialogProps: getDlgPrps(modal),
+    dialogProps: getDialogProps(modal),
   }), [modal])
 }
 
-export function useAppMdlVl<T>() {
-  const modal = useAnimMdlVl<T>(APPMDLEXITMS, APPMDLOPENDL)
+export function useAppModalValue<T>() {
+  const modal = useAnimatedModalValue<T>(MODAL_EXIT_MS, MODAL_OPEN_DELAY)
 
   return useMemo(() => ({
     ...modal,
-    dialogProps: getDlgPrps(modal),
+    dialogProps: getDialogProps(modal),
   }), [modal])
 }
 
-export function useAppMdlVlW<T>(
+export function useResetModalValue<T>(
   initialValue: T,
   resetValue: (next: T) => void,
 ) {
@@ -47,8 +44,7 @@ export function useAppMdlVlW<T>(
   const modal = useAppModal()
 
   const show = useCallback((nextValue: T) => {
-    // reset external draft state before opening so the modal never animates in
-    // with stale content from the previous selection.
+    // Reset both local and external drafts before publishing the open state.
     resetValue(nextValue)
     setValue(nextValue)
     modal.show()

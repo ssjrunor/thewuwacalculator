@@ -4,7 +4,7 @@
                echoes and builds.
 */
 
-import type { InventoryEntry, SavedBuildSnap } from '@/domain/entities/inventoryStorage.ts'
+import type { SavedBuild, SavedBuildSnap } from '@/domain/entities/inventoryStorage.ts'
 import { getBuildSig } from '@/domain/entities/inventoryStorage.ts'
 import type { ResProf } from '@/domain/entities/profile.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
@@ -29,7 +29,7 @@ export interface InvSgDrvd {
   buildUseByBldId: Record<string, InvBldUsr[]>
 }
 
-export function mkInvEchoSgB(
+export function indexEquippedEchoes(
   profilesById: Record<string, ResProf>,
 ): Record<string, InvEchoSg[]> {
   // index equipped echoes by uid so inventory surfaces can answer
@@ -74,7 +74,7 @@ export function mkInvEchoSgB(
 
 export function mkInvMkUsrs(
   profilesById: Record<string, ResProf>,
-  invBlds: InventoryEntry[],
+  invBlds: SavedBuild[],
 ): Record<string, InvBldUsr[]> {
   // saved build entries are matched through the canonical build signature so
   // equivalent weapon+echo layouts collapse onto the same inventory build id.
@@ -112,12 +112,12 @@ export function mkInvMkUsrs(
 
 export function mkInvSgDrvd(
   profilesById: Record<string, ResProf>,
-  invBlds: InventoryEntry[],
+  invBlds: SavedBuild[],
   seeEquipped: boolean
 ): InvSgDrvd {
   return {
     // disabling the preference should fully short-circuit the expensive indexes.
-    echoUseByUid: seeEquipped ? mkInvEchoSgB(profilesById) : {},
+    echoUseByUid: seeEquipped ? indexEquippedEchoes(profilesById) : {},
     buildUseByBldId: seeEquipped ? mkInvMkUsrs(profilesById, invBlds) : {},
   }
 }

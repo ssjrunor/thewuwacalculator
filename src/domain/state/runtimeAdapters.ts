@@ -1,47 +1,55 @@
 /*
   Author: Runor Ewhro
-  Description: Provides helpers for adapting calculator profile state into
+  Description: Provides helpers for adapting scenario profile state into
                active and team runtime views, lookup maps, and persisted updates.
 */
 
-import type { CalcState } from '@/domain/entities/appState'
+import type { ScenarioWorkspace } from '@/domain/entities/scenarioLibrary'
+import { contextScenarioMember } from '@/domain/entities/combatScenario'
+import {
+  reviseCombatScenario,
+  makeScenarioTeam,
+  scenarioMemberByResonatorId,
+  teamMemberId,
+  type CombatScenario,
+  type ScenarioTeamMember,
+  type TeamMemberId,
+} from '@/domain/entities/combatScenario'
 import { cloneSntSet, DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
-import type { SlotLocalState } from '@/domain/entities/profile'
+import type { ResProf } from '@/domain/entities/profile'
 import { cloneOptInventorySelection } from '@/domain/entities/profile'
-import type { SlotId } from '@/domain/entities/session'
+import type { SlotId } from '@/domain/entities/combatGraph'
 import { normResRtCnt } from '@/domain/gameData/controlOptions'
 import { normNegFfctC } from '@/domain/gameData/negativeEffects'
 import type {
   ResRuntime,
-  TeamMemRt,
+  RotationState,
   TeamMemRtVie,
   TeamSlots,
 } from '@/domain/entities/runtime'
-import {
-  cloneSlotRml,
-  makeCustomBuff,
-  mkDefSkllLvl,
-  makeTeamMember,
-  makeTraceNode,
-  mkDefSeedWpnMkSt,
-  normProfTeam,
-} from '@/domain/state/defaults'
+import { makeCustomBuff, normProfTeam } from '@/domain/state/defaults'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { getEchoById } from '@/domain/services/echoCatalogService'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { repairEchoLoadoutForCatalog } from '@/domain/state/echoCatalogRepair'
 import {
+  cloneSlotLuo,
   matRtFromPro,
   matTeamMemFr,
 } from '@/domain/state/runtimeMaterialization'
 import { maxEchoIfChg } from '@/domain/state/sourceStateInit'
 import {
-  cloneBuffs,
   cloneRotation,
+  cloneResBase,
   cloneSkllLvl,
   cloneTrcNode,
   cloneWpnMkSt,
 } from '@/domain/state/runtimeCloning'
-import { catTmWpnAtk } from '@/domain/state/weaponState'
+import { projectScenarioUiRuntimes } from '@/domain/state/scenarioRuntime'
+import {
+  extractMemberManualBuffs,
+  removeMemberEnvironmentState,
+  replaceMemberManualEffect,
+  resolveEnvironmentManualBuffs,
+} from '@/domain/state/scenarioEnvironment'
 
 export interface WorkRtBndl {
   actResId: string | null
@@ -49,6 +57,18 @@ export interface WorkRtBndl {
   actTgtSels: Record<string, string | null>
   actRt: ResRuntime | null
   partRtsById: Record<string, ResRuntime>
+}
+
+/** Keep only target routing that resolves inside the materialized team. */
+export function normalizeTargets(
+    selections: Record<string, string | null>,
+    runtimesById: Record<string, ResRuntime>,
+): Record<string, string | null> {
+  const targetIds = new Set(Object.keys(runtimesById))
+  return Object.fromEntries(
+    Object.entries(selections)
+      .filter(([, targetId]) => !targetId || targetIds.has(targetId)),
+  )
 }
 
 function normRtNegFfc(runtime: ResRuntime): ResRuntime {
@@ -74,153 +94,49 @@ function normRtNegFfc(runtime: ResRuntime): ResRuntime {
   }
 }
 
-function mkLclSttFrom(
-    runtimeState: ResRuntime['state'],
-    xstnLcl?: SlotLocalState,
-): SlotLocalState {
-  return {
-    controls: { ...runtimeState.controls },
-    manualBuffs: cloneBuffs(runtimeState.manualBuffs),
-    combat: { ...runtimeState.combat },
-    setConditionals: cloneSntSet(
-      xstnLcl?.setConditionals ?? DEF_SET_COND,
-    ),
-    optimizerInventory: cloneOptInventorySelection(xstnLcl?.optimizerInventory),
-  }
-}
-
 // build the selected target routing map from the active profile
 export function mkSelTgtResM(
-    calculator: CalcState,
+    scenario: CombatScenario,
 ): Record<string, string | null> {
-  // all routing, including teammate routing, is stored on the active resonator profile
-  const activeId = getActResId(calculator)
-  if (!activeId) return {}
-
-  const targetIds = new Set(Object.keys(mkWorkRtBndl(calculator).partRtsById))
-
-  return Object.fromEntries(
-    Object.entries(calculator.profiles[activeId]?.runtime.routing.selectedTargetsByOwnerKey ?? {})
-      .filter(([, targetId]) => !targetId || targetIds.has(targetId)),
-  )
+  return mkWorkRtBndl(scenario).actTgtSels
 }
 
 // materialize the active main runtime bundle once so callers can reuse
 // active runtime, participant runtimes, team slots, and routing selections
-export function mkWorkRtBndl(calculator: CalcState): WorkRtBndl {
-  const actResId = getActResId(calculator)
-  if (!actResId) {
-    return {
-      actResId: null,
-      actTeamSlots: [null, null, null],
-      actTgtSels: {},
-      actRt: null,
-      partRtsById: {},
-    }
-  }
-
-  const actProf = calculator.profiles[actResId]
-  if (!actProf) {
-    return {
-      actResId: actResId,
-      actTeamSlots: [actResId, null, null],
-      actTgtSels: {},
-      actRt: null,
-      partRtsById: {},
-    }
-  }
-
-  const actTeamSlts: TeamSlots = [
-    actResId,
-    actProf.runtime.teamRuntimes?.[0]?.id && getResSeedBy(actProf.runtime.teamRuntimes[0].id)
-      ? actProf.runtime.teamRuntimes[0].id
-      : null,
-    actProf.runtime.teamRuntimes?.[1]?.id && getResSeedBy(actProf.runtime.teamRuntimes[1].id)
-      ? actProf.runtime.teamRuntimes[1].id
-      : null,
-  ]
-  const activeTarget = {
-    ...actProf.runtime.routing.selectedTargetsByOwnerKey,
-  }
-  const seed = getResSeedBy(actResId)
-  const rawActRt = seed
-      ? matRtFromPro({
-        seed,
-        profile: actProf,
-        slotId: 'active',
-        localState: actProf.runtime.local,
-        teamSlots: actTeamSlts,
-        rotation: actProf.runtime.rotation,
-      })
-      : null
-  const actRt = rawActRt ? normRtNegFfc(rawActRt) : null
-
-  const partRntmById: Record<string, ResRuntime> = {}
-  if (actRt) {
-    partRntmById[actRt.id] = actRt
-  }
-
-  const cmpcTeamRntm = actProf.runtime.teamRuntimes ?? [null, null]
-  for (let slotIndex = 0; slotIndex < cmpcTeamRntm.length; slotIndex += 1) {
-    const compactRuntime = cmpcTeamRntm[slotIndex]
-    if (!compactRuntime) {
-      continue
-    }
-
-    const teammateSeed = getResSeedBy(compactRuntime.id)
-    if (!teammateSeed) {
-      continue
-    }
-
-    const runtime = matTeamMemFr(
-        teammateSeed,
-        compactRuntime,
-        actProf.runtime.local.controls,
-        actRt?.state.combat ?? actProf.runtime.local.combat,
-        actTeamSlts,
-    )
-    partRntmById[runtime.id] = normRtNegFfc(runtime)
-  }
+export function mkWorkRtBndl(scenario: CombatScenario): WorkRtBndl {
+  const projection = projectScenarioUiRuntimes(scenario)
+  const partRntmById = Object.fromEntries(
+    Object.entries(projection.runtimesById).map(([id, runtime]) => [id, normRtNegFfc(runtime)]),
+  )
+  const actRt = partRntmById[projection.subjectRuntime.id] ?? null
 
   return {
-    actResId: actResId,
-    actTeamSlots: actTeamSlts,
-    actTgtSels: Object.fromEntries(
-      Object.entries(activeTarget).filter(([, targetId]) => !targetId || partRntmById[targetId]),
-    ),
-    actRt: actRt,
+    actResId: actRt?.id ?? null,
+    actTeamSlots: projection.teamSlots,
+    actTgtSels: normalizeTargets(projection.selectedTargets, partRntmById),
+    actRt,
     partRtsById: partRntmById,
   }
 }
 
-// get the active resonator id from session state
-export function getActResId(calculator: CalcState): string | null {
-  return calculator.session.activeResonatorId
+// member zero is the temporary subject adapter for active-based callers
+export function getActResId(scenario: CombatScenario): string | null {
+  return scenario.team.members[0]?.resonatorId ?? null
 }
 
 // build the active team slots from the active profile
-export function mkActTeamSlt(calculator: CalcState): TeamSlots {
-  const actResId = getActResId(calculator)
-  if (!actResId) {
-    return [null, null, null]
-  }
-
-  const actProf = calculator.profiles[actResId]
-  if (!actProf) {
-    return [actResId, null, null]
-  }
-
-  const tmr = actProf.runtime.teamRuntimes ?? [null, null]
+export function mkActTeamSlt(scenario: CombatScenario): TeamSlots {
+  const members = scenario.team.members
   return [
-    actResId,
-    tmr[0]?.id && getResSeedBy(tmr[0].id) ? tmr[0].id : null,
-    tmr[1]?.id && getResSeedBy(tmr[1].id) ? tmr[1].id : null,
+    members[0]?.resonatorId ?? null,
+    members[1]?.resonatorId ?? null,
+    members[2]?.resonatorId ?? null,
   ]
 }
 
 // get the resonator id occupying a given slot
-export function getSlotResId(calculator: CalcState, slotId: SlotId): string | null {
-  const team = mkActTeamSlt(calculator)
+export function getSlotResId(scenario: CombatScenario, slotId: SlotId): string | null {
+  const team = mkActTeamSlt(scenario)
 
   switch (slotId) {
     case 'active':
@@ -233,84 +149,37 @@ export function getSlotResId(calculator: CalcState, slotId: SlotId): string | nu
 }
 
 // find the slot id for a resonator currently on the team
-export function findSlotIdFo(calculator: CalcState, resonatorId: string): SlotId | null {
-  const team = mkActTeamSlt(calculator)
+export function findSlotIdFo(scenario: CombatScenario, resonatorId: string): SlotId | null {
+  const team = mkActTeamSlt(scenario)
   if (team[0] === resonatorId) return 'active'
   if (team[1] === resonatorId) return 'team1'
   if (team[2] === resonatorId) return 'team2'
   return null
 }
 
-// find the compact team runtime slot index for a teammate
-function findTeamRtSl(calculator: CalcState, resonatorId: string): number | null {
-  const activeId = getActResId(calculator)
-  if (!activeId) return null
-
-  const actProf = calculator.profiles[activeId]
-  if (!actProf) return null
-
-  const tmr = actProf.runtime.teamRuntimes ?? [null, null]
-  if (tmr[0]?.id === resonatorId) return 0
-  if (tmr[1]?.id === resonatorId) return 1
-  return null
-}
-
-// materialize one teammate runtime from its compact stored form
-function mkTeamMemRtF(
-    calculator: CalcState,
-    slotIndex: number,
-): ResRuntime | null {
-  const activeId = getActResId(calculator)
-  if (!activeId) return null
-
-  const actProf = calculator.profiles[activeId]
-  if (!actProf) return null
-
-  const tmr = (actProf.runtime.teamRuntimes ?? [null, null])[slotIndex]
-  if (!tmr) return null
-
-  const seed = getResSeedBy(tmr.id)
-  if (!seed) return null
-
-  return normRtNegFfc(matTeamMemFr(
-    seed,
-    tmr,
-    actProf.runtime.local.controls,
-    actProf.runtime.local.combat,
-    mkActTeamSlt(calculator),
-  ))
-}
-
-// build a full runtime for a resonator from calculator state
-export function mkRtFromProf(
-    calculator: CalcState,
+// Build a normalized runtime from the scenario-owned member state.
+export function materializeScenarioRuntime(
+    scenario: CombatScenario,
     resonatorId: string,
 ): ResRuntime | null {
-  const workspace = mkWorkRtBndl(calculator)
-  if (workspace.actRt?.id === resonatorId) {
-    return workspace.actRt
-  }
+  const workspace = mkWorkRtBndl(scenario)
+  return workspace.partRtsById[resonatorId] ?? null
+}
 
-  const workPart = workspace.partRtsById[resonatorId]
-  if (workPart) {
-    return workPart
-  }
-
-  const slotId = findSlotIdFo(calculator, resonatorId)
-  if (!slotId) {
-    return null
-  }
-
-  // teammates are materialized from the active profile's compact team runtimes
-  if (slotId !== 'active') {
-    const slotIndex = findTeamRtSl(calculator, resonatorId)
-    if (slotIndex === null) return null
-    return mkTeamMemRtF(calculator, slotIndex)
-  }
-
-  const seed = getResSeedBy(resonatorId)
-  const profile = calculator.profiles[resonatorId]
-  if (!seed || !profile) {
+/**
+ * Materialize a detached, normalized active runtime from a stored profile.
+ * Saved rotations use this path so inspecting one never has to load it into
+ * scenario state first.
+ */
+export function runtimeFromSnapshot(
+    profile: ResProf,
+    options: {
+      teamSlots?: TeamSlots
+      rotation?: RotationState
+    } = {},
+): ResRuntime | null {
+  const seed = getResSeedBy(profile.resonatorId)
+  if (!seed) {
     return null
   }
 
@@ -319,40 +188,22 @@ export function mkRtFromProf(
     profile,
     slotId: 'active',
     localState: profile.runtime.local,
-    teamSlots: mkActTeamSlt(calculator),
-    rotation: profile.runtime.rotation,
-  }))
-}
-
-// build a normalized initialized runtime view for a profile
-export function mkInitRtView(
-    calculator: CalcState,
-    resonatorId: string,
-): ResRuntime | null {
-  const seed = getResSeedBy(resonatorId)
-  const profile = calculator.profiles[resonatorId]
-  if (!seed || !profile) {
-    return null
-  }
-
-  return normRtNegFfc(matRtFromPro({
-    seed,
-    profile,
-    slotId: 'active',
-    localState: profile.runtime.local,
-    teamSlots: normProfTeam(resonatorId, profile.runtime.team),
-    rotation: profile.runtime.rotation,
+    teamSlots: normProfTeam(
+      profile.resonatorId,
+      options.teamSlots ?? profile.runtime.team,
+    ),
+    rotation: options.rotation ?? profile.runtime.rotation,
   }))
 }
 
 // build the active runtime
-export function mkActRt(calculator: CalcState): ResRuntime | null {
-  return mkWorkRtBndl(calculator).actRt
+export function mkActRt(scenario: CombatScenario): ResRuntime | null {
+  return mkWorkRtBndl(scenario).actRt
 }
 
 // build a lookup of all active participant runtimes
-export function mkPartRtLkp(calculator: CalcState): Record<string, ResRuntime> {
-  return mkWorkRtBndl(calculator).partRtsById
+export function mkPartRtLkp(scenario: CombatScenario): Record<string, ResRuntime> {
+  return mkWorkRtBndl(scenario).partRtsById
 }
 
 // build a participant runtime lookup from one runtime and optional fallbacks
@@ -394,15 +245,16 @@ export function makeRuntimeMap(
   return runtimes
 }
 
-// build initialized runtime views for every stored profile
-export function mkInitRtLkp(calculator: CalcState): Record<string, ResRuntime> {
+// Build one standalone/context runtime per working scenario.
+export function mkInitRtLkp(workspace: ScenarioWorkspace): Record<string, ResRuntime> {
   const runtimes: Record<string, ResRuntime> = {}
 
-  for (const resonatorId of Object.keys(calculator.profiles)) {
-    const runtime = mkInitRtView(calculator, resonatorId)
-    if (runtime) {
-      runtimes[resonatorId] = runtime
-    }
+  for (const scenarioId of workspace.order) {
+    const scenario = workspace.scenariosById[scenarioId]
+    if (!scenario) continue
+    const context = contextScenarioMember(scenario)
+    const runtime = projectScenarioUiRuntimes(scenario).runtimesById[context.resonatorId]
+    if (runtime) runtimes[context.resonatorId] = runtime
   }
 
   return runtimes
@@ -410,271 +262,189 @@ export function mkInitRtLkp(calculator: CalcState): Record<string, ResRuntime> {
 
 // build the lightweight team member runtime view used by teammate editing
 export function mkTeamMemRtV(
-    calculator: CalcState,
+    scenario: CombatScenario,
     resonatorId: string,
 ): TeamMemRtVie | null {
-  const slotIndex = findTeamRtSl(calculator, resonatorId)
-  if (slotIndex === null) return null
-
-  const activeId = getActResId(calculator)
-  if (!activeId) return null
-
-  const actProf = calculator.profiles[activeId]
-  if (!actProf) return null
-
-  const tmr = (actProf.runtime.teamRuntimes ?? [null, null])[slotIndex]
-  if (!tmr) return null
-  const seed = getResSeedBy(tmr.id)
-  if (!seed) return null
-
-  // extract namespaced controls from the active profile controls
-  const prefix = `team:${tmr.id}:`
-  const controls: Record<string, boolean | number | string> = {}
-  for (const key of Object.keys(actProf.runtime.local.controls)) {
-    if (key.startsWith(prefix)) {
-      controls[key.slice(prefix.length)] = actProf.runtime.local.controls[key]
-    }
-  }
+  const member = scenarioMemberByResonatorId(
+    scenario,
+    resonatorId,
+  )
+  if (!member || member === scenario.team.members[0]) return null
 
   return {
     id: resonatorId,
     base: {
-      sequence: tmr.base.sequence,
+      sequence: member.progression.sequence,
     },
     build: {
-      weapon: catTmWpnAtk(
-        tmr.build.weapon.id && getWpnById(tmr.build.weapon.id)
-          ? tmr.build.weapon
-          : mkDefSeedWpnMkSt(seed),
-        90,
-      ),
-      echoes: tmr.build.echoes.map((echo) => {
-        if (!echo) return null
-        const definition = getEchoById(echo.id)
-        if (!definition) return null
-        return {
-          ...echo,
-          set: definition.sets.includes(echo.set)
-            ? echo.set
-            : definition.sets[0] ?? echo.set,
-        }
-      }),
+      weapon: cloneWpnMkSt(member.loadout.weapon),
+      echoes: repairEchoLoadoutForCatalog(member.loadout.echoes),
     },
     state: {
-      controls,
-      manualBuffs: cloneBuffs(tmr.manualBuffs ?? makeCustomBuff()),
-      combat: { ...actProf.runtime.local.combat },
+      controls: { ...member.local.controls },
+      manualBuffs: resolveEnvironmentManualBuffs(scenario.environment, member),
+      combat: { ...scenario.environment.combatState },
     },
   }
 }
 
 // build a lookup of all teammate runtime views
-export function mkTeamMemRtL(calculator: CalcState): Record<string, TeamMemRtVie> {
+export function mkTeamMemRtL(scenario: CombatScenario): Record<string, TeamMemRtVie> {
   const runtimes: Record<string, TeamMemRtVie> = {}
-  const activeId = getActResId(calculator)
-  if (!activeId) return runtimes
-
-  const actProf = calculator.profiles[activeId]
-  if (!actProf) return runtimes
-
-  const tmRuntimes = actProf.runtime.teamRuntimes ?? [null, null]
-  for (let i = 0; i < 2; i += 1) {
-    const tmr = tmRuntimes[i]
-    if (!tmr) continue
-    const view = mkTeamMemRtV(calculator, tmr.id)
+  for (const member of scenario.team.members.slice(1)) {
+    const view = mkTeamMemRtV(scenario, member.resonatorId)
     if (view) {
-      runtimes[tmr.id] = view
+      runtimes[member.resonatorId] = view
     }
   }
 
   return runtimes
 }
 
-// write a teammate runtime back into the active profile team runtime storage
-function applyTeam(
-    calculator: CalcState,
-    resonatorId: string,
-    runtime: ResRuntime,
-): CalcState {
-  const activeId = getActResId(calculator)
-  if (!activeId) return calculator
-
-  const actProf = calculator.profiles[activeId]
-  if (!actProf) return calculator
-
-  const slotIndex = findTeamRtSl(calculator, resonatorId)
-  if (slotIndex === null) return calculator
-  const previousTmr = (actProf.runtime.teamRuntimes ?? [null, null])[slotIndex]
-  const nextRuntime = maxEchoIfChg(runtime, previousTmr?.build.echoes)
-
-  // build updated compact team member runtime
-  const updatedTmr: TeamMemRt = {
-    id: resonatorId,
-    base: {
-      sequence: nextRuntime.base.sequence,
-    },
-    build: {
-      weapon: catTmWpnAtk(nextRuntime.build.weapon, 90),
-      echoes: nextRuntime.build.echoes,
-    },
-    manualBuffs: cloneBuffs(nextRuntime.state.manualBuffs),
-  }
-
-  // update team runtimes array
-  const nextTeamRuns = [...(actProf.runtime.teamRuntimes ?? [null, null])] as [
-        TeamMemRt | null,
-        TeamMemRt | null,
-  ]
-  nextTeamRuns[slotIndex] = updatedTmr
-
-  // replace old namespaced controls with the new ones
-  const prefix = `team:${resonatorId}:`
-  const nextControls: Record<string, boolean | number | string> = {}
-  for (const [key, value] of Object.entries(actProf.runtime.local.controls)) {
-    if (!key.startsWith(prefix)) {
-      nextControls[key] = value
-    }
-  }
-  for (const [key, value] of Object.entries(nextRuntime.state.controls)) {
-    nextControls[`${prefix}${key}`] = value
-  }
-
-  // derive team slots from compact team runtimes
-  const nextTeam: TeamSlots = [activeId, nextTeamRuns[0]?.id ?? null, nextTeamRuns[1]?.id ?? null]
-
+function memberFromRuntime(
+  runtime: ResRuntime,
+  previous: ScenarioTeamMember,
+  primary: boolean,
+): ScenarioTeamMember {
+  const controls = Object.fromEntries(
+    Object.entries(runtime.state.controls)
+      .filter(([key]) => !primary || !key.startsWith('team:')),
+  )
   return {
-    ...calculator,
-    profiles: {
-      ...calculator.profiles,
-      [activeId]: {
-        ...actProf,
-        runtime: {
-          ...actProf.runtime,
-          local: {
-            ...actProf.runtime.local,
-            controls: nextControls,
-          },
-          team: nextTeam,
-          teamRuntimes: nextTeamRuns,
-        },
-      },
-    },
-  }
-}
-
-// reconcile compact team runtimes to match normalized team slots
-function rcncTeamRntm(
-    team: TeamSlots,
-    current: [TeamMemRt | null, TeamMemRt | null],
-): [TeamMemRt | null, TeamMemRt | null] {
-  const result: [TeamMemRt | null, TeamMemRt | null] = [null, null]
-
-  for (let i = 0; i < 2; i += 1) {
-    const memberId = team[i + 1]
-    if (!memberId) {
-      result[i] = null
-      continue
-    }
-
-    // keep the existing entry if it still matches this slot
-    if (current[i]?.id === memberId) {
-      result[i] = current[i]
-      continue
-    }
-
-    // teammate may have swapped positions
-    const otherIndex = 1 - i
-    if (current[otherIndex]?.id === memberId) {
-      result[i] = current[otherIndex]
-      continue
-    }
-
-    // create a new compact runtime for a newly added teammate
-    const seed = getResSeedBy(memberId)
-    if (seed) {
-      result[i] = makeTeamMember(seed)
-    }
-  }
-
-  return result
-}
-
-// apply a runtime back into calculator persisted state
-export function applyRtToCal(
-    calculator: CalcState,
-    resonatorId: string,
-    runtime: ResRuntime,
-): CalcState {
-  const slotId = findSlotIdFo(calculator, resonatorId)
-  if (!slotId) {
-    return calculator
-  }
-
-  // teammates write into the active profile team runtime storage
-  if (slotId !== 'active') {
-    return applyTeam(calculator, resonatorId, runtime)
-  }
-
-  // active resonator writes directly into its own profile
-  const nrmlRtTeam = normProfTeam(runtime.id, runtime.build.team)
-  const xstnRt = calculator.profiles[resonatorId]?.runtime
-  const nextRuntime = maxEchoIfChg(runtime, xstnRt?.build.echoes)
-
-  const fllbRt = {
+    ...previous,
+    resonatorId: runtime.id,
     progression: {
-      level: 1,
-      sequence: 0,
-      skillLevels: mkDefSkllLvl(),
-      traceNodes: makeTraceNode(),
+      level: runtime.base.level,
+      sequence: runtime.base.sequence,
+      skillLevels: cloneSkllLvl(runtime.base.skillLevels),
+      traceNodes: cloneTrcNode(runtime.base.traceNodes),
     },
-    build: {
-      weapon: nextRuntime.build.weapon,
-      echoes: nextRuntime.build.echoes,
+    loadout: {
+      weapon: cloneWpnMkSt(runtime.build.weapon),
+      echoes: repairEchoLoadoutForCatalog(runtime.build.echoes),
     },
-    local: mkLclSttFrom(nextRuntime.state, xstnRt?.local),
-    routing: cloneSlotRml(xstnRt?.routing),
-    team: nrmlRtTeam,
-    rotation: cloneRotation(nextRuntime.rotation),
-    teamRuntimes: rcncTeamRntm(nrmlRtTeam, nextRuntime.teamRuntimes ?? [null, null]),
+    local: {
+      ...previous.local,
+      controls,
+    },
   }
+}
 
-  const nextProfiles = {
-    ...calculator.profiles,
-    [resonatorId]: {
-      ...(calculator.profiles[resonatorId] ?? {
-        resonatorId,
-        runtime: fllbRt,
-      }),
-      runtime: {
-        ...(xstnRt ?? fllbRt),
-        progression: {
-          level: nextRuntime.base.level,
-          sequence: nextRuntime.base.sequence,
-          skillLevels: cloneSkllLvl(nextRuntime.base.skillLevels),
-          traceNodes: cloneTrcNode(nextRuntime.base.traceNodes),
-        },
-        build: {
-          weapon: cloneWpnMkSt(nextRuntime.build.weapon),
-          echoes: nextRuntime.build.echoes,
-        },
-        local: mkLclSttFrom(nextRuntime.state, xstnRt?.local),
-        routing: cloneSlotRml(xstnRt?.routing),
-        team: nrmlRtTeam,
-        rotation: cloneRotation(nextRuntime.rotation),
-        teamRuntimes: rcncTeamRntm(
-            nrmlRtTeam,
-            nextRuntime.teamRuntimes ?? xstnRt?.teamRuntimes ?? [null, null],
-        ),
-      },
-    },
-  }
+function memberForAddedRuntime(
+  scenario: CombatScenario,
+  runtime: ResRuntime,
+  resonatorId: string,
+): ScenarioTeamMember | null {
+  const existing = scenarioMemberByResonatorId(
+    scenario,
+    resonatorId,
+  )
+  if (existing) return existing
 
-  return {
-    ...calculator,
-    profiles: nextProfiles,
-    session: {
-      ...calculator.session,
-      activeResonatorId: nrmlRtTeam[0] ?? resonatorId,
+  const compact = runtime.teamRuntimes.find((member) => member?.id === resonatorId) ?? null
+  const seed = getResSeedBy(resonatorId)
+  const materialized = compact && seed
+    ? matTeamMemFr(
+      seed,
+      compact,
+      runtime.state.controls,
+      runtime.state.combat,
+      runtime.build.team,
+    )
+    : null
+  if (!materialized) return null
+
+  const local = cloneSlotLuo(materialized.state)
+  const base: ScenarioTeamMember = {
+    id: teamMemberId(resonatorId),
+    resonatorId,
+    progression: cloneResBase(materialized.base),
+    loadout: {
+      weapon: cloneWpnMkSt(materialized.build.weapon),
+      echoes: repairEchoLoadoutForCatalog(materialized.build.echoes),
+    },
+    local: {
+      controls: local.controls,
+      setConditionals: cloneSntSet(DEF_SET_COND),
+      optimizerInventory: cloneOptInventorySelection(),
     },
   }
+  return base
+}
+
+// Apply a legacy runtime edit to the canonical scenario. Runtime team fields are
+// interpreted only as a compatibility command payload for existing UI surfaces.
+export function applyRuntimeToSimulation(
+  scenario: CombatScenario,
+  resonatorId: string,
+  runtime: ResRuntime,
+): { scenario: CombatScenario } {
+  const memberIndex = scenario.team.members.findIndex(
+    (member) => member.resonatorId === resonatorId,
+  )
+  if (memberIndex < 0) return { scenario }
+
+  const primary = memberIndex === 0
+  const updatedMember = memberFromRuntime(
+    maxEchoIfChg(runtime, scenario.team.members[memberIndex].loadout.echoes),
+    scenario.team.members[memberIndex],
+    primary,
+  )
+  const requestedIds = primary
+    ? runtime.build.team.filter((id): id is string => Boolean(id)).slice(0, 3)
+    : scenario.team.members.map((member) => member.resonatorId)
+  if (!requestedIds.includes(updatedMember.resonatorId)) {
+    requestedIds[memberIndex] = updatedMember.resonatorId
+  }
+  const uniqueIds = [...new Set(requestedIds)]
+  const members = uniqueIds.flatMap((id) => {
+    if (id === updatedMember.resonatorId) return [updatedMember]
+    const member = memberForAddedRuntime(scenario, runtime, id)
+    return member ? [member] : []
+  })
+  if (members.length === 0) return { scenario }
+  const team = makeScenarioTeam(members)
+  const memberIds = new Set(team.members.map((member) => member.id))
+  const bySourceMemberId = Object.fromEntries(team.members.map((member) => [
+    member.id,
+    Object.fromEntries(Object.entries(scenario.environment.routing.bySourceMemberId[member.id] ?? {})
+      .filter(([, target]) => target === null || memberIds.has(target))),
+  ])) as Record<TeamMemberId, Record<string, TeamMemberId | null>>
+  let environment = scenario.environment
+  for (const previousMember of scenario.team.members) {
+    if (!memberIds.has(previousMember.id)) {
+      environment = removeMemberEnvironmentState(environment, previousMember.id)
+    }
+  }
+  environment = replaceMemberManualEffect(
+    environment,
+    updatedMember.id,
+    extractMemberManualBuffs(
+      scenario.environment,
+      scenario.team.members[memberIndex],
+      runtime.state.manualBuffs,
+    ),
+  )
+  for (const member of team.members) {
+    if (scenario.team.members.some((candidate) => candidate.id === member.id)) continue
+    const compact = runtime.teamRuntimes.find((candidate) => candidate?.id === member.resonatorId)
+    environment = replaceMemberManualEffect(
+      environment,
+      member.id,
+      compact?.manualBuffs ?? makeCustomBuff(),
+    )
+  }
+  const nextScenario = reviseCombatScenario(scenario, {
+    team,
+    environment: {
+      ...environment,
+      combatState: { ...runtime.state.combat },
+      routing: { bySourceMemberId },
+    },
+    program: primary ? cloneRotation(runtime.rotation) : scenario.program,
+    initialOnFieldMemberId: memberIds.has(scenario.initialOnFieldMemberId)
+      ? scenario.initialOnFieldMemberId
+      : team.members[0].id,
+  })
+  return { scenario: nextScenario }
 }

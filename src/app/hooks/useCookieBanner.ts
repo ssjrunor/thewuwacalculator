@@ -5,7 +5,7 @@
 */
 
 import { useEffect } from 'react'
-import { useAnimVis } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
 import {
   CONSENT_EVENT,
   hasAckdCkCns,
@@ -16,7 +16,7 @@ import { loadGglAnal } from '@/infra/analytics/googleAnalytics'
 const SHOW_DLY_MS = 1400
 
 export function useCkBnnr() {
-  const { show, hide, visible, open, closing } = useAnimVis()
+  const { show, hide, visible, open, closing } = useAnimatedVisibility()
 
   useEffect(() => {
     if (hasAckdCkCns()) {

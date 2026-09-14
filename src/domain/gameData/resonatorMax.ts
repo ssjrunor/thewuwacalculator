@@ -8,17 +8,13 @@ import type {
   ResDtls,
   ResModeGroup,
   ResStateGroup,
-  ResStateControl,
   SkillTabKey,
 } from '@/domain/entities/resonator'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import {
+  getResCntrMax,
   getResCntrNc,
-  getResNumMax,
-  mkResCntrScp,
-  normResCntrOpt,
   normResRtCnt,
-  resResCntrPt,
 } from '@/domain/gameData/controlOptions'
 import {
   getResModeGroups,
@@ -26,7 +22,6 @@ import {
   getResStateGroups,
 } from '@/domain/gameData/resonatorStateGraph'
 import { cmptTrcNodeB } from '@/domain/state/traceNodes'
-import { evalCond } from '@/engine/effects/evaluator'
 
 const SKILL_TABS: Array<Exclude<SkillTabKey, 'outroSkill'>> = [
   'normalAttack',
@@ -105,44 +100,6 @@ function sameRtVal(
 
 function getSkillTabs(details: ResDtls): Array<Exclude<SkillTabKey, 'outroSkill'>> {
   return SKILL_TABS.filter((tab) => Boolean(details.skillsByTab[tab]))
-}
-
-function controlVisible(runtime: ResRuntime, control: ResStateControl): boolean {
-  return evalCond(control.visibleWhen, mkResCntrScp(runtime))
-}
-
-function controlEnabled(runtime: ResRuntime, control: ResStateControl): boolean {
-  return (control.controlDependencies ?? []).every((controlKey) => Boolean(runtime.state.controls[controlKey]))
-    && evalCond(control.enabledWhen, mkResCntrScp(runtime))
-}
-
-function getDynCtlMax(control: ResStateControl, runtime: ResRuntime): number | undefined {
-  return getResNumMax(runtime, control)
-}
-
-function getCtlMaxVal(
-  control: ResStateControl,
-  runtime: ResRuntime,
-): boolean | number | string | undefined {
-  if (control.kind === 'toggle') {
-    return control.maxValue ?? true
-  }
-
-  if (control.kind === 'select') {
-    const optionsList = resResCntrPt(runtime, control)
-    const expMaxVal = control.maxValue
-    if (
-      expMaxVal !== undefined
-      && optionsList.some((option) => sameRtVal(normResCntrOpt(option).value, expMaxVal))
-    ) {
-      return expMaxVal
-    }
-
-    const lastOption = optionsList[optionsList.length - 1]
-    return lastOption === undefined ? undefined : normResCntrOpt(lastOption).value
-  }
-
-  return control.maxValue ?? getDynCtlMax(control, runtime)
 }
 
 export function maxResRt(
@@ -277,13 +234,11 @@ export function maxResRt(
         ||
         !control.resets?.some((resetKey) => rstBlockKeys.has(resetKey))
         || Boolean(nextControls[control.key])
-      )
-      && controlVisible(scopedRuntime, control)
-      && controlEnabled(scopedRuntime, control),
+      ),
     )
 
     for (const control of maxCtrls) {
-      const nextValue = getCtlMaxVal(control, scopedRuntime)
+      const nextValue = getResCntrMax(scopedRuntime, control)
       if (nextValue === undefined) {
         continue
       }
@@ -303,19 +258,60 @@ export function maxResRt(
     }
   }
 
-  const maxedRt = {
+  return {
     ...maxBaseRt,
     state: {
       ...maxBaseRt.state,
       controls: nextControls,
     },
   }
+}
+
+export function isResRtMaxed(
+  runtime: ResRuntime,
+  details: ResDtls | null | undefined,
+): boolean {
+  const maxRuntime = maxResRt(runtime, details, {
+    targetSequence: runtime.base.sequence,
+  })
+
+  return runtime.base.level === maxRuntime.base.level
+    && Object.entries(maxRuntime.base.skillLevels)
+      .every(([key, value]) => runtime.base.skillLevels[key as keyof typeof runtime.base.skillLevels] === value)
+    && (details?.traceNodes ?? [])
+      .every((node) => Boolean(runtime.base.traceNodes.activeNodes[node.id]))
+    && Object.entries(maxRuntime.state.controls)
+      .every(([key, value]) => sameRtVal(runtime.state.controls[key], value))
+}
+
+export function setResRtSequence(
+  runtime: ResRuntime,
+  details: ResDtls | null | undefined,
+  sequence: number,
+): ResRuntime {
+  const targetSequence = clampSequence(sequence)
+  if (runtime.base.sequence === targetSequence) {
+    return runtime
+  }
+
+  const preserveMax = Boolean(details) && isResRtMaxed(runtime, details)
+  const nextRuntime = {
+    ...runtime,
+    base: {
+      ...runtime.base,
+      sequence: targetSequence,
+    },
+  }
+
+  if (preserveMax) {
+    return maxResRt(nextRuntime, details, { targetSequence })
+  }
 
   return {
-    ...maxedRt,
+    ...nextRuntime,
     state: {
-      ...maxedRt.state,
-      controls: normResRtCnt(maxedRt, nextControls),
+      ...nextRuntime.state,
+      controls: normResRtCnt(nextRuntime),
     },
   }
 }

@@ -1,15 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: Shared picker modal that renders filterable card grids for
-               resonators, weapons, echoes, and other selection surfaces.
+  Description: Owns picker modal behavior and state transitions for the ui module.
 */
 
 import { useId } from 'react'
 import type { CSSProperties as CssProps, ReactNode } from 'react'
 import { AppModal } from '@/shared/ui/AppModal'
-import { MdlClsBttn } from '@/shared/ui/ModalCloseButton'
+import { ModalHeader } from '@/shared/ui/AppModalShell'
 import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
-import { rarityVars } from '@/modules/calculator/model/display.ts'
+import { rarityVars } from '@/modules/simulation/model/display.ts'
 
 export type PckrMdlRrty = 1 | 2 | 3 | 4 | 5
 
@@ -17,13 +16,14 @@ export interface PckrMdlItem {
   id: string
   title: string
   subtitle?: string
-  description?: string
   rarity?: PckrMdlRrty
+  // what the item is, in colour: its element, its sonata, its rarity. only thin
+  // marks and the tile's own glow wear it
+  tone?: string
   leading?: ReactNode
   trailing?: ReactNode
   cornerNote?: ReactNode
   meta?: ReactNode
-  specClassName?: string
   selected?: boolean
   disabled?: boolean
   bis?: boolean
@@ -41,6 +41,7 @@ interface PckrMdlPrps {
   description?: string
   summary?: ReactNode
   filters?: ReactNode
+  railFoot?: ReactNode
   items: PckrMdlItem[]
   emptyState?: ReactNode
   closeLabel?: string
@@ -56,9 +57,9 @@ export function PickerModal({
   variant,
   title,
   eyebrow,
-  description,
   summary,
   filters,
+  railFoot,
   items,
   emptyState,
   closeLabel = 'Close',
@@ -66,7 +67,6 @@ export function PickerModal({
   onClose,
 }: PckrMdlPrps) {
   const titleId = useId()
-  const dscrId = useId()
   const [gridRef, columns] = useGridColumns()
 
   if (!visible || !portalTarget) {
@@ -79,83 +79,68 @@ export function PickerModal({
       variant="picker"
       size={panelWidth}
       ariaLabelBy={titleId}
-      ariaDscrBy={description ? dscrId : undefined}
       onClose={onClose}
     >
-      <div className="picker-modal__frame" data-variant={variant} onClick={(event) => event.stopPropagation()}>
-        <div className="picker-modal__header">
-          <div className="picker-modal__header-top">
-            <div className="picker-modal__heading">
-              {eyebrow ? <div className="picker-modal__eyebrow">{eyebrow}</div> : null}
-              <h2 id={titleId} className="picker-modal__title">
-                {title}
-              </h2>
-              {description ? (
-                <p id={dscrId} className="picker-modal__description">
-                  {description}
-                </p>
-              ) : null}
-            </div>
-            <div className="picker-modal__actions">
-              {summary ? <div className="picker-modal__summary">{summary}</div> : null}
-              <MdlClsBttn className="picker-modal__close" onClick={onClose} label={closeLabel} />
-            </div>
-          </div>
-        </div>
+      <div className="amdl picker-modal__frame" data-variant={variant} onClick={(event) => event.stopPropagation()}>
+        <ModalHeader
+          over={eyebrow}
+          title={<h2 id={titleId}>{title}</h2>}
+          closeLabel={closeLabel}
+          onClose={onClose}
+        >
+          {summary ? <div className="amdl__gauge">{summary}</div> : null}
+        </ModalHeader>
 
-        {filters ? <div className="picker-modal__filters">{filters}</div> : null}
+        <div className={`picker-modal__stage ${filters ? 'has-rail' : ''}`}>
+          {filters ? (
+            <nav className="amdl__rail pkr-rail" aria-label="Filters">
+              {filters}
+              {railFoot ? <div className="amdl__rail-foot">{railFoot}</div> : null}
+            </nav>
+          ) : null}
 
-        <div className="picker-modal__body">
-          {items.length === 0 ? (
-            <div className="picker-modal__empty">
-              {emptyState ?? <p>No items available.</p>}
-            </div>
-          ) : (
-            <div className="picker-modal__grid picker-modal__grid--cards" ref={gridRef}>
-              {items.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`picker-modal__card ${item.selected ? 'is-selected' : ''} ${!item.leading ? 'picker-modal__card--plain' : ''}`}
-                  style={{
-                    ...rarityVars(item.rarity, item.bis),
-                    animationDelay: `${Math.min(Math.floor(index / columns), 6) * 55}ms`,
-                  } as CssProps}
-                  aria-pressed={item.selected}
-                  data-bis={item.bis ? 'true' : undefined}
-                  onClick={item.onSelect}
-                  disabled={item.disabled}
-                >
-                  <span className="picker-card-bracket picker-card-bracket--tl" aria-hidden="true" />
-                  <span className="picker-card-bracket picker-card-bracket--br" aria-hidden="true" />
-
-                  {item.leading ? (
-                    <div className="picker-modal__card-art">
-                      {item.leading}
-                      {item.cornerNote ? <div className="picker-modal__card-flag picker-modal__card-flag--left">{item.cornerNote}</div> : null}
-                      {item.trailing ? <div className="picker-modal__card-flag">{item.trailing}</div> : null}
-                      <div className="picker-modal__card-scrim">
-                        <div className="picker-modal__card-title">{item.title}</div>
-                        {item.subtitle ? <div className="picker-modal__card-subtitle">{item.subtitle}</div> : null}
+          <div className="picker-modal__body">
+            {items.length === 0 ? (
+              <div className="picker-modal__empty">
+                {emptyState ?? <p>No items available.</p>}
+              </div>
+            ) : (
+              <div className="picker-modal__grid picker-modal__grid--cards" ref={gridRef}>
+                {items.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`picker-modal__card ${item.selected ? 'is-selected' : ''} ${!item.leading ? 'picker-modal__card--plain' : ''}`}
+                    style={{
+                      ...rarityVars(item.rarity, item.bis),
+                      ...(item.tone ? { '--picker-item-tone': item.tone } : null),
+                      animationDelay: `${Math.min(Math.floor(index / columns), 6) * 55}ms`,
+                    } as CssProps}
+                    aria-pressed={item.selected}
+                    data-bis={item.bis ? 'true' : undefined}
+                    onClick={item.onSelect}
+                    disabled={item.disabled}
+                  >
+                    {item.leading ? (
+                      <div className="picker-modal__card-art">
+                        {item.leading}
+                        {item.cornerNote ? <div className="picker-modal__card-flag picker-modal__card-flag--left">{item.cornerNote}</div> : null}
+                        {item.trailing ? <div className="picker-modal__card-flag">{item.trailing}</div> : null}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="picker-modal__card-plate">
+                    ) : null}
+
+                    <div className="picker-modal__card-cap">
                       <div className="picker-modal__card-title">{item.title}</div>
                       {item.subtitle ? <div className="picker-modal__card-subtitle">{item.subtitle}</div> : null}
-                      {item.trailing ? <div className="picker-modal__card-flag picker-modal__card-flag--inline">{item.trailing}</div> : null}
+                      {item.meta ? (
+                        <div className="picker-modal__card-spec">{item.meta}</div>
+                      ) : null}
                     </div>
-                  )}
-
-                  {item.meta ? (
-                    <div className={`picker-modal__card-spec ${item.specClassName ?? ''}`}>
-                      {item.meta}
-                    </div>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </AppModal>

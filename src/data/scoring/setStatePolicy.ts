@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: compiles compact resonator set-state rules into the conditional
-               format consumed by benchmark scoring.
+               format consumed by build evaluation.
 */
 
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
@@ -22,7 +22,7 @@ type PreservedSetPlan = {
   pieces: number
 }
 
-export type BenchmarkSetCondsOptions = {
+export type EvaluationSetConditionOptions = {
   preservedUtilityPlan?: readonly PreservedSetPlan[]
   preservedUtilityControls?: Readonly<Record<string, boolean | number | string | undefined>>
 }
@@ -99,7 +99,7 @@ let cachedStateRefs: StateRef[] | null = null
 
 function stateRefs(): StateRef[] {
   // flatten state keys once and reject duplicates because condition maps are
-  // keyed by partKey alone in the benchmark policy output
+  // keyed by partKey alone in the evaluation policy output
   if (cachedStateRefs) return cachedStateRefs
   const refs: StateRef[] = []
   const seen = new Set<string>()
@@ -120,7 +120,7 @@ function stateRefs(): StateRef[] {
 
 function utilityControlKey(setId: number, stateKey: string): string {
   // utility set controls are stored under the same runtime keys used by the app,
-  // so preserved utility plans can opt their active state back into benchmarks
+  // so preserved utility plans can opt their active state back into evaluations
   return `echoSet:${setId}:bonus:${stateKey}`
 }
 
@@ -133,9 +133,9 @@ function isControlActive(value: unknown): boolean {
   return false
 }
 
-export function benchSetConds(
+export function evaluationSetConditions(
   resonatorId: string,
-  options: BenchmarkSetCondsOptions = {},
+  options: EvaluationSetConditionOptions = {},
 ): SntSetConds {
   // include rules whitelist damage-relevant sets, exclude rules invert that
   // selection, and preserved utility plans add only controls the user had active
@@ -147,14 +147,14 @@ export function benchSetConds(
   for (const setId of rule?.sets ?? []) {
     const matches = refs.filter((ref) => ref.setId === setId)
     if (matches.length === 0) {
-      throw new Error(`Unknown or stateless Sonata set in benchmark rule: ${setId}`)
+      throw new Error(`Unknown or stateless Sonata set in evaluation rule: ${setId}`)
     }
     for (const ref of matches) selected.add(ref.key)
   }
 
   for (const key of rule?.states ?? []) {
     if (!byKey.has(key)) {
-      throw new Error(`Unknown Sonata state in benchmark rule: ${key}`)
+      throw new Error(`Unknown Sonata state in evaluation rule: ${key}`)
     }
     selected.add(key)
   }

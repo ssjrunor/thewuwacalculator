@@ -100,9 +100,9 @@ export const OPT_RDC_K = GPU_REDUCE_K
 export const GPU_COMBO_MODE_BATCH = 3
 
 // upper bound on candidates read back to the cpu before the gpu reduce pass
-// runs. below this, every emitted candidate is read back and the cpu collector
-// selects the exact top-k; the lossy gpu reduction only runs above it.
-export const GPU_BATCH_MAX_READBACK = 1 << 21
+// runs. A smaller ceiling keeps transient GPU/CPU staging allocations bounded;
+// the reduction is intentionally lossy once a batch exceeds this size.
+export const GPU_BATCH_MAX_READBACK = 1 << 18
 
 // packed optimizer context offsets
 // these constants define the meaning of each float slot in the packed context array
@@ -148,9 +148,7 @@ export const WORKER_COUNT = {
   gpu: GPU_WORKERS,
 } as const
 
-// set to false to silence all [optimizer:*] console output
-// hard lock for now
-export const OPT_LOGGING = false //Boolean(import.meta.env?.DEV)
+export const OPT_LOGGING = false
 
 // below this threshold, parallel overhead may outweigh the benefit
 export const MIN_PAR_COMBOS = 20_000

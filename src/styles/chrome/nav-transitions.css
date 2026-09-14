@@ -1,0 +1,132 @@
+
+
+:root {
+
+  view-transition-name: none;
+
+
+  --nav-ease: var(--ease, cubic-bezier(0.16, 1, 0.3, 1));
+
+
+  --nav-out: 170ms;
+  --nav-in: 250ms;
+}
+
+
+.main-content { view-transition-name: ax-page; }
+
+
+
+
+::view-transition-group(ax-page) {
+  animation-name: none;
+  overflow: clip;
+}
+
+::view-transition-image-pair(ax-page) {
+  isolation: isolate;
+}
+
+::view-transition-old(ax-page),
+::view-transition-new(ax-page) {
+  object-fit: cover;
+  object-position: center top;
+  mix-blend-mode: normal;
+  animation-fill-mode: both;
+}
+
+
+::view-transition-old(ax-page) {
+  animation: ax-ink-out var(--nav-out) ease-in both;
+}
+
+
+::view-transition-new(ax-page) {
+  animation: ax-ink-in var(--nav-in) var(--nav-ease) var(--nav-out) both;
+}
+
+
+
+:root.ax-dissolve::view-transition-old(ax-page),
+:root.ax-dissolve::view-transition-new(ax-page) {
+  mix-blend-mode: plus-lighter;
+  animation-delay: 0s;
+  animation-duration: var(--nav-in);
+  animation-timing-function: linear;
+}
+
+@keyframes ax-ink-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ax-ink-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nav-out: 90ms;
+    --nav-in: 90ms;
+  }
+}
+
+
+
+
+.ax-sweep {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 90;
+  overflow: hidden;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ink, #ddd) 8%, transparent);
+  transition: opacity 220ms ease;
+}
+
+.ax-sweep.is-closing { opacity: 0; }
+
+.ax-sweep-run {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--live) 70%, transparent) 38%,
+    var(--live) 50%,
+    color-mix(in srgb, var(--live) 70%, transparent) 62%,
+    transparent 100%
+  );
+
+  box-shadow: 0 0 14px color-mix(in srgb, var(--live) 45%, transparent);
+  animation: ax-sweep-run 1.05s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes ax-sweep-run {
+  from { transform: translate3d(-105%, 0, 0); }
+  to { transform: translate3d(395%, 0, 0); }
+}
+
+
+:root.reduce-animation .ax-sweep-run {
+  animation: none;
+  width: 100%;
+  background: color-mix(in srgb, var(--live) 55%, transparent);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ax-sweep-run {
+    animation: none;
+    width: 100%;
+    background: color-mix(in srgb, var(--live) 55%, transparent);
+    box-shadow: none;
+  }
+}

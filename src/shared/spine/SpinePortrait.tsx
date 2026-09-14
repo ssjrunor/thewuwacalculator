@@ -1,3 +1,9 @@
+/*
+  Author: Runor Ewhro
+  Description: Manages Spine manifest fallback, resolution selection, playback,
+               and worker-backed rendering for reusable resonator portraits.
+*/
+
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createSpineInstance } from './spineEngine.ts'
@@ -9,7 +15,7 @@ export interface SpinePlacement {
   /** Focal point in the intrinsic square canvas coordinate space. */
   x: number
   y: number
-  /** Visual canvas size relative to the containing block. */
+  /** Canvas scale relative to the containing block. */
   scale: number
 }
 
@@ -17,109 +23,6 @@ const SPINE_PLACEMENT_SPACE = 4096
 const SPINE_RESOLUTION_BUCKETS = [1024, 1536, 2048, 2560, 3072] as const
 const SPINE_DPR_CAP = 1.5
 const SPINE_RESIZE_SETTLE_MS = 520
-const SPINE_SETUP_MAX_DIMENSION = 2560
-const SPINE_SETUP_RELEASE_DELAY_MS = 1000
-
-interface SetupImageResource {
-  refs: number
-  releaseTimer: number | null
-  promise: Promise<{ url: string; generated: boolean }>
-}
-
-const setupImageResources = new Map<string, SetupImageResource>()
-
-async function makeSetupImageResource(sourceUrl: string): Promise<{ url: string; generated: boolean }> {
-  if (typeof createImageBitmap !== 'function') return { url: sourceUrl, generated: false }
-
-  const response = await fetch(sourceUrl)
-  if (!response.ok) throw new Error(`Failed to load Spine setup image: ${response.status}`)
-  const sourceBlob = await response.blob()
-  const sourceBitmap = await createImageBitmap(sourceBlob)
-  const scale = Math.min(1, SPINE_SETUP_MAX_DIMENSION / Math.max(sourceBitmap.width, sourceBitmap.height))
-  if (scale >= 1) {
-    sourceBitmap.close()
-    return { url: sourceUrl, generated: false }
-  }
-
-  const width = Math.max(1, Math.round(sourceBitmap.width * scale))
-  const height = Math.max(1, Math.round(sourceBitmap.height * scale))
-  try {
-    if (typeof OffscreenCanvas !== 'undefined') {
-      const canvas = new OffscreenCanvas(width, height)
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Unable to create Spine setup canvas')
-      context.drawImage(sourceBitmap, 0, 0, width, height)
-      const blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 })
-      return { url: URL.createObjectURL(blob), generated: true }
-    }
-
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) throw new Error('Unable to create Spine setup canvas')
-    context.drawImage(sourceBitmap, 0, 0, width, height)
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) resolve(result)
-        else reject(new Error('Unable to encode Spine setup image'))
-      }, 'image/webp', 0.9)
-    })
-    return { url: URL.createObjectURL(blob), generated: true }
-  } finally {
-    sourceBitmap.close()
-  }
-}
-
-function acquireSetupImage(sourceUrl: string): SetupImageResource {
-  let resource = setupImageResources.get(sourceUrl)
-  if (!resource) {
-    resource = {
-      refs: 0,
-      releaseTimer: null,
-      promise: makeSetupImageResource(sourceUrl).catch(() => ({ url: sourceUrl, generated: false })),
-    }
-    setupImageResources.set(sourceUrl, resource)
-  }
-  resource.refs += 1
-  if (resource.releaseTimer != null) {
-    window.clearTimeout(resource.releaseTimer)
-    resource.releaseTimer = null
-  }
-  return resource
-}
-
-function releaseSetupImage(sourceUrl: string, resource: SetupImageResource): void {
-  resource.refs = Math.max(0, resource.refs - 1)
-  if (resource.refs > 0 || resource.releaseTimer != null) return
-  resource.releaseTimer = window.setTimeout(() => {
-    resource.releaseTimer = null
-    void resource.promise.then(({ url, generated }) => {
-      if (resource.refs > 0 || setupImageResources.get(sourceUrl) !== resource) return
-      if (generated) URL.revokeObjectURL(url)
-      setupImageResources.delete(sourceUrl)
-    })
-  }, SPINE_SETUP_RELEASE_DELAY_MS)
-}
-
-function useSetupImage(sourceUrl: string): string {
-  const [resolvedImage, setResolvedImage] = useState({ sourceUrl, url: sourceUrl })
-
-  useEffect(() => {
-    let live = true
-    const resource = acquireSetupImage(sourceUrl)
-    void resource.promise.then(({ url }) => {
-      if (live) setResolvedImage({ sourceUrl, url })
-    })
-    return () => {
-      live = false
-      releaseSetupImage(sourceUrl, resource)
-    }
-  }, [sourceUrl])
-
-  return resolvedImage.sourceUrl === sourceUrl ? resolvedImage.url : sourceUrl
-}
-
 function chooseSpineResolution(cssSize: number): number {
   const dpr = Math.min(SPINE_DPR_CAP, Math.max(1, window.devicePixelRatio || 1))
   const target = Math.max(SPINE_RESOLUTION_BUCKETS[0], cssSize * dpr)
@@ -202,10 +105,7 @@ function SpineSetupBackgroundLayer({
   className: string
   style?: CSSProperties
 }) {
-  const setupUrl = spineSetupUrl(resId, variant)
-  const optimizedSetupUrl = useSetupImage(setupUrl)
-
-  return <SpineBackgroundLayer className={className} imageUrl={optimizedSetupUrl} style={style} />
+  return <SpineBackgroundLayer className={className} imageUrl={spineSetupUrl(resId, variant)} style={style} />
 }
 
 function SpineBackgroundLayer({
@@ -450,8 +350,7 @@ export function SpinePortrait({
     )
   }
 
-  // Manifest not resolved yet: render nothing rather than flashing the sprite
-  // fallback, which would be swapped out the moment we learn a spine exists.
+  // Pending and missing are distinct: defer fallback selection until the manifest resolves.
   if (variantAvailable == null) return null
   if (!variantAvailable || !resId) return fallback
 
@@ -471,8 +370,6 @@ export function SpinePortrait({
   )
 }
 
-// Custom uploaded portrait. Starts transparent and fades in via `is-ready` once
-// the image decodes (remounted by url key on change), matching the spine's fade.
 function OverridePortrait({
   url,
   spineClassName,
@@ -523,30 +420,37 @@ function SpineLayers({
   const [animationReady, setAnimationReady] = useState(false)
   const [animationUnsupported, setAnimationUnsupported] = useState(false)
   const setupFrameRef = useRef<number | null>(null)
-  const optimizedSetupUrl = useSetupImage(spineSetupUrl(resId, variant))
 
   useEffect(() => () => {
     if (setupFrameRef.current != null) cancelAnimationFrame(setupFrameRef.current)
   }, [])
 
-  // A newly enabled canvas must wait for its own ready signal instead of
-  // inheriting the prior canvas instance's state.
+  // Pausing preserves the worker, WebGL context, and decoded atlas; `animated`
+  // controls playback while the allocated canvas remains mounted.
+  const [canvasMounted, setCanvasMounted] = useState(animated)
   const [wasAnimated, setWasAnimated] = useState(animated)
   if (wasAnimated !== animated) {
     setWasAnimated(animated)
-    setAnimationReady(false)
-    if (animated) setAnimationUnsupported(false)
+    if (animated) {
+      setCanvasMounted(true)
+      // Re-enabling after a failed attempt is the user asking to retry, and
+      // that retry does mount a fresh canvas owing its own ready signal.
+      if (animationUnsupported) {
+        setAnimationUnsupported(false)
+        setAnimationReady(false)
+      }
+    }
   }
 
-  const showAnimation = animated && !animationUnsupported
-  const animationVisible = showAnimation && animationReady && setupPresented
+  const showAnimation = canvasMounted && !animationUnsupported
+  const animationVisible = animated && showAnimation && animationReady && setupPresented
 
   return (
     <>
       {setupUnsupported ? fallback : null}
       {!setupUnsupported ? (
         <img
-          src={optimizedSetupUrl}
+          src={spineSetupUrl(resId, variant)}
           alt=""
           className={`${spineClassName} spine-setup${setupReady ? ' is-ready' : ''}${animationVisible ? ' is-obscured' : ''}`}
           style={placementStyle(placement, placementSpace)}
@@ -572,12 +476,11 @@ function SpineLayers({
       ) : null}
       {showAnimation ? (
         <SpineCanvas
-          key={`${resId}:${variant}:${animated}`}
           resId={resId}
           variant={variant}
           placementSpace={placementSpace}
           zoom={zoom}
-          playing={playing}
+          playing={playing && animated}
           placement={placement}
           className={`${spineClassName} spine-animated${animationVisible ? ' is-ready' : ''}`}
           onPreparing={() => setAnimationReady(false)}

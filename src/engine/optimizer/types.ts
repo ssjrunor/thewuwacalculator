@@ -113,6 +113,8 @@ export type KindArray = Uint16Array
 // these keys are internal worker contract fields, so compact names keep hot
 // payload plumbing readable without touching persisted optimizer settings.
 export interface PrepOptShrdP {
+  scenarioId: import('@/domain/entities/combatScenario').CombatScenarioId
+  memberId: import('@/domain/entities/combatScenario').TeamMemberId
   resultsLimit: number
   lowMmryMode: boolean
   constraints: Float32Array
@@ -149,8 +151,10 @@ export interface PrepOptShrdP {
 
 // input payload used to start building an optimizer execution context
 // this is the high-level request shape before compiler packing; short aliases
-// distinguish transient catalog snapshots from saved calculator state.
+// Distinguish transient catalog snapshots from saved scenario state.
 export interface OptStartPay {
+  scenarioId: import('@/domain/entities/combatScenario').CombatScenarioId
+  memberId: import('@/domain/entities/combatScenario').TeamMemberId
   resonatorId: string
   gameDataMode?: GameDataMode
   resSeed?: ResSeed

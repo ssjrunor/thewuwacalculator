@@ -1,0 +1,397 @@
+
+
+.enemy-console-panel {
+  --amdl-w: 60rem;
+  --picker-modal-text: var(--text);
+  --picker-modal-muted: var(--muted);
+  --picker-modal-border: var(--box-border, var(--border));
+  --enc-datum: color-mix(in srgb, #efe9dc 88%, var(--text));
+}
+
+.enc__body {
+  grid-template-columns: 15.5rem minmax(0, 1fr) 18.5rem;
+
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.enc__body > :not(.enc-band) {
+  grid-row: 1;
+}
+
+
+.enc-band {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 0.7rem 0.85rem 0.85rem;
+  border-top: 1px solid var(--amdl-line);
+  background: color-mix(in srgb, var(--amdl-text) 1.5%, var(--c-transparent));
+}
+
+
+.enc .amdl__seg-btn {
+  width: auto;
+  padding: 0 0.7rem;
+  font: 500 0.62rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+
+
+.enc-face {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--amdl-line-soft);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--amdl-sunk);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.enc-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.enc-face:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--amdl-accent) 55%, var(--amdl-line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amdl-accent) 12%, var(--c-transparent));
+}
+
+
+.enc-face--core {
+  width: 3.9rem;
+  height: 3.9rem;
+}
+
+.reduce-animation .enc-face {
+  transition: none;
+}
+
+
+
+.enc-rail {
+  gap: 0;
+}
+
+.enc-loads {
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.6rem;
+}
+
+
+
+.enc-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0.5rem;
+}
+
+.enc-ring__svg {
+  display: block;
+  width: min(100%, 20rem);
+  height: auto;
+  overflow: visible;
+}
+
+.enc-ring__hub {
+  fill: none;
+  stroke: color-mix(in srgb, var(--amdl-text) 10%, var(--c-transparent));
+}
+
+.enc-ring__datum {
+  fill: none;
+  stroke: var(--enc-datum);
+  stroke-opacity: 0.38;
+  stroke-dasharray: 2 5;
+}
+
+.enc-ring__arc {
+  cursor: pointer;
+}
+
+.enc-ring__bed {
+  fill: var(--amdl-text);
+  fill-opacity: 0.03;
+}
+
+.enc-ring__band {
+  fill: var(--el);
+  fill-opacity: 0.28;
+  transition: d 240ms ease, fill-opacity 160ms ease;
+}
+
+.enc-ring__arc.is-on .enc-ring__band {
+  fill-opacity: 0.82;
+}
+
+.enc-ring__arc:hover .enc-ring__band {
+  fill-opacity: 0.55;
+}
+
+.enc-ring__arc:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--amdl-accent) 55%, var(--c-transparent));
+  outline-offset: 2px;
+}
+
+.enc-ring__glyph {
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+
+.enc-ring__glyph.is-on {
+  opacity: 1;
+}
+
+.reduce-animation :is(.enc-ring__band, .enc-ring__glyph) {
+  transition: none;
+}
+
+.enc-ring__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  width: 10rem;
+  text-align: center;
+}
+
+.enc-ring__x {
+  font-family: var(--display-font);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--amdl-accent) 55%, var(--text));
+}
+
+.enc-ring__of {
+  font: 500 0.5rem/1 var(--mono-font);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amdl-muted);
+}
+
+
+
+
+.enc-band {
+  padding-top: 0.55rem;
+}
+
+.enc-band .enemy-res-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.enc-band .enemy-res-cell {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.enc-band .enemy-res-cell.is-picked {
+  border-color: color-mix(in srgb, var(--el) 72%, var(--item-border));
+  background: color-mix(in srgb, var(--el) 12%, var(--box-bg));
+}
+
+.enc-band .enemy-res-cell.is-picked::after {
+  opacity: 1;
+  width: 3px;
+}
+
+@media (max-width: 62rem) {
+  .enc-band .enemy-res-grid {
+    grid-template-columns: repeat(auto-fit, minmax(5.25rem, 1fr));
+  }
+}
+
+
+
+.enc-side {
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+}
+
+.enc-vuln__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+
+.enc-vuln__name {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.enc-vuln__name.is-keyed {
+  text-decoration: underline dotted
+    color-mix(in srgb, var(--amdl-accent) 52%, var(--c-transparent));
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: 1px;
+  cursor: help;
+  transition: text-decoration-color 120ms ease, color 120ms ease;
+}
+
+.enc-vuln:is(:hover, :focus-within) .enc-vuln__name.is-keyed {
+  text-decoration-style: solid;
+  text-decoration-color: color-mix(in srgb, var(--amdl-accent) 72%, var(--c-transparent));
+}
+
+.reduce-animation .enc-vuln__name.is-keyed {
+  transition: none;
+}
+
+
+.res-tag-tooltip__row:not(:has(.res-tag-tooltip__icon)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.enc-stk {
+  display: inline-flex;
+  gap: 0.15rem;
+  flex: none;
+}
+
+.enc-stk__seg {
+  width: 0.5rem;
+  height: 0.95rem;
+  padding: 0;
+  border: 1px solid var(--amdl-line-soft);
+  border-radius: 1px;
+  background: var(--amdl-sunk);
+  transform: skewX(-12deg);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.enc-stk__seg.is-on {
+  background: color-mix(in srgb, var(--amdl-accent) 55%, var(--item-border));
+  border-color: color-mix(in srgb, var(--amdl-accent) 45%, var(--c-transparent));
+}
+
+.reduce-animation .enc-stk__seg {
+  transition: none;
+}
+
+
+
+.enc-level {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.enc-level__fig {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-family: var(--display-font);
+  font-variant-numeric: tabular-nums;
+}
+
+.enc-level__fig b {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.enc-level__fig span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--amdl-muted);
+}
+
+.enc-level input[type='range'] {
+  appearance: none;
+  width: 100%;
+  height: 1rem;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.enc-level input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amdl-accent) 70%, var(--c-transparent)) var(--at, 50%),
+    color-mix(in srgb, var(--amdl-text) 10%, var(--c-transparent)) var(--at, 50%)
+  );
+}
+
+.enc-level input[type='range']::-moz-range-track {
+  height: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--amdl-text) 10%, var(--c-transparent));
+}
+
+.enc-level input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: -0.2rem;
+  border-radius: 50%;
+  background: var(--amdl-text);
+}
+
+.enc-level input[type='range']::-moz-range-thumb {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--amdl-text);
+}
+
+
+
+.enc-foot {
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 62rem) {
+  .enc__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .enc__body > :not(.enc-band) {
+    grid-row: auto;
+  }
+
+  .enc-band {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .enc-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--amdl-line);
+  }
+
+  .enc-side {
+    border-top: 1px solid var(--amdl-line);
+  }
+}

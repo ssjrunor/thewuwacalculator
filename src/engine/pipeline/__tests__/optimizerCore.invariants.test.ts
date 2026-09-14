@@ -12,6 +12,7 @@ import { makeEnemy, makeOptSets, makeResRuntime } from '@/domain/state/defaults'
 import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
 import {
   OPT_RDC_K,
+  SET_SLOT_COUNT,
 } from '@/engine/optimizer/config/constants'
 import { ECHO_SET_DEFS, getEchoSetCn } from '@/data/gameData/echoSets/effects'
 import { runOptSrch } from '@/engine/optimizer/engine'
@@ -25,6 +26,10 @@ import {
 import { countOptCombos, countOptRows } from '@/engine/optimizer/search/counting'
 import { mkTgtGpuSttc } from '@/engine/optimizer/workers/targetGpu'
 import { runResSmlt } from '@/engine/pipeline'
+import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
+import targetShader from '@/engine/optimizer/shaders/target.wgsl?raw'
+import rotationShader from '@/engine/optimizer/shaders/rotation.wgsl?raw'
+import weaponSearchShader from '@/engine/optimizer/shaders/weaponSearch.wgsl?raw'
 
 function makeEchoInstance(
   id: string,
@@ -101,6 +106,33 @@ function echoSetStateMax(state: (typeof ECHO_SET_DEFS)[number]['states'][string]
 }
 
 describe('optimizer core invariants', () => {
+  it('keeps every authored Sonata set addressable by CPU and GPU set buffers', () => {
+    const maxSetId = Math.max(...ECHO_SET_DEFS.map((definition) => definition.id))
+
+    expect(SETCNSTLUTSE).toBe(SET_SLOT_COUNT)
+    expect(maxSetId).toBeLessThan(SET_SLOT_COUNT)
+    for (const shader of [targetShader, rotationShader, weaponSearchShader]) {
+      expect(shader).toContain(`const SET_SLOTS : u32 = ${SET_SLOT_COUNT}u;`)
+    }
+  })
+
+  it('packs the new Sonata effects into optimizer rows', () => {
+    const seed = listResSds()[0]
+    expect(seed).toBeTruthy()
+    if (!seed) return
+
+    const rows = buildSetRows(makeResRuntime(seed))
+    const bonuses = [36, 37, 38].map((setId) => {
+      const setCounts = new Uint8Array(SET_SLOT_COUNT)
+      setCounts[setId] = 5
+      return applySetVec(setCounts, 0xffffffff, rows, 0xffffffff)
+    })
+
+    expect(bonuses[0]).toMatchObject({ critRate: 15, electro: 32.5 })
+    expect(bonuses[1]).toMatchObject({ electro: 20 })
+    expect(bonuses[2]).toMatchObject({ atkP: 25 })
+  })
+
   it('keeps the GPU reduce fan-out in sync with the target shaders', () => {
     expect(OPT_RDC_K).toBe(8)
   })
@@ -156,6 +188,8 @@ describe('optimizer core invariants', () => {
     settings.resultsLimit = 8
 
     const results = await runOptSrch({
+      scenarioId: combatScenarioId('optimizer:test'),
+      memberId: teamMemberId(fixture.seed.id),
       resonatorId: fixture.seed.id,
       runtime,
       settings,
@@ -186,6 +220,8 @@ describe('optimizer core invariants', () => {
     }
 
     const results = await runOptSrch({
+      scenarioId: combatScenarioId('optimizer:test'),
+      memberId: teamMemberId(fixture.seed.id),
       resonatorId: fixture.seed.id,
       runtime,
       settings,

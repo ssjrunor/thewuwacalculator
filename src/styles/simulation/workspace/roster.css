@@ -1,0 +1,712 @@
+
+
+.blm {
+  --blm-thread: color-mix(in srgb, var(--text) 16%, transparent);
+  --blm-notch: color-mix(in srgb, var(--text) 34%, transparent);
+  --blm-pitch: 4.1rem;
+  --blm-bead: 2.9rem;
+  --blm-bead-on: 3.25rem;
+
+  --blm-spring: linear(0, 0.0416, 0.1425, 0.2734, 0.4133, 0.5481, 0.6692, 0.7722, 0.8557, 0.9201, 0.9675, 1.0003, 1.0212, 1.0329, 1.0378, 1.038, 1.0352, 1.0307, 1.0254, 1.0201, 1.0151, 1.0108, 1.0072, 1.0043, 1.0022, 1.0006, 0.9996, 0.9989, 0.9986, 0.9985, 1);
+  --blm-io: cubic-bezier(0.7, 0, 0.2, 1);
+
+  --blm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --blm-line-soft: color-mix(in srgb, var(--resonator-accent, var(--accent)) 9%, var(--item-border, var(--border)));
+  --row-ink: var(--resonator-accent, var(--accent));
+  position: relative;
+  width: var(--roster-w);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.blm-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+}
+
+.blm-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.blm-thread {
+  position: relative;
+  overflow: visible;
+  padding: 0.9rem 0 1.2rem;
+}
+
+.blm-thread:focus-visible {
+  outline: none;
+}
+
+
+.blm-thread::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--blm-thread) 6%,
+    var(--blm-thread) 94%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+
+.blm-knot {
+  position: relative;
+  z-index: 3;
+  display: block;
+  width: 100%;
+  height: 2.1rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.blm-knot-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.25rem var(--bg);
+  transition: transform 320ms var(--blm-ease), box-shadow 240ms ease;
+}
+
+.blm-knot-mark img {
+  width: 0.88rem;
+  height: 0.88rem;
+  object-fit: contain;
+  opacity: 0.8;
+  filter: grayscale(0.3);
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+.blm-knot:hover .blm-knot-mark {
+  transform: translate(-50%, -50%) scale(1.14);
+}
+
+.blm-knot:is(:hover, [data-folded]) .blm-knot-mark img {
+  opacity: 1;
+  filter: none;
+}
+
+.blm-knot[data-folded] .blm-knot-mark {
+  box-shadow:
+    0 0 0 0.25rem var(--bg),
+    inset 0 0 0 1px color-mix(in srgb, var(--knot-ink) 55%, transparent);
+}
+
+.blm-knot-n {
+  position: absolute;
+  left: calc(50% + 1.05rem);
+  top: 50%;
+  transform: translateY(-50%);
+  font: 500 0.55rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--knot-ink) 55%, var(--muted));
+  opacity: 0.55;
+  transition: opacity 220ms ease, color 220ms ease;
+}
+
+.blm-knot:is(:hover, [data-folded]) .blm-knot-n {
+  opacity: 1;
+  color: color-mix(in srgb, var(--knot-ink) 80%, var(--text));
+}
+
+.blm-knot:focus-visible {
+  outline: none;
+}
+
+.blm-knot:focus-visible .blm-knot-mark {
+  box-shadow: 0 0 0 0.25rem var(--bg), 0 0 0 calc(0.25rem + 1px) var(--knot-ink);
+}
+
+.blm-group {
+  display: grid;
+  overflow: visible;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 380ms var(--blm-ease), opacity 240ms ease;
+}
+
+.blm-group[data-folded] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.blm-group-body {
+  overflow: visible;
+  min-height: 0;
+}
+
+.blm-bead {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: var(--blm-pitch);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+
+.blm-bead::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6rem;
+  height: 6rem;
+  margin: -3rem 0 0 -3rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--row-ink) 34%, transparent) 0%,
+    transparent 62%
+  );
+  opacity: 0;
+  transform: scale(0.55);
+  transition: opacity 420ms ease, transform 560ms var(--blm-ease);
+  pointer-events: none;
+}
+
+.blm-bead[data-active]::before {
+  opacity: 1;
+  transform: none;
+}
+
+
+.blm[data-reads='rotation'] .blm-bead[data-marked]::after {
+  content: '';
+  position: absolute;
+  left: 0.26rem;
+  top: 50%;
+  width: 0.44rem;
+  height: 1px;
+  background: var(--blm-notch);
+  transition: width 200ms var(--blm-ease), background 200ms ease;
+}
+
+
+.blm[data-reads='rotation'] .blm-bead[data-marked][data-pointed]::after {
+  width: 0.58rem;
+  background: color-mix(in srgb, var(--row-ink) 70%, var(--text));
+}
+
+.blm[data-reads='rotation'] .blm-bead[data-marked][data-active]::after {
+  left: 0.16rem;
+  width: 0.6rem;
+  height: 2px;
+  margin-top: -0.5px;
+  background: var(--row-ink);
+}
+
+.blm-bead-pic {
+  position: relative;
+  width: var(--blm-bead);
+  height: var(--blm-bead);
+  border-radius: 50%;
+  transition: width 340ms var(--blm-ease), height 340ms var(--blm-ease);
+}
+
+.blm-bead[data-active] .blm-bead-pic {
+  width: var(--blm-bead-on);
+  height: var(--blm-bead-on);
+}
+
+.blm-bead-pic img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+  filter: saturate(0.5) brightness(0.72);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent),
+    0 0 0 3px var(--bg);
+  transition: filter 340ms ease, box-shadow 340ms ease;
+}
+
+.blm-bead[data-pointed] .blm-bead-pic img {
+  filter: saturate(0.95) brightness(0.98);
+}
+
+.blm-bead[data-active] .blm-bead-pic img {
+  filter: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--row-ink),
+    0 0 0 3px var(--bg),
+    0 0 0.85rem color-mix(in srgb, var(--row-ink) 55%, transparent);
+}
+
+.blm-bead:focus-visible {
+  outline: none;
+}
+
+.blm-bead:focus-visible .blm-bead-pic img {
+  box-shadow:
+    inset 0 0 0 1.5px var(--text),
+    0 0 0 3px var(--bg),
+    0 0 0 5px color-mix(in srgb, var(--row-ink) 60%, transparent);
+}
+
+.blm-bead.focus-selected .blm-bead-pic img {
+  box-shadow:
+    inset 0 0 0 1.5px var(--row-ink),
+    0 0 0 3px var(--bg),
+    0 0 0 5px color-mix(in srgb, var(--row-ink) 45%, transparent);
+}
+
+
+.blm-capsule {
+  --cr: calc(var(--blm-bead) / 2);
+  position: absolute;
+  z-index: 6;
+  left: calc(var(--cx) - var(--cr) - 4px);
+  top: calc(var(--cy) - var(--cr) - 4px);
+  display: flex;
+  align-items: center;
+  width: calc(2 * var(--cr) + 8px + var(--bw, 0px));
+  height: calc(2 * var(--cr) + 8px);
+  overflow: hidden;
+  border-radius: 999px;
+  background:
+    radial-gradient(60% 120% at 0 50%, color-mix(in srgb, var(--row-ink) 20%, transparent), transparent 70%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text) 11%, var(--bg)),
+      color-mix(in srgb, var(--text) 4%, var(--bg))
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--row-ink) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent),
+    0 0.75rem 1.75rem -0.2rem color-mix(in srgb, #000 55%, transparent),
+    0 0 1.6rem -0.5rem color-mix(in srgb, var(--row-ink) 70%, transparent);
+  transition:
+    width 600ms var(--blm-spring),
+    height 450ms var(--blm-spring),
+    left 450ms var(--blm-spring),
+    top 450ms var(--blm-spring),
+    opacity 120ms ease;
+
+  animation: blm-capsule-land 120ms ease backwards;
+}
+
+.blm-capsule[data-lead] {
+  --cr: calc(var(--blm-bead-on) / 2);
+}
+
+.blm-capsule[data-phase='out'] {
+  opacity: 0;
+  pointer-events: none;
+  transition: width 300ms var(--blm-io), opacity 140ms ease 240ms;
+}
+
+.blm-capsule-face {
+  position: relative;
+  flex: none;
+  width: calc(2 * var(--cr));
+  height: calc(2 * var(--cr));
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: 0 0 0 1.5px var(--row-ink);
+  cursor: pointer;
+  transition: width 450ms var(--blm-spring), height 450ms var(--blm-spring), box-shadow 200ms ease;
+}
+
+.blm-capsule-face img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: blm-fade-in 280ms ease backwards;
+}
+
+.blm-capsule-bodies {
+  position: relative;
+  flex: none;
+  padding: 0 1.15rem 0 0.75rem;
+}
+
+.blm-capsule-body {
+  display: flex;
+  align-items: center;
+  gap: 0.95rem;
+  width: max-content;
+  white-space: nowrap;
+}
+
+.blm-capsule-body[data-leaving] {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  translate: 0 -50%;
+  pointer-events: none;
+  animation: blm-fade-out 140ms ease both;
+}
+
+.blm-capsule-body[data-enter='mount'] > * {
+  animation: blm-rise 360ms var(--blm-ease) both;
+  animation-delay: calc(160ms + var(--i, 0) * 50ms);
+}
+
+.blm-capsule-body[data-enter='swap'] {
+  animation: blm-rise 300ms var(--blm-ease) both;
+}
+
+.blm-capsule[data-phase='out'] .blm-capsule-body {
+  animation: blm-fade-out 100ms ease both;
+}
+
+.blm-capsule-text {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.blm-capsule-name {
+  font: 600 0.9rem/1.12 var(--display-font);
+  letter-spacing: -0.012em;
+  color: var(--text);
+}
+
+.blm-capsule-note {
+  font: 500 0.58rem/1.2 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.07em;
+  color: color-mix(in srgb, var(--row-ink) 38%, var(--muted));
+}
+
+.blm-capsule-div {
+  width: 1px;
+  height: 1.6rem;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--row-ink) 50%, transparent), transparent);
+}
+
+.blm-capsule-mates {
+  display: flex;
+  gap: 0.42rem;
+}
+
+
+.blm-mate {
+  position: relative;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  transition: scale 450ms var(--blm-spring);
+}
+
+.blm-capsule-body[data-enter='mount'] .blm-mate {
+  animation: blm-mate-in 600ms var(--blm-spring) backwards;
+  animation-delay: calc(260ms + var(--i) * 70ms);
+}
+
+.blm-mate img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+  filter: saturate(0.8) brightness(0.9);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--mate) 70%, transparent),
+    0 0 0 3.5px color-mix(in srgb, var(--bg) 85%, transparent);
+  transition: filter 200ms ease, box-shadow 200ms ease;
+}
+
+.blm-mate::after,
+.blm-capsule[data-lead] .blm-capsule-face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0;
+  background:
+    color-mix(in srgb, #060808 55%, transparent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2f2f2' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7.5 18.5 3 20l1.5-4.5Z'/%3E%3C/svg%3E")
+    center / 42% no-repeat;
+  transition: opacity 180ms ease;
+}
+
+.blm-mate:is(:hover, :focus-visible) {
+  scale: 1.12;
+  outline: none;
+}
+
+.blm-mate:is(:hover, :focus-visible) img {
+  filter: none;
+  box-shadow:
+    0 0 0 1.5px var(--mate),
+    0 0 0 3.5px color-mix(in srgb, var(--bg) 85%, transparent),
+    0 0 0.9rem color-mix(in srgb, var(--mate) 70%, transparent);
+}
+
+.blm-mate:is(:hover, :focus-visible)::after,
+.blm-capsule[data-lead] .blm-capsule-face:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+
+.blm-capsule-face:is(:hover, :focus-visible) {
+  outline: none;
+  box-shadow:
+    0 0 0 1.5px var(--row-ink),
+    0 0 0.9rem color-mix(in srgb, var(--row-ink) 70%, transparent);
+}
+
+@keyframes blm-capsule-land {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes blm-rise {
+  from {
+    opacity: 0;
+    transform: translateX(-7px);
+  }
+}
+
+@keyframes blm-mate-in {
+  from {
+    opacity: 0;
+    scale: 0.25;
+  }
+}
+
+@keyframes blm-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes blm-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.no-entrance-anim .blm-capsule,
+.no-entrance-anim .blm-capsule *,
+.reduce-animation .blm-capsule,
+.reduce-animation .blm-capsule * {
+  animation: none !important;
+  transition: none !important;
+}
+
+
+.blm-foot {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.35rem 0.7rem;
+}
+
+.blm-socket {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.25rem var(--bg);
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 220ms ease, transform 320ms var(--blm-ease);
+}
+
+.blm-socket::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  transition: border-color 220ms ease, transform 420ms var(--blm-ease);
+}
+
+.blm-socket:hover {
+  color: var(--resonator-accent, var(--accent));
+  transform: scale(1.06);
+}
+
+.blm-socket:hover::before {
+  border-color: color-mix(in srgb, var(--resonator-accent, var(--accent)) 55%, transparent);
+  transform: rotate(90deg);
+}
+
+.blm-socket:focus-visible {
+  outline: none;
+  color: var(--resonator-accent, var(--accent));
+}
+
+.blm-socket:focus-visible::before {
+  border-style: solid;
+  border-color: var(--resonator-accent, var(--accent));
+}
+
+.blm-cap {
+  width: 100%;
+  min-height: 2.6rem;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.25rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--blm-line-soft);
+}
+
+.blm-cap-name {
+  max-width: 100%;
+  font: 700 0.72rem/1.1 var(--body-font);
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  animation: blm-cap-in 240ms var(--blm-ease) both;
+}
+
+.blm-cap-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+}
+
+.blm-cap-lv {
+  font: 500 0.55rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.blm-cap-seq {
+  display: inline-flex;
+  gap: 0.12rem;
+}
+
+.blm-cap-seq i {
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted) 32%, transparent);
+}
+
+.blm-cap-seq i[data-on='true'] {
+  background: var(--row-ink);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--row-ink) 60%, transparent);
+}
+
+
+.blm-cap-find {
+  max-width: 100%;
+  overflow: hidden;
+  font: 500 0.68rem/1.4 var(--mono-font);
+  letter-spacing: 0.1em;
+  color: var(--resonator-accent, var(--accent));
+}
+
+.blm-cap-find::after {
+  content: '_';
+  animation: blm-caret 1s steps(2) infinite;
+}
+
+.blm-cap-empty {
+  font: 500 0.6rem/1.3 var(--mono-font);
+  text-align: center;
+  color: var(--muted);
+}
+
+@keyframes blm-cap-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes blm-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+
+@keyframes blm-bead-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.blm-bead {
+  animation: blm-bead-in 440ms var(--blm-ease) backwards;
+  animation-delay: calc(var(--bi, 0) * 42ms);
+}
+
+.no-entrance-anim .blm-bead,
+.no-entrance-anim .blm-cap-name,
+.reduce-animation .blm-bead,
+.reduce-animation .blm-cap-name {
+  animation: none;
+}
+
+.reduce-animation .blm-group,
+.reduce-animation .blm-bead-pic,
+.reduce-animation .blm-bead::before,
+.reduce-animation .blm-bead::after {
+  transition: none;
+}
+
+
+@media (max-width: 60rem) {
+  .blm {
+    --blm-pitch: 3rem;
+    --blm-bead: 2.2rem;
+    --blm-bead-on: 2.55rem;
+  }
+}

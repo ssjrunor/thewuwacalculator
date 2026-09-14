@@ -6,7 +6,7 @@ This document covers the ranking and search systems that sit on top of the share
 
 ## Shared Runtime Assumption
 
-Suggestions and optimizer do not invent a separate combat model. They both reuse the same underlying runtime assumptions used by the main calculator:
+Suggestions and Optimizer do not invent a separate combat model. They reuse the same canonical scenario and runtime assumptions as Modulation and Rotation:
 
 - active resonator runtime
 - team state
@@ -23,16 +23,18 @@ Primary files:
 - [src/engine/suggestions/core.ts](../src/engine/suggestions/core.ts)
 - [src/engine/suggestions/mainStat-suggestion](../src/engine/suggestions/mainStat-suggestion)
 - [src/engine/suggestions/setPlan-suggestion](../src/engine/suggestions/setPlan-suggestion)
-- [src/engine/suggestions/randomEchoes](../src/engine/suggestions/randomEchoes)
 - [src/engine/suggestions/worker.ts](../src/engine/suggestions/worker.ts)
+- [src/modules/simulation/features/suggestions/surfaceAlgorithms](../src/modules/simulation/features/suggestions/surfaceAlgorithms)
 
 Top level suggestion families:
 
 - main stat suggestions
 - set plan suggestions
+- weapon suggestions
 - random echo generation
+- substat priority
 
-Main stat and set plan suggestions are synchronous ranking systems over prepared inputs. Random echo generation is async because it can perform heavier synthetic exploration work.
+Main-stat, set-plan, and weapon ranking are durable engine systems. Random Echo generation and substat priority are calculator-surface algorithms: they live under `surfaceAlgorithms`, may be replaced or deleted with those surfaces, and must not become dependencies of shared engine, scoring, or optimizer code. Random generation uses its own worker because it can perform heavier synthetic exploration work.
 
 Suggestions are shaped by:
 
@@ -47,7 +49,7 @@ Set plan suggestion rows are display-grouped after scoring. Plans with the same 
 
 ## Suggestions Worker Boundary
 
-The worker layer exists so expensive suggestion preparation and ranking does not block the main thread during heavier runs. It should stay aligned with the same prepared input contracts used by the direct engine helpers.
+The shared worker runs the durable main-stat, set-plan, and weapon families. Random Echo generation has a feature-owned worker and client contract under `surfaceAlgorithms`; deleting that surface must not require editing the shared worker.
 
 ## Optimizer Overview
 
@@ -104,10 +106,9 @@ Primary files:
 
 - [src/engine/optimizer/workers/pool.ts](../src/engine/optimizer/workers/pool.ts)
 - [src/engine/optimizer/workers/compile.worker.ts](../src/engine/optimizer/workers/compile.worker.ts)
-- [src/engine/optimizer/workers/count.worker.ts](../src/engine/optimizer/workers/count.worker.ts)
 - [src/engine/optimizer/workers/task.worker.ts](../src/engine/optimizer/workers/task.worker.ts)
 
-The worker layer exists to keep compilation, counting, batching, and heavy search work off the main thread. Store side runtime helpers coordinate lifecycle, cancellation, and result materialization.
+The worker layer exists to keep compilation, batching, and heavy search work off the main thread. Store side runtime helpers coordinate lifecycle, cancellation, and result materialization.
 
 ## Result Materialization
 

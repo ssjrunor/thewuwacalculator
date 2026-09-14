@@ -1,12 +1,17 @@
 /*
   Author: Runor Ewhro
-  Description: shared animated visibility hooks for modal, picker, and menu
-               state so component files can stay focused on ui wiring.
+  Description: Owns use animated visibility behavior and state transitions for the hooks module.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type NmtnFrmRef = { current: number | null }
+
+function runHiddenCallback(onHidden: unknown) {
+  if (typeof onHidden === 'function') {
+    onHidden()
+  }
+}
 
 function schdOpenFrm(
   frameRef: NmtnFrmRef,
@@ -29,7 +34,7 @@ function schdOpenFrm(
 }
 
 // simple open/close animation state for boolean visibility flows
-export function useAnimVis(exitDurMs = 300, openDlyFrms = 1) {
+export function useAnimatedVisibility(exitDurMs = 300, openDlyFrms = 1) {
   const [visible, setVisible] = useState(false)
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -63,7 +68,7 @@ export function useAnimVis(exitDurMs = 300, openDlyFrms = 1) {
   const hide = useCallback(
     (onHidden?: () => void) => {
       if (!visible) {
-        onHidden?.()
+        runHiddenCallback(onHidden)
         return
       }
 
@@ -74,7 +79,7 @@ export function useAnimVis(exitDurMs = 300, openDlyFrms = 1) {
         setVisible(false)
         setClosing(false)
         clsTmrRef.current = null
-        onHidden?.()
+        runHiddenCallback(onHidden)
       }, exitDurMs)
     },
     [clearPending, exitDurMs, visible],
@@ -90,7 +95,7 @@ export function useAnimVis(exitDurMs = 300, openDlyFrms = 1) {
 }
 
 // animated visibility helper that also carries a typed modal payload
-export function useAnimMdlVl<T>(exitDurMs = 320, openDlyFrms = 1) {
+export function useAnimatedModalValue<T>(exitDurMs = 320, openDlyFrms = 1) {
   const [value, setValue] = useState<T | null>(null)
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)

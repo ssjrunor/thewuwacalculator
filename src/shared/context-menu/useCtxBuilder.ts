@@ -5,60 +5,60 @@
 */
 
 import { useMemo } from 'react'
-import { useRtChrmMen } from '@/shared/context-menu/RouteCtx.tsx'
+import { useRtChrmMen } from '@/shared/context-menu/routeMenuContext'
 import {
-  usePtnlCalcC,
-} from '@/modules/calculator/features/main/lib/ctx.tsx'
-import { calcBuilder } from '@/modules/calculator/context-menu/calcCtxBuilders.tsx'
+  useOptionalSimulationContext,
+} from '@/modules/simulation/context/SimulationContext.tsx'
+import { simulationMenuBuilder } from '@/modules/simulation/context-menu/simulationContextBuilders.tsx'
 
-function mssnCalcMenu(): never {
-  throw new Error('Calculator context menus are only available within CalculatorProvider')
+function missingSimulationMenu(): never {
+  throw new Error('Simulation context menus are only available within SimulationProvider')
 }
 
 export function useCtxBuilder() {
   const rtChrmMenu = useRtChrmMen()
-  const calcMenu = usePtnlCalcC()
+  const simulationMenu = useOptionalSimulationContext()
 
   return useMemo(() => ({
-    calculator: calcMenu
+    simulation: simulationMenu
         ? {
-          ...calcMenu.builders.calculator,
+          ...simulationMenu.builders.simulation,
           actions: {
-            openResonatorPicker: calcMenu.openResPckr,
-            openSkillData: calcMenu.openSkllData,
-            getSkillDataTarget: calcMenu.getSkillData,
+            openResonatorPicker: simulationMenu.openResPckr,
+            openSkillData: simulationMenu.openSkllData,
+            getSkillDataTarget: simulationMenu.getSkillData,
           },
         }
         : {
-          workspace: mssnCalcMenu,
-          more: mssnCalcMenu,
+          workspace: missingSimulationMenu,
+          more: missingSimulationMenu,
           damage: {
-            row: mssnCalcMenu,
+            row: missingSimulationMenu,
           },
           rotation: {
-            pane: mssnCalcMenu,
-            item: mssnCalcMenu,
+            pane: missingSimulationMenu,
+            item: missingSimulationMenu,
           },
           optimizer: {
-            pane: mssnCalcMenu,
+            pane: missingSimulationMenu,
           },
           echo: {
-            pane: calcBuilder.calculator.echo.pane,
-            emptySlot: calcBuilder.calculator.echo.emptySlot,
-            slot: calcBuilder.calculator.echo.slot,
-            invCard: calcBuilder.calculator.echo.invCard,
-            invBld: calcBuilder.calculator.echo.invMk,
-            readOnly: calcBuilder.calculator.echo.readOnly,
+            pane: simulationMenuBuilder.simulation.echo.pane,
+            emptySlot: simulationMenuBuilder.simulation.echo.emptySlot,
+            slot: simulationMenuBuilder.simulation.echo.slot,
+            invCard: simulationMenuBuilder.simulation.echo.invCard,
+            invBld: simulationMenuBuilder.simulation.echo.invMk,
+            readOnly: simulationMenuBuilder.simulation.echo.readOnly,
           },
           actions: {
-            openResonatorPicker: mssnCalcMenu,
-            openSkillData: mssnCalcMenu,
-            getSkillDataTarget: mssnCalcMenu,
+            openResonatorPicker: missingSimulationMenu,
+            openSkillData: missingSimulationMenu,
+            getSkillDataTarget: missingSimulationMenu,
           },
         },
     routeChrome: {
       ...rtChrmMenu.builders.routeChrome,
       actions: rtChrmMenu.actions,
     },
-  }), [calcMenu, rtChrmMenu.actions, rtChrmMenu.builders.routeChrome])
+  }), [rtChrmMenu.actions, rtChrmMenu.builders.routeChrome, simulationMenu])
 }

@@ -2,132 +2,72 @@
 
 ## Summary
 
-This document maps the main user facing surfaces to their owning modules and their main state or engine dependencies. Use it when you need to know where a feature lives, which shared systems it depends on, or which module should absorb a behavior change.
+User-facing modules follow the `Home > Read / Simulation` hierarchy.
 
-## Calculator Workspace
+## Home
 
-Primary root:
+Primary root: [src/modules/home](../src/modules/home)
 
-- [src/modules/calculator](../src/modules/calculator)
+Home introduces the four Simulation tools and links into the Read collection. It does not own simulation state.
 
-Main calculator subareas:
+## Simulation
 
-- `components/resonator`
-- `components/weapons`
-- `components/echoes`
-- `components/suggesstions`
-- `components/teams`
-- `components/enemies`
-- `components/buffs`
-- `components/rotation`
-- `components/results`
-- `components/main`
+Primary root: [src/modules/simulation](../src/modules/simulation)
 
-The default calculator workspace is the main interactive surface for:
+Shared ownership is divided by purpose:
 
-- active resonator selection and setup
-- weapon setup
-- equipped echoes
-- suggestions
-- team buffs and teammate state
-- enemy state
-- custom bonuses
-- rotation editing
-- live damage and result interpretation
+- `context` and `context-menu`: Simulation-wide providers and menus
+- `workspace`: the persistent roster, rail, loadout, and shared board
+- `features`: reusable resonator, weapon, Echo, team, enemy, buff, inventory, result, suggestion, rotation, and optimizer feature modules
+- `modulation`: the main build-tuning tool and its embedded evaluation report
+- `showcase`: presentation-card authoring and export
+- `pages`: the Simulation route boundary
+- `legacy`: temporary development-only Calculator and Optimizer presentations
 
-## Optimizer Stage
+### Modulation
 
-Primary root:
+Primary root: [src/modules/simulation/modulation](../src/modules/simulation/modulation)
 
-- [src/modules/calculator/components/optimizer](../src/modules/calculator/features/optimizer)
+Modulation is the primary everyday tool. It combines character progression, weapon and Echo loadout, active states, team context, live stats, damage, and build evaluation. The evaluation engine produces baseline, active, reference, and maximum builds; it is not a separate public page.
 
-This stage is still part of the calculator route, but it is a separate interaction model centered on:
+### Rotation
 
-- inventory backed echo search
-- constraints and filtering
-- ranked result inspection
-- application of chosen results back into live build state
+Primary root: [src/modules/simulation/features/rotation](../src/modules/simulation/features/rotation)
 
-## Overview Stage
+Rotation builds, simulates, saves, imports, and shares ordered team programs. It has its own editor surface while reusing the canonical combat scenario and Simulation context.
 
-Primary root:
+### Showcase
 
-- [src/modules/calculator/components/overview](../src/modules/calculator/features/overview)
+Primary root: [src/modules/simulation/showcase](../src/modules/simulation/showcase)
 
-This stage is a synchronized summary surface over the current build state. It is not a separate calculator model. It reflects the same active runtime, inventory, and saved data systems used elsewhere.
+Showcase turns the current build and evaluation into a customizable export card. Its visual preferences are stored as `showcaseCards`.
 
-## Inventory
+### Optimizer
+
+Primary root: [src/modules/simulation/features/optimizer](../src/modules/simulation/features/optimizer)
+
+Optimizer searches inventory and theoretical Echo combinations against a selected skill or rotation target. Preview changes stay detached until an explicit equip action.
+
+### Shared Workspace And Inventory
 
 Primary roots:
 
-- [src/modules/calculator/components/inventory](../src/modules/calculator/features/inventory)
-- [src/modules/calculator/components/echoes](../src/modules/calculator/features/echoes)
-- [src/modules/calculator/components/rotation](../src/modules/calculator/features/rotation)
+- [src/modules/simulation/workspace](../src/modules/simulation/workspace)
+- [src/modules/simulation/features/inventory](../src/modules/simulation/features/inventory)
+- [src/modules/simulation/features/echoes](../src/modules/simulation/features/echoes)
 
-Inventory behavior spans several feature areas:
+Modulation, Showcase, and Optimizer share the same mounted roster and rail. The rail remains editable on each workspace tool. Inventory is a cross-tool library rather than a standalone route.
 
-- stored echoes
-- stored builds
-- stored rotations
-- clipboard and selection flows
-- bag application back into active runtime state
+## Read
 
-Inventory is a cross surface persistence feature, not a single isolated page.
+Primary root: [src/modules/read](../src/modules/read)
 
-## Settings
+Read owns Info, Guides, Docs, Changelog, Privacy, and Terms pages. What's New is an act on Home, read release by release along one hairline. Authored content lives under `src/data/content`.
 
-Primary root:
+## Settings And System
 
-- [src/modules/settings](../src/modules/settings)
-
-Settings owns:
-
-- theme and wallpaper preferences
-- typography
-- update toast and context menu preferences
-- history preferences
-- Google Drive sync controls
-- legacy import and data management actions
-
-Settings changes often have app wide effects because they mutate shared persistent UI or app state.
-
-## Content Pages
-
-Primary root:
-
-- [src/modules/content](../src/modules/content)
-
-Content pages include:
-
-- info
-- guides
-- changelog
-- privacy
-- terms
-
-These pages are part of the production app and ship from authored checked in content. They are not separate docs infrastructure.
-
-## System Surface
-
-Primary root:
-
-- [src/modules/system](../src/modules/system)
-
-The current system page set is intentionally small and mainly covers fallback route handling such as the not found page.
-
-## Shared Cross Surface Systems
-
-Several behaviors cut across module boundaries:
-
-- route chrome and shell overlays
-- global store actions
-- runtime selectors
-- context menus
-- tooltips
-- toasts
-- selection mode helpers
-
-If a change appears in several surfaces at once, the real owner is often one of those shared systems rather than the leaf component showing the behavior.
+- [src/modules/calibration](../src/modules/calibration) owns the Calibration page: appearance, application preferences, exports and data management.
+- [src/modules/system](../src/modules/system) owns fallback system pages such as Not Found.
 
 ## Related Docs
 

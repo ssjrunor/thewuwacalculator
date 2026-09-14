@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: verifies echo mutation helpers used by random suggestions,
-               including main-stat narrowing, set-plan feasibility, loadout
-               hashing, and pinned main echo behavior.
+  Description: verifies durable main-stat and set-plan Echo mutation helpers.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -14,7 +12,6 @@ import {
   applySetPlan,
   mkEchoMainSt,
   mkMainStatPt,
-  mkRandEchoLd,
   mkSetPlanCnd,
   prepSetPlanFsb,
 } from '@/engine/suggestions/mutate'
@@ -171,42 +168,4 @@ describe('echo mutation invariants', () => {
     expect(mkEchoMainSt(buildA)).toBe(mkEchoMainSt(buildB))
   })
 
-  it('pins the selected main echo and set plan into random loadouts', () => {
-    // random loadout generation still has hard constraints: requested main echo
-    // and set preferences must be satisfied before free slots are filled
-    const costThreeEchoes = listChsByCos(3)
-    const setId = costThreeEchoes.find((echo) => (
-      costThreeEchoes.filter((candidate) => candidate.sets.includes(echo.sets[0] ?? -1)).length >= 2
-    ))?.sets[0]
-
-    expect(setId).toBeTruthy()
-    if (!setId) {
-      return
-    }
-
-    const mainEcho = costThreeEchoes.find((echo) => echo.sets.includes(setId))
-    expect(mainEcho).toBeTruthy()
-    if (!mainEcho) {
-      return
-    }
-
-    const loadout = mkRandEchoLd({
-      costPlan: [3, 3, 1, 1, 1],
-      weights: { atkPercent: 1, critRate: 1, critDmg: 1 },
-      mainStatCnfg: {
-        allowedFilter: new Set(),
-        selBonus: null,
-      },
-      bias: 0.5,
-      tgtNrgyRgn: 0,
-      rollQuality: 0.3,
-      mainEchoId: mainEcho.id,
-      setPrefs: [{ setId, count: 2 }],
-      fxdPrmrKeys: ['atkPercent', 'critRate', 'atkPercent', 'atkPercent', 'atkPercent'],
-    })
-
-    expect(loadout[0]?.id).toBe(mainEcho.id)
-    expect(loadout[0]?.set).toBe(setId)
-    expect(loadout[1]?.set).toBe(setId)
-  })
 })
