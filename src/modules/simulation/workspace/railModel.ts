@@ -1,9 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Builds the rail card's read model for one resonator. The card is
-               the same on every surface that stands it, so the model that feeds
-               it is stated once here rather than in the page that happens to
-               mount it first.
+  Description: Builds the shared rail model from active or stored runtimes,
+               catalog metadata, equipment, team members, and Sonata sets.
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime'
@@ -22,8 +20,7 @@ import type { BuildRailModel } from './BuildRail.tsx'
 const DEF_ACCENT = '#6b7cff'
 
 export interface RailModelCtx {
-  /* the resonator the workspace is standing on. its runtime is the live one,
-     every other resonator reads from its stored profile instead. */
+  /** Resonator whose live runtime is supplied by this workspace context. */
   actResId: string | null
   runtime: ResRuntime | null
   partRtsById: Record<string, ResRuntime>
@@ -36,8 +33,7 @@ export function makeRailModel(resId: string | null, ctx: RailModelCtx): BuildRai
     ? runtime
     : resId ? initRtsById[resId] ?? null : null
   const railSeed = resId ? seedRsntById[resId] ?? null : null
-  // a teammate of the resonator in front resolves live; a teammate of any other
-  // profile resolves from that profile's own stored record
+  // Active-subject teammates resolve live; other profiles use stored runtime projections.
   const railDisplayRuntimesById = resId === actResId ? partRtsById : initRtsById
   const railWeaponState = railRuntime?.build.weapon ?? null
   const railWeapon = railWeaponState?.id && !isNoWeaponId(railWeaponState.id)

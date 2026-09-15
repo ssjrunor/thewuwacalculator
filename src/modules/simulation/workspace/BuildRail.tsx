@@ -180,8 +180,7 @@ export function BuildRail({
   const weaponLevel = railModel.weaponState?.level ?? 1
   const weaponStats = railModel.weapon ? weaponStatsAt(railModel.weapon, weaponLevel) : null
   const seqRailHidden = isShowcase && cardHidden.seqRail
-  // Seal only ever dresses the showcase. Every other surface standing this rail
-  // keeps the classic card, whatever the showcase happens to be set to.
+  // Layout preference is showcase-only; shared workspace rails remain classic.
   const seal = isShowcase && layout === 'seal'
   const contrastWatchKey = `${railResId ?? ''}:${JSON.stringify(backdropStyle)}`
   const imageContrastVars = useShowcaseImageContrast(
@@ -694,11 +693,6 @@ function TeamMate({
   )
 }
 
-/* A teammate on the Seal card is drawn the way the game draws a party member:
-   the art, a tick-capped rule under it, the level with the number carrying the
-   weight, the sequence in four-point sparkles, and the name in a block with
-   their own rarity as the bar beneath it. Their gear sits on the art's lower
-   corners, each weapon framed in its own weapon's rarity. */
 function SealMate({
   mate,
   editable,

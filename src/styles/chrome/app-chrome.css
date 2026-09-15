@@ -145,6 +145,12 @@ body,
   z-index: 1;
 }
 
+
+
+.ax .ax-chrome > .rdk {
+  grid-area: 1 / 1 / -1 / -1;
+}
+
 @media (max-width: 60rem) {
   .ax {
     --roster-w: 5.2rem;

@@ -1,8 +1,7 @@
 /*
   Author: Runor Ewhro
   Description: Owns popup presence, dismissal, anchored placement, portal
-               targeting, and the shared visual shell for menus, listboxes,
-               hover cards, and tooltips.
+               targeting, and token propagation for floating controls.
 */
 
 import {
@@ -136,9 +135,7 @@ export function AnchoredAppPopup({
     const previousScrollTop = surface.scrollTop
     const previousScrollLeft = surface.scrollLeft
 
-    // A portal leaves the feature subtree, so bridge its inherited design
-    // tokens onto a neutral wrapper. Popup-local class declarations still win
-    // because they are declared on the child rather than this wrapper.
+    // Copy inherited custom properties across the portal boundary.
     syncAppPopupTokens(anchor, scope)
 
     const anchorRect = anchor.getBoundingClientRect()
@@ -146,8 +143,7 @@ export function AnchoredAppPopup({
     const viewportHeight = window.innerHeight
     const availableWidth = Math.max(0, viewportWidth - viewportPadding * 2)
 
-    // Measure authored sizing without stale inline geometry from an earlier
-    // placement pass. Feature CSS may require a wider floor than the anchor.
+    // Clear prior placement geometry before measuring authored minimum sizing.
     surface.style.width = ''
     surface.style.minWidth = ''
     surface.style.maxWidth = ''

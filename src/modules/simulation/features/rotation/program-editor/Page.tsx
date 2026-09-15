@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns page behavior and state transitions for the program editor module.
+  Description: Coordinates advanced rotation drafts, execution, inspection,
+               comparison, history, clipboard, and saved-rotation workflows.
 */
 
 import {
@@ -635,13 +636,12 @@ export function ProgramEditor() {
     return `${base} Rotation ${invRttn.length + 1}`
   }, [invRttn.length, members])
   const savedRotationCount = invRttn.length
-  /* which arrangement the archive was last left in, so the toggle goes back
-     to it rather than always reopening on the default */
+  // Restore the last saved-rotation arrangement when reopening the archive.
   const [lastSavedView, setLastSavedView] = useState<'list' | 'groups'>(
     savedView === 'groups' ? 'groups' : 'list',
   )
   const exitSavedSelectionRef = useRef<() => void>(() => {})
-  /* which note is out of the margin. the two are never out together */
+  // Only one inspector pane can be detached from the margin at a time.
   const [pane, setPaneState] = useState<EditorPane>('read')
   const setPane = useCallback((update: React.SetStateAction<EditorPane>) => {
     setPaneState((current) => paneForView(
@@ -650,11 +650,7 @@ export function ProgramEditor() {
     ))
   }, [view])
   const activePane = paneForView(view, pane)
-  /*
-    the colour the inspector took for whatever it is describing. it lives up
-    here because the bookmark and the pip are drawn outside the note but belong
-    to it, and a step's element is not always its caster's.
-  */
+  // Persist the selected node accent for inspector elements rendered outside it.
   const [noteAccent, setNoteAccent] = useState('var(--rte-res)')
   const [revealRequest, setRevealRequest] = useState<RotationNodeRevealRequest | null>(null)
   const ghostRepeats = editorPreferences.ghostRepeats
@@ -662,20 +658,11 @@ export function ProgramEditor() {
   const [statKeys, setStatKeysState] = useState<readonly StatKey[]>(() => (
     editorPreferences.statKeys.slice(0, statCeiling(editorPreferences.dockPane))
   ))
-  /*
-    kept open, the panel takes its width out of the list instead of floating
-    over it. that is room the register no longer has, so the column ceiling
-    comes down with it and anything already past the new one is dropped.
-  */
-  /* which order the register's bands read in, left to right */
+  // Persisted register-group ordering.
   const groupOrder: readonly RegisterGroup[] = editorPreferences.groupOrder
   const [searchOpen, setSearchOpen] = useState(false)
   const dockPane = editorPreferences.dockPane
-  /*
-    the columns the dock took off. they are handed back when the panel is let
-    go of, minus any the reader has since chosen for themselves, so keeping the
-    panel open is not a way to lose a register you set up.
-  */
+  // Track columns hidden by docking separately from columns the user hides.
   const dockedOff = useRef<readonly StatKey[]>(
     editorPreferences.dockPane
       ? editorPreferences.statKeys.slice(statCeiling(true))
@@ -816,8 +803,7 @@ export function ProgramEditor() {
     deleteSavedEntries([selectedSavedEntry])
   }, [deleteSavedEntries, selectedSavedEntry])
 
-  /* the archive is loaded lazily, and this page is the first thing on it that
-     asks to read the whole of it */
+  // Hydrate the saved-rotation archive only when this page first needs it.
   useEffect(() => {
     if (showSavedRotationList) {
       ensInvHydr()
@@ -840,7 +826,7 @@ export function ProgramEditor() {
     if (!showSavedRotationList || savedDetailIds.length === 0) {
       return
     }
-    /* only what is not worked out yet: a take already read stays read */
+    // Run only entries missing from the current deterministic detail cache.
     const wanted = savedDetailIds.filter((id) => !savedDetailRuns.has(id))
     if (wanted.length === 0) {
       return
@@ -854,7 +840,7 @@ export function ProgramEditor() {
           return
         }
         setSavedDetails((current) => {
-          // the store is dropped whole when the takes behind it change
+          // Discard cached details when the saved-rotation batch identity changes.
           const kept = current.key === savedBatchKey ? current.runs : EMPTY_SAVED_RUNS
           const next = new Map(kept)
           for (const [id, run] of runs) {
@@ -874,14 +860,9 @@ export function ProgramEditor() {
 
   const dockPaneTo = useCallback((next: boolean) => {
     setEditorPreferences({ dockPane: next })
-    /*
-      worked out here rather than inside the setState updater: an updater runs
-      more than once, and the note of what was taken off has to be written
-      exactly as often as the taking happens.
-    */
+    // Compute dock side effects outside state updaters, which React may replay.
     if (next) {
-      /* keeping the panel open has to open one. the archive runs its own
-         channels, so it takes the one it opens with rather than the note */
+      // Docking requires a concrete pane; the archive uses its default channel.
       if (showSavedRotationList) {
         setSavedPane((current) => current ?? 'list')
       } else {
@@ -912,11 +893,6 @@ export function ProgramEditor() {
   const setGroupOrder = useCallback((next: readonly RegisterGroup[]) => {
     setEditorPreferences({ groupOrder: [...next] })
   }, [setEditorPreferences])
-  /*
-    the register reads in bands, and a band the reader is not using folds down
-    to a single track. resonator stats barely move down one owner's stretch, so
-    that is usually the first one to go.
-  */
   const [shutGroups, setShutGroups] = useState<ReadonlySet<RegisterGroup>>(
     () => new Set(),
   )
@@ -931,12 +907,7 @@ export function ProgramEditor() {
   }, [])
   const decimals: DamageDecimals = editorPreferences.decimals
   const percentDisplay: PercentDisplay = editorPreferences.percentDisplay
-  /*
-    a loop runs its rows once per pass, so the run states the rotation twice:
-    normalized averages those passes into the one pass the rest of the app
-    quotes, and full counts every pass the rotation actually took. both are
-    built by the same run, so switching between them costs nothing.
-  */
+  // Reuse one run for normalized per-pass totals and full execution totals.
   const fullBasis = damageBasis === 'full'
   const engineTotals = (fullBasis ? result?.fullTotals : result?.totals)
     ?? EMPTY_DAMAGE_TOTALS
@@ -949,12 +920,7 @@ export function ProgramEditor() {
       : EMPTY_SUPPORT_TOTALS)
     : (fullBasis ? result?.fullSummary : result?.summary)?.supportTotals
       ?? EMPTY_SUPPORT_TOTALS
-  /*
-    the drawer draws whichever rotation the page is showing. the editor hands
-    it the tree it is editing, the archive hands it the take that is picked,
-    and both come out of the same run so neither needs a second simulation.
-    nothing is built while the drawer is shut.
-  */
+  // Project console data lazily from the active editor or archive run.
   const consoleRun = selectedSavedRun
   const consoleMembers = useMemo(
     () => (showSavedRotationList ? consoleRun?.members ?? [] : members),
@@ -962,11 +928,7 @@ export function ProgramEditor() {
   )
   const consoleModel = useMemo(() => {
     if (!consoleOpen) return null
-    /*
-      the console draws the trace, not the tree: a loop that ran four times is
-      four stretches of the ruler. the same projection the flat list reads, so
-      the two surfaces are the same run counted the same way.
-    */
+    // The console and flat list share the fully expanded execution trace.
     const source = showSavedRotationList ? consoleRun : result
     const rows = getRunFlatRows(source)
     if (!rows.length) return null
@@ -1044,8 +1006,7 @@ export function ProgramEditor() {
     : members.some((member) => member.id === actRt?.id)
       ? actRt?.id ?? ''
       : members[0]?.id ?? ''
-  // an index lookup is typed non-null, so an empty team reads as a member and
-  // then throws on its first field. it is nullable here and guarded at render.
+  // Guard the empty-team case that array indexing cannot express in its type.
   const activeMember: EditorMember | null =
     members.find((member) => member.id === focusedId) ?? null
   const savedSelectionRows = useMemo(
@@ -1115,12 +1076,7 @@ export function ProgramEditor() {
       run: ({ vals }) => deleteSavedEntries(vals),
     },
   ], [copySavedEntries, cutSavedEntries, deleteSavedEntries, pasteSavedEntries])
-  /*
-    the take the list has open. outside selection mode the clipboard keys act
-    on it, so picking a take and pressing delete does what picking it and
-    reaching for the menu does. the live take is not a saved one, so it never
-    reaches the list's own ids and the keys pass it by.
-  */
+  // Clipboard shortcuts target the open saved entry only outside selection mode.
   const trackedSavedIds = useMemo(
     () => (savedSelId ? [savedSelId] : []),
     [savedSelId],
@@ -1145,11 +1101,7 @@ export function ProgramEditor() {
         }
       : null
   ), [savedSelection.selectedCount, savedSelection.selectionMode])
-  /*
-    Comparison stands takes beside each other as the panels they already are.
-    Four is the ceiling: at the page's own minimum width a fifth would cover
-    the field completely, so a longer selection is cut to its first four.
-  */
+  // Comparison accepts at most four entries and preserves selection order.
   const exitSavedSelectionMode = savedSelection.exitSelectionMode
   const compareTakes = useCallback((ids: readonly string[]) => {
     const picked = ids.slice(0, CMP_MAX)
@@ -1169,20 +1121,12 @@ export function ProgramEditor() {
     setSavedPane('read')
     exitSavedSelectionMode()
   }, [exitSavedSelectionMode, showToast])
-  /*
-    The rack comes down and the field goes back to opening the rows it is
-    clicked on. Reached from the bar, and from the read mark: the panels stand
-    in that channel, so putting the channel away ends the comparison with it.
-  */
+  // Closing the comparison channel restores ordinary row activation.
   const exitCompareMode = useCallback(() => {
     setCompareMode(false)
     setCompareIds([])
   }, [])
-  /*
-    The bar's own trigger. It turns the mode on and leaves the field to be
-    read: the take already open is the anchor, and the rows picked from here
-    stand beside it. Turning it off takes them all down again.
-  */
+  // Enter comparison with the open entry as anchor; leaving clears the set.
   const toggleCompareMode = useCallback(() => {
     if (compareMode) {
       exitCompareMode()
@@ -1194,11 +1138,7 @@ export function ProgramEditor() {
     setSavedPane('read')
     exitSavedSelectionMode()
   }, [compareMode, exitCompareMode, exitSavedSelectionMode])
-  /*
-    A row picked while the mode is on. It stands the take up, takes it back
-    down if it is already up, and refuses once the rack is full: with nothing
-    open yet the first pick is the anchor rather than a panel.
-  */
+  // The first selection becomes the anchor; later selections toggle within the cap.
   const toggleCompareEntry = useCallback((id: string) => {
     if (!savedSelId) {
       setSavedSelId(id)
@@ -1211,12 +1151,7 @@ export function ProgramEditor() {
 
     setCompareIds((current) => toggleComparedId(current, id))
   }, [savedSelId])
-  /*
-    Picking a row while takes are standing beside it. Picking one of those
-    takes makes it the anchor and hands its place to the take it replaced, so
-    the set being compared stays the set the reader put up; picking anything
-    else only changes what the set is read against.
-  */
+  // Promoting a compared entry to anchor swaps the former anchor into its slot.
   const selectSavedEntry = useCallback((id: string) => {
     setCompareIds((current) => {
       if (!current.includes(id)) {
@@ -1281,11 +1216,7 @@ export function ProgramEditor() {
   useEffect(() => {
     exitSavedSelectionRef.current = savedSelection.exitSelectionMode
   }, [savedSelection.exitSelectionMode])
-  /*
-    the inspector draws these now, so the list is registered only for the
-    keyboard: the shortcuts are read off `key`, and the labels and icons the
-    floating toolbar would have shown go unused with `bar` off.
-  */
+  // Register selection actions for keyboard handling without rendering a duplicate toolbar.
   const selectionActions = useMemo<Array<SelAct<string, EditorNode>>>(() => [
     {
       id: 'rotation-page:copy',
@@ -1327,9 +1258,7 @@ export function ProgramEditor() {
       run: ({ ids }) => copySelectedRef.current(ids),
     },
   ], [])
-  // the node the editor has open, which the clipboard keys act on whenever the
-  // selection is not the thing being worked. a row the view does not offer for
-  // selection is dropped by the hook, so a trace row answers only copy.
+  // Outside selection mode, clipboard shortcuts target the currently open node.
   const trackedNodeIds = useMemo(
     () => (selectedId ? [selectedId] : []),
     [selectedId],
@@ -1349,13 +1278,7 @@ export function ProgramEditor() {
 
   const exitNodeSelectionMode = nodeSelection.exitSelectionMode
 
-  /*
-    Rows standing beside the row being read. The same rack the saved list uses:
-    the picked row is the one the rest are read against, each of the others
-    opens a panel width further left, and four is the ceiling because a fifth
-    covers the field. While the mode is on a row's own click stands it up
-    instead of opening it.
-  */
+  // Node comparison preserves one anchor and caps the ordered comparison set at four.
   const compareNodes = useCallback((ids: readonly string[]) => {
     const picked = ids.slice(0, CMP_MAX)
     if (picked.length < 2) {
@@ -1374,14 +1297,12 @@ export function ProgramEditor() {
     setPane('read')
     exitNodeSelectionMode()
   }, [exitNodeSelectionMode, setPane, setSelectedId, showToast])
-  /* the rack comes down and the field goes back to opening the rows it is
-     clicked on */
+  // Leaving comparison restores ordinary row activation.
   const exitNodeCompare = useCallback(() => {
     setNodeCmpMode(false)
     setNodeCmpIds([])
   }, [])
-  /* the bar's own trigger: the row already open is the anchor, and the rows
-     picked from here stand beside it */
+  // Enter comparison with the open row as its anchor.
   const toggleNodeCompare = useCallback(() => {
     if (nodeCmpMode) {
       exitNodeCompare()
@@ -1393,8 +1314,7 @@ export function ProgramEditor() {
     setPane('read')
     exitNodeSelectionMode()
   }, [exitNodeCompare, exitNodeSelectionMode, nodeCmpMode, setPane])
-  /* a row picked while the mode is on: it stands up, comes back down if it is
-     already up, and is refused once the rack is full */
+  // Toggle compared rows without exceeding the panel cap.
   const toggleNodeCompareEntry = useCallback((id: string) => {
     if (!selectedId) {
       setSelectedId(id)
@@ -1407,11 +1327,7 @@ export function ProgramEditor() {
 
     setNodeCmpIds((current) => toggleComparedId(current, id))
   }, [selectedId, setSelectedId])
-  /*
-    a row's standing in the comparison. `on` is already up, which includes the
-    row the others are read against; `off` is one the full rack has no room
-    for, and it stops taking picks rather than failing them silently.
-  */
+  // Expose whether a row is selected or disabled by a full comparison set.
   const nodeCmpMark = useCallback((id: string): 'on' | 'off' | null => {
     if (!nodeCmpMode) return null
     if (id === selectedId || nodeCmpIds.includes(id)) return 'on'
@@ -1439,10 +1355,7 @@ export function ProgramEditor() {
       return
     }
 
-    /*
-      pointerdown rather than click: the toggle turns the mode on during its
-      own click, so a click listener would catch the press that opened it.
-    */
+    // Pointer-down runs before the activating click and cannot capture that same gesture.
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null
       if (!target || target.closest(SELECTION_KEEP)) {
@@ -1489,11 +1402,7 @@ export function ProgramEditor() {
     [isDisabledOnCurrentRun, selectedStep],
   )
 
-  /*
-    The buffs list is the state editor's values view, flattened. It resolves for
-    the selected row only: a state summary builds its own combat context, which
-    is far too heavy to run for every row.
-  */
+  // Build the expensive state summary only for the selected row.
   const buffs = useMemo<BuffLine[]>(() => {
     if (activePane !== 'read' || !selectedStep) {
       return []
@@ -1523,12 +1432,7 @@ export function ProgramEditor() {
     [allSteps, runsByLoopId, sections, view],
   )
 
-  /*
-    what a compared row prints. the read panel resolves the same bundle the
-    inspector works from, for a row that is not the one being worked on: the
-    buff lines are built here because only the page holds the runtimes a state
-    summary needs.
-  */
+  // Resolve comparison inspection here because the page owns the required runtimes.
   const readBuffsFor = useCallback(
     (step: EditorStep, run: number, disabled: boolean) => buildBuffLines({
       result,
@@ -1542,10 +1446,7 @@ export function ProgramEditor() {
     [actRt, enemyProfile, partRtsById, result],
   )
   const nodeComparePanels = useCompareMount(nodeCmpIds)
-  /*
-    the row the rest are read against is one of several being read, not the one
-    being worked on, so while the mode is on its panel is the read panel too.
-  */
+  // Comparison reads the anchor through the same projection as its peer panels.
   const nodeCmpAnchor = useMemo(() => {
     if (!nodeCmpMode || !selectedId) {
       return null
@@ -1561,8 +1462,7 @@ export function ProgramEditor() {
       buffsFor: readBuffsFor,
     })
   }, [members, nodeCmpMode, readBuffsFor, result, runsByLoopId, sections, selectedId])
-  /* resolved for what is mounted rather than for what is standing: a panel on
-     its way out still has to print itself while it folds back */
+  // Retain projections for exiting panels until their mounted transition completes.
   const nodeCmpReads = useMemo(() => {
     const reads = new Map<string, ReadNode>()
     for (const { id } of nodeComparePanels) {
@@ -1592,12 +1492,7 @@ export function ProgramEditor() {
     })
   }, [members, nodeCmpMode, readBuffsFor, result, runsByLoopId, sections, selectedId, view])
 
-  /*
-    Folding a resonator run takes the head's carried rows with it: leaving them
-    out would collapse five steps and still leave a four-row head, which reads
-    as the fold having failed. Folding what a step carries says nothing about
-    the run, so the rule only runs one way.
-  */
+  // Folding a resonator run also folds rows structurally owned by its heading.
   const setEditorFold = useCallback((id: string, open: boolean) => {
     setEditorFoldOpen(id, open)
     if (!open && !id.includes(':')) {
@@ -1621,11 +1516,7 @@ export function ProgramEditor() {
   }, [editorVisualFoldIds, expandEditorFolds])
 
   const selectRow = useCallback((_step: EditorStep | null, id: string) => {
-    /*
-      picking a row while others are standing beside it. picking one of those
-      makes it the one being read and hands its place to the row it replaced,
-      so the set standing stays the set the reader put up.
-    */
+    // Promoting a compared row to anchor swaps the former anchor into its slot.
     setNodeCmpIds((current) => {
       if (!current.includes(id)) {
         return current
@@ -1636,15 +1527,11 @@ export function ProgramEditor() {
         : current.filter((other) => other !== id)
     })
     setSelectedId(id)
-    /*
-      a note is about a row, so choosing a row is how you open one. picking
-      steps out of the skill list is a different job, and it keeps its note out.
-    */
+    // Ordinary row selection opens its inspector pane.
     setPane('read')
   }, [selectedId, setPane, setSelectedId])
 
-  /* the archive's note takes its take's own element, so the line back to the
-     row does too rather than keeping the editor's last accent */
+  // Saved-entry inspection uses that entry's accent instead of the last editor accent.
   const leaderAccent = showSavedRotationList
     ? savedSelectionRows.find((row) => row.id === savedSelId)?.lead.accent
       ?? (isLiveRotEntId(savedSelId)
@@ -1709,18 +1596,8 @@ export function ProgramEditor() {
     })
   }, [loadRotation, selectedSavedEntry, showSavedRots, showToast])
 
-  /*
-    The page opens rather than appears: the two bands start on the centre line
-    and travel out to the edges, and the sheet builds a column at a time behind
-    them. How far a band has to travel is half the body, which only the browser
-    knows, so it is measured once and written on the page for the keyframes to
-    read. Cleared on a timer rather than animationend, because the last thing to
-    finish is whichever column the reader is showing and that count varies.
-
-    The page is reached through the body rather than held by a ref of its own:
-    selection already puts its ref on that element, and a second one would take
-    the first one's place.
-  */
+  /* Measure the body-dependent transition distance after mount. A timer clears
+     entry state because the final animated child count varies by active view. */
   const [entering, setEntering] = useState(() => (
     typeof document !== 'undefined'
     && !document.documentElement.classList.contains('no-entrance-anim')
@@ -1737,9 +1614,7 @@ export function ProgramEditor() {
     return () => window.clearTimeout(id)
   }, [entering])
 
-  /* the rail takes itself off the page when it lands. this cannot live in the
-     effect above: that one moves drawnSaved, which re-runs it, and a cleanup
-     there would cancel the timer it had just set. */
+  // Keep cleanup separate from the effect that mutates its own transition dependency.
   useEffect(() => {
     if (leaving === null) {
       return
@@ -1749,12 +1624,7 @@ export function ProgramEditor() {
     return () => window.clearTimeout(id)
   }, [leaving])
 
-  /*
-    The note hangs beside the row it describes and draws a line back to it, so
-    the answer to "what is this about" is on the screen instead of remembered.
-    Only the list knows where a row has ended up, so all of this is measurement,
-    re-run whenever the list scrolls, the note resizes, or the body does.
-  */
+  // Recompute inspector anchoring when its row, panel, or scroll geometry changes.
   useLayoutEffect(() => {
     const body = bodyRef.current
     if (!body) {
@@ -1767,11 +1637,7 @@ export function ProgramEditor() {
         return
       }
 
-      /*
-        both surfaces hang a note beside the thing it is about, and both draw
-        the same line back to it. all that differs is where the row is found:
-        the note travels to it and the pip rides the note's edge either way.
-      */
+      // Resolve the anchor from the active editor or archive surface.
       const archive = showSavedRotationList
       const note = archive
         ? body.querySelector<HTMLElement>('.rte-inspector.rsl-inspector:not(.rsl-cmp)')
@@ -1792,12 +1658,7 @@ export function ProgramEditor() {
       const bodyBox = body.getBoundingClientRect()
       const rowBox = row.getBoundingClientRect()
       const noteBox = note.getBoundingClientRect()
-      /*
-        the note and the line are drawn over the body, so they are placed in
-        the body's own content: the editor scrolls its list inside it and the
-        archive scrolls the body itself, and only the second of those moves
-        what an absolute offset is measured from.
-      */
+      // Archive scrolling changes body-relative offsets; editor-list scrolling does not.
       const spot = placeLeader({
         body: bodyBox,
         row: rowBox,
@@ -1820,18 +1681,10 @@ export function ProgramEditor() {
 
     place()
 
-    /*
-      scroll does not bubble, but it does capture, and the list rebuilds its
-      scroller often enough that holding a reference to one goes stale.
-    */
+    // Capture scroll at the stable body because nested scrollers are replaced.
     body.addEventListener('scroll', place, { capture: true, passive: true })
 
-    /*
-      the note can also travel without the page re-rendering: the archive
-      slides it a panel further left to stand beside the index, and a rack
-      re-lays itself when one of its panels is taken out. both are margin
-      transitions on the note itself, so the line follows them home.
-    */
+    // Transition events cover anchor movement that does not trigger React rendering.
     const settled = (event: TransitionEvent) => {
       if (event.propertyName === 'margin-right' || event.propertyName === 'top') {
         place()
@@ -2038,12 +1891,7 @@ export function ProgramEditor() {
 
   const simulationDirty = simulationKey !== runBaselineKey
 
-  /*
-    Which rows are the reason. A clean document has none by definition, so the
-    signatures are only taken while Run is armed, and they are taken the way
-    the key is: from the checked-in tree, against the baseline the last run was
-    handed. The two cannot drift apart without the key drifting with them.
-  */
+  // Compute stale signatures only for dirty drafts and against the last execution baseline.
   const staleNodeIds = useMemo(() => {
     if (!simulationDirty) return NO_STALE_NODES
     return rotationStaleNodeIds(
@@ -2056,12 +1904,6 @@ export function ProgramEditor() {
     )
   }, [baselineRotationItems, runBaselineSigs, sections, simulationDirty])
 
-  /*
-    Run spends most of its life disabled, so the moment it becomes pressable is
-    the only thing on the band that changes without the reader looking at it.
-    It takes one charge pass when it comes off disabled, and only then: while
-    edits keep piling up the creep already says how much is pending.
-  */
   const runArmed = simulationDirty
 
   /* The archive preview is the last exact completed run, not the current
@@ -2089,8 +1931,7 @@ export function ProgramEditor() {
       name: `${teamName} Live Rotation`,
     })
   }, [actRt, members, result, savedSurfaceMounted, scenario, svdRotPrefs.showLiveRotation])
-  /* the archive's figures come out of the saved batch; this one is already
-     computed, because the page ran it */
+  // Reuse the page's completed run for the live archive entry.
   const liveRotationSummary = useMemo(
     () => (liveRotationEntry && result ? savedRotationSummary(result, damageBasis) : null),
     [damageBasis, liveRotationEntry, result],
@@ -2143,8 +1984,6 @@ export function ProgramEditor() {
   const liveRotationSelected = Boolean(
     liveRotationEntry && savedSelId === liveRotationEntry.id,
   )
-  /* the live take is never timed, so it has no rate to print. what it can say
-     is the only thing that separates it from the archive around it */
   const liveRotationRate = useMemo(() => {
     if (!liveRotationEntry) return null
     return simulationDirty
@@ -2340,11 +2179,7 @@ export function ProgramEditor() {
     showToast,
   ])
 
-  /*
-    What the last run left the rotation carrying for nothing. Every row here is
-    named by that run's own trace, so the reading only holds while the tree is
-    the one that ran: an edit since then is left for the next run to judge.
-  */
+  // Cleanup evidence is valid only while the draft still matches its completed run.
   const cleanupPlan = useMemo(
     () => {
       if (simulationDirty) return null
@@ -2372,11 +2207,7 @@ export function ProgramEditor() {
     [enemyProfile.id, rotMembers, sections, simulationDirty],
   )
 
-  /*
-    Taking one row out can be what gives another its purpose back, since a
-    write is only inert against the state the rows before it left. So the sweep
-    is one pass against one run, and the next reading comes from running again.
-  */
+  // Apply one cleanup plan atomically; removals can change whether later writes are inert.
   const cleanupRotation = useCallback(() => {
     if (!cleanupPlan || cleanupPlan.targets.length === 0) return
 
@@ -2432,10 +2263,6 @@ export function ProgramEditor() {
     simulationKey,
   ])
 
-  /*
-    the same sources the pane offers: the live rotation sequence, every team
-    member's presets, and compatible saved rotations.
-  */
   const appendSources = useMemo<AppendSource[]>(
     () => (actRt ? makeAppendSource({ runtime: actRt, saved: invRttn }) : []),
     [actRt, invRttn],
@@ -2549,11 +2376,7 @@ export function ProgramEditor() {
     return makeFeatureNode(entry, focusedId)
   }, [focusedId])
 
-  /*
-    a state already standing at a value is carried forward and one sitting at
-    zero comes on at its max, so a freshly dropped condition is a write worth
-    keeping rather than the authored default.
-  */
+  // Seed new conditions from the standing value, or max when the state is currently zero.
   const seedCondValueAt = useCallback((choice: CondChoice, anchor: CondAnchor) => (
     seedCondValueFor(choice, {
       sections,
@@ -2595,8 +2418,7 @@ export function ProgramEditor() {
     return node
   }, [condChoices, focusedId, seedCondValueAt, showToast, standingCondValueAt])
 
-  // a node lands after whatever is selected, so adding several in a row builds
-  // a sequence instead of stacking them all at the end
+  // Advance the insertion anchor so consecutive additions retain their order.
   const addFeatureNode = useCallback((entry: PaletteFeature) => {
     const node = featureNodeFor(entry)
     bump(insertNode(sections, node, selectedId, 'main'), `Add ${entry.label}`)
@@ -2641,11 +2463,7 @@ export function ProgramEditor() {
     setPane('read')
   }, [bumpPresentation, sections, selectedId, setPane, setSelectedId])
 
-  /*
-    Selection mode hands the drag its own payload: the picked rows in the order
-    the list reads them, not the order they were clicked, because the order they
-    read in is the order they will run in once they are set down together.
-  */
+  // Drag selected rows in execution order rather than selection-click order.
   const selectionDrag = useMemo(() => ({
     mode: nodeSelection.selectionMode,
     ids: nodeSelection.selectedIdSet,
@@ -2658,10 +2476,7 @@ export function ProgramEditor() {
     sections,
   ])
 
-  /*
-    Rows that were never neighbours become neighbours. That is an edit to the
-    program, so it lands as one entry in the history and says how many moved.
-  */
+  // Record a multi-row relocation as one history entry.
   const moveNodes = useCallback((ids: readonly string[], targetId: string, edge: DropEdge) => {
     const next = relocateNodes(sections, new Set(ids), targetId, edge)
     if (next === sections) {
@@ -2672,16 +2487,14 @@ export function ProgramEditor() {
 
   const moveNode = useCallback((id: string, targetId: string, edge: DropEdge) => {
     const next = relocateNode(sections, id, targetId, edge)
-    // relocateNode returns the same tree for a drop that changes nothing, such
-    // as a loop onto one of its own children. that is not an edit.
+    // Identity return means the relocation was invalid or a no-op.
     if (next === sections) {
       return
     }
     bump(next, 'Move node')
   }, [bump, sections])
 
-  // a palette tile lands exactly where it was let go,
-  // rather than after the selection the way the tile's own press does
+  // Pointer drops use their explicit target rather than the current selection anchor.
   const insertFromPalette = useCallback(
     (spec: PaletteSpec, targetId: string, edge: DropEdge) => {
       const node = paletteNodeFor(spec, { kind: edge, id: targetId })
@@ -2730,10 +2543,7 @@ export function ProgramEditor() {
     showToast({ content: `${what} is not wired up yet.`, variant: 'warning', duration: 2400 })
   }, [showToast])
 
-  /*
-    the inspector operates on the selected node. these mirror the rotation
-    pane's own feature actions, so both surfaces offer the same edits.
-  */
+  // Route inspector feature edits through the same canonical node operations.
   /**
    * Inside a checked-out loop body, delete removes the node from this pass only:
    * seed template first (if needed), drop from `children`, then check in so the
@@ -2809,7 +2619,7 @@ export function ProgramEditor() {
     return items.length
   }, [baselineRotationItems, makeEditorClipboardPayload, sessionOwnerId])
 
-  /** resolves whole authored subtrees in tree order */
+  /** Resolve whole authored subtrees in tree order. */
   const liftNodes = useCallback((ids: ReadonlySet<string>): EditorNode[] => {
     return collectSubtrees(sections, ids).filter(canLiftNode)
   }, [sections])
@@ -2842,11 +2652,7 @@ export function ProgramEditor() {
     })
   }, [bump, exitNodeSelectionMode, liftNodes, sections, showToast, storeClipboard])
 
-  /*
-    pasted nodes land after the anchor in the order they were taken, each one
-    after the last, so a run of rows keeps its shape rather than arriving
-    reversed.
-  */
+  // Advance the anchor after each paste so copied row order is preserved.
   const pasteNodes = useCallback(async (afterId: string | null) => {
     /*
       Rich editor nodes contain source projection and inspection state. They
@@ -2933,16 +2739,11 @@ export function ProgramEditor() {
       onPaste: () => {
         void pasteNodes(id || null)
       },
-      // the same call the selection makes, given the one node instead of many
       onDuplicate: () => bump(duplicateNodes(sections, new Set([id]))),
     }
   }, [bump, copyNodes, cutNodes, pasteNodes, sections])
 
-  /*
-    what the selection is made of. the figure counts what was picked, so a loop
-    picked with one of its own children counts twice there, while the clipboard
-    below collapses the pair back to the loop that already carries it.
-  */
+  // Count selected rows before collapsing descendants already owned by selected containers.
   const selectionSummary = useMemo<SelectionSummary | null>(() => {
     if (!nodeSelection.selectionMode) {
       return null
@@ -3012,8 +2813,7 @@ export function ProgramEditor() {
         ? `Compare ${nodeSelection.selectedCount}`
         : 'Compare',
     compareHint: 'Compare',
-    // a set with one node that cannot be lifted is refused whole rather than
-    // copied in part
+    // Refuse the whole selection if any selected node cannot be lifted.
     canCopy: selectionClipTargets.length > 0 && selectionClipTargets.every(canLiftNode),
     canPaste: true,
     onLoopify: () => bump(wrapNodes(sections, nodeSelection.selectedIdSet, 'loop')),
@@ -3148,7 +2948,7 @@ export function ProgramEditor() {
         if (!adjacentId || !book || !selectedStep) {
           return
         }
-        // the new step arrives unrun, the same as one added from the palette
+        // Newly attached steps begin without execution evidence.
         const node = makeStep(book.label(adjacentId), selectedStep.memberId)
         bump(insertBeside(sections, { ...node, featureId: adjacentId }, id, 'after'))
       },
@@ -3171,11 +2971,7 @@ export function ProgramEditor() {
           featCondDtrMdl.show({ nodeId: id })
         }
       },
-      /*
-        attaching opens the same skill menu the list opens, in add mode. the
-        chosen feature becomes an ordinary step hung off this one, so it keeps
-        its own id and resolves its own rows on the next run.
-      */
+      // Attach a newly identified feature node and defer its projection to the next run.
       onAttachFeature: () => {
         if (id) {
           featMenuMdl.show({
@@ -3254,7 +3050,6 @@ export function ProgramEditor() {
     clipActionsFor,
   ])
 
-  // a condition is selectable in its own right, and inspects differently
   const selectedCondition = useMemo(() => {
     const node = findNode(sections, selectedId)
     return node?.type === 'condition' ? node : null
@@ -3267,7 +3062,6 @@ export function ProgramEditor() {
     [isDisabledOnCurrentRun, selectedCondition],
   )
 
-  // a handoff is selectable in its own right too, and inspects as the pair
   const selectedHandoff = useMemo(() => {
     const node = findNode(sections, selectedId)
     return node?.type === 'swap' ? node : null
@@ -3280,10 +3074,7 @@ export function ProgramEditor() {
     [isDisabledOnCurrentRun, selectedHandoff],
   )
 
-  /*
-    a handoff writes the active resonator, so its history is that path's, which
-    is every handoff in the rotation rather than only this one.
-  */
+  // Handoff history is the shared active-resonator path history.
   const history = useMemo(() => {
     const path = selectedHandoff ? ACTIVE_RESONATOR_PATH : selectedCondition?.path
     return path ? result?.history.get(path) ?? [] : []
@@ -3332,11 +3123,7 @@ export function ProgramEditor() {
     [activePane, sections, selectedStep],
   )
 
-  /*
-    every formula stat is one choice among a group, so a modifier condition is
-    edited by swapping which of them it writes. the value carries over: the
-    stat is what changed, not how much of it.
-  */
+  // Changing a modifier's stat preserves its authored value and replaces only the path.
   const modifierChoices = useMemo(
     () => condChoices.filter(isFormulaChoice),
     [condChoices],
@@ -3414,10 +3201,9 @@ export function ProgramEditor() {
     clipActionsFor,
   ])
 
-  // a block is selectable too, and inspects as a container
   const selectedBlock = useMemo(() => {
     const node = findNode(sections, selectedId)
-    // a setup branch is display only, so it never reaches the inspector
+    // Setup branches are projections rather than independently authored nodes.
     return node && (node.type === 'loop' || node.type === 'repeat' || node.type === 'uptime')
       ? node
       : null
@@ -3438,11 +3224,7 @@ export function ProgramEditor() {
     [isDisabledOnCurrentRun, selectedBlock],
   )
 
-  /*
-    what the selected block runs. a loop is read across every piece it is drawn
-    in, because a piece is a drawing and the loop is the thing that runs: the
-    one selected may hold only the rows before the loop it crosses into.
-  */
+  // Aggregate all projected segments that belong to one selected loop.
   const selectedBlockBody = useMemo(() => {
     if (!selectedBlock) {
       return []
@@ -3452,31 +3234,17 @@ export function ProgramEditor() {
       : selectedBlock.children
   }, [sections, selectedBlock])
 
-  // what a loop deals on each of its passes, for the inspector's run list
+  // Preserve per-pass loop damage separately from its normalized total.
   const blockRunTotals = useMemo(() => {
     return getBlockRunTotals(selectedBlock)
   }, [selectedBlock])
 
-  /*
-    a loop's damage is stated the way the rest of the app states it: summed
-    across its passes and divided by the run count, so the figure is what one
-    pass is worth on average. see vrgLoopTtls in the rotation's loop analysis.
-    the runs list beside it is the pass-by-pass split.
-  */
+  // Normalize loop damage by authored run count to match canonical rotation totals.
   const blockFigure = useMemo(() => {
     return blockAverageDamage(selectedBlock, selectedRun, blockRunTotals)
   }, [blockRunTotals, selectedBlock, selectedRun])
 
-  /*
-    what the band's readout says. it is the selection restated as a figure, so
-    it takes whichever of the two selections is live and falls back to naming
-    the rotation when neither is.
-  */
-  /*
-    A note rides one node and changes nothing it computes, so writing one is an
-    ordinary edit of the tree. The host is whatever the inspector is on; a note
-    node itself cannot own another, and neither can a setup branch.
-  */
+  // Notes mutate authored metadata only and cannot recursively own other notes.
   const noteHost = inspectorStep ?? inspectorCondition ?? inspectorHandoff ?? inspectorBlock ?? null
   const attachedNoteActions = (() => {
     if (!noteHost || noteHost.type === 'setup') {
@@ -3540,10 +3308,7 @@ export function ProgramEditor() {
     }
   })()
 
-  /*
-    who a row belongs to, said in words. the list draws an owner as a portrait,
-    which is no use to someone typing a name, so search resolves it here.
-  */
+  // Resolve searchable owner text from the row's resonator identity.
   const searchNames = useMemo((): SearchNames => {
     const memberName = (id: string) =>
       members.find((member) => member.id === id)?.name ?? ''
@@ -3583,7 +3348,6 @@ export function ProgramEditor() {
       }
     }
 
-    /* a condition writes rather than hits, so it names itself and states no figure */
     if (inspectorCondition) {
       return { name: inspectorCondition.label, value: null }
     }
@@ -3602,11 +3366,7 @@ export function ProgramEditor() {
     selectedRun,
   ])
 
-  /*
-    right-clicking a row offers what the inspector offers it, so neither
-    surface can drift from the other. the edit block is the pane's own, which
-    is what keeps Cut, Copy and Paste reading the same in both places.
-  */
+  // Reuse inspector operations for row context actions.
   const rowCtxMenu = useCallback((node: EditorNode): MenuEntry[] => makeRowMenu({
     node,
     canLift: canLiftNode(node),
@@ -3659,8 +3419,6 @@ export function ProgramEditor() {
     toggleEnabled,
   ])
 
-  /* a tile already adds where a press would put it, so the menu offers the
-     other place it could go */
   const pickCtxMenu = useCallback((label: string, add: () => void): MenuEntry[] => makeSelectionMenu({
     label,
     hasSelection: Boolean(selectedId),
@@ -3803,11 +3561,7 @@ export function ProgramEditor() {
     clipActionsFor,
   ])
 
-  /*
-    dropped into a container rather than beside a node: the only way into a
-    section or a block holding nothing, and the way to put something at the end
-    of one.
-  */
+  // Container drops append into the named block and support otherwise empty containers.
   const dropInto = useCallback((
     containerId: string,
     payload: PaletteSpec | string | readonly string[],
@@ -3842,10 +3596,7 @@ export function ProgramEditor() {
     showToast({ content: `Added ${payload.label}.`, variant: 'success', duration: 2000 })
   }, [bump, paletteNodeFor, sections, setSelectedId, showToast])
 
-  /*
-    moving a bracket's closing edge changes what the block holds without moving
-    anything itself, so it counts as an edit like any other.
-  */
+  // Resizing a block changes authored containment and therefore records an edit.
   const moveExtent = useCallback((
     blockId: string,
     targetId: string,
@@ -3913,7 +3664,7 @@ export function ProgramEditor() {
       bump(applyFeatureSelection(sections, nodeId, entry))
       setSelectedId(nodeId)
     } else if (featMenuMdl.value?.mode === 'add' && nodeId) {
-      // add mode in this page means attach: the parent is the node it opened on
+      // Add mode attaches the selected feature to the node that opened the menu.
       const child = {
         ...makeStep(label, entry.resonatorId),
         featureId: entry.featureId,
@@ -3950,8 +3701,7 @@ export function ProgramEditor() {
     condDtrMdl.hide()
   }
 
-  /* which surfaces have to stand this frame: the one being drawn, plus the one
-     still riding the rail out */
+  // Keep the leaving surface mounted until its transition completes.
   const bankUp = drawnSaved || leaving === true
   const sheetUp = !drawnSaved || leaving === false
   const sideMarks = view === 'flat'
@@ -3992,20 +3742,13 @@ export function ProgramEditor() {
       {...drag.discard}
       {...(showSavedRotationList ? savedSelection.surfaceProps : nodeSelection.surfaceProps)}
     >
-      {/*
-        the header is a transport, the footer is still a line of text. on the
-        header a sunk tool changes the rotation and a flat one changes the
-        view, so no cluster needs a label; the readout in the middle is the
-        selection restated, and it carries the pending mark for the whole band.
-      */}
       <RotationProgramToolbar
         surface={showSavedRotationList ? 'saved' : 'editor'}
         lastSavedView={lastSavedView}
         onSurface={showSavedRots}
         editor={{
           comparing: nodeCmpMode,
-          /* the row already open is what the rest are read against, so there
-             has to be one */
+          // Comparison requires an existing anchor row.
           canCompare: Boolean(selectedId),
           onCompare: toggleNodeCompare,
           canUndo: editHistory.past.length > 0,
@@ -4084,12 +3827,9 @@ export function ProgramEditor() {
             if (savedSelection.selectionMode) {
               savedSelection.exitSelectionMode()
             } else {
-              /* the two modes both spend the row's own click, so the field is
-                 only ever being read one way at a time */
+              // Selection and comparison are mutually exclusive row-click modes.
               setCompareMode(false)
               setCompareIds([])
-              /* the set's panel stands beside whatever channel is open, so
-                 turning the mode on takes nothing away from the surface */
               savedSelection.enterSelectionMode()
             }
           },
@@ -4141,15 +3881,9 @@ export function ProgramEditor() {
         ref={bodyRef}
         style={{ '--rte-note-res': leaderAccent } as CSSProperties}
       >
-        {/* the line from the note's edge back to the row it is about. one
-            surface is showing at a time, so one leader serves both */}
         <i className="rte-leader" ref={leaderRef} aria-hidden="true" />
 
-        {/*
-          each layer is keyed by the surface it holds rather than by the part it
-          is playing, so when the roles swap neither tree is torn down and built
-          again: the one leaving is the same one the reader was just reading.
-        */}
+        {/* Key by surface identity so transitions do not remount the leaving tree. */}
         {bankUp ? (
           <div className={`rte-surface ${leaving === true ? 'is-going' : 'is-coming'}`}>
           <SavedList
@@ -4162,8 +3896,7 @@ export function ProgramEditor() {
             panel={savedPane}
             dockPanel={dockPane}
             onPanelChange={setSavedPane}
-            /* the live take was run by this page, so reading it costs nothing
-               the editor had not already paid for */
+            // Reuse the page's completed run for the live saved-surface entry.
             selectedRun={liveRotationSelected ? result : selectedSavedRun}
             summariesById={savedSummariesById}
             loading={savedBatch.key !== savedBatchKey}
@@ -4258,11 +3991,6 @@ export function ProgramEditor() {
           open={activePane === 'nodes'}
         /> : null}
 
-        {/*
-          while rows are standing beside it, the row they are read against is
-          one of them: its panel is the read panel too, so the comparison is
-          four of the same thing rather than three notes and an editor.
-        */}
         {nodeCmpAnchor ? (
           <aside
             ref={noteRef}
@@ -4335,7 +4063,7 @@ export function ProgramEditor() {
           members={members}
           buffs={buffs}
           summary={fullBasis ? result.fullSummary : result.summary}
-          /* a row states one pass, so its share is read against one pass */
+          // Normalize row share against the per-pass rotation total.
           totalAvg={result.totals.avg}
           decimals={decimals}
           actions={actions}
@@ -4359,12 +4087,6 @@ export function ProgramEditor() {
           />
         ) : null}
 
-        {/*
-          the rows standing beside the one being read. each is a panel width
-          and the rem that says it is a second panel further left, and each
-          sits under the one to its right, so a panel comes out from beneath
-          its neighbour rather than landing on top of it.
-        */}
         {nodeComparePanels.map(({ id, index, leaving }) => {
           const read = nodeCmpReads.get(id)
           if (!read) {
@@ -4399,7 +4121,6 @@ export function ProgramEditor() {
           )
         })}
 
-        {/* the margin: two bookmarks, and only ever one of them lit */}
         <div className="rte-marks" role="group" aria-label="Side notes">
           {sideMarks.map(([channel, label, hint]) => (
             <button
@@ -4409,11 +4130,7 @@ export function ProgramEditor() {
               aria-pressed={activePane === channel}
               title={hint}
               onClick={() => {
-                /* the rack is held by the channel its panels stand in and by
-                   nothing else, so pressing that channel's mark is the end of
-                   the comparison it was holding: a mode still on with no
-                   panels left to show it is a list that has quietly stopped
-                   opening what it is clicked on */
+                // Closing the owning inspector channel also exits comparison mode.
                 if (channel === 'read' && nodeCmpMode) {
                   exitNodeCompare()
                 }
@@ -4430,14 +4147,8 @@ export function ProgramEditor() {
         ) : null}
       </div>
 
-      {/* the rail itself, standing over the page only while it travels */}
       {leaving !== null ? <i className="rte-roller" aria-hidden="true" /> : null}
 
-      {/*
-        the face the page is read off. every reading is a cell, so the ones
-        that come and go with the team only add or remove a division, and
-        nothing beside them moves.
-      */}
       <div className="rte-totals">
         <div className="rte-cell rte-cell--hero">
           <span className="rte-cell__lbl">average</span>

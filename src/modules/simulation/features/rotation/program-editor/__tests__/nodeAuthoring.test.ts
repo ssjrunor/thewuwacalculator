@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Verifies the nodeAuthoring.test behavior and its compatibility invariants.
+  Description: Verifies canonical node construction, preamble generation,
+               attachments, feature replacement, and authored state writes.
 */
 
 import { describe, expect, it } from 'vitest'

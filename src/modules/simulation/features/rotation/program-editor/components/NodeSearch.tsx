@@ -1,8 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: The readout, which is also the search field. One lit thing on
-               the band, turning over between naming the selection and taking
-               a query for the rotation.
+  Description: Indexes editor nodes for keyboard-searchable navigation while
+               retaining the current execution readout and loop-run selection.
 */
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
@@ -28,7 +27,7 @@ export interface NodeSearchProps {
   names: SearchNames
   runsByLoopId: LoopRunSelections
   onPick: (target: RotationNodeTarget) => void
-  /** the readout's own state, which the shell keeps while search is shut */
+  /** Selection summary retained independently of transient search state. */
   readout: { name: string; value: number | null; color?: string } | null
   stale: boolean
   decimals: number
@@ -53,18 +52,14 @@ export function NodeSearch({
 }: NodeSearchProps) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
-  /** null follows the query; zero is the loop's current/general view */
+  /** Null follows each result's requested run; zero selects its current aggregate. */
   const [loopRun, setLoopRun] = useState<number | null>(null)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const toggleRef = useRef<HTMLButtonElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
 
-  /*
-    the index is the rotation read once. it is rebuilt when the rotation
-    changes rather than per keystroke, which is what keeps a 42-step search
-    from walking the tree on every letter.
-  */
+  // Rebuild the node index with rotation changes, not with every query keystroke.
   const index = useMemo(
     () => open ? buildNodeIndex(sections, names) : [],
     [names, open, sections],
@@ -129,19 +124,8 @@ export function NodeSearch({
         aria-label="Find a node"
         onClick={() => onOpenChange(!open)}
       >
-        {/*
-          one glyph, not two. the lens closes as the handle grows through the
-          middle into the first stroke of a cross, and the second stroke draws
-          itself in after it. the handle and that stroke are the same line.
-        */}
         <svg className="rte-search__mk" viewBox="0 0 24 24" aria-hidden="true">
           <circle className="rte-search__lens" cx="11" cy="11" r="8" />
-          {/*
-            one path holding both of lucide's strokes, which is possible only
-            because they are collinear: the lens handle runs (21,21) to
-            (16.66,16.66) and the cross's first stroke runs (6,6) to (18,18),
-            both on y=x. the dash decides which stretch of it is showing.
-          */}
           <path className="rte-search__bar" d="M21 21 L6 6" pathLength="100" />
           <path className="rte-search__cut" d="M18 6 L6 18" pathLength="100" />
         </svg>
@@ -215,7 +199,6 @@ export function NodeSearch({
             }
           }}
         />
-        {/* the count is the only feedback the field itself needs */}
         {asked && (
           <span className="rte-find__count">
           {`${hits.length || 'no'} ${hits.length === 1 ? 'hit' : 'hits'}`}
@@ -253,7 +236,7 @@ export function NodeSearch({
                 className={`rte-find__hit${isAt ? ' is-at' : ''}`}
                 role="option"
                 aria-selected={isAt}
-                // the field keeps focus so the arrow keys stay live
+                // Retain input focus so subsequent arrow keys continue navigating results.
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => pick(hit)}
               >
@@ -265,7 +248,6 @@ export function NodeSearch({
                   {hit.to > hit.from ? <mark>{hit.title.slice(hit.from, hit.to)}</mark> : null}
                   {hit.title.slice(hit.to)}
                 </span>
-                {/* found by what it is rather than by what it is called */}
                 {hit.via ? <u className="rte-find__via">{hit.via}</u> : null}
                 <span className="rte-spacer" />
                 {hit.crumb ? <span className="rte-find__crumb">{hit.crumb}</span> : null}

@@ -76,6 +76,7 @@ import {
   type BuildRosterEntry,
 } from '@/modules/simulation/workspace/BuildRoster.tsx'
 import { BuildRail, type BuildRailModel } from '@/modules/simulation/workspace/BuildRail.tsx'
+import { RailDock } from '@/modules/simulation/workspace/RailDock.tsx'
 import { makeRailModel as buildRailModel } from '@/modules/simulation/workspace/railModel.ts'
 import { makeRosterEntries } from '@/modules/simulation/workspace/rosterModel.ts'
 import { useResonatorProfileOps } from '@/modules/simulation/workspace/useResonatorProfileOps.ts'
@@ -130,8 +131,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const surfacePhase = 'idle' as const
   const [captureAction, setCaptureAction] = useState<'download' | 'clipboard' | null>(null)
 
-  // so each resonator keeps its own colours/fonts/mask/offsets and uploaded images
-  // (stored as imgur URLs) across reloads.
+  // Showcase customization persists independently for each resonator.
   const showcaseCards = useAppStore((state) => state.ui.preferences.showcaseCards)
   const patchShowcaseCardStyle = useAppStore((state) => state.patchShowcaseCardStyle)
   const toggleShowcaseHide = useAppStore((state) => state.toggleShowcaseHide)
@@ -158,18 +158,15 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
 
   const [cssExpanded, setCssExpanded] = useState(false)
   const [tuneDrawerOpen, setTuneDrawerOpen] = useState(false)
-  // Session-only uploads live here (per resonator), never written to the store.
+  // Session uploads are deliberately kept outside persisted preferences.
   const [sessionImages, setSessionImages] = useState<Record<string, { portrait?: string; backdrop?: string }>>({})
   const [uploadTarget, setUploadTarget] = useState<'portrait' | 'backdrop'>('portrait')
   const uploadModal = useAppModal()
-  // Effective image refs: a session upload overrides the persisted one; both may
-  // be a hosted/data url or an `upload:` IndexedDB key that resolves to an object url.
+  // Session images override persisted refs; IndexedDB refs resolve through the URL cache.
   const sessionForRail = railResId ? sessionImages[railResId] : undefined
   const portraitRef = sessionForRail?.portrait ?? cardStyle.portraitImage
   const backdropRef = sessionForRail?.backdrop ?? cardStyle.backdropImage
-  // URL/data refs resolve synchronously so the image tracks the resonator switch
-  // in lockstep (no stale frame); only `upload:` IndexedDB blobs need an async
-  // load, cached here and resolved to a usable url once ready.
+  // Resolve direct refs synchronously; only IndexedDB blobs require asynchronous hydration.
   const [idbImageUrls, setIdbImageUrls] = useState<Record<string, string>>({})
   const idbImageUrlsRef = useRef(idbImageUrls)
   idbImageUrlsRef.current = idbImageUrls
@@ -233,18 +230,17 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
         return { ...prev, [railResId]: { ...current, [uploadTarget]: undefined } }
       })
     } else {
-      // Session-only image: the ref isn't persisted, but the credit text still is.
+      // Credits remain persisted even when the selected image is session-only.
       patchShowcaseCardStyle(railResId, creditPatch)
       setSessionImages((prev) => ({
         ...prev,
         [railResId]: { ...prev[railResId], [uploadTarget]: result.ref },
       }))
     }
-    // Drop the user straight into framing controls for the group they just changed.
     setEditMode(uploadTarget)
   }, [railResId, uploadTarget, patchShowcaseCardStyle])
 
-  // Reset just one image group (image + credit + framing) back to defaults.
+  // Reset all persisted and session fields owned by one image group.
   const handleResetGroup = useCallback((group: 'portrait' | 'backdrop') => {
     if (!railResId) return
     if (group === 'portrait') {
@@ -287,7 +283,6 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const handleExportTarget = useCallback(async (target: CardExportTarget) => {
     const { raw, filename, mime } = buildCardExport(target, cardStyle, cardHidden)
 
-    // preference.
     if (mime === 'application/json') {
       await xprtAppFile(filename, raw)
       return
@@ -317,9 +312,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const boardRef = useRef<HTMLDivElement | null>(null)
   const mainStackRef = useRef<HTMLDivElement | null>(null)
 
-  /* the roster itself is the chrome's, standing beside this page rather than
-     inside it; what the board still needs is the same set of actions on its own
-     blank-area menu, and those are stateless */
+  // Derive route context actions from the same canonical roster model used by chrome.
   const roster = useMemo<BuildRosterEntry[]>(
     () => makeRosterEntries(scenarioLibrary),
     [scenarioLibrary],
@@ -354,9 +347,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
 
   const railSeed = railResId ? seedRsntById[railResId] ?? null : null
 
-  /* Modulation can inspect any member of the rail subject's team without
-     moving the shared profile context. The member selection belongs only to
-     the Modulation page and resets when the rail subject changes. */
+  // Modulation member inspection is local and does not mutate shared profile selection.
   const [progResId, setModulationMemberId] = useState<string | null>(null)
   const modulationRoster = useMemo<ResView[]>(() => {
     if (!railRuntime) return []
@@ -615,6 +606,12 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   }, [isShowcase, report])
 
   const accent = railSeed ? ATTR_COLORS[railSeed.attribute] ?? '#6b7cff' : '#6b7cff'
+  const dockResId = isModulation ? modulationMemberId : railResId
+  const dockRuntime = isModulation ? modulationRuntime : railRuntime
+  const dockMember = isModulation
+    ? modulationRoster.find((member) => member.id === modulationMemberId) ?? null
+    : null
+  const dockAccent = dockMember ? ATTR_COLORS[dockMember.attribute] ?? accent : accent
   const reportMatchesRail = reportTargetScenarioId === railScenarioId
   /* A retained report can be stale while the same scenario is rebuilding.
      Live Modulation content stays mounted, but score/search-derived readings
@@ -663,11 +660,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     initRtsById: railPartRtsById,
   }), [railPartRtsById, railResId, railRuntime])
 
-  // Portrait offset/scale sliders (0-100, neutral at 50) nudge the resonator's
-  // tuned spine placement; the backdrop sliders override its base opacity/blur.
-  // Image settings (portrait placement/mask, backdrop, uploads) persist across
-  // both modes; only colours/fonts/layout are showcase-only. Untouched controls
-  // resolve to the base placement, so non-customized evaluation views are unchanged.
+  // Convert neutral-at-50 controls into offsets around canonical spine placement.
   const showcasePlacement = useMemo(() => {
     const base = getEvaluationSpinePlacement(railResId)
     return {
@@ -788,7 +781,6 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     return () => window.clearTimeout(handle)
   }, [railPhase, railScenarioId])
 
-  // Per-resonator portrait edge mask, shared by the rail and the banner portrait.
   const maskVars = useMemo<CssVars>(() => ({
     ...(cardStyle.maskTop != null ? { '--mask-top': `${cardStyle.maskTop}%` } : {}),
     ...(cardStyle.maskRight != null ? { '--mask-right': `${cardStyle.maskRight}%` } : {}),
@@ -803,12 +795,10 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     cardStyle.maskTopSharp, cardStyle.maskRightSharp, cardStyle.maskBottomSharp, cardStyle.maskLeftSharp,
   ])
 
-  // Per-text-type typography overrides, emitted as `--ss-*` custom properties the
-  // card's CSS consumes (with the slot's built-in styling as the fallback).
+  // Convert semantic text-role overrides into the CSS-variable contract.
   const textSlotVars = useMemo(() => buildTextSlotVars(cardStyle.textSlots ?? {}), [cardStyle.textSlots])
 
-  // Split custom CSS so @import / @font-face / @keyframes sit at the top level
-  // (valid for fonts + animations) while the rest stays scoped to the card.
+  // Hoist at-rules that are invalid inside @scope and scope the remaining declarations.
   const customCssParts = useMemo(
     () => (cardStyle.customCss ? splitHoistedCss(cardStyle.customCss) : null),
     [cardStyle.customCss],
@@ -846,9 +836,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     textSlotVars,
   ])
 
-  // Persisted card fonts store only the resolved stack, not the original Google
-  // Fonts link, so re-inject each family's stylesheet when the card mounts/changes
-  // otherwise a custom font renders as its fallback after a reload.
+  // Persisted font stacks require their external family stylesheets to be rehydrated.
   useEffect(() => {
     if (!isShowcase) return
     const families = collectCardFontFamilies({
@@ -929,6 +917,15 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                   echoSelection={echoSelection}
                   autoImageContrast={cardStyle.text == null}
                   layout={showcaseLayout}
+                />
+                <RailDock
+                  anchorRef={buildCardRef}
+                  resId={dockResId}
+                  runtime={dockRuntime}
+                  scenarioId={railScenarioId}
+                  page={page}
+                  accent={dockAccent}
+                  onRuntimeUpdate={updateRailRuntime}
                 />
                 {isShowcase && (
                   <ShowcaseCustomizePanel

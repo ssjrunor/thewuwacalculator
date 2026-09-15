@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Verifies the priorState.test behavior and its compatibility invariants.
+  Description: Verifies standing condition values across scopes, loop passes,
+               handoffs, authored writes, and runtime fallbacks.
 */
 
 import { describe, expect, it } from 'vitest'

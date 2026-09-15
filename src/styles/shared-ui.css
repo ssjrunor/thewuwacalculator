@@ -8,6 +8,7 @@
 @import './shared/floating-context-menu.css';
 @import './shared/floating-selection-actions.css';
 @import './shared/confirmation-modal.css';
+@import './shared/beta-notice-modal.css';
 @import './shared/rotation-share.css';
 @import './shared/image-upload-modal.css';
 @import './shared/app-status-modal.css';

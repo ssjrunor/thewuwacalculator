@@ -2,6 +2,7 @@
 @import './workspace/roster.css';
 @import './workspace/head.css';
 @import './workspace/rail.css';
+@import './workspace/rail-dock.css';
 @import './workspace/loadout-head.css';
 @import './modulation/evaluation-report.css';
 @import './modulation/details.css';

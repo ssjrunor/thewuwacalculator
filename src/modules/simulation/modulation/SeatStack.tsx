@@ -1,14 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: The party as a dial: the member being tuned in front at full
-               size wearing their own attribute, the other two behind it on
-               either side. Pressing one turns the dial to them, so the party
-               keeps its order; pointed at, it stretches into an even row.
-
-               It is one control in two places. The loadout's head stands it
-               while that head is on the board, and the panel's head takes it
-               over once the loadout has scrolled away, so both read as the same
-               object rather than a row of ports in one and a stack in the other.
+  Description: Projects an ordered team around the selected member and exposes
+               a shared member-selection control for loadout and panel hosts.
 */
 
 import type { ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
@@ -25,15 +18,13 @@ export function SeatStack({
   roster: ResView[]
   memberId: string | null
   onMember: (resonatorId: string) => void
-  /* standing but not in use, as the panel's copy is while the loadout's head is
-     still on the board: out of the tab order and out of the accessibility tree */
+  /** Removes an inactive duplicate from focus order and the accessibility tree. */
   hidden?: boolean
 }) {
   const seated = roster.find((mate) => mate.id === memberId) ?? roster[0] ?? null
-  if (roster.length < 2 || !seated) return null
+  if (!seated) return null
 
-  /* the beads stay in party order and only their slots turn, so a seat change
-     moves each bead to its new place instead of re-ordering the markup */
+  // Keep DOM order stable and derive each member's relative position from selection.
   const count = roster.length
   const seatAt = roster.findIndex((mate) => mate.id === seated.id)
   const slotOf = (index: number) => {
@@ -46,6 +37,7 @@ export function SeatStack({
       role="tablist"
       aria-label="Member being tuned"
       aria-hidden={hidden || undefined}
+      data-solo={count === 1 ? 'true' : undefined}
       style={{ '--seat-left': count > 2 ? 1 : 0 } as CssVars}
     >
       {roster.map((mate, index) => {

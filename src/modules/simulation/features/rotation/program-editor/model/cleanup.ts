@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns cleanup behavior and state transitions for the model module.
+  Description: Classifies inert or unreachable rotation nodes from execution
+               evidence and applies cleanup through canonical tree operations.
 */
 
 import type {

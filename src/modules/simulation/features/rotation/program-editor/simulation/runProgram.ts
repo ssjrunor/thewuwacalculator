@@ -1,9 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Turns the live rotation program and its simulation into the shape
-               the editor renders. The authored tree is flat with loop start
-               and end markers; the editor nests, so the markers are resolved
-               into blocks here.
+  Description: Executes an authored rotation and projects trace, history,
+               nested loop, register, summary, and inspection data for editors.
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState.ts'

@@ -1,15 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: One account of a single team member: who they are, the runtime
-               that resolves them, the states they can drive, their live combat
-               stats, and the writers that persist an edit. The console modal
-               and Modulation both stand on this, so neither derives
-               it again.
-
-               The team is stored on the profile that holds it, so a member is
-               only addressable while that profile is the one in front: this
-               resolves the resonator in the subject slot and the two supports
-               it carries, which is exactly the set the store can write.
+  Description: Resolves a scenario member's runtime, team ordering, visible
+               source states, combat stats, target routing, and update actions.
 */
 
 import { useCallback, useMemo } from 'react'
@@ -43,18 +35,17 @@ import { splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'
 const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
 
 export interface MemberModel {
-  /* the member being read, null while the team does not carry them */
+  /** Selected member, or null when absent from the resolved team. */
   member: ResView | null
   memberRt: ResRuntime | null
-  /* the resonator in front, which teammate visibility is evaluated against */
+  /** Active runtime used when evaluating teammate-dependent visibility. */
   actRt: ResRuntime | null
-  /* the whole team, subject first */
+  /** Resolved team ordered with the active subject first. */
   roster: ResView[]
   isActive: boolean
   sttDefs: SourceState[]
   cmbtSttsView: StatsView | null
-  /* the same final stats read as the nested tree, so a surface that shows both
-     the view and what the view leaves out builds the graph once */
+  /** Nested projection of the same final stats used by the flat view. */
   cmbtSttsTree: StatTreeNode[]
   invBlds: SavedBuild[]
   onSqncChng: (value: number) => void
@@ -95,7 +86,7 @@ export function useMemberModel(
   const member = memberId ? getResonator(memberId) : null
   const memberRt = memberId ? partRtsById[memberId] ?? null : null
 
-  // slot zero is the resonator in front and stays part of the derived roster
+  // Preserve the active resonator at index zero while dropping unresolved support slots.
   const roster = useMemo(() => {
     if (!runtime) {
       return []
@@ -116,8 +107,7 @@ export function useMemberModel(
       return []
     }
 
-    // teammate state visibility is evaluated against the runtime in front
-    // because team-targeted effects depend on the current composition.
+    // Team-targeted state visibility depends on the active runtime and composition.
     return makeSourceCat(memberRt).states
       .filter((state) => isSourceVisible(memberRt, memberRt, state, runtime))
       .filter((state) => state.source.type !== 'echo')

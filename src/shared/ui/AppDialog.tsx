@@ -18,6 +18,7 @@ interface AppDlgPrps {
   ariaLabel?: string
   ariaLabelBy?: string
   ariaDscrBy?: string
+  dismissible?: boolean
   onClose: () => void
   children: ReactNode
 }
@@ -40,6 +41,7 @@ export function AppDialog({
   ariaLabel,
   ariaLabelBy: ariaLabelBy,
   ariaDscrBy: ariaDscrBy,
+  dismissible = true,
   onClose,
   children,
 }: AppDlgPrps) {
@@ -53,17 +55,14 @@ export function AppDialog({
   const cntnClssNms = [contentClass, open ? 'open' : '', closing ? 'closing' : '']
     .filter(Boolean)
     .join(' ')
-  // The frosted-glass blur lives on its own layer that is a sibling of the
-  // overlay, never an ancestor of the scrolling content. A backdrop-filter on
-  // an ancestor of a scroller forces the whole viewport to re-blur on every
-  // scroll frame; keeping it outside the overlay subtree avoids that.
+  // Keep backdrop filtering outside the scrolling subtree to avoid re-filtering each frame.
   const blurClssNms = ['app-modal-blur', open ? 'open' : '', closing ? 'closing' : '']
     .filter(Boolean)
     .join(' ')
 
   return (
     <Dialog.Root open={open} onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
+      if (!nextOpen && dismissible) {
         onClose()
       }
     }}>
@@ -82,9 +81,18 @@ export function AppDialog({
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelBy}
             aria-describedby={ariaDscrBy}
+            onEscapeKeyDown={(event) => {
+              if (!dismissible) {
+                event.preventDefault()
+              }
+            }}
             onInteractOutside={(event) => {
-              // menus and floating selection actions should keep working even
-              // when a dialog is mounted, so do not treat them as backdrop hits.
+              if (!dismissible) {
+                event.preventDefault()
+                return
+              }
+
+              // Nested popups and selection actions are not outside-dialog interactions.
               if (
                 isAppPopup(event.target)
                 || isFltnSelCtn(event.target)

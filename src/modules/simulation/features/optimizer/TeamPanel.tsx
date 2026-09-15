@@ -140,8 +140,7 @@ interface CardSttGrps {
 function groupStates(states: SourceState[], fllbScp: 'resonator' | 'weapon'): StateGroup[] {
   const byScope = new Map<string, SourceState[]>()
 
-  // source state ownership can point at resonator, weapon, echo, team, or sequence scopes; grouping here keeps
-
+  // Group mixed registries by canonical ownership scope.
   for (const state of states) {
     const scope = getOwnForKey(state.ownerKey)?.scope ?? fllbScp
     const bucket = byScope.get(scope) ?? []
@@ -162,8 +161,7 @@ function fltrSttsForC(
   actRt: ResRuntime,
   allowedScopes: readonly PnlTgtScp[],
 ): SourceState[] {
-
-  // evaluated against the live active runtime so team buffs can hide controls when their prerequisites are missing.
+  // Evaluate visibility against the live active runtime because team prerequisites depend on it.
   return fltrSrcSttsW(
     states,
     (state) => getSttFfctTg(state).some((scope) => allowedScopes.includes(scope)),

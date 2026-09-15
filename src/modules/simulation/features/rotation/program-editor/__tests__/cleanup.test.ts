@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Verifies the cleanup.test behavior and its compatibility invariants.
+  Description: Verifies cleanup classification and canonical removal across
+               containers, loop passes, attachments, and unavailable sources.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -187,8 +188,7 @@ describe('planning a rotation sweep', () => {
     const parked = planRotationCleanup(section([
       block('off', 'repeat', [step('inner', { kind: 'dead' })], { disabled: true }),
     ]))
-    /* a loop marker carries no body of its own, so switching it off does not
-       switch off what stands inside it */
+    // A loop marker has no structural ownership over the following body rows.
     const looped = planRotationCleanup(section([
       block('off-loop', 'loop', [step('inner', { kind: 'dead' })], { disabled: true }),
     ]))

@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns allowed sets behavior and state transitions for the optimizer module.
+  Description: Edits optimizer Sonata-set constraints and summarizes selected
+               sets by legal Echo piece-count bucket.
 */
 
 import { ChevronDown, X } from 'lucide-react'

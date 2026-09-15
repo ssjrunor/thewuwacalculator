@@ -24,8 +24,7 @@ export function getRarityColor(rarity: number | null | undefined): string | unde
   return RARITY_COLORS[rarity as RarityId]
 }
 
-// The ink that stays readable on each rarity's own colour. Amber and grey want a
-// dark letter on them, the deeper three want a light one.
+// Contrast ink is keyed with rarity color so all consumers use the same pairing.
 export const RARITY_INKS: Record<RarityId, string> = {
   1: '#15151a',
   2: '#f4fbf7',
@@ -87,7 +86,6 @@ export const WPNTYPEPTNS: Array<{ key: string; label: string }> = [
 ]
 
 export function getWpnTypeLb(weaponType: number): string {
-  // unknown ids should still render something readable during ingest drift or
-  // partial data migration instead of failing the ui outright.
+  // Preserve unknown ids in the label so partial or newly ingested data remains identifiable.
   return WPNTYPELBLS[weaponType] ?? `Weapon ${weaponType}`
 }

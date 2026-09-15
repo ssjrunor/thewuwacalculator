@@ -1,22 +1,15 @@
 /*
   Author: Runor Ewhro
-  Description: Defines persisted ui preference switches that sit under the
-               shared ui preferences object.
+  Description: Defines persisted UI preferences for showcase customization,
+               editor behavior, motion, exports, and local image storage.
 */
 
-// Which value column(s) the showcase stat ladder emphasizes. 'build' is the default.
 export type StatsColumnHighlight = 'build' | 'combat' | 'both'
 
-// Which composition the showcase card is drawn in. 'classic' is the split card;
-// 'seal' layers the card over the portrait and strikes the grade onto a ribbon.
-// Only the showcase reads it: the Build Lab rail always stays classic.
+/** Showcase-only layout selection; Build Lab always uses the classic layout. */
 export type ShowcaseLayout = 'classic' | 'seal'
 
-// Per-text-type typography overrides for the showcase card. Each slot is a
-// typographic ROLE that cuts across the whole card: numeric readouts, proper
-// names, small-caps labels, dim meta text, and the oversized grade letter, not a
-// card region. Every field is nullable; null means "keep the role's built-in
-// styling".
+/** Semantic text roles shared across showcase regions. */
 export type TextSlot = 'numbers' | 'names' | 'labels' | 'muted' | 'display'
 
 export interface TextSlotStyle {
@@ -30,9 +23,7 @@ export interface TextSlotStyle {
 
 export const TEXT_SLOTS: TextSlot[] = ['numbers', 'names', 'labels', 'muted', 'display']
 
-// Per-resonator showcase-card customization. Every field is nullable; null means
-// "use the resonator default", so an untouched card carries no overrides. Image
-// fields hold a URL (imgur link, or a data URL on localhost where imgur is blocked).
+/** Per-resonator showcase overrides; null fields inherit resonator defaults. */
 export interface ShowcaseCardStyle {
   accent: string | null
   surface: string | null
@@ -58,13 +49,12 @@ export interface ShowcaseCardStyle {
   backdropScale: number | null
   portraitImage: string | null
   backdropImage: string | null
-  // Artist handles credited for each image. Null when unattributed.
   portraitCredit: string | null
   backdropCredit: string | null
   statsColumn: StatsColumnHighlight | null
-  // Per-text-type typography overrides, keyed by slot. Absent slots use defaults.
+  /** Absent text roles retain their defaults. */
   textSlots: Partial<Record<TextSlot, TextSlotStyle>>
-  // Raw CSS scoped to this card (advanced / future upload). Null when unused.
+  /** Raw CSS scoped to this card. */
   customCss: string | null
 }
 
@@ -149,8 +139,6 @@ export interface UiPrefs {
   playerUid: string
 }
 
-// How an uploaded image's bytes are kept. 'session' lives only until reload;
-// 'indexeddb' stores the blob locally; 'imgbb' hosts it and keeps only the URL.
 export type UploadPersistMode = 'indexeddb' | 'imgbb'
 
 export const DEF_UI_PREFS: UiPrefs = {

@@ -1,11 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: The route shell. It wears the same chrome the index does: one
-               head across the top, the index furled into the rail down the
-               left edge, and the route's own page in the rest. It also owns
-               what outlives a route, being the stored theme, the global
-               shortcuts, the changelog toast and the context entry points
-               shared across Simulation routes.
+  Description: Owns route-level chrome, persistent simulation hosts, global
+               shortcuts, navigation transitions, and route context actions.
 */
 
 import { useCallback, useEffect, useLayoutEffect as useLytFfct, useMemo, useRef, useState } from 'react'
@@ -39,12 +35,12 @@ import { RtMenuProv } from '@/shared/context-menu/RouteCtx'
 import { useRtChrmMen } from '@/shared/context-menu/routeMenuContext'
 import { isDtblVntTgt } from '@/shared/lib/isEditableEventTarget'
 import { EchoImportHost } from '@/modules/simulation/features/echoes/EchoImportHost.tsx'
+import { BetaNoticeModal } from '@/app/chrome/BetaNoticeModal'
 
 const CHNGTSTSTORE = 'seen-changelog-version'
 let chngTstShwn = false
 
-// every page of the work, in the order the line stands them in. a route that is
-// not one of them still wears the same line; it simply has no word standing.
+// Preserve the canonical simulation-route ordering used by chrome navigation.
 const SIMULATION_ROUTE_IDS: SimulationPageId[] = SIMULATION_PAGES.map((page) => page.id)
 
 export function RouteChrome() {
@@ -62,17 +58,12 @@ function RtChrmCntn() {
 
   const ui = useAppStore(useShallow((state) => state.ui))
 
-  // the aperture is the only thing a navigation moves, so it is also the only
-  // thing that has to remember where it was read from
+  // Scroll restoration belongs to the routed aperture rather than the persistent shell.
   const aperture = useRef<HTMLElement | null>(null)
   useMainScroll(aperture)
 
-  /*
-    The head's stamp, when the route wants it. It is held here rather than in
-    the head because the page that takes it is mounted under the head, and it is
-    kept as a record rather than as the function itself so that registering one
-    is never mistaken for a state updater.
-  */
+  /* Pages mount below the header but can replace its stamp action. Wrap the
+     callback so React never interprets registration as a functional update. */
   const [stamp, holdStamp] = useState<{ run: () => void } | null>(null)
   const setStamp = useCallback(
       (run: (() => void) | null) => holdStamp(run ? { run } : null),
@@ -112,9 +103,7 @@ function RtChrmCntn() {
     SIMULATION_ROUTE_IDS.find((page) => isSimulationSurfaceRoute(location.pathname, page)) ?? null
   ), [location.pathname])
 
-  // which family the route belongs to, which is the whole of what the head
-  // Simulation routes stand the tool family on the line; Read and Home routes
-  // stand the reading family. Temporary legacy tools retain Simulation chrome.
+  // Temporary legacy tools still belong to the Simulation route family.
   const simulating = isSimulation
 
   const actVar = useMemo(() => {
@@ -127,8 +116,6 @@ function RtChrmCntn() {
 
   const shllClssName = [
     'app-shell',
-    // the chrome's own scope: it carries the tokens the head and the rail are
-    // drawn from, and nothing that would reach into the routed page
     'ax',
     actVar,
     ui.blurMode ? 'blur-off' : '',
@@ -169,8 +156,7 @@ function RtChrmCntn() {
   )
 
   useLytFfct(() => {
-    // global route actions are registered with the app context menu so blank
-    // surface menus still expose navigation, history, and reset actions.
+    // Register route actions at the global context-menu boundary for blank surfaces.
     contextMenu.setGlblTms(rtCtxMenuTms)
 
     return () => {
@@ -221,8 +207,8 @@ function RtChrmCntn() {
   }, [rtChrmMenu.actions])
 
   return (
-    /* the skill-data modal lives above the chrome so the head's team summary
-       and every routed Simulation tool open the same one */
+    /* One provider keeps skill-data modal state shared across chrome and routed
+       Simulation tools. */
     <SkllDataProv>
       <ContextTrigger
         asChild
@@ -230,10 +216,6 @@ function RtChrmCntn() {
         items={[]}
       >
         <div className={shllClssName}>
-          {/* the two grounds the chrome stands on, in the order they are lit:
-              the theme's wallpaper, then the lattice over it. they are elements
-              rather than the shell's two pseudos because those are spent on the
-              blooms, which a theme rule on the shell would otherwise outrank. */}
           <div className="app-wallpaper" aria-hidden="true" />
           <div className="ax-field" aria-hidden="true" />
 
@@ -243,9 +225,7 @@ function RtChrmCntn() {
             stamp={stamp?.run}
             tools={<AppTools simulating={simulating} />}
           >
-            {/* the roster stands beside the page rather than inside it, which
-                is the whole of why it survives a navigation: the outlet swaps
-                and the column is not part of the swap */}
+            {/* Keep the roster outside Outlet so route changes do not remount it. */}
             {rosterUp ? <RosterColumn /> : null}
 
             <main className="main-content" ref={aperture}>
@@ -255,7 +235,6 @@ function RtChrmCntn() {
 
           <EchoImportHost />
 
-          {/* the target the whole app calculates against, opened from the head */}
           {simulating ? <EnemyConsoleHost /> : null}
 
           <NavSweep />
@@ -270,6 +249,8 @@ function RtChrmCntn() {
             closing={cookieBanner.closing}
             onAccept={cookieBanner.accept}
           />
+
+          {import.meta.env.MODE === 'beta' ? <BetaNoticeModal /> : null}
         </div>
       </ContextTrigger>
     </SkllDataProv>

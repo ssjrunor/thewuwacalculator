@@ -1,9 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: the edits a resonator build accepts, kept in one
-               place so the resonator pane, the weapon pane, and the member
-               console all move level, skill, trace, and weapon state the same
-               way instead of each holding its own copy of the updater.
+  Description: Applies canonical resonator level, skill, trace-node, sequence,
+               and weapon-level mutations shared by build-editing surfaces.
 */
 
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime.ts'
@@ -18,7 +16,7 @@ export const RES_LVL_MAX = 90
 export const SKILL_LVL_MIN = 1
 export const SKILL_LVL_MAX = 10
 
-/* the levels the game gates an ascension on, used as rail detents */
+/** Legal ascension level boundaries used by progression controls. */
 export const ASCENSION_STOPS = [20, 40, 50, 60, 70, 80, 90] as const
 
 export function setResLvl(prev: ResRuntime, level: number): ResRuntime {
@@ -54,8 +52,7 @@ export function setSkllLvl(prev: ResRuntime, key: ResSldrSkllT, value: number): 
   }
 }
 
-// trace buffs are recomputed from the whole active set rather than added and
-// subtracted, so a toggle can never drift the totals out of step.
+// Recompute trace buffs from the complete active set instead of applying deltas.
 export function tglTrcNd(
   prev: ResRuntime,
   nodeId: string,
@@ -75,8 +72,7 @@ export function tglTrcNd(
   }
 }
 
-// base atk is cached on the build, so a level change has to carry the weapon's
-// stats at that level with it or the sheet reads the old curve.
+// Weapon level and cached base ATK must advance together.
 export function setWpnLvl(prev: ResRuntime, level: number, weaponDef: GenWpn | null): ResRuntime {
   const nextLevel = clampNumber(Math.round(level), RES_LVL_MIN, RES_LVL_MAX)
   if (prev.build.weapon.level === nextLevel) {

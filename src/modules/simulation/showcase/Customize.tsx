@@ -162,8 +162,7 @@ const TEXT_SLOT_META: Array<{ key: TextSlot; label: string; weight: number; acce
   { key: 'display', label: 'Display', weight: 800, accentColor: true },
 ]
 
-// One reusable control set retargeted by a slot picker, rather than five stacked
-// groups, keeping the panel compact while covering every text type.
+// One editor writes any semantic text role selected by the caller.
 function TextStyleEditor({
   slots,
   accent,
@@ -294,7 +293,6 @@ function TuneGroup({ title, actions, children }: { title: string; actions?: Reac
   )
 }
 
-// Reuses the image-group Edit button look for the group-level transfer actions.
 function GroupActionBtn({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
     <button type="button" className="workspace-tune-edit" onClick={onClick} title={label} aria-label={label}>
@@ -304,7 +302,6 @@ function GroupActionBtn({ icon, label, onClick }: { icon: ReactNode; label: stri
   )
 }
 
-// A visibility toggle paired with the artist-handle input for one image.
 function TuneCreditField({
   label,
   on,
@@ -332,8 +329,7 @@ function TuneCreditField({
   )
 }
 
-// The expanded editor: a full-height dock that takes the roster-rail slot so the
-// card stays visible and updates live as you type. Collapsing returns the rail.
+// Expanded editing replaces the rail without changing the underlying style contract.
 export function ShowcaseCssEditorDock({
   value,
   isDark,

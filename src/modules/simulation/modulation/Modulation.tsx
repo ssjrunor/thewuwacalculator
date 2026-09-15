@@ -1,21 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Modulation's build-tuning half of the board, standing in the
-               room the echo grid and the row under it give it.
-
-               Two kinds of work live here and they are not the same kind. What
-               you own -- level, skill levels, forte nodes, resonance mode -- is
-               set once and then has no business holding the stage, so it waits
-               behind a gate that reports what you set. What is live -- every
-               state the build can switch on -- is the ongoing work, so it takes
-               the row, one instrument panel bayed by the scope each owner
-               already declares.
-
-               The switch does not open an overlay: it swaps what the panel
-               is showing, and only the panel. The band and the loadout stay
-               mounted above it and the column scrolls to the head, so the forte
-               still opens on a full view of itself while the loadout is one
-               scroll up rather than gone.
+  Description: Coordinates Modulation member analysis, panel selection, live
+               source-state controls, progression edits, and report access.
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -79,12 +65,7 @@ function makeModulationOverviewStats(
   }
 }
 
-/* what both halves need to say about the forte: what is owned, and how much */
-/*
-  the column can be pointed at a teammate, and when it is, everything it draws
-  is about them: the ink follows the subject rather than staying with whoever
-  the board is scoring.
-*/
+// Derive member-scoped variables from the currently inspected teammate.
 export function memberAccent(member: ResView | null | undefined): CssVars | undefined {
   return member ? { '--resonator-accent': ATTR_COLORS[member.attribute] } : undefined
 }
@@ -112,7 +93,6 @@ function useForteFacts(runtime: ResRuntime, isDark: boolean) {
   }
 }
 
-/* an owner's art, either a real asset or a white node icon used as a mask */
 function Glyph({ glyph, className }: { glyph: BayGlyph; className: string }) {
   if (glyph.img) {
     return (
@@ -129,14 +109,7 @@ function Glyph({ glyph, className }: { glyph: BayGlyph; className: string }) {
   )
 }
 
-/*
-  the console's cell, kept: a port column with the thread running through it and
-  the state's own control to its right. the control is the console's too, so a
-  toggle, a stack and a select read here exactly as they read in the member
-  console. the port is the one addition: it wears the art of whatever produced
-  the effect, which is what lets three sections stand in for the six the owners
-  would otherwise ask for.
-*/
+// Preserve each source state's native control semantics while grouping by owner.
 function Row({
   row,
   threaded,
@@ -180,7 +153,7 @@ function Row({
 
 const SCROLL_PAD = 8
 
-/* whatever is actually taking the column's scroll: the board, on this page */
+// Find the nearest ancestor that actually owns vertical scrolling.
 export function findScroller(from: HTMLElement): HTMLElement | null {
   let node = from.parentElement
   while (node) {
@@ -193,22 +166,14 @@ export function findScroller(from: HTMLElement): HTMLElement | null {
   return null
 }
 
-/*
-  the swap is the same swap it always was, only smaller: the head and the
-  loadout above it stay mounted, so the column is brought to the panel rather
-  than the panel to the column. every view is walked to the same mark, the
-  panel's own head, so the body you asked for opens on a full view of itself
-  whichever one it is, and the loadout is one scroll up rather than gone.
-  pressing the view already standing walks there too: the press is the ask.
-*/
 const SCROLL_MS = 460
 
-/* out of rest and back into it, so the column reads as carried, not cut */
+// Cubic easing shared by the manually controlled scroll transition.
 function ease(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2
 }
 
-/* the app's own motion switch decides this, not the browser's */
+// The application motion preference is the canonical animation gate here.
 function motionOn(): boolean {
   return typeof document !== 'undefined'
     && !document.documentElement.classList.contains('reduce-animation')
@@ -226,11 +191,7 @@ function useViewScroll(panel: RefObject<HTMLDivElement | null>) {
 
     cancelAnimationFrame(frame.current)
 
-    /*
-      the mark is read from the box on every frame rather than once up front:
-      the body swapping under the move changes the column's height, and a mark
-      taken before that lands either short or past the end of the scroll.
-    */
+    // Re-read the target each frame because swapping panel content changes geometry.
     const mark = () => {
       const want = scroller.scrollTop
         + node.getBoundingClientRect().top
@@ -244,10 +205,7 @@ function useViewScroll(panel: RefObject<HTMLDivElement | null>) {
       return
     }
 
-    /*
-      the walk is driven here rather than handed to scroll-behavior, which the
-      board drops whenever the tab is not the one being looked at.
-    */
+    // Drive the transition locally so browser scroll behavior cannot cancel it.
     const from = scroller.scrollTop
     const start = performance.now()
     const step = (now: number) => {
@@ -259,7 +217,6 @@ function useViewScroll(panel: RefObject<HTMLDivElement | null>) {
   }
 }
 
-/* the four stops the panel's own switch now stands */
 export type ModulationPanel =  'damage' | 'stats' | 'states' | 'forte'
 
 const VIEW_TITLES: Record<ModulationPanel, string> = {
@@ -277,30 +234,20 @@ interface StatesProps {
   onRtPdt: RtUpdHnd
   view: ModulationPanel
   onView: (view: ModulationPanel) => void
-  /* the team the column can be pointed at, subject first */
+  /** Inspectable team ordered with the current subject first. */
   roster: ResView[]
   memberId: string | null
   onMember: (resonatorId: string) => void
-  /* true once the loadout's head, where the seat normally lives, is off the board */
+  /** Whether the loadout-hosted member selector is outside the visible board. */
   seatOut: boolean
-  /* evaluation-only enrichment for the live stats sheet: current damage/share,
-     then the two searched target builds */
+  /** Optional evaluation snapshots that enrich otherwise live analysis. */
   activeBuild: EvaluationBuildSnapshot | null
   referenceBuild: EvaluationBuildSnapshot | null
   maximumBuild: EvaluationBuildSnapshot | null
-  /* the whole report, which the pull-out reads: the rotation and the paths */
+  /** Complete evaluation report used by the report modal. */
   report: BuildEvaluationReport | null
 }
 
-/*
-  The seat: who the column is pointed at, taken over from the loadout's head
-  once that has scrolled away.
-
-  It is deliberately not the switch beside it. Three evenly spaced beads would
-  have read as more of the switch's ports, so the party is one object instead:
-  the seated member in front at full size wearing their own attribute, the rest
-  tucked behind them, smaller and dimmed. One silhouette, then the name.
-*/
 function PanelSeat({
   roster,
   memberId,
@@ -313,7 +260,7 @@ function PanelSeat({
   out: boolean
 }) {
   const seated = roster.find((mate) => mate.id === memberId) ?? roster[0] ?? null
-  if (roster.length < 2 || !seated) return null
+  if (!seated) return null
 
   return (
     <div className="pgs-seat" data-out={out ? 'true' : 'false'}>
@@ -353,8 +300,7 @@ export function ModulationView({
       : null,
     [memberAnalysis.simulation, runtime],
   )
-  /* the sheet prints eighteen rows; the tree holds everything else, and the
-     stats view needs it to place what it cannot state itself */
+  // Build the nested stat graph once for consumers that need rows omitted by the flat view.
   const statsTree = useMemo(
     () => memberAnalysis.simulation
       ? makeStatsTree(memberAnalysis.simulation.finalStats)
@@ -365,8 +311,7 @@ export function ModulationView({
 
   const toPanel = useViewScroll(panel)
 
-  /* the press is the ask, so it walks the column even when the view it
-     names is the one already standing */
+  // Re-selecting the active panel still scrolls its anchor into view.
   const takeView = (next: ModulationPanel) => {
     onView(next)
     toPanel()
@@ -388,8 +333,6 @@ export function ModulationView({
         <PanelSeat roster={roster} memberId={memberId} onMember={onMember} out={seatOut} />
         <span className="pgs-spacer" />
 
-        {/* the report is a reading about the whole build rather than a fifth
-            view of it, so it opens beside the board instead of taking it */}
         {report ? (
           <button
             type="button" className="pgs-report"
@@ -401,11 +344,6 @@ export function ModulationView({
           </button>
         ) : null}
 
-        {/*
-          the three views the panel can stand, on one rail. each keeps its own
-          readout, so whichever you are not in still reports what it holds, and
-          the carriage carries the notch the gate used to wear.
-        */}
         <div className="pgs-switch"
           data-at={view}
           role="group"
@@ -428,8 +366,6 @@ export function ModulationView({
             </span>
           </button>
 
-          {/* the damage view says what it is measuring against, since a hit
-              means nothing without the target it landed on */}
           <button
             type="button"
             className={view === 'damage' ? 'pgs-view is-at' : 'pgs-view'}
@@ -451,8 +387,6 @@ export function ModulationView({
             aria-pressed={view === 'states'}
             onClick={() => takeView('states')}
           >
-            {/* the states wear the member's own face, as their first section
-                and the state-sources panel both already do */}
             <span className="pgs-view-port" aria-hidden="true">
               {forte.member?.profile ? (
                 <img src={forte.member.profile} alt="" loading="lazy" onError={withDefResMg} />
@@ -501,9 +435,8 @@ export function ModulationView({
           statsTree={statsTree}
         />
       ) : view === 'damage' ? (
-        /* not keyed on the member: pointing the column at someone else is a
-           new reading, not a new view, so the grid, the leader and the card
-           stay where they are and take the new numbers */
+        /* Keep component identity across member changes so panel-local state is
+           not reset when only the inspected subject changes. */
         <ModulationDamage runtime={runtime} simulation={memberAnalysis.simulation} />
       ) : view === 'forte' ? (
         <ForteBody runtime={runtime} facts={forte} onRtPdt={onRtPdt} />
@@ -511,7 +444,7 @@ export function ModulationView({
         <div className="pgs-sections">
           {bays.map((bay) => {
             const on = bay.rows.filter((row) => row.lit && row.enabled).length
-            /* the thread runs from the first port down to the last live one */
+            // Find the final active row once so the group can terminate its connector.
             const lastLive = bay.rows.reduce(
               (found, row, index) => (row.lit && row.enabled ? index : found),
               -1,
@@ -522,7 +455,6 @@ export function ModulationView({
                 key={bay.id}
                 as="section"
                 className={on > 0 ? 'pgs-section is-hot' : 'pgs-section'}
-                /* the weapon takes its own rarity's colour, as it does in the console */
                 style={rarityVars(bay.rarity, false, '--mcc-accent') as CSSProperties | undefined}
                 defaultOpen
                 plainTrigger
@@ -564,12 +496,6 @@ export function ModulationView({
   )
 }
 
-/*
-  the forte takes the room the sections were using, in place. no overlay and no
-  second head: the panel's own head already says which view is standing, so
-  what is left here is the work -- the level the whole tree is gated on, and
-  the tree.
-*/
 function ForteBody({
   runtime,
   facts,
@@ -580,8 +506,7 @@ function ForteBody({
   onRtPdt: RtUpdHnd
 }) {
   const { member, branches, dock, mode, nodesOn, nodeTotal, skillSum, skillCap } = facts
-  /* the shared modal, so the tree's placard opens the one the roster switch is
-     on rather than a second copy of it */
+  // Use the simulation-scoped modal so its member selection stays synchronized.
   const skillData = useSkllData()
 
   return (
@@ -613,7 +538,7 @@ function ForteBody({
           <div className="pgs-marks" aria-hidden="true">
             {ASCENSION_STOPS.map((stop) => {
               const reached = runtime.base.level >= stop
-              /* the stops that unlock an inherent are worth naming */
+              // Mark ascension boundaries that unlock at least one inherent skill.
               const gates = member?.inherentSkills?.some((skill) => skill.unlockLevel === stop)
               return (
                 <span
@@ -641,11 +566,6 @@ function ForteBody({
       </div>
 
       <div className="pgs-tree">
-        {/*
-          arcs, not ellipses: an ellipse's widest point sits on the box's bottom
-          edge, so it ends abruptly there. a top arc closes on the baseline by
-          itself, where the fade has already taken it.
-        */}
         <svg className="pgs-rings" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
           <path d="M8 200 A292 122 0 0 1 592 200" fill="none" stroke="currentColor" />
           <path d="M78 200 A222 92 0 0 1 522 200" fill="none" stroke="currentColor" />
@@ -666,7 +586,7 @@ function ForteBody({
           onSkillChange={(branch, next) => onRtPdt((prev) => setSkllLvl(prev, branch.key, next))}
           onDockChange={(entry, next) => {
             const key = entry.key
-            /* the outro skill carries no level, so it never reaches here */
+            // Outro skills have no mutable level.
             if (key === 'outroSkill') return
             onRtPdt((prev) => setSkllLvl(prev, key, next))
           }}
@@ -675,7 +595,7 @@ function ForteBody({
           }}
           onTraceToggle={(nodeId) => onRtPdt((prev) => tglTrcNd(prev, nodeId, member))}
           subject={member?.name ?? null}
-          /* the column can be pointed at a teammate, so the door opens on them */
+          // Open skill data for the currently inspected runtime.
           onSkillData={(tab) => skillData.open({ resonatorId: runtime.id, tab })}
         />
       </div>

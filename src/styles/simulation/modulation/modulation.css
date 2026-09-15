@@ -123,6 +123,11 @@
   width: calc((var(--seat-left, 1) + 2) * var(--seat-L) + (var(--seat-left, 1) + 1) * var(--seat-gap));
 }
 
+.pgs-seat-stack[data-solo='true'],
+.pgs-seat-stack[data-solo='true']:is(:hover, :focus-within) {
+  width: var(--seat-L);
+}
+
 
 .pgs-head .pgs-seat-stack {
   --seat-ground: var(--rte-float);

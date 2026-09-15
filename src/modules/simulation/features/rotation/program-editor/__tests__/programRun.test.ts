@@ -920,7 +920,7 @@ describe('rotation editor engine round trips', () => {
       members,
     })
 
-    // the loop is drawn in two pieces and the loop it crosses keeps its rows
+    // Crossing loops split the outer projection without reparenting inner rows.
     const main = projected.sections.find((section) => section.id === 'main')
     const [aStart, bLoop] = main?.children ?? []
     expect(aStart).toMatchObject({ type: 'loop', loopId: 'loop-a', wrap: 'tail' })
@@ -946,12 +946,7 @@ describe('rotation editor engine round trips', () => {
   })
 
 
-  /*
-    the end a no-end loop is drawn with sits on its start, so giving it one is
-    only moving that end off the start. what it leaves behind has to be an
-    ordinary loop, the same as one written in the rotation pane: a pair of
-    markers with a name, a colour and a pass count on the start.
-  */
+  // Moving a no-end loop boundary materializes the canonical paired end marker.
   it('gives a no-end loop a whole loop when its end is dragged', () => {
     const rotation: RotationNode[] = [
       { id: 'above', type: 'feature', featureId: 'damage:test-skill' },
@@ -980,7 +975,7 @@ describe('rotation editor engine round trips', () => {
       members,
     })
 
-    // drawn in two pieces, because its end stands on its start
+    // The no-end projection initially emits coincident head and tail segments.
     const main = projected.sections.find((section) => section.id === 'main')
     expect(main?.children.map((node) => (node.type === 'loop' ? node.wrap : node.type)))
       .toEqual(['head', 'tail'])

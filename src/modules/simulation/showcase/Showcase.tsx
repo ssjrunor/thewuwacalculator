@@ -52,8 +52,7 @@ export function makeRelStats(charId: string): RelStats {
   return rel
 }
 
-// One gauge segment per legal step the substat can roll. The filled count still
-// shows the snapped roll step, while tone comes from the stat's normalized value.
+// Separate legal roll-step position from normalized quality tone.
 function substatGauge(key: string, value: number): { steps: number; filled: number; tone: string } | null {
   const options = getSbstStepP(key)
   if (options.length < 2) return null
@@ -83,7 +82,7 @@ export function ShowcaseStatRow({
   buildTotal: number | null
   blank?: boolean
   relevant: boolean
-  // marks a combat figure the fight has raised above the build's own
+  /** Whether combat state raised this value above its build value. */
   raised?: boolean
 }) {
   const statKey = row.key
@@ -225,8 +224,7 @@ function ShowcaseEcho({
     </ContextTrigger>
   )
 }
-// An echo's main and secondary stat. Both layouts draw it, so the relevant-stat
-// emphasis reads the same on either card.
+/** Shared Echo main-stat projection used by both showcase layouts. */
 export function ShowcaseEchoMains({ echo, relevant }: { echo: EchoInstance; relevant: boolean }) {
   const primary = echo.mainStats.primary
   const secondary = echo.mainStats.secondary
@@ -248,8 +246,7 @@ export function ShowcaseEchoMains({ echo, relevant }: { echo: EchoInstance; rele
   )
 }
 
-// An echo's substat rows with the roll gauge. Shared by both layouts so the roll
-// quality and relevant-stat treatment never drift between them.
+/** Shared Echo substat projection keeps both showcase layouts aligned. */
 export function ShowcaseEchoSubs({
   echo,
   relStats,
@@ -301,16 +298,14 @@ export function ShowcaseEchoSubs({
   )
 }
 
-// The whole loadout's crit value, toned the way the build grades it: a crit main
-// stat is worth 44 CV and a lineup may carry two before the rest has to.
+// Grade aggregate crit value against the canonical two-main-stat ceiling.
 export function loadoutCv(slots: Array<EchoInstance | null>, blank?: boolean): { total: number; tone: string | undefined } {
   const total = slots.reduce((sum, echo) => sum + (echo ? cmptEchoCritAll(echo) : 0), 0)
   const fourCost = Math.min(slots.filter((echo) => getEchoById(echo?.id ?? '')?.cost === 4).length, 2)
   return { total, tone: !blank && total > 0 ? getCvToneColor((total - (44 * fourCost)) / 5) : undefined }
 }
 
-// Stat rows carry canonical keys so build/combat columns stay aligned even
-// when display labels are shortened or mode-specific.
+// Canonical keys align build and combat values independently of display labels.
 export function buildTotalsByKey(view: StatsView | null): Map<string, number> {
   const totals = new Map<string, number>()
   for (const row of [...(view?.mainStats ?? []), ...(view?.secondaryStats ?? [])]) {

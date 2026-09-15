@@ -941,7 +941,7 @@
   grid-template-rows: 1fr;
 
   flex: none;
-  overflow: hidden;
+  overflow: visible;
   padding-bottom: 1.8rem;
   margin-bottom: -1.8rem;
   transition:

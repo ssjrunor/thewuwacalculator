@@ -1,0 +1,149 @@
+.rdk {
+  position: absolute;
+  top: var(--rdk-top, 0);
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  --rdk-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rdk-gap {
+  width: 1.6rem;
+  height: 0;
+  margin: 0.2rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--text) 24%, transparent);
+}
+
+.rdk-tab {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0fr auto;
+  align-items: center;
+  padding: 0.6rem 0.62rem;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  border-right: 0;
+  border-radius: 0.65rem 0 0 0.65rem;
+  background:
+    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 64%, transparent)),
+    color-mix(in srgb, var(--text) 3%, transparent);
+  backdrop-filter: blur(7px);
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    grid-template-columns 300ms var(--rdk-ease),
+    padding-left 300ms var(--rdk-ease),
+    color 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.rdk-glyph {
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  line-height: 0;
+}
+
+.rdk-word {
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: opacity 200ms ease;
+}
+
+.rdk-tab:is(:hover, :focus-visible) {
+  grid-template-columns: 1fr auto;
+  padding-left: 0.8rem;
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 30%, transparent);
+  background:
+    linear-gradient(270deg, var(--bg), color-mix(in srgb, var(--bg) 82%, transparent)),
+    color-mix(in srgb, var(--text) 5%, transparent);
+  outline: none;
+}
+
+.rdk-tab:is(:hover, :focus-visible) .rdk-word {
+  opacity: 1;
+  padding-right: 0.5rem;
+}
+
+.rdk-tab:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--resonator-accent) 60%, transparent);
+}
+
+
+
+.rdk-tab[data-role='max'] {
+  color: color-mix(in srgb, var(--resonator-accent) 70%, var(--text));
+  border-color: color-mix(in srgb, var(--resonator-accent) 48%, transparent);
+  background:
+    linear-gradient(270deg, color-mix(in srgb, var(--resonator-accent) 15%, transparent), transparent),
+    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 66%, transparent));
+}
+
+.rdk-tab[data-role='max']:is(:hover, :focus-visible) {
+  border-color: var(--resonator-accent);
+  box-shadow: 0 0 22px -6px color-mix(in srgb, var(--resonator-accent) 70%, transparent);
+}
+
+.rdk-tab[data-done] {
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  background:
+    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 64%, transparent)),
+    color-mix(in srgb, var(--text) 3%, transparent);
+  cursor: default;
+}
+
+.rdk-tab[data-done]::before {
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+  box-shadow: none;
+}
+
+.rdk-tab[data-done]:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--text) 20%, transparent);
+  box-shadow: none;
+}
+
+
+.rdk-tab {
+  animation: rdk-in 320ms var(--rdk-ease) both;
+}
+
+.rdk-tab:nth-child(1) { animation-delay: 140ms; }
+.rdk-tab:nth-child(3) { animation-delay: 190ms; }
+.rdk-tab:nth-child(4) { animation-delay: 240ms; }
+
+@keyframes rdk-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.5rem);
+  }
+}
+
+.no-entrance-anim .rdk-tab,
+.reduce-animation .rdk-tab {
+  animation: none;
+}
+
+.reduce-animation .rdk-tab,
+.reduce-animation .rdk-tab::before,
+.reduce-animation .rdk-word {
+  transition-duration: 1ms;
+}
+
+@media (max-width: 80rem) {
+  .rdk:not([data-view='showcase']) {
+    display: none;
+  }
+}

@@ -1,12 +1,8 @@
 /*
   Author: Runor Ewhro
-  Description: Draws the Seal layout of the showcase card. It stands on the same
-               portrait and backdrop as the classic card, then layers a glass
-               echo grid along the bottom and a glass ribbon card on the right,
-               with the grade struck onto the ribbon that rides loose outside
-               that card. Stat rows and echo stat rows reuse the classic markup,
-               so roll meters, relevant-stat emphasis, the stat column choice,
-               text slots and custom CSS all carry over.
+  Description: Projects normalized showcase report and customization data into
+               the Seal card layout, including responsive text and ribbon
+               geometry derived from rendered measurements.
 */
 
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
@@ -44,16 +40,14 @@ import {
 } from './Showcase.tsx'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
 
-// Rarity owns the metal on this card: every frame, chip and star drawn for an
-// item takes its own rarity's colour, and the ink that stays readable on it.
+// Return rarity color and its paired contrast ink as one CSS-variable contract.
 export function rarityVars(rarity: number | null | undefined): CssVars | undefined {
   const color = getRarityColor(rarity)
   if (!color) return undefined
   return { '--kit-rar': color, '--kit-rar-ink': getRarityInk(rarity) } as CssVars
 }
 
-// A line of text on the card never wraps. Each [data-fit] node keeps its styled
-// size when it fits and steps down to the size that does, never under its floor.
+// Reduce marked text only until it fits its container or reaches its declared floor.
 function fitLines(root: HTMLElement): void {
   for (const node of root.querySelectorAll<HTMLElement>('[data-fit]')) {
     node.style.removeProperty('font-size')
@@ -66,13 +60,12 @@ function fitLines(root: HTMLElement): void {
   }
 }
 
-// UIDs read in threes, the way the game prints them.
+// Group numeric UIDs into stable three-digit segments without changing other ids.
 function groupUid(uid: string): string {
   return /^\d+$/.test(uid) ? uid.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : uid
 }
 
-// The ribbon opens around the seal it carries. Both edges come from where the
-// seal actually sits, so the clearance matches on either side of it.
+// Derive the ribbon opening from the measured seal bounds.
 function openRibbon(ribbon: HTMLElement, seal: HTMLElement): void {
   const start = seal.offsetLeft - ribbon.offsetLeft
   ribbon.style.setProperty('--seal-open-start', `${start}px`)
@@ -150,13 +143,12 @@ export function SealShowcase({
     }
   }, [])
 
-  // The ribbon's opening follows the seal after every render, since the grade
-  // and score change with the report...
+  // Recalculate after every render because score content can move the seal.
   useLayoutEffect(() => {
     if (ribbonRef.current && sealRef.current) openRibbon(ribbonRef.current, sealRef.current)
   })
 
-  // ...and whenever the seal resizes without one, like a font swap.
+  // ResizeObserver covers geometry changes that do not trigger a React render.
   useLayoutEffect(() => {
     const ribbon = ribbonRef.current
     const sealNode = sealRef.current
@@ -364,8 +356,6 @@ export function SealShowcase({
   )
 }
 
-/* An echo on the Seal card sits in the party slot's medallion, its set and cost
-   docked on the ring, with the classic stat rows underneath. */
 function SealEcho({
   echo,
   index,

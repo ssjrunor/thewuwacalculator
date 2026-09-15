@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns app modal behavior and state transitions for the ui module.
+  Description: Adapts shared modal lifecycle state, sizing, tone, portal, and
+               dismissal behavior to the lower-level dialog primitive.
 */
 
 import type { CSSProperties, ReactNode } from 'react'
@@ -29,6 +30,7 @@ interface AppMdlPrps {
   ariaLabel?: string
   ariaLabelBy?: string
   ariaDscrBy?: string
+  dismissible?: boolean
   style?: CSSProperties
   onClose: () => void
   children: ReactNode
@@ -53,6 +55,10 @@ function getVarClss(
     case 'confirmation':
       return {
         contentClass: `app-modal-panel confirmation-modal confirmation-modal--${tone}`,
+      }
+    case 'beta-notice':
+      return {
+        contentClass: 'app-modal-panel amdl-panel amdl-panel--auto beta-notice-modal',
       }
     case 'app-status':
       return {
@@ -142,6 +148,7 @@ export function AppModal({
   ariaLabel,
   ariaLabelBy: ariaLabelBy,
   ariaDscrBy: ariaDscrBy,
+  dismissible = true,
   style,
   onClose,
   children,
@@ -159,6 +166,7 @@ export function AppModal({
       ariaLabel={ariaLabel}
       ariaLabelBy={ariaLabelBy}
       ariaDscrBy={ariaDscrBy}
+      dismissible={dismissible}
       onClose={onClose}
     >
       {children}

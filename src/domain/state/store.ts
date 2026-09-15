@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Implements store data-flow and calculation invariants.
+  Description: Owns canonical application state, persisted mutations, scenario
+               projections, inventory operations, and optimizer execution state.
 */
 
 import {create} from 'zustand'

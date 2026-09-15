@@ -1,10 +1,8 @@
 /*
   Author: Runor Ewhro
-  Description: guides page rendered as an editorial codex. The index view is
-               a two-column grid of numbered chapter cards with dotted-leader
-               article tables of contents. Selecting a chapter swaps the
-               canvas for a full-width reader with a sticky in-chapter TOC,
-               numbered articles, and block treatments tuned per type.
+  Description: Builds searchable guide navigation, deep-link resolution,
+               chapter selection, active-section tracking, and authored block
+               rendering from the guide content catalog.
 */
 
 import {
@@ -703,16 +701,14 @@ function ChptRdr({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // defer scroll during chapter switches so the scroll request does not race
-  // against motion's pending layout measurements.
+  // Defer anchor resolution until the selected chapter has committed its measurements.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     const scroller = container.closest<HTMLElement>('.page')
     if (!scroller) return
 
-    // section anchor wins over article anchor when both are provided. block
-    // hits and section hits from the search popover both land here.
+    // A section anchor is more specific than its containing article anchor.
     const sctnTgt = initSctnNchr
       ? container.querySelector<HTMLElement>(`#${CSS.escape(initSctnNchr)}`)
       : null
@@ -749,7 +745,7 @@ function ChptRdr({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // pick the topmost intersecting entry
+      // Select the topmost intersecting section as the active anchor.
         const visible = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
@@ -927,8 +923,7 @@ function GuideSearch({ onSelectHit }: { onSelectHit: (hit: GdSrchHit) => void })
       event.preventDefault()
       const input = inputRef.current
       if (!input) return
-      // focus without the browser's default snap-into-view, then smooth-scroll
-      // the field into view ourselves.
+      // Suppress implicit focus scrolling because this handler owns the scroll target.
       input.focus({ preventScroll: true })
       input.select()
       const field = rootRef.current ?? input
@@ -1352,10 +1347,7 @@ export function GuidesPage() {
     })
   }, [])
 
-  // deep linking: react to ?category=, ?article=, ?section= or #hash
-  // navigations that arrive after mount. the initial url is already
-  // consumed by the lazy state initializer above, so this only runs for
-  // later navigations.
+  // Initial URL state is consumed lazily; this effect handles later deep-link changes.
   useEffect(() => {
     const key = `${location.search}::${location.hash}`
     const isFirstRun = lastLctnKeyR.current === null

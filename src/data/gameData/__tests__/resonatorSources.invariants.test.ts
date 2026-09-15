@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: protects generated resonator-source invariants that are easy to
+  Description: Protects generated resonator-source invariants that are easy to
                regress during authored override updates.
 */
 
@@ -26,7 +26,7 @@ function makeTuneStrainScope(tbb: number, tuneStrain: number): EffectScope {
     state: {
       combat: {},
     },
-  } as EffectScope['sourceRuntime']
+  } as unknown as EffectScope['sourceRuntime']
   const finalStats = { tbb } as NonNullable<EffectScope['finalStats']>
 
   return {
@@ -87,7 +87,24 @@ function makeJinhsiScope(incandescence: number, forteSkillLevel: number): Effect
       },
       combat: {},
     },
-  } as EffectScope['sourceRuntime']
+  } as unknown as EffectScope['sourceRuntime']
+
+  return {
+    sourceRuntime: runtime,
+    targetRuntime: runtime,
+  } as EffectScope
+}
+
+function makeSanhuaScope(stacks: number): EffectScope {
+  const runtime = {
+    base: { sequence: 6 },
+    state: {
+      controls: {
+        'sequence:1102:s6:stacks': stacks,
+      },
+      combat: {},
+    },
+  } as unknown as EffectScope['sourceRuntime']
 
   return {
     sourceRuntime: runtime,
@@ -96,6 +113,27 @@ function makeJinhsiScope(incandescence: number, forteSkillLevel: number): Effect
 }
 
 describe('resonator source invariants', () => {
+  it('converts Sanhua Daybreak Radiance stacks to 10% team ATK each', () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const sanhua = sources.find((source) => source.source.id === '1102')
+    const effect = sanhua?.effects?.find(
+      (candidate) => candidate.id === '1102:s6:daybreak-radiance',
+    )
+    const operation = effect?.operations[0]
+
+    expect(effect).toMatchObject({
+      targetScope: 'teamWide',
+      operations: [{ type: 'add_base_stat', stat: 'atk', field: 'percent' }],
+    })
+    if (!operation || !('value' in operation)) {
+      throw new Error('Sanhua Daybreak Radiance is missing its ATK formula')
+    }
+
+    expect(evalForm(operation.value, makeSanhuaScope(0))).toBe(0)
+    expect(evalForm(operation.value, makeSanhuaScope(1))).toBe(10)
+    expect(evalForm(operation.value, makeSanhuaScope(2))).toBe(20)
+  })
+
   it('keeps Jinhsi Incandescence on Skill-typed Stella Glamor at its Forte scaling', () => {
     const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
     const jinhsi = sources.find((source) => source.source.id === '1304')

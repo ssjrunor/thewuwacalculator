@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the ModulationReport logic for the evaluation module.
+  Description: Connects evaluation report state to the Modulation band,
+               loadout, stat overview, rotation, and detail sections.
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -107,8 +108,7 @@ export function ModulationReport({
   sourceEchoes: Array<EchoInstance | null>
   onEchoOpen?: (slotIndex: number) => void
   overviewStatsTree: StatTreeNode[]
-  /* the loadout head writes the build it is reporting, so it takes the same
-     runtime and the same guard the slots do */
+  /** Runtime used by loadout mutations; null prevents writes to a stale report. */
   echoRuntime: ResRuntime | null
   echoResonatorName?: string | null
   echoEditable: boolean
@@ -182,7 +182,7 @@ export function ModulationReport({
         editable={echoEditable}
         canSaveEcho={canSaveEcho}
         onEchoes={onEchoLoadout}
-        aside={modulation && modulationRoster.length > 1 ? (
+        aside={modulation && modulationRoster.length > 0 ? (
           <SeatStack roster={modulationRoster} memberId={modulationMemberId} onMember={onModulationMember} />
         ) : null}
       />
@@ -206,8 +206,6 @@ export function ModulationReport({
   return (
     <>
       <div className="workspace-main" data-phase={phase}>
-      {/* the band never leaves the page: with no score yet it hunts for one,
-          which is also how the surface says a run is out */}
       <EvaluationBand report={report} score={score} grade={grade} tone={tone} banner={banner} />
 
       {echoLoadout}

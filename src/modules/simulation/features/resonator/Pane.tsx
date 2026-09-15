@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns pane behavior and state transitions for the resonator module.
+  Description: Coordinates resonator progression, state controls, skill data,
+               and teammate summaries for the resonator pane.
 */
 
 import type {CSSProperties as CssProps} from 'react'
@@ -68,7 +69,6 @@ import {mainPortal} from '@/shared/lib/portalTarget'
 import {getWeapon} from '@/modules/simulation/features/weapons/lib/weapon.ts'
 import {FaBookBookmark} from "react-icons/fa6";
 
-// surfaces the resonator selector and slider controls that drive the runtime.
 interface ResPanePrps {
   runtime: ResRuntime
   actResId: string | null
@@ -203,8 +203,7 @@ export function Resonator({
     menuModal.hide()
   }
 
-  /* one skill-data modal for the whole simulation: the shared one carries the
-     roster switch, so the pane opens that rather than a second copy without it */
+  // Open the simulation-owned skill-data modal so roster switching remains shared.
   const openSkllMdl = () => {
     ctxMenu.simulation.actions.openSkillData({
       resonatorId: runtime.id,
@@ -506,8 +505,7 @@ export function Resonator({
   const weaponDef = getWeapon(runtime.build.weapon.id)
   const weaponIcon = weaponDef?.icon ?? '/assets/game/default.webp'
   const weaponRarity = weaponDef?.rarity ?? 4
-  // the two teammate slots (the team's non-active positions) are always
-  // rendered; an unfilled slot resolves to null and renders as an empty slot.
+  // Preserve two stable teammate positions; unresolved members remain null slots.
   const teamSlots = useMemo(() => {
     const slots = runtime.build.team
       .filter((memberId) => memberId !== runtime.id)
@@ -516,8 +514,7 @@ export function Resonator({
         if (!memberId) return null
         const member = getResonator(memberId)
         if (!member) return null
-        // each teammate carries its own build in teamRuntimes, so pull the
-        // equipped weapon so the card can show it instead of repeating element.
+        // Resolve teammate equipment from the teammate runtime rather than the active build.
         const memberRt = runtime.teamRuntimes.find((entry) => entry?.id === memberId)
         const mateWeapon = memberRt?.build.weapon.id ? getWeapon(memberRt.build.weapon.id) : null
         return {

@@ -86,9 +86,7 @@ function AnchorScale() {
   const damage = lerp(domainMin, domainMax, t)
   const percent = scorePct(damage, baseline, reference, maximum)
   const grade = gradeFor(percent)
-  // the 0/100/200 scale is piecewise; the flattened read is damage as a plain
-  // fraction of the perfection anchor, so 100% and 200% expose how compressed
-  // real damage is against the score.
+  // Keep raw damage-to-maximum percentage separate from the piecewise score scale.
   const flatPct = (damage / maximum) * 100
 
   const setFromClientX = useCallback((clientX: number) => {
@@ -389,7 +387,7 @@ const SUGGESTION_SPACE = {
   },
 } as const
 
-// the widest reachable count is the unfiltered inventory GPU estimate
+// The unfiltered inventory GPU estimate bounds the shared search-space scale.
 const SPACE_MAX = SPACE_DATA.inventory.off.gpu
 const SUGGEST_SPACE_MAX = SUGGESTION_SPACE.rotation.mainStats.evalCalls
 
@@ -636,7 +634,6 @@ function Instrument({ topic }: { topic: DocTopic }) {
   )
 }
 
-// micro preview drawn on the rack cards
 function MicroGauge({ instrument }: { instrument: DocTopic['instrument'] }) {
   if (instrument === 'anchorScale') {
     return (
@@ -657,7 +654,7 @@ function MicroGauge({ instrument }: { instrument: DocTopic['instrument'] }) {
     )
   }
   if (instrument === 'searchSpace') {
-    // descending log staircase: each step an order of magnitude carved away
+    // Encode successive order-of-magnitude reductions as a fixed staircase.
     const widths = [56, 34, 20, 12]
     return (
       <svg className="docs-micro" viewBox="0 0 60 22" aria-hidden="true">
@@ -945,7 +942,7 @@ export function DocsPage() {
     if (next) selectTopic(next.id)
   }, [activeIdx, selectTopic])
 
-  // after a cross-topic jump, scroll to the requested section once it renders.
+  // Resolve cross-topic anchors after the destination topic has rendered.
   useEffect(() => {
     if (!pendingScroll.current) return
     const id = pendingScroll.current
@@ -979,7 +976,7 @@ export function DocsPage() {
     else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') { event.preventDefault(); cycle(-1) }
   }, [cycle])
 
-  // "/" focuses the search field, matching the guides shortcut.
+  // Register the shared slash shortcut for documentation search.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
