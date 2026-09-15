@@ -81,7 +81,7 @@ function makeSanhuaScope(stacks: number): EffectScope {
       },
       combat: {},
     },
-  } as EffectScope['sourceRuntime']
+  } as unknown as EffectScope['sourceRuntime']
 
   return {
     sourceRuntime: runtime,
