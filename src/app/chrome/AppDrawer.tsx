@@ -120,7 +120,7 @@ export function AppDrawer({ open, onToggle, onClose }: AppDrawerProps) {
                 to={reference.to}
                 onClick={onClose}
               >
-                <Glyph size="1rem" aria-hidden="true" />
+                <Glyph size="1rem" aria-hidden={true} />
                 <span>{reference.name}</span>
               </AxLink>
             )
