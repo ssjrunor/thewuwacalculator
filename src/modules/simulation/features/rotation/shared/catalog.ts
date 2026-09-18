@@ -101,15 +101,18 @@ export function makeFeatureMeta(
   visibleMember: RotationMember[],
 ): Record<string, FeatureMeta> {
   const lookup: Record<string, FeatureMeta> = {}
+  const runtimesById = Object.fromEntries(
+    visibleMember.map((member) => [member.id, member.runtime]),
+  )
 
   for (const member of visibleMember) {
     for (const feature of member.features) {
       const skill = member.skills.find((entry) => entry.id === feature.skillId)
-      const skillResult = skill ? resolveSkill(member.runtime, skill) : null
+      const skillResult = skill ? resolveSkill(member.runtime, skill, undefined, runtimesById) : null
       const negFfctCmbtK = getNegFfctCm(skillResult?.archetype)
       const fixedStacks = skillResult?.stackMode === 'fixedMax' || (
         negFfctCmbtK
-          ? getNegFfctEn(member.runtime, negFfctCmbtK)?.stackMode === 'fixedMax'
+          ? getNegFfctEn(member.runtime, negFfctCmbtK, runtimesById)?.stackMode === 'fixedMax'
           : false
       )
 
@@ -277,5 +280,13 @@ export function makeConditionChoices(
     return [...stateChoices, ...tgtChcs]
   })
 
-  return [...activeChoice, ...formulaChoices, ...memChcs, ...enemyChoices(runtime, enemyId)]
+  const runtimesById = Object.fromEntries(
+    visibleMember.map((member) => [member.id, member.runtime]),
+  )
+  return [
+    ...activeChoice,
+    ...formulaChoices,
+    ...memChcs,
+    ...enemyChoices(runtime, enemyId, runtimesById),
+  ]
 }

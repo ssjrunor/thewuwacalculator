@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns use animated visibility behavior and state transitions for the hooks module.
+  Description: Coordinates visible, open, and closing states with delayed
+               unmounts for boolean and payload-backed transient surfaces.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -129,8 +130,9 @@ export function useAnimatedModalValue<T>(exitDurMs = 320, openDlyFrms = 1) {
     [clearPending, openDlyFrms],
   )
 
-  const hide = useCallback(() => {
+  const hide = useCallback((onHidden?: () => void) => {
     if (value === null) {
+      runHiddenCallback(onHidden)
       return
     }
 
@@ -141,6 +143,7 @@ export function useAnimatedModalValue<T>(exitDurMs = 320, openDlyFrms = 1) {
       setValue(null)
       setClosing(false)
       clsTmrRef.current = null
+      runHiddenCallback(onHidden)
     }, exitDurMs)
   }, [clearPending, exitDurMs, value])
 

@@ -168,8 +168,8 @@ export function matRtFromPro({
   }
 }
 
-// extract namespaced teammate controls from the active control map
-function xtrcNmspCntr(
+// Decode the retired active-profile representation at compatibility boundaries.
+function extractLegacyTeammateControls(
     actCntr: Record<string, boolean | number | string>,
     resonatorId: string,
 ): Record<string, boolean | number | string> {
@@ -185,8 +185,8 @@ function xtrcNmspCntr(
   return controls
 }
 
-// materialize a full runtime from a compact teammate runtime
-export function matTeamMemFr(
+// Materialize a teammate from a retired compact runtime payload.
+export function materializeLegacyTeamMember(
     seed: ResSeed,
     tmr: TeamMemRt,
     actCntr: Record<string, boolean | number | string>,
@@ -215,7 +215,7 @@ export function matTeamMemFr(
       team: teamSlots,
     },
     state: {
-      controls: xtrcNmspCntr(actCntr, tmr.id),
+      controls: extractLegacyTeammateControls(actCntr, tmr.id),
       manualBuffs: cloneBuffs(tmr.manualBuffs ?? makeCustomBuff()),
       combat: { ...activeCombat },
     },

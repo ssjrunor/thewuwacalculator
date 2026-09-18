@@ -1,9 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the simulation logic for the simulation module.
+  Description: Prepares editor and saved-scenario execution inputs, projects
+               member data, and caches exact saved-rotation comparison results.
 */
 
-/* Rotation execution adapters owned by the advanced editor surface. */
 
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import { type SavedRotation } from '@/domain/entities/inventoryStorage.ts'
@@ -192,7 +192,7 @@ export function savedRotationMembers(
     return []
   }
 
-  // share is what the run works out; the builds do not depend on it
+  // Member builds can be projected without executing damage-share calculations.
   return rebuilt.members.map((member) => memberToReg(member, 0))
 }
 
@@ -409,6 +409,16 @@ export function runSavedRotationBatch(
   options: { signal?: AbortSignal } = {},
 ): Promise<Map<string, SavedRotationComparisonResult | null>> {
   return runPreparedSavedRotationBatch(prepareSavedRotationBatch(entries), options)
+}
+
+/** Live projections already have an editor run; only inventory entries need detail jobs. */
+export function pendingSavedRotationDetails(
+  entries: readonly SavedRotation[],
+  requestedIds: readonly string[],
+  completed: ReadonlyMap<string, RunResult | null>,
+): SavedRotation[] {
+  const wanted = new Set(requestedIds)
+  return entries.filter((entry) => wanted.has(entry.id) && !completed.has(entry.id))
 }
 
 /** Build rich editor projections only for saved rotations currently being inspected. */

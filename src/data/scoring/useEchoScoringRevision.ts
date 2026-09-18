@@ -6,7 +6,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import {
-  getEchoScrPr,
+  getEchoLoadoutScores,
   getEchoScoringRevision,
   getMaxEchoSc,
   subscribeEchoScoring,
@@ -33,6 +33,6 @@ export function useEchoScores(
   return useMemo(() => {
     void revision
     if (!charId || getMaxEchoSc(charId) <= 0) return null
-    return echoes.map((echo) => (echo ? getEchoScrPr(charId, echo) : null))
+    return getEchoLoadoutScores(charId, echoes)
   }, [charId, echoes, revision])
 }

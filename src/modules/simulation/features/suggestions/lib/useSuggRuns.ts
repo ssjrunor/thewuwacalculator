@@ -17,8 +17,6 @@ import { runMainStatS, runSetPlanSu, runWpnSuggs } from '@/engine/suggestions/cl
 import { readSuggsSss, writeSuggsSs } from '@/engine/suggestions/sessionCache.ts'
 import {
   evalSuggChs,
-  evalSuggChsW,
-  mkNeutralSuggMainEc,
   mkPrepMainSt,
   mkPrepSetPla,
   mkPrepWpnSu,
@@ -263,14 +261,12 @@ export function useSuggRuns({
     () => (suggVltnCtx ? evalSuggChs(suggVltnCtx, echoes) : 0),
     [echoes, suggVltnCtx],
   )
-  const mainBaseDamage = useMemo(
-    () => (mainSuggVltnCtx ? evalSuggChsW(mainSuggVltnCtx, echoes, mkNeutralSuggMainEc(echoes)) : 0),
-    [echoes, mainSuggVltnCtx],
-  )
-  const setPlanBaseDamage = useMemo(
-    () => (suggVltnCtx ? evalSuggChsW(suggVltnCtx, echoes, mkNeutralSuggMainEc(echoes)) : 0),
-    [echoes, suggVltnCtx],
-  )
+  const mainBaseDamage = useMemo(() => {
+    if (!simulation || !activeSeed || !hasMutableTarget) return 0
+    return resSuggDmg(simulation, { ...ctxBase, seed: activeSeed, includeEchoAttacks: true })
+  }, [activeSeed, ctxBase, hasMutableTarget, simulation])
+  const setPlanBaseDamage = mainBaseDamage
+
   const fixedBaseDamage = useMemo(
     () => (fixedSuggVltnCtx ? evalSuggChs(fixedSuggVltnCtx, echoes) : 0),
     [echoes, fixedSuggVltnCtx],
@@ -281,6 +277,7 @@ export function useSuggRuns({
     return resSuggDmg(simulation, {
       ...ctxBase,
       seed: activeSeed,
+      setStateMode: 'resolved',
       includeEchoAttacks: true,
     })
   }, [activeSeed, ctxBase, hasFixedTarget, simulation])
@@ -324,6 +321,7 @@ export function useSuggRuns({
     selectedTargets: selTrgtByOwn,
     setConds,
     setStateMode: 'resolved',
+    includeEchoAttacks: true,
     tgtFeatId: suggsStt.settings.targetFeatureId,
     rotationMode: suggsStt.settings.rotationMode,
   }), [
@@ -356,11 +354,11 @@ export function useSuggRuns({
   ])
 
   const mainSttsCchK = useMemo(
-    () => `main:${runtime.id}:${mainSuggNptS}`,
+    () => `main:v2:${runtime.id}:${mainSuggNptS}`,
     [mainSuggNptS, runtime.id],
   )
   const setPlnsCchKe = useMemo(
-    () => `sets:${runtime.id}:${baseSuggNptS}`,
+    () => `sets:v3:${runtime.id}:${baseSuggNptS}`,
     [baseSuggNptS, runtime.id],
   )
   const wpnCchKey = useMemo(

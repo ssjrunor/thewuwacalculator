@@ -343,8 +343,6 @@ function dmgOptionsFor(detail: RunDetail): CalcSkillDamageOptions | undefined {
   return detail === 'summary' ? { includeSubHits: false } : undefined
 }
 
-// current implementation just respects explicit enabled state on the node
-// runtime is accepted for future expansion, even though it is not needed yet
 export function isRotNodeOn(runtime: ResRuntime, node: RotationNode): boolean {
   void runtime
   return 'enabled' in node ? node.enabled ?? true : true
@@ -475,13 +473,7 @@ function buildScope(
   }
 }
 
-/**
- * Central gate for direct authored node state.
- *
- * `enabled` is the only thing that gates a node. Nodes used to be able to
- * carry a condition expression of their own, but nothing could author one and
- * no shipped or saved rotation ever held one, so the field is gone.
- */
+/** Direct node gating reads enabled; authored condition nodes execute separately. */
 function shldRunRotNo(
   node: RotationNode,
   compiledFlags?: number,
@@ -1435,6 +1427,32 @@ function getRslvPartR(state: RotationExec, resonatorId: string): ResRuntime | nu
   return nextRuntime
 }
 
+const resolvedRuntimeMapCache = new WeakMap<
+  RotationExec,
+  { runtimeVersion: number; combatVersion: number; runtimesById: Record<string, ResRuntime> }
+>()
+
+function getRslvRtLkp(state: RotationExec): Record<string, ResRuntime> {
+  const cached = resolvedRuntimeMapCache.get(state)
+  if (
+    cached?.runtimeVersion === state.overlay.runtimeVersion
+    && cached.combatVersion === state.overlay.combatVersion
+  ) return cached.runtimesById
+
+  const runtimesById = Object.fromEntries(
+    Object.values(getBaseGraph(state).participants).flatMap((participant) => {
+      const runtime = getRslvPartR(state, participant.resonatorId)
+      return runtime ? [[participant.resonatorId, runtime]] : []
+    }),
+  )
+  resolvedRuntimeMapCache.set(state, {
+    runtimeVersion: state.overlay.runtimeVersion,
+    combatVersion: state.overlay.combatVersion,
+    runtimesById,
+  })
+  return runtimesById
+}
+
 // apply routing overlay paths to a cloned routing object
 // kept separate from runtime overlay because routing lives in slot state, not runtime state
 function applyRtngVrl(
@@ -1848,7 +1866,8 @@ function enemyChangeBounds(
 
   if (primaryRuntime && enemyPath.startsWith('combat.')) {
     const key = enemyPath.slice('combat.'.length)
-    const negativeEffect = negEffectsFor(primaryRuntime).find((entry) => entry.key === key)
+    const negativeEffect = negEffectsFor(primaryRuntime, getRslvRtLkp(state))
+      .find((entry) => entry.key === key)
     if (negativeEffect) {
       return {
         min: 0,
@@ -2247,6 +2266,7 @@ function resolveRotationSkill(
     participant: RotPartStt,
     skill: SkillDef,
 ): SkillDef {
+  const runtimesById = getRslvRtLkp(state)
   const resolved = resolveSkill(participant.runtime, skill, (condition) => {
     const numeric = evaluateNumericCondition(state.numericTeam, participant.lane, condition)
     if (numeric !== undefined) return numeric
@@ -2255,7 +2275,7 @@ function resolveRotationSkill(
         type: 'resonator',
         id: participant.seed.id,
       }))
-  })
+  }, runtimesById)
   return prepareNumericSkill(
     state.numericTeam,
     participant.lane,
@@ -2457,6 +2477,7 @@ function runFeatBody(
 ): RotationExec {
   const ownResId = resNodeResId(state, node, fallbackResId)
   const lclFeatStt = state
+  const runtimesById = getRslvRtLkp(lclFeatStt)
 
   const featureData = findFeatOwn(lclFeatStt, compiledFeatureId ?? node.featureId, ownResId)
   if (!featureData) {
@@ -2637,7 +2658,7 @@ function runFeatBody(
 
     if (negFfctCmbtK) {
       const startStacks = stckFxd
-        ? scaledSkill.stackMax ?? getNegFfctEn(participant.runtime, negFfctCmbtK)?.max
+        ? scaledSkill.stackMax ?? getNegFfctEn(participant.runtime, negFfctCmbtK, runtimesById)?.max
           ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
         : negFfctStckV ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
       const combatScratch = lclFeatStt.combatScratch
@@ -2723,7 +2744,7 @@ function runFeatBody(
     negFfctCmbtK
       ? (() => {
         const startStacks = stckFxd
-          ? scaledSkill.stackMax ?? getNegFfctEn(participant.runtime, negFfctCmbtK)?.max ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
+          ? scaledSkill.stackMax ?? getNegFfctEn(participant.runtime, negFfctCmbtK, runtimesById)?.max ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
           : negFfctStckV ?? Math.max(0, Math.floor(baseCmbtStt[negFfctCmbtK] ?? 0))
         const stackSeries = stckFxd
           ? [startStacks]
@@ -3525,9 +3546,8 @@ function runLoopNodeFrameStack(
         continue
       }
 
-      // i used explicit frames here rather than recursion so the
-      // interpreter can keep a mutable cursor, run counter, and trace stream
-      // alive without relying on js call-stack depth
+      // Explicit frames retain cursor, run counter, and trace state without
+      // making nested authored loops depend on JavaScript call-stack depth.
       if (!shldRunRotNo(runItem, flagsAt(frame))) {
         nextState = ppndNspcEnt(nextState, {
           nodeId: runItem.id,

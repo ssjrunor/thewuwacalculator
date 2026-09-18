@@ -500,22 +500,25 @@ export function mkPrepMainSt(
     input: MainStatSuwo,
     simulation: SimResult,
 ): MainStatPrep | null {
-  const context = mkSuggVltnCt({
+  const scoringInput: SuggestInput = {
     ...input,
     setStateMode: 'resolved',
-  }, simulation)
+    includeEchoAttacks: input.includeEchoAttacks ?? true,
+  }
+  const context = mkSuggVltnCt(scoringInput, simulation)
   if (!context) {
     return null
   }
 
   return {
+    scoringInput,
     scenarioId: input.scenarioId,
     memberId: input.memberId,
     context,
     rotationMode: input.rotationMode,
     qppdChs: input.runtime.build.echoes,
     charId: input.runtime.id,
-    statWeight: mkSuggWghtMa(simulation, input),
+    statWeight: mkSuggWghtMa(simulation, scoringInput),
     topK: input.topK,
   }
 }
@@ -524,12 +527,14 @@ export function mkPrepSetPla(
     input: SetPlanSuggs,
     simulation: SimResult,
 ): PrepSetPlanS | null {
+  const scoringInput: SuggestInput = { ...input, includeEchoAttacks: input.includeEchoAttacks ?? true }
   const context = mkSuggVltnCt(input, simulation)
   if (!context) {
     return null
   }
 
   return {
+    scoringInput,
     scenarioId: input.scenarioId,
     memberId: input.memberId,
     context,

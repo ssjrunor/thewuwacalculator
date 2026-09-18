@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns image upload modal behavior and state transitions for the ui module.
+  Description: Resolves image links or uploads with scaling and storage-mode
+               selection, then commits successful upload preferences on close.
 */
 
 import { useRef, useState } from 'react'
@@ -11,12 +12,13 @@ import { Expandable } from '@/shared/ui/Expandable'
 import { useAppStore } from '@/domain/state/store'
 import { storeUploadedImage } from '@/shared/lib/imageUpload.ts'
 import type { StoredImage, UploadMode } from '@/shared/lib/imageUpload.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 interface ImageUploadModalProps {
   state: AppModalState
   title?: string
   initialCredit?: string
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
   onApply: (result: StoredImage, credit: string) => void
 }
 
@@ -46,11 +48,19 @@ export function ImageUploadModal({ state, title = 'Add image', initialCredit = '
   )
 }
 
-function UploadBody({ title, initialCredit, onClose, onApply }: { title: string; initialCredit: string; onClose: () => void; onApply: (result: StoredImage, credit: string) => void }) {
+function UploadBody({ title, initialCredit, onClose, onApply }: { title: string; initialCredit: string; onClose: (onClosed?: () => void) => void; onApply: (result: StoredImage, credit: string) => void }) {
   const uploadPersist = useAppStore((s) => s.ui.preferences.uploadPersist)
   const imgbbApiKey = useAppStore((s) => s.ui.preferences.imgbbApiKey)
   const setUploadPersist = useAppStore((s) => s.setUploadPersist)
   const setImgbbApiKey = useAppStore((s) => s.setImgbbApiKey)
+  const preferences = useConfigurationSession({
+    source: { uploadPersist, imgbbApiKey },
+    commit: (reducer) => {
+      const next = reducer({ uploadPersist, imgbbApiKey })
+      if (next.uploadPersist !== uploadPersist) setUploadPersist(next.uploadPersist)
+      if (next.imgbbApiKey !== imgbbApiKey) setImgbbApiKey(next.imgbbApiKey)
+    },
+  })
 
   const [tab, setTab] = useState<'upload' | 'link'>('upload')
   const [file, setFile] = useState<File | null>(null)
@@ -62,8 +72,8 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
   const [busy, setBusy] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const savedKey = imgbbApiKey.trim()
-  const effectiveMode: UploadMode | null = uploadPersist ?? chosenMode
+  const savedKey = preferences.draft.imgbbApiKey.trim()
+  const effectiveMode: UploadMode | null = preferences.draft.uploadPersist ?? chosenMode
   const needsKey = effectiveMode === 'imgbb' && !savedKey
   const canUpload = !!file && !!effectiveMode && (!needsKey || keyInput.trim().length > 0) && !busy
 
@@ -76,28 +86,28 @@ function UploadBody({ title, initialCredit, onClose, onApply }: { title: string;
       setBusy(false)
       return
     }
-    if (effectiveMode !== 'session' && uploadPersist !== effectiveMode) {
-      setUploadPersist(effectiveMode)
+    if (effectiveMode !== 'session' && preferences.draft.uploadPersist !== effectiveMode) {
+      preferences.update((current) => ({ ...current, uploadPersist: effectiveMode }))
     }
     if (effectiveMode === 'imgbb' && keyInput.trim() && keyInput.trim() !== savedKey) {
-      setImgbbApiKey(keyInput.trim())
+      preferences.update((current) => ({ ...current, imgbbApiKey: keyInput.trim() }))
     }
     onApply(result, credit)
-    onClose()
+    onClose(preferences.finish)
   }
 
   const handleUseLink = () => {
     const url = linkUrl.trim()
     if (!url) return
     onApply({ ref: url, persisted: true }, credit)
-    onClose()
+    onClose(preferences.finish)
   }
 
   return (
     <div className="image-upload-modal">
       <header className="iu-head">
           <h2 className="iu-title">{title}</h2>
-          <button type="button" className="iu-close" aria-label="Close" onClick={onClose}>
+          <button type="button" className="iu-close" aria-label="Close" onClick={() => onClose(preferences.finish)}>
             <X size="1rem" aria-hidden="true" />
           </button>
         </header>

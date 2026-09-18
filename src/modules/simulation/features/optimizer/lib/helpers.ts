@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Collects presentational optimizer helpers for labels, icons,
-               formatting, and small derived values used across the ui.
+  Description: Resolves optimizer slot runtimes, loadout summaries, target
+               eligibility, stat-filter keys, and weapon-state replacements.
 */
 
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
@@ -15,7 +15,7 @@ import {
   type RtCtlMap,
 } from '@/domain/state/sourceStateInit.ts'
 import { makeTeamMember } from '@/domain/state/defaults.ts'
-import { matTeamMemFr } from '@/domain/state/runtimeMaterialization.ts'
+import { materializeLegacyTeamMember } from '@/domain/state/runtimeMaterialization.ts'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import type { OptDisplayRow, OptDsplSetEn } from '../Row.tsx'
 import type { EchoPlan } from './teammateEchoPlan.ts'
@@ -59,8 +59,7 @@ export function smmrEchoLdt(
   echoes: Array<EchoInstance | null>,
 ): Pick<OptDisplayRow, 'costs' | 'sets' | 'mainEchoIcon'> {
   const setCounts = new Map<number, number>()
-  // capture every echo's individual cost so the row can show the layout
-  // (e.g. 4·3·3·1·1) instead of the redundant sum.
+  // Preserve individual costs rather than collapsing the loadout to its total.
   const costs: number[] = []
 
   for (const echo of echoes) {
@@ -143,7 +142,7 @@ export function rotHasFeats(items: ReadonlyArray<RotationNode>): boolean {
   return false
 }
 
-// normalize every loadout to the fixed 5-slot shape expected by the ui.
+// Normalize loadouts to the fixed five-slot shape used by runtime consumers.
 export function normEchoLdt(
   echoes: ReadonlyArray<EchoInstance | null | undefined>,
 ): Array<EchoInstance | null> {
@@ -154,10 +153,12 @@ export function normEchoLdt(
   return out
 }
 
-// resolve the active runtime or one teammate runtime from the compact optimizer state.
+// Resolve an optimizer slot from canonical participants, with legacy compact
+// teammate materialization retained only for detached callers.
 export function makeOpSlot(
-  runtime: ResRuntime,
-  slot: OpSlot,
+    runtime: ResRuntime,
+    slot: OpSlot,
+    runtimesById: Readonly<Record<string, ResRuntime>> = {},
 ): ResRuntime | null {
   if (slot === 'active') {
     return runtime
@@ -166,6 +167,11 @@ export function makeOpSlot(
   const memberId = runtime.build.team[slot + 1]
   if (!memberId) {
     return null
+  }
+
+  const participant = runtimesById[memberId]
+  if (participant) {
+    return participant
   }
 
   const seed = seedRsntById[memberId] ?? null
@@ -178,7 +184,7 @@ export function makeOpSlot(
     ? compactRuntime
     : makeTeamMember(seed)
 
-  return matTeamMemFr(
+  return materializeLegacyTeamMember(
     seed,
     resolvedRuntime,
     runtime.state.controls,

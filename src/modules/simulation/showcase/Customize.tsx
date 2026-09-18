@@ -6,6 +6,7 @@
 
 import { useRef, useState } from 'react'
 import type { ChangeEvent, ReactNode } from 'react'
+import { useAppStore } from '@/domain/state/store.ts'
 import { Expandable } from '@/shared/ui/Expandable'
 import { Check, Clipboard, Download, Maximize2, Pipette, RotateCcw, SlidersHorizontal, Upload, X } from 'lucide-react'
 import type { ShowcaseCardHidden, ShowcaseLayout, StatsColumnHighlight, TextSlot, TextSlotStyle } from '@/domain/entities/preferences'
@@ -290,6 +291,55 @@ function TuneGroup({ title, actions, children }: { title: string; actions?: Reac
       {actions ? <div className="workspace-tune-groupactions">{actions}</div> : null}
       {children}
     </Expandable>
+  )
+}
+
+// Holder identity is global rather than per-card. Reconcile local drafts when
+// another writer, such as the Echo parser, changes the persisted identity.
+function TuneIdentity() {
+  const playerId = useAppStore((state) => state.ui.preferences.playerId)
+  const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
+  const setIdentity = useAppStore((state) => state.setPlayerIdentity)
+  const [draft, setDraft] = useState({ id: playerId, uid: playerUid })
+  const [seen, setSeen] = useState({ id: playerId, uid: playerUid })
+
+  if (seen.id !== playerId || seen.uid !== playerUid) {
+    setSeen({ id: playerId, uid: playerUid })
+    if (draft.id.trim() !== playerId || draft.uid.trim() !== playerUid) {
+      setDraft({ id: playerId, uid: playerUid })
+    }
+  }
+
+  // the store trims; the draft keeps what was typed so a space can be typed mid-name
+  const commit = (next: { id: string; uid: string }) => {
+    setDraft(next)
+    setIdentity(next.id, next.uid)
+  }
+
+  return (
+    <div className="workspace-tune-ident">
+      <label className="workspace-tune-ident-field">
+        <span className="workspace-tune-ident-label">Player</span>
+        <input
+          type="text" className="workspace-tune-input"
+          id="showcase-player-id"
+          placeholder="Name"
+          value={draft.id}
+          onChange={(event) => commit({ ...draft, id: event.target.value })}
+        />
+      </label>
+      <label className="workspace-tune-ident-field">
+        <span className="workspace-tune-ident-label">UID</span>
+        <input
+          type="text" className="workspace-tune-input"
+          id="showcase-player-uid"
+          inputMode="numeric"
+          placeholder="500395087"
+          value={draft.uid}
+          onChange={(event) => commit({ ...draft, uid: event.target.value })}
+        />
+      </label>
+    </div>
   )
 }
 
@@ -605,19 +655,20 @@ export function ShowcaseCustomizePanel({
         </button>
       </header>
 
-      <div className="workspace-tune-body">
-        <TuneGroup title="Layout">
-          <TuneSegment
-            label="Card"
-            value={layout}
-            options={[
-              { value: 'classic', label: 'Classic' },
-              { value: 'seal', label: 'Seal' },
-            ]}
-            onChange={onLayoutChange}
-          />
-        </TuneGroup>
+      <div className="workspace-tune-fixed">
+        <TuneSegment
+          label="Card"
+          value={layout}
+          options={[
+            { value: 'classic', label: 'Classic' },
+            { value: 'seal', label: 'Seal' },
+          ]}
+          onChange={onLayoutChange}
+        />
+        <TuneIdentity />
+      </div>
 
+      <div className="workspace-tune-body">
         <TuneGroup
           title="Show"
           actions={<GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('show')} />}

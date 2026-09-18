@@ -5,7 +5,7 @@
                geometry derived from rendered measurements.
 */
 
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import type { ShowcaseCardHidden, StatsColumnHighlight } from '@/domain/entities/preferences'
 import { useAppStore } from '@/domain/state/store.ts'
@@ -14,13 +14,13 @@ import { weaponStatsAt } from '@/domain/services/weaponPlan.ts'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
 import { getRarityColor, getRarityInk } from '@/modules/simulation/model/display.ts'
 import { getWpnVisKey } from '@/modules/simulation/workspace/weaponVisual.ts'
-import { getEchoScrPr } from '@/data/scoring/echoScoring.ts'
-import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision.ts'
-import { cmptEchoCrit, getCvToneColor, getScrTone } from '@/modules/simulation/features/echoes/lib/metric.ts'
+import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
+import { cmptEchoCrit, getCvToneColor, getScrTone, SCORE_TONE_COLORS } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView.ts'
 import { formatBuildEvaluationScore } from '@/modules/simulation/model/buildEvaluationDisplay.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
+import { groupUid } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import {
   EvaluationSeqRail,
@@ -60,11 +60,6 @@ function fitLines(root: HTMLElement): void {
   }
 }
 
-// Group numeric UIDs into stable three-digit segments without changing other ids.
-function groupUid(uid: string): string {
-  return /^\d+$/.test(uid) ? uid.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : uid
-}
-
 // Derive the ribbon opening from the measured seal bounds.
 function openRibbon(ribbon: HTMLElement, seal: HTMLElement): void {
   const start = seal.offsetLeft - ribbon.offsetLeft
@@ -87,6 +82,7 @@ export function SealShowcase({
   onSequence,
   onEditWeapon,
   team,
+  onEchoOpen,
   echoSelection,
   blank,
 }: {
@@ -104,6 +100,7 @@ export function SealShowcase({
   onSequence?: (node: number) => void
   onEditWeapon?: () => void
   team: ReactNode
+  onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
 }) {
@@ -115,6 +112,7 @@ export function SealShowcase({
   const relStats = useMemo(() => makeRelStats(build.charId), [build.charId])
   const showRel = !hidden.relStats
   const slots = Array.from({ length: 5 }, (_, slot) => build.echoes[slot] ?? null)
+  const echoScores = useEchoScores(build.charId, slots)
   const cv = loadoutCv(slots, blank)
   const buildByKey = buildTotalsByKey(build.buildStatsView)
   const rows = build.combatStatsView
@@ -218,12 +216,12 @@ export function SealShowcase({
             key={echo?.uid ?? `empty:${slot}`}
             echo={echo}
             index={slot + 1}
-            charId={build.charId}
-            hasWeights={build.hasWeights}
+            score={echoScores?.[slot] ?? null}
             relStats={relStats}
             showRel={showRel}
             hideSubVal={hidden.subVal}
             hideSubColor={hidden.subColor}
+            onOpen={onEchoOpen ? () => onEchoOpen(slot) : undefined}
             selection={echoSelection}
           />
         ))}
@@ -359,29 +357,47 @@ export function SealShowcase({
 function SealEcho({
   echo,
   index,
-  charId,
-  hasWeights,
+  score,
   relStats,
   showRel,
   hideSubVal,
   hideSubColor,
   selection,
+  onOpen,
 }: {
   echo: EchoInstance | null
   index: number
-  charId: string
-  hasWeights: boolean
+  score: number | null
   relStats: RelStats
   showRel: boolean
   hideSubVal: boolean
   hideSubColor: boolean
   selection?: EvaluationEchoSelection
+  onOpen?: () => void
 }) {
-  useEchoScoringRevision(charId)
+  const openProps = onOpen ? {
+    role: 'button',
+    tabIndex: 0,
+    onClick: () => {
+      if (!selection?.selectionMode) onOpen()
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (selection?.selectionMode) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.currentTarget.click()
+    },
+  } : undefined
 
   if (!echo) {
     return (
-      <article className="seal-echo seal-echo--empty" style={{ '--i': index } as CssVars}>
+      <article
+        className="seal-echo seal-echo--empty"
+        style={{ '--i': index } as CssVars}
+        aria-label={onOpen ? `Slot ${index}, empty. Choose an Echo` : undefined}
+        {...openProps}
+      >
         <span className="seal-echo-plate" aria-hidden="true" />
         <span className="seal-echo-halo" aria-hidden="true" />
         <span className="seal-echo-medal" aria-hidden="true" />
@@ -393,7 +409,6 @@ function SealEcho({
   const echoDef = getEchoById(echo.id)
   const setIcon = getSntSetIco(echo.set)
   const cv = cmptEchoCrit(echo.substats)
-  const score = hasWeights ? getEchoScrPr(charId, echo) : null
   const tone = score != null ? getScrTone(score) : null
   const itemId = selection?.getId(index - 1) ?? null
   const selected = itemId ? selection?.isSelected(itemId) ?? false : false
@@ -408,7 +423,9 @@ function SealEcho({
       data-tone={tone ?? undefined}
       data-selection-focus-item="true"
       data-selected={selected ? 'true' : undefined}
-      style={{ '--i': index } as CssVars}
+      style={{ '--i': index, '--seal-tone': tone ? SCORE_TONE_COLORS[tone] : undefined } as CssVars}
+      aria-label={onOpen ? `Slot ${index}. Edit ${echoDef?.name ?? 'Echo'}` : undefined}
+      {...openProps}
       onClickCapture={itemId ? selection?.buildClickCapture(itemId) : undefined}
     >
       <span className="seal-echo-plate" aria-hidden="true" />

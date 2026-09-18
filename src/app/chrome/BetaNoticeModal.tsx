@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Gates entry to public beta builds behind a short, mandatory
-               notice so preview limitations are seen before the app is used.
+  Description: Gates beta acknowledgement behind a timed countdown, records
+               daily confirmation, and delays unmount through modal exit.
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -9,6 +9,10 @@ import { FlaskConical, TimerReset } from 'lucide-react'
 import { AppModal } from '@/shared/ui/AppModal'
 import { ModalShell } from '@/shared/ui/AppModalShell'
 import { MODAL_EXIT_MS } from '@/shared/ui/useAppModal'
+import {
+  acknowledgeBetaNotice,
+  isBetaNoticeAcknowledgedToday,
+} from '@/infra/persistence/betaNotice'
 
 const NOTICE_DELAY_MS = 10000
 const COUNTDOWN_TICK_MS = 100
@@ -23,9 +27,11 @@ export function BetaNoticeModal() {
   const [secondsLeft, setSecondsLeft] = useState(NOTICE_DELAY_MS / 1000)
   const [canConfirm, setCanConfirm] = useState(false)
   const [closing, setClosing] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissed, setDismissed] = useState(isBetaNoticeAcknowledgedToday)
 
   useEffect(() => {
+    if (dismissed) return
+
     const unlockAt = performance.now() + NOTICE_DELAY_MS
     unlockAtRef.current = unlockAt
 
@@ -48,7 +54,7 @@ export function BetaNoticeModal() {
       }
       unlockAtRef.current = null
     }
-  }, [])
+  }, [dismissed])
 
   const confirm = useCallback(() => {
     const unlockAt = unlockAtRef.current
@@ -56,6 +62,7 @@ export function BetaNoticeModal() {
       return
     }
 
+    acknowledgeBetaNotice()
     setClosing(true)
     closeTimerRef.current = window.setTimeout(() => {
       setDismissed(true)
@@ -118,8 +125,6 @@ export function BetaNoticeModal() {
               <li>Some interactions, layouts, and wording are still being refined.</li>
               <li>Backend-dependent features, saved data, and shared links may be unavailable or reset.</li>
               <li>Results and workflows in this preview should not be treated as production-ready.</li>
-              <li> Trying to compare against a live rotation in the saved rotations view of the rotations page is bugged, it will freeze the app, stay wise.</li>
-              <li>Outro skills and some other effects may not be clickable on the active resonator, this is a bug. Stay wise.</li>
             </ul>
           </section>
         </div>

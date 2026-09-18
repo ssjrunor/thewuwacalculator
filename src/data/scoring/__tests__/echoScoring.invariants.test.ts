@@ -6,12 +6,19 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
+import {
+  ECHO_MAIN_STATS,
+  ECHO_SIDE_STATS,
+  SUBSTAT_RANGES,
+} from '@/data/gameData/catalog/echoStats'
 import {
   cacheEchoMainStatScoreProfile,
   deactivateEchoMainStatScoreProfile,
+  getEchoLoadoutScores,
   getEchoScoringRevision,
+  getEchoScoringReference,
   getMaxEchoSc,
+  getMkScrPrcn,
   getEchoScrPr,
   getEchoScrs,
   subscribeEchoScoring,
@@ -22,7 +29,7 @@ import {
 } from '@/data/scoring/echoMainStatProfile'
 import { listChsByCos } from '@/domain/services/echoCatalogService'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { makeEnemy, makeResRuntime } from '@/domain/state/defaults'
+import { makeEnemy, makeResRuntime, mkMaxResRt } from '@/domain/state/defaults'
 import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 import { runResSmlt } from '@/engine/pipeline'
@@ -30,10 +37,14 @@ import { runPrepMainS } from '@/engine/suggestions/mainStat-suggestion/suggestMa
 
 const AUGUSTA_ID = '1306'
 const QINGXIAO_ID = '1413'
+const AEMEATH_ID = '1210'
+const JINGRAN_ID = '1212'
 
 afterEach(() => {
   deactivateEchoMainStatScoreProfile(AUGUSTA_ID)
   deactivateEchoMainStatScoreProfile(QINGXIAO_ID)
+  deactivateEchoMainStatScoreProfile(AEMEATH_ID)
+  deactivateEchoMainStatScoreProfile(JINGRAN_ID)
 })
 
 function makeEcho(cost: number, primaryKey: string): EchoInstance {
@@ -130,6 +141,133 @@ describe('Echo scoring invariants', () => {
     expect(getEchoScrs(AUGUSTA_ID, echo).subScore).toBeCloseTo(staticScore, 8)
   })
 
+  it('normalizes character-specific substat ceilings before adding main-stat points', () => {
+    const jingranBestRoll = makeEcho(4, 'healingBonus')
+    jingranBestRoll.substats = { critRate: SUBSTAT_RANGES.critRate.max }
+    const aemeathBestRoll = makeEcho(4, 'healingBonus')
+    aemeathBestRoll.substats = { critDmg: SUBSTAT_RANGES.critDmg.max }
+
+    expect(getEchoScrs(JINGRAN_ID, jingranBestRoll).subScore).toBeCloseTo(
+      SUBSTAT_RANGES.critDmg.max,
+      8,
+    )
+    expect(getEchoScrs(AEMEATH_ID, aemeathBestRoll).subScore).toBeCloseTo(
+      SUBSTAT_RANGES.critDmg.max,
+      8,
+    )
+
+    cacheEchoMainStatScoreProfile({
+      cacheKey: 'echo-score-jingran-main',
+      charId: JINGRAN_ID,
+      weightsByCost: { 4: { critDmg: 1 } },
+      bestByCost: { 4: ['critDmg'] },
+    })
+    cacheEchoMainStatScoreProfile({
+      cacheKey: 'echo-score-aemeath-main',
+      charId: AEMEATH_ID,
+      weightsByCost: { 4: { critDmg: 1 } },
+      bestByCost: { 4: ['critDmg'] },
+    })
+
+    const jingranEcho = makeEcho(4, 'critDmg')
+    jingranEcho.substats = {
+      critDmg: 13.8,
+      hpPercent: 7.9,
+      energyRegen: 7.6,
+      heavyAtk: 7.1,
+      critRate: 6.9,
+    }
+    const aemeathEcho = makeEcho(4, 'critDmg')
+    aemeathEcho.substats = {
+      critDmg: 13.8,
+      energyRegen: 7.6,
+      atkPercent: 7.1,
+      resonanceLiberation: 7.1,
+      critRate: 6.9,
+    }
+
+    expect(getEchoScrPr(JINGRAN_ID, jingranEcho)).toBeCloseTo(79.3157433, 6)
+    expect(getEchoScrPr(AEMEATH_ID, aemeathEcho)).toBeCloseTo(78.107284, 6)
+  })
+
+  it('uses one attainable five-Echo reference and does not reward redundant HP', () => {
+    cacheEchoMainStatScoreProfile({
+      cacheKey: 'echo-score-five-echo-reference',
+      charId: JINGRAN_ID,
+      weightsByCost: {
+        4: { critDmg: 1 },
+        3: { fusion: 1 },
+        1: { hpPercent: 1 },
+      },
+      bestByCost: {
+        4: ['critDmg'],
+        3: ['fusion'],
+        1: ['hpPercent'],
+      },
+      mainCountsByCost: {
+        4: { critDmg: 1 },
+        3: { fusion: 2 },
+        1: { hpPercent: 2 },
+      },
+      idealSubstatCounts: {
+        critRate: 5,
+        critDmg: 5,
+        resonanceLiberation: 5,
+        basicAtk: 5,
+        heavyAtk: 4,
+        hpPercent: 1,
+      },
+    })
+
+    const mains = [
+      [4, 'critDmg'],
+      [3, 'fusion'],
+      [3, 'fusion'],
+      [1, 'hpPercent'],
+      [1, 'hpPercent'],
+    ] as const
+    const reference = mains.map(([cost, main], index) => {
+      const echo = makeEcho(cost, main)
+      echo.uid = `reference-${index}`
+      echo.substats = {
+        critRate: SUBSTAT_RANGES.critRate.max,
+        critDmg: SUBSTAT_RANGES.critDmg.max,
+        resonanceLiberation: SUBSTAT_RANGES.resonanceLiberation.max,
+        basicAtk: SUBSTAT_RANGES.basicAtk.max,
+        [index === 0 ? 'hpPercent' : 'heavyAtk']:
+          SUBSTAT_RANGES[index === 0 ? 'hpPercent' : 'heavyAtk'].max,
+      }
+      return echo
+    })
+
+    for (const score of getEchoLoadoutScores(JINGRAN_ID, reference)) {
+      expect(score).toBeCloseTo(100, 8)
+    }
+    expect(getMkScrPrcn(JINGRAN_ID, reference)).toBeCloseTo(100, 8)
+
+    const reversedScores = getEchoLoadoutScores(JINGRAN_ID, [...reference].reverse())
+    expect(Object.fromEntries([...reference].reverse().map((echo, index) => [
+      echo.uid,
+      reversedScores[index],
+    ]))).toEqual(Object.fromEntries(reference.map((echo) => [echo.uid, 100])))
+
+    const redundantHp = structuredClone(reference)
+    delete redundantHp[1].substats.heavyAtk
+    redundantHp[1].substats.hpPercent = SUBSTAT_RANGES.hpPercent.max
+    expect(getEchoLoadoutScores(JINGRAN_ID, redundantHp).some((score) => (
+      score != null && score < 100
+    ))).toBe(true)
+    expect(getMkScrPrcn(JINGRAN_ID, redundantHp)).toBeLessThan(100)
+
+    const splitHp = structuredClone(reference)
+    splitHp[0].substats.hpPercent = SUBSTAT_RANGES.hpPercent.max / 2
+    delete splitHp[1].substats.heavyAtk
+    splitHp[1].substats.hpPercent = SUBSTAT_RANGES.hpPercent.max / 2
+    const splitScores = getEchoLoadoutScores(JINGRAN_ID, splitHp)
+    expect(splitScores[0]).toBeCloseTo(splitScores[1] ?? 0, 8)
+    expect(splitScores[0]).toBeGreaterThan(90)
+  })
+
   it('omits utility stats from both earned and possible Echo score', () => {
     const echo = makeEcho(1, 'atkPercent')
     echo.substats = {
@@ -208,6 +346,31 @@ describe('Echo scoring invariants', () => {
       runtime,
       runtimesById: { [runtime.id]: runtime },
     })
+    const rollEdited = structuredClone(runtime)
+    const rollEditedEcho = rollEdited.build.echoes[0]
+    if (!rollEditedEcho) throw new Error('Missing roll-edited Echo fixture.')
+    rollEditedEcho.substats = { hpFlat: 580 }
+
+    expect(makeEchoMainStatProfileKey({
+      ...baseInput,
+      runtime: rollEdited,
+      runtimesById: { [rollEdited.id]: rollEdited },
+    })).toBe(originalKey)
+
+    const mainEdited = structuredClone(rollEdited)
+    const mainEditedEcho = mainEdited.build.echoes[0]
+    if (!mainEditedEcho) throw new Error('Missing main-edited Echo fixture.')
+    mainEditedEcho.mainStats.primary = {
+      key: 'critRate',
+      value: ECHO_MAIN_STATS[4].critRate,
+    }
+
+    expect(makeEchoMainStatProfileKey({
+      ...baseInput,
+      runtime: mainEdited,
+      runtimesById: { [mainEdited.id]: mainEdited },
+    })).not.toBe(originalKey)
+
     const editedKey = makeEchoMainStatProfileKey({
       ...baseInput,
       runtime: edited,
@@ -272,5 +435,121 @@ describe('Echo scoring invariants', () => {
     // Every main selected by the optimal 4-3-3-1-1 layout receives full
     // item-quality credit, even when its isolated marginal value is lower.
     expect(getEchoScrs(AUGUSTA_ID, makeEcho(3, 'electro')).mainScore).toBeCloseTo(44, 8)
+  })
+
+  it('builds Jingran a cap-aware 25-roll reference', async () => {
+    const seed = getResSeedBy(JINGRAN_ID)
+    if (!seed) throw new Error('Missing Jingran fixture.')
+
+    const enemy = makeEnemy()
+    const runtime = mkMaxResRt(seed)
+    const mainLayout = [
+      [4, 'critDmg'],
+      [1, 'hpPercent'],
+      [1, 'hpPercent'],
+      [1, 'atkPercent'],
+      [4, 'critDmg'],
+    ] as const
+    const costOffsets = new Map<number, number>()
+    runtime.build.echoes = mainLayout.map(([cost, main], index) => {
+      const echo = makeEcho(cost, main)
+      const offset = costOffsets.get(cost) ?? 0
+      const definition = listChsByCos(cost)[offset]
+      if (!definition) throw new Error(`Missing distinct ${cost}-cost Echo fixture.`)
+      costOffsets.set(cost, offset + 1)
+      echo.uid = `jingran-main-layout-${index}`
+      echo.id = definition.id
+      echo.set = definition.sets[0] ?? 0
+      echo.mainEcho = index === 0
+      echo.substats = {}
+      return echo
+    })
+    const runtimesById = makeRuntimeMap(runtime, {})
+    const simulation = runResSmlt(runtime, seed, enemy, runtimesById, {})
+
+    await prepareEchoMainStatScoring({
+      scenarioId: combatScenarioId('echo-score:jingran-reference'),
+      memberId: teamMemberId('echo-score:jingran-member'),
+      runtime,
+      seed,
+      enemy,
+      runtimesById,
+      selectedTargets: {},
+      simulation,
+    }, async (payload) => runPrepMainS(payload))
+
+    const reference = getEchoScoringReference(JINGRAN_ID)
+    expect(reference).not.toBeNull()
+    expect(Object.values(reference?.idealSubstatCounts ?? {}).reduce(
+      (sum, count) => sum + count,
+      0,
+    )).toBe(25)
+    expect((reference?.idealSubstatCounts.hpPercent ?? 0)
+      + (reference?.idealSubstatCounts.hpFlat ?? 0)).toBeGreaterThan(0)
+    const hpPercentCount = reference?.idealSubstatCounts.hpPercent ?? 0
+    expect(reference?.idealSubstatValues.hpPercent ?? 0).toBeLessThan(
+      hpPercentCount * SUBSTAT_RANGES.hpPercent.max,
+    )
+
+    const hpValues = [7.9, 7.9, 7.9, 8.6, 8.6]
+    const hpLoadout = (reference?.referenceEchoes ?? []).map((echo, index) => ({
+      ...echo,
+      uid: `jingran-hp-credit-${index}`,
+      mainStats: {
+        primary: { ...echo.mainStats.primary },
+        secondary: { ...echo.mainStats.secondary },
+      },
+      substats: { hpPercent: hpValues[index] },
+    }))
+    const noHpLoadout = hpLoadout.map((echo) => ({ ...echo, substats: {} }))
+    const hpScores = getEchoLoadoutScores(JINGRAN_ID, hpLoadout)
+    const noHpScores = getEchoLoadoutScores(JINGRAN_ID, noHpLoadout)
+    for (let index = 0; index < hpLoadout.length; index += 1) {
+      expect(hpScores[index] ?? 0).toBeGreaterThan(noHpScores[index] ?? 0)
+    }
+
+    const referenceRuntime = structuredClone(runtime)
+    referenceRuntime.build.echoes = (reference?.referenceEchoes ?? []).map((echo, index) => ({
+      ...echo,
+      uid: `jingran-reference-${index}`,
+      mainStats: {
+        primary: { ...echo.mainStats.primary },
+        secondary: { ...echo.mainStats.secondary },
+      },
+      substats: { ...echo.substats },
+    }))
+    expect(referenceRuntime.build.echoes).toHaveLength(5)
+    expect(referenceRuntime.build.echoes.every((echo) => (
+      echo != null && Object.keys(echo.substats).length === 5
+    ))).toBe(true)
+    for (const score of getEchoLoadoutScores(JINGRAN_ID, referenceRuntime.build.echoes)) {
+      expect(score).toBeCloseTo(100, 8)
+    }
+    expect(getMkScrPrcn(JINGRAN_ID, referenceRuntime.build.echoes)).toBeCloseTo(100, 8)
+
+    // Once the family's useful target is covered, adding more HP can only
+    // redistribute credit among pieces, never increase total earned points.
+    const capLoadout = hpLoadout.map((echo) => ({
+      ...echo,
+      substats: { hpPercent: (reference?.idealSubstatValues.hpPercent ?? 0) / 5 },
+    }))
+    const excessLoadout = capLoadout.map((echo) => ({
+      ...echo,
+      substats: { hpPercent: SUBSTAT_RANGES.hpPercent.max },
+    }))
+    expect(getMkScrPrcn(JINGRAN_ID, excessLoadout)).toBeCloseTo(
+      getMkScrPrcn(JINGRAN_ID, capLoadout),
+      8,
+    )
+    const referenceRuntimes = makeRuntimeMap(referenceRuntime, {})
+    const referenceSimulation = runResSmlt(
+      referenceRuntime,
+      seed,
+      enemy,
+      referenceRuntimes,
+      {},
+    )
+    expect(referenceSimulation.finalStats.hp.final).toBeGreaterThanOrEqual(49_000)
+    expect(referenceSimulation.finalStats.hp.final).toBeLessThanOrEqual(51_200)
   })
 })

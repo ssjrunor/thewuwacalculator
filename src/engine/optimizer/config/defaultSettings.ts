@@ -67,10 +67,11 @@ function pickDefaultBonus(weights: Partial<Record<string, number>>): string | nu
 
 function makeTargetSkill(params: {
   runtime: ResRuntime
+  runtimesById?: Record<string, ResRuntime>
   enemy: EnemyProfile
   selectedTargets?: Record<string, string | null>
 }): SkillDef | null {
-  const { runtime, enemy, selectedTargets } = params
+  const { runtime, runtimesById, enemy, selectedTargets } = params
   const targetSkill = listOptTrgt(runtime)[0] ?? null
   if (!targetSkill) {
     return null
@@ -85,21 +86,15 @@ function makeTargetSkill(params: {
     runtime,
     seed,
     enemy,
-    runtimesById: makeRuntimeMap(runtime),
+    runtimesById: makeRuntimeMap(runtime, runtimesById),
     selectedTargets,
   })
 
   return prepareSkill(runtime, targetSkill.id, context)
 }
 
-// optimizer settings that are machine/ui preferences rather than
-// resonator-specific build choices. these carry over when the optimizer
-// context re-derives for a newly active resonator, so switching characters
-// does not silently revert the user's compute backend, low-memory toggle,
-// inventory/theory search mode, result-window sliders, or skill/combo target
-// mode. combo mode is gated downstream; if the new resonator has no rotation
-// features the optimizer surface forces skill mode regardless of what carries
-// over here.
+// Carry execution/search preferences across resonator-specific reinitialization.
+// Target-mode eligibility is validated downstream against the new runtime.
 export function preserveToggles(existing?: OptSets | null): Partial<OptSets> {
   if (!existing) {
     return {}
@@ -119,10 +114,11 @@ export function preserveToggles(existing?: OptSets | null): Partial<OptSets> {
 
 export function deriveOptSets(params: {
   runtime: ResRuntime
+  runtimesById?: Record<string, ResRuntime>
   enemy: EnemyProfile
   selectedTargets?: Record<string, string | null>
 }): Partial<OptSets> {
-  const { runtime, enemy, selectedTargets } = params
+  const { runtime, runtimesById, enemy, selectedTargets } = params
   const targetSkill = listOptTrgt(runtime)[0] ?? null
   if (!targetSkill) {
     return {}
@@ -130,6 +126,7 @@ export function deriveOptSets(params: {
 
   const preparedSkill = makeTargetSkill({
     runtime,
+    runtimesById,
     enemy,
     selectedTargets,
   })
@@ -150,7 +147,7 @@ export function deriveOptSets(params: {
     runtime,
     seed,
     enemy,
-    runtimesById: makeRuntimeMap(runtime),
+    runtimesById: makeRuntimeMap(runtime, runtimesById),
     selectedTargets,
   })
 

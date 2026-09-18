@@ -11,6 +11,7 @@ import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { selScenarioProfiles, selVrvwDrvd } from '@/domain/state/selectors.ts'
 import { runtimeFromSnapshot } from '@/domain/state/runtimeAdapters.ts'
+import { scenarioIdForContextResonator } from '@/domain/entities/scenarioLibrary.ts'
 import { isSimulationRoute } from '@/shared/lib/appRoutes.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
@@ -192,6 +193,12 @@ export function EchoImportHost() {
     const state = useAppStore.getState()
     if (target.kind === 'team') {
       state.updResRt(target.resonatorId, updater)
+      return true
+    }
+
+    const scenarioId = scenarioIdForContextResonator(state.combat, target.resonatorId)
+    if (scenarioId) {
+      state.updScenarioResRt(scenarioId, target.resonatorId, updater)
       return true
     }
 

@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Implements negative effects data-flow and calculation invariants.
+  Description: Resolves negative-effect archetypes, team contributions, stack
+               bounds, and canonical combat-state paths from runtime sources.
 */
 
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
@@ -15,7 +16,7 @@ import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 import { makeTeamComp } from '@/domain/gameData/teamComposition'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { makeResRuntime } from '@/domain/state/defaults'
-import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
+import { materializeLegacyTeamMember } from '@/domain/state/runtimeMaterialization'
 import { evalCond } from '@/engine/effects/evaluator'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 
@@ -39,8 +40,7 @@ export interface RslvNegFfctE extends NegEffectCat {
   sliderVisible: boolean
 }
 
-// canonical element behind each negative-effect archetype. Used by the damage
-// pipeline (resistance lookup) and the enemy UI (element icon / accent).
+// Canonical elemental attributes used to resolve each archetype's resistance.
 export const NEG_EFFECT_ELEM: Record<NegEffectKey, AttributeKey> = {
   spectroFrazzle: 'spectro',
   aeroErosion: 'aero',
@@ -197,9 +197,15 @@ function isNegFfctSrc(
 function resTeamSrcRt(
     actRt: ResRuntime,
     memberId: string,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): ResRuntime | null {
   if (memberId === actRt.id) {
     return actRt
+  }
+
+  const participant = runtimesById?.[memberId]
+  if (participant) {
+    return participant
   }
 
   const cmpcTeamRt = actRt.teamRuntimes.find((runtime) => runtime?.id === memberId)
@@ -210,7 +216,7 @@ function resTeamSrcRt(
   }
 
   if (cmpcTeamRt) {
-    return matTeamMemFr(
+    return materializeLegacyTeamMember(
         seed,
         cmpcTeamRt,
         actRt.state.controls,
@@ -241,9 +247,29 @@ function resTeamSrcRt(
   hundreds of times per run over a handful of distinct runtimes.
 */
 const negEffectsByRt = new WeakMap<ResRuntime, RslvNegFfctE[]>()
+const negEffectsByTeam = new WeakMap<
+  ResRuntime,
+  WeakMap<Readonly<Record<string, ResRuntime>>, RslvNegFfctE[]>
+>()
 const negEffectsByKey = new WeakMap<ResRuntime, Map<NegEffectKey, RslvNegFfctE>>()
 
-export function negEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
+export function negEffectsFor(
+    runtime: ResRuntime,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
+): RslvNegFfctE[] {
+  if (runtimesById) {
+    let byTeam = negEffectsByTeam.get(runtime)
+    if (!byTeam) {
+      byTeam = new WeakMap()
+      negEffectsByTeam.set(runtime, byTeam)
+    }
+    const cached = byTeam.get(runtimesById)
+    if (cached) return cached
+    const resolvedEntries = resolveNegEffectsFor(runtime, runtimesById)
+    byTeam.set(runtimesById, resolvedEntries)
+    return resolvedEntries
+  }
+
   const cached = negEffectsByRt.get(runtime)
   if (cached) {
     return cached
@@ -254,7 +280,10 @@ export function negEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
   return resolvedEntries
 }
 
-function resolveNegEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
+function resolveNegEffectsFor(
+    runtime: ResRuntime,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
+): RslvNegFfctE[] {
   const resolved = new Map<NegEffectKey, RslvNegFfctE>()
   const nqMemIds = Array.from(
       new Set([runtime.id, ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId))]),
@@ -265,7 +294,7 @@ function resolveNegEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
 
   for (const memberId of nqMemIds) {
     const entries = getNegFfctSr(memberId)
-    const srcRt = resTeamSrcRt(runtime, memberId)
+    const srcRt = resTeamSrcRt(runtime, memberId, runtimesById)
 
     if (!srcRt) {
       continue
@@ -370,7 +399,11 @@ function resolveNegEffectsFor(runtime: ResRuntime): RslvNegFfctE[] {
 export function getNegFfctEn(
     runtime: ResRuntime,
     key: NegEffectKey,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): RslvNegFfctE | null {
+  if (runtimesById) {
+    return negEffectsFor(runtime, runtimesById).find((entry) => entry.key === key) ?? null
+  }
   let byKey = negEffectsByKey.get(runtime)
   if (!byKey) {
     byKey = new Map(negEffectsFor(runtime).map((entry) => [entry.key, entry]))
@@ -383,8 +416,9 @@ export function getNegFfctEn(
 export function getNegFfctFf(
     runtime: ResRuntime,
     key: NegEffectKey,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): number {
-  const entry = getNegFfctEn(runtime, key)
+  const entry = getNegFfctEn(runtime, key, runtimesById)
   if (!entry) {
     return 0
   }
@@ -401,8 +435,9 @@ export function getNegFfctFf(
 
 export function normNegFfctC(
     runtime: ResRuntime,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): CombatState {
-  const rslvEnts = negEffectsFor(runtime)
+  const rslvEnts = negEffectsFor(runtime, runtimesById)
   const entryByKey = new Map(rslvEnts.map((entry) => [entry.key, entry]))
   const nextCmbtStt = { ...runtime.state.combat }
 
@@ -426,8 +461,9 @@ export function normNegFfctC(
 export function isNegFfctVsb(
     runtime: ResRuntime,
     key: NegEffectKey,
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): boolean {
-  return getNegFfctEn(runtime, key) !== null
+  return getNegFfctEn(runtime, key, runtimesById) !== null
 }
 
 // map a negative effect archetype to its combat state key

@@ -211,6 +211,7 @@ import {
 } from '@/modules/simulation/features/rotation/program-editor/model/priorState.ts'
 import {
   editedRotationItems,
+  pendingSavedRotationDetails,
   prepareSavedRotationBatch,
   runEditedRotation,
   runPreparedSavedRotationBatch,
@@ -827,12 +828,10 @@ export function ProgramEditor() {
       return
     }
     // Run only entries missing from the current deterministic detail cache.
-    const wanted = savedDetailIds.filter((id) => !savedDetailRuns.has(id))
-    if (wanted.length === 0) {
+    const entries = pendingSavedRotationDetails(invRttn, savedDetailIds, savedDetailRuns)
+    if (entries.length === 0) {
       return
     }
-    const missing = new Set(wanted)
-    const entries = invRttn.filter((entry) => missing.has(entry.id))
     const controller = new AbortController()
     void runSavedRotationDetailBatch(entries, { signal: controller.signal })
       .then((runs) => {

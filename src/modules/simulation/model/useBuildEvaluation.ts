@@ -251,8 +251,11 @@ export function useEvaluationReport({
     }
 
     if (!enabled || !runtime || !simulation) {
-      if (enabled) setReport(null)
-      setLoading(false)
+      // Deferred preparation temporarily removes the simulation on every edit.
+      // Keep the last completed report for this identity until its replacement
+      // arrives; only a missing runtime means there is no result to display.
+      if (enabled && !runtime) setReport(null)
+      setLoading(Boolean(enabled && runtime))
       setError(null)
       return () => {
         cancelled = true
@@ -283,8 +286,6 @@ export function useEvaluationReport({
         })
         .catch((nextError) => {
           if (!cancelled) {
-            setReport(null)
-            setReportIdentityKey(resolvedReportIdentityKey)
             setLoading(false)
             setError(nextError instanceof Error ? nextError : new Error('Build evaluation report failed'))
           }

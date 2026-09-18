@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: evaluations a build's substats against an optimally rolled set of
+  Description: Evaluates a build's substats against an optimally rolled set of
                25 substats for the active target, evaluated at floor and ceiling
                roll values, while preserving the build's energy regen investment.
 */
@@ -34,6 +34,8 @@ export interface SubstatIdealEntry {
   count: number
   min: number
   max: number
+  /** Total stat value that remains useful; excludes the over-cap tail. */
+  target: number
 }
 
 export interface SubstatEvaluation {
@@ -48,6 +50,7 @@ export interface SubstatEvaluation {
 export function calcSubEvaluation(
     ctx: SuggestContext,
     equipped: Array<EchoInstance | null>,
+    options: { measureUsefulTargets?: boolean } = {},
 ): SubstatEvaluation | null {
   const echoes = equipped.filter((echo): echo is EchoInstance => echo != null)
   if (echoes.length === 0) {
@@ -82,6 +85,7 @@ export function calcSubEvaluation(
   // reserve just enough rolls at this quality to cover the build's ER first.
   const buildOptimal = (rollOf: (key: string) => number) => {
     const counts: Record<string, number> = {}
+    const values: Record<string, number> = {}
     const working = mainOnly.slice()
 
     const erRoll = rollOf(ENERGY_REGEN)
@@ -91,6 +95,7 @@ export function calcSubEvaluation(
         : 0
     if (reservedEr > 0) {
       counts[ENERGY_REGEN] = reservedEr
+      values[ENERGY_REGEN] = erRoll * reservedEr
       addEchoStat(working.subarray(0, ECHO_STAT_STRIDE), ENERGY_REGEN, erRoll * reservedEr)
     }
     let workingDamage = score(working)
@@ -100,6 +105,7 @@ export function calcSubEvaluation(
     for (let slot = reservedEr; slot < IDEAL_SUBSTAT_SLOTS; slot += 1) {
       let bestKey: string | null = null
       let bestGain = 0
+      let bestDamage = workingDamage
       for (const key of usefulKeys) {
         const roll = rollOf(key)
         if ((counts[key] ?? 0) >= MAX_SUB_SLOTS || roll <= 0) {
@@ -111,17 +117,36 @@ export function calcSubEvaluation(
         if (gain > bestGain) {
           bestGain = gain
           bestKey = key
+          bestDamage = workingDamage + gain
         }
       }
       if (!bestKey) {
         break
       }
+      const roll = rollOf(bestKey)
+      const tolerance = Math.max(0.000001, Math.abs(bestDamage) * 1e-9)
+      let low = 0
+      let high = roll
+      for (let iteration = 0; options.measureUsefulTargets && iteration < 24; iteration += 1) {
+        const middle = (low + high) / 2
+        const trial = working.slice()
+        addEchoStat(trial.subarray(0, ECHO_STAT_STRIDE), bestKey, middle)
+        if (score(trial) >= bestDamage - tolerance) {
+          high = middle
+        } else {
+          low = middle
+        }
+      }
+      // Float32 evaluation can plateau infinitesimally below an uncapped
+      // roll. Keep normal roll ceilings exact rather than amplifying noise.
+      if (high >= roll * 0.9999) high = roll
       counts[bestKey] = (counts[bestKey] ?? 0) + 1
-      addEchoStat(working.subarray(0, ECHO_STAT_STRIDE), bestKey, rollOf(bestKey))
-      workingDamage += bestGain
+      values[bestKey] = (values[bestKey] ?? 0) + high
+      addEchoStat(working.subarray(0, ECHO_STAT_STRIDE), bestKey, roll)
+      workingDamage = bestDamage
     }
 
-    return { damage: score(working), counts, reservedEr }
+    return { damage: score(working), counts, values, reservedEr }
   }
 
   const floorBuild = buildOptimal((key) => bounds[key].min)
@@ -143,7 +168,13 @@ export function calcSubEvaluation(
   // the max-roll build is the realistic target you farm toward, so its
   // distribution is the one surfaced as the ideal set.
   const ideal = Object.entries(ceilBuild.counts)
-      .map(([key, count]) => ({ key, count, min: bounds[key].min, max: bounds[key].max }))
+      .map(([key, count]) => ({
+        key,
+        count,
+        min: bounds[key].min,
+        max: bounds[key].max,
+        target: ceilBuild.values[key] ?? (bounds[key].max * count),
+      }))
       .sort((left, right) => right.count - left.count || right.max - left.max)
 
   return {

@@ -65,7 +65,7 @@ import type {
 interface BuffPresetModalProps {
   state: AppModalState
   runtime: ResRuntime
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
   onAdd: (modifiers: MnlMod[]) => void
 }
 
@@ -253,17 +253,23 @@ export function BuffPresetModal({
   const [buffType, setBuffType] = useState<BuffTypeFilter>(initialFilters.buffType)
   const [controlValues, setControlValues] = useState<Record<string, BuffPresetValues>>({})
   const [rankValues, setRankValues] = useState<Record<string, number>>({})
+  const [pendingModifiers, setPendingModifiers] = useState<MnlMod[]>([])
   const showToast = useTstStr((store) => store.show)
 
   const setPersistedSourceKind = useCallback((value: SourceFilter) => {
     setSourceKind(value)
-    persistFilters(value, buffType)
-  }, [buffType])
+  }, [])
 
   const setPersistedBuffType = useCallback((value: BuffTypeFilter) => {
     setBuffType(value)
-    persistFilters(sourceKind, value)
-  }, [sourceKind])
+  }, [])
+  const close = useCallback(() => {
+    onClose(() => {
+      persistFilters(sourceKind, buffType)
+      if (pendingModifiers.length > 0) onAdd(pendingModifiers)
+      setPendingModifiers([])
+    })
+  }, [buffType, onAdd, onClose, pendingModifiers, sourceKind])
 
   const previews = useMemo(() => {
     const next = new Map<string, MnlMod[]>()
@@ -416,14 +422,20 @@ export function BuffPresetModal({
 
   const addSelected = useCallback(() => {
     if (selectedModifiers.length === 0) return
-    onAdd(selectedModifiers)
+    setPendingModifiers((current) => [
+      ...current,
+      ...cloneMnlMdfr(selectedModifiers),
+    ])
     presetSelection.exitSelectionMode()
-  }, [onAdd, presetSelection, selectedModifiers])
+  }, [presetSelection, selectedModifiers])
 
   const addPresetModifiers = useCallback((modifiers: MnlMod[]) => {
     if (modifiers.length === 0) return
-    onAdd(modifiers)
-  }, [onAdd])
+    setPendingModifiers((current) => [
+      ...current,
+      ...cloneMnlMdfr(modifiers),
+    ])
+  }, [])
 
   const copySelected = useCallback(() => {
     void copyPresetModifiers(selectedModifiers)
@@ -499,10 +511,10 @@ export function BuffPresetModal({
       state={state}
       variant="buff-presets"
       ariaLabel="Buff presets"
-      onClose={onClose}
+      onClose={close}
     >
       <div className="amdl bp-modal">
-        <ModalHeader over="Manual Buffs" title={<h2>Buff Presets</h2>} onClose={onClose}>
+        <ModalHeader over="Manual Buffs" title={<h2>Buff Presets</h2>} onClose={close}>
           <div className="amdl__gauge" aria-label="Preset counts">
             <div className="amdl__pill">
               <span className="amdl__pill-label">Shown</span>

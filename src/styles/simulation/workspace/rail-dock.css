@@ -6,139 +6,325 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.3rem;
+  gap: 0.65rem;
+  padding-block: 1.4rem;
   --rdk-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rdk-io: cubic-bezier(0.7, 0, 0.2, 1);
+  --rdk-ink: color-mix(in srgb, var(--highlight) 90%, var(--text));
 }
 
-.rdk-gap {
-  width: 1.6rem;
-  height: 0;
-  margin: 0.2rem 0;
-  border-top: 1px solid color-mix(in srgb, var(--text) 24%, transparent);
+.rdk-spine {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--text) 22%, transparent) 20%,
+    color-mix(in srgb, var(--text) 22%, transparent) 80%,
+    transparent
+  );
+  pointer-events: none;
 }
 
-.rdk-tab {
+.rdk-key {
   position: relative;
-  display: grid;
-  grid-template-columns: 0fr auto;
+  display: flex;
   align-items: center;
-  padding: 0.6rem 0.62rem;
+  justify-content: center;
+  width: 2.15rem;
+  margin: 0;
+  padding: 0.9rem 0;
   appearance: none;
-  border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
-  border-right: 0;
-  border-radius: 0.65rem 0 0 0.65rem;
-  background:
-    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 64%, transparent)),
-    color-mix(in srgb, var(--text) 3%, transparent);
-  backdrop-filter: blur(7px);
-  color: color-mix(in srgb, var(--text) 72%, transparent);
-  font: inherit;
+  border: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg) 90%, transparent) 40%);
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+  font: 600 0.62rem/1 var(--display-font);
+  letter-spacing: 0.24em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
   cursor: pointer;
-  overflow: hidden;
-  transition:
-    grid-template-columns 300ms var(--rdk-ease),
-    padding-left 300ms var(--rdk-ease),
-    color 180ms ease,
-    background 180ms ease,
-    border-color 180ms ease;
+  transition: color 200ms ease;
 }
 
-.rdk-glyph {
-  display: grid;
-  place-items: center;
-  font-size: 1.15rem;
-  line-height: 0;
+.rdk-key::before,
+.rdk-key::after {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border: solid color-mix(in srgb, var(--text) 30%, transparent);
+  transition: border-color 200ms ease, left 350ms var(--rdk-ease);
+  pointer-events: none;
 }
 
-.rdk-word {
-  min-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  font-size: 0.74rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  transition: opacity 200ms ease;
+.rdk-key::before {
+  top: 0;
+  border-width: 1px 0 0 1px;
 }
 
-.rdk-tab:is(:hover, :focus-visible) {
-  grid-template-columns: 1fr auto;
-  padding-left: 0.8rem;
+.rdk-key::after {
+  bottom: 0;
+  border-width: 0 0 1px 1px;
+}
+
+.rdk-key[data-role='max'] {
+  color: color-mix(in srgb, var(--rdk-ink) 55%, color-mix(in srgb, var(--text) 55%, transparent));
+}
+
+.rdk-key[data-role='max']::before,
+.rdk-key[data-role='max']::after {
+  border-color: color-mix(in srgb, var(--rdk-ink) 60%, transparent);
+}
+
+.rdk-key:is(:hover, :focus-visible) {
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text) 30%, transparent);
-  background:
-    linear-gradient(270deg, var(--bg), color-mix(in srgb, var(--bg) 82%, transparent)),
-    color-mix(in srgb, var(--text) 5%, transparent);
-  outline: none;
 }
 
-.rdk-tab:is(:hover, :focus-visible) .rdk-word {
-  opacity: 1;
-  padding-right: 0.5rem;
+.rdk-key:is(:hover, :focus-visible)::before,
+.rdk-key:is(:hover, :focus-visible)::after {
+  left: 0;
+  border-color: var(--text);
 }
 
-.rdk-tab:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--resonator-accent) 60%, transparent);
+.rdk-key[data-role='max']:is(:hover, :focus-visible) {
+  color: var(--rdk-ink);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--rdk-ink) 50%, transparent);
 }
 
-
-
-.rdk-tab[data-role='max'] {
-  color: color-mix(in srgb, var(--resonator-accent) 70%, var(--text));
-  border-color: color-mix(in srgb, var(--resonator-accent) 48%, transparent);
-  background:
-    linear-gradient(270deg, color-mix(in srgb, var(--resonator-accent) 15%, transparent), transparent),
-    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 66%, transparent));
+.rdk-key[data-role='max']:is(:hover, :focus-visible)::before,
+.rdk-key[data-role='max']:is(:hover, :focus-visible)::after {
+  border-color: var(--rdk-ink);
 }
 
-.rdk-tab[data-role='max']:is(:hover, :focus-visible) {
-  border-color: var(--resonator-accent);
-  box-shadow: 0 0 22px -6px color-mix(in srgb, var(--resonator-accent) 70%, transparent);
-}
-
-.rdk-tab[data-done] {
-  color: color-mix(in srgb, var(--text) 42%, transparent);
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
-  background:
-    linear-gradient(270deg, color-mix(in srgb, var(--bg) 96%, transparent), color-mix(in srgb, var(--bg) 64%, transparent)),
-    color-mix(in srgb, var(--text) 3%, transparent);
+.rdk-key[data-done] {
   cursor: default;
 }
 
-.rdk-tab[data-done]::before {
-  background: color-mix(in srgb, var(--text) 30%, transparent);
-  box-shadow: none;
+.rdk-key:focus-visible {
+  outline: 1px solid var(--rdk-ink);
+  outline-offset: 2px;
 }
 
-.rdk-tab[data-done]:is(:hover, :focus-visible) {
-  border-color: color-mix(in srgb, var(--text) 20%, transparent);
-  box-shadow: none;
+.rdk-ch {
+  display: inline-block;
 }
 
-
-.rdk-tab {
-  animation: rdk-in 320ms var(--rdk-ease) both;
+.rdk-ch::before {
+  content: attr(data-t);
 }
 
-.rdk-tab:nth-child(1) { animation-delay: 140ms; }
-.rdk-tab:nth-child(3) { animation-delay: 190ms; }
-.rdk-tab:nth-child(4) { animation-delay: 240ms; }
-
-@keyframes rdk-in {
-  from {
-    opacity: 0;
-    transform: translateX(0.5rem);
-  }
+.rdk-ch[data-noise] {
+  opacity: 0.5;
+  font-family: var(--mono-font);
+  font-weight: 400;
 }
 
-.no-entrance-anim .rdk-tab,
-.reduce-animation .rdk-tab {
-  animation: none;
+.rdk-line {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 0.8rem);
+  translate: 0 -50%;
+  writing-mode: horizontal-tb;
+  white-space: nowrap;
+  font: 500 0.64rem/1 var(--mono-font);
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  text-shadow: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+  isolation: isolate;
 }
 
-.reduce-animation .rdk-tab,
-.reduce-animation .rdk-tab::before,
-.reduce-animation .rdk-word {
+.rdk-line::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -0.5rem -0.7rem -0.5rem -1.6rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  box-shadow: 0 0 1rem 0.7rem color-mix(in srgb, var(--bg) 75%, transparent);
+}
+
+.rdk-line[data-on] {
+  opacity: 1;
+}
+
+.rdk-log {
+  position: absolute;
+  top: 1.4rem;
+  right: calc(100% + 0.8rem);
+  width: 19rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg) 95%, var(--text));
+  box-shadow: 0 18px 36px color-mix(in srgb, #000 45%, transparent);
+  font: 400 0.68rem/1 var(--mono-font);
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  animation: rdk-log-in 350ms var(--rdk-io) both;
+}
+
+.rdk-log[data-closing] {
+  animation: rdk-log-out 280ms var(--rdk-io) both;
+}
+
+@keyframes rdk-log-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes rdk-log-out {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 100% 0); }
+}
+
+.rdk-log-head,
+.rdk-log-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.rdk-log-head {
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-log-head b {
+  font-weight: 500;
+  color: var(--rdk-ink);
+}
+
+.rdk-log-rows {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.75rem 0.45rem;
+}
+
+.rdk-log-row {
+  display: grid;
+  grid-template-columns: 0.8rem 6.6rem minmax(0, 1fr) 1.6rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.26rem 0;
+  animation: rdk-row-in 1ms linear both;
+  animation-delay: calc(200ms + var(--i) * 190ms);
+}
+
+@keyframes rdk-row-in {
+  from { opacity: 0; }
+}
+
+.rdk-log-row i,
+.rdk-log-row em {
+  font-style: normal;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-log-row em {
+  text-align: right;
+  color: var(--rdk-ink);
+  animation: rdk-row-in 200ms ease both;
+  animation-delay: calc(580ms + var(--i) * 190ms);
+}
+
+.rdk-log-row span:nth-child(3) {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rdk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rdk-log-foot {
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.rdk-log-foot span {
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-undo {
+  padding: 0.3rem 0.6rem;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--text);
+  font: 600 0.72rem/1 var(--display-font);
+  cursor: pointer;
+}
+
+.rdk-undo:hover {
+  border-color: var(--text);
+}
+
+.rdk-undo:focus-visible {
+  outline: 2px solid var(--rdk-ink);
+  outline-offset: 2px;
+}
+
+.rdk-undo:disabled {
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+  cursor: default;
+}
+
+.rdk-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--rdk-ink);
+  opacity: 0.7;
+  transform-origin: left;
+  animation: rdk-timer 6500ms linear forwards;
+  animation-delay: 1150ms;
+}
+
+.rdk-log:is(:hover, :focus-within) .rdk-timer {
+  animation-play-state: paused;
+}
+
+@keyframes rdk-timer {
+  to { transform: scaleX(0); }
+}
+
+.no-entrance-anim .rdk-log,
+.reduce-animation .rdk-log,
+.reduce-animation .rdk-log-row,
+.reduce-animation .rdk-log-row em {
+  animation-duration: 1ms;
+  animation-delay: 0ms;
+}
+
+.reduce-animation .rdk-timer {
+  animation-delay: 0ms;
+}
+
+.reduce-animation .rdk-key,
+.reduce-animation .rdk-key::before,
+.reduce-animation .rdk-key::after,
+.reduce-animation .rdk-line {
   transition-duration: 1ms;
 }
 

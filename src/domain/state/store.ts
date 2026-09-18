@@ -43,9 +43,10 @@ import {
     type TeamMemberId,
 } from '@/domain/entities/combatScenario'
 import {
-    makeMemberManualEffect,
-    removeMemberEnvironmentState,
-} from '@/domain/state/scenarioEnvironment'
+    insertScenarioTeamMember,
+    removeScenarioTeamMember,
+    replaceScenarioTeamMember,
+} from '@/domain/state/scenarioMembers'
 import {
     addScenario,
     replaceScenario,
@@ -105,7 +106,6 @@ import {ROT_GPU_JOB, CPU_THEORY_JOB, GPU_THEORY_JOB,} from '@/engine/optimizer/c
 import {errorOpt, logOptimizer} from '@/engine/optimizer/config/log.ts'
 import {
     makeAppState,
-    makeCustomBuff,
     makeScenarioMemberFromProfile,
     makeScenarioFromProfiles,
     makeResProfile,
@@ -355,6 +355,7 @@ export interface AppStore extends Omit<PersistedState, 'simulation' | 'combat'> 
   setEvaluationStates: (enabled: boolean) => void
   setMaxResInit: (enabled: boolean) => void
   setAnimatedRailPortraits: (enabled: boolean) => void
+  commitAppearanceConfig: (updater: (ui: UiState) => UiState) => void
   patchShowcaseCardStyle: (resId: string, patch: Partial<ShowcaseCardStyle>) => void
   toggleShowcaseHide: (resId: string, key: keyof ShowcaseCardHidden) => void
   patchShowcaseCardHidden: (resId: string, patch: Partial<ShowcaseCardHidden>) => void
@@ -387,6 +388,11 @@ export interface AppStore extends Omit<PersistedState, 'simulation' | 'combat'> 
   acknowledgeAdvancedRotationMigrations: (entryIds: string[]) => void
   bumpPickFr: (updates: PckrFreqUpd | PckrFreqUpd[]) => void
   applyScenarioSnapshot: (scenario: CombatScenario) => CombatScenarioId
+  commitScenarioConfig: (
+    scenarioId: CombatScenarioId,
+    updater: (scenario: CombatScenario) => CombatScenario,
+    historyLabel?: string,
+  ) => void
   selectContextResonator: (resonatorId: ResonatorId) => void
   updateScenarioMember: (
     scenarioId: CombatScenarioId,
@@ -533,8 +539,8 @@ export interface AppStore extends Omit<PersistedState, 'simulation' | 'combat'> 
       input: OptStartPay,
       hooks?: {
         onProgress?: (progress: OptPrgr) => void
-        // resolves once the surface has finished reacting to the run flipping
-        // on; the heavy work waits on it so it never lands mid-animation
+        // Optional gate before synchronous compilation; the caller resolves
+        // it after its run-start transition settles.
         settle?: () => Promise<unknown>
       },
   ) => void
@@ -1151,6 +1157,13 @@ export const useAppStore = create<AppStore>((set, get) => {
     }), { historyLabel: 'Changed Rail Portrait Mode' })
   },
 
+  commitAppearanceConfig: (updater) => {
+    persistedSet(['ui.appearance'], (state) => {
+      const ui = updater(state.ui)
+      return ui === state.ui ? state : { ...state, ui }
+    }, { historyLabel: 'Updated Appearance' })
+  },
+
   patchShowcaseCardStyle: (resId, patch) => {
     persistedSet(['ui.layout'], (state) => {
       const cards = state.ui.preferences.showcaseCards
@@ -1480,6 +1493,22 @@ export const useAppStore = create<AppStore>((set, get) => {
     return id
   },
 
+  commitScenarioConfig: (scenarioId, updater, historyLabel = 'Updated Configuration') => {
+    persistedSet(['combat.workspace'], (state) => {
+      const current = state.combat.scenariosById[scenarioId]
+      if (!current) return state
+
+      const next = updater(current)
+      if (next === current) return state
+
+      return replaceScenarioInWorkspace(state, scenarioId, {
+        ...next,
+        id: scenarioId,
+        revision: current.revision + 1,
+      })
+    }, { historyLabel })
+  },
+
   selectContextResonator: (resonatorId) => {
     persistedSet(['combat.workspace'], (state) => {
       const scenarioId = scenarioIdForContextResonator(state.combat, resonatorId)
@@ -1510,10 +1539,12 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   replaceScenarioMember: (scenarioId, memberId, member) => {
-    get().updateScenarioMember(scenarioId, memberId, (previous) => ({
-      ...structuredClone(member),
-      id: previous.id,
-    }))
+    persistedSet(['combat.workspace'], (state) => {
+      const scenario = state.combat.scenariosById[scenarioId]
+      if (!scenario) return state
+      const next = replaceScenarioTeamMember(scenario, memberId, member)
+      return next === scenario ? state : replaceScenarioInWorkspace(state, scenarioId, next)
+    }, { historyLabel: 'Updated Team Member' })
   },
 
   swapScenarioMembers: (scenarioId, leftMemberId, rightMemberId) => {
@@ -1535,30 +1566,8 @@ export const useAppStore = create<AppStore>((set, get) => {
     persistedSet(['combat.workspace'], (state) => {
       const scenario = state.combat.scenariosById[scenarioId]
       if (!scenario) return state
-      if (scenario.team.members.length >= 3) return state
-      const members = [...scenario.team.members]
-      members.splice(Math.max(0, Math.min(index, members.length)), 0, structuredClone(member))
-      let team: CombatScenario['team']
-      try {
-        team = makeScenarioTeam(members)
-      } catch {
-        return state
-      }
-      const bySourceMemberId = {
-        ...scenario.environment.routing.bySourceMemberId,
-        [member.id]: {},
-      }
-      return replaceScenarioInWorkspace(state, scenarioId, reviseCombatScenario(scenario, {
-        team,
-        environment: {
-          ...scenario.environment,
-          manualEffects: [
-            ...scenario.environment.manualEffects,
-            makeMemberManualEffect(member.id, makeCustomBuff()),
-          ],
-          routing: { bySourceMemberId },
-        },
-      }))
+      const next = insertScenarioTeamMember(scenario, index, member)
+      return next === scenario ? state : replaceScenarioInWorkspace(state, scenarioId, next)
     }, { historyLabel: 'Added Team Member' })
   },
 
@@ -1566,30 +1575,8 @@ export const useAppStore = create<AppStore>((set, get) => {
     persistedSet(['combat.workspace'], (state) => {
       const scenario = state.combat.scenariosById[scenarioId]
       if (!scenario) return state
-      if (scenario.team.members.length === 1) return state
-      const members = scenario.team.members.filter((member) => member.id !== memberId)
-      if (members.length === scenario.team.members.length) return state
-      const team = makeScenarioTeam(members)
-      const ids = new Set(team.members.map((member) => member.id))
-      const bySourceMemberId = Object.fromEntries(team.members.map((member) => [
-        member.id,
-        Object.fromEntries(Object.entries(scenario.environment.routing.bySourceMemberId[member.id] ?? {})
-          .filter(([, target]) => target === null || ids.has(target))),
-      ]))
-      const environment = removeMemberEnvironmentState(scenario.environment, memberId)
-      return replaceScenarioInWorkspace(state, scenarioId, reviseCombatScenario(scenario, {
-        team,
-        contextMemberId: ids.has(scenario.contextMemberId)
-          ? scenario.contextMemberId
-          : team.members[0].id,
-        environment: {
-          ...environment,
-          routing: { bySourceMemberId },
-        },
-        initialOnFieldMemberId: ids.has(scenario.initialOnFieldMemberId)
-          ? scenario.initialOnFieldMemberId
-          : team.members[0].id,
-      }))
+      const next = removeScenarioTeamMember(scenario, memberId)
+      return next === scenario ? state : replaceScenarioInWorkspace(state, scenarioId, next)
     }, { historyLabel: 'Removed Team Member' })
   },
 
@@ -2644,9 +2631,8 @@ export const useAppStore = create<AppStore>((set, get) => {
           },
         }))
 
-        // push the exact combo total to the caller right after compile so the
-        // UI's permutations desc can switch off the looser reactive estimate
-        // before the worker pool starts emitting progress.
+        // Publish the compiled candidate count before worker progress replaces
+        // this initial snapshot; it supersedes any pre-compilation estimate.
         hooks.onProgress?.({
           progress: 0,
           elapsedMs: 0,

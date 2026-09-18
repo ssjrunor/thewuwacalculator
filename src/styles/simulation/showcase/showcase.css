@@ -2,7 +2,9 @@
 .showcase-echo {
   position: relative;
   border-radius: 0.9rem;
-  background: var(--rail-glass-2);
+  background: linear-gradient(150deg, var(--rail-glass-2), color-mix(in srgb, var(--rail-glass) 86%, transparent) 62%);
+  backdrop-filter: blur(17px);
+  -webkit-backdrop-filter: blur(17px);
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
@@ -925,4 +927,13 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: inherit;
+}
+
+:is(.showcase-echo, .seal-echo)[role='button'] {
+  cursor: pointer;
+}
+
+:is(.showcase-echo, .seal-echo)[role='button']:focus-visible {
+  outline: 2px solid var(--resonator-accent);
+  outline-offset: 2px;
 }

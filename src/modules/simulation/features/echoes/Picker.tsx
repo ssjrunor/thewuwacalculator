@@ -20,6 +20,7 @@ interface EchoPckrMdlP {
   echoes: EchoDef[]
   selEchoId?: string | null
   slotIndex: number
+  eyebrow?: string
   maxCost?: number
   onSelect: (echoId: string) => void
   onClear: () => void
@@ -41,6 +42,7 @@ export function EchoPicker({
   echoes,
   selEchoId: selEchoId = null,
   slotIndex,
+  eyebrow = `Slot ${slotIndex + 1}`,
   maxCost = 12,
   onSelect,
   onClear,
@@ -187,8 +189,6 @@ export function EchoPicker({
           : overBudget
             ? `+${echo.cost - maxCost}C over`
             : null,
-        // a sonata's colour can be white and colours repeat, so it is only ever
-        // mixed against the text it sits on
         tone: sonataTone(echo.sets[0]),
         meta: (
           <>
@@ -214,7 +214,7 @@ export function EchoPicker({
       closing={closing}
       portalTarget={portalTarget}
       variant="echo"
-      eyebrow={`Slot ${slotIndex + 1}`}
+      eyebrow={eyebrow}
       title="Select Echo"
       summary={summary}
       filters={filters}

@@ -1,25 +1,19 @@
 /*
   Author: Runor Ewhro
-  Description: The display switch, on the line. The head used to carry a single
-               Dawn/Dusk row in the drawer while the thirteen variants lived on
-               the settings page, so changing the app's whole look meant leaving
-               the page you were on. All of them open from one glyph here.
-
-               The glyph is a contrast mark rather than a sun, because it opens
-               a choice rather than flipping one, and because a sun and the
-               Settings gear are the same shape at this size and those two sit
-               within a few pixels of each other.
+  Description: Selects persisted theme variants and their light/dark mode
+               through an anchored popup with shared dismissal handling.
 */
 
-import { useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { SlidersHorizontal as SldrHrzn } from 'lucide-react'
 import { useAppStore } from '@/domain/state/store'
-import { THEME_BY_MODE, THEME_PREVIEW } from '@/domain/entities/themes'
+import { ALL_THEMES, THEME_BY_MODE, THEME_PREVIEW } from '@/domain/entities/themes'
 import type { BgThemeVar, DarkThemeVar, LightThemeVar, ThemeVariant } from '@/domain/entities/themes'
 import type { ThemeMode } from '@/domain/entities/appState'
 import { AnchoredAppPopup, useAppPopupDismiss } from '@/shared/ui/AppPopup'
 import { Tooltip } from '@/shared/ui/Tooltip'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession'
 
 const MODES: { key: ThemeMode, label: string }[] = [
   { key: 'light', label: 'Dawn' },
@@ -46,21 +40,23 @@ export function ThemeDrop({ open, onToggle, onClose }: ThemeDropProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
-  const { ui, setTheme, setLightVar, setDarkVar, setBgVar, setBlurMode } = useAppStore(
+  const { ui, commitAppearanceConfig } = useAppStore(
     useShallow((state) => ({
       ui: state.ui,
-      setTheme: state.setTheme,
-      setLightVar: state.setLightVar,
-      setDarkVar: state.setDarkVar,
-      setBgVar: state.setBgVar,
-      setBlurMode: state.setBlurMode,
+      commitAppearanceConfig: state.commitAppearanceConfig,
     })),
   )
+  const session = useConfigurationSession({
+    source: ui,
+    active: open,
+    commit: commitAppearanceConfig,
+  })
+  const draftUi = session.draft
 
-  const mode = ui.theme
+  const mode = draftUi.theme
   const standing = mode === 'background'
-    ? ui.backgroundVariant
-    : mode === 'dark' ? ui.darkVariant : ui.lightVariant
+    ? draftUi.backgroundVariant
+    : mode === 'dark' ? draftUi.darkVariant : draftUi.lightVariant
 
   useAppPopupDismiss({
     open,
@@ -71,15 +67,36 @@ export function ThemeDrop({ open, onToggle, onClose }: ThemeDropProps) {
     pointerEvent: 'mousedown',
   })
 
-  // picking a swatch settles the variant and the mode together, since the point
-  // of a swatch is that the app looks like the thing you just pressed
+  const setTheme = useCallback((theme: ThemeMode) => {
+    session.update((current) => ({
+      ...current,
+      theme,
+      themePreference: theme,
+    }))
+  }, [session])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const root = document.documentElement
+    const textMode = draftUi.theme === 'background'
+      ? draftUi.backgroundTextMode
+      : draftUi.theme === 'dark' ? 'dark' : 'light'
+    const variant = draftUi.theme === 'background'
+      ? draftUi.backgroundVariant
+      : draftUi.theme === 'dark' ? draftUi.darkVariant : draftUi.lightVariant
+    root.classList.remove(...ALL_THEMES, 'blur-off', 'light-text', 'dark-text')
+    root.classList.add(variant, `${textMode}-text`)
+    if (draftUi.blurMode) root.classList.add('blur-off')
+  }, [draftUi, open])
+
+  // A variant selection updates its mode as well as that mode's stored theme.
   const pick = (variant: ThemeVariant) => {
     if (mode === 'background') {
-      setBgVar(variant as BgThemeVar)
+      session.update((current) => ({ ...current, backgroundVariant: variant as BgThemeVar }))
     } else if (mode === 'dark') {
-      setDarkVar(variant as DarkThemeVar)
+      session.update((current) => ({ ...current, darkVariant: variant as DarkThemeVar }))
     } else {
-      setLightVar(variant as LightThemeVar)
+      session.update((current) => ({ ...current, lightVariant: variant as LightThemeVar }))
     }
   }
 
@@ -93,7 +110,7 @@ export function ThemeDrop({ open, onToggle, onClose }: ThemeDropProps) {
           aria-expanded={open}
           aria-haspopup="menu"
           aria-label="Display"
-          onClick={onToggle}
+          onClick={open ? onClose : onToggle}
         >
           <ContrastGlyph />
         </button>
@@ -143,11 +160,11 @@ export function ThemeDrop({ open, onToggle, onClose }: ThemeDropProps) {
             <button
               type="button"
               role="menuitem" className="ax-item"
-              onClick={() => setBlurMode(!ui.blurMode)}
+              onClick={() => session.update((current) => ({ ...current, blurMode: !current.blurMode }))}
             >
               <SldrHrzn size="1rem" aria-hidden="true" />
               <span>Blur</span>
-              <span className="ax-item-val">{ui.blurMode ? 'On' : 'Off'}</span>
+              <span className="ax-item-val">{draftUi.blurMode ? 'On' : 'Off'}</span>
             </button>
           ) : null}
       </AnchoredAppPopup>

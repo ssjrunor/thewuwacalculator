@@ -158,6 +158,7 @@ export function isSkllVsbl(
     runtime: ResRuntime,
     skill: SkillDef,
     evaluate: SkillConditionEvaluator = (condition) => evalRuntimeSkillCondition(runtime, condition),
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): boolean {
   if (skill.visible === false) {
     return false
@@ -167,7 +168,7 @@ export function isSkllVsbl(
       ? getNegFfctCm(skill.archetype)
       : null
 
-  if (negFfctCmbtK && !isNegFfctVsb(runtime, negFfctCmbtK)) {
+  if (negFfctCmbtK && !isNegFfctVsb(runtime, negFfctCmbtK, runtimesById)) {
     return false
   }
 
@@ -190,6 +191,10 @@ export function isSkllVsbl(
   writes can change them mid-run; only the construction is reused.
 */
 const resolvedSkillCache = new WeakMap<ResRuntime, WeakMap<SkillDef, Map<string, SkillDef>>>()
+const resolvedTeamSkillCache = new WeakMap<
+  ResRuntime,
+  WeakMap<Readonly<Record<string, ResRuntime>>, WeakMap<SkillDef, Map<string, SkillDef>>>
+>()
 
 // resolve one skill into its runtime-ready form
 // this applies visibility, level-scaled multiplier/flat/fixed values,
@@ -198,15 +203,24 @@ export function resolveSkill(
     runtime: ResRuntime,
     skill: SkillDef,
     evaluate: SkillConditionEvaluator = (condition) => evalRuntimeSkillCondition(runtime, condition),
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): SkillDef {
   const variantIndex = pickSkllVrntI(skill, evaluate)
   const rslvSkll = skllVrntAt(skill, variantIndex)
-  const visible = isSkllVsbl(runtime, rslvSkll, evaluate)
+  const visible = isSkllVsbl(runtime, rslvSkll, evaluate, runtimesById)
   const skillTypeIndex = pickSkllTypeI(rslvSkll, evaluate)
 
-  let bySkill = resolvedSkillCache.get(runtime)
-  if (!bySkill) {
-    bySkill = new WeakMap()
+  let bySkill: WeakMap<SkillDef, Map<string, SkillDef>>
+  if (runtimesById) {
+    let byTeam = resolvedTeamSkillCache.get(runtime)
+    if (!byTeam) {
+      byTeam = new WeakMap()
+      resolvedTeamSkillCache.set(runtime, byTeam)
+    }
+    bySkill = byTeam.get(runtimesById) ?? new WeakMap()
+    byTeam.set(runtimesById, bySkill)
+  } else {
+    bySkill = resolvedSkillCache.get(runtime) ?? new WeakMap()
     resolvedSkillCache.set(runtime, bySkill)
   }
   let bySignature = bySkill.get(skill)
@@ -220,7 +234,13 @@ export function resolveSkill(
     return cached
   }
 
-  const resolved = buildResolvedSkill(runtime, rslvSkll, visible, skllTypeAt(rslvSkll, skillTypeIndex))
+  const resolved = buildResolvedSkill(
+    runtime,
+    rslvSkll,
+    visible,
+    skllTypeAt(rslvSkll, skillTypeIndex),
+    runtimesById,
+  )
   bySignature.set(signature, resolved)
   return resolved
 }
@@ -230,14 +250,15 @@ function buildResolvedSkill(
     rslvSkll: SkillDef,
     visible: boolean,
     skillType: SkillDef['skillType'],
+    runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): SkillDef {
   const levelIndex = resLvlNdx(runtime, rslvSkll)
   const stackKey = rslvSkll.stackMode === 'fixedMax' ? getNegFfctCm(rslvSkll.archetype) : null
-  const stackMax = stackKey ? getNegFfctEn(runtime, stackKey)?.max : undefined
+  const stackMax = stackKey ? getNegFfctEn(runtime, stackKey, runtimesById)?.max : undefined
   const negFfctKey = rslvSkll.tab === 'negativeEffect' ? getNegFfctCm(rslvSkll.archetype) : null
   const label = negFfctKey
     ? (() => {
-      const rslvLbl = getNegFfctEn(runtime, negFfctKey)?.label
+      const rslvLbl = getNegFfctEn(runtime, negFfctKey, runtimesById)?.label
       if (!rslvLbl) {
         return rslvSkll.label
       }

@@ -14,11 +14,14 @@ import type { SuggestContext } from '@/engine/suggestions/types'
 import {
   mkPrepMainSt,
   runSuggSmlt,
+  resSuggDmg,
 } from '@/engine/suggestions/shared'
 import { mkMainStatPo } from '@/engine/suggestions/mainStat-suggestion/ctx-builder'
-import { cmptMainStat, cmptRotMainS } from '@/engine/suggestions/mainStat-suggestion/compute'
+import { makeMainStatScorer } from '@/engine/suggestions/mainStat-suggestion/compute'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
 import type { EchoInstance } from '@/domain/entities/runtime'
+import { getEchoById } from '@/domain/services/echoCatalogService'
+import { applyMainSta } from '@/engine/suggestions/mainStat-suggestion/utils'
 
 // search through valid main-stat recipes and return the best-scoring options
 export function sggsMainStts({
@@ -51,26 +54,13 @@ export function sggsMainStts({
 
   // determine whether we are evaluating direct damage or rotation damage
   const isRotMode = rotationCtx != null
+  const scoreRecipes = makeMainStatScorer(rotationCtx ?? ctx!, qppdChs)
   // mutable path used during dfs
   const curRcps: MainStatRecipe[] = []
 
   // evaluate the current recipe set and insert it into the ranked results
   function mybNsrtRslt(costUsed: number) {
-    let avgDamage: number
-
-    if (isRotMode) {
-      avgDamage = cmptRotMainS(
-          rotationCtx!,
-          curRcps,
-          qppdChs,
-      )
-    } else {
-      avgDamage = cmptMainStat(
-          ctx!,
-          curRcps,
-          qppdChs,
-      )
-    }
+    const avgDamage = scoreRecipes(curRcps)
 
     results.push({
       damage: avgDamage,
@@ -144,7 +134,8 @@ export function runMainStats(
   }
 
   // dispatch to the shared search routine
-  return sggsMainStts({
+  const topK = options.topK ?? prepared.topK ?? 10
+  return scoreMainStatFinalists(prepared, sggsMainStts({
     ctx: rotationMode ? null : prepared.context,
     rotationCtx: rotationMode ? prepared.context : null,
     charId: prepared.charId,
@@ -152,9 +143,40 @@ export function runMainStats(
     maxSlots: options.maxSlots ?? 5,
     minSlots: options.minSlots ?? 1,
     maxCost: options.maxCost ?? 12,
-    topK: options.topK ?? prepared.topK ?? 10,
+    topK: Math.max(30, topK * 3),
     qppdChs: prepared.qppdChs,
+  }), topK, options)
+}
+
+/* Packed enumeration remains cheap. Actual simulation owns every returned
+   total and the final order, including changes to Echo bodies, sets, passives,
+   rotation setup, and attacks. Always retain the worn recipe as a contender. */
+function scoreMainStatFinalists(
+    input: MainStatPrep,
+    finalists: MainStatSugg[],
+    topK: number,
+    limits: { maxSlots?: number, minSlots?: number, maxCost?: number } = {},
+): MainStatSugg[] {
+  const worn = input.qppdChs.flatMap((echo) => {
+    const cost = echo ? getEchoById(echo.id)?.cost : null
+    return echo && cost ? [{ cost, primaryKey: echo.mainStats.primary.key }] : []
   })
+  const wornCost = worn.reduce((sum, entry) => sum + entry.cost, 0)
+  const canIncludeWorn = worn.length >= (limits.minSlots ?? 1)
+    && worn.length <= (limits.maxSlots ?? 5) && wornCost <= (limits.maxCost ?? 12)
+  const candidates = canIncludeWorn ? [...finalists, {
+    damage: 0, recipes: worn, totalCost: wornCost, isRotation: input.rotationMode,
+  }] : finalists
+  const seen = new Set<string>()
+  return candidates.flatMap((candidate) => {
+    const signature = candidate.recipes.map((recipe) => `${recipe.cost}:${recipe.primaryKey}`).sort().join('|')
+    if (seen.has(signature)) return []
+    seen.add(signature)
+    const echoes = applyMainSta(candidate.recipes, input.qppdChs)
+    const runtime = { ...input.scoringInput.runtime, build: { ...input.scoringInput.runtime.build, echoes } }
+    const scoring = { ...input.scoringInput, runtime }
+    return [{ ...candidate, damage: resSuggDmg(runSuggSmlt(scoring), scoring) }]
+  }).sort((left, right) => right.damage - left.damage).slice(0, topK)
 }
 
 export function runPrepMainS(
@@ -165,12 +187,13 @@ export function runPrepMainS(
     return []
   }
 
-  return sggsMainStts({
+  const topK = input.topK ?? 10
+  return scoreMainStatFinalists(input, sggsMainStts({
     ctx: input.rotationMode ? null : input.context,
     rotationCtx: input.rotationMode ? input.context : null,
     charId: input.charId,
     statWeight: input.statWeight,
-    topK: input.topK ?? 10,
+    topK: Math.max(30, topK * 3),
     qppdChs: input.qppdChs,
-  })
+  }), topK)
 }

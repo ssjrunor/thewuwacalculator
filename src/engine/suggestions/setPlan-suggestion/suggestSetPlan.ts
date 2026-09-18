@@ -6,7 +6,7 @@
 */
 
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects'
-import { isSetPlanFsb } from '@/engine/suggestions/mutate'
+import { applySetPlan, prepSetPlanFsb } from '@/engine/suggestions/mutate'
 import type { SuggestContext } from '@/engine/suggestions/types'
 import {
   getSetCntBkt,
@@ -21,6 +21,7 @@ import {
 import {
   mkPrepSetPla,
   runSuggSmlt,
+  resSuggDmg,
 } from '@/engine/suggestions/shared'
 import type {
   PrepSetPlanS,
@@ -209,6 +210,8 @@ export function sggsSetPlns({
                                   topK = 10,
                                   exhaustive = false,
                                   qppdChs: qppdChs = [],
+                                  scorePlan,
+                                  isFeasible,
                                 }: {
   ctx: SuggestContext | null
   rotationCtx?: SuggestContext | null
@@ -217,6 +220,8 @@ export function sggsSetPlns({
   topK?: number
   exhaustive?: boolean
   qppdChs?: Array<EchoInstance | null>
+  scorePlan?: (setPlan: SetPlanEntry[]) => DamageResult
+  isFeasible?: (setPlan: SetPlanEntry[]) => boolean
 }): { baseAvg: number; results: SetPlanSuggest[] } {
   const results: SetPlanSuggest[] = []
   const isRotMode = rotationCtx != null
@@ -227,7 +232,9 @@ export function sggsSetPlns({
       (echo) => (echo ? { ...echo, set: 0 } : null),
   )
 
-  // pick the correct damage evaluator based on direct vs rotation mode
+  // Useful-piece comparisons isolate set bonuses on a neutral loadout.
+  // Full candidate simulation can also change Echo bodies and inherit worn
+  // filler sets, which must not make an otherwise useless piece contribute.
   const cmptDmg = isRotMode
       ? (setPlan: SetPlanEntry[]) =>
           calcRotSetPlan(rotationCtx!, setPlan, baseEchoes)
@@ -267,6 +274,7 @@ export function sggsSetPlns({
 
   // evaluate one concrete set-plan candidate and maybe keep it
   function maybeInsert(setPlan: SetPlanEntry[], totalPieces: number) {
+    if (isFeasible && !isFeasible(setPlan)) return
     const dmg = cmptDmg(setPlan)
 
     const avg = dmg.avgDamage
@@ -304,7 +312,7 @@ export function sggsSetPlns({
     }
 
     results.push({
-      avgDamage: avg,
+      avgDamage: scorePlan ? scorePlan(setPlan).avgDamage : avg,
       setPlan: [...setPlan].map((entry) => ({
         setId: entry.setId,
         pieces: entry.pieces,
@@ -408,49 +416,18 @@ export function runSetSggs(
     return { baseAvg: 0, results: [], isRotation: rotationMode }
   }
 
-  const currentEchoes = prepared.qppdChs
-  const nonNullCount = currentEchoes.filter((echo) => echo != null).length
-
-  // no equipped echoes means there is nothing meaningful to assign sets onto
-  if (nonNullCount === 0) {
-    return { baseAvg: 0, results: [], isRotation: rotationMode }
-  }
-
-  // default candidate sets come from the echo set catalog grouped by set size
-  const fivePcSets = options.fivePcSets
-      ?? ECHO_SET_DEFS.filter((entry) => entry.setMax === 5).map((entry) => entry.id)
-
-  const thrPcSets = options.thrPcSets
-      ?? ECHO_SET_DEFS.filter((entry) => entry.setMax === 3).map((entry) => entry.id)
-
-  const topK = options.topK ?? 10
-
-  const { baseAvg, results } = sggsSetPlns({
-    ctx: rotationMode ? null : prepared.context,
-    rotationCtx: rotationMode ? prepared.context : null,
-    fivePcSets: fivePcSets,
-    thrPcSets: thrPcSets,
-    topK: prepared.topK ?? topK,
-    exhaustive: true,
-    qppdChs: currentEchoes,
-  })
-
-  // remove plans that either exceed the number of equipped echoes
-  // or cannot actually be realized on the current echo collection
-  const filtered = results.filter((result) =>
-      result.setPlan.reduce((sum, entry) => sum + entry.pieces, 0) <= nonNullCount &&
-      isSetPlanFsb(result.setPlan, currentEchoes),
-  )
-
-  return {
-    baseAvg,
-    results: groupEquivalentSetPlans(filtered, prepared.context, Math.max(1e-6, Math.abs(baseAvg) * 1e-6)),
-    isRotation: rotationMode,
-  }
+  return scorePreparedSetPlans(prepared, options)
 }
 
-export function runPrepSetSg(
+export function runPrepSetSg(input: PrepSetPlanS): SetPlanSugoi {
+  return scorePreparedSetPlans(input)
+}
+
+// Score concrete, feasible plans before grouping. Changing a set may also
+// replace the main Echo, so a fixed packed context cannot own candidate totals.
+function scorePreparedSetPlans(
     input: PrepSetPlanS,
+    options: { fivePcSets?: number[], thrPcSets?: number[], topK?: number } = {},
 ): SetPlanSugoi {
   const currentEchoes = input.qppdChs
   const nonNullCount = currentEchoes.filter((echo) => echo != null).length
@@ -458,27 +435,36 @@ export function runPrepSetSg(
     return { baseAvg: 0, results: [], isRotation: input.rotationMode }
   }
 
-  const fivePcSets = ECHO_SET_DEFS.filter((entry) => entry.setMax === 5).map((entry) => entry.id)
-  const thrPcSets = ECHO_SET_DEFS.filter((entry) => entry.setMax === 3).map((entry) => entry.id)
+  const feasible = prepSetPlanFsb(currentEchoes)
+  const scores = new Map<string, DamageResult>()
+  const scorePlan = (setPlan: SetPlanEntry[]): DamageResult => {
+    const key = JSON.stringify(setPlan)
+    const cached = scores.get(key)
+    if (cached) return cached
+    const echoes = applySetPlan(setPlan, currentEchoes)
+    const runtime = { ...input.scoringInput.runtime, build: { ...input.scoringInput.runtime.build, echoes } }
+    const scoring = { ...input.scoringInput, runtime }
+    const result = { avgDamage: resSuggDmg(runSuggSmlt(scoring), scoring) }
+    scores.set(key, result)
+    return result
+  }
 
-  const { baseAvg, results } = sggsSetPlns({
+  const { results } = sggsSetPlns({
     ctx: input.rotationMode ? null : input.context,
     rotationCtx: input.rotationMode ? input.context : null,
-    fivePcSets: fivePcSets,
-    thrPcSets: thrPcSets,
-    topK: input.topK ?? 10,
+    fivePcSets: options.fivePcSets ?? ECHO_SET_DEFS.filter((entry) => entry.setMax === 5).map((entry) => entry.id),
+    thrPcSets: options.thrPcSets ?? ECHO_SET_DEFS.filter((entry) => entry.setMax === 3).map((entry) => entry.id),
+    topK: options.topK ?? input.topK ?? 10,
     exhaustive: true,
     qppdChs: currentEchoes,
+    scorePlan,
+    isFeasible: (plan) => plan.reduce((sum, entry) => sum + entry.pieces, 0) <= nonNullCount && feasible(plan),
   })
 
-  const filtered = results.filter((result) =>
-      result.setPlan.reduce((sum, entry) => sum + entry.pieces, 0) <= nonNullCount
-      && isSetPlanFsb(result.setPlan, currentEchoes),
-  )
-
+  const baseAvg = resSuggDmg(runSuggSmlt(input.scoringInput), input.scoringInput)
   return {
     baseAvg,
-    results: groupEquivalentSetPlans(filtered, input.context, Math.max(1e-6, Math.abs(baseAvg) * 1e-6)),
+    results: groupEquivalentSetPlans(results, input.context, Math.max(1e-6, Math.abs(baseAvg) * 1e-6)),
     isRotation: input.rotationMode,
   }
 }

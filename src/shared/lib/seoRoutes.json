@@ -68,14 +68,6 @@
       "socialImageAlt": "The Wuwa Calculator calibration page preview"
     },
     {
-      "path": "/info",
-      "title": "About The Wuwa Calculator",
-      "description": "Learn how The Wuwa Calculator works as a non-playable reference calculator for formulas, build analysis, and patch data.",
-      "priority": "0.6",
-      "socialImage": "/assets/app/social/info.png",
-      "socialImageAlt": "The Wuwa Calculator about page preview"
-    },
-    {
       "path": "/guides",
       "title": "Wuthering Waves Calculator Guides",
       "description": "Read operating guides for Simulation tools, build workflows, optimizer setup, rotations, Modulation, and app behavior.",

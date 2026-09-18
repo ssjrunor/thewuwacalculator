@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns suggestions behavior and state transitions for the lib module.
+  Description: Defines suggestion defaults, stable evaluation signatures,
+               recipe identity, set-plan normalization, and constraint helpers.
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
@@ -76,7 +77,6 @@ export function percentDiff(damage: number, baseDamage: number): number {
   return ((damage / baseDamage) - 1) * 100
 }
 
-// pick the correct ui tone for a percentage diff
 export function getDiffTone(diffPercent: number): 'positive' | 'negative' | 'zero' {
   if (diffPercent > 0) {
     return 'positive'
@@ -89,7 +89,6 @@ export function getDiffTone(diffPercent: number): 'positive' | 'negative' | 'zer
   return 'zero'
 }
 
-// keep the current-entry desc distinct from percentage deltas
 export function getDiffLabel(diffPercent: number, isCurrent: boolean): string {
   if (isCurrent) {
     return 'Current'
@@ -98,7 +97,6 @@ export function getDiffLabel(diffPercent: number, isCurrent: boolean): string {
   return `${formatTruncCompact(Math.abs(diffPercent), 2)}%`
 }
 
-// decorate percentage diffs with an arrow only when they move
 export function getDiffArrow(diffPercent: number): string {
   if (diffPercent > 0) {
     return '⬆'
@@ -259,7 +257,7 @@ export function recipeSig(recipes: MainStatRecipe[]): string {
     .join('||')
 }
 
-// keep higher-cost recipes first in the ui
+// Canonical recipe ordering places higher-cost entries first.
 export function sortRecipes(recipes: MainStatRecipe[]): MainStatRecipe[] {
   return [...recipes].sort((left, right) => right.cost - left.cost)
 }
@@ -280,6 +278,10 @@ export function smmrCurSetPl(echoes: Array<EchoInstance | null>): SetPlanSmmrE[]
       const definition = ECHO_SET_DEFS.find((entry) => entry.id === setId)
       if (!definition) {
         return []
+      }
+
+      if (definition.setMax === 1) {
+        return count >= 1 ? [{ setId, pieces: 1 }] : []
       }
 
       if (definition.setMax === 3) {

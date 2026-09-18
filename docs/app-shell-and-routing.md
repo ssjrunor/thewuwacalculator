@@ -32,10 +32,10 @@ Simulation tools:
 - `/rotation`
 - `/showcase`
 - `/optimizer`
+- `/suggestions`
 
 Read pages:
 
-- `/info`
 - `/guides`
 - `/docs`
 - `/changelog`
@@ -69,7 +69,7 @@ Primary files:
 - [src/app/chrome/AppChrome.tsx](../src/app/chrome/AppChrome.tsx)
 - [src/app/chrome/appIndex.ts](../src/app/chrome/appIndex.ts)
 
-The chrome presents Simulation or Read navigation according to the current route. Home is the front door. Hidden legacy pages are never added to the authored navigation index.
+The header always presents Simulation tools directly. Docs, Guides, Changelog, Calibration, Privacy, and Terms are in the Read dropdown on every route. Home is the front door. Hidden legacy pages are never added to the authored navigation index.
 
 ## Related Docs
 

@@ -175,7 +175,7 @@
   border-top: 1px solid color-mix(in srgb, var(--text) 6%, var(--c-transparent));
 }
 
-.ecr-card__line--void { min-height: 1.52rem; }
+.ecr-card__line--void { min-height: 1.1rem; }
 
 .ecr-card__k {
   flex: 1;

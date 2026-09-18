@@ -20,6 +20,7 @@ import {
   useAppPopup,
   useAppPopupDismiss,
 } from '@/shared/ui/AppPopup.tsx'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 interface LlwdSetDrpdP {
   selIdsByPc?: OptSetChoice
@@ -98,15 +99,21 @@ export function AllowedSets({
     [availableSetIds],
   )
 
-  const effectiveSelIdsByPc = useMemo(
+  const sourceSelIdsByPc = useMemo(
     () => selIdsByPc ?? (selectedSetIds ? setIdsToChoice(selectedSetIds) : EMPTY_SET_CHOICE),
     [selectedSetIds, selIdsByPc],
   )
-
-  const applyChange = useCallback((nextChoice: OptSetChoice) => {
-    onChange?.(nextChoice)
-    onSetIdsChange?.(choiceToSetIds(nextChoice))
-  }, [onChange, onSetIdsChange])
+  const session = useConfigurationSession({
+    source: sourceSelIdsByPc,
+    active: menuVisible,
+    commit: (reducer) => {
+      const nextChoice = reducer(sourceSelIdsByPc)
+      onChange?.(nextChoice)
+      onSetIdsChange?.(choiceToSetIds(nextChoice))
+    },
+  })
+  const effectiveSelIdsByPc = menuVisible ? session.draft : sourceSelIdsByPc
+  const applyChange = session.replace
 
   const summaryLabel = useMemo(() => {
     if (selectedSetIds) {
@@ -119,8 +126,7 @@ export function AllowedSets({
       return `${selectedSetIds.length} Sonata`
     }
 
-    // summarize by selector bucket rather than set names so compact cards stay stable even when several sets are
-    // selected.
+    // Multi-bucket selection counts use the same piece-count grouping as constraints.
     const fiveCount = effectiveSelIdsByPc[5].length
     const threeCount = effectiveSelIdsByPc[3].length
     const oneCount = effectiveSelIdsByPc[1].length
@@ -222,8 +228,8 @@ export function AllowedSets({
   }, [applyChange, invPc])
 
   const closeMenu = useCallback(() => {
-    popup.hide()
-  }, [popup])
+    popup.hide(session.finish)
+  }, [popup, session])
 
   const openMenu = useCallback(() => {
     popup.show()

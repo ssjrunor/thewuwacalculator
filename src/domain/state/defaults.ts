@@ -1066,8 +1066,11 @@ function legacyMemberControls(
   primary: boolean,
 ): Record<string, boolean | number | string> {
   if (primary) {
+    const ownTeamPrefix = `team:${resonatorId}:`
     return Object.fromEntries(
-      Object.entries(controls).filter(([key]) => !key.startsWith('team:')),
+      Object.entries(controls).filter(([key]) => (
+        !key.startsWith('team:') || key.startsWith(ownTeamPrefix)
+      )),
     )
   }
 
@@ -1795,8 +1798,21 @@ export function makeAppState(
     theme: ThemeMode = 'dark',
     leftPaneView: LeftPaneView = 'resonators',
 ): HydratedAppState {
+  const seed = getFallbackSeed()
+  const scenario = makeScenarioFromProfiles(
+    { [seed.id]: makeResProfile(seed, { maxed: DEF_UI_PREFS.maxResOnInit }) },
+    null,
+    0,
+    seed.id,
+  )
+
   return initAppState({
     version: APP_STATE_VER,
+    combat: {
+      selectedScenarioId: scenario.id,
+      order: [scenario.id],
+      scenariosById: { [scenario.id]: scenario },
+    },
     ui: {
       theme,
       themePreference: 'background' === theme ? 'background' : 'dark',

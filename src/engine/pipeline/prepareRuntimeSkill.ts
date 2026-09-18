@@ -76,9 +76,15 @@ export function prprRtSkll(
     skill: SkillDef,
     context: CombatContext,
 ): SkillDef {
+  const runtimesById = Object.fromEntries(
+    Object.values(context.graph.participants).map((participant) => [
+      participant.resonatorId,
+      participant.runtime,
+    ]),
+  )
   const resolved = resolveSkill(runtime, skill, (condition) =>
     evaluateNumericSkillCondition(context.numericTeam, context.numericLane, condition)
-      ?? evalRuntimeSkillCondition(runtime, condition))
+      ?? evalRuntimeSkillCondition(runtime, condition), runtimesById)
   return prepareNumericSkill(context.numericTeam, context.numericLane, resolved)
 }
 

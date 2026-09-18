@@ -25,6 +25,11 @@ export interface IdentityAsk {
   verdict: string
 }
 
+// Group numeric UIDs into stable three-digit segments without changing other ids.
+export function groupUid(uid: string): string {
+  return /^\d+$/.test(uid) ? uid.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : uid
+}
+
 export function readIdentity(player: ParsedBuildMetadata['player']): PlayerIdentity {
   return { playerId: player.id ?? '', playerUid: player.uid ?? '' }
 }

@@ -10,10 +10,10 @@ import type { ReactNode } from 'react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import { getResAccent, getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
 import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
-import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring.ts'
-import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision.ts'
+import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
 import { AppModal } from '@/shared/ui/AppModal'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { ImportStrip } from '@/modules/simulation/features/echoes/ImportStrip.tsx'
 import { ImportReceipt } from '@/modules/simulation/features/echoes/ImportReceipt.tsx'
 import { Edit } from '@/modules/simulation/features/echoes/Edit.tsx'
@@ -47,7 +47,6 @@ function UidDigits({ uid, against }: { uid: string; against: string | null }) {
   )
 }
 
-// saved beside the card, on one line, because the seal already carries the words
 function IdentityLine({ saved, card }: { saved: PlayerIdentity; card: PlayerIdentity }) {
   const hadSaved = Boolean(saved.playerId || saved.playerUid)
   return (
@@ -103,12 +102,18 @@ export function Parser({
   headerExtra,
   onClose,
 }: EchoMgPrsrMd) {
-  useEchoScoringRevision(charId)
-
   const addEchoToInv = useAppStore((s) => s.addInvEcho)
   const savedPlayerId = useAppStore((s) => s.ui.preferences.playerId)
   const savedPlayerUid = useAppStore((s) => s.ui.preferences.playerUid)
   const setPlayerIdntty = useAppStore((s) => s.setPlayerIdentity)
+  const identitySession = useConfigurationSession({
+    source: { playerId: savedPlayerId, playerUid: savedPlayerUid },
+    active: visible,
+    commit: (reducer) => {
+      const next = reducer({ playerId: savedPlayerId, playerUid: savedPlayerUid })
+      setPlayerIdntty(next.playerId, next.playerUid)
+    },
+  })
   const showToast = useTstStr((state) => state.show)
   const editModal = useAppModal()
   const allEchoes = useMemo(() => listEchoes(), [])
@@ -125,23 +130,24 @@ export function Parser({
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const readCtrlRef = useRef<AbortController | null>(null)
+  const scores = useEchoScores(charId, parsedEchoes)
 
   function trnsToPrvw(echoes: Array<EchoInstance | null>) {
     setPrsdChs(echoes)
     setView('preview')
   }
 
-  // the account the card carries is its own question, asked once, before the receipt
-  const savedIdentity = useMemo<PlayerIdentity>(
-    () => ({ playerId: savedPlayerId, playerUid: savedPlayerUid }),
-    [savedPlayerId, savedPlayerUid],
-  )
+  // Resolve parsed holder identity separately before accepting the Echo preview.
+  const savedIdentity = identitySession.draft
   const cardIdentity = read ? readIdentity(read.player) : null
   const identityAsk = cardIdentity ? askForIdntty(savedIdentity, cardIdentity) : null
 
   function answerGate(keep: boolean) {
     if (!keep && cardIdentity) {
-      setPlayerIdntty(cardIdentity.playerId, cardIdentity.playerUid)
+      identitySession.replace({
+        playerId: cardIdentity.playerId,
+        playerUid: cardIdentity.playerUid,
+      })
     }
     setGateOpen(false)
   }
@@ -214,7 +220,7 @@ export function Parser({
     }
   }
 
-  // Global paste listener
+  // Register paste handling only while this parser instance is mounted.
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items
@@ -242,10 +248,6 @@ export function Parser({
     onClose()
   }
 
-  const hasWeights = charId ? getMaxEchoSc(charId) > 0 : false
-  const scores = hasWeights
-    ? parsedEchoes.map((echo) => (echo ? getEchoScrPr(charId!, echo) : null))
-    : null
   const resName = charId ? getResSeedBy(charId)?.name ?? charId : 'No resonator selected'
   const modalAccent = charId ? getResAccent(charId) : null
   const previewItems = useMemo(() => makeEchoRows({

@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns inventory layer behavior and state transitions for the inventory module.
+  Description: Hosts inventory and saved-Echo editing sessions, resolves equip
+               targets, and commits draft loadout changes to scenario state.
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -21,6 +22,7 @@ import { mainPortal } from '@/shared/lib/portalTarget'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { InvMdl } from '@/modules/simulation/features/inventory/InventoryModal'
 import { Edit } from '@/modules/simulation/features/echoes/Edit.tsx'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 export function InvLyr() {
   const invOpen = useAppStore((state) => state.invOpen)
@@ -44,6 +46,11 @@ export function InvLyr() {
     visible: invVsbl,
   } = useAppModal()
   const mdlPrtlTgt = mainPortal()
+  const runtimeSession = useConfigurationSession({
+    source: runtime,
+    active: invVsbl,
+    commit: (reducer) => updActResRt((current) => reducer(current) ?? current),
+  })
 
   const clrEditEchoC = useCallback(() => {
     if (editEchoClsT.current !== null) {
@@ -117,7 +124,7 @@ export function InvLyr() {
     <>
       {invVsbl ? (
         <MntdInvLyr
-          runtime={runtime}
+          runtime={runtimeSession.draft ?? runtime}
           actSeedName={activeSeed?.name ?? runtime.id}
           visible={invVsbl}
           open={invDlgOpen}
@@ -135,7 +142,8 @@ export function InvLyr() {
           onEditInvEcho={openDtngInvE}
           onClsEchoDtr={clsDtngInvEc}
           onQpInvEcho={(entry, slotIndex) => {
-            updActResRt((prev) => {
+            runtimeSession.update((prev) => {
+              if (!prev) return prev
               const nextEchoes = [...prev.build.echoes]
               nextEchoes[slotIndex] = cloneEchoFor(entry.echo, slotIndex)
               return {
@@ -152,7 +160,8 @@ export function InvLyr() {
             const savedWeapon = entry.build.weapon.id ? getWpnById(entry.build.weapon.id) : null
             const wpnTypeMtch = !seed || !savedWeapon || savedWeapon.weaponType === seed.weaponType
 
-            updActResRt((prev) => {
+            runtimeSession.update((prev) => {
+              if (!prev) return prev
               const nextRuntime = {
                 ...prev,
                 build: {

@@ -1,10 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: Verifies the editorSessionStore.test behavior and its compatibility invariants.
+  Description: Verifies per-owner draft retention, evaluated-result refresh,
+               and explicit replacement boundaries in the editor session store.
 */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emptyRotationEditHistory } from '@/modules/simulation/features/rotation/program-editor/interaction/history.ts'
+import { makeEnemy, makeResRuntime } from '@/domain/state/defaults.ts'
+import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
+import { buildRun, displayedRunMs, withRunMetadata } from '../simulation/runProgram.ts'
 import {
   clearAllRotationEditorSessions,
   clearRotationEditorSession,
@@ -29,6 +33,23 @@ function makeSession(label: string): RotationEditorSession {
     simulationKey: `${label}:draft`,
     runInputIdentity: null,
   }
+}
+
+function timedResult(totalMs: number, ranAt: number) {
+  const seed = getResSeedBy('1108')!
+  const runtime = makeResRuntime(seed)
+  const result = buildRun({
+    runtime,
+    seed,
+    runtimesById: { [runtime.id]: runtime },
+    enemy: makeEnemy(),
+    members: [],
+    items: [],
+  })
+  return withRunMetadata(result, {
+    ranAt,
+    timing: { prepareMs: 0, executeMs: totalMs, projectMs: 0, totalMs, cacheHit: false },
+  })
 }
 
 describe('rotation editor session store', () => {
@@ -75,6 +96,32 @@ describe('rotation editor session store', () => {
     clearRotationEditorSession('owner-c')
 
     expect(getRotationEditorSessionGeneration('owner-c')).toBe(1)
+  })
+
+  it('retains the toasted Run timing through refreshes and accepts timing from the next Run', () => {
+    const authored = timedResult(123.6, 10)
+    ensureRotationEditorSession('owner-a', () => ({ ...makeSession('initial'), result: authored }))
+    const recalculated = timedResult(2.1, 20)
+    const first = reconcileRotationEditorSession('owner-a', {}, (current) => ({
+      ...current,
+      result: recalculated,
+    }))!
+
+    expect(displayedRunMs(first.result)).toBe(displayedRunMs(authored))
+    expect(first.result?.ranAt).toBe(authored.ranAt)
+    expect(first.result?.timing).toBe(authored.timing)
+    expect(first.result?.sections).toBe(recalculated.sections)
+    expect(recalculated.timing.totalMs).toBe(2.1)
+
+    const nextRun = timedResult(45.4, 30)
+    updateRotationEditorSession('owner-a', (current) => ({ ...current, result: nextRun }))
+    const second = reconcileRotationEditorSession('owner-a', {}, (current) => ({
+      ...current,
+      result: recalculated,
+    }))!
+
+    expect(displayedRunMs(second.result)).toBe(displayedRunMs(nextRun))
+    expect(second.result?.ranAt).toBe(nextRun.ranAt)
   })
 
   it('refreshes evaluation once per workspace without replacing the standing draft', () => {

@@ -255,7 +255,7 @@ export function buildWeaponOverlays(input: OptStartPay): WeaponOverlays | null {
       resSeed: seed,
       skillId,
       enemy: input.enemyProfile,
-      runtimesById: makeRuntimeMap(rt),
+      runtimesById: makeRuntimeMap(rt, input.runtimesById),
       selectedTargets: input.selectedTargets,
     })
 

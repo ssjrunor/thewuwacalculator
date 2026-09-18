@@ -613,10 +613,9 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     : null
   const dockAccent = dockMember ? ATTR_COLORS[dockMember.attribute] ?? accent : accent
   const reportMatchesRail = reportTargetScenarioId === railScenarioId
-  /* A retained report can be stale while the same scenario is rebuilding.
-     Live Modulation content stays mounted, but score/search-derived readings
-     do not present themselves as current until that run has settled. */
-  const visibleReport = reportMatchesRail && !loading ? report : null
+  // Keep completed readings visible while this scenario is being reevaluated.
+  // A cache hit retains the same report; a fresh result replaces it together.
+  const visibleReport = reportMatchesRail ? report : null
   const scoreMatchesRail = reportMatchesRail
   const score = visibleReport ? visibleReport.evaluation.percent * 100 : null
   const showcaseAvgDamage = isShowcase && scoreMatchesRail
@@ -914,6 +913,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                   tone={tone}
                   showcaseBuild={showcaseBuild}
                   showcaseAvgDamage={showcaseAvgDamage}
+                  onEchoOpen={openEchoSlot}
                   echoSelection={echoSelection}
                   autoImageContrast={cardStyle.text == null}
                   layout={showcaseLayout}

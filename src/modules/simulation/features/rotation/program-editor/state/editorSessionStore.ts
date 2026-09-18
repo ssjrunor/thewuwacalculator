@@ -12,7 +12,7 @@ import type {
   EditorSection,
   LoopRunSelections,
 } from '@/modules/simulation/features/rotation/program-editor/model/program.ts'
-import type { RunResult } from '@/modules/simulation/features/rotation/program-editor/simulation/runProgram.ts'
+import { withRunMetadata, type RunResult } from '@/modules/simulation/features/rotation/program-editor/simulation/runProgram.ts'
 import type { RotationEditHistory } from '@/modules/simulation/features/rotation/program-editor/interaction/history.ts'
 
 export interface RotationEditorSession {
@@ -72,7 +72,8 @@ export function ensureRotationEditorSession(
 /**
  * Refresh only the evaluated side of a standing draft when Simulation inputs
  * change. The caller decides how authored sections/history are preserved; the
- * store merely makes the refresh once per immutable workspace identity.
+ * store makes the refresh once per immutable workspace identity and retains
+ * the last authored Run's date and timing for the standing readout.
  */
 export function reconcileRotationEditorSession(
   ownerId: string,
@@ -82,7 +83,16 @@ export function reconcileRotationEditorSession(
   const current = getRotationEditorSession(ownerId)
   if (!current || current.runInputIdentity === runInputIdentity) return current
 
-  const refreshed = reconcile(current)
+  const evaluated = reconcile(current)
+  const refreshed = current.result && evaluated.result
+    ? {
+        ...evaluated,
+        result: withRunMetadata(evaluated.result, {
+          ranAt: current.result.ranAt,
+          timing: current.result.timing,
+        }),
+      }
+    : evaluated
   const next = refreshed.runInputIdentity === runInputIdentity
     ? refreshed
     : { ...refreshed, runInputIdentity }

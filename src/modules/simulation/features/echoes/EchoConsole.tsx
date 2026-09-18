@@ -1,16 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: One echo slot, opened from wherever the slot is drawn. An empty
-               slot opens the picker, a filled one opens the editor, and the
-               mode is fixed when the request lands so a pick does not turn the
-               picker into an editor under the cursor.
-
-               The writes are the echo pane's own: a pick goes through
-               `mkDefEchoNst` against the slot's cost budget, and a save replaces
-               the slot outright.
+  Description: Resolves requested Echo-slot owners, fixes picker/editor mode
+               for each session, and applies loadout edits within the cost budget.
 */
 
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
@@ -21,11 +15,11 @@ import { mkDefEchoNst } from '@/modules/simulation/features/echoes/lib/echoPane.
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'
 import { useEchoCnsl } from '@/modules/simulation/features/echoes/lib/echoConsoleStore.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { projectScenarioUiRuntimes } from '@/domain/state/scenarioRuntime.ts'
 
-/* the picker and the editor are the heavy half and only a request needs them,
-   so they load late the way the teammate console's stage does */
+// Load picker and editor modules only when a slot request needs them.
 const EchoPicker = lazy(async () => ({
   default: (await import('@/modules/simulation/features/echoes/Picker.tsx')).EchoPicker,
 }))
@@ -34,7 +28,7 @@ const Edit = lazy(async () => ({
   default: (await import('@/modules/simulation/features/echoes/Edit.tsx')).Edit,
 }))
 
-/* the build's cost ceiling, the same figure the pane and the clipboard hold */
+// Shared loadout cost ceiling used by slot editing and clipboard imports.
 const MAX_ECHO_COST = 12
 
 // Load the console only after a request and hold it until the close completes.
@@ -71,8 +65,8 @@ function EchoConsole({
   const updResRt = useAppStore((state) => state.updResRt)
   const updScenarioResRt = useAppStore((state) => state.updScenarioResRt)
 
-  // the surface asking can be standing on any profile, so read the live
-  // participant runtime when there is one and the stored one otherwise
+  // Requests may target another profile: prefer its live participant runtime,
+  // falling back to the stored profile when it is outside the current scenario.
   const { partRtsById } = useAppStore(useShallow(selWorkDrvd))
   const initRtsById = useAppStore(selInitRtLkp)
   const targetScenario = useAppStore((state) => (
@@ -84,9 +78,19 @@ function EchoConsole({
       : null,
     [resonatorId, targetScenario],
   )
-  const runtime = scenarioId
+  const canonicalRuntime = scenarioId
     ? scenarioRuntime
     : partRtsById[resonatorId] ?? initRtsById[resonatorId] ?? null
+
+  const commitRuntime = useCallback((updater: (runtime: ResRuntime | null) => ResRuntime | null) => {
+    const update = scenarioId
+      ? (next: (prev: ResRuntime) => ResRuntime) => updScenarioResRt(scenarioId, resonatorId, next)
+      : (next: (prev: ResRuntime) => ResRuntime) => updResRt(resonatorId, next)
+    update((current) => updater(current) ?? current)
+  }, [resonatorId, scenarioId, updResRt, updScenarioResRt])
+  const session = useConfigurationSession({ source: canonicalRuntime, commit: commitRuntime })
+  const runtime = session.draft
+  const pickedEchoIdsRef = useRef<string[]>([])
 
   const { closing, hide, open, show, visible } = useAppModal()
 
@@ -96,22 +100,22 @@ function EchoConsole({
 
   const closeConsole = useCallback(() => {
     hide(() => {
+      session.finish()
+      if (pickedEchoIdsRef.current.length > 0) {
+        bumpPickerFreq({ bucket: 'echo', ids: pickedEchoIdsRef.current })
+      }
       closeRequest()
     })
-  }, [closeRequest, hide])
+  }, [bumpPickerFreq, closeRequest, hide, session])
 
   const echo = runtime?.build.echoes[slotIndex] ?? null
 
-  /* the mode is decided by what the slot held when the request landed: filling
-     an empty slot must not swap the picker for the editor mid-pick */
+// Keep the initial request mode even after a pick fills an empty slot.
   const [mode] = useState<'pick' | 'edit'>(() => (echo ? 'edit' : 'pick'))
 
   const allEchoes = useMemo(() => listEchoes(), [])
 
-  const totalCost = useMemo(
-    () => (runtime ? cmptTtlEchoC(runtime.build.echoes) : 0),
-    [runtime],
-  )
+  const totalCost = runtime ? cmptTtlEchoC(runtime.build.echoes) : 0
 
   const slotCost = echo ? getEchoById(echo.id)?.cost ?? 0 : 0
   const maxCost = MAX_ECHO_COST - totalCost + slotCost
@@ -124,15 +128,13 @@ function EchoConsole({
   }, [closeConsole, closing, runtime, visible])
 
   const writeSlot = useCallback((next: EchoInstance | null) => {
-    const update = scenarioId
-      ? (updater: (prev: ResRuntime) => ResRuntime) => updScenarioResRt(scenarioId, resonatorId, updater)
-      : (updater: (prev: ResRuntime) => ResRuntime) => updResRt(resonatorId, updater)
-    update((prev) => {
+    session.update((prev) => {
+      if (!prev) return prev
       const echoes = [...prev.build.echoes]
       echoes[slotIndex] = next
       return { ...prev, build: { ...prev.build, echoes } }
     })
-  }, [resonatorId, scenarioId, slotIndex, updResRt, updScenarioResRt])
+  }, [session, slotIndex])
 
   const onSelect = useCallback((echoId: string) => {
     // the slot's own cost is added back before the check, so replacing an echo
@@ -144,8 +146,8 @@ function EchoConsole({
     if (!instance) return
 
     writeSlot(instance)
-    bumpPickerFreq({ bucket: 'echo', ids: [instance.id] })
-  }, [bumpPickerFreq, echo, maxCost, slotIndex, writeSlot])
+    pickedEchoIdsRef.current.push(instance.id)
+  }, [echo, maxCost, slotIndex, writeSlot])
 
   const onClear = useCallback(() => {
     writeSlot(null)

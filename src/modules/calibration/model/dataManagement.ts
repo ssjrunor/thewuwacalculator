@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: provides settings-page data management helpers and derived values.
+  Description: Serializes full and partial app-data exports, validates imported
+               envelopes, and merges selected domains into persisted snapshots.
 */
 
 import type { HydratedAppState, LegacyProfileMap, PersistedState } from '@/domain/entities/appState'
@@ -190,8 +191,8 @@ function vldtPtchSnap(
   }
 }
 
-function makeImportWorkingState(currentState: AppStore): HydratedAppState {
-  return structuredClone(selectPersisted(currentState))
+function makeImportWorkingState(currentState: PersistedState): HydratedAppState {
+  return structuredClone(currentState)
 }
 
 function replaceImportedScenario(
@@ -318,7 +319,7 @@ export function mkDataXprtFi(state: AppStore, kind: DataXprtKind): XprtDataFile 
   }
 }
 
-export function resMprtData(raw: string, currentState: AppStore): RslvMprtData {
+export function resMprtData(raw: string, currentState: PersistedState): RslvMprtData {
   try {
     // full snapshots already include all persistence domains and can be handed
     // directly to the persistence parser.
@@ -375,10 +376,10 @@ export function resMprtData(raw: string, currentState: AppStore): RslvMprtData {
           selectedScenario.team.members[0].resonatorId,
         )
         const migrated = initAppState({
-          ...selectPersisted(currentState),
+          ...currentState,
           combat: undefined,
           simulation: {
-            ...selectPersisted(currentState).simulation,
+            ...currentState.simulation,
             profiles,
             suggestionsByResonatorId,
             optimizerSettings,

@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns console host behavior and state transitions for the teams module.
+  Description: Resolves requested scenario members, lazily loads their editor,
+               and retains the console session through close completion.
 */
 
 import { Suspense, lazy, useCallback, useEffect, type CSSProperties } from 'react'
@@ -11,12 +12,11 @@ import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
+import type { CombatScenario } from '@/domain/entities/combatScenario.ts'
+import { useAppStore } from '@/domain/state/store.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
-/*
-  the console is the stage in a frame. the stage is the heavy half, so it is the
-  half that loads late; the frame is drawn here, where the modal's own state
-  already lives.
-*/
+// Defer the member-editor module while keeping modal lifecycle state in this host.
 const MemberStage = lazy(async () => ({
   default: (await import('@/modules/simulation/features/teams/stage/MemberStage.tsx')).MemberStage,
 }))
@@ -50,7 +50,25 @@ function ConsoleView({
   const switchMember = useTeamCnsl((state) => state.switchMember)
   const setChannel = useTeamCnsl((state) => state.setChannel)
   const closeRequest = useTeamCnsl((state) => state.close)
-  const model = useMemberModel(resonatorId, scenarioId)
+  const selectedScenarioId = useAppStore((state) => state.combat.selectedScenarioId)
+  const resolvedScenarioId = scenarioId ?? selectedScenarioId
+  const sourceScenario = useAppStore((state) => state.combat.scenariosById[resolvedScenarioId] ?? null)
+  const commitScenarioConfig = useAppStore((state) => state.commitScenarioConfig)
+  const session = useConfigurationSession<CombatScenario | null>({
+    source: sourceScenario,
+    commit: (reducer) => commitScenarioConfig(
+      resolvedScenarioId,
+      (current) => reducer(current) ?? current,
+      'Updated Team Configuration',
+    ),
+  })
+  const model = useMemberModel(
+    resonatorId,
+    resolvedScenarioId,
+    session.draft
+      ? { scenario: session.draft, updateScenario: session.update as (updater: (scenario: CombatScenario) => CombatScenario) => void }
+      : undefined,
+  )
   const { member, memberRt, actRt } = model
 
   const { closing, hide, open, show, visible } = useAppModal()
@@ -61,9 +79,10 @@ function ConsoleView({
 
   const closeConsole = useCallback(() => {
     hide(() => {
+      session.finish()
       closeRequest()
     })
-  }, [closeRequest, hide])
+  }, [closeRequest, hide, session])
 
   // Close if the requested member leaves the current runtime graph.
   useEffect(() => {
@@ -100,6 +119,7 @@ function ConsoleView({
         cmbtSttsView={model.cmbtSttsView}
         channel={channel}
         onSwitchMember={switchMember}
+        onSetTeamMember={model.setTeamMember}
         onChannelChange={setChannel}
         onSqncChng={model.onSqncChng}
         onRtPdt={model.onRtPdt}

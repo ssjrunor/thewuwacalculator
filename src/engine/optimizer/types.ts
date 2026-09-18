@@ -149,9 +149,8 @@ export interface PrepOptShrdP {
   weaponDisplayContexts?: Float32Array
 }
 
-// input payload used to start building an optimizer execution context
-// this is the high-level request shape before compiler packing; short aliases
-// Distinguish transient catalog snapshots from saved scenario state.
+// High-level compilation request before numeric packing. Catalog snapshots
+// remain transient; the supplied scenario/runtime owns saved configuration.
 export interface OptStartPay {
   scenarioId: import('@/domain/entities/combatScenario').CombatScenarioId
   memberId: import('@/domain/entities/combatScenario').TeamMemberId
@@ -168,6 +167,8 @@ export interface OptStartPay {
     echoStats?: EchoSttsCatD
   }
   runtime: ResRuntime
+  /** Canonical participant runtimes; detached legacy callers may omit this. */
+  runtimesById?: Record<string, ResRuntime>
   settings: OptSets
   invChs: EchoInstance[]
   enemyProfile: EnemyProfile

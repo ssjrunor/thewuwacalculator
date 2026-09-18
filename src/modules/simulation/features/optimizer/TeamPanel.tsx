@@ -7,10 +7,8 @@
 import { useCallback, useMemo } from 'react'
 import type { CSSProperties as CssProps } from 'react'
 import { Plus, X } from 'lucide-react'
-import { isNoWeaponId, type ResRuntime, type TeamMemRt } from '@/domain/entities/runtime'
-import { MAX_RES_LVL, makeTeamMember, maxRtInit } from '@/domain/state/defaults'
-import { initWpnStts } from '@/domain/state/sourceStateInit'
-import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
+import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime'
+import { MAX_RES_LVL } from '@/domain/state/defaults'
 import type { EchoDef } from '@/domain/entities/catalog'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
 import { getEchoSetCn, getEchoSetDe, type SetDef } from '@/data/gameData/echoSets/effects'
@@ -18,7 +16,6 @@ import { LiquidSelect } from '@/shared/ui/LiquidSelect'
 import { StepScrubber } from '@/shared/ui/StepScrubber'
 import { NumberInput } from '@/modules/simulation/features/controls/NumberInput'
 import type { SrcOwnScp, SourceState } from '@/domain/gameData/contracts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
 import { setResRtSequence } from '@/domain/gameData/resonatorMax.ts'
 import { listStatesFor, getOwnForKey } from '@/domain/services/gameDataService'
@@ -31,7 +28,6 @@ import {
   setSourceState,
 } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService'
-import { useAppStore } from '@/domain/state/store'
 import { isStateVisible } from '@/domain/services/sourceStateService.ts'
 import { getStateText } from '@/modules/simulation/model/sourceStateDisplay'
 import { getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
@@ -43,7 +39,6 @@ import {
   getTeammateSetCounts,
   type TeammateSetPreference,
 } from '@/modules/simulation/features/optimizer/lib/teammateEchoPlan.ts'
-import { mkMateCntr, teamRuntime } from '@/domain/state/teamRuntime'
 import { viewRtStt } from './renderRuntimeState'
 import { AllowedSets } from './AllowedSets.tsx'
 import { rarityVars } from '@/modules/simulation/model/display.ts'
@@ -70,9 +65,11 @@ interface OptTeamPnlPr {
   rarity: number
   displayName: string
   optRt: ResRuntime | null
+  runtimesById: Record<string, ResRuntime>
   invalidMainIds: [string | null, string | null]
   mateSetPrefs: [TeammateSetPreference[], TeammateSetPreference[]]
   onRtPdt: RtUpdHnd
+  onMemberRtPdt: (resonatorId: string, updater: (runtime: ResRuntime) => ResRuntime) => void
   onOpenMate: (slotIndex: 0 | 1) => void
   onOpenWeapon: (slot: 'active' | 0 | 1) => void
   onOpenMateMenu: (slotIndex: 0 | 1) => void
@@ -108,10 +105,11 @@ interface OptCardProps {
 interface MateCardProps {
   slotIndex: 0 | 1
   memberId: string
+  runtime: ResRuntime
   invalidMainId: string | null
   setPrefs: TeammateSetPreference[]
   actRt: ResRuntime
-  onRtPdt: RtUpdHnd
+  onMemberRtPdt: (resonatorId: string, updater: (runtime: ResRuntime) => ResRuntime) => void
   onOpenMate: (slotIndex: 0 | 1) => void
   onOpenWeapon: (slot: 'active' | 0 | 1) => void
   onOpenMainEcho: (slotIndex: 0 | 1) => void
@@ -220,8 +218,7 @@ function OptMainEchoC({
     () => (mainEcho ? getEchoById(mainEcho.id) : null),
     [mainEcho],
   )
-  // an invalid echo definition means the saved teammate plan references an echo that no longer satisfies the current
-  // optimizer constraints; keep showing it so the user understands what must be fixed.
+  // Retain invalid saved plan entries so constraint changes do not silently erase them.
   const mainEchoDef = invalidMainEcho ?? rtMainEchoDe
   const hasNvldMainE = invalidMainEcho != null
   const mainEchoSrc = useMemo(() => getMainEchoS(runtime), [runtime])
@@ -697,8 +694,7 @@ function OptEchoSetSt({
   const perStep = stateEntry.perStep ?? []
   const perStack = stateEntry.perStack ?? []
   const stckLikeEnts = perStep.length > 0 ? perStep : (perStack.length > 0 ? perStack : stateEntry.max)
-  // some set states are encoded with a stack shape even though every stack has the same value; render those as a
-  // boolean toggle so the optimizer surface matches the real amount of user choice.
+  // Equal-valued authored stacks are equivalent to a boolean enable/disable state.
   const isToggle = stckLikeEnts.every((entry, index) => entry.value === stateEntry.max[index].value)
 
   if (isToggle) {
@@ -1075,10 +1071,11 @@ function OptRtCard({
 function OptMateCard({
   slotIndex,
   memberId,
+  runtime,
   invalidMainId: invalidMainId,
   setPrefs: setPrefsList,
   actRt: actRt,
-  onRtPdt: onRtPdt,
+  onMemberRtPdt,
   onOpenMate: onOpenMate,
   onOpenWeapon: onOpenWeapon,
   onOpenMainEcho: onOpenMainEcho,
@@ -1089,87 +1086,16 @@ function OptMateCard({
   onClearMainEcho: onClearMainEcho,
 }: MateCardProps) {
   const member = useMemo(() => getResonator(memberId), [memberId])
-  const seed = useMemo(() => getResSeedBy(memberId), [memberId])
-  const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const invalidMainEcho = useMemo(
     () => (invalidMainId ? getEchoById(invalidMainId) : null),
     [invalidMainId],
   )
 
-  const mateRt = useMemo(() => {
-    if (!seed) {
-      return null
-    }
-
-    const compactRuntime = actRt.teamRuntimes[slotIndex]
-    const resolvedRuntime = compactRuntime?.id === memberId
-      ? compactRuntime
-      : makeTeamMember(seed)
-
-    const materialRuntime = matTeamMemFr(
-      seed,
-      resolvedRuntime,
-      actRt.state.controls,
-      actRt.state.combat,
-      actRt.build.team,
-    )
-
-    return maxResOnInit && compactRuntime?.id !== memberId
-      ? maxRtInit(materialRuntime)
-      : compactRuntime?.id !== memberId
-        ? initWpnStts(materialRuntime, { maxed: false })
-        : materialRuntime
-  }, [actRt, maxResOnInit, memberId, seed, slotIndex])
-
   const updMateRt = useCallback<RtUpdHnd>((updater) => {
-    onRtPdt((prev) => {
-      const nextMemberId = prev.build.team[slotIndex + 1]
-      if (!nextMemberId) {
-        return prev
-      }
+    onMemberRtPdt(memberId, updater)
+  }, [memberId, onMemberRtPdt])
 
-      const nextSeed = getResSeedBy(nextMemberId)
-      if (!nextSeed) {
-        return prev
-      }
-
-      const currentRuntime = prev.teamRuntimes[slotIndex]
-      const resolvedRuntime = currentRuntime?.id === nextMemberId
-        ? currentRuntime
-        : makeTeamMember(nextSeed)
-
-      const rawMaterialRuntime = matTeamMemFr(
-        nextSeed,
-        resolvedRuntime,
-        prev.state.controls,
-        prev.state.combat,
-        prev.build.team,
-      )
-      const materialRuntime = maxResOnInit && currentRuntime?.id !== nextMemberId
-        ? maxRtInit(rawMaterialRuntime)
-        : currentRuntime?.id !== nextMemberId
-          ? initWpnStts(rawMaterialRuntime, { maxed: false })
-          : rawMaterialRuntime
-      const nextRuntime = updater(materialRuntime)
-      const nextTeamRuns = [...prev.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
-      nextTeamRuns[slotIndex] = teamRuntime(nextRuntime)
-
-      const memberIdsClear = Array.from(
-        new Set([currentRuntime?.id, nextMemberId].filter((value): value is string => Boolean(value))),
-      )
-
-      return {
-        ...prev,
-        state: {
-          ...prev.state,
-          controls: mkMateCntr(prev.state.controls, memberIdsClear, nextMemberId, nextRuntime),
-        },
-        teamRuntimes: nextTeamRuns,
-      }
-    })
-  }, [maxResOnInit, onRtPdt, slotIndex])
-
-  if (!member || !mateRt) {
+  if (!member) {
     return (
       <article className="opt-team__card opt-team__card--empty">
         <span className="opt-team__slot-label">Teammate {slotIndex + 1}</span>
@@ -1183,7 +1109,7 @@ function OptMateCard({
       rarity={member.rarity ?? 4}
       displayName={member.name}
       profileSrc={member.profile || `/assets/game/resonators/profiles/${memberId}.webp`}
-      runtime={mateRt}
+      runtime={runtime}
       actRt={actRt}
       onRtPdt={updMateRt}
       editableLevel={false}
@@ -1206,9 +1132,11 @@ export function TeamPanel({
   rarity,
   displayName,
   optRt: optRuntime,
+  runtimesById,
   invalidMainIds: invalidMainEcho,
   mateSetPrefs: mateSetPrefs,
   onRtPdt: onRtPdt,
+  onMemberRtPdt,
   onOpenMate: onOpenMate,
   onOpenWeapon: onOpenWeapon,
   onOpenMateMenu: onOpenTmmtMa,
@@ -1243,8 +1171,9 @@ export function TeamPanel({
 
         {([0, 1] as const).map((slotIndex) => {
           const memberId = optRuntime.build.team[slotIndex + 1]
+          const memberRuntime = memberId ? runtimesById[memberId] : null
 
-          if (!memberId) {
+          if (!memberId || !memberRuntime) {
             return (
               <button
                 key={slotIndex}
@@ -1263,10 +1192,11 @@ export function TeamPanel({
               key={`${slotIndex}-${memberId}`}
               slotIndex={slotIndex}
               memberId={memberId}
+              runtime={memberRuntime}
               invalidMainId={invalidMainEcho[slotIndex]}
               setPrefs={mateSetPrefs[slotIndex]}
               actRt={optRuntime}
-              onRtPdt={onRtPdt}
+              onMemberRtPdt={onMemberRtPdt}
               onOpenMate={onOpenMate}
               onOpenWeapon={onOpenWeapon}
               onOpenMainEcho={onOpenTmmtMa}

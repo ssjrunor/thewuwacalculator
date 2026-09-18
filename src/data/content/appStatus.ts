@@ -21,7 +21,7 @@ export const STATUS_DATA = {
   lastUpdated: '18/08/2026',
 
   wallpaper: {
-    src: '/assets/app/pheobeW.webp',
+    src: '/assets/app/phoebeW.webp',
     pos: '62% 42%',
     dir: '100deg',
   } as { src: string; pos: string; dir: string } | null,

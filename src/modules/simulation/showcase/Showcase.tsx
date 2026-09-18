@@ -4,16 +4,17 @@
                ladders, echo scoring, sonata badges, and relevant-stat emphasis.
 */
 
-import { useMemo } from 'react'
+import { useMemo, type KeyboardEvent } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import type { StatsColumnHighlight } from '@/domain/entities/preferences'
+import { useAppStore } from '@/domain/state/store.ts'
+import { groupUid } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
 import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getSbstStepP } from '@/data/gameData/catalog/echoStats.ts'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
 import { getWeightObj } from '@/data/scoring/charStatWeights'
 import { cmptEchoCrit, cmptEchoCritAll, getCvToneColor, getScrTone } from '@/modules/simulation/features/echoes/lib/metric.ts'
-import { getEchoScrPr } from '@/data/scoring/echoScoring.ts'
-import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision.ts'
+import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
 import {
   formatCompactNum,
   formatStatKeyLabel,
@@ -35,6 +36,21 @@ interface ShowcaseSonataEntry {
 
 function clampPct(value: number): number {
   return Math.max(0, Math.min(100, value))
+}
+
+/** Shared holder identity for both showcase layouts. */
+export function ShowcaseHolder({ fallback }: { fallback: string }) {
+  const playerId = useAppStore((state) => state.ui.preferences.playerId)
+  const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
+  if (!playerId && !playerUid) {
+    return <span className="showcase-eyebrow">{fallback}</span>
+  }
+  return (
+    <span className="showcase-holder">
+      {playerId ? <b>{playerId}</b> : null}
+      {playerUid ? <span>{groupUid(playerUid)}</span> : null}
+    </span>
+  )
 }
 
 export interface RelStats {
@@ -110,8 +126,7 @@ export function ShowcaseStatRow({
 function ShowcaseEcho({
   echo,
   index,
-  charId,
-  hasWeights,
+  score,
   hideScore,
   hideCv,
   hideSubVal,
@@ -119,11 +134,11 @@ function ShowcaseEcho({
   hideRelStats,
   relStats,
   selection,
+  onOpen,
 }: {
   echo: EchoInstance | null
   index: number
-  charId: string
-  hasWeights: boolean
+  score: number | null
   hideScore: boolean
   hideCv: boolean
   hideSubVal: boolean
@@ -131,12 +146,31 @@ function ShowcaseEcho({
   hideRelStats: boolean
   relStats: RelStats
   selection?: EvaluationEchoSelection
+  onOpen?: () => void
 }) {
-  useEchoScoringRevision(charId)
+  const openProps = onOpen ? {
+    role: 'button',
+    tabIndex: 0,
+    onClick: () => {
+      if (!selection?.selectionMode) onOpen()
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (selection?.selectionMode) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.currentTarget.click()
+    },
+  } : undefined
 
   if (!echo) {
     return (
-      <article className="showcase-echo showcase-echo--empty" style={{ '--i': index } as CssVars}>
+      <article
+        className="showcase-echo showcase-echo--empty"
+        style={{ '--i': index } as CssVars}
+        aria-label={onOpen ? `Slot ${index}, empty. Choose an Echo` : undefined}
+        {...openProps}
+      >
         <span className="showcase-echo-vacant">0{index}</span>
         <span className="showcase-echo-vacant-label">Empty slot</span>
       </article>
@@ -147,7 +181,6 @@ function ShowcaseEcho({
   const setIcon = getSntSetIco(echo.set)
   const primary = echo.mainStats.primary
   const cv = cmptEchoCrit(echo.substats)
-  const score = hasWeights ? getEchoScrPr(charId, echo) : null
   const tone = score != null ? getScrTone(score) : null
   const slotIndex = index - 1
   const itemId = selection?.getId(slotIndex) ?? null
@@ -166,6 +199,8 @@ function ShowcaseEcho({
       data-selection-focus-item="true"
       data-selected={selected ? 'true' : undefined}
       style={{ '--i': index } as CssVars}
+      aria-label={onOpen ? `Slot ${index}. Edit ${echoDef?.name ?? 'Echo'}` : undefined}
+      {...openProps}
       onClickCapture={itemId ? selection?.buildClickCapture(itemId) : undefined}
     >
       <span className="showcase-echo-cost" aria-label={`${echoDef?.cost ?? 0} cost`}>{echoDef?.cost ?? 0}</span>
@@ -324,7 +359,6 @@ export function ShowcaseBuild({
   tone,
   avgDamage,
   charId,
-  hasWeights,
   hideScore,
   hideDamage,
   hideCv,
@@ -332,6 +366,7 @@ export function ShowcaseBuild({
   hideSubColor,
   hideRelStats,
   statsColumn,
+  onEchoOpen,
   echoSelection,
   blank,
 }: {
@@ -352,6 +387,7 @@ export function ShowcaseBuild({
   hideSubColor: boolean
   hideRelStats: boolean
   statsColumn: StatsColumnHighlight
+  onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
 }) {
@@ -359,6 +395,7 @@ export function ShowcaseBuild({
   const fill = score != null ? Math.max(2, Math.min(100, score / 2)) : 0
   const { total: totalCv, tone: totalCvTone } = loadoutCv(slots, blank)
   const relStats = useMemo(() => makeRelStats(charId), [charId])
+  const echoScores = useEchoScores(charId, slots)
   const showRel = !hideRelStats
   const buildByKey = buildTotalsByKey(buildStatsView)
 
@@ -367,7 +404,7 @@ export function ShowcaseBuild({
       <section className="showcase-stats" style={{ '--i': 0, '--grade': tone } as CssVars}>
         <header className="showcase-verdict">
           <span className="showcase-verdict-body">
-            <span className="showcase-eyebrow">The Build</span>
+            <ShowcaseHolder fallback="The Build" />
             {!hideScore ? (
               <>
                 <span className="showcase-verdict-figure">
@@ -459,14 +496,14 @@ export function ShowcaseBuild({
           key={echo?.uid ?? `empty:${slot}`}
           echo={echo}
           index={slot + 1}
-          charId={charId}
-          hasWeights={hasWeights}
+          score={echoScores?.[slot] ?? null}
           hideScore={hideScore}
           hideSubVal={hideSubVal}
           hideSubColor={hideSubColor}
           hideCv={hideCv}
           hideRelStats={hideRelStats}
           relStats={relStats}
+          onOpen={onEchoOpen ? () => onEchoOpen(slot) : undefined}
           selection={echoSelection}
         />
       ))}

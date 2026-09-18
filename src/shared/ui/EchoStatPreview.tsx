@@ -6,28 +6,15 @@
 
 import { useMemo } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/simulation/features/echoes/lib/metric'
-import { getEchoScrPr, getMaxEchoSc } from '@/data/scoring/echoScoring'
-import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision'
+import { cmptEchoCrit, getCvBdgClss } from '@/modules/simulation/features/echoes/lib/metric'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 
 interface EchoStatProps {
   echo: EchoInstance
-  resonatorId: string
 }
 
-export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
-  const echoScoringRevision = useEchoScoringRevision(resonatorId)
-  const { score, scoreShown } = useMemo(() => {
-    void echoScoringRevision
-    const hasWeights = getMaxEchoSc(resonatorId) > 0
-    return {
-      scoreShown: hasWeights,
-      score: hasWeights ? getEchoScrPr(resonatorId, echo) : 0,
-    }
-  }, [echoScoringRevision, resonatorId, echo])
-
+export function EchoStatPreview({ echo }: EchoStatProps) {
   const cv = useMemo(() => cmptEchoCrit(echo.substats), [echo.substats])
 
   const substats = useMemo(
@@ -38,12 +25,6 @@ export function EchoStatPreview({ echo, resonatorId }: EchoStatProps) {
   return (
     <div className="echo-stat-preview">
       <div className="echo-stat-preview__head">
-        {scoreShown ? (
-          <span className={`echo-stat-preview__badge ${getScrBdgCls(score)}`}>
-            <span className="echo-stat-preview__badge-key">Score</span>
-            <span className="echo-stat-preview__badge-value">{formatTruncCompact(score, 1)}%</span>
-          </span>
-        ) : null}
         <span className={`echo-stat-preview__badge ${getCvBdgClss(cv)}`}>
           <span className="echo-stat-preview__badge-key">CV</span>
           <span className="echo-stat-preview__badge-value">{formatTruncCompact(cv, 1)}</span>

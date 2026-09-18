@@ -1,20 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: The weapon console. A surface that draws a weapon (the bench
-               rail, for one) hands the whole slot to this modal: the type and
-               passive on one mono rule, the plate that opens the picker, the
-               typed level, the syntonize lamps, and the passive in the game's
-               own words at the rank standing.
-
-               It is the progression panel's weapon module (`pstr-wpn`) given
-               modal room, so the two read as the same instrument; the panel
-               keeps its own markup because it is laid out for a 20rem column.
+  Description: Resolves weapon-slot owners and edits weapon identity, level,
+               rank, and passive controls through a deferred configuration session.
 */
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { CSSProperties as CssProps } from 'react'
-import { isNoWeaponId } from '@/domain/entities/runtime.ts'
+import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime.ts'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import { useAppStore } from '@/domain/state/store.ts'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
@@ -26,6 +19,7 @@ import { RichDscr } from '@/shared/ui/RichDescription.tsx'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { ModalHeader, ModalShell } from '@/shared/ui/AppModalShell.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { selInitRtLkp, selWorkDrvd } from '@/domain/state/selectors.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
@@ -80,9 +74,8 @@ function WeaponConsole({
   const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
 
-  // the surface standing this console can be showing any profile, not just the
-  // resonator in front: read the live participant runtime when there is one and
-  // the profile's stored runtime otherwise, the way the rail card itself does.
+  // Requests may target an inactive profile. Prefer its live participant runtime,
+  // falling back to the stored profile when it is outside the current scenario.
   const { partRtsById } = useAppStore(useShallow(selWorkDrvd))
   const initRtsById = useAppStore(selInitRtLkp)
   const updResRt = useAppStore((state) => state.updResRt)
@@ -96,18 +89,27 @@ function WeaponConsole({
       : null,
     [resonatorId, targetScenario],
   )
-  const runtime = scenarioId
+  const canonicalRuntime = scenarioId
     ? scenarioRuntime
     : partRtsById[resonatorId] ?? initRtsById[resonatorId] ?? null
   const resonator = getResonator(resonatorId)
 
-  const onRtPdt = useCallback<RtUpdHnd>((updater) => {
+  const commitRuntime = useCallback((updater: (runtime: ResRuntime | null) => ResRuntime | null) => {
     if (scenarioId) {
-      updScenarioResRt(scenarioId, resonatorId, updater)
+      updScenarioResRt(scenarioId, resonatorId, (current) => updater(current) ?? current)
     } else {
-      updResRt(resonatorId, updater)
+      updResRt(resonatorId, (current) => updater(current) ?? current)
     }
   }, [resonatorId, scenarioId, updResRt, updScenarioResRt])
+  const session = useConfigurationSession({
+    source: canonicalRuntime,
+    commit: commitRuntime,
+  })
+  const runtime = session.draft
+  const onRtPdt = useCallback<RtUpdHnd>((updater) => {
+    session.update((current) => current ? updater(current) : current)
+  }, [session])
+  const pickedWeaponIdsRef = useRef<string[]>([])
 
   const { closing, hide, open, show, visible } = useAppModal()
   const picker = useAppModal()
@@ -118,9 +120,18 @@ function WeaponConsole({
 
   const closeConsole = useCallback(() => {
     hide(() => {
+      session.finish()
+      const pickedWeaponIds = pickedWeaponIdsRef.current
+      if (resonator && pickedWeaponIds.length > 0) {
+        bumpPickerFreq({
+          bucket: 'weapon',
+          weaponType: (WPNTYPETOKEY[resonator.weaponType] ?? 'gauntlets') as PickFreqWeapon,
+          ids: pickedWeaponIds,
+        })
+      }
       closeRequest()
     })
-  }, [closeRequest, hide])
+  }, [bumpPickerFreq, closeRequest, hide, resonator, session])
 
   // Close if the weapon's owner leaves the current runtime graph.
   useEffect(() => {
@@ -160,16 +171,10 @@ function WeaponConsole({
 
     onRtPdt((prev) => applyWpnSel(prev, picked, { maxOnInit: maxWpnOnInit, level: prev.build.weapon.level }))
 
-    if (resonator) {
-      bumpPickerFreq({
-        bucket: 'weapon',
-        weaponType: (WPNTYPETOKEY[resonator.weaponType] ?? 'gauntlets') as PickFreqWeapon,
-        ids: [picked.id],
-      })
-    }
+    if (resonator) pickedWeaponIdsRef.current.push(picked.id)
 
     picker.hide()
-  }, [bumpPickerFreq, maxWpnOnInit, onRtPdt, picker, resonator, weapons])
+  }, [maxWpnOnInit, onRtPdt, picker, resonator, weapons])
 
   if (!runtime || !visible) {
     return null
@@ -189,8 +194,6 @@ function WeaponConsole({
 
           <div className="wcon-body">
             <span className="wcon-sec">
-              {/* the type mark is the game's white art, so it is painted as a
-                  mask rather than pasted as an image */}
               {typeKey ? (
                 <i className="wcon-sec-type"
                   aria-hidden="true"
@@ -228,8 +231,7 @@ function WeaponConsole({
                           aria-hidden="true"
                           style={glyphVars(WPN_STAT_CNS.atk, '--g')}
                         />
-                        {/* the level table carries fractions; the weapon pane
-                            floors base ATK, so this reads the same figure */}
+                        {/* Match canonical integer base ATK by flooring table fractions. */}
                         {Math.floor(stats.atk)}
                       </span>
                       <span className="wcon-stat" title={WPNSTATLBLS[weapon.statKey] ?? weapon.statKey}>
@@ -246,8 +248,6 @@ function WeaponConsole({
                 </span>
               </button>
 
-              {/* the level is typed rather than dragged: the weapon only ever
-                  needs the number */}
               <label className="wcon-lvl" data-max={level >= RES_LVL_MAX ? '1' : '0'}>
                 <span className="wcon-lvl-cap">Weapon Lv</span>
                 <span className="wcon-lvl-val">
@@ -264,7 +264,6 @@ function WeaponConsole({
               </label>
             </div>
 
-            {/* Syntonize rides the Simulation workspace's star track, lit by rarity. */}
             <div className="res-sequence wcon-rank-track">
               <div className="res-seq-track" role="radiogroup" aria-label="Syntonize rank">
                 {Array.from({ length: WPN_RANK_MAX }, (_, index) => index + 1).map((tier) => (

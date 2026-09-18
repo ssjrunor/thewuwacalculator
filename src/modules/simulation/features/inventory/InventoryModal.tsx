@@ -6,16 +6,18 @@
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties as CssProps, HTMLAttributes as HtmlAttrs, KeyboardEvent as KeyboardEvent, MouseEvent as RctMsVnt, ReactNode } from 'react'
-import {ArrowBigDownDash as ArrowDownIcon, Check, Clipboard, Copy, Maximize2, Minimize2, Pencil, Rows3, Scissors, Search, Trash2, X} from 'lucide-react'
+import {ArrowBigDownDash as ArrowDownIcon, Check, Clipboard, Copy, Maximize2, Minimize2, Pencil, Plus, Rows3, Scissors, Search, Trash2, X} from 'lucide-react'
 import type { SavedEcho, SavedBuild } from '@/domain/entities/inventoryStorage'
 import type { EchoInstance, WeaponState } from '@/domain/entities/runtime'
 import { equalBuildSnapshots } from '@/domain/entities/inventoryStorage'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService'
 import { getWpnById } from '@/domain/services/weaponCatalogService'
 import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { cmptEchoCrit } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'
+import { mkDefEchoNst } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
+import { EchoPicker } from '@/modules/simulation/features/echoes/Picker.tsx'
 import {
   getInvSlotFi,
   sortEntsByNa,
@@ -28,6 +30,7 @@ import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { mergeRefs } from '@/shared/lib/mergeRefs.ts'
 import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
 import { AppModal } from '@/shared/ui/AppModal'
+import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
 import {
@@ -96,10 +99,6 @@ function getInvEchoDs(entry: SavedEcho) {
   return getEchoById(entry.echo.id)?.name ?? toTitle(entry.echo.id)
 }
 
-/*
-  A sonata colour can be white and colours repeat between sets, so a set is
-  named by its glyph and only ever inked as a thin mark against the text.
-*/
 function sntTone(setId: number): string | undefined {
   const color = getSntSetClr(setId)
   return color ? `color-mix(in srgb, ${color} 68%, var(--text))` : undefined
@@ -111,7 +110,6 @@ function echoSubStats(echo: EchoInstance): EchoCardStat[] {
     .map(([key, value]) => ({ key, value }))
 }
 
-// who has this echo or build on right now, in the corner it has always been in
 function InvWear({ label, users }: { label: string; users: Array<InvEchoSg | InvBldUsr> }) {
   const shown = users.filter((user) => user.icon)
   if (shown.length === 0) {
@@ -156,12 +154,6 @@ function InvBadge({ users }: { users: InvEchoSg[] }) {
   )
 }
 
-/*
-  The bench opens a spine on hover for the writes a slot can take, so the bag
-  reads alike. It rides in over a readout the card can spare, the cost on an
-  echo and the weapon and wearers on a build, rather than pushing the rest of
-  the face aside.
-*/
 function InvGutter({ side, children }: { side: 'left' | 'right'; children: ReactNode }) {
   return (
     <div
@@ -180,8 +172,6 @@ function InvSlotRail({
   onEquip,
 }: {
   slotFitStates: InvSlotFitSt[]
-  // the cost is what decides which of these five an echo can take, so it reads
-  // here rather than in a caption of its own
   cost?: number
   onEquip: (slotIndex: number) => void
 }) {
@@ -322,8 +312,6 @@ function InvEchoEntCa({
     )
   }
 
-  /* selection mode carries the same writes in its own toolbar, so the spine
-     stays out of its way rather than competing for the click */
   const gutter = !selectMode
 
   return (
@@ -399,7 +387,6 @@ function InvEchoEntCa({
   )
 }
 
-// renders the wide-screen "currently selected echo" readout beside the compact wall.
 function EchoBagRdt({
   entry,
   usage,
@@ -657,16 +644,21 @@ export function InvMdl({
 }: InvMdlPrps) {
   const prssCmpcInv = useAppStore((state) => state.ui.compactInv)
   const setPrssCmpcI = useAppStore((state) => state.setCmpInv)
-  const grouped = useAppStore((state) => state.ui.groupInv)
+  const persistedGrouped = useAppStore((state) => state.ui.groupInv)
   const setGrouped = useAppStore((state) => state.setGrpInv)
 
   const [compact, setCmpcInv] = useState(prssCmpcInv)
   const [gridSwtc, setGridSwtc] = useState(false)
   const cmpcTglTmrRe = useRef<number | null>(null)
   const compactRef = useRef(compact)
+  const [grouped, setGroupedDraft] = useState(persistedGrouped)
+  const groupedRef = useRef(grouped)
   useEffect(() => {
     compactRef.current = compact
   }, [compact])
+  useEffect(() => {
+    groupedRef.current = grouped
+  }, [grouped])
   useEffect(() => () => {
     // defer persistence until unmount so rapid compact/full toggles do not spam the app store while the animation is
     // still in progress.
@@ -674,11 +666,32 @@ export function InvMdl({
     if (compactRef.current !== latest) {
       setPrssCmpcI(compactRef.current)
     }
-  }, [setPrssCmpcI])
+    const latestGrouped = useAppStore.getState().ui.groupInv
+    if (groupedRef.current !== latestGrouped) {
+      setGrouped(groupedRef.current)
+    }
+  }, [setGrouped, setPrssCmpcI])
 
   const titleId = useId()
   const menu = useCtxBuilder()
   const showToast = useTstStr((state) => state.show)
+  const addEchoModal = useAppModal()
+  const allEchoes = useMemo(() => listEchoes(), [])
+  const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
+  const addEcho = useCallback((echoId: string) => {
+    const instance = mkDefEchoNst(echoId, 0, null)
+    if (!instance) return
+
+    const addedCount = onAddInvChs([instance])
+    if (addedCount > 0) {
+      bumpPickerFreq({ bucket: 'echo', ids: [instance.id] })
+    }
+    showToast({
+      content: addedCount > 0 ? 'Added echo to inventory.' : 'This echo is already in inventory.',
+      variant: addedCount > 0 ? 'success' : 'warning',
+      duration: 2800,
+    })
+  }, [bumpPickerFreq, onAddInvChs, showToast])
   const [activeTab, setActiveTab] = useState<InventoryTab>('echoes')
   const railVisible = useMediaQuery('(min-width: 64rem)')
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -798,7 +811,7 @@ export function InvMdl({
       return false
     }
 
-    // clipboard payloads keep source metadata for future import flows while the paste resolver only needs echoes.
+    // The clipboard envelope includes source metadata; duplicate resolution reads only Echoes.
     const wrote = await writeEchoClip(makeEchoClip({
       source: 'inventory',
       resonatorId,
@@ -1030,7 +1043,7 @@ export function InvMdl({
       menu: menu.simulation.echo,
       entry,
       previewNode: (
-        <EchoStatPreview echo={entry.echo} resonatorId={resonatorId} />
+        <EchoStatPreview echo={entry.echo} />
       ),
       fits: slotFitStates.map((fitState, index) => ({
         fits: fitState.fits,
@@ -1073,7 +1086,6 @@ export function InvMdl({
     onQpInvEcho,
     onRmvInvEcho,
     pstClpbIntoI,
-    resonatorId,
   ])
 
   const openTileMenu = useCallback((entry: SavedEcho, slotFitStates: InvSlotFitSt[], event: RctMsVnt<HTMLElement> | KeyboardEvent<HTMLElement>) => {
@@ -1141,10 +1153,7 @@ export function InvMdl({
     startRnmMk,
   ])
 
-  /*
-    Both collections group, because a library is browsed by what a thing
-    belongs to: an echo by its sonata, a build by whose it is.
-  */
+  // Group Echoes by Sonata and saved builds by resonator identity.
   const echoGroups = useMemo(() => {
     if (!grouped) {
       return [{ setId: null as number | null, entries: filteredBag }]
@@ -1213,7 +1222,6 @@ export function InvMdl({
     return [...counts.entries()].sort((left, right) => left[1].name.localeCompare(right[1].name))
   }, [invBlds])
 
-  // the bench is the loadout being edited, listed so it can be read and jumped to
   const benchSlots = useMemo(() => currentBuild.echoes.map((echo, slotIndex) => {
     const definition = echo ? getEchoById(echo.id) : null
     const saved = echo?.uid
@@ -1223,8 +1231,7 @@ export function InvMdl({
   }), [currentBuild.echoes, invChs])
 
   const jumpToEcho = useCallback((savedId: string) => {
-    // the echo may be filtered out of the grid, so the filters step aside
-    // rather than the jump silently failing
+    // Clear filters before focusing an equipped Echo absent from the filtered grid.
     setSelCost(null)
     setSelSet(null)
     setEchoSrch('')
@@ -1270,7 +1277,7 @@ export function InvMdl({
         title={grouped ? 'Stop grouping' : (activeTab === 'echoes' ? 'Group by sonata' : 'Group by resonator')}
         aria-label={activeTab === 'echoes' ? 'Group by sonata' : 'Group by resonator'}
         aria-pressed={grouped}
-        onClick={() => setGrouped(!grouped)}
+        onClick={() => setGroupedDraft(!grouped)}
       >
         <Rows3 size="0.82rem" />
       </button>
@@ -1474,6 +1481,16 @@ export function InvMdl({
                 </div>
               ) : null}
               {headTools}
+              {activeTab === 'echoes' ? (
+                <button
+                  type="button" className="amdl__act"
+                  onClick={addEchoModal.show}
+                  title="Add an echo to inventory"
+                >
+                  <Plus size="0.82rem" aria-hidden="true" />
+                  <span>Add</span>
+                </button>
+              ) : null}
               <button
                 type="button" className="amdl__act inv-head__save"
                 onClick={onSaveInitEchoes}
@@ -1554,8 +1571,7 @@ export function InvMdl({
                                   onActivate={selMode ? undefined : (event) => {
                                     setPreviewId(entry.id)
                                     if (railVisible) {
-                                      // the readout already surfaces everything the quick-actions popup
-                                      // offers, so a plain click just updates the preview there instead.
+                                      // With the rail active, tile clicks select a preview without opening a menu.
                                       return
                                     }
                                     openTileMenu(entry, slotFitStates, event)
@@ -1665,6 +1681,19 @@ export function InvMdl({
           </div>
         </div>
       </AppModal>
+
+      {addEchoModal.visible ? (
+        <EchoPicker
+          {...addEchoModal.dialogProps}
+          portalTarget={portalTarget}
+          echoes={allEchoes}
+          slotIndex={0}
+          eyebrow="Inventory"
+          onSelect={addEcho}
+          onClear={addEchoModal.hide}
+          onClose={addEchoModal.hide}
+        />
+      ) : null}
 
       <ConfirmHost control={confirmation} portalTarget={portalTarget} />
     </>

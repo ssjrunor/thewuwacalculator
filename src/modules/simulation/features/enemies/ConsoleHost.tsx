@@ -1,27 +1,32 @@
 /*
   Author: Runor Ewhro
-  Description: Holds the open request for the target console so the head can
-               open it from any working surface. The target is one thing the
-               whole app is calculating against, so it is not the property of
-               the pane that happens to be showing.
-
-               Session-only, like the teammate console: a console left open at
-               unload should not reopen on the next visit.
+  Description: Holds session-only enemy-console requests and atomically commits
+               drafted target and runtime edits to the owning scenario.
 */
 
 import { useCallback, useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 import { useAppStore } from '@/domain/state/store.ts'
 import { selActResId, selEnemyProf, selWorkDrvd } from '@/domain/state/selectors.ts'
+import type { EnemyProfile } from '@/domain/entities/appState.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
+import { reviseCombatScenario } from '@/domain/entities/combatScenario.ts'
+import { applyRuntimeToSimulation, materializeScenarioRuntime } from '@/domain/state/runtimeAdapters.ts'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import { selLiveRun } from '@/modules/simulation/model/selectors.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { EnemyConsole } from '@/modules/simulation/features/enemies/Console.tsx'
 
 interface EnemyConsoleStore {
   open: boolean
   show: () => void
   close: () => void
+}
+
+interface EnemyConfigDraft {
+  runtime: ResRuntime | null
+  enemy: EnemyProfile
 }
 
 export const useEnemyCnsl = create<EnemyConsoleStore>((set) => ({
@@ -34,20 +39,41 @@ export function openEnemyCnsl(): void {
   useEnemyCnsl.getState().show()
 }
 
-/*
-  The console itself, standing where the head can reach it. It reads the same
-  three things the Simulation panes read, so the target it edits is the
-  target every surface is calculating against.
-*/
 export function EnemyConsoleHost() {
   const open = useEnemyCnsl((state) => state.open)
   const closeRequest = useEnemyCnsl((state) => state.close)
+  const scenarioId = useAppStore((state) => state.combat.selectedScenarioId)
   const actResId = useAppStore(selActResId)
   const enemyProfile = useAppStore(selEnemyProf)
-  const { prepWork, actRt } = useAppStore(selWorkDrvd)
-  const setEnemy = useAppStore((state) => state.setEnemy)
-  const updActRt = useAppStore((state) => state.updActRt)
+  const { prepWork, actRt, partRtsById } = useAppStore(selWorkDrvd)
+  const commitScenarioConfig = useAppStore((state) => state.commitScenarioConfig)
   const modal = useAppModal()
+
+  // Replay the draft against current scenario state and commit target/runtime
+  // changes together, rather than issuing independent store writes.
+  const commitDraft = useCallback((reducer: (current: EnemyConfigDraft) => EnemyConfigDraft) => {
+    commitScenarioConfig(scenarioId, (scenario) => {
+      const currentRuntime = actResId ? materializeScenarioRuntime(scenario, actResId) : null
+      const next = reducer({ runtime: currentRuntime, enemy: scenario.target })
+      let nextScenario = scenario
+
+      if (actResId && currentRuntime && next.runtime && next.runtime !== currentRuntime) {
+        nextScenario = applyRuntimeToSimulation(nextScenario, actResId, next.runtime).scenario
+      }
+      if (next.enemy !== scenario.target) {
+        nextScenario = reviseCombatScenario(nextScenario, { target: next.enemy })
+      }
+      return nextScenario
+    }, 'Updated Enemy Configuration')
+  }, [actResId, commitScenarioConfig, scenarioId])
+  const session = useConfigurationSession<EnemyConfigDraft>({
+    source: { runtime: actRt, enemy: enemyProfile },
+    commit: commitDraft,
+  })
+  const draftRuntime = session.draft.runtime
+  const draftRuntimesById = draftRuntime
+    ? { ...partRtsById, [draftRuntime.id]: draftRuntime }
+    : partRtsById
 
   const activeSeed = actResId ? seedRsntById[actResId] ?? null : null
   const simulation = useMemo(
@@ -55,11 +81,7 @@ export function EnemyConsoleHost() {
     [activeSeed, prepWork],
   )
 
-  /*
-    `show` is the stable half of the modal: the object around it is rebuilt on
-    every state change, so depending on that would re-open the modal on the
-    frame it just opened and it would never settle.
-  */
+  // Depend on the stable callback, not the modal object rebuilt by state changes.
   const { show } = modal
   useEffect(() => {
     if (open) show()
@@ -67,9 +89,10 @@ export function EnemyConsoleHost() {
 
   const close = useCallback(() => {
     modal.hide(() => {
+      session.finish()
       closeRequest()
     })
-  }, [closeRequest, modal])
+  }, [closeRequest, modal, session])
 
   if (!open) {
     return null
@@ -80,11 +103,15 @@ export function EnemyConsoleHost() {
       visible={modal.visible}
       open={modal.open}
       closing={modal.closing}
-      runtime={actRt}
-      enemyProfile={enemyProfile}
+      runtime={draftRuntime}
+      runtimesById={draftRuntimesById}
+      enemyProfile={session.draft.enemy}
       simulation={simulation}
-      onRtPdt={updActRt}
-      onEnemyChange={setEnemy}
+      onRtPdt={(updater) => session.update((draft) => ({
+        ...draft,
+        runtime: draft.runtime ? updater(draft.runtime) : draft.runtime,
+      }))}
+      onEnemyChange={(enemy) => session.update((draft) => ({ ...draft, enemy }))}
       onClose={close}
     />
   )

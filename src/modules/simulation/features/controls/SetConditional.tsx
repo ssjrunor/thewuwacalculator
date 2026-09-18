@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns set conditional behavior and state transitions for the controls module.
+  Description: Filters Sonata effect parts by ownership and piece count, then
+               edits sparse disabled-part overrides against catalog defaults.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -11,6 +12,7 @@ import { AppModal } from '@/shared/ui/AppModal'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
 import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
 import type { SelectOption } from '@/shared/ui/LiquidSelect.tsx'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
 import { getSntSetClr, getSntSetIco } from '@/data/gameData/catalog/sonataSets.ts'
 import {
@@ -121,7 +123,7 @@ export function SetCond(props: {
   open: boolean
   closing?: boolean
   portalTarget: HTMLElement | null
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
   setConds: SntSetConds
   onSetCondsrx: (updater: (current: SntSetConds) => SntSetConds) => void
   title?: string
@@ -143,31 +145,16 @@ export function SetCond(props: {
   const [sortBy, setSortBy] = useState<SortOption>('idAsc')
   const [openSet, setOpenSet] = useState<number | null>(null)
   const glblTglRef = useRef<HTMLInputElement | null>(null)
-  const rrnTmrRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (rrnTmrRef.current !== null) {
-        window.clearTimeout(rrnTmrRef.current)
-      }
-    }
-  }, [])
-
-  const schdChng = useCallback(() => {
-    if (!onFtrChng) {
-      return
-    }
-
-    // condition toggles can fire in bursts; debounce reruns so suggestions/optimizer consumers receive one refresh.
-    if (rrnTmrRef.current !== null) {
-      window.clearTimeout(rrnTmrRef.current)
-    }
-
-    rrnTmrRef.current = window.setTimeout(() => {
-      rrnTmrRef.current = null
-      onFtrChng()
-    }, 500)
-  }, [onFtrChng])
+  const session = useConfigurationSession({
+    source: setConds,
+    active: visible,
+    commit: (reducer) => {
+      onSetCondsCh(reducer)
+      onFtrChng?.()
+    },
+  })
+  const draftSetConds = session.draft
+  const close = useCallback(() => onClose(session.finish), [onClose, session])
 
   const sets = useMemo(() => {
     return ECHO_SET_DEFS.map((setMeta) => ({
@@ -222,8 +209,8 @@ export function SetCond(props: {
   }, [sets, pieceFilter, query, sortBy])
 
   const getChecked = useCallback((setId: number, partKey: string) => {
-    return getSntSetOn(setConds, setId, partKey)
-  }, [setConds])
+    return getSntSetOn(draftSetConds, setId, partKey)
+  }, [draftSetConds])
 
   const stats = useMemo(() => {
     // visible stats drive the global checkbox state for the currently filtered result set, not the entire catalog.
@@ -259,9 +246,8 @@ export function SetCond(props: {
       updates: Array<{ setId: number; partKey: string; checked: boolean }>,
   ) => {
     // override updates persist only explicit disabled parts while defaults stay catalog-driven.
-    onSetCondsCh((current) => withSntSet(current, updates))
-    schdChng()
-  }, [onSetCondsCh, schdChng])
+    session.update((current) => withSntSet(current, updates))
+  }, [session])
 
   const togglePart = useCallback((setId: number, partKey: string, checked: boolean) => {
     applyUpdates([{ setId, partKey, checked }])
@@ -291,7 +277,7 @@ export function SetCond(props: {
     setQuery(event.target.value)
   }, [])
 
-  // the rail entries carry live counts, so they answer the piece filter against the search alone.
+  // Piece-filter counts apply the search query but not the selected piece filter.
   const pieceCounts = useMemo(() => {
     const term = query.trim().toLowerCase()
     const counts: Record<PieceFilter, number> = { all: 0, one: 0, two: 0, three: 0, five: 0 }
@@ -323,10 +309,10 @@ export function SetCond(props: {
       state={{ visible, open, closing: closing ?? false }}
       variant="set-conditionals"
       ariaLabel={title}
-      onClose={onClose}
+      onClose={close}
     >
       <div className="amdl ssc-root">
-        <ModalHeader over="Simulation" title={<h2>{title}</h2>} onClose={onClose}>
+        <ModalHeader over="Simulation" title={<h2>{title}</h2>} onClose={close}>
           <div className="amdl__gauge">
             <div className="amdl__pill">
               <span className="amdl__pill-label">Sets</span>

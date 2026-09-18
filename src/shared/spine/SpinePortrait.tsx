@@ -382,7 +382,7 @@ function OverridePortrait({
   const [loaded, setLoaded] = useState(false)
   return (
     <img
-      className={`${spineClassName}${loaded ? ' is-ready' : ''}`}
+      className={`${spineClassName} is-override${loaded ? ' is-ready' : ''}`}
       style={style}
       src={url}
       alt=""

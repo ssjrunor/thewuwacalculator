@@ -32,7 +32,6 @@ export const rtNavLnks: RouteNavLink[] = [
   { to: APP_NAVIGATION.showcase.to, label: APP_NAVIGATION.showcase.name, Icon: FaInfo },
   { to: APP_NAVIGATION.optimizer.to, label: APP_NAVIGATION.optimizer.name, Icon: GiPokecog },
   { to: APP_NAVIGATION.calibration.to, label: APP_NAVIGATION.calibration.name, Icon: GiPokecog, iconClssName: 'settings-icon' },
-  { to: APP_NAVIGATION.info.to, label: APP_NAVIGATION.info.name, Icon: FaInfo },
   { to: APP_NAVIGATION.guides.to, label: APP_NAVIGATION.guides.name, Icon: FaQuestion, iconClssName: 'help-icon' },
   { to: APP_NAVIGATION.docs.to, label: APP_NAVIGATION.docs.name, Icon: TbMathFunction, iconClssName: 'docs-icon' },
   { to: APP_NAVIGATION.changelog.to, label: APP_NAVIGATION.changelog.name, Icon: ImHistory, iconClssName: 'changelog-icon' },

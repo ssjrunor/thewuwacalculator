@@ -33,7 +33,7 @@ import { repairEchoLoadoutForCatalog } from '@/domain/state/echoCatalogRepair'
 import {
   cloneSlotLuo,
   matRtFromPro,
-  matTeamMemFr,
+  materializeLegacyTeamMember,
 } from '@/domain/state/runtimeMaterialization'
 import { maxEchoIfChg } from '@/domain/state/sourceStateInit'
 import {
@@ -71,9 +71,15 @@ export function normalizeTargets(
   )
 }
 
-function normRtNegFfc(runtime: ResRuntime): ResRuntime {
+function normRtNegFfc(
+    runtime: ResRuntime,
+    runtimesById?: Record<string, ResRuntime>,
+): ResRuntime {
   const controls = normResRtCnt(runtime)
-  const combat = normNegFfctC(runtime)
+  const runtimeWithControls = controls === runtime.state.controls
+    ? runtime
+    : { ...runtime, state: { ...runtime.state, controls } }
+  const combat = normNegFfctC(runtimeWithControls, runtimesById)
   const cntrNchn = Object.keys(controls).every((key) => controls[key] === runtime.state.controls[key])
     && Object.keys(runtime.state.controls).every((key) => runtime.state.controls[key] === controls[key])
   const cmbtNchn = Object.keys(combat).every(
@@ -105,8 +111,19 @@ export function mkSelTgtResM(
 // active runtime, participant runtimes, team slots, and routing selections
 export function mkWorkRtBndl(scenario: CombatScenario): WorkRtBndl {
   const projection = projectScenarioUiRuntimes(scenario)
+  const controlsById = Object.fromEntries(
+    Object.entries(projection.runtimesById).map(([id, runtime]) => {
+      const controls = normResRtCnt(runtime)
+      return [id, controls === runtime.state.controls
+        ? runtime
+        : { ...runtime, state: { ...runtime.state, controls } }]
+    }),
+  )
   const partRntmById = Object.fromEntries(
-    Object.entries(projection.runtimesById).map(([id, runtime]) => [id, normRtNegFfc(runtime)]),
+    Object.entries(controlsById).map(([id, runtime]) => [
+      id,
+      normRtNegFfc(runtime, controlsById),
+    ]),
   )
   const actRt = partRntmById[projection.subjectRuntime.id] ?? null
 
@@ -220,11 +237,17 @@ export function makeRuntimeMap(
       continue
     }
 
+    const fllbRt = fllbRntmById[memberId]
+    if (fllbRt) {
+      runtimes[memberId] = fllbRt
+      continue
+    }
+
     const compactRuntime = (runtime.teamRuntimes ?? [null, null]).find((entry) => entry?.id === memberId) ?? null
     if (compactRuntime) {
       const seed = getResSeedBy(memberId)
       if (seed) {
-        runtimes[memberId] = matTeamMemFr(
+        runtimes[memberId] = materializeLegacyTeamMember(
           seed,
           compactRuntime,
           runtime.state.controls,
@@ -234,11 +257,6 @@ export function makeRuntimeMap(
         runtimes[memberId] = normRtNegFfc(runtimes[memberId])
         continue
       }
-    }
-
-    const fllbRt = fllbRntmById[memberId]
-    if (fllbRt) {
-      runtimes[memberId] = fllbRt
     }
   }
 
@@ -304,12 +322,7 @@ export function mkTeamMemRtL(scenario: CombatScenario): Record<string, TeamMemRt
 function memberFromRuntime(
   runtime: ResRuntime,
   previous: ScenarioTeamMember,
-  primary: boolean,
 ): ScenarioTeamMember {
-  const controls = Object.fromEntries(
-    Object.entries(runtime.state.controls)
-      .filter(([key]) => !primary || !key.startsWith('team:')),
-  )
   return {
     ...previous,
     resonatorId: runtime.id,
@@ -325,7 +338,7 @@ function memberFromRuntime(
     },
     local: {
       ...previous.local,
-      controls,
+      controls: { ...runtime.state.controls },
     },
   }
 }
@@ -344,7 +357,7 @@ function memberForAddedRuntime(
   const compact = runtime.teamRuntimes.find((member) => member?.id === resonatorId) ?? null
   const seed = getResSeedBy(resonatorId)
   const materialized = compact && seed
-    ? matTeamMemFr(
+    ? materializeLegacyTeamMember(
       seed,
       compact,
       runtime.state.controls,
@@ -388,7 +401,6 @@ export function applyRuntimeToSimulation(
   const updatedMember = memberFromRuntime(
     maxEchoIfChg(runtime, scenario.team.members[memberIndex].loadout.echoes),
     scenario.team.members[memberIndex],
-    primary,
   )
   const requestedIds = primary
     ? runtime.build.team.filter((id): id is string => Boolean(id)).slice(0, 3)

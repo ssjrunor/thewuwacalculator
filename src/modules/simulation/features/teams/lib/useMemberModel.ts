@@ -7,7 +7,7 @@
 import { useCallback, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
-import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
+import type { CombatScenario, CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import type { SavedBuild } from '@/domain/entities/inventoryStorage.ts'
 import type { SourceState } from '@/domain/gameData/contracts.ts'
 import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
@@ -29,8 +29,10 @@ import {
 import { mkSelTrgtByR } from '@/modules/simulation/model/teamTargets.ts'
 import { getResonator, type ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { flattenScenarioRouting } from '@/domain/state/scenarioRuntime.ts'
+import { applyRuntimeToSimulation, materializeScenarioRuntime } from '@/domain/state/runtimeAdapters.ts'
 import { prepareCombatScenarioForUi } from '@/engine/pipeline/combatScenario.ts'
 import { splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'
+import { useTeamSlots } from './teamSlots.ts'
 
 const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
 
@@ -50,6 +52,7 @@ export interface MemberModel {
   invBlds: SavedBuild[]
   onSqncChng: (value: number) => void
   onRtPdt: RtUpdHnd
+  setTeamMember: (slotIndex: number, resonatorId: string | null) => void
   getSelTgt: (ownerKey: string) => string | null
   setSelTgt: (ownerKey: string, tgtResId: string | null) => void
 }
@@ -57,25 +60,34 @@ export interface MemberModel {
 export function useMemberModel(
   memberId: string | null,
   scenarioId?: CombatScenarioId | null,
+  draft?: {
+    scenario: CombatScenario
+    updateScenario: (updater: (scenario: CombatScenario) => CombatScenario) => void
+  },
 ): MemberModel {
+  const { setMember: setTeamMember } = useTeamSlots({
+    scenarioId,
+    updateScenario: draft?.updateScenario,
+  })
   const { actRt: selectedRuntime, partRtsById: selectedPartRtsById } = useAppStore(useShallow(selWorkDrvd))
   const selectedEnemyProfile = useAppStore(selEnemyProf)
   const selectedTargets = useAppStore(selActTgtSlc)
   const targetScenario = useAppStore((state) => (
     scenarioId ? state.combat.scenariosById[scenarioId] ?? null : null
   ))
+  const resolvedScenario = draft?.scenario ?? targetScenario
   const preparedScenario = useMemo(
-    () => targetScenario ? prepareCombatScenarioForUi(targetScenario) : null,
-    [targetScenario],
+    () => resolvedScenario ? prepareCombatScenarioForUi(resolvedScenario) : null,
+    [resolvedScenario],
   )
   const runtime = scenarioId ? preparedScenario?.subjectRuntime ?? null : selectedRuntime
   const partRtsById = scenarioId
     ? preparedScenario?.runtimesById ?? EMPTY_RUNTIME_MAP
     : selectedPartRtsById
-  const enemyProfile = scenarioId ? targetScenario?.target ?? selectedEnemyProfile : selectedEnemyProfile
+  const enemyProfile = scenarioId ? resolvedScenario?.target ?? selectedEnemyProfile : selectedEnemyProfile
   const selTrgtByOwn = useMemo(
-    () => scenarioId && targetScenario ? flattenScenarioRouting(targetScenario) : selectedTargets,
-    [scenarioId, selectedTargets, targetScenario],
+    () => scenarioId && resolvedScenario ? flattenScenarioRouting(resolvedScenario) : selectedTargets,
+    [resolvedScenario, scenarioId, selectedTargets],
   )
   const invBlds = useAppStore((state) => state.library.builds)
   const updResRt = useAppStore((state) => state.updResRt)
@@ -161,17 +173,35 @@ export function useMemberModel(
 
   const onSqncChng = useCallback((value: number) => {
     if (!memberId) return
+    if (draft) {
+      draft.updateScenario((scenario) => {
+        const current = materializeScenarioRuntime(scenario, memberId)
+        if (!current) return scenario
+        const next = setResRtSequence(current, getResDtlsBy()[current.id], value)
+        return applyRuntimeToSimulation(scenario, memberId, next).scenario
+      })
+      return
+    }
     const update = scenarioId
       ? (updater: (runtime: ResRuntime) => ResRuntime) => updScenarioResRt(scenarioId, memberId, updater)
       : (updater: (runtime: ResRuntime) => ResRuntime) => updResRt(memberId, updater)
     update((prev) => setResRtSequence(prev, getResDtlsBy()[prev.id], value))
-  }, [memberId, scenarioId, updResRt, updScenarioResRt])
+  }, [draft, memberId, scenarioId, updResRt, updScenarioResRt])
 
   const onRtPdt = useCallback<RtUpdHnd>((updater) => {
     if (!memberId) return
+    if (draft) {
+      draft.updateScenario((scenario) => {
+        const current = materializeScenarioRuntime(scenario, memberId)
+        return current
+          ? applyRuntimeToSimulation(scenario, memberId, updater(current)).scenario
+          : scenario
+      })
+      return
+    }
     if (scenarioId) updScenarioResRt(scenarioId, memberId, updater)
     else updResRt(memberId, updater)
-  }, [memberId, scenarioId, updResRt, updScenarioResRt])
+  }, [draft, memberId, scenarioId, updResRt, updScenarioResRt])
 
   const getSelTgt = useCallback(
     (ownerKey: string) => selTrgtByOwn[ownerKey] ?? null,
@@ -180,6 +210,33 @@ export function useMemberModel(
 
   const setSelTgt = useCallback((ownerKey: string, tgtResId: string | null) => {
     if (!memberId) return
+    if (draft) {
+      draft.updateScenario((scenario) => {
+        const sourceMember = scenario.team.members.find(
+          (candidate) => candidate.resonatorId === memberId,
+        )
+        const targetMember = tgtResId
+          ? scenario.team.members.find((candidate) => candidate.resonatorId === tgtResId) ?? null
+          : null
+        if (!sourceMember || (tgtResId && !targetMember)) return scenario
+        const routeId = splitScopedTargetOwnerKey(ownerKey).ownerKey
+        const bySourceMemberId = {
+          ...scenario.environment.routing.bySourceMemberId,
+          [sourceMember.id]: {
+            ...scenario.environment.routing.bySourceMemberId[sourceMember.id],
+            [routeId]: targetMember?.id ?? null,
+          },
+        }
+        return {
+          ...scenario,
+          environment: {
+            ...scenario.environment,
+            routing: { bySourceMemberId },
+          },
+        }
+      })
+      return
+    }
     if (!scenarioId || !targetScenario) {
       setTargetRes(memberId, ownerKey, tgtResId)
       return
@@ -197,7 +254,7 @@ export function useMemberModel(
       splitScopedTargetOwnerKey(ownerKey).ownerKey,
       targetMember?.id ?? null,
     )
-  }, [memberId, scenarioId, setScenarioRouting, setTargetRes, targetScenario])
+  }, [draft, memberId, scenarioId, setScenarioRouting, setTargetRes, targetScenario])
 
   return {
     member,
@@ -211,6 +268,7 @@ export function useMemberModel(
     invBlds,
     onSqncChng,
     onRtPdt,
+    setTeamMember,
     getSelTgt,
     setSelTgt,
   }

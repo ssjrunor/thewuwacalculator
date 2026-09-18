@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: the optimizer's echo pool: the inventory library wearing one
-               extra question, whether the search is allowed to reach an echo.
+  Description: Drafts optimizer inventory include/exclude membership and derives
+               effective search-pool counts from saved Echoes and usage filters.
 */
 
 import { useCallback, useId, useMemo, useState } from 'react'
@@ -13,8 +13,6 @@ import { makeOptInventorySelection } from '@/domain/entities/profile'
 import type { InvEchoSg } from '@/domain/state/inventoryUsage'
 import { getEchoById } from '@/domain/services/echoCatalogService'
 import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
-import { getEchoScrPr } from '@/data/scoring/echoScoring'
-import { useEchoScoringRevision } from '@/data/scoring/useEchoScoringRevision'
 import { cmptEchoCrit } from '@/modules/simulation/features/echoes/lib/metric'
 import { mkSrchTkns, mtchSrchTkns } from '@/modules/simulation/features/echoes/lib/search'
 import { EchoStatGlyph } from '@/modules/simulation/features/echoes/lib/statGlyph'
@@ -25,6 +23,7 @@ import { AppModal } from '@/shared/ui/AppModal'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger'
 import type { MenuEntry } from '@/shared/ui/CtxMenu'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { echoCardVars, echoStatTitle, type EchoCardStat } from '@/shared/ui/EchoCard'
 import { hideBrknMg, withDefIconM, withDefResMg } from '@/shared/lib/imageFallback'
 import { toTitle } from '@/shared/lib/format'
@@ -33,20 +32,12 @@ import { mergeRefs } from '@/shared/lib/mergeRefs.ts'
 import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
 import { RichDscr } from '@/shared/ui/RichDescription'
 
-/*
-  Read in the order the game hands slots out, the same order the library reads
-  them in, so the two rails do not disagree about which class comes first.
-*/
 const POOL_COSTS = [4, 3, 1]
 
 function getInvEchoDs(entry: SavedEcho) {
   return getEchoById(entry.echo.id)?.name ?? toTitle(entry.echo.id)
 }
 
-/*
-  A sonata colour can be white and colours repeat between sets, so a set is
-  named by its glyph and only ever inked as a thin mark against the text.
-*/
 function sntTone(setId: number): string | undefined {
   const color = getSntSetClr(setId)
   return color ? `color-mix(in srgb, ${color} 68%, var(--text))` : undefined
@@ -112,12 +103,6 @@ function isEchoIncluded(selection: OptInventorySelection, uid: string | undefine
   return selection.mode === 'include' ? tracked : !tracked
 }
 
-/*
-  The library's compact tile, carrying membership instead of a slot index: an
-  echo the search can reach is painted as the library paints it, and one it
-  cannot is drained. Only the corner mark ever names the state, and only when
-  it has something to say.
-*/
 function OptInvTile({
   entry,
   usage,
@@ -212,31 +197,25 @@ function OptInvTile({
   )
 }
 
-// the wide-screen readout for the tile under the cursor, ending in the one write it offers
 function OptInvRdt({
   entry,
-  resonatorId,
   usage,
   included,
   onInclude,
   onExclude,
 }: {
   entry: SavedEcho
-  resonatorId: string
   usage: InvEchoSg[]
   included: boolean
   onInclude: () => void
   onExclude: () => void
 }) {
-  useEchoScoringRevision(resonatorId)
-
   const definition = getEchoById(entry.echo.id)
   if (!definition) {
     return null
   }
 
   const cv = cmptEchoCrit(entry.echo.substats)
-  const score = getEchoScrPr(resonatorId, entry.echo)
   const mains: EchoCardStat[] = [entry.echo.mainStats.primary, entry.echo.mainStats.secondary]
   const subs = echoSubStats(entry)
   const worn = usage.filter((equipped) => equipped.icon)
@@ -244,7 +223,7 @@ function OptInvRdt({
   return (
     <aside className="inv-rdt opi-rdt"
       data-in={included ? 'true' : 'false'}
-      style={echoCardVars({ setColor: sntTone(entry.echo.set), cv, score })}
+      style={echoCardVars({ setColor: sntTone(entry.echo.set), cv })}
       aria-label="Selected echo"
     >
       <div className="inv-rdt__art">
@@ -263,16 +242,10 @@ function OptInvRdt({
 
       <div className="inv-rdt__body">
         <div className="inv-card__caps opi-caps">
-          {score !== null ? <span className="opi-caps__score">Score {formatTruncCompact(score, 1)}%</span> : null}
           {cv > 0 ? <span className="inv-card__cv">CV {formatTruncCompact(cv, 1)}</span> : null}
           <span className="opi-caps__set">{getSntSetNam(entry.echo.set)}</span>
         </div>
 
-        {/*
-          The card keeps its main stats in the band and its rolls in the
-          ledger. There is no band here, so the two run as one ledger with
-          the mains lit and the rolls left plain.
-        */}
         <div className="ecr-card__list opi-ledger">
           {[...mains, ...subs].map((stat, index) => (
             <span
@@ -311,7 +284,6 @@ function OptInvRdt({
         </div>
       ) : null}
 
-      {/* the library ends its readout on the five slots it can be sent to; this one ends on the only pair it has */}
       <div className="opi-put">
         <button
           type="button"
@@ -340,8 +312,7 @@ export function OptimizerInventoryModal({
   closing,
   invChs,
   echoSgByUid,
-  resonatorId,
-  selection,
+  selection: sourceSelection,
   onSelectionChange,
   onClose,
 }: {
@@ -350,11 +321,17 @@ export function OptimizerInventoryModal({
   closing: boolean
   invChs: SavedEcho[]
   echoSgByUid: Record<string, InvEchoSg[]>
-  resonatorId: string
   selection: OptInventorySelection
   onSelectionChange: (updater: (selection: OptInventorySelection) => OptInventorySelection) => void
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
 }) {
+  const session = useConfigurationSession({
+    source: sourceSelection,
+    active: visible,
+    commit: onSelectionChange,
+  })
+  const selection = session.draft
+  const close = useCallback(() => onClose(session.finish), [onClose, session])
   const titleId = useId()
   const railVisible = useMediaQuery('(min-width: 64rem)')
   const [echoGridRef, echoGridCols] = useGridColumns()
@@ -401,11 +378,7 @@ export function OptimizerInventoryModal({
       (left, right) => getSntSetNam(left[0]).localeCompare(getSntSetNam(right[0])),
     )
   }, [validInvChs])
-  /*
-    The optimizer fills five slots under one cost cap, so a class it has run dry
-    of is the failure this screen exists to catch. The rail reports the pool by
-    cost class and each row doubles as the filter for it.
-  */
+  // Count saved and effectively included Echoes independently for each cost class.
   const poolRows = useMemo(() => {
     const rows = POOL_COSTS.map((cost) => ({ cost, held: 0, inPool: 0 }))
     const byCost = new Map(rows.map((row) => [row.cost, row]))
@@ -448,28 +421,28 @@ export function OptimizerInventoryModal({
   )
 
   const setMode = useCallback((mode: OptInventorySelection['mode']) => {
-    onSelectionChange((current) => ({
+    session.update((current) => ({
       ...current,
       mode,
     }))
-  }, [onSelectionChange])
+  }, [session])
 
   const reset = useCallback(() => {
-    onSelectionChange(() => makeOptInventorySelection())
-  }, [onSelectionChange])
+    session.update(() => makeOptInventorySelection())
+  }, [session])
 
   const applyEntries = useCallback((entries: SavedEcho[], included: boolean) => {
     const uids = entries.map((entry) => entry.echo.uid).filter((uid): uid is string => Boolean(uid))
-    onSelectionChange((current) => applyEffectiveState(current, uids, included))
-  }, [onSelectionChange])
+    session.update((current) => applyEffectiveState(current, uids, included))
+  }, [session])
 
   const toggleEntry = useCallback((entry: SavedEcho) => {
     const uid = entry.echo.uid
     if (!uid) {
       return
     }
-    onSelectionChange((current) => withUid(current, uid, !current.echoUids.includes(uid)))
-  }, [onSelectionChange])
+    session.update((current) => withUid(current, uid, !current.echoUids.includes(uid)))
+  }, [session])
 
   const selCtns = useMemo(() => [
     {
@@ -537,19 +510,14 @@ export function OptimizerInventoryModal({
       state={{ visible, open, closing }}
       variant="inventory"
       ariaLabelBy={titleId}
-      onClose={onClose}
+      onClose={close}
     >
       <div className="amdl inv-modal"
         onClick={(event) => event.stopPropagation()}
         {...echoSel.focusProps}
       >
-        <ModalHeader over="Optimizer" title={<h2 id={titleId}>Inventory Search</h2>} onClose={onClose}>
+        <ModalHeader over="Optimizer" title={<h2 id={titleId}>Inventory Search</h2>} onClose={close}>
           <div className="amdl__gauge inv-head">
-            {/*
-              The library's first control names which collection you are in.
-              This one names what a pick means, which is the only thing about
-              this modal a reader has to hold on to.
-            */}
             <div className="inv-tabs" role="group" aria-label="What picking an echo means">
               <button
                 type="button"
@@ -582,7 +550,6 @@ export function OptimizerInventoryModal({
               </div>
             ) : null}
 
-            {/* wiping the picks is worth a word, so it reads as an act and not as one more tool */}
             <button
               type="button" className="amdl__act opi-reset"
               title="Put every echo back in the pool"
@@ -703,7 +670,6 @@ export function OptimizerInventoryModal({
                   <OptInvRdt
                     key={previewEntry.id}
                     entry={previewEntry}
-                    resonatorId={resonatorId}
                     usage={previewEntry.echo.uid ? echoSgByUid[previewEntry.echo.uid] ?? [] : []}
                     included={isEchoIncluded(selection, previewEntry.echo.uid)}
                     onInclude={() => applyEntries([previewEntry], true)}

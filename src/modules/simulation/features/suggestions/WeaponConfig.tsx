@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns weapon config behavior and state transitions for the suggestions module.
+  Description: Normalizes weapon-search rarity, rank, and passive preferences
+               and drafts configuration shared by suggestion and optimizer runs.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,6 +26,7 @@ import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.
 import { rarityVars } from '@/modules/simulation/model/display.ts'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 const WPN_RARS = [5, 4, 3, 2, 1] as const
 const RANKS = [1, 2, 3, 4, 5] as const
@@ -102,27 +104,25 @@ function useWpnCfg({
   runtime,
   seed,
   lockMaxMode,
+  wpnSets,
+  updateWpnSets,
 }: {
   runtime: ResRuntime
   seed: ResSeed | null
   lockMaxMode: boolean
+  wpnSets: WeaponPlanSet
+  updateWpnSets: (updater: (current: WeaponPlanSet) => WeaponPlanSet) => void
 }) {
-  const weaponSuggests = useAppStore((state) => state.simulation.weaponSuggests)
-  const updWpnSuggs = useAppStore((state) => state.updWpnSuggs)
-
   const [wpnCfgView, setWpnCfgVw] = useState<WpnCfgView>('search')
   const [wpnStQuery, setWpnStQuery] = useState('')
   const [wpnStRarFlt, setWpnStRarFlt] = useState<RarFilter>('all')
-
-  const wpnSets = useMemo<WeaponPlanSet>(() => normPlan(weaponSuggests), [weaponSuggests])
 
   const stdWpns = useMemo(
     () => (seed ? listWpnsByTy(seed.weaponType).filter((wpn) => isStdWpn(wpn.id)) : []),
     [seed],
   )
 
-  // the sheet prints the pool each rarity rule admits, so it needs every weapon
-  // of the type, not only the ones carrying configurable passives.
+  // Rarity counts include all weapons of the type, not just configurable passives.
   const poolByRar = useMemo(() => {
     const pool: Record<string, GenWpn[]> = {}
     if (!seed) return pool
@@ -176,7 +176,7 @@ function useWpnCfg({
   }, [wpnStToggleStats.someChecked])
 
   const updWpnSets = useCallback((patch: Partial<WeaponPlanSet>) => {
-    updWpnSuggs((state) => {
+    updateWpnSets((state) => {
       const prev = normPlan(state)
       return {
         ...prev,
@@ -186,10 +186,10 @@ function useWpnCfg({
         states: patch.states ?? prev.states,
       }
     })
-  }, [updWpnSuggs])
+  }, [updateWpnSets])
 
   const updWpnSt = useCallback((wpnId: string, cntrKey: string, mkNext: (config: WpnStCfg) => WpnStCfg) => {
-    updWpnSuggs((state) => {
+    updateWpnSets((state) => {
       const prev = normPlan(state)
       const states = structuredClone(prev.states)
       const wpnCfg = { ...(states[wpnId] ?? {}) }
@@ -200,10 +200,10 @@ function useWpnCfg({
       else delete states[wpnId]
       return { ...prev, states }
     })
-  }, [updWpnSuggs])
+  }, [updateWpnSets])
 
   const applyAllVisibleStates = useCallback((checked: boolean) => {
-    updWpnSuggs((state) => {
+    updateWpnSets((state) => {
       const prev = normPlan(state)
       const states = structuredClone(prev.states)
       for (const row of filteredWpnStRows) {
@@ -220,7 +220,7 @@ function useWpnCfg({
       }
       return { ...prev, states }
     })
-  }, [filteredWpnStRows, updWpnSuggs])
+  }, [filteredWpnStRows, updateWpnSets])
 
   const wpnStProgressPct = wpnStToggleStats.total > 0
     ? `${(wpnStToggleStats.checked / wpnStToggleStats.total) * 100}%`
@@ -496,8 +496,6 @@ function useWpnCfg({
   return { tabs, headAside, body: wpnCfgView === 'search' ? searchBody : statesBody }
 }
 
-// the head carries the view switch and the view's own readout, so the modal
-// stands on one band instead of stacking a tab strip and a toolbar under it.
 export function WpnCfgMdl({
   visible,
   open,
@@ -512,11 +510,19 @@ export function WpnCfgMdl({
   open: boolean
   closing?: boolean
   title: string
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
   runtime: ResRuntime | null
   seed: ResSeed | null
   lockMaxMode?: boolean
 }) {
+  const weaponSuggests = useAppStore((state) => state.simulation.weaponSuggests)
+  const updWpnSuggs = useAppStore((state) => state.updWpnSuggs)
+  const session = useConfigurationSession<WeaponPlanSet>({
+    source: normPlan(weaponSuggests),
+    active: visible,
+    commit: updWpnSuggs,
+  })
+  const close = useCallback(() => onClose(session.finish), [onClose, session])
   const dashIdx = title.indexOf(' - ')
   const eyebrow = dashIdx !== -1 ? title.slice(0, dashIdx) : undefined
   const mainTitle = dashIdx !== -1 ? title.slice(dashIdx + 3) : title
@@ -526,13 +532,22 @@ export function WpnCfgMdl({
       state={{ visible, open, closing }}
       variant="weapon-config"
       ariaLabel={title}
-      onClose={onClose}
+      onClose={close}
     >
       <div className="amdl wcfg">
         {runtime ? (
-          <WpnCfgShell runtime={runtime} seed={seed} lockMaxMode={lockMaxMode} eyebrow={eyebrow} title={mainTitle} onClose={onClose} />
+          <WpnCfgShell
+            runtime={runtime}
+            seed={seed}
+            lockMaxMode={lockMaxMode}
+            eyebrow={eyebrow}
+            title={mainTitle}
+            onClose={close}
+            wpnSets={session.draft}
+            updateWpnSets={session.update}
+          />
         ) : (
-          <ModalHeader over={eyebrow} title={mainTitle} onClose={onClose} />
+          <ModalHeader over={eyebrow} title={mainTitle} onClose={close} />
         )}
       </div>
     </AppModal>
@@ -546,6 +561,8 @@ function WpnCfgShell({
   eyebrow,
   title,
   onClose,
+  wpnSets,
+  updateWpnSets,
 }: {
   runtime: ResRuntime
   seed: ResSeed | null
@@ -553,8 +570,16 @@ function WpnCfgShell({
   eyebrow?: string
   title: string
   onClose: () => void
+  wpnSets: WeaponPlanSet
+  updateWpnSets: (updater: (current: WeaponPlanSet) => WeaponPlanSet) => void
 }) {
-  const { tabs, headAside, body } = useWpnCfg({ runtime, seed, lockMaxMode })
+  const { tabs, headAside, body } = useWpnCfg({
+    runtime,
+    seed,
+    lockMaxMode,
+    wpnSets,
+    updateWpnSets,
+  })
   return (
     <>
       <ModalHeader over={eyebrow} title={title} onClose={onClose}>

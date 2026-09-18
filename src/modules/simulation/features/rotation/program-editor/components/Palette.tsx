@@ -13,6 +13,7 @@ import { formatDescription } from '@/shared/lib/formatDescription.ts'
 import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { useAppStore } from '@/domain/state/store.ts'
+import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { selEnemyProf, selWorkDrvd } from '@/domain/state/selectors.ts'
 import { isSkllVsbl, resolveSkill } from '@/engine/pipeline/resolveSkill.ts'
 import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay.ts'
@@ -97,10 +98,13 @@ function featureArt(member: RotationMember, feature: FeatDef): Pick<PaletteFeatu
 // one visible, resolved feature per skill, with the skill's hit rows hung
 // underneath it the way the skill menu lists them: a sub-hit is a detail of a
 // step, so it is reached through the step rather than beside it.
-function collectFeatures(member: RotationMember): PaletteFeature[] {
+function collectFeatures(
+  member: RotationMember,
+  runtimesById: Record<string, ResRuntime>,
+): PaletteFeature[] {
   const resolved = new Map<string, SkillDef>()
   for (const skill of member.skills) {
-    resolved.set(skill.id, resolveSkill(member.runtime, skill))
+    resolved.set(skill.id, resolveSkill(member.runtime, skill, undefined, runtimesById))
   }
 
   const hitsBySkill = new Map<string, FeatDef[]>()
@@ -126,7 +130,7 @@ function collectFeatures(member: RotationMember): PaletteFeature[] {
     }
 
     const skill = resolved.get(feature.skillId)
-    if (!skill || !isSkllVsbl(member.runtime, skill)) {
+    if (!skill || !isSkllVsbl(member.runtime, skill, undefined, runtimesById)) {
       continue
     }
 
@@ -168,7 +172,7 @@ function collectFeatures(member: RotationMember): PaletteFeature[] {
     }
 
     const skill = resolved.get(skillId)
-    if (!skill || !isSkllVsbl(member.runtime, skill)) {
+    if (!skill || !isSkllVsbl(member.runtime, skill, undefined, runtimesById)) {
       continue
     }
 
@@ -270,11 +274,7 @@ function featTile(
   )
 }
 
-/*
-  The line a state was found on, when the search found it in the text rather
-  than in any name. It is the reason the tile is still on screen, so it says
-  only as much of the sentence as the match needs to be read in.
-*/
+// Extract bounded context around the first case-insensitive description match.
 function mkSnippet(text: string, needle: string) {
   const at = text.toLowerCase().indexOf(needle)
   if (at < 0) {
@@ -421,10 +421,14 @@ export function Palette({
     () => (actRt ? visibleRotMembers(actRt, partRtsById) : []),
     [actRt, partRtsById],
   )
+  const runtimesById = useMemo(
+    () => Object.fromEntries(members.map((member) => [member.id, member.runtime])),
+    [members],
+  )
 
   const features = useMemo(
-    () => members.flatMap(collectFeatures),
-    [members],
+    () => members.flatMap((member) => collectFeatures(member, runtimesById)),
+    [members, runtimesById],
   )
 
   const memberAccents = useMemo(
@@ -437,9 +441,8 @@ export function Palette({
     [actRt, members, enemyProfile.id],
   )
 
-  /* the text a search reads and a snippet quotes: formatted the way the panel
-     formats it, then flattened, so a figure written as a parameter is searched
-     as the number it resolves to */
+  // Resolve description parameters before indexing so search and snippets use
+  // the same concrete text as condition inspection.
   const condText = useMemo(() => {
     const byId = new Map<string, string>()
     for (const choice of conditions) {

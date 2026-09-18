@@ -27,6 +27,7 @@ import {
 } from '@/domain/state/scenarioEnvironment'
 import { cloneOptInventorySelection } from '@/domain/entities/profile'
 import { cloneSntSet } from '@/domain/entities/sonataSetConditionals'
+import { normResRtCnt } from '@/domain/gameData/controlOptions'
 
 export function scenarioTeamSlots(scenario: CombatScenario): TeamSlots {
   return [
@@ -52,21 +53,6 @@ function compactMember(scenario: CombatScenario, member: ScenarioTeamMember): Te
   }
 }
 
-function compatibilityControls(
-  scenario: CombatScenario,
-  member: ScenarioTeamMember,
-): Record<string, boolean | number | string> {
-  const controls = { ...member.local.controls }
-  if (member.id !== scenario.team.members[0].id) return controls
-
-  for (const teammate of scenario.team.members.slice(1)) {
-    for (const [key, value] of Object.entries(teammate.local.controls)) {
-      controls[`team:${teammate.resonatorId}:${key}`] = value
-    }
-  }
-  return controls
-}
-
 export function projectScenarioMemberRuntime(
   scenario: CombatScenario,
   member: ScenarioTeamMember,
@@ -85,7 +71,7 @@ export function projectScenarioMemberRuntime(
       team: scenarioTeamSlots(scenario),
     },
     state: {
-      controls: compatibilityControls(scenario, member),
+      controls: { ...member.local.controls },
       manualBuffs: resolveEnvironmentManualBuffs(scenario.environment, member),
       combat: cloneCmbtStt(scenario.environment.combatState),
     },
@@ -211,6 +197,20 @@ export function projectScenarioMemberProfile(
 ): ResProf {
   const routing = flattenScenarioRouting(scenario)
   const runtime = projectScenarioMemberRuntime(scenario, member)
+  const controls = { ...normResRtCnt(runtime) }
+
+  // ResProf is a retired interchange shape whose teammate controls were stored
+  // on the context profile. Encode that envelope only here so profile clipboard
+  // round-trips cannot erase canonical scenario-member state.
+  for (const teammate of scenario.team.members) {
+    if (teammate.id === member.id) continue
+    const prefix = `team:${teammate.resonatorId}:`
+    const teammateRuntime = projectScenarioMemberRuntime(scenario, teammate)
+    for (const [key, value] of Object.entries(normResRtCnt(teammateRuntime))) {
+      controls[`${prefix}${key}`] = value
+    }
+  }
+
   return {
     resonatorId: member.resonatorId,
     runtime: {
@@ -220,7 +220,7 @@ export function projectScenarioMemberProfile(
         echoes: cloneEchoLoadout(member.loadout.echoes),
       },
       local: {
-        controls: { ...runtime.state.controls },
+        controls,
         manualBuffs: resolveEnvironmentManualBuffs(scenario.environment, member),
         combat: cloneCmbtStt(scenario.environment.combatState),
         setConditionals: cloneSntSet(member.local.setConditionals),

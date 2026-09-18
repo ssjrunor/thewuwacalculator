@@ -8,7 +8,7 @@ User-facing modules follow the `Home > Read / Simulation` hierarchy.
 
 Primary root: [src/modules/home](../src/modules/home)
 
-Home introduces the four Simulation tools and links into the Read collection. It does not own simulation state.
+Home introduces the Simulation tools and links into the Read collection. It does not own simulation state.
 
 ## Simulation
 
@@ -62,7 +62,7 @@ Modulation, Showcase, and Optimizer share the same mounted roster and rail. The 
 
 Primary root: [src/modules/read](../src/modules/read)
 
-Read owns Info, Guides, Docs, Changelog, Privacy, and Terms pages. What's New is an act on Home, read release by release along one hairline. Authored content lives under `src/data/content`.
+Read owns Guides, Docs, Changelog, Privacy, and Terms pages. What's New is an act on Home, read release by release along one hairline. Authored content lives under `src/data/content`.
 
 ## Settings And System
 

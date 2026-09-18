@@ -122,7 +122,7 @@ export function buildRotWeaponContexts(options: {
     const wpn = candidates[w]!
     const rt = withCandidateWeapon(baseRuntime, wpn, level, plan)
 
-    const participants = makeRuntimeMap(rt)
+    const participants = makeRuntimeMap(rt, input.runtimesById)
     const weaponTargets: CapturedRotationTarget[] = []
     const materialized = materializeResRotation({
       runtime: rt,
@@ -199,7 +199,7 @@ export function compRotRun(
   const rotationItems = stripRotLoops(input.rotTms ?? runtime.rotation.sequence)
   const rotRt: ResRuntime = runtime
 
-  const participants = makeRuntimeMap(rotRt)
+  const participants = makeRuntimeMap(rotRt, input.runtimesById)
   const targets: CapturedRotationTarget[] = []
   const materialized = materializeResRotation({
     runtime: rotRt,

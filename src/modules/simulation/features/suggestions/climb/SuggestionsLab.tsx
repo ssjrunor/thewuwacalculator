@@ -82,7 +82,6 @@ export function SuggestionsLab() {
   const echoes = runtime?.build.echoes ?? EMPTY_ECHOES
   const worn = useMemo(() => wornMainStats(echoes), [echoes])
   const wornSetPlan = useMemo(() => smmrCurSetPl(echoes), [echoes])
-
   const rows = useMemo<ClimbRow[]>(() => climbRows({
     kind,
     mainStatRslt: search.mainStatRslt,
@@ -115,8 +114,6 @@ export function SuggestionsLab() {
   )
 
   const applyRow = useCallback((row: ClimbRow) => {
-    if (row.now) return
-
     if (row.weapon) {
       const plan = row.weapon
       const wpnKey = (

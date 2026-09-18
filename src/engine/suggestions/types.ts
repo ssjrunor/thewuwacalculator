@@ -77,6 +77,7 @@ export type SuggestContext =
     | RotSuggCtx
 
 export interface MainStatPrep {
+  scoringInput: SuggestInput
   scenarioId: CombatScenarioId
   memberId: TeamMemberId
   context: SuggestContext
@@ -88,6 +89,7 @@ export interface MainStatPrep {
 }
 
 export interface PrepSetPlanS {
+  scoringInput: SuggestInput
   scenarioId: CombatScenarioId
   memberId: TeamMemberId
   context: SuggestContext

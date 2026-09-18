@@ -146,21 +146,21 @@ export const ENEMY_PRST: EnemyPrstDef[] = [
 // default selected enemy profile
 export const DEF_ENEMY_PROF: EnemyProfile = {
   id: DEF_ENEMY_ID,
-  level: 90,
+  level: 100,
   class: 4,
-  toa: false,
+  toa: true,
   source: 'catalog',
   status: {
     tuneStrain: 0,
   },
   res: {
-    0: 10,
-    1: 10,
-    2: 10,
-    3: 10,
-    4: 10,
-    5: 10,
-    6: 10,
+    0: 20,
+    1: 20,
+    2: 20,
+    3: 20,
+    4: 20,
+    5: 20,
+    6: 20,
   },
 }
 

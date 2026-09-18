@@ -65,12 +65,21 @@ const UTILITY_SCORE_STATS = new Set(['energyRegen', 'healingBonus'])
 // otherwise recompute the same sort for every visible Echo.
 const maxEchoScoreCache = new Map<string, number>()
 const mainWeightCeilingCache = new Map<string, number>()
+const substatScoreScaleCache = new Map<string, number>()
 
 export interface EchoMainStatScoreProfile {
   cacheKey: string
   charId: string
   weightsByCost: Record<number, Record<string, number>>
   bestByCost: Record<number, string[]>
+  /** The fixed, legal 25-roll reference selected by the packed evaluator. */
+  idealSubstatCounts?: Record<string, number>
+  /** Useful value ceilings for those rolls, excluding over-cap tails. */
+  idealSubstatValues?: Record<string, number>
+  /** Main-stat multiplicities from the same five-Echo reference build. */
+  mainCountsByCost?: Record<number, Record<string, number>>
+  /** Concrete legal substat layout used to evaluate the reference. */
+  referenceEchoes?: EchoInstance[]
 }
 
 const MAIN_STAT_PROFILE_LIMIT = 24
@@ -78,6 +87,51 @@ const mainStatProfiles = new Map<string, EchoMainStatScoreProfile>()
 const activeMainStatProfileByChar = new Map<string, string>()
 const mainStatProfileRevisionByChar = new Map<string, number>()
 const mainStatProfileListenersByChar = new Map<string, Set<() => void>>()
+
+function activeMainStatProfile(charId: string): EchoMainStatScoreProfile | undefined {
+  const activeKey = activeMainStatProfileByChar.get(charId)
+  return activeKey ? mainStatProfiles.get(activeKey) : undefined
+}
+
+export interface EchoScoringReference {
+  idealSubstatCounts: Record<string, number>
+  idealSubstatValues: Record<string, number>
+  mainCountsByCost: Record<number, Record<string, number>>
+  referenceEchoes: EchoInstance[]
+}
+
+// Expose the active reference as a copy so diagnostics and tests can explain
+// exactly which legal five-Echo target produces 100% without mutating it.
+export function getEchoScoringReference(charId: string): EchoScoringReference | null {
+  const profile = activeMainStatProfile(charId)
+  if (!profile?.idealSubstatCounts || !profile.mainCountsByCost) {
+    return null
+  }
+
+  return {
+    idealSubstatCounts: { ...profile.idealSubstatCounts },
+    idealSubstatValues: profile.idealSubstatValues
+      ? { ...profile.idealSubstatValues }
+      : Object.fromEntries(Object.entries(profile.idealSubstatCounts).map(([key, count]) => [
+        key,
+        (SUBSTAT_RANGES[key]?.max ?? 0) * count,
+      ])),
+    mainCountsByCost: Object.fromEntries(
+      Object.entries(profile.mainCountsByCost).map(([cost, counts]) => [
+        cost,
+        { ...counts },
+      ]),
+    ),
+    referenceEchoes: (profile.referenceEchoes ?? []).map((echo) => ({
+      ...echo,
+      mainStats: {
+        primary: { ...echo.mainStats.primary },
+        secondary: { ...echo.mainStats.secondary },
+      },
+      substats: { ...echo.substats },
+    })),
+  }
+}
 
 function notifyMainStatProfile(charId: string): void {
   mainStatProfileRevisionByChar.set(
@@ -139,9 +193,8 @@ export function getGeneratedMainStatWeight(
   return ceiling > 0 ? weight / ceiling : 0
 }
 
-// Select a cached simulation profile without rebuilding it. A miss leaves the
-// current profile visible until its replacement finishes, avoiding a flash of
-// legacy weights while the new build context is being prepared.
+// A cache miss retains the current scoring profile until a replacement is
+// prepared; it does not temporarily restore generated fallback weights.
 export function activateEchoMainStatScoreProfile(
     charId: string,
     cacheKey: string,
@@ -202,8 +255,7 @@ export function deactivateEchoMainStatScoreProfile(charId: string): void {
 // appear at this cost. This keeps the best 1/3/4-cost main worth the same 44
 // points without flattening the generated damage weights used for substats.
 function getMainWeight(charId: string, key: string, cost: number): number {
-  const activeKey = activeMainStatProfileByChar.get(charId)
-  const profile = activeKey ? mainStatProfiles.get(activeKey) : undefined
+  const profile = activeMainStatProfile(charId)
   if (profile?.bestByCost[cost]?.includes(key)) {
     return 1
   }
@@ -228,6 +280,33 @@ function resScrVl(key: string, isSubStat: boolean, cost: number): number {
   return isSubStat ? getSbstScr(key) : getMnstScr(key, cost)
 }
 
+// Generated weights preserve the relative value of maximum legal rolls, but
+// their absolute ceiling can differ by character after flat-stat calibration.
+// Normalize that effective ceiling before combining substats with the fixed
+// 44-point main-stat reference so Echo percentages remain comparable.
+function getSubstatScoreScale(charId: string): number {
+  const cacheKey = `${getWeightSetKey()}:${charId}`
+  const cached = substatScoreScaleCache.get(cacheKey)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const referenceScore = SUBSTAT_RANGES.critDmg?.max ?? 0
+  const maxContribution = Object.entries(getWeightObj(charId))
+      .filter(([key]) => key in SUBSTAT_RANGES && !UTILITY_SCORE_STATS.has(key))
+      .reduce((maximum, [key, weight]) => {
+        const maxValue = SUBSTAT_RANGES[key]?.max ?? 0
+        const contribution = resScrVl(key, true, 0) * maxValue * weight
+        return Math.max(maximum, contribution)
+      }, 0)
+  const scale = referenceScore > 0 && maxContribution > 0
+    ? referenceScore / maxContribution
+    : 1
+
+  substatScoreScaleCache.set(cacheKey, scale)
+  return scale
+}
+
 export interface EchoScrRslt {
   mainScore: number
   subScore: number
@@ -242,6 +321,7 @@ export function getEchoScrs(charId: string, echo: EchoInstance | null): EchoScrR
 
   const def = getEchoById(echo.id)
   const cost = def?.cost ?? 1
+  const substatScoreScale = getSubstatScoreScale(charId)
   let mainScore = 0
   let subScore = 0
 
@@ -262,7 +342,7 @@ export function getEchoScrs(charId: string, echo: EchoInstance | null): EchoScrR
 
     const scoreValue = resScrVl(key, true, cost)
     const weight = getWeight(charId, key)
-    subScore += scoreValue * value * weight
+    subScore += scoreValue * value * weight * substatScoreScale
   }
 
   // guard against accidental NaN propagation
@@ -308,6 +388,7 @@ export function getMaxEchoSc(
   }
 
   const weights = getWeightObj(charId)
+  const substatScoreScale = getSubstatScoreScale(charId)
 
   const scored = Object.entries(weights)
       // only substats that can actually roll on echoes matter here
@@ -319,7 +400,7 @@ export function getMaxEchoSc(
           key,
           weight,
           maxValue: specMax,
-          score: rawScore * specMax,
+          score: rawScore * specMax * substatScoreScale,
         }
       })
       .filter(({ score }) => Number.isFinite(score) && score > 0)
@@ -357,10 +438,176 @@ export function getEchoScrPr(charId: string, echo: EchoInstance | null): number 
   return (getEchoScrs(charId, echo).totalScore / maxScore) * 100
 }
 
+interface EchoLoadoutScoreResult {
+  scores: Array<number | null>
+  totalScore: number
+  maxScore: number
+}
+
+const REFERENCE_MAIN_SCORE = 44
+const REFERENCE_SUBSTAT_SCORE = SUBSTAT_RANGES.critDmg.max
+const FULL_REFERENCE_ECHO_SCORE = REFERENCE_MAIN_SCORE + (5 * REFERENCE_SUBSTAT_SCORE)
+
+function scoreEchoLoadoutReference(
+    charId: string,
+    echoes: Array<EchoInstance | null>,
+    profile: EchoMainStatScoreProfile,
+): EchoLoadoutScoreResult | null {
+  const idealSubstats = profile.idealSubstatCounts
+  const mainTargets = profile.mainCountsByCost
+  if (!idealSubstats || !mainTargets) {
+    return null
+  }
+
+  const idealSlots = Object.values(idealSubstats).reduce((sum, count) => sum + count, 0)
+  if (idealSlots !== 25 || Object.values(idealSubstats).some((count) => count < 0 || count > 5)) {
+    return null
+  }
+
+  const earned = echoes.map(() => ({ main: 0, sub: 0 }))
+  const fullMainIndices = new Set<number>()
+
+  // Main-stat counts belong to the whole reference build. When a build has
+  // more copies than the legal target, deterministic UID ordering decides
+  // which copy consumes the target rather than awarding every duplicate 44.
+  for (const [costText, targetCounts] of Object.entries(mainTargets)) {
+    const cost = Number(costText)
+    for (const [key, count] of Object.entries(targetCounts)) {
+      echoes
+        .flatMap((echo, index) => (
+          echo
+          && getEchoById(echo.id)?.cost === cost
+          && echo.mainStats.primary.key === key
+            ? [{ index, uid: echo.uid }]
+            : []
+        ))
+        .sort((left, right) => left.uid.localeCompare(right.uid) || left.index - right.index)
+        .slice(0, Math.max(0, count))
+        .forEach(({ index }) => fullMainIndices.add(index))
+    }
+  }
+
+  for (let index = 0; index < echoes.length; index += 1) {
+    const echo = echoes[index]
+    if (!echo) continue
+    const key = echo.mainStats.primary.key
+    if (UTILITY_SCORE_STATS.has(key)) continue
+    const cost = getEchoById(echo.id)?.cost ?? 1
+    const targetCount = mainTargets[cost]?.[key] ?? 0
+    const weight = fullMainIndices.has(index)
+      ? 1
+      : targetCount > 0
+        ? 0
+        : Math.max(0, Math.min(1, profile.weightsByCost[cost]?.[key]
+          ?? getGeneratedMainStatWeight(charId, key, cost)))
+    earned[index].main = REFERENCE_MAIN_SCORE * weight
+  }
+
+  // Share each family's fixed point budget proportionally across its rolls.
+  // Total credit saturates at the useful value ceiling, with at most one full
+  // roll's credit per Echo. No piece loses HP credit just because another UID
+  // won a tie, and extra over-cap value cannot increase the loadout score.
+  for (const [key, count] of Object.entries(idealSubstats)) {
+    const maxValue = SUBSTAT_RANGES[key]?.max ?? 0
+    if (count <= 0 || maxValue <= 0 || UTILITY_SCORE_STATS.has(key)) continue
+
+    const targetValue = Math.max(
+      Number.EPSILON,
+      Math.min(maxValue * count, profile.idealSubstatValues?.[key] ?? (maxValue * count)),
+    )
+    const candidates = echoes
+      .flatMap((echo, index) => {
+        const value = echo?.substats[key]
+        if (!echo || typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+          return []
+        }
+        return [{ index, uid: echo.uid, value: Math.min(value, maxValue) }]
+      })
+      .sort((left, right) => (
+        (right.value / maxValue) - (left.value / maxValue)
+        || left.uid.localeCompare(right.uid)
+        || left.index - right.index
+      ))
+    const totalValue = candidates.reduce((sum, candidate) => sum + candidate.value, 0)
+    let remainingPoints = count * REFERENCE_SUBSTAT_SCORE
+      * Math.min(1, totalValue / targetValue)
+    let active = candidates.map((candidate) => ({ ...candidate }))
+    while (active.length > 0 && remainingPoints > 0) {
+      const activeValue = active.reduce((sum, candidate) => sum + candidate.value, 0)
+      if (activeValue <= 0) break
+      const capped = active.filter((candidate) => (
+        (remainingPoints * candidate.value) / activeValue >= REFERENCE_SUBSTAT_SCORE
+      ))
+      if (capped.length === 0) {
+        for (const candidate of active) {
+          earned[candidate.index].sub += remainingPoints * candidate.value / activeValue
+        }
+        break
+      }
+      for (const candidate of capped) {
+        earned[candidate.index].sub += REFERENCE_SUBSTAT_SCORE
+        remainingPoints -= REFERENCE_SUBSTAT_SCORE
+      }
+      const cappedIndices = new Set(capped.map(({ index }) => index))
+      active = active.filter(({ index }) => !cappedIndices.has(index))
+    }
+  }
+
+  let totalScore = 0
+  let maxScore = 0
+  const scores = echoes.map((echo, index) => {
+    if (!echo) {
+      maxScore += FULL_REFERENCE_ECHO_SCORE
+      return null
+    }
+
+    const includeMain = !UTILITY_SCORE_STATS.has(echo.mainStats.primary.key)
+    const subSlots = Math.max(0, 5 - utilitySubstatSlots(echo))
+    const echoMax = (includeMain ? REFERENCE_MAIN_SCORE : 0)
+      + (subSlots * REFERENCE_SUBSTAT_SCORE)
+    const echoScore = Math.min(echoMax, earned[index].main + earned[index].sub)
+    totalScore += echoScore
+    maxScore += echoMax
+    return echoMax > 0 ? (echoScore / echoMax) * 100 : 0
+  })
+
+  return { scores, totalScore, maxScore }
+}
+
+// Score Echoes as one loadout against the active fixed legal reference. The
+// fallback exists only while no simulation profile has been prepared yet.
+export function getEchoLoadoutScores(
+    charId: string,
+    echoes: Array<EchoInstance | null>,
+): Array<number | null> {
+  if (!charId) {
+    return echoes.map(() => null)
+  }
+
+  const profile = activeMainStatProfile(charId)
+  const reference = profile
+    ? scoreEchoLoadoutReference(charId, echoes, profile)
+    : null
+  return reference?.scores
+    ?? echoes.map((echo) => (echo ? getEchoScrPr(charId, echo) : null))
+}
+
 // score the full five-echo build as a percent of the theoretical maximum
 export function getMkScrPrcn(charId: string, echoes: Array<EchoInstance | null>): number {
   if (!charId) {
     return 0
+  }
+
+  const loadout = echoes.slice(0, 5)
+  while (loadout.length < 5) loadout.push(null)
+  const profile = activeMainStatProfile(charId)
+  const reference = profile
+    ? scoreEchoLoadoutReference(charId, loadout, profile)
+    : null
+  if (reference) {
+    return reference.maxScore > 0
+      ? (reference.totalScore / reference.maxScore) * 100
+      : 0
   }
 
   const fullEchoMax = getMaxEchoSc(charId)
@@ -370,7 +617,7 @@ export function getMkScrPrcn(charId: string, echoes: Array<EchoInstance | null>)
   // Preserve the five-Echo build denominator for empty slots while allowing
   // each equipped Echo to omit only the utility slots it actually contains.
   for (let index = 0; index < 5; index += 1) {
-    const echo = echoes[index] ?? null
+    const echo = loadout[index] ?? null
     maxMkScr += echo ? getMaxEchoSc(charId, echo) : fullEchoMax
     totalScore += getEchoScrs(charId, echo).totalScore
   }

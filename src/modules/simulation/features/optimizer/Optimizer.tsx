@@ -17,13 +17,13 @@ import {
 import { OptimizerLab } from './transport/OptimizerLab.tsx'
 import { OptStage } from './transport/OptStage.tsx'
 import { OptTransport } from './transport/OptTransport.tsx'
-import type { EchoInstance, ResRuntime, TeamMemRt } from '@/domain/entities/runtime'
+import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
-import { cloneOptSets, makeTeamMember, maxRtInit } from '@/domain/state/defaults'
-import { initWpnStts, maxWpnRt } from '@/domain/state/sourceStateInit'
-import { matTeamMemFr } from '@/domain/state/runtimeMaterialization'
+import { cloneOptSets } from '@/domain/state/defaults'
+import { maxWpnRt } from '@/domain/state/sourceStateInit'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { useAppModal, useAppModalValue } from '@/shared/ui/useAppModal.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import type {SelectOption, SelectGroup} from '@/shared/ui/LiquidSelect'
 import {getEchoCatBy} from '@/data/gameData/catalog/echoes'
@@ -36,7 +36,7 @@ import {getEchoById, listEchoes} from '@/domain/services/echoCatalogService'
 import {weaponEquipState} from '@/engine/optimizer/context/weaponOverlays.ts'
 import {getWpnById} from '@/domain/services/weaponCatalogService'
 import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
-import { makeRuntimeMap, materializeScenarioRuntime } from '@/domain/state/runtimeAdapters'
+import { makeRuntimeMap, mkPartRtLkp } from '@/domain/state/runtimeAdapters'
 import {useAppStore} from '@/domain/state/store'
 import {
   selActTgtSlc,
@@ -71,10 +71,6 @@ import {ResPckr as ResPckrMdl} from '@/modules/simulation/features/resonator/Pic
 import {CharPtnsPnl} from '@/modules/simulation/features/optimizer/ResonatorOptionsPanel.tsx'
 import {WpnCfgMdl} from '@/modules/simulation/features/suggestions/WeaponConfig.tsx'
 import { TeamPanel } from '@/modules/simulation/features/optimizer/TeamPanel.tsx'
-import {
-  mkMateCntr,
-  teamRuntime,
-} from '@/domain/state/teamRuntime'
 import {ControlBox} from '@/modules/simulation/features/optimizer/ControlBox.tsx'
 import {
   type OptDisplayRow,
@@ -104,6 +100,7 @@ import {
   type Predicate,
 } from '@/modules/simulation/features/optimizer/lib/results.ts'
 import { RES_MENU } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+import { useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
 import { getWeapon, weaponStatsAt } from '@/modules/simulation/features/weapons/lib/weapon.ts'
 import {
   type EchoPlan,
@@ -136,18 +133,14 @@ import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
 import { useSel } from '@/modules/simulation/lib/sel.tsx'
 import { getOptCtx } from '@/modules/simulation/features/optimizer/lib/ctx.tsx'
 
-// the canonical route stands the Build Lab board; the retired console layout
-// stays reachable at its own url as `legacy`.
+// The legacy route retains the retired layout; canonical routes use the shared workspace.
 export type OptimizerVariant = 'embedded' | 'legacy'
 
-// ceiling on the wait, so a transition that never reports back cannot hold
-// the run hostage
+// Bound transition waits even when no completion event arrives.
 const BAND_SETTLE_CAP_MS = 700
 
-// a run flips the band's fold, and compile work landing on the main thread
-// mid-fold stutters it. give react the frame to commit, then wait out the
-// band's own transitions (the fold and its children's padding retract).
-// nothing to wait for when the fold did not move or motion is reduced.
+// Delay synchronous compilation until React commits the fold and its active
+// transitions finish. Skip the wait when no transition runs or motion is reduced.
 function settleBand(band: HTMLElement | null): Promise<unknown> {
   if (!band) {
     return Promise.resolve()
@@ -183,10 +176,8 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   const scenario = useAppStore((state) => selectedCombatScenario(state.combat))
   const optimizerMember = contextScenarioMember(scenario)
   const optResId = optimizerMember.resonatorId
-  const optRt = useMemo(
-    () => materializeScenarioRuntime(scenario, optResId),
-    [optResId, scenario],
-  )
+  const optRuntimesById = useMemo(() => mkPartRtLkp(scenario), [scenario])
+  const optRt = optRuntimesById[optResId] ?? null
   const storedOptSets = useAppStore((state) => state.simulation.optimizerSettings)
   const optSetsResonatorId = useAppStore(
     (state) => state.simulation.optimizerSettingsResonatorId,
@@ -199,12 +190,13 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
     return cloneOptSets({
       ...deriveOptSets({
         runtime: optRt,
+        runtimesById: optRuntimesById,
         enemy: enemyProfile,
         selectedTargets: activeTarget,
       }),
       ...preserveToggles(storedOptSets),
     })
-  }, [activeTarget, enemyProfile, optResId, optRt, optSetsResonatorId, storedOptSets])
+  }, [activeTarget, enemyProfile, optResId, optRt, optRuntimesById, optSetsResonatorId, storedOptSets])
   const optStts = useAppStore((state) => state.optimizer.status)
   const optResults = useAppStore((state) => (
     Array.isArray(state.optimizer.results)
@@ -238,6 +230,13 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   const updateScenarioRuntime = useCallback((updater: (runtime: ResRuntime) => ResRuntime) => {
     updResRt(optResId, updater)
   }, [optResId, updResRt])
+  const updateMemberRuntime = useCallback((
+    resonatorId: string,
+    updater: (runtime: ResRuntime) => ResRuntime,
+  ) => {
+    updResRt(resonatorId, updater)
+  }, [updResRt])
+  const { setMember: setTeamMember } = useTeamSlots()
   const optInvSelection = optimizerMember.local.optimizerInventory
   const updResOptInv = useAppStore((state) => state.updResOptInv)
   const optSetConds = optimizerMember.local.setConditionals
@@ -263,9 +262,8 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   const [facetTable, setFacetTable] = useState<ResultFacet[] | null>(null)
   // which console mode the body shows: filter (WHERE, subsets) or find (jump).
   const [consoleMode, setConsoleMode] = useState<'filter' | 'find'>('filter')
-  // find (jump-to): predicates to step through within the current view. unlike
-
-  // matching build. findPos is the display position last jumped to.
+  // Find predicates navigate within the filtered view without removing rows.
+  // findPos records the last matching display position.
   const [findPreds, setFindPreds] = useState<Predicate[]>([])
   const [findPos, setFindPos] = useState(-1)
   // index into pageItems whose ellipsis is currently expanded into a jumper
@@ -293,6 +291,11 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   const weaponPicker = useAppModalValue<OpSlot>()
 
   const mdlPrtlTgt = mainPortal()
+  const mainEchoSession = useConfigurationSession({
+    source: optSets,
+    active: mainEchoPckr.visible,
+    commit: updOptSets,
+  })
 
   useLytFfct(() => {
     function handleResize() {
@@ -338,6 +341,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
     if (!optRt) {
       return {
         runtime: null,
+        runtimesById: {} as Record<string, ResRuntime>,
         plans: [null, null] as [EchoPlan | null, EchoPlan | null],
         invalidMainEchoes: [null, null] as [string | null, string | null],
       }
@@ -345,13 +349,13 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
 
     const rslvPlns = [...echoPlans] as [EchoPlan | null, EchoPlan | null]
     const nvldMainChs: [string | null, string | null] = [null, null]
-    const nextTeamRuns = [...optRt.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
+    const nextRuntimesById = { ...optRuntimesById }
     let changed = false
 
     // teammate echo plans are authored as lightweight preferences, so rebuild
     // the concrete teammate loadouts here before downstream optimizer prep.
     for (const slotIndex of [0, 1] as const) {
-      const memRt = makeOpSlot(optRt, slotIndex)
+      const memRt = makeOpSlot(optRt, slotIndex, optRuntimesById)
       if (!memRt) {
         continue
       }
@@ -367,29 +371,26 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         continue
       }
 
-      nextTeamRuns[slotIndex] = teamRuntime({
+      nextRuntimesById[memRt.id] = {
         ...memRt,
         build: {
           ...memRt.build,
           echoes: resolvedPlan.effectEchoes,
         },
-      })
+      }
       changed = true
     }
 
     return {
-      runtime: changed
-        ? {
-            ...optRt,
-            teamRuntimes: nextTeamRuns,
-          }
-        : optRt,
+      runtime: optRt,
+      runtimesById: changed ? nextRuntimesById : optRuntimesById,
       plans: rslvPlns,
       invalidMainEchoes: nvldMainChs,
     }
-  }, [optRt, echoPlans])
+  }, [optRt, optRuntimesById, echoPlans])
 
   const effectRuntime = mateEchoPlan.runtime
+  const effectRuntimesById = mateEchoPlan.runtimesById
   const rslvEchoPlns = mateEchoPlan.plans
   const nvldMateMain = mateEchoPlan.invalidMainEchoes
 
@@ -632,6 +633,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
 
     const ntlSets = deriveOptSets({
       runtime: effectRuntime,
+      runtimesById: effectRuntimesById,
       enemy: enemyProfile,
       selectedTargets: activeTarget,
     })
@@ -640,7 +642,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       mainStatFilter: [...(ntlSets.mainStatFilter ?? [])],
       selectedBonus: ntlSets.selectedBonus ?? null,
     }
-  }, [activeTarget, enemyProfile, effectRuntime])
+  }, [activeTarget, effectRuntime, effectRuntimesById, enemyProfile])
 
   const runOptSets = useMemo(() => {
     if (!isThryMode && targetSkillId === optSets.targetSkillId) {
@@ -676,10 +678,18 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       resonatorId,
       skillId: tgtSkllId,
       enemy: enemyProfile,
-      runtimesById: makeRuntimeMap(effectRuntime),
+      runtimesById: makeRuntimeMap(effectRuntime, effectRuntimesById),
       selectedTargets: activeTarget,
     })
-  }, [activeTarget, effectRuntime, enemyProfile, optResId, rotationMode, targetSkillId])
+  }, [
+    activeTarget,
+    effectRuntime,
+    effectRuntimesById,
+    enemyProfile,
+    optResId,
+    rotationMode,
+    targetSkillId,
+  ])
 
   const optWghtMap = useMemo(() => {
     if (
@@ -810,6 +820,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         echoStats: getEchoSttsSrc() ?? undefined,
       },
       runtime: effectRuntime,
+      runtimesById: effectRuntimesById,
       settings: {
         ...runOptSets,
         searchMode: 'inventory',
@@ -842,6 +853,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
     optimizerMember.id,
     scenario.id,
     effectRuntime,
+    effectRuntimesById,
     optSetConds,
     runOptSets,
     rotationMode,
@@ -1372,10 +1384,10 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   const selWpnPckrRt = useMemo(
     () => (
       optRt && selWpnPckrSl !== null
-        ? makeOpSlot(optRt, selWpnPckrSl)
+        ? makeOpSlot(optRt, selWpnPckrSl, optRuntimesById)
         : null
     ),
-    [optRt, selWpnPckrSl],
+    [optRt, optRuntimesById, selWpnPckrSl],
   )
 
   const selWpnPckrWp = useMemo(() => {
@@ -1422,77 +1434,26 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
 
   const applyOptWpnS = useCallback((slot: OpSlot, weaponId: string) => {
     const selWpn = getWeapon(weaponId)
-    if (!selWpn) {
-      return
-    }
+    if (!selWpn) return
 
-    updateScenarioRuntime((prev) => {
-      if (slot === 'active') {
-        const nextLevel = maxResOnInit ? 90 : prev.build.weapon.level
-        const stats = weaponStatsAt(selWpn, nextLevel)
-        const nextRuntime = {
-          ...prev,
-          build: {
-            ...prev.build,
-            weapon: {
-              ...prev.build.weapon,
-              id: selWpn.id,
-              level: nextLevel,
-              baseAtk: stats.atk,
-              rank: 1,
-            },
-          },
-        }
-        const initializedRuntime = maxResOnInit
-          ? maxWpnRt(nextRuntime, { targetRank: 1 })
-          : nextRuntime
-        const nextControls = { ...initializedRuntime.state.controls }
-        clrWpnSttCnt(nextControls, prev.build.weapon.id)
-        applyWpnSttD(nextControls, selWpn.id, '', initializedRuntime, maxResOnInit)
+    const memberId = slot === 'active' ? optResId : optRt?.build.team[slot + 1]
+    if (!memberId) return
 
-        return {
-          ...initializedRuntime,
-          state: {
-            ...initializedRuntime.state,
-            controls: nextControls,
-          },
-        }
-      }
+    const update = slot === 'active'
+      ? updateScenarioRuntime
+      : (updater: (runtime: ResRuntime) => ResRuntime) => updateMemberRuntime(memberId, updater)
 
-      const memberId = prev.build.team[slot + 1]
-      if (!memberId) {
-        return prev
-      }
-
-      const seed = seedRsntById[memberId] ?? null
-      if (!seed) {
-        return prev
-      }
-
-      const currentRuntime = prev.teamRuntimes[slot]
-      const resolvedRuntime = currentRuntime?.id === memberId
-        ? currentRuntime
-        : makeTeamMember(seed)
-      const materialRuntime = matTeamMemFr(
-        seed,
-        resolvedRuntime,
-        prev.state.controls,
-        prev.state.combat,
-        prev.build.team,
-      )
-      const curRt = maxResOnInit && currentRuntime?.id !== memberId
-        ? maxRtInit(materialRuntime)
-        : currentRuntime?.id !== memberId
-          ? initWpnStts(materialRuntime, { maxed: false })
-          : materialRuntime
-      const stats = weaponStatsAt(selWpn, curRt.build.weapon.level)
+    update((prev) => {
+      const nextLevel = maxResOnInit ? 90 : prev.build.weapon.level
+      const stats = weaponStatsAt(selWpn, nextLevel)
       const runtimeWithWeapon: ResRuntime = {
-        ...curRt,
+        ...prev,
         build: {
-          ...curRt.build,
+          ...prev.build,
           weapon: {
-            ...curRt.build.weapon,
+            ...prev.build.weapon,
             id: selWpn.id,
+            level: nextLevel,
             baseAtk: stats.atk,
             rank: 1,
           },
@@ -1502,25 +1463,14 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         ? maxWpnRt(runtimeWithWeapon, { targetRank: 1 })
         : runtimeWithWeapon
       const nextControls = { ...initializedRuntime.state.controls }
-      clrWpnSttCnt(nextControls, curRt.build.weapon.id)
+      clrWpnSttCnt(nextControls, prev.build.weapon.id)
       applyWpnSttD(nextControls, selWpn.id, '', initializedRuntime, maxResOnInit)
-      const nextRuntime: ResRuntime = {
+      return {
         ...initializedRuntime,
         state: {
           ...initializedRuntime.state,
           controls: nextControls,
         },
-      }
-      const nextTeamRuns = [...prev.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
-      nextTeamRuns[slot] = teamRuntime(nextRuntime)
-
-      return {
-        ...prev,
-        state: {
-          ...prev.state,
-          controls: mkMateCntr(prev.state.controls, [memberId], memberId, nextRuntime),
-        },
-        teamRuntimes: nextTeamRuns,
       }
     })
 
@@ -1531,65 +1481,29 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         ids: [selWpn.id],
       })
     }
-  }, [bumpPickerFreq, maxResOnInit, selWpnPckroe, updateScenarioRuntime])
+  }, [
+    bumpPickerFreq,
+    maxResOnInit,
+    optResId,
+    optRt,
+    selWpnPckroe,
+    updateMemberRuntime,
+    updateScenarioRuntime,
+  ])
 
   const applyOptMate = useCallback((slotIndex: 0 | 1, resonatorId: string) => {
-    updateScenarioRuntime((prev) => {
-      const nextSeed = seedRsntById[resonatorId] ?? null
-      if (!nextSeed) {
-        return prev
-      }
-
-      const curMemId = prev.build.team[slotIndex + 1]
-      const nextTeam = [...prev.build.team] as typeof prev.build.team
-      nextTeam[slotIndex + 1] = resonatorId
-
-      const materialRuntime = matTeamMemFr(
-        nextSeed,
-        makeTeamMember(nextSeed),
-        prev.state.controls,
-        prev.state.combat,
-        nextTeam,
-      )
-      const nextRuntime = maxResOnInit
-        ? maxRtInit(materialRuntime)
-        : initWpnStts(materialRuntime, { maxed: false })
-      const currentRuntime = prev.teamRuntimes[slotIndex]
-      const memberIdsClear = Array.from(
-        new Set([currentRuntime?.id, curMemId].filter((value): value is string => Boolean(value))),
-      )
-      const nextTeamRuns = [...prev.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
-      nextTeamRuns[slotIndex] = teamRuntime(nextRuntime)
-
-      return {
-        ...prev,
-        build: {
-          ...prev.build,
-          team: nextTeam,
-        },
-        state: {
-          ...prev.state,
-          controls: mkMateCntr(prev.state.controls, memberIdsClear, resonatorId, nextRuntime),
-        },
-        teamRuntimes: nextTeamRuns,
-      }
-    })
+    setTeamMember(slotIndex + 1, resonatorId)
 
     setEchoPlans((prev) => {
       const next = [...prev] as [EchoPlan | null, EchoPlan | null]
       next[slotIndex] = null
       return next
     })
-    bumpPickerFreq({
-      bucket: 'teamResonator',
-      slot: slotIndex === 0 ? 'teammate1' : 'teammate2',
-      ids: [resonatorId],
-    })
-  }, [bumpPickerFreq, maxResOnInit, setEchoPlans, updateScenarioRuntime])
+  }, [setEchoPlans, setTeamMember])
 
   const addSetPref = useCallback((slotIndex: 0 | 1, setId: number) => {
     setEchoPlans((prev) => {
-      const memRt = optRt ? makeOpSlot(optRt, slotIndex) : null
+      const memRt = optRt ? makeOpSlot(optRt, slotIndex, optRuntimesById) : null
       if (!memRt) {
         return prev
       }
@@ -1601,11 +1515,11 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       )
       return next
     })
-  }, [optRt, setEchoPlans])
+  }, [optRt, optRuntimesById, setEchoPlans])
 
   const rmSetPref = useCallback((slotIndex: 0 | 1, setId: number) => {
     setEchoPlans((prev) => {
-      const memRt = optRt ? makeOpSlot(optRt, slotIndex) : null
+      const memRt = optRt ? makeOpSlot(optRt, slotIndex, optRuntimesById) : null
       if (!memRt) {
         return prev
       }
@@ -1617,11 +1531,11 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       )
       return next
     })
-  }, [optRt, setEchoPlans])
+  }, [optRt, optRuntimesById, setEchoPlans])
 
   const setSetCount = useCallback((slotIndex: 0 | 1, setId: number, count: number) => {
     setEchoPlans((prev) => {
-      const memRt = optRt ? makeOpSlot(optRt, slotIndex) : null
+      const memRt = optRt ? makeOpSlot(optRt, slotIndex, optRuntimesById) : null
       if (!memRt) {
         return prev
       }
@@ -1634,38 +1548,20 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       )
       return next
     })
-  }, [optRt, setEchoPlans])
+  }, [optRt, optRuntimesById, setEchoPlans])
 
   const rmMate = useCallback((slotIndex: 0 | 1) => {
-    updateScenarioRuntime((prev) => {
-      const curMemId = prev.build.team[slotIndex + 1]
-      const nextTeam = [...prev.build.team] as typeof prev.build.team
-      nextTeam[slotIndex + 1] = null
-      const nextTeamRuns = [...prev.teamRuntimes] as [TeamMemRt | null, TeamMemRt | null]
-      nextTeamRuns[slotIndex] = null
-      const nextControls: Record<string, boolean | number | string> = {}
-      for (const [key, value] of Object.entries(prev.state.controls)) {
-        if (!curMemId || !key.startsWith(`team:${curMemId}:`)) {
-          nextControls[key] = value
-        }
-      }
-      return {
-        ...prev,
-        build: { ...prev.build, team: nextTeam },
-        teamRuntimes: nextTeamRuns,
-        state: { ...prev.state, controls: nextControls },
-      }
-    })
+    setTeamMember(slotIndex + 1, null)
     setEchoPlans((prev) => {
       const next = [...prev] as [EchoPlan | null, EchoPlan | null]
       next[slotIndex] = null
       return next
     })
-  }, [setEchoPlans, updateScenarioRuntime])
+  }, [setEchoPlans, setTeamMember])
 
   const rmMateMainEc = useCallback((slotIndex: 0 | 1) => {
     setEchoPlans((prev) => {
-      const memRt = optRt ? makeOpSlot(optRt, slotIndex) : null
+      const memRt = optRt ? makeOpSlot(optRt, slotIndex, optRuntimesById) : null
       if (!memRt) {
         return prev
       }
@@ -1677,22 +1573,22 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       )
       return next
     })
-  }, [optRt, setEchoPlans])
+  }, [optRt, optRuntimesById, setEchoPlans])
 
   const openResPckr = useCallback((slot: OpSlot = 'active') => {
     resPckr.show(slot)
   }, [resPckr])
 
-  const clsResPckr = () => {
-    resPckr.hide()
+  const clsResPckr = (onClosed?: () => void) => {
+    resPckr.hide(onClosed)
   }
 
   const openWpnPckr = (slot: OpSlot) => {
     weaponPicker.show(slot)
   }
 
-  const clsWpnPckr = () => {
-    weaponPicker.hide()
+  const clsWpnPckr = (onClosed?: () => void) => {
+    weaponPicker.hide(onClosed)
   }
 
   const openMainEcho = (target: OpEchoTarget = 'filter') => {
@@ -1700,12 +1596,12 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   }
 
   const clsMainEchoP = () => {
-    mainEchoPckr.hide()
+    mainEchoPckr.hide(mainEchoSession.finish)
   }
 
   const mainEchoPiece = mainEchoPckr.value ?? 'filter'
   const selMainEchoI = mainEchoPiece === 'filter'
-    ? optSets.lockedMainEchoId
+    ? mainEchoSession.draft.lockedMainEchoId
     : rslvEchoPlns[mainEchoPiece]?.mainEchoId ?? null
 
   const isLoading = optStts === 'running'
@@ -1742,6 +1638,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         echoStats: getEchoSttsSrc() ?? undefined,
       },
       runtime: optRt,
+      runtimesById: effectRuntimesById,
       settings: runOptSets,
       invChs: fltrInvEchoE.map((entry) => entry.echo),
       enemyProfile,
@@ -1758,6 +1655,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
   }, [
     activeTarget,
     enemyProfile,
+    effectRuntimesById,
     fltrInvEchoE,
     openUiModal,
     optCpuHintSe,
@@ -2021,9 +1919,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
                             }
                           }}
                           onBlur={() => {
-                            // empty blur cancels silently; non-empty
-                            // commits so trailing-input edge cases
-                            // (click-away after typing) feel intentional.
+                            // Blur cancels an empty draft and commits a populated one.
                             if (jumpDraft.length === 0) {
                               closeJump()
                             } else {
@@ -2128,18 +2024,14 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
     ? `${optResId}:result:${rslvPrvwTgt.index}`
     : `${optResId}:base`
 
-  // theory mode only learns its emit count from the worker, so the stage's
-  // headline stays empty until a run reports one rather than showing a count
-  // the engine never quoted.
+  // Theory search obtains its exact candidate count from worker progress,
+  // unlike inventory mode's precomputed combination count.
   const stagePermutations = isThryMode
     ? ((progress.total ?? 0) > 0 ? Math.floor(progress.total ?? 0).toLocaleString() : null)
     : shldCntCombo
       ? rslvComboCnt.toLocaleString()
       : '0'
 
-  // the results and the stage never share the board, and neither do the results
-  // and the band: while rows are up the band folds away and the list takes the
-  // height it leaves behind.
   const resultsOnBoard = !isLoading && optResults.length > 0
 
   const labSurface = (
@@ -2211,59 +2103,20 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
           onRun={onRunOpt}
           onHalt={handleHalt}
           onClear={clearRun}
-          onSearchMode={(value) => updOptSets((settings) => ({ ...settings, searchMode: value }))}
-          onTargetMode={onTgtModeChn}
-          onTargetSkill={(value) => updOptSets((settings) => ({ ...settings, targetSkillId: value }))}
-          onTargetCombo={(value) => updOptSets((settings) => ({ ...settings, targetComboSourceId: value }))}
+          onConfig={(config) => {
+            const nextRotationMode = config.targetMode === 'combo'
+            updOptSets((settings) => ({
+              ...settings,
+              ...config,
+              rotationMode: nextRotationMode,
+            }))
+            if (rotationMode !== nextRotationMode) clearRun()
+          }}
           onOpenMainEcho={() => openMainEcho()}
           onClearMainEcho={() => updOptSets((settings) => ({ ...settings, lockedMainEchoId: null }))}
-          onAllowedSets={(value) => updOptSets((settings) => ({ ...settings, allowedSets: value }))}
-          onToggleMainStat={(value) => {
-            updOptSets((settings) => ({
-              ...settings,
-              mainStatFilter: settings.mainStatFilter.includes(value)
-                ? settings.mainStatFilter.filter((entry) => entry !== value)
-                : [...settings.mainStatFilter, value],
-            }))
-          }}
-          onPickBonus={(value) => {
-            updOptSets((settings) => ({
-              ...settings,
-              selectedBonus: value,
-              mainStatFilter: settings.mainStatFilter.includes('bonus')
-                ? settings.mainStatFilter
-                : [...settings.mainStatFilter, 'bonus'],
-            }))
-          }}
-          onClearBonus={() => {
-            updOptSets((settings) => ({
-              ...settings,
-              selectedBonus: null,
-              mainStatFilter: settings.mainStatFilter.filter((entry) => entry !== 'bonus'),
-            }))
-          }}
-          onClearMainStats={() => {
-            updOptSets((settings) => ({ ...settings, mainStatFilter: [], selectedBonus: null }))
-          }}
-          onToggleExcludeEquipped={(value) => updOptSets((settings) => ({ ...settings, excludeEquipped: value }))}
-          onToggleWeapons={(value) => updOptSets((settings) => ({ ...settings, includeWeapons: value }))}
-          onKeepPercent={(value) => updOptSets((settings) => ({ ...settings, keepPercent: value }))}
           onOpenInventorySearch={optInvMdl.show}
           onOpenSetCond={setCondsMdl.show}
           onOpenWeaponCond={wpnCondMdl.show}
-          onStatLimit={(statKey, field, value) => {
-            updOptSets((settings) => ({
-              ...settings,
-              statConstraints: {
-                ...settings.statConstraints,
-                [statKey]: { ...settings.statConstraints[statKey], [field]: value },
-              },
-            }))
-          }}
-          onClearStatLimits={() => updOptSets((settings) => ({ ...settings, statConstraints: {} }))}
-          onResultsLimit={(value) => updOptSets((settings) => ({ ...settings, resultsLimit: value }))}
-          onEnableGpu={(value) => updOptSets((settings) => ({ ...settings, enableGpu: value }))}
-          onLowMemory={(value) => updOptSets((settings) => ({ ...settings, lowMemoryMode: value }))}
           onGuide={() => navigate('/guides?category=optimizer')}
           onRules={openRlsMdl}
         />
@@ -2446,12 +2299,14 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
                   rarity={activeSeed?.rarity ?? 4}
                   displayName={displayName}
                   optRt={effectRuntime}
+                  runtimesById={effectRuntimesById}
                   invalidMainIds={nvldMateMain}
                   mateSetPrefs={[
                     rslvEchoPlns[0]?.setPrefs ?? [],
                     rslvEchoPlns[1]?.setPrefs ?? [],
                   ]}
                   onRtPdt={updateScenarioRuntime}
+                  onMemberRtPdt={updateMemberRuntime}
                   onOpenMate={openResPckr}
                   onOpenWeapon={openWpnPckr}
                   onOpenMateMenu={(slotIndex) => openMainEcho(slotIndex)}
@@ -2468,10 +2323,6 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
               {resultsTable}
               {echoPreview}
               </Expandable>
-              {/* the dock stays the last child of optimizer-details so its flow
-                  position is the true bottom of the scrolled content; the pane is
-                  the single scroll container for both axes in compact mode, which
-                  lets the dock's sticky bottom+left pin against it. */}
               {!isWide ? <ControlBox isWide={false} {...controlProps} /> : null}
             </div>
           </div>
@@ -2489,7 +2340,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         maxCost={12}
         onSelect={(echoId: string) => {
           if (mainEchoPiece === 'filter') {
-            updOptSets((settings) => ({
+            mainEchoSession.update((settings) => ({
               ...settings,
               lockedMainEchoId: echoId,
             }))
@@ -2501,7 +2352,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
           }
 
           setEchoPlans((prev) => {
-            const memRt = optRt ? makeOpSlot(optRt, mainEchoPiece) : null
+            const memRt = optRt ? makeOpSlot(optRt, mainEchoPiece, optRuntimesById) : null
             if (!memRt) {
               return prev
             }
@@ -2520,7 +2371,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         }}
         onClear={() => {
           if (mainEchoPiece === 'filter') {
-            updOptSets((settings) => ({
+            mainEchoSession.update((settings) => ({
               ...settings,
               lockedMainEchoId: null,
             }))
@@ -2528,7 +2379,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
           }
 
           setEchoPlans((prev) => {
-            const memRt = optRt ? makeOpSlot(optRt, mainEchoPiece) : null
+            const memRt = optRt ? makeOpSlot(optRt, mainEchoPiece, optRuntimesById) : null
             if (!memRt) {
               return prev
             }
@@ -2550,7 +2401,6 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         closing={optInvMdl.closing}
         invChs={optEligibleInvEchoE}
         echoSgByUid={optInvEchoSg}
-        resonatorId={optResId}
         selection={optInvSelection}
         onSelectionChange={(updater) => updResOptInv(optResId, updater)}
         onClose={optInvMdl.hide}
@@ -2583,12 +2433,13 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
         closeLabel="Close"
         panelWidth="regular"
         onSelect={(resonatorId) => {
-          if (resPickerSlot === null || resPickerSlot === 'active') {
-            selectOptimizerResonator(resonatorId)
-          } else {
-            applyOptMate(resPickerSlot, resonatorId)
-          }
-          clsResPckr()
+          clsResPckr(() => {
+            if (resPickerSlot === null || resPickerSlot === 'active') {
+              selectOptimizerResonator(resonatorId)
+            } else {
+              applyOptMate(resPickerSlot, resonatorId)
+            }
+          })
         }}
         onClose={clsResPckr}
       />
@@ -2609,9 +2460,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
           if (selWpnPckrSl === null) {
             return
           }
-
-          applyOptWpnS(selWpnPckrSl, weaponId)
-          clsWpnPckr()
+          clsWpnPckr(() => applyOptWpnS(selWpnPckrSl, weaponId))
         }}
         onClose={clsWpnPckr}
       />

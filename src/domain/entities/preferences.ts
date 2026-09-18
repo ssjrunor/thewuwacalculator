@@ -150,7 +150,7 @@ export const DEF_UI_PREFS: UiPrefs = {
   maxResOnInit: true,
   animatedRailPortraits: true,
   showcaseCards: {},
-  showcaseLayout: 'classic',
+  showcaseLayout: 'seal',
   uploadPersist: null,
   imgbbApiKey: '',
   playerId: '',

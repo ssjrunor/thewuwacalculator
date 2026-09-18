@@ -13,8 +13,66 @@ import { listFfctForO } from '@/domain/services/gameDataService'
 import { listResSds } from '@/domain/services/resonatorSeedService'
 import { makeResRuntime } from '@/domain/state/defaults'
 import { evalCond } from '@/engine/effects/evaluator'
+import type { CondExpr } from '@/domain/gameData/contracts'
+
+function acceptedModeValues(condition: CondExpr | undefined, path: string): Set<string> | null {
+  if (!condition) return null
+  if (condition.type === 'eq' && condition.from === 'sourceRuntime' && condition.path === path) {
+    return new Set([String(condition.value)])
+  }
+  if (condition.type !== 'or') return null
+
+  const values = condition.values.map((entry) => acceptedModeValues(entry, path))
+  if (values.some((entry) => entry === null)) return null
+  return new Set(values.flatMap((entry) => [...(entry ?? [])]))
+}
 
 describe('resonator Max invariants', () => {
+  it('repairs every required mode selector to a valid authored mode', () => {
+    for (const seed of listResSds()) {
+      const details = getResDtlsBy()[seed.id]
+      for (const group of getResModeGroups(details).filter((entry) => !entry.allowNone)) {
+        const runtime = makeResRuntime(seed)
+        const missingControls = { ...runtime.state.controls }
+        delete missingControls[group.controlKey]
+        const invalidControls = {
+          ...runtime.state.controls,
+          [group.controlKey]: '__invalid_mode__',
+        }
+        const validModes = new Set(group.modes.map((mode) => String(mode.id)))
+
+        expect(validModes.has(String(normResRtCnt({
+          ...runtime,
+          state: { ...runtime.state, controls: missingControls },
+        })[group.controlKey])), `${seed.id} missing ${group.controlKey}`).toBe(true)
+        expect(validModes.has(String(normResRtCnt({
+          ...runtime,
+          state: { ...runtime.state, controls: invalidControls },
+        })[group.controlKey])), `${seed.id} invalid ${group.controlKey}`).toBe(true)
+      }
+    }
+  })
+
+  it('does not gate a control on being in any of a required mode selector\'s modes', () => {
+    for (const seed of listResSds()) {
+      const details = getResDtlsBy()[seed.id]
+      const controls = getResStateControls(details)
+      for (const group of getResModeGroups(details).filter((entry) => !entry.allowNone)) {
+        const modeValues = new Set(group.modes.map((mode) => String(mode.id)))
+        const path = `state.controls.${group.controlKey}`
+
+        for (const control of controls) {
+          const accepted = acceptedModeValues(control.enabledWhen, path)
+          if (!accepted || accepted.size !== modeValues.size) continue
+          expect(
+            [...modeValues].some((mode) => !accepted.has(mode)),
+            `${seed.id} ${control.key} redundantly requires every ${group.label} option`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
   it('maxes simple sequence-unlocked toggles and values at the current sequence', () => {
     const cases = [
       ['1102', 1, 'sequence:1102:s1:active', true],

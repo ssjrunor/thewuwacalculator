@@ -18,10 +18,15 @@ import { listResSds } from '@/domain/services/resonatorSeedService.ts'
 import {
   makeAppState,
   makeResProfile,
+  makeScenarioFromProfiles,
+  makeScenarioMemberFromProfile,
   makeTeamMember,
 } from '@/domain/state/defaults.ts'
 import { projectCombatScenario } from '@/domain/state/combatScenarioProjection.ts'
-import { projectScenarioProfiles } from '@/domain/state/scenarioRuntime.ts'
+import {
+  projectScenarioMemberProfile,
+  projectScenarioProfiles,
+} from '@/domain/state/scenarioRuntime.ts'
 import { parseCombatScenario } from '@/domain/state/schema.ts'
 import {
   prepareCombatScenario,
@@ -152,6 +157,7 @@ describe('combat scenario invariants', () => {
     ]
     profile.runtime.local.controls = {
       primaryMode: 1,
+      [`team:${primarySeed.id}:outroMode`]: true,
       [`team:${secondSeed.id}:supportMode`]: 2,
       [`team:${thirdSeed.id}:supportMode`]: 3,
     }
@@ -184,7 +190,10 @@ describe('combat scenario invariants', () => {
     expect(secondMember && thirdMember).toBeTruthy()
     if (!secondMember || !thirdMember) return
     expect(primaryScenarioMember(scenario).resonatorId).toBe(primarySeed.id)
-    expect(primaryMember.local.controls).toEqual({ primaryMode: 1 })
+    expect(primaryMember.local.controls).toEqual({
+      primaryMode: 1,
+      [`team:${primarySeed.id}:outroMode`]: true,
+    })
     expect(secondMember.local.controls).toMatchObject({ supportMode: 2 })
     expect(thirdMember.local.controls).toMatchObject({ supportMode: 3 })
     expect(scenario.environment.routing.bySourceMemberId[primaryMember.id]).toEqual({
@@ -205,6 +214,12 @@ describe('combat scenario invariants', () => {
       secondSeed.id,
       thirdSeed.id,
     ]))
+    expect(prepared.runtimesById[primarySeed.id].state.controls).toEqual(
+      primaryMember.local.controls,
+    )
+    expect(prepared.runtimesById[primarySeed.id].state.controls)
+      .not.toHaveProperty(`team:${secondSeed.id}:supportMode`)
+    expect(prepared.runtimesById[secondSeed.id].state.controls).toMatchObject({ supportMode: 2 })
     expect(prepared.workspace.combatGraph?.participants).toHaveProperty('active')
     expect(prepared.workspace.combatGraph?.participants).toHaveProperty('team1')
     expect(prepared.workspace.combatGraph?.participants).toHaveProperty('team2')
@@ -278,5 +293,37 @@ describe('combat scenario invariants', () => {
       program: 'sequence',
       metric: 'avg',
     })).toBe(expectedRotationAvg)
+  })
+
+  it('round-trips teammate controls through the legacy profile interchange boundary', () => {
+    const base = selectedCombatScenario(makeAppState().combat)
+    const primary = base.team.members[0]
+    const lucilla = listResSds().find((candidate) => candidate.id === '1109')
+    expect(lucilla).toBeDefined()
+    if (!lucilla) return
+
+    const teammate = makeScenarioMemberFromProfile(makeResProfile(lucilla, { maxed: true }))
+    const scenario = {
+      ...base,
+      team: makeScenarioTeam([primary, teammate]),
+    }
+    const profile = projectScenarioMemberProfile(scenario, primary)
+    const restored = makeScenarioFromProfiles(
+      { [primary.resonatorId]: profile },
+      {
+        activeResonatorId: primary.resonatorId,
+        enemyProfile: scenario.target,
+      },
+      scenario.revision + 1,
+      primary.resonatorId,
+    )
+    const restoredTeammate = restored.team.members.find(
+      (member) => member.resonatorId === lucilla.id,
+    )
+
+    expect(restoredTeammate).toBeDefined()
+    expect(restoredTeammate?.local.controls).toEqual(teammate.local.controls)
+    expect(restoredTeammate?.local.controls['resonator:1109:mode:value']).toBe('glacio_chafe')
+    expect(restoredTeammate?.local.controls['team:1109:montage:active']).toBe(true)
   })
 })

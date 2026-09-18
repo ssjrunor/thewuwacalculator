@@ -1,19 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: The target, as one instrument. Seven arcs stand for the seven
-               elements, each reaching past the bone datum at x1.00 when your
-               damage wins against this target and falling short when it does
-               not, so which element is worth swinging is read at a glance
-               rather than worked out from a column of resistances.
-
-               The loads your team applies push every arc at once, which is why
-               they sit on the rail beside the ring. What the target itself
-               takes extra pushes them too, and sits opposite.
-
-               This is the enemy pane's whole job in a modal: the target and the
-               swap, the encounter, the level, the seven resistances, the loads,
-               and every vulnerability. Nothing is stated twice and nothing is
-               stated in prose the reader did not ask for.
+  Description: Edits enemy target profiles and runtime vulnerability controls,
+               deriving resistance and defense multipliers from the draft.
 */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -61,15 +49,14 @@ import { clampNumber, formatTruncCompact } from '@/shared/lib/number.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 
 const CLASSES: EnemyClassId[] = [1, 2, 3, 4]
-/* the ring's order, which is the pane's: physical first, then the six elements */
+// Element ids in the shared resistance-grid order: physical, then elemental.
 const ELEMENTS: EnemyElemId[] = [0, 4, 3, 2, 1, 5, 6]
 
-/* the geometry. the datum is not a chosen radius: it is where x1.00 lands. */
 const SIZE = 336
 const MID = SIZE / 2
 const INNER = 88
 const OUTER = 150
-/* the reach of the ring, so an arc has somewhere to go once it passes the datum */
+// Multipliers saturate at 1.8 when mapped into the available radial range.
 const CEILING = 1.8
 
 function radiusOf(multiplier: number): number {
@@ -95,14 +82,6 @@ function arcPath(from: number, to: number, inner: number, outer: number): string
 const fmtX = (value: number) => `x${formatTruncCompact(value, 2)}`
 const fmtPct = (value: number) => `${value > 0 ? '+' : ''}${formatTruncCompact(Math.round(value * 10) / 10, 1)}%`
 
-/*
-  a name that has the game's own words behind it is underlined and opens the
-  card on hover; one without them is the plain name it always was, and that
-  absence is readable.
-
-  the card is the one the resonator's identity tags already open, worn as it is
-  rather than restyled: same shell, same head, same accent spine down the row.
-*/
 function VulnName({ row }: { row: VulnRow }) {
   if (!row.description) {
     return <span className="enc-vuln__name">{row.label}</span>
@@ -147,7 +126,7 @@ function VulnName({ row }: { row: VulnRow }) {
   )
 }
 
-/* the switch a line carries, in whatever shape it was authored */
+// Dispatch vulnerability edits through the authored control shape and owner.
 function VulnControl({
   row,
   enemy,
@@ -220,6 +199,7 @@ interface EnemyConsoleProps {
   open: boolean
   closing?: boolean
   runtime: ResRuntime | null
+  runtimesById: Record<string, ResRuntime>
   enemyProfile: EnemyProfile
   simulation: SimResult | null
   onRtPdt: (updater: (runtime: ResRuntime) => ResRuntime) => void
@@ -232,6 +212,7 @@ export function EnemyConsole({
   open,
   closing = false,
   runtime,
+  runtimesById,
   enemyProfile,
   simulation,
   onRtPdt,
@@ -262,8 +243,8 @@ export function EnemyConsole({
     [runtime],
   )
   const negEffects = useMemo(
-    () => (runtime ? negEffectsFor(runtime).filter((effect) => effect.sliderVisible) : []),
-    [runtime],
+    () => (runtime ? negEffectsFor(runtime, runtimesById).filter((effect) => effect.sliderVisible) : []),
+    [runtime, runtimesById],
   )
 
   const vulns = useMemo(() => {
@@ -531,7 +512,6 @@ export function EnemyConsole({
                     ) : null}
                   </div>
                   <div className="enc-vuln__end">
-                    {/* a line that is off says so with its own switch, not twice */}
                     {row.active || !row.state ? (
                       <span className={row.active ? 'amdl__row-v is-lit' : 'amdl__row-v is-mut'}>
                         {row.active ? fmtPct(row.value) : 'off'}
@@ -562,11 +542,6 @@ export function EnemyConsole({
               Resistance
               <span className="amdl__grp-n">{custom ? 'editable' : ''}</span>
             </div>
-            {/*
-              the ring says which element wins; this says by how much, in the
-              figures. it is the pane's own display, so a cell is also how the
-              ring is turned.
-            */}
             <ResistanceGrid
               profile={enemyProfile}
               elements={ELEMENTS}

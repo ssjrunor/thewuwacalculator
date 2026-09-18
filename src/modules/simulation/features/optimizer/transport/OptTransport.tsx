@@ -1,17 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: Every optimizer control on one bar under the results. Each one
-               owns its own drop rather than sharing a panel, and the ones the
-               engine ignores for the current mode go dim instead of vanishing.
-               Set effects, weapon effects, the inventory include/exclude
-               selection and the main-echo lock stay with the modals that
-               already own them; the bar only reads their state back and opens
-               them.
+  Description: Edits optimizer search constraints and execution preferences,
+               gates mode-dependent settings, and opens delegated configuration.
 */
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Settings2, Trash2 } from 'lucide-react'
-import type { OptSearchMode, OptSetChoice, OptStatCstr } from '@/domain/entities/optimizer'
+import type { OptSearchMode, OptSetChoice, OptSets, OptStatCstr } from '@/domain/entities/optimizer'
 import type { OptPrgr } from '@/engine/optimizer/types'
 import type { SelectGroup, SelectOption } from '@/shared/ui/LiquidSelect'
 import type { SntSetConds } from '@/domain/entities/sonataSetConditionals'
@@ -25,12 +20,12 @@ import {
   optSetPieceCount,
   type OptSetPieceCount as PieceCount,
 } from '@/engine/optimizer/config/allowedSets.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 const BUCKETS: PieceCount[] = [5, 3, 1]
 const BUCKET_LABEL: Record<PieceCount, string> = { 5: '5pc', 3: '3pc', 1: '1pc' }
 
-// the seven plain main stats; the attribute bonus is a single choice and gets
-// its own row, since the engine stores one selectedBonus and not a list.
+// Elemental main-stat filtering uses one selectedBonus, unlike the plain-stat list.
 const MAIN_STATS: Array<{ value: string; label: string; glyph: string }> = [
   { value: 'atk%', label: 'ATK%', glyph: 'atkPercent' },
   { value: 'hp%', label: 'HP%', glyph: 'hpPercent' },
@@ -66,6 +61,24 @@ const EMPTY_CHOICE: OptSetChoice = { 1: [], 3: [], 5: [] }
 const LIMIT_MIN = 64
 const LIMIT_MAX = 65536
 const LIMIT_POW = Math.log2(LIMIT_MAX / LIMIT_MIN)
+
+export type OptTransportConfig = Pick<
+  OptSets,
+  | 'searchMode'
+  | 'targetMode'
+  | 'targetSkillId'
+  | 'targetComboSourceId'
+  | 'allowedSets'
+  | 'mainStatFilter'
+  | 'selectedBonus'
+  | 'excludeEquipped'
+  | 'includeWeapons'
+  | 'keepPercent'
+  | 'statConstraints'
+  | 'resultsLimit'
+  | 'enableGpu'
+  | 'lowMemoryMode'
+>
 
 export interface OptTransportProps {
   isLoading: boolean
@@ -105,28 +118,12 @@ export interface OptTransportProps {
   onRun: () => void
   onHalt: () => void
   onClear: () => void
-  onSearchMode: (value: OptSearchMode) => void
-  onTargetMode: (value: 'skill' | 'combo') => void
-  onTargetSkill: (value: string) => void
-  onTargetCombo: (value: string) => void
+  onConfig: (config: OptTransportConfig) => void
   onOpenMainEcho: () => void
   onClearMainEcho: () => void
-  onAllowedSets: (value: OptSetChoice) => void
-  onToggleMainStat: (value: string) => void
-  onPickBonus: (value: string) => void
-  onClearBonus: () => void
-  onClearMainStats: () => void
-  onToggleExcludeEquipped: (value: boolean) => void
-  onToggleWeapons: (value: boolean) => void
-  onKeepPercent: (value: number) => void
   onOpenInventorySearch: () => void
   onOpenSetCond: () => void
   onOpenWeaponCond: () => void
-  onStatLimit: (statKey: string, field: 'minTotal' | 'maxTotal', value: string) => void
-  onClearStatLimits: () => void
-  onResultsLimit: (value: number) => void
-  onEnableGpu: (value: boolean) => void
-  onLowMemory: (value: boolean) => void
   onGuide: () => void
   onRules: () => void
 }
@@ -135,22 +132,79 @@ export function OptTransport(props: OptTransportProps) {
   const {
     isLoading, progress, cancelled, success,
     echoCount, resultCount, batchSize,
-    searchMode, targetMode, comboAvailable,
+    comboAvailable,
     skillOptions, skillGroups, skillColors, comboOptions, targetSkillId, targetComboId,
-    mainEcho, allowedSets, mainStatFilter, selectedBonus,
-    excludeEquipped, includeWeapons, keepPercent,
+    mainEcho,
     inventoryExcluded, inventoryMode, setConds, weaponPlan,
-    statConstraints, resultsLimit, enableGpu, lowMemoryMode,
   } = props
 
   const [drop, setDrop] = useState<string | null>(null)
   const [setBucket, setSetBucket] = useState<PieceCount>(5)
   const [setQuery, setSetQuery] = useState('')
+  const sourceConfig = useMemo<OptTransportConfig>(() => ({
+    searchMode: props.searchMode,
+    targetMode: props.targetMode,
+    targetSkillId,
+    targetComboSourceId: targetComboId,
+    allowedSets: props.allowedSets,
+    mainStatFilter: props.mainStatFilter,
+    selectedBonus: props.selectedBonus,
+    excludeEquipped: props.excludeEquipped,
+    includeWeapons: props.includeWeapons,
+    keepPercent: props.keepPercent,
+    statConstraints: props.statConstraints,
+    resultsLimit: props.resultsLimit,
+    enableGpu: props.enableGpu,
+    lowMemoryMode: props.lowMemoryMode,
+  }), [
+    props.allowedSets,
+    props.enableGpu,
+    props.excludeEquipped,
+    props.includeWeapons,
+    props.keepPercent,
+    props.lowMemoryMode,
+    props.mainStatFilter,
+    props.resultsLimit,
+    props.searchMode,
+    props.selectedBonus,
+    props.statConstraints,
+    props.targetMode,
+    targetComboId,
+    targetSkillId,
+  ])
+  const session = useConfigurationSession({
+    source: sourceConfig,
+    active: drop !== null,
+    commit: (reducer) => props.onConfig(reducer(sourceConfig)),
+  })
+  const config = drop === null ? sourceConfig : session.draft
+  const {
+    searchMode,
+    targetMode,
+    targetSkillId: draftTargetSkillId,
+    targetComboSourceId: draftTargetComboId,
+    allowedSets,
+    mainStatFilter,
+    selectedBonus,
+    excludeEquipped,
+    includeWeapons,
+    keepPercent,
+    statConstraints,
+    resultsLimit,
+    enableGpu,
+    lowMemoryMode,
+  } = config
+  const patchConfig = useCallback((patch: Partial<OptTransportConfig>) => {
+    session.update((current) => ({ ...current, ...patch }))
+  }, [session])
+  const changeDrop = useCallback((next: string | null) => {
+    setDrop(next)
+    if (next === null) session.finish()
+  }, [session])
 
   const isTheory = searchMode === 'theory'
   const isCombo = targetMode === 'combo'
-  // the engine skips the keep trim and the stat limits when the target is a
-  // whole combo, so the surface says so rather than pretending they apply.
+  // Rotation mode does not apply single-skill keep trimming or stat limits.
   const limitsLive = !isCombo
   const filterLive = !isCombo && !isTheory
 
@@ -194,8 +248,8 @@ export function OptTransport(props: OptTransportProps) {
   )
 
   const targetLabel = isCombo
-    ? comboOptions.find((option) => option.value === targetComboId)?.label ?? 'Select combo'
-    : skillOptions.find((option) => option.value === targetSkillId)?.label ?? 'Select skill'
+    ? comboOptions.find((option) => option.value === draftTargetComboId)?.label ?? 'Select combo'
+    : skillOptions.find((option) => option.value === draftTargetSkillId)?.label ?? 'Select skill'
 
   const status = isLoading
     ? progress.phase === 'discovering'
@@ -220,11 +274,13 @@ export function OptTransport(props: OptTransportProps) {
   const toggleSet = (id: number) => {
     const bucket = optSetPieceCount(id)
     const current = allowedSets[bucket]
-    props.onAllowedSets({
-      ...allowedSets,
-      [bucket]: current.includes(id)
-        ? current.filter((entry) => entry !== id)
-        : [...current, id].sort((left, right) => left - right),
+    patchConfig({
+      allowedSets: {
+        ...allowedSets,
+        [bucket]: current.includes(id)
+          ? current.filter((entry) => entry !== id)
+          : [...current, id].sort((left, right) => left - right),
+      },
     })
   }
 
@@ -250,7 +306,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="target"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Target"
         trigger={({ open, toggle }) => (
           <button type="button" className={`opb-tag${open ? ' is-on' : ''}`} onClick={toggle}>
@@ -265,7 +321,7 @@ export function OptTransport(props: OptTransportProps) {
           action={comboAvailable ? (
             <button
               type="button" className="app-popup__action"
-              onClick={() => props.onTargetMode(isCombo ? 'skill' : 'combo')}
+              onClick={() => patchConfig({ targetMode: isCombo ? 'skill' : 'combo' })}
             >
               {isCombo ? 'Skill' : 'Combo'}
             </button>
@@ -276,11 +332,11 @@ export function OptTransport(props: OptTransportProps) {
             ? comboOptions.map((option) => (
               <Choice
                 key={String(option.value)}
-                on={option.value === targetComboId}
+                on={option.value === draftTargetComboId}
                 label={option.label}
                 onSelect={() => {
-                  props.onTargetCombo(String(option.value))
-                  setDrop(null)
+                  patchConfig({ targetComboSourceId: String(option.value) })
+                  changeDrop(null)
                 }}
               />
             ))
@@ -290,12 +346,12 @@ export function OptTransport(props: OptTransportProps) {
                 {group.options.map((option) => (
                   <Choice
                     key={String(option.value)}
-                    on={option.value === targetSkillId}
+                    on={option.value === draftTargetSkillId}
                     label={option.label}
                     accent={skillColors.get(String(option.value))}
                     onSelect={() => {
-                      props.onTargetSkill(String(option.value))
-                      setDrop(null)
+                      patchConfig({ targetSkillId: String(option.value) })
+                      changeDrop(null)
                     }}
                   />
                 ))}
@@ -307,7 +363,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="source"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Search source"
         trigger={({ open, toggle }) => (
           <button type="button" className={`opb-tag${open ? ' is-on' : ''}`} onClick={toggle}>
@@ -318,8 +374,8 @@ export function OptTransport(props: OptTransportProps) {
       >
         <DropHead title="Source" value={echoCount} unit={isTheory ? 'build echoes' : 'echoes'} />
         <div className="rte-choice__options">
-          <Choice on={!isTheory} label="Inventory" tail="bag" onSelect={() => props.onSearchMode('inventory')} />
-          <Choice on={isTheory} label="Theorymax" tail="equipped rolls" onSelect={() => props.onSearchMode('theory')} />
+          <Choice on={!isTheory} label="Inventory" tail="bag" onSelect={() => patchConfig({ searchMode: 'inventory' })} />
+          <Choice on={isTheory} label="Theorymax" tail="equipped rolls" onSelect={() => patchConfig({ searchMode: 'theory' })} />
         </div>
         <div className="opb-rule" />
         <div className="opb-drop__body">
@@ -327,20 +383,20 @@ export function OptTransport(props: OptTransportProps) {
             <Toggle
               on={includeWeapons}
               label="Search weapons too"
-              onToggle={() => props.onToggleWeapons(!includeWeapons)}
+              onToggle={() => patchConfig({ includeWeapons: !includeWeapons })}
             />
           ) : (
             <>
               <Toggle
                 on={excludeEquipped}
                 label="Skip echoes equipped elsewhere"
-                onToggle={() => props.onToggleExcludeEquipped(!excludeEquipped)}
+                onToggle={() => patchConfig({ excludeEquipped: !excludeEquipped })}
               />
               <OutRow
                 label="Inventory Search"
                 at={inventoryExcluded > 0 ? `${inventoryExcluded} ${inventoryMode === 'include' ? 'kept' : 'excluded'}` : undefined}
                 onOpen={() => {
-                  setDrop(null)
+                  changeDrop(null)
                   props.onOpenInventorySearch()
                 }}
               />
@@ -358,7 +414,7 @@ export function OptTransport(props: OptTransportProps) {
                 max={90}
                 step={10}
                 disabled={isLoading}
-                onChange={(value) => props.onKeepPercent(value / 100)}
+                onChange={(value) => patchConfig({ keepPercent: value / 100 })}
               />
             </div>
           </>
@@ -372,7 +428,7 @@ export function OptTransport(props: OptTransportProps) {
         className={`opb-tag${mainEcho ? ' is-on' : ''}`}
         title={mainEcho ? `Main echo locked to ${mainEcho.name}` : 'Lock a main echo'}
         onClick={() => {
-          setDrop(null)
+          changeDrop(null)
           props.onOpenMainEcho()
         }}
       >
@@ -389,7 +445,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="sets"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Sonata sets"
         trigger={({ open, toggle }) => (
           <button type="button" className={`opb-tag${open ? ' is-on' : ''}`} onClick={toggle}>
@@ -447,21 +503,25 @@ export function OptTransport(props: OptTransportProps) {
         <div className="app-popup__footer">
           <button
             type="button" className="app-popup__action"
-            onClick={() => props.onAllowedSets({
-              ...allowedSets,
-              [setBucket]: setOptions[setBucket].map((row) => row.id),
+            onClick={() => patchConfig({
+              allowedSets: {
+                ...allowedSets,
+                [setBucket]: setOptions[setBucket].map((row) => row.id),
+              },
             })}
           >
             All {BUCKET_LABEL[setBucket]}
           </button>
           <button
             type="button" className="app-popup__action"
-            onClick={() => props.onAllowedSets({ ...allowedSets, [setBucket]: [] })}
+            onClick={() => patchConfig({
+              allowedSets: { ...allowedSets, [setBucket]: [] },
+            })}
           >
             None
           </button>
           <span className="app-popup__fill" />
-          <button type="button" className="app-popup__action" onClick={() => props.onAllowedSets(EMPTY_CHOICE)}>
+          <button type="button" className="app-popup__action" onClick={() => patchConfig({ allowedSets: EMPTY_CHOICE })}>
             Any
           </button>
         </div>
@@ -470,7 +530,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="mains"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Main stat"
         trigger={({ open, toggle }) => (
           <button
@@ -487,7 +547,13 @@ export function OptTransport(props: OptTransportProps) {
         <DropHead
           title="Main stat"
           action={(
-            <button type="button" className="app-popup__action" onClick={props.onClearMainStats}>Clear</button>
+            <button
+              type="button"
+              className="app-popup__action"
+              onClick={() => patchConfig({ mainStatFilter: [], selectedBonus: null })}
+            >
+              Clear
+            </button>
           )}
         />
         <div className="opb-mains">
@@ -499,7 +565,11 @@ export function OptTransport(props: OptTransportProps) {
                 type="button"
                 className={`opb-main${on ? ' is-on' : ''}`}
                 aria-pressed={on}
-                onClick={() => props.onToggleMainStat(stat.value)}
+                onClick={() => patchConfig({
+                  mainStatFilter: on
+                    ? mainStatFilter.filter((entry) => entry !== stat.value)
+                    : [...mainStatFilter, stat.value],
+                })}
               >
                 <Glyph statKey={stat.glyph} />
                 {stat.label}
@@ -524,7 +594,17 @@ export function OptTransport(props: OptTransportProps) {
                   title={`${label} DMG`}
                   aria-label={`${label} DMG`}
                   aria-pressed={on}
-                  onClick={() => (on ? props.onClearBonus() : props.onPickBonus(key))}
+                  onClick={() => patchConfig(on
+                    ? {
+                        selectedBonus: null,
+                        mainStatFilter: mainStatFilter.filter((entry) => entry !== 'bonus'),
+                      }
+                    : {
+                        selectedBonus: key,
+                        mainStatFilter: mainStatFilter.includes('bonus')
+                          ? mainStatFilter
+                          : [...mainStatFilter, 'bonus'],
+                      })}
                 >
                   <Glyph statKey={key} size={1} />
                 </button>
@@ -537,7 +617,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="effects"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Effects"
         trigger={({ open, toggle }) => (
           <button type="button" className={`opb-tag${open ? ' is-on' : ''}`} onClick={toggle}>
@@ -552,7 +632,7 @@ export function OptTransport(props: OptTransportProps) {
           <button
             type="button" className="opb-fx"
             onClick={() => {
-              setDrop(null)
+              changeDrop(null)
               props.onOpenSetCond()
             }}
           >
@@ -567,7 +647,7 @@ export function OptTransport(props: OptTransportProps) {
             type="button" className="opb-fx"
             disabled={!isTheory || !includeWeapons}
             onClick={() => {
-              setDrop(null)
+              changeDrop(null)
               props.onOpenWeaponCond()
             }}
           >
@@ -586,7 +666,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="limits"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Stat limits"
         trigger={({ open, toggle }) => (
           <button
@@ -603,7 +683,7 @@ export function OptTransport(props: OptTransportProps) {
         <DropHead
           title="Stat limits"
           action={(
-            <button type="button" className="app-popup__action" onClick={props.onClearStatLimits}>Clear</button>
+            <button type="button" className="app-popup__action" onClick={() => patchConfig({ statConstraints: {} })}>Clear</button>
           )}
         />
         {limitsLive ? null : <p className="opb-note">Not applied to a combo target.</p>}
@@ -620,13 +700,29 @@ export function OptTransport(props: OptTransportProps) {
                   type="number"
                   placeholder="min"
                   value={current.minTotal ?? ''}
-                  onChange={(event) => props.onStatLimit(limit.key, 'minTotal', event.target.value)}
+                  onChange={(event) => patchConfig({
+                    statConstraints: {
+                      ...statConstraints,
+                      [limit.key]: {
+                        ...statConstraints[limit.key],
+                        minTotal: event.target.value,
+                      },
+                    },
+                  })}
                 />
                 <input
                   type="number"
                   placeholder="max"
                   value={current.maxTotal ?? ''}
-                  onChange={(event) => props.onStatLimit(limit.key, 'maxTotal', event.target.value)}
+                  onChange={(event) => patchConfig({
+                    statConstraints: {
+                      ...statConstraints,
+                      [limit.key]: {
+                        ...statConstraints[limit.key],
+                        maxTotal: event.target.value,
+                      },
+                    },
+                  })}
                 />
               </div>
             )
@@ -637,7 +733,7 @@ export function OptTransport(props: OptTransportProps) {
       <DropHost
         id="gear"
         openId={drop}
-        onOpen={setDrop}
+        onOpen={changeDrop}
         label="Engine settings"
         trigger={({ open, toggle }) => (
           <button
@@ -654,22 +750,22 @@ export function OptTransport(props: OptTransportProps) {
       >
         <DropHead title="Engine" />
         <div className="rte-choice__options">
-          <Choice on={enableGpu} label="GPU" tail="WebGPU" onSelect={() => props.onEnableGpu(true)} />
-          <Choice on={!enableGpu} label="CPU" tail="workers" onSelect={() => props.onEnableGpu(false)} />
+          <Choice on={enableGpu} label="GPU" tail="WebGPU" onSelect={() => patchConfig({ enableGpu: true })} />
+          <Choice on={!enableGpu} label="CPU" tail="workers" onSelect={() => patchConfig({ enableGpu: false })} />
         </div>
         <div className="opb-rule" />
         <div className="opb-drop__body">
           <Toggle
             on={lowMemoryMode}
             label="Low memory"
-            onToggle={() => props.onLowMemory(!lowMemoryMode)}
+            onToggle={() => patchConfig({ lowMemoryMode: !lowMemoryMode })}
           />
           <Slide
             label="Results kept"
             value={limitToSlider(resultsLimit)}
             read={resultsLimit.toLocaleString()}
             disabled={isLoading}
-            onChange={(value) => props.onResultsLimit(sliderToLimit(value))}
+            onChange={(value) => patchConfig({ resultsLimit: sliderToLimit(value) })}
           />
         </div>
         <div className="app-popup__footer">

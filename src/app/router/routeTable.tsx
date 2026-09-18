@@ -15,7 +15,6 @@ import {
   docsChunk,
   guidesChunk,
   homeChunk,
-  infoChunk,
   notFoundChunk,
   privacyChunk,
   calibrationChunk,
@@ -37,7 +36,6 @@ import { useAppStore } from '@/domain/state/store'
 
 const SimulationPage = simulationChunk.Mount
 const CalibrationPage = calibrationChunk.Mount
-const InfoPage = infoChunk.Mount
 const GuidesPage = guidesChunk.Mount
 const DocsPage = docsChunk.Mount
 const ChngPage = changelogChunk.Mount
@@ -62,8 +60,7 @@ function PreserveLocationRedirect({ to }: { to: string }) {
   return <Navigate to={{ pathname: to, search: location.search, hash: location.hash }} replace />
 }
 
-// the old What's New page is an act on the home page now; a release it named by
-// hash opens on that release there
+// Preserve legacy What's New hashes when redirecting to the home release section.
 function WhatsNewRedirect() {
   const location = useLocation()
   const entryId = decodeURIComponent(location.hash.replace(/^#/, ''))
@@ -131,7 +128,6 @@ export const rootRoutes: RouteObject[] = [
           },
           { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
           { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
-          { path: APP_ROUTES.info, element: lazyRoute(<InfoPage />) },
           { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
           { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
           { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },

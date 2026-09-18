@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: provides shared metric helpers for the echoes surface.
+  Description: Calculates Echo crit value, normalizes grade scales, and maps
+               scores to shared tier metadata and CSS classes.
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime'
@@ -29,8 +30,8 @@ const SCORE_TIERS: MetricTier[] = [
   { min: 30, max: 59, stage: 2, tone: 'lime' },
   { min: 60, max: 69, stage: 3, tone: 'blue' },
   { min: 70, max: 79, stage: 4, tone: 'gold' },
-  { min: 80, max: 93, stage: 5, tone: 'cyan' },
-  { min: 94, max: 100, stage: 6, tone: 'red' },
+  { min: 80, max: 89, stage: 5, tone: 'cyan' },
+  { min: 90, max: 100, stage: 6, tone: 'red' },
 ]
 
 const MAX_CV = 42
@@ -39,8 +40,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-// the tiers stop at 100, so a value past the end of the scale is folded back
-// onto it and wears the grade defined at its scaled position: 150 reads as 75
+// Repeatedly halve scores above 100 before tier lookup; for example, 150 maps to 75.
 function fldToScale(value: number): number {
   let folded = Number.isFinite(value) ? value : 0
   while (folded > 100) folded /= 2
@@ -103,8 +103,8 @@ export function getCvBdgClss(cv: number, maxCv = MAX_CV): string {
   return `echo-cv-badge echo-cv-badge--stage-${tier.stage} echo-cv-badge--${tier.tone}`
 }
 
-// the grade a whole loadout's crit is read at: a crit main stat is worth 44 CV
-// and the lineup is allowed two of them before the rest has to carry the build
+// Remove a 44-CV main-stat allowance for up to two four-cost Echoes, then
+// average the remaining crit contribution across the five-slot loadout.
 export function cmptBldCritGr(echoes: Array<EchoInstance | null>): number {
   let cv = 0
   let fourCost = 0
@@ -118,7 +118,6 @@ export function cmptBldCritGr(echoes: Array<EchoInstance | null>): number {
   return (cv - 44 * Math.min(fourCost, 2)) / 5
 }
 
-// where a value sits on the grade scale, for meters that draw the grade
 export function getCvGrdPrcn(cv: number, maxCv = MAX_CV): number {
   return getPrcnFromC(cv, maxCv)
 }

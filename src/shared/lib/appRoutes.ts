@@ -13,7 +13,6 @@ export const SIMULATION_ROUTES = {
 } as const
 
 export const READ_ROUTES = {
-  info: '/info',
   guides: '/guides',
   docs: '/docs',
   changelog: '/changelog',
@@ -40,8 +39,7 @@ export const LEGACY_HOME_ROUTE = '/home'
 // Settings became Calibration. The old address still works.
 export const LEGACY_SETTINGS_ROUTE = '/settings'
 
-// What's New is an act on the home page. Its old address still works and lands
-// on the act, on the release it named if it named one.
+// Preserve the legacy What's New route and its optional release hash on redirect.
 export const LEGACY_WHATS_NEW_ROUTE = '/changelog/whatsnew'
 export const WHATS_NEW_ACT = 'whatsnew'
 
@@ -64,7 +62,6 @@ export const APP_NAVIGATION = {
   optimizer: { name: 'Optimizer', to: SIMULATION_ROUTES.optimizer },
   suggestions: { name: 'Suggestions', to: SIMULATION_ROUTES.suggestions },
   calibration: { name: 'Calibration', to: APP_ROUTES.calibration },
-  info: { name: 'Info', to: APP_ROUTES.info },
   guides: { name: 'Guides', to: APP_ROUTES.guides },
   docs: { name: 'Docs', to: APP_ROUTES.docs },
   changelog: { name: 'Changelog', to: APP_ROUTES.changelog },

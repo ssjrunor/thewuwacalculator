@@ -31,8 +31,6 @@ import {
   mkPrepWpnSu,
   mkSuggVltnCt,
   evalSuggChs,
-  evalSuggChsW,
-  mkNeutralSuggMainEc,
   resSuggDmg,
 } from '@/engine/suggestions/shared.ts'
 import {
@@ -71,7 +69,6 @@ import {
   getDiffTone,
   getRandSetCn,
   normSetCount,
-  setPlnsQl,
   sortChsForDs,
   sortRecipes,
   smmrCurSetPl,
@@ -109,6 +106,7 @@ import {
   targetGroups,
   type SuggTgtPtn,
 } from '@/modules/simulation/features/suggestions/lib/helpers.ts'
+import { getSetPlanDisplay, groupWeaponSuggestions, sameSetPlanCandidate } from './lib/results.ts'
 import { runCchdSuggJ } from '@/modules/simulation/features/suggestions/lib/runs.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { useEchoSrfcM } from '@/modules/simulation/features/echoes/lib/useEchoSurfaceMenu.tsx'
@@ -122,17 +120,6 @@ interface SuggestionsPaneProps {
   simulation: SimResult | null
   enemyProfile: EnemyProfile
   prtcRntmById: Record<string, ResRuntime>
-}
-
-interface WpnCard {
-  id: string
-  plans: WeaponEntry[]
-}
-
-function getSetPlanDisplay(plan: SetPlanSuggest) {
-  return plan.displayPlan?.length
-    ? plan.displayPlan
-    : plan.setPlan.map((entry) => ({ setIds: [entry.setId], pieces: entry.pieces }))
 }
 
 function statIconStyle(key: string): CssProps | undefined {
@@ -379,41 +366,6 @@ export function Suggestions({
     scenarioIdentity,
   ])
 
-  const mainSuggVltnCtx = useMemo(() => {
-    if (
-      !simulation ||
-      !activeSeed ||
-      !hasMutableTarget
-    ) {
-      return null
-    }
-
-    return mkSuggVltnCt({
-      ...scenarioIdentity,
-      runtime,
-      seed: activeSeed,
-      enemy: enemyProfile,
-      runtimesById: partRntmById,
-      selectedTargets: selTrgtByOwn,
-      setConds: setConds,
-      setStateMode: 'resolved',
-      tgtFeatId: suggsStt.settings.targetFeatureId,
-      rotationMode: suggsStt.settings.rotationMode,
-    }, simulation)
-  }, [
-    activeSeed,
-    enemyProfile,
-    partRntmById,
-    runtime,
-    selTrgtByOwn,
-    setConds,
-    simulation,
-    suggsStt.settings.rotationMode,
-    suggsStt.settings.targetFeatureId,
-    hasMutableTarget,
-    scenarioIdentity,
-  ])
-
   const fixedSuggVltnCtx = useMemo(() => {
     if (
       !simulation ||
@@ -459,28 +411,23 @@ export function Suggestions({
   }, [runtime.build.echoes, suggVltnCtx])
 
   const mainBaseDamage = useMemo(() => {
-    if (!mainSuggVltnCtx) {
-      return 0
-    }
-
-    return evalSuggChsW(
-      mainSuggVltnCtx,
-      runtime.build.echoes,
-      mkNeutralSuggMainEc(runtime.build.echoes),
-    )
-  }, [mainSuggVltnCtx, runtime.build.echoes])
-
-  const setPlanBaseDamage = useMemo(() => {
-    if (!suggVltnCtx) {
-      return 0
-    }
-
-    return evalSuggChsW(
-      suggVltnCtx,
-      runtime.build.echoes,
-      mkNeutralSuggMainEc(runtime.build.echoes),
-    )
-  }, [runtime.build.echoes, suggVltnCtx])
+    if (!simulation || !activeSeed || !hasMutableTarget) return 0
+    return resSuggDmg(simulation, {
+      ...scenarioIdentity,
+      runtime,
+      seed: activeSeed,
+      enemy: enemyProfile,
+      runtimesById: partRntmById,
+      selectedTargets: selTrgtByOwn,
+      setConds,
+      setStateMode: 'resolved',
+      tgtFeatId: suggsStt.settings.targetFeatureId,
+      rotationMode: suggsStt.settings.rotationMode,
+      includeEchoAttacks: true,
+    })
+  }, [activeSeed, enemyProfile, hasMutableTarget, partRntmById, runtime, scenarioIdentity,
+    selTrgtByOwn, setConds, simulation, suggsStt.settings.rotationMode, suggsStt.settings.targetFeatureId])
+  const setPlanBaseDamage = mainBaseDamage
 
   const fixedBaseDamage = useMemo(() => {
     if (!fixedSuggVltnCtx) {
@@ -603,6 +550,7 @@ export function Suggestions({
     selectedTargets: selTrgtByOwn,
     setConds: setConds,
     setStateMode: 'resolved',
+    includeEchoAttacks: true,
     tgtFeatId: suggsStt.settings.targetFeatureId,
     rotationMode: suggsStt.settings.rotationMode,
   }), [
@@ -615,11 +563,11 @@ export function Suggestions({
     suggsStt.settings.targetFeatureId,
   ])
   const mainSttsCchK = useMemo(
-    () => `main:${runtime.id}:${mainSuggNptS}`,
+    () => `main:v2:${runtime.id}:${mainSuggNptS}`,
     [mainSuggNptS, runtime.id],
   )
   const setPlnsCchKe = useMemo(
-    () => `sets:${runtime.id}:${baseSuggNptS}`,
+    () => `sets:v3:${runtime.id}:${baseSuggNptS}`,
     [baseSuggNptS, runtime.id],
   )
   const fixedSuggNptS = useMemo(() => inputSig({
@@ -1098,20 +1046,7 @@ export function Suggestions({
       : [],
     [runtime.build.echoes, selSetPlan],
   )
-  const wpnCards = useMemo<WpnCard[]>(() => {
-    const cards: WpnCard[] = []
-
-    for (const plan of wpnRslt) {
-      const prev = cards[cards.length - 1]
-      if (prev && prev.id === plan.weaponId) {
-        prev.plans.push(plan)
-      } else {
-        cards.push({ id: plan.weaponId, plans: [plan] })
-      }
-    }
-
-    return cards
-  }, [wpnRslt])
+  const wpnCards = useMemo(() => groupWeaponSuggestions(wpnRslt), [wpnRslt])
   const selWpnCard = wpnCards[selWpnNdx] ?? null
   const selWpnPlan = selWpnCard?.plans[0] ?? null
   const maxWpnDmg = useMemo(
@@ -1390,7 +1325,7 @@ export function Suggestions({
             <ResultBlock name="Set plan" count={setPlanRslt.length}>
               <div className="spx-list" ref={setPlanListRef}>
                 {setPlanRslt.map((plan, index) => {
-                  const isCurrent = setPlnsQl(plan.setPlan, curSetPlan)
+                  const isCurrent = sameSetPlanCandidate(plan, curSetPlan, baseDamage)
                   const displayPlan = getSetPlanDisplay(plan)
 
                   return (

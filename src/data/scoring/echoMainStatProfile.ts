@@ -5,7 +5,7 @@
 */
 
 import { getGameDataMode } from '@/data/gameData'
-import { ECHO_MAIN_STATS } from '@/data/gameData/catalog/echoStats'
+import { ECHO_MAIN_STATS, SUBSTAT_RANGES } from '@/data/gameData/catalog/echoStats'
 import {
   activateEchoMainStatScoreProfile,
   cacheEchoMainStatScoreProfile,
@@ -14,6 +14,7 @@ import {
   type EchoMainStatScoreProfile,
 } from '@/data/scoring/echoScoring'
 import { getWeightSetKey } from '@/data/scoring/charStatWeights'
+import { calcSubEvaluation } from '@/data/scoring/substatEvaluation'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatScenarioId, TeamMemberId } from '@/domain/entities/combatScenario'
 import type { EchoInstance, ResRuntime, ResSeed } from '@/domain/entities/runtime'
@@ -51,6 +52,20 @@ function sortedRecord(record: Record<string, unknown>): Array<[string, unknown]>
   return Object.entries(record).sort(([left], [right]) => left.localeCompare(right))
 }
 
+function scoringReferenceRuntime(runtime: ResRuntime): ResRuntime {
+  return {
+    ...runtime,
+    build: {
+      ...runtime.build,
+      echoes: runtime.build.echoes.map((echo, index) => echo ? {
+        ...echo,
+        uid: `echo-score-slot-${index}`,
+        substats: {},
+      } : null),
+    },
+  }
+}
+
 function suggestionInput(input: EchoMainStatProfileInput): MainStatSuwo {
   return {
     scenarioId: input.scenarioId,
@@ -73,18 +88,21 @@ export function makeEchoMainStatProfileKey(
 ): string {
   const participants = Object.entries(input.runtimesById)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([resonatorId, runtime]) => [resonatorId, runtimeSig(runtime)])
+      .map(([resonatorId, runtime]) => [
+        resonatorId,
+        runtimeSig(resonatorId === input.runtime.id ? scoringReferenceRuntime(runtime) : runtime),
+      ])
 
-  // This mirrors the inputs that can affect Main Stat Suggestions. Equipped
-  // Echo details must remain in the key because their sets and substats change
-  // both the winning layout and its displayed damage.
+  // The scoring target follows combat context and the equipped main-stat
+  // layout, but not the substat rolls currently being graded. Otherwise tuning
+  // a single roll would move the 100% reference underneath the user.
   return JSON.stringify({
-    version: 3,
+    version: 6,
     mode: getGameDataMode(),
     weights: getWeightSetKey(),
     scenarioId: input.scenarioId,
     memberId: input.memberId,
-    runtime: runtimeSig(input.runtime),
+    runtime: runtimeSig(scoringReferenceRuntime(input.runtime)),
     participants,
     enemy: input.enemy,
     selectedTargets: sortedRecord(input.selectedTargets),
@@ -99,11 +117,13 @@ function profileFromSuggestion(options: {
   charId: string
   equipped: Array<EchoInstance | null>
   suggestion: MainStatSugg
+  context: MainStatPrep['context']
 }): EchoMainStatScoreProfile | null {
-  const { cacheKey, charId, equipped, suggestion } = options
+  const { cacheKey, charId, equipped, suggestion, context } = options
   const bestEchoes = applyMainSta(suggestion.recipes, equipped)
   const weightsByCost: Record<number, Record<string, number>> = {}
   const bestByCost: Record<number, string[]> = {}
+  const mainCountsByCost: Record<number, Record<string, number>> = {}
 
   for (const cost of [1, 3, 4]) {
     const slots = bestEchoes.flatMap((echo, index) => (
@@ -120,6 +140,13 @@ function profileFromSuggestion(options: {
       ]),
     )
     bestByCost[cost] = [...bestSet].sort()
+    mainCountsByCost[cost] = equipped.reduce<Record<string, number>>((counts, echo) => {
+      if (echo && getEchoById(echo.id)?.cost === cost) {
+        const key = echo.mainStats.primary.key
+        counts[key] = (counts[key] ?? 0) + 1
+      }
+      return counts
+    }, {})
   }
 
   const stats = bestEchoes.flatMap((echo) => {
@@ -132,18 +159,67 @@ function profileFromSuggestion(options: {
     return null
   }
 
+  const referenceEchoes = equipped.map((echo) => echo ? {
+    ...echo,
+    mainStats: {
+      primary: { ...echo.mainStats.primary },
+      secondary: { ...echo.mainStats.secondary },
+    },
+    substats: {},
+  } : null)
+  const concreteReference = referenceEchoes.filter((echo): echo is EchoInstance => echo != null)
+  const substatEvaluation = concreteReference.length === 5
+    ? calcSubEvaluation(context, referenceEchoes, { measureUsefulTargets: true })
+    : null
+  const idealSubstatCounts = substatEvaluation
+    ? Object.fromEntries(substatEvaluation.ideal.map(({ key, count }) => [key, count]))
+    : undefined
+  const idealSubstatValues = substatEvaluation
+    ? Object.fromEntries(substatEvaluation.ideal.map(({ key, target }) => [key, target]))
+    : undefined
+  const rolledReferenceEchoes = substatEvaluation
+    ? substatEvaluation.ideal
+      .slice()
+      .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key))
+      .reduce((echoes, stat) => {
+        const maxValue = SUBSTAT_RANGES[stat.key]?.max ?? 0
+        if (maxValue <= 0) return echoes
+        const targetSlots = echoes
+          .map((echo, index) => ({ echo, index }))
+          .sort((left, right) => (
+            Object.keys(left.echo.substats).length - Object.keys(right.echo.substats).length
+            || left.index - right.index
+          ))
+          .slice(0, stat.count)
+        for (const { echo } of targetSlots) {
+          echo.substats[stat.key] = maxValue
+        }
+        return echoes
+      }, concreteReference)
+    : concreteReference
+
   console.info('[echo-score:max-main-stats]', {
     charId,
     stats,
+    idealSubstatCounts,
+    idealSubstatValues,
     damage: suggestion.damage,
   })
 
-  return { cacheKey, charId, weightsByCost, bestByCost }
+  return {
+    cacheKey,
+    charId,
+    weightsByCost,
+    bestByCost,
+    idealSubstatCounts,
+    idealSubstatValues,
+    mainCountsByCost,
+    referenceEchoes: rolledReferenceEchoes,
+  }
 }
 
-// Called from the route shell so every Echo-scoring surface receives the same
-// top layout and damage as Main Stat Suggestions without requiring that pane
-// to have mounted first.
+// Called from the route shell so every scoring surface shares one reference
+// for the equipped mains, independent of its current substat rolls.
 export function prepareEchoMainStatScoring(
     input: EchoMainStatProfileInput,
     runner: MainStatRunner = runMainStatS,
@@ -159,7 +235,13 @@ export function prepareEchoMainStatScoring(
     return Promise.resolve(null)
   }
 
-  const prepared = mkPrepMainSt(suggestionInput(input), input.simulation)
+  const referenceRuntime = scoringReferenceRuntime(input.runtime)
+  const referenceInput = {
+    ...input,
+    runtime: referenceRuntime,
+    runtimesById: { ...input.runtimesById, [referenceRuntime.id]: referenceRuntime },
+  }
+  const prepared = mkPrepMainSt(suggestionInput(referenceInput), input.simulation)
   if (!prepared) {
     deactivateEchoMainStatScoreProfile(input.runtime.id)
     return Promise.resolve(null)
@@ -189,6 +271,7 @@ export function prepareEchoMainStatScoring(
       charId: input.runtime.id,
       equipped: prepared.qppdChs,
       suggestion: best,
+      context: prepared.context,
     })
     if (!profile) {
       deactivateEchoMainStatScoreProfile(input.runtime.id)

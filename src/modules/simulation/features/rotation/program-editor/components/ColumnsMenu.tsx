@@ -1,9 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: Owns columns menu behavior and state transitions for the components module.
+  Description: Drafts register stat-column selection and group ordering within
+               a column budget, committing changes when the popup closes.
 */
 
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { Columns3Cog } from '@/shared/ui/LucideMotionIcons.ts'
 import {
   AnchoredAppPopup,
@@ -22,6 +23,7 @@ import {
   type RegisterGroup,
   type StatKey,
 } from '@/modules/simulation/features/rotation/program-editor/presentation/registerRows.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 interface ColumnsMenuProps {
   open: boolean
@@ -47,11 +49,25 @@ export function ColumnsMenu({
   const hostRef = useRef<HTMLSpanElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
-  const budget = useColumnBudget(statKeys, groupOrder, ceiling)
+  const session = useConfigurationSession({
+    source: { statKeys, groupOrder },
+    active: open,
+    commit: (reducer) => {
+      const next = reducer({ statKeys, groupOrder })
+      if (next.statKeys !== statKeys) onStatKeys(next.statKeys)
+      if (next.groupOrder !== groupOrder) onGroupOrder(next.groupOrder)
+    },
+  })
+  const draft = open ? session.draft : { statKeys, groupOrder }
+  const budget = useColumnBudget(draft.statKeys, draft.groupOrder, ceiling)
+  const close = useCallback(() => {
+    onOpenChange(false)
+    session.finish()
+  }, [onOpenChange, session])
 
   useAppPopupDismiss({
     open,
-    onDismiss: () => onOpenChange(false),
+    onDismiss: close,
     hostRef,
     popupRef,
     returnFocusRef: triggerRef,
@@ -59,8 +75,10 @@ export function ColumnsMenu({
   })
 
   const reset = () => {
-    onStatKeys(DEFAULT_STAT_KEYS.slice(0, ceiling))
-    onGroupOrder(REGISTER_GROUPS)
+    session.replace({
+      statKeys: DEFAULT_STAT_KEYS.slice(0, ceiling),
+      groupOrder: REGISTER_GROUPS,
+    })
   }
 
   return (
@@ -75,7 +93,7 @@ export function ColumnsMenu({
         title="Choose the columns and the order their bands read in"
         aria-label="Choose the columns"
         disabled={disabled}
-        onClick={() => onOpenChange(!open)}
+        onClick={() => open ? close() : onOpenChange(true)}
       >
         <Columns3Cog size="0.86rem" mode="signature" trigger="parent-hover" aria-hidden="true" />
       </button>
@@ -101,10 +119,16 @@ export function ColumnsMenu({
         </AppPopupHeader>
 
         <ColumnRack
-          statKeys={statKeys}
-          onStatKeys={onStatKeys}
-          groupOrder={groupOrder}
-          onGroupOrder={onGroupOrder}
+          statKeys={draft.statKeys}
+          onStatKeys={(next) => session.update((current) => ({
+            ...current,
+            statKeys: next,
+          }))}
+          groupOrder={draft.groupOrder}
+          onGroupOrder={(next) => session.update((current) => ({
+            ...current,
+            groupOrder: next,
+          }))}
           ceiling={ceiling}
         />
 

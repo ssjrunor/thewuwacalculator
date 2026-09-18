@@ -7,12 +7,10 @@
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
 import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
-import { clrSrcCtrls } from '@/domain/state/sourceStateInit.ts'
-import { applySetPlan } from '@/engine/suggestions/mutate.ts'
+import { applySetPlan, mkEchoMainSt } from '@/engine/suggestions/mutate.ts'
 import { applyMainSta } from '@/engine/suggestions/mainStat-suggestion/utils.ts'
 import type {
   MainStatSugg,
-  SetPlanDisplayEntry,
   SetPlanSuggest,
   WeaponEntry,
 } from '@/engine/suggestions/types.ts'
@@ -21,11 +19,15 @@ import { getRarityColor } from '@/modules/simulation/model/display.ts'
 import { statIconSrc } from '@/modules/simulation/workspace/ui.tsx'
 import { getEchoById } from '@/domain/services/echoCatalogService.ts'
 import {
-  setPlnsQl,
+  recipeSig,
+  percentDiff,
   sortRecipes,
   type SetPlanSmmrE,
 } from '@/modules/simulation/features/suggestions/lib/suggestions.ts'
+import { getSetPlanDisplay, groupWeaponSuggestions, sameSetPlanCandidate } from '../lib/results.ts'
 import type { SuggKind } from '@/modules/simulation/features/suggestions/lib/useSuggRuns.ts'
+
+export { materializeWeaponSuggestion } from '../lib/results.ts'
 
 export type ClimbKind = 'mainStats' | 'setPlans' | 'weapons'
 
@@ -63,10 +65,19 @@ export interface ClimbTray {
   held: boolean
 }
 
+/* A weapon is scored per passive state; the lead variant ranks the row. */
+export interface ClimbVariant {
+  mode: WeaponEntry['mode']
+  damage: number
+  delta: number
+}
+
 export interface ClimbRow {
   key: string
   rank: number
   now: boolean
+  /** Already on the build: the worn recipe or set plan, or the weapon in hand. */
+  equipped: boolean
   color: string | null
   damage: number
   delta: number
@@ -75,18 +86,24 @@ export interface ClimbRow {
   /** Materialized Echo candidate; weapon-only results leave it unchanged. */
   echoes: Array<EchoInstance | null> | null
   weapon: WeaponEntry | null
+  variants: ClimbVariant[]
 }
 
-const pctDelta = (damage: number, base: number) => (base > 0 ? (damage / base - 1) * 100 : 0)
+export interface WornMainStat {
+  cost: number
+  key: string
+  value: number
+  secondary: { key: string, value: number }
+}
 
 /* Recipes have no slot identity, so compare equipped main stats as a multiset. */
-export function wornMainStats(echoes: Array<EchoInstance | null>): Array<{ cost: number, key: string }> {
-  const out: Array<{ cost: number, key: string }> = []
+export function wornMainStats(echoes: Array<EchoInstance | null>): WornMainStat[] {
+  const out: WornMainStat[] = []
   for (const echo of echoes) {
     if (!echo) continue
     const cost = getEchoById(echo.id)?.cost
     if (!cost) continue
-    out.push({ cost, key: echo.mainStats.primary.key })
+    out.push({ cost, key: echo.mainStats.primary.key, value: echo.mainStats.primary.value, secondary: echo.mainStats.secondary })
   }
   return out
 }
@@ -127,11 +144,14 @@ function mainStatRows(
   results: MainStatSugg[],
   base: number,
   echoes: Array<EchoInstance | null>,
-  worn: Array<{ cost: number, key: string }>,
+  worn: WornMainStat[],
 ): ClimbRow[] {
   return results.map((result, index) => {
     const have = new Map<string, number>()
     for (const entry of worn) {
+      const side = ECHO_SIDE_STATS[entry.cost]
+      if (entry.value !== ECHO_MAIN_STATS[entry.cost]?.[entry.key]
+        || entry.secondary.key !== side?.key || entry.secondary.value !== side?.value) continue
       const key = `${entry.cost}:${entry.key}`
       have.set(key, (have.get(key) ?? 0) + 1)
     }
@@ -149,17 +169,20 @@ function mainStatRows(
       trays.push(statTray(recipe.primaryKey, recipe.cost, held))
     }
 
+    const now = recipeSig(result.recipes) === mkEchoMainSt(echoes)
     return {
       key: `main:${index}`,
       rank: index + 1,
-      now: marks.length === 0 && recipes.length === worn.length,
+      now,
+      equipped: now,
       color: null,
       damage: result.damage,
-      delta: pctDelta(result.damage, base),
+      delta: percentDiff(result.damage, base),
       marks,
       trays,
       echoes: applyMainSta(result.recipes, echoes),
       weapon: null,
+      variants: [],
     }
   })
 }
@@ -176,11 +199,7 @@ function setPlanRows(
       have.set(entry.setId, (have.get(entry.setId) ?? 0) + entry.pieces)
     }
 
-    const plan = result.displayPlan ?? result.setPlan.map((entry) => ({
-      setIds: [entry.setId],
-      pieces: entry.pieces,
-    }))
-    const displayPlan = resolveSetDisplayPlan(plan, have)
+    const displayPlan = getSetPlanDisplay(result)
 
     const marks: ClimbMark[] = []
     const trays: ClimbTray[] = []
@@ -207,136 +226,29 @@ function setPlanRows(
         lead: String(entry.pieces),
         leadUnit: 'pc',
         coins: entry.setIds.map((id) => getSntSetIco(id)),
-        name: null,
+        name: getSntSetNam(lead),
         primary: null,
         secondary: null,
         held,
       })
     }
 
+    const now = sameSetPlanCandidate(result, worn, base)
     return {
       key: `sets:${index}`,
       rank: index + 1,
-      now: setPlnsQl(
-        result.setPlan.map((entry) => ({ setId: entry.setId, pieces: entry.pieces })),
-        worn,
-      ),
+      now,
+      equipped: now,
       color: null,
       damage: result.avgDamage,
-      delta: pctDelta(result.avgDamage, base),
+      delta: percentDiff(result.avgDamage, base),
       marks,
       trays,
       echoes: applySetPlan(result.setPlan, echoes),
       weapon: null,
+      variants: [],
     }
   })
-}
-
-/* Repeated effect-equivalent slots arrive with the same alternative pool. Pick
-   one distinct representative per slot, preferring sets the build already
-   wears. Walking backwards lets an earlier slot keep its first choice while
-   the matching path moves a later slot to another compatible set. */
-function resolveSetDisplayPlan(
-  plan: SetPlanDisplayEntry[],
-  have: Map<number, number>,
-): SetPlanDisplayEntry[] {
-  const choices = plan.map((entry) => [...entry.setIds].sort((left, right) => {
-    const leftHeld = (have.get(left) ?? 0) >= entry.pieces
-    const rightHeld = (have.get(right) ?? 0) >= entry.pieces
-    return Number(rightHeld) - Number(leftHeld)
-  }))
-  const slotBySet = new Map<number, number>()
-  const leadBySlot: Array<number | undefined> = Array(plan.length)
-
-  const assign = (slot: number, seen: Set<number>): boolean => {
-    for (const setId of choices[slot]) {
-      if (seen.has(setId)) continue
-      seen.add(setId)
-      const occupied = slotBySet.get(setId)
-      if (occupied === undefined || assign(occupied, seen)) {
-        slotBySet.set(setId, slot)
-        leadBySlot[slot] = setId
-        return true
-      }
-    }
-    return false
-  }
-
-  for (let slot = plan.length - 1; slot >= 0; slot -= 1) {
-    assign(slot, new Set<number>())
-  }
-
-  return plan.map((entry, slot) => {
-    const lead = leadBySlot[slot] ?? choices[slot][0] ?? entry.setIds[0]
-    return {
-      ...entry,
-      setIds: lead === undefined
-        ? entry.setIds
-        : [lead, ...entry.setIds.filter((setId) => setId !== lead)],
-    }
-  })
-}
-
-/* Apply the exact candidate the engine scored. In particular, a state omitted
-   by weapon config stays omitted instead of being restored by global weapon
-   initialization before the scored controls are merged. */
-export function materializeWeaponSuggestion(
-  runtime: ResRuntime,
-  plan: WeaponEntry,
-): ResRuntime {
-  const controls = { ...runtime.state.controls }
-  clrSrcCtrls(controls, { type: 'weapon', id: runtime.build.weapon.id })
-  clrSrcCtrls(controls, { type: 'weapon', id: plan.weaponId })
-  Object.assign(controls, plan.controls)
-
-  return {
-    ...runtime,
-    build: {
-      ...runtime.build,
-      weapon: {
-        id: plan.weaponId,
-        level: plan.level,
-        rank: plan.rank,
-        baseAtk: plan.baseAtk,
-      },
-    },
-    state: {
-      ...runtime.state,
-      controls,
-    },
-  }
-}
-
-function sameWeaponCandidate(
-  runtime: ResRuntime,
-  plan: WeaponEntry,
-  base: number,
-): boolean {
-  const weapon = runtime.build.weapon
-  if (
-    weapon.id !== plan.weaponId
-    || weapon.level !== plan.level
-    || weapon.rank !== plan.rank
-    || weapon.baseAtk !== plan.baseAtk
-  ) {
-    return false
-  }
-
-  const tolerance = Math.max(1e-6, Math.abs(base) * 1e-6)
-  if (Math.abs(plan.damage - base) > tolerance) return false
-
-  for (const [key, value] of Object.entries(plan.controls)) {
-    if (runtime.state.controls[key] !== value) return false
-  }
-
-  const prefix = `weapon:${plan.weaponId}:`
-  return Object.entries(runtime.state.controls).every(([key, value]) => (
-    !key.startsWith(prefix)
-    || Object.hasOwn(plan.controls, key)
-    || value === false
-    || value === 0
-    || value === ''
-  ))
 }
 
 /* Fold passive variants by weapon while keeping the configured ranking variant first. */
@@ -345,24 +257,18 @@ function weaponRows(
   base: number,
   runtime: ResRuntime,
 ): ClimbRow[] {
-  const byWeapon: WeaponEntry[][] = []
-  for (const plan of results) {
-    const last = byWeapon[byWeapon.length - 1]
-    if (last && last[0].weaponId === plan.weaponId) last.push(plan)
-    else byWeapon.push([plan])
-  }
-
-  return byWeapon.map((plans, index) => {
+  return groupWeaponSuggestions(results).map(({ plans }, index) => {
     const lead = plans[0]
-    const now = sameWeaponCandidate(runtime, lead, base)
+    const now = lead.weaponId === runtime.build.weapon.id
     const color = getRarityColor(lead.rarity) ?? null
     return {
       key: `weapon:${index}:${lead.weaponId}`,
       rank: index + 1,
       now,
+      equipped: lead.weaponId === runtime.build.weapon.id,
       color,
       damage: lead.damage,
-      delta: pctDelta(lead.damage, base),
+      delta: percentDiff(lead.damage, base),
       marks: [{
         key: lead.weaponId,
         icon: lead.icon,
@@ -379,12 +285,17 @@ function weaponRows(
         leadUnit: '',
         coins: [],
         name: null,
-        primary: { icon: null, value: `${plan.damage > base ? '+' : ''}${pctDelta(plan.damage, base).toFixed(1)}%` },
+        primary: { icon: null, value: `${plan.damage > base ? '+' : ''}${percentDiff(plan.damage, base).toFixed(1)}%` },
         secondary: null,
         held: false,
       })),
       echoes: null,
       weapon: lead,
+      variants: plans.map((plan) => ({
+        mode: plan.mode,
+        damage: plan.damage,
+        delta: percentDiff(plan.damage, base),
+      })),
     }
   })
 }
@@ -406,7 +317,7 @@ export function climbRows({
   wpnRslt: WeaponEntry[]
   base: number
   echoes: Array<EchoInstance | null>
-  worn: Array<{ cost: number, key: string }>
+  worn: WornMainStat[]
   wornSetPlan: SetPlanSmmrE[]
   runtime: ResRuntime
 }): ClimbRow[] {

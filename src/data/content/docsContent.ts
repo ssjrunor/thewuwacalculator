@@ -53,22 +53,20 @@ export interface DocSection {
   blocks: DocBlock[]
 }
 
-/** Each topic's hero is a working instrument keyed off this discriminator. */
+/** Selects the topic's interactive calculation example. */
 export type DocInstrument = 'anchorScale' | 'stackRamp' | 'searchSpace' | 'none'
 
 export interface DocTopic {
   id: string
-  /** short registry tag shown on the rack card, e.g. "SCORE". */
+  /** Stable short topic code, e.g. "SCORE". */
   code: string
   eyebrow: string
   title: string
-  /** one line for the rack card. */
   abstract: string
-  /** intro sentence shown under the method title. */
   summary?: string
   drives: string
   instrument: DocInstrument
-  /** disclaimer / caveat lines rendered beneath the live instrument. */
+  /** Calculation caveats for the selected instrument. */
   instrumentNote?: string[]
   aliases?: string[]
   sections: DocSection[]
@@ -563,7 +561,7 @@ const evaluationTopic: DocTopic = {
             '    weight = 0',
             '',
             'eg:',
-            '  pheobe: { ',
+            '  phoebe: { ',
             '     ATK%: 1,',
             '     ATK: 0.75,',
             '     ER: 1,' ,

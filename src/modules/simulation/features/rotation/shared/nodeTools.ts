@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns node tools behavior and state transitions for the shared module.
+  Description: Builds rotation-node edit menus, deduplicates visible runtime
+               states, and resolves feature and condition inspection metadata.
 */
 
 import type {
@@ -149,7 +150,11 @@ function makeEnemyState(
     }
 }
 
-export function enemyChoices(runtime: ResRuntime, enemyId?: string): CondChoice[] {
+export function enemyChoices(
+    runtime: ResRuntime,
+    enemyId?: string,
+    runtimesById?: Record<string, ResRuntime>,
+): CondChoice[] {
     // enemy status choices are modeled as synthetic source states so rotation condition editors can treat enemy stacks
     // the same way they treat resonator, weapon, echo, and set controls.
     const enemyMember = {
@@ -164,7 +169,7 @@ export function enemyChoices(runtime: ResRuntime, enemyId?: string): CondChoice[
         getTuneStrainMaxForTeam(runtime),
         'Set the target enemy Tune Strain stacks for following rotation actions.',
     )
-    const negFfct = negEffectsFor(runtime)
+    const negFfct = negEffectsFor(runtime, runtimesById)
         .filter((effect) => effect.sliderVisible)
         .map((effect) => makeEnemyState(
             effect.key,

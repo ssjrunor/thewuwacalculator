@@ -1,9 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: Owns config modal behavior and state transitions for the components module.
+  Description: Drafts rotation-editor column, precision, and execution
+               preferences and commits them at the configuration boundary.
 */
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Scale, TestTubes, X } from 'lucide-react'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import type { ReactNode } from 'react'
@@ -19,6 +20,7 @@ import type {
 import { ColumnRack } from '@/modules/simulation/features/rotation/program-editor/components/ColumnRack.tsx'
 import { useAppStore } from '@/domain/state/store.ts'
 import type { RotationDamageBasis } from '@/domain/entities/rotationEditorPreferences.ts'
+import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
 type ConfigTab = 'display' | 'simulation'
 type ConfigConcern = 'rotation' | 'saved'
@@ -34,7 +36,7 @@ interface ConfigSettings {
   /** Ordered stat keys enabled for each execution entry. */
   statKeys: readonly StatKey[]
   onStatKeys: (value: readonly StatKey[]) => void
-  /** the order the register's bands read in, left to right */
+  /** Persisted register-group ordering. */
   groupOrder: readonly RegisterGroup[]
   onGroupOrder: (value: readonly RegisterGroup[]) => void
 
@@ -42,9 +44,22 @@ interface ConfigSettings {
   onDockPane: (value: boolean) => void
   damageBasis: RotationDamageBasis
   onDamageBasis: (value: RotationDamageBasis) => void
-  /** how many decimal places calculated rotation values state */
+  /** Decimal precision for formatted rotation values. */
   decimals: DamageDecimals
   onDecimals: (value: DamageDecimals) => void
+}
+
+interface ConfigDraft {
+  view: ConfigSettings['view']
+  ghostRepeats: boolean
+  showPriors: boolean
+  statKeys: readonly StatKey[]
+  groupOrder: readonly RegisterGroup[]
+  dockPane: boolean
+  damageBasis: RotationDamageBasis
+  decimals: DamageDecimals
+  showLiveRotation: boolean
+  scaleSavedToSelected: boolean
 }
 
 const CONFIGS = {
@@ -103,10 +118,6 @@ function Setting({
   )
 }
 
-/*
-  a switch states itself rather than being read beside a label: the pill says
-  which way it is set, and fills with the accent when it is on.
-*/
 function Toggle({
   on,
   label,
@@ -170,7 +181,7 @@ export function ConfigModal({
 }: {
   state: { visible: boolean; open: boolean; closing: boolean }
   settings: ConfigSettings
-  onClose: () => void
+  onClose: (onClosed?: () => void) => void
 }) {
   const savedView = useAppStore((store) => store.ui.rotationEditorPreferences.savedView)
   const showLiveRotation = useAppStore(
@@ -180,11 +191,51 @@ export function ConfigModal({
     (store) => store.ui.savedRotationPreferences.scaleToSelected,
   )
   const setRotPrefs = useAppStore((store) => store.setRotPrefs)
+  const source: ConfigDraft = {
+    view: settings.view,
+    ghostRepeats: settings.ghostRepeats,
+    showPriors: settings.showPriors,
+    statKeys: settings.statKeys,
+    groupOrder: settings.groupOrder,
+    dockPane: settings.dockPane,
+    damageBasis: settings.damageBasis,
+    decimals: settings.decimals,
+    showLiveRotation,
+    scaleSavedToSelected,
+  }
+  const session = useConfigurationSession<ConfigDraft>({
+    source,
+    active: state.visible,
+    commit: (reducer) => {
+      const next = reducer(source)
+      if (next.view !== source.view) settings.onView(next.view)
+      if (next.ghostRepeats !== source.ghostRepeats) settings.onGhostRepeats(next.ghostRepeats)
+      if (next.showPriors !== source.showPriors) settings.onShowPriors(next.showPriors)
+      if (next.statKeys !== source.statKeys) settings.onStatKeys(next.statKeys)
+      if (next.groupOrder !== source.groupOrder) settings.onGroupOrder(next.groupOrder)
+      if (next.dockPane !== source.dockPane) settings.onDockPane(next.dockPane)
+      if (next.damageBasis !== source.damageBasis) settings.onDamageBasis(next.damageBasis)
+      if (next.decimals !== source.decimals) settings.onDecimals(next.decimals)
+      if (
+        next.showLiveRotation !== source.showLiveRotation
+        || next.scaleSavedToSelected !== source.scaleSavedToSelected
+      ) {
+        setRotPrefs((current) => ({
+          ...current,
+          showLiveRotation: next.showLiveRotation,
+          scaleToSelected: next.scaleSavedToSelected,
+        }))
+      }
+    },
+  })
+  const draft = session.draft
+  const update = session.update
+  const close = useCallback(() => onClose(session.finish), [onClose, session])
   const surfaceConcern: ConfigConcern = savedView === 'off' ? 'rotation' : 'saved'
   const [tab, setTab] = useState<ConfigTab>('display')
   const [concern, setConcern] = useState<ConfigConcern>(surfaceConcern)
   const tabs = tabsFor(concern)
-  const statMax = statCeiling(settings.dockPane)
+  const statMax = statCeiling(draft.dockPane)
 
   const selectConcern = (next: ConfigConcern) => {
     setConcern(next)
@@ -198,7 +249,7 @@ export function ConfigModal({
       state={state}
       variant="settings"
       ariaLabel="Rotation editor settings"
-      onClose={onClose}
+      onClose={close}
     >
       <div className="amdl rtcfg">
         <header className="amdl__head">
@@ -229,7 +280,7 @@ export function ConfigModal({
               <Scale size="0.86rem" aria-hidden="true" />
             </button>
           </span>
-          <button type="button" className="amdl__close" aria-label="Close" onClick={onClose}>
+          <button type="button" className="amdl__close" aria-label="Close" onClick={close}>
             <X size="0.95rem" />
           </button>
         </header>
@@ -262,12 +313,12 @@ export function ConfigModal({
                 >
                   <Choice
                     label="Layout"
-                    value={settings.view}
+                    value={draft.view}
                     options={[
                       { id: 'tree', label: 'Tree' },
                       { id: 'flat', label: 'Flat' },
                     ]}
-                    onChange={settings.onView}
+                    onChange={(value) => update((current) => ({ ...current, view: value }))}
                   />
                 </Setting> : null}
 
@@ -277,8 +328,8 @@ export function ConfigModal({
                 >
                   <Toggle
                     label="Fade repeats"
-                    on={settings.ghostRepeats}
-                    onChange={settings.onGhostRepeats}
+                    on={draft.ghostRepeats}
+                    onChange={(value) => update((current) => ({ ...current, ghostRepeats: value }))}
                   />
                 </Setting> : null}
 
@@ -288,8 +339,8 @@ export function ConfigModal({
                 >
                   <Toggle
                     label="Show priors"
-                    on={settings.showPriors}
-                    onChange={settings.onShowPriors}
+                    on={draft.showPriors}
+                    onChange={(value) => update((current) => ({ ...current, showPriors: value }))}
                   />
                 </Setting> : null}
 
@@ -299,11 +350,8 @@ export function ConfigModal({
                 >
                   <Toggle
                     label="Show live rotation"
-                    on={showLiveRotation}
-                    onChange={(value) => setRotPrefs((current) => ({
-                      ...current,
-                      showLiveRotation: value,
-                    }))}
+                    on={draft.showLiveRotation}
+                    onChange={(value) => update((current) => ({ ...current, showLiveRotation: value }))}
                   />
                 </Setting> : null}
 
@@ -313,11 +361,8 @@ export function ConfigModal({
                 >
                   <Toggle
                     label="Scale to the current entry"
-                    on={scaleSavedToSelected}
-                    onChange={(value) => setRotPrefs((current) => ({
-                      ...current,
-                      scaleToSelected: value,
-                    }))}
+                    on={draft.scaleSavedToSelected}
+                    onChange={(value) => update((current) => ({ ...current, scaleSavedToSelected: value }))}
                   />
                 </Setting> : null}
 
@@ -327,8 +372,8 @@ export function ConfigModal({
                 >
                   <Toggle
                     label="Keep the side panel open"
-                    on={settings.dockPane}
-                    onChange={settings.onDockPane}
+                    on={draft.dockPane}
+                    onChange={(value) => update((current) => ({ ...current, dockPane: value }))}
                   />
                 </Setting> : null}
 
@@ -338,12 +383,12 @@ export function ConfigModal({
                 >
                   <Choice
                     label="Decimals"
-                    value={String(settings.decimals)}
+                    value={String(draft.decimals)}
                     options={DAMAGE_DECIMALS.map((places) => ({
                       id: String(places),
                       label: String(places),
                     }))}
-                    onChange={(value) => settings.onDecimals(Number(value) as DamageDecimals)}
+                    onChange={(value) => update((current) => ({ ...current, decimals: Number(value) as DamageDecimals }))}
                   />
                 </Setting> : null}
 
@@ -352,7 +397,7 @@ export function ConfigModal({
                     <b className="rtcfg-set__name">
                       Columns
                       <span className="rtcfg-set__count">
-                        {settings.statKeys.length} of {statMax}
+                        {draft.statKeys.length} of {statMax}
                       </span>
                     </b>
                     <span className="rtcfg-set__why">
@@ -361,10 +406,10 @@ export function ConfigModal({
                     </span>
                   </span>
                   <ColumnRack
-                    statKeys={settings.statKeys}
-                    onStatKeys={settings.onStatKeys}
-                    groupOrder={settings.groupOrder}
-                    onGroupOrder={settings.onGroupOrder}
+                    statKeys={draft.statKeys}
+                    onStatKeys={(value) => update((current) => ({ ...current, statKeys: value }))}
+                    groupOrder={draft.groupOrder}
+                    onGroupOrder={(value) => update((current) => ({ ...current, groupOrder: value }))}
                     ceiling={statMax}
                   />
                 </div> : null}
@@ -377,12 +422,12 @@ export function ConfigModal({
                 >
                   <Choice
                     label="Total damage"
-                    value={settings.damageBasis}
+                    value={draft.damageBasis}
                     options={[
                       { id: 'avg', label: 'Average' },
                       { id: 'full', label: 'Full' },
                     ]}
-                    onChange={settings.onDamageBasis}
+                    onChange={(value) => update((current) => ({ ...current, damageBasis: value }))}
                   />
                 </Setting> : null}
 

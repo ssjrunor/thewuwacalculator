@@ -22,7 +22,7 @@ export function compTgtRun(input: OptStartPay): PrepTargetSkill {
 
   // rebuild participant runtimes from the stripped runtime so target context
   // generation has the correct team-wide state available
-  const participants = makeRuntimeMap(runtime)
+  const participants = makeRuntimeMap(runtime, input.runtimesById)
 
   // compile the selected skill into the packed target context inputs
   const target = compOptTgtCt({

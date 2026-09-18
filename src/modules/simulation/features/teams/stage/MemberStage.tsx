@@ -1,11 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: The member stage: one resonator's five channels, the weapon rack
-               that takes the body over, and everything that drives them. It is
-               not a modal and does not know about one. The teammate console
-               stands it in a modal frame; Modulation stands it on a
-               page and writes its own loadout channel, so neither surface has
-               to suppress the other's blocks to get its own.
+  Description: Edits scenario-member progression, equipment, source controls,
+               routing, and loadouts with optional externally controlled channels.
 */
 
 import {
@@ -109,50 +105,38 @@ export type ChannelId = 'loadout' | 'skills' | 'effects' | 'echoes' | 'buffs'
 const MAX_ECHO_COST = 12
 const TEAM_ECHO_SEL_SURFACE = 'teammate-config-echo-selection'
 
-/* what the stage itself needs. it is not a modal and does not take a modal's
-   state: a surface that wants one wraps this in `ConfigModalProps` below. */
+// Member editing inputs are separate from modal lifecycle state.
 export interface MemberStageProps {
-  /* where the stage's OWN dialogs go (the echo editor, the picker, the parser,
-     quick setup, the inventory). it is not the stage's own frame; a surface
-     that does not care resolves the app shell by default. */
+  /** Portal target for nested dialogs; defaults to the app shell. */
   portalTarget?: HTMLElement | null
   member: ResView
   roster: ResView[]
   runtime: ResRuntime
   actRt: ResRuntime
-  // the active resonator owns progression the team slots resolve at runtime, so
-  // only its view offers level, skill, and trace editing.
+  /** Whether this member is the current scenario subject. */
   isActive: boolean
   invBlds: SavedBuild[]
   sttDefs: SourceState[]
   cmbtSttsView: StatsView | null
   initChannel?: ChannelId
-  /* a surface that draws its own channel switch drives the channel from outside
-     instead of seeding it once */
+  /** Controlled channel; when absent, initChannel seeds local state. */
   channel?: ChannelId
-  /* the weapon rack takes over the stage body. a surface whose own trim owns the
-     weapon chip opens it from there, so the rack can be driven from outside too */
+  /** Controlled weapon-editor visibility; when absent, local state is used. */
   rackOpen?: boolean
   onRackOpenChange?: (open: boolean) => void
-  /* in the modal you are reading a teammate, so only the active resonator gets
-     the skills channel. a surface whose subject is a resonator being built gets
-     all of them, whoever is in front */
-  allChannels?: boolean
   onSwitchMember: (resonatorId: string) => void
+  onSetTeamMember?: (slotIndex: number, resonatorId: string | null) => void
   onChannelChange?: (channel: ChannelId) => void
   onSqncChng: (value: number) => void
   onRtPdt: RtUpdHnd
   getSelTgt: (ownerKey: string) => string | null
   setSelTgt: (ownerKey: string, tgtResId: string | null) => void
-  /* the head's close button, which only a modal frame draws */
   onClose?: () => void
-  /* `bare` drops the spine and the head: a page that carries the trim and the
-     channel switch in its own frame already says who this is about, and wants
-     no plinth, no pills and no close button */
+  /** Bare mode delegates framing and channel controls to the parent surface. */
   frame?: 'modal' | 'bare'
 }
 
-/* the stage plus the frame's own state, for the teammate console's modal */
+// Modal hosting extends member editing inputs with visibility lifecycle state.
 export interface ConfigModalProps extends MemberStageProps {
   visible: boolean
   open: boolean
@@ -160,13 +144,14 @@ export interface ConfigModalProps extends MemberStageProps {
   onClose: () => void
 }
 
-function ChainDial({
+const clampTo = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+
+function StarDial({
   label,
   prefix,
   min,
   max,
   value,
-  compact = false,
   onChange,
 }: {
   label: string
@@ -174,7 +159,6 @@ function ChainDial({
   min: number
   max: number
   value: number
-  compact?: boolean
   onChange: (next: number) => void
 }) {
   const steps = useMemo(
@@ -183,45 +167,41 @@ function ChainDial({
   )
 
   return (
-    <div className="mcc-chain">
-      {!compact ? (
-        <div className="mcc-chain-head">
-          <span className="mcc-chain-label">{label}</span>
-          <span className="mcc-chain-readout">{prefix}{value}</span>
-        </div>
-      ) : null}
-      <div className="mcc-chain-track" role="radiogroup" aria-label={label}>
-        {steps.map((step, index) => (
-          <span key={step} style={{ display: 'contents' }}>
-            {index > 0 ? (
-              <span className={`mcc-chain-link${step <= value ? ' lit' : ''}`} aria-hidden="true" />
-            ) : null}
-            <button
-              type="button"
-              role="radio"
-              aria-checked={step === value}
-              aria-label={`${prefix}${step}`}
-              className={[
-                'mcc-chain-node',
-                step <= value ? 'lit' : '',
-                step === value ? 'current' : '',
-              ].filter(Boolean).join(' ')}
-              onClick={() => onChange(step)}
-            >
-              {step}
-            </button>
-          </span>
+    <div className="mcc-dial">
+      <span className="mcc-dial-label">{label}</span>
+      <div
+        className="mcc-dial-track"
+        role="radiogroup"
+        aria-label={label}
+        style={{ '--mcc-dial-lit': (value - min) / (max - min) } as CssProps}
+      >
+        <span className="mcc-dial-rule" aria-hidden="true" />
+        <span className="mcc-dial-lit" aria-hidden="true" />
+        {steps.map((step) => (
+          <button
+            key={step}
+            type="button"
+            role="radio"
+            aria-checked={step === value}
+            aria-label={`${label} ${prefix}${step}`}
+            className={[
+              'mcc-dial-node',
+              step <= value ? 'lit' : '',
+              step === value ? 'current' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => onChange(step)}
+          >
+            <span className="mcc-dial-star" aria-hidden="true" />
+          </button>
         ))}
       </div>
+      <span className="mcc-dial-read">{prefix}{value}</span>
     </div>
   )
 }
 
-/*
-  a level rail with the ascension levels marked on it, so the spine can show
-  where a resonator sits between breakpoints and not just its number.
-*/
-function LevelRail({
+// Pointer input snaps near authored ascension stops; typed levels remain clamped.
+function LevelTray({
   label,
   value,
   min,
@@ -236,34 +216,67 @@ function LevelRail({
   stops: readonly number[]
   onChange: (next: number) => void
 }) {
-  const frac = (level: number) => ((level - min) / (max - min)) * 100
+  const bands = useMemo(
+    () => stops.map((cap, index) => ({ cap, floor: index === 0 ? min : stops[index - 1] })),
+    [min, stops],
+  )
+
+  const snap = useCallback((raw: number) => stops.find((cap) => Math.abs(raw - cap) <= 2) ?? raw, [stops])
+
+  const fill = (floor: number, cap: number) => {
+    if (value >= cap) return 100
+    if (value <= floor) return 0
+    return ((value - floor) / (cap - floor)) * 100
+  }
 
   return (
-    <div className="mcc-lvl">
-      <div className="mcc-lvl-head">
-        <span className="mcc-chain-label">{label}</span>
-        <span className="mcc-lvl-value">{value}<i>/{max}</i></span>
+    <div className="mcc-tray">
+      <div className="mcc-tray-head">
+        <label className="mcc-tray-field">
+          <span className="mcc-hidden">{label}</span>
+          <input
+            type="number" className="mcc-tray-num"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(event) => onChange(clampTo(Number(event.target.value) || min, min, max))}
+          />
+        </label>
+        <span className="mcc-tray-of">/ {max}</span>
       </div>
-      <div className="mcc-lvl-rail">
+
+      <div className="mcc-tray-track">
+        <span className="mcc-tray-bands" aria-hidden="true">
+          {bands.map(({ cap, floor }) => (
+            <span key={cap} className="mcc-tray-band">
+              <span className="mcc-tray-fill" style={{ width: `${fill(floor, cap)}%` }} />
+            </span>
+          ))}
+        </span>
         <input
-          type="range" className="mcc-lvl-input"
+          type="range" className="mcc-tray-scrub"
           min={min}
           max={max}
+          step={1}
           value={value}
           aria-label={label}
-          onChange={(event) => onChange(Number(event.target.value))}
+          onChange={(event) => onChange(snap(clampTo(Number(event.target.value), min, max)))}
         />
-        <span className="mcc-lvl-track" aria-hidden="true">
-          <span className="mcc-lvl-fill" style={{ width: `${frac(value)}%` }} />
-          {stops.filter((stop) => stop < max).map((stop) => (
-            <span
-              key={stop}
-              className={`mcc-lvl-stop${value >= stop ? ' lit' : ''}`}
-              style={{ left: `${frac(stop)}%` }}
-            />
-          ))}
-          <span className="mcc-lvl-knob" style={{ left: `${frac(value)}%` }} />
-        </span>
+      </div>
+
+      <div className="mcc-tray-caps" aria-hidden="true">
+        {bands.map(({ cap, floor }) => (
+          <span
+            key={cap}
+            className={[
+              'mcc-tray-cap',
+              value > floor && value <= cap ? 'here' : '',
+              value >= cap ? 'past' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {cap}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -655,7 +668,8 @@ export const CHANNELS: Array<{
   activeOnly?: boolean
 }> = [
   { id: 'loadout', label: 'Loadout', icon: <Package size="1em" /> },
-  { id: 'skills', label: 'Skills', icon: <Network size="1em" />, activeOnly: true },
+  // All scenario members own progression and share the same editing channels.
+  { id: 'skills', label: 'Skills', icon: <Network size="1em" /> },
   { id: 'effects', label: 'Effects', icon: <Zap size="1em" /> },
   { id: 'echoes', label: 'Echoes', icon: <Gem size="1em" /> },
   { id: 'buffs', label: 'Buffs', icon: <Sparkles size="1em" /> },
@@ -675,8 +689,8 @@ function ResonatorView({
   channel: channelProp,
   rackOpen: rackOpenProp,
   onRackOpenChange,
-  allChannels = false,
   onSwitchMember,
+  onSetTeamMember,
   onChannelChange,
   onSqncChng,
   onRtPdt,
@@ -686,8 +700,7 @@ function ResonatorView({
   frame = 'modal',
 }: MemberStageProps) {
   const onBare = frame === 'bare'
-  /* the stage's dialogs need somewhere to land whether or not the surface
-     around it cared to say where */
+  // Nested dialogs use the supplied host or the shared app portal.
   const dialogHost = portalTarget ?? mainPortal()
   const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const invChs = useAppStore((state) => state.library.echoes)
@@ -709,6 +722,14 @@ function ResonatorView({
   const channel = channelProp ?? ownChannel
   const setChannel = channelProp == null ? setOwnChannel : () => undefined
   const [showAllBlds, setShowAllBlds] = useState(false)
+  // Reset member-owned tray state during render so a switch cannot commit
+  // a tray opened for the previous member. Only one level tray can be active.
+  const [lvlTray, setLvlTray] = useState<'res' | 'wpn' | null>(null)
+  const [trayOwner, setTrayOwner] = useState(member.id)
+  if (trayOwner !== member.id) {
+    setTrayOwner(member.id)
+    setLvlTray(null)
+  }
   const [ownRackOpen, setOwnRackOpen] = useState(false)
   const wpnRackOpen = rackOpenProp ?? ownRackOpen
   const setWpnRackOpen = useCallback((next: boolean) => {
@@ -733,7 +754,8 @@ function ResonatorView({
 
   const vlblCntr = useMemo(() => [...getResStateControls(member)], [member])
 
-  const showsForte = allChannels || isActive
+  // progression is per seat, so the forte tree is built for whoever is in front
+  const showsForte = true
   const skillTree = useMemo(
     () => (showsForte ? mkForteTree(member, isDarkMode) : []),
     [showsForte, isDarkMode, member],
@@ -763,10 +785,7 @@ function ResonatorView({
     onRtPdt((prev) => tglTrcNd(prev, nodeId, member))
   }, [member, onRtPdt])
 
-  /*
-    the docked skills write the same levels the columns do, and the outro skill
-    reaches here only when it carries one, which today it never does.
-  */
+  // Only levelled non-outro entries can write canonical skill levels.
   const onDockChng = useCallback((entry: ForteDock, next: number) => {
     const key = entry.key
     if (!entry.levelled || key === 'outroSkill') {
@@ -1212,10 +1231,10 @@ function ResonatorView({
     rmEchoSlts([pickerSlot])
   }, [pickerSlot, rmEchoSlts])
 
-  /* the seat this member sits in, and the two writes that own it. the team is
-     stored on the profile in front, so only a support seat is re-cast here: the
-     resonator in front is switched from the roster, never from its own console. */
-  const { setMember: setTeamMember } = useTeamSlots()
+  /* The scenario owns each seat directly. Only a support seat is re-cast here;
+     the active resonator is switched from the roster, never from its own console. */
+  const { setMember: setLiveTeamMember } = useTeamSlots()
+  const setTeamMember = onSetTeamMember ?? setLiveTeamMember
   const seatIndex = actRt.build.team.indexOf(member.id)
   const canManageSeat = !isActive && seatIndex > 0
 
@@ -1673,15 +1692,10 @@ function ResonatorView({
     echoes: activeSets.length,
   }
 
-  const channels = CHANNELS.filter((entry) => allChannels || !entry.activeOnly || isActive)
-  // switching from the active resonator to a teammate can leave the console on
-  // a channel that member does not have, so the view falls back rather than
-  // rendering an empty stage.
+  const channels = CHANNELS
+  // An unsupported controlled channel falls back to loadout.
   const actChannel = channels.some((entry) => entry.id === channel) ? channel : 'loadout'
 
-  /* the channel bodies are the stage. a modal frame stands them in a spine
-     and a head; a page stands them on their own, so the frame is what the
-     branch below adds rather than something a page has to undo. */
   const stageBody = (
           <div className="mcc-stage-body" key={wpnRackOpen ? 'weapon-rack' : actChannel}>
             {wpnRackOpen ? (
@@ -1794,10 +1808,6 @@ function ResonatorView({
             ) : null}
 
             {!wpnRackOpen && actChannel === 'skills' ? (
-              /*
-                the tree brings its own skin per surface, and the frame already
-                says which one this is: a modal panel, or bare on a page.
-              */
               <ForteTree
                 surface={onBare ? 'page' : 'console'}
                 branches={skillTree}
@@ -2274,144 +2284,174 @@ function ResonatorView({
           onClick={(event) => event.stopPropagation()}
         >
         <aside className="mcc-spine">
-          <div className="mcc-plinth">
-            <img
-              src={member.sprite || member.profile}
-              alt="" className="mcc-plinth-art"
-              style={spriteVars(member)}
-              onError={withDefResMg}
-            />
-            <div className="mcc-plinth-scrim" aria-hidden="true" />
-            <div className="mcc-plinth-id">
-              <span className="mcc-plinth-eyebrow">{isActive ? 'Active' : 'Teammate'}</span>
-              <h2 id="teammate-config-title" className="mcc-plinth-name">{member.name}</h2>
-              {canManageSeat ? (
-                <div className="mcc-plinth-acts">
-                  <button
-                    type="button" className="mcc-plinth-act"
-                    onClick={() => seatPicker.show()}
-                  >
-                    <ArrowRightLeft size="0.72rem" />
-                    Change
-                  </button>
-                  <button
-                    type="button" className="mcc-plinth-act mcc-plinth-act--drop"
-                    onClick={onSeatRemove}
-                  >
-                    <Trash2 size="0.72rem" />
-                    Remove
-                  </button>
-                </div>
-              ) : null}
-              <div className="mcc-plinth-tags">
-                <span className="mcc-tag">
-                  <img
-                    src={`/assets/game/attributes/icons/${member.attribute}.webp`}
-                    alt={member.attribute}
-                    style={member.attribute === 'physical' ? { filter: 'grayscale(1) brightness(0.6)' } : undefined}
-                    onError={withDefIconM}
-                  />
-                  {getWpnTypeLb(member.weaponType)}
-                </span>
-                {!isActive ? <span className="mcc-tag">Lv {runtime.base.level}</span> : null}
-                <span className="mcc-tag">S{runtime.base.sequence}</span>
-              </div>
-              <div className="mcc-plinth-chain">
-                <ChainDial
-                  label="Resonance chain"
-                  prefix="S"
-                  min={0}
-                  max={6}
-                  value={runtime.base.sequence}
-                  compact
-                  onChange={(next) => onSqncChng(Math.max(0, Math.min(6, next)))}
-                />
-              </div>
-            </div>
+          <img
+            src={member.sprite || member.profile}
+            alt="" className="mcc-art"
+            style={spriteVars(member)}
+            onError={withDefResMg}
+          />
+          <div className="mcc-art-scrim" aria-hidden="true" />
+          <div className="mcc-bloom" aria-hidden="true" />
+
+          <div className="mcc-seat">
+            {canManageSeat ? (
+              <>
+                <button
+                  type="button" className="mcc-seat-act"
+                  aria-label={`Swap ${member.name} out of this seat`}
+                  title="Swap this seat"
+                  onClick={() => seatPicker.show()}
+                >
+                  <ArrowRightLeft size="0.72rem" />
+                </button>
+                <button
+                  type="button" className="mcc-seat-act mcc-seat-act--drop"
+                  aria-label={`Clear ${member.name} from this seat`}
+                  title="Clear this seat"
+                  onClick={onSeatRemove}
+                >
+                  <Trash2 size="0.72rem" />
+                </button>
+              </>
+            ) : null}
+            <span className="mcc-seat-tag">{seatIndex >= 0 ? seatIndex + 1 : 1}</span>
           </div>
 
+          <div className="mcc-id">
+            <div className="mcc-id-head">
+              <h2 id="teammate-config-title" className="mcc-name">{member.name}</h2>
+              <button
+                type="button"
+                className={`mcc-lv${lvlTray === 'res' ? ' is-open' : ''}`}
+                aria-expanded={lvlTray === 'res'}
+                aria-label={`Change level, now ${runtime.base.level}`}
+                onClick={() => setLvlTray(lvlTray === 'res' ? null : 'res')}
+              >
+                <span className="mcc-lv-cap">Lv</span>
+                <span className="mcc-lv-num">{runtime.base.level}</span>
+              </button>
+            </div>
 
-          {isActive ? (
-            <div className="mcc-spine-lvl">
-              <LevelRail
-                label="Level"
+            <StarDial
+              label="Chain"
+              prefix="S"
+              min={0}
+              max={6}
+              value={runtime.base.sequence}
+              onChange={(next) => onSqncChng(clampTo(next, 0, 6))}
+            />
+
+            <div className="mcc-type">
+              <img
+                src={`/assets/game/attributes/icons/${member.attribute}.webp`}
+                alt={member.attribute}
+                style={member.attribute === 'physical' ? { filter: 'grayscale(1) brightness(0.6)' } : undefined}
+                onError={withDefIconM}
+              />
+              <span>{getWpnTypeLb(member.weaponType)}</span>
+            </div>
+
+            {lvlTray === 'res' ? (
+              <LevelTray
+                label="Resonator level"
                 value={runtime.base.level}
                 min={RES_LVL_MIN}
                 max={RES_LVL_MAX}
                 stops={ASCENSION_STOPS}
                 onChange={onLvlChng}
               />
-            </div>
-          ) : null}
-
-          <div className="mcc-spine-foot"
-            style={weaponDef ? rarityVars(weaponDef.rarity, false, '--mcc-accent') as CssProps : undefined}
-          >
-            <button
-              type="button"
-              className={`mcc-foot-weapon${wpnRackOpen ? ' is-open' : ''}`}
-              aria-expanded={wpnRackOpen}
-              onClick={() => setWpnRackOpen(!wpnRackOpen)}
-            >
-              <img
-                src={weaponDef?.icon ?? `/assets/game/weapons/icons/${weaponId}.webp`}
-                alt=""
-                onError={withDefWpnMg}
-              />
-              <span className="mcc-foot-weapon-meta">
-                <span className="mcc-foot-weapon-overline">Weapon</span>
-                <span className="mcc-foot-weapon-name">{weaponDef?.name ?? 'No weapon'}</span>
-              </span>
-              <span className="mcc-foot-weapon-rank">R{currentRank}</span>
-            </button>
-
-            {isActive && weaponDef ? (
-              <LevelRail
-                label="Weapon level"
-                value={runtime.build.weapon.level}
-                min={RES_LVL_MIN}
-                max={RES_LVL_MAX}
-                stops={ASCENSION_STOPS}
-                onChange={onWpnLvlChng}
-              />
             ) : null}
 
-            {weaponDef && wpnStats ? (
-              <div className="mcc-foot-stats">
-                <span className="mcc-foot-stat">
-                  <span className="mcc-stat-glyph"
-                    aria-hidden="true"
-                    style={{
-                      WebkitMaskImage: `url(${WPN_STAT_CNS.atk})`,
-                      maskImage: `url(${WPN_STAT_CNS.atk})`,
-                    } as CssProps}
+            <div className="mcc-kit"
+              style={weaponDef ? rarityVars(weaponDef.rarity, false, '--mcc-accent') as CssProps : undefined}
+            >
+              <div className="mcc-wpn">
+                <button
+                  type="button"
+                  className={`mcc-wpn-art${wpnRackOpen ? ' is-open' : ''}`}
+                  aria-expanded={wpnRackOpen}
+                  aria-label={weaponDef ? `Change weapon, now ${weaponDef.name}` : 'Pick a weapon'}
+                  onClick={() => setWpnRackOpen(!wpnRackOpen)}
+                >
+                  <img
+                    src={weaponDef?.icon ?? `/assets/game/weapons/icons/${weaponId}.webp`}
+                    alt=""
+                    onError={withDefWpnMg}
                   />
-                  <i>{Math.round(wpnStats.atk)}</i>
-                </span>
-                <span className="mcc-foot-stat">
-                  {WPN_STAT_CNS[weaponDef.statKey] ? (
-                    <span className="mcc-stat-glyph"
-                      aria-hidden="true"
-                      style={{
-                        WebkitMaskImage: `url(${WPN_STAT_CNS[weaponDef.statKey]})`,
-                        maskImage: `url(${WPN_STAT_CNS[weaponDef.statKey]})`,
-                      } as CssProps}
-                    />
+                </button>
+
+                <span className="mcc-wpn-meta">
+                  <span className="mcc-wpn-name">{weaponDef?.name ?? 'No weapon'}</span>
+                  {weaponDef && wpnStats ? (
+                    <span className="mcc-wpn-stats">
+                      <span className="mcc-wpn-stat">
+                        <span className="mcc-stat-glyph"
+                          aria-hidden="true"
+                          style={{
+                            WebkitMaskImage: `url(${WPN_STAT_CNS.atk})`,
+                            maskImage: `url(${WPN_STAT_CNS.atk})`,
+                          } as CssProps}
+                        />
+                        <i>{Math.round(wpnStats.atk)}</i>
+                      </span>
+                      <span className="mcc-wpn-stat">
+                        {WPN_STAT_CNS[weaponDef.statKey] ? (
+                          <span className="mcc-stat-glyph"
+                            aria-hidden="true"
+                            style={{
+                              WebkitMaskImage: `url(${WPN_STAT_CNS[weaponDef.statKey]})`,
+                              maskImage: `url(${WPN_STAT_CNS[weaponDef.statKey]})`,
+                            } as CssProps}
+                          />
+                        ) : null}
+                        <i>{fmtWpnStatDs(weaponDef.statKey, wpnStats.scndStatVl)}</i>
+                      </span>
+                    </span>
                   ) : null}
-                  <i>{fmtWpnStatDs(weaponDef.statKey, wpnStats.scndStatVl)}</i>
+                </span>
+
+                <span className="mcc-wpn-side">
+                  {weaponDef ? (
+                    <button
+                      type="button"
+                      className={`mcc-lv${lvlTray === 'wpn' ? ' is-open' : ''}`}
+                      aria-expanded={lvlTray === 'wpn'}
+                      aria-label={`Change weapon level, now ${runtime.build.weapon.level}`}
+                      onClick={() => setLvlTray(lvlTray === 'wpn' ? null : 'wpn')}
+                    >
+                      <span className="mcc-lv-cap">Lv</span>
+                      <span className="mcc-lv-num">{runtime.build.weapon.level}</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button" className="mcc-wpn-chg"
+                    onClick={() => setWpnRackOpen(!wpnRackOpen)}
+                  >
+                    Change
+                  </button>
                 </span>
               </div>
-            ) : null}
 
-            <ChainDial
-              label="Rank"
-              prefix="R"
-              min={1}
-              max={5}
-              value={currentRank}
-              compact
-              onChange={onRankChng}
-            />
+              {lvlTray === 'wpn' && weaponDef ? (
+                <LevelTray
+                  label="Weapon level"
+                  value={runtime.build.weapon.level}
+                  min={RES_LVL_MIN}
+                  max={RES_LVL_MAX}
+                  stops={ASCENSION_STOPS}
+                  onChange={onWpnLvlChng}
+                />
+              ) : null}
+
+              <StarDial
+                label="Rank"
+                prefix="R"
+                min={1}
+                max={5}
+                value={currentRank}
+                onChange={onRankChng}
+              />
+            </div>
           </div>
         </aside>
 

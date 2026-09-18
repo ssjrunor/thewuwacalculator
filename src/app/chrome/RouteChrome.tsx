@@ -221,7 +221,6 @@ function RtChrmCntn() {
 
           <AppChrome
             at={atSimulation}
-            simulating={simulating}
             stamp={stamp?.run}
             tools={<AppTools simulating={simulating} />}
           >

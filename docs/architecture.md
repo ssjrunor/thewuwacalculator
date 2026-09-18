@@ -131,7 +131,7 @@ Primary files:
 - [src/app/chrome/RouteChrome.tsx](../src/app/chrome/RouteChrome.tsx)
 - [src/modules/simulation/pages/SimulationPage.tsx](../src/modules/simulation/pages/SimulationPage.tsx)
 
-The public route hierarchy is `Home > Read / Simulation`, expressed with flat URLs. Home is `/`. Simulation tools are `/modulation`, `/rotation`, `/showcase`, and `/optimizer`; Read owns Info, Guides, Docs, Changelog, Privacy, and Terms; What's New is an act on Home.
+The public route hierarchy is `Home > Read / Simulation`, expressed with flat URLs. Home is `/`. Simulation tools are `/modulation`, `/rotation`, `/showcase`, `/optimizer`, and `/suggestions`; Read owns Guides, Docs, Changelog, Privacy, and Terms; What's New is an act on Home. Simulation tools stay directly on the header, while reference pages and Calibration are in its Read dropdown.
 
 Pages mount under a shared `RouteChrome`. The chrome owns global shell behavior such as navigation, shell styling, toasts, the app status modal, cookie banner, and shared modal infrastructure.
 

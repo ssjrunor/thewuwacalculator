@@ -1,6 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Owns rotation skill menu behavior and state transitions for the shared module.
+  Description: Resolves live team features, groups skills and sub-hits, and
+               maintains valid keyboard focus as search and hit filters change.
 */
 
 import * as Collapsible from "@radix-ui/react-collapsible";
@@ -57,7 +58,7 @@ export function RotationSkillMenu({
   const showSubHitsP = useAppStore((state) => state.ui.showSubHits)
   const [query, setQuery] = useState('')
   const [showHits, setShowHits] = useState(() => dfltShowSubH || showSubHitsP)
-  // skills folded the other way from whatever the Hits switch is set to
+  // Track per-skill folding overrides relative to the global hit-visibility setting.
   const [flipped, setFlipped] = useState<Set<string>>(() => new Set())
   const [shutTabs, setShutTabs] = useState<Set<string>>(() => new Set())
   const [atTab, setAtTab] = useState<SkillTabKey | null>(null)
@@ -69,6 +70,10 @@ export function RotationSkillMenu({
   const activeAccent = activeMember ? ATTR_COLORS[activeMember.attribute] : null
   const actRt = activeMember?.runtime ?? null
   const actMemName = activeMember?.name ?? 'Active Member'
+  const runtimesById = useMemo(
+    () => Object.fromEntries(members.map((member) => [member.id, member.runtime])),
+    [members],
+  )
   const rslvSkllById = useMemo(() => {
     // Resolve each source skill once per member for consistent visibility and labels.
     if (!activeMember || !actRt) {
@@ -76,9 +81,12 @@ export function RotationSkillMenu({
     }
 
     return Object.fromEntries(
-      activeMember.skills.map((skill) => [skill.id, resolveSkill(actRt, skill)]),
+      activeMember.skills.map((skill) => [
+        skill.id,
+        resolveSkill(actRt, skill, undefined, runtimesById),
+      ]),
     ) as Record<string, SkillDef>
-  }, [activeMember, actRt])
+  }, [activeMember, actRt, runtimesById])
   const entries = useMemo<SkillMenuEntry[]>(() => {
     if (!activeMember) {
       return []
@@ -86,7 +94,7 @@ export function RotationSkillMenu({
 
     return activeMember.features.reduce<SkillMenuEntry[]>((list, feature) => {
       const skill = rslvSkllById[feature.skillId]
-      if (!skill || (actRt && !isSkllVsbl(actRt, skill))) {
+      if (!skill || (actRt && !isSkllVsbl(actRt, skill, undefined, runtimesById))) {
         return list
       }
 
@@ -103,7 +111,7 @@ export function RotationSkillMenu({
 
       return list
     }, [])
-  }, [activeMember, actRt, rslvSkllById])
+  }, [activeMember, actRt, rslvSkllById, runtimesById])
 
   const grpdEnts = useMemo(() => {
     const grouped: Partial<Record<SkillTabKey, SkillMenuGroup[]>> = {}
@@ -118,7 +126,7 @@ export function RotationSkillMenu({
 
     for (const rawSkill of activeMember?.skills ?? []) {
       const skill = rslvSkllById[rawSkill.id] ?? rawSkill
-      if (actRt && !isSkllVsbl(actRt, skill)) {
+      if (actRt && !isSkllVsbl(actRt, skill, undefined, runtimesById)) {
         continue
       }
 
@@ -145,7 +153,7 @@ export function RotationSkillMenu({
     }
 
     return grouped
-  }, [activeMember, actMmbrId, actMemName, actRt, entries, rslvSkllById])
+  }, [activeMember, actMmbrId, actMemName, actRt, entries, rslvSkllById, runtimesById])
 
   const hasSubHitEnt = useMemo(() => entries.some((entry) => entry.variant === 'subHit'), [entries])
 
@@ -174,7 +182,7 @@ export function RotationSkillMenu({
   }, [grpdEnts, query])
 
   const total = shown.reduce((sum, group) => sum + group.groups.length, 0)
-  // a node that filtering has taken away cannot still be the one you are at
+  // Clear focused identity when filtering removes its node.
   const atNow = shown.some((group) => group.tab === atTab) ? atTab : shown[0]?.tab ?? null
 
   const hitsOpen = (id: string) => (flipped.has(id) ? !showHits : showHits)

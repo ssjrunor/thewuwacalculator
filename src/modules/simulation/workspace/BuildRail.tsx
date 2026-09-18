@@ -134,6 +134,7 @@ export function BuildRail({
   tone,
   showcaseBuild,
   showcaseAvgDamage,
+  onEchoOpen,
   echoSelection,
   blank,
   autoImageContrast,
@@ -165,6 +166,7 @@ export function BuildRail({
   tone: string
   showcaseBuild: ShowcaseBuildModel | null
   showcaseAvgDamage: number | null
+  onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
   autoImageContrast: boolean
@@ -412,6 +414,7 @@ export function BuildRail({
                 scenarioId={scenarioId}
               />
             )}
+            onEchoOpen={editable && railResId && railModel.runtime ? onEchoOpen : undefined}
             echoSelection={echoSelection}
             blank={blank}
           />
@@ -435,6 +438,7 @@ export function BuildRail({
             hideDamage={cardHidden.damage}
             hideCv={cardHidden.cv}
             statsColumn={statsColumn}
+            onEchoOpen={editable && railResId && railModel.runtime ? onEchoOpen : undefined}
             echoSelection={echoSelection}
             blank={blank}
           />
@@ -573,7 +577,7 @@ function EmptyTeamMate({ onPick }: { onPick?: () => void }) {
     <>
       <div className="workspace-mate-head">
         <span className="workspace-mate-attr workspace-mate-attr--empty" aria-hidden="true" />
-        <strong className="workspace-mate-name">{onPick ? 'Add resonator' : 'No resonator'}</strong>
+        <strong className="workspace-mate-name">No resonator</strong>
         <span className="workspace-mate-lv">-</span>
         <span className="workspace-mate-seq" aria-hidden="true">
           {Array.from({ length: 6 }, (_, pip) => (
@@ -759,7 +763,7 @@ function SealEmptyMate({ onPick }: { onPick?: () => void }) {
     <>
       <span className="seal-mate-art seal-mate-art--empty" aria-hidden="true" />
       <span className="seal-mate-rule" aria-hidden="true"><i /><i /></span>
-      <strong className="seal-mate-name">{onPick ? 'Add resonator' : 'No resonator'}</strong>
+      <strong className="seal-mate-name">Empty</strong>
     </>
   )
 

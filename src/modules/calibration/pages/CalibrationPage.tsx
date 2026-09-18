@@ -1,22 +1,18 @@
 /*
   Author: Runor Ewhro
-  Description: The Calibration page. Every part of the body is shaped for what
-               it controls: the theme is three slots because the app holds one
-               pick per mode at once, the font picker is a specimen list, the
-               storage figure is broken into what is taking it up, and Drive is
-               a state rather than a switch in a row.
+  Description: Coordinates persisted appearance and behavior preferences,
+               local data import/export, storage accounting, and Drive backups.
 */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties as CssProps, ReactNode } from 'react'
-import { readAppFile, xprtAppFile } from '@/shared/lib/fileCodec'
+import { hasWwcbMgc, readAppFile, xprtAppFile } from '@/shared/lib/fileCodec'
 import { useAppStore, type AppStore } from '@/domain/state/store'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
 import { useConfirm } from '@/app/hooks/useConfirmation.ts'
 import { mainPortal } from '@/shared/lib/portalTarget'
-import { clrPrssAppSt, parsePersisted, saveAppState, APP_STORAGE_KEY } from '@/infra/persistence/storage'
+import { clrPrssAppSt, saveAppState, APP_STORAGE_KEY } from '@/infra/persistence/storage'
 import { rstrLtstSnap, pldSnapToDrv } from '@/infra/googleDrive/driveSync'
-import { importLegacyApp } from '@/domain/services/legacyAppStateImport'
 import { selectPersisted } from '@/domain/state/serialization'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
 import { projectScenarioWorkspaceProfiles } from '@/domain/state/scenarioRuntime'
@@ -50,11 +46,13 @@ import {
   WUWA_FONT_NAME,
 } from '@/domain/entities/appearance'
 import { useGglDrvAut } from '@/app/hooks/useGoogleDriveAuth'
-import { DATAXPRTCTNS, mkDataXprtFi, resMprtData } from '@/modules/calibration/model/dataManagement'
+import { DATAXPRTCTNS, mkDataXprtFi } from '@/modules/calibration/model/dataManagement'
+import { runDataImport } from '@/modules/calibration/model/dataImportClient'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { gameDataModeFromBeta, type GameDataMode } from '@/domain/entities/gameDataMode'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 import { HIST_MAX_OPTS, type HistoryMax } from '@/domain/entities/appState'
+import { groupUid } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
 import {
   THEME_BY_MODE,
   THEME_INK,
@@ -75,6 +73,17 @@ function waitForNextP(): Promise<void> {
     window.requestAnimationFrame(() => resolve())
   })
 }
+
+function runWhenIdle(task: () => void): void {
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    window.requestIdleCallback(task, { timeout: 1000 })
+    return
+  }
+
+  setTimeout(task, 0)
+}
+
+const MAX_INLINE_IMPORT_BYTES = 1024 * 1024
 
 interface ModeCatalogIds {
   resonators: Set<string>
@@ -247,7 +256,6 @@ function summarizeModeCleanup(
   })
 }
 
-/* ---------------------------------------------------------------- sections */
 
 type SectionId = 'look' | 'behavior' | 'data' | 'backup'
 
@@ -280,7 +288,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** A theme drawn as a small portrait of the app wearing it. */
 function ThemeInkCard({ variant, named = true }: { variant: ThemeVariant; named?: boolean }) {
   const ink = THEME_INK[variant]
   return (
@@ -374,7 +381,82 @@ function SettingRow({
   )
 }
 
-/* ------------------------------------------------------------------- page */
+
+// The thing this control controls is a signature, so it shows the signature: the
+// plate renders exactly what a showcase card prints, in the card's own face, while
+// you type. The Echo parser writes the same preference, so the drafts follow the
+// store during render rather than through an effect.
+function PlayerPlate() {
+  const playerId = useAppStore((state) => state.ui.preferences.playerId)
+  const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
+  const setIdentity = useAppStore((state) => state.setPlayerIdentity)
+  const [draft, setDraft] = useState({ id: playerId, uid: playerUid })
+  const [seen, setSeen] = useState({ id: playerId, uid: playerUid })
+
+  if (seen.id !== playerId || seen.uid !== playerUid) {
+    setSeen({ id: playerId, uid: playerUid })
+    if (draft.id.trim() !== playerId || draft.uid.trim() !== playerUid) {
+      setDraft({ id: playerId, uid: playerUid })
+    }
+  }
+
+  // the store trims; the draft keeps what was typed so a space can be typed mid-name
+  const commit = (next: { id: string; uid: string }) => {
+    setDraft(next)
+    setIdentity(next.id, next.uid)
+  }
+
+  const digits = playerUid.replace(/\D/g, '').length
+  const signed = Boolean(playerId || playerUid)
+
+  return (
+    <div className="cal-plate">
+      <div className="cal-plate__face" data-signed={signed ? 'true' : undefined}>
+        {signed ? (
+          <>
+            {playerId ? <b>{playerId}</b> : null}
+            {playerUid ? <span className="cal-num">{groupUid(playerUid)}</span> : null}
+          </>
+        ) : (
+          <em>Cards go out unsigned</em>
+        )}
+      </div>
+
+      <div className="cal-plate__fields">
+        <label className="cal-plate__field">
+          <span>Name</span>
+          <input
+            type="text"
+            id="cal-player-id"
+            value={draft.id}
+            placeholder="How you want to be credited"
+            onChange={(event) => commit({ ...draft, id: event.target.value })}
+          />
+        </label>
+        <label className="cal-plate__field">
+          <span>
+            UID
+            {playerUid ? <em className="cal-num">{digits} digits</em> : null}
+          </span>
+          <input
+            type="text"
+            id="cal-player-uid"
+            inputMode="numeric"
+            className="cal-num"
+            value={draft.uid}
+            placeholder="500395087"
+            onChange={(event) => commit({ ...draft, uid: event.target.value })}
+          />
+        </label>
+      </div>
+
+      <p className="cal-help">
+        Signs your showcase cards. Scanning a build card in Echoes reads it too, and
+        asks before it changes anything here.
+      </p>
+    </div>
+  )
+}
 
 export function CalibrationPage() {
   const ui = useAppStore((state) => state.ui)
@@ -421,7 +503,11 @@ export function CalibrationPage() {
   } = useGglDrvAut()
 
   const [bckgPrvwUrl, setBckgPrvwU] = useState<string | null>(null)
-  const [snapshotJson, setSnpsJson] = useState('')
+  const snapshotTextRef = useRef<HTMLTextAreaElement | null>(null)
+  const [hasSnapshotText, setHasSnpsTxt] = useState(false)
+  const snapshotFileRef = useRef<File | null>(null)
+  const [snapshotFile, setSnpsFile] = useState<{ name: string; size: number } | null>(null)
+  const [snpsMprtBusy, setSnpsMprtBu] = useState(false)
   const [snpsStts, setSnpsStts] = useState<string | null>(null)
   const [snpsRrr, setSnpsRrr] = useState<string | null>(null)
   const [drftFontName, setDrftFNam] = useState(ui.bodyFontName)
@@ -431,12 +517,13 @@ export function CalibrationPage() {
   const [cldSyncStts, setCldSyncSt] = useState<string | null>(null)
   const [cldSyncRrr, setCldSyncRr] = useState<string | null>(null)
   const [cldSyncBusyC, setCldSyncBu] = useState<'sync' | 'restore' | null>(null)
-  const [lgcyMprtJson, setLgcyMprtJ] = useState('')
+  const legacyFileRef = useRef<File | null>(null)
+  const [legacyFile, setLgcyMprtFi] = useState<{ name: string; size: number } | null>(null)
+  const [lgcyMprtBusy, setLgcyMprtBu] = useState(false)
   const [lgcyMprtStts, setLgcyMprtS] = useState<string | null>(null)
   const [lgcyMprtRrr, setLgcyMprtR] = useState<string | null>(null)
 
-  // which slot's shelf of candidates is open. it follows the live mode until
-  // the reader opens another one, so the page starts where they already are.
+  // Initialize the editable theme slot from the current mode; later picks are local.
   const liveSlot: SlotId = ui.theme === 'background' ? 'background' : ui.theme === 'light' ? 'light' : 'dark'
   const [openSlot, setOpenSlot] = useState<SlotId>(liveSlot)
   const [seenLive, setSeenLive] = useState(liveSlot)
@@ -542,9 +629,8 @@ export function CalibrationPage() {
     return JSON.stringify(snapshot, null, 2)
   }, [])
 
-  // What is actually taking up the storage, measured rather than guessed. Read
-  // once on mount: it walks the whole persisted snapshot, and nothing on this
-  // page changes it except an import, which reloads the figures with it.
+  // Storage accounting walks the persisted snapshot once on mount; imports
+  // explicitly refresh the resulting domain sizes.
   const [weights, setWeights] = useState<{ parts: { name: string; bytes: number }[]; total: number; slices: Record<string, number> } | null>(null)
 
   const measure = useCallback(() => {
@@ -580,6 +666,10 @@ export function CalibrationPage() {
     }
   }, [ensInvHydr])
 
+  const scheduleMeasure = useCallback(() => {
+    runWhenIdle(measure)
+  }, [measure])
+
   useEffect(() => {
     measure()
   }, [measure])
@@ -613,8 +703,7 @@ export function CalibrationPage() {
     setDrftFUrl(ui.bodyFontUrl)
   }, [ui.bodyFontName, ui.bodyFontUrl])
 
-  // the specimen list only reads as a specimen if every line is actually set in
-  // its own face, so each preset's sheet is requested once on mount.
+  // Load preset font stylesheets once on mount, independently of the selected font.
   useEffect(() => {
     for (const preset of BODY_FONT_PRESETS) {
       if (preset === SYSTEM_FONT_NAME || preset === WUWA_FONT_NAME) continue
@@ -627,8 +716,7 @@ export function CalibrationPage() {
 
     const loadPreview = async () => {
       setFontPrvwL(true)
-      // preview font loading is intentionally decoupled from persisted apply so
-      // users can experiment with links before committing the selection.
+      // Loading a preview stylesheet does not persist a font selection.
       const resolved = await applyPrvwBod(drftFontName, drftFontUrl)
       if (cancelled) {
         return
@@ -646,7 +734,6 @@ export function CalibrationPage() {
     }
   }, [drftFontName, drftFontUrl, ui.bodyFontName, ui.bodyFontUrl])
 
-  // the rail follows the reader down the page
   useEffect(() => {
     const page = pageRef.current
     if (!page) return
@@ -702,7 +789,6 @@ export function CalibrationPage() {
     const filename = `wwcalc-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`
     const written = await dwnlJsonFile(raw, filename)
 
-    setSnpsJson(raw)
     setSnpsRrr(null)
     setSnpsStts(`Exported current snapshot to ${written}.`)
   }
@@ -712,7 +798,6 @@ export function CalibrationPage() {
       ensInvHydr()
       const result = mkDataXprtFi(useAppStore.getState(), kind)
       const written = await dwnlJsonFile(result.raw, result.fileName)
-      setSnpsJson(result.raw)
       setSnpsRrr(null)
       setSnpsStts(`Exported ${result.label} to ${written}.`)
     } catch (error) {
@@ -867,15 +952,20 @@ export function CalibrationPage() {
 
       // validate and persist the restored snapshot before reporting success so
       // the drive restore message always reflects the actual live app state.
-      const snapshot = parsePersisted(result.raw)
-      hydrate(snapshot)
-      saveAppState(snapshot)
-      setSnpsJson(result.raw)
+      ensInvHydr()
+      const resolved = await runDataImport(
+        'snapshot',
+        result.raw,
+        selectPersisted(useAppStore.getState()),
+      )
+      hydrate(resolved.result.snapshot)
+      await waitForNextP()
+      saveAppState(resolved.result.snapshot)
       setSnpsRrr(null)
       setSnpsStts(`Imported snapshot from ${result.fileName}.`)
       setCldSyncSt(`Restored the latest Drive backup from ${result.fileName}.`)
       showToast({ content: 'Restored the latest Google Drive snapshot.', variant: 'success' })
-      measure()
+      scheduleMeasure()
     } catch (error) {
       setCldSyncSt(null)
       setCldSyncRr(error instanceof Error ? error.message : 'Google Drive restore failed.')
@@ -884,17 +974,36 @@ export function CalibrationPage() {
     }
   }
 
-  const runSnapMprt = (raw: string) => {
+  const runSnapMprt = async () => {
+    const source = snapshotFileRef.current ?? snapshotTextRef.current?.value ?? ''
+    if (typeof source === 'string' && !/\S/.test(source)) return
+
     try {
-      const result = resMprtData(raw, useAppStore.getState())
-      hydrate(result.snapshot)
-      saveAppState(result.snapshot)
+      setSnpsMprtBu(true)
+      setSnpsStts(null)
       setSnpsRrr(null)
-      setSnpsStts(`Imported ${result.label} into the current app state.`)
-      measure()
+      await waitForNextP()
+      ensInvHydr()
+      const resolved = await runDataImport(
+        'snapshot',
+        source,
+        selectPersisted(useAppStore.getState()),
+      )
+      hydrate(resolved.result.snapshot)
+      await waitForNextP()
+      saveAppState(resolved.result.snapshot)
+      snapshotFileRef.current = null
+      setSnpsFile(null)
+      if (snapshotTextRef.current) snapshotTextRef.current.value = ''
+      setHasSnpsTxt(false)
+      setSnpsRrr(null)
+      setSnpsStts(`Imported ${resolved.result.label} into the current app state.`)
+      scheduleMeasure()
     } catch (error) {
       setSnpsStts(null)
       setSnpsRrr(error instanceof Error ? error.message : 'Data import failed.')
+    } finally {
+      setSnpsMprtBu(false)
     }
   }
 
@@ -902,16 +1011,46 @@ export function CalibrationPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const raw = await readAppFile(file)
-    setSnpsJson(raw)
-    setSnpsStts(null)
-    setSnpsRrr(null)
-    event.target.value = ''
+    try {
+      const header = new Uint8Array(await file.slice(0, 5).arrayBuffer())
+      const canShowInline = file.size <= MAX_INLINE_IMPORT_BYTES && !hasWwcbMgc(header)
+
+      if (canShowInline) {
+        const raw = await readAppFile(file)
+        snapshotFileRef.current = null
+        setSnpsFile(null)
+        if (snapshotTextRef.current) snapshotTextRef.current.value = raw
+        setHasSnpsTxt(raw.length > 0)
+      } else {
+        snapshotFileRef.current = file
+        setSnpsFile({ name: file.name, size: file.size })
+        if (snapshotTextRef.current) snapshotTextRef.current.value = ''
+        setHasSnpsTxt(false)
+      }
+
+      setSnpsStts(null)
+      setSnpsRrr(null)
+    } catch (error) {
+      snapshotFileRef.current = null
+      setSnpsFile(null)
+      setSnpsStts(null)
+      setSnpsRrr(error instanceof Error ? error.message : 'Failed to read that file.')
+    } finally {
+      event.target.value = ''
+    }
   }
 
-  const runLegAppMpr = (raw: string) => {
+  const runLegAppMpr = async () => {
+    const source = legacyFileRef.current
+    if (!source) return
+
     try {
-      const result = importLegacyApp(raw)
+      setLgcyMprtBu(true)
+      setLgcyMprtS(null)
+      setLgcyMprtR(null)
+      await waitForNextP()
+      const resolved = await runDataImport('legacy', source)
+      const result = resolved.result
       const hasMprtData =
         result.report.importedProfileIds.length > 0
         || result.report.importedInventoryEchoes > 0
@@ -924,7 +1063,10 @@ export function CalibrationPage() {
       }
 
       hydrate(result.snapshot)
+      await waitForNextP()
       saveAppState(result.snapshot)
+      legacyFileRef.current = null
+      setLgcyMprtFi(null)
       setLgcyMprtR(null)
       setLgcyMprtS([
         `Imported ${result.report.importedProfileIds.length} profiles, ${result.report.importedInventoryEchoes} bag echoes, and ${result.report.importedInventoryBuilds} saved builds.`,
@@ -936,19 +1078,21 @@ export function CalibrationPage() {
           : null,
       ].filter(Boolean).join(' '))
       showToast({ content: 'Imported legacy v1 backup into the current app state.', variant: 'success' })
-      measure()
+      scheduleMeasure()
     } catch (error) {
       setLgcyMprtS(null)
       setLgcyMprtR(error instanceof Error ? error.message : 'Legacy app-state import failed.')
+    } finally {
+      setLgcyMprtBu(false)
     }
   }
 
-  const onLegFileChn = async (event: ChangeEvent<HTMLInputElement>) => {
+  const onLegFileChn = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const raw = await readAppFile(file)
-    setLgcyMprtJ(raw)
+    legacyFileRef.current = file
+    setLgcyMprtFi({ name: file.name, size: file.size })
     setLgcyMprtS(null)
     setLgcyMprtR(null)
     event.target.value = ''
@@ -1109,7 +1253,6 @@ export function CalibrationPage() {
           </nav>
 
           <div className="cal-rail__body">
-            {/* ------------------------------------------------------ look */}
             <section className="cal-sec" id="cal-look" ref={keepSec('look')}>
               <div className="cal-sech">
                 <h2>Look</h2>
@@ -1268,7 +1411,6 @@ export function CalibrationPage() {
               </div>
             </section>
 
-            {/* -------------------------------------------------- behavior */}
             <section className="cal-sec" id="cal-behavior" ref={keepSec('behavior')}>
               <div className="cal-sech">
                 <h2>Behavior</h2>
@@ -1303,11 +1445,18 @@ export function CalibrationPage() {
               ) : null}
             </section>
 
-            {/* ------------------------------------------------------ data */}
             <section className="cal-sec" id="cal-data" ref={keepSec('data')}>
               <div className="cal-sech">
                 <h2>Data</h2>
                 <span>everything the app knows about you</span>
+              </div>
+
+              <div className="cal-block">
+                <div className="cal-blockh">
+                  <h3>Player</h3>
+                  <span>the only thing in here that is you rather than bytes</span>
+                </div>
+                <PlayerPlate />
               </div>
 
               {weights && weights.total > 0 ? (
@@ -1380,13 +1529,20 @@ export function CalibrationPage() {
                     <b>Choose a file, or drop one here</b>
                     <span>A full snapshot or any single slice</span>
                   </label>
+                  {snapshotFile ? (
+                    <p className="cal-note cal-note--ok">
+                      Loaded {snapshotFile.name} ({formatBytes(snapshotFile.size)}).
+                    </p>
+                  ) : null}
                   <div className="cal-or">or paste it</div>
                   <textarea className="cal-paste"
+                    ref={snapshotTextRef}
                     rows={5}
-                    value={snapshotJson}
                     placeholder="Paste the contents of a snapshot or slice"
                     onChange={(event) => {
-                      setSnpsJson(event.target.value)
+                      snapshotFileRef.current = null
+                      setSnpsFile(null)
+                      setHasSnpsTxt(event.target.value.length > 0)
                       setSnpsStts(null)
                       setSnpsRrr(null)
                     }}
@@ -1394,14 +1550,16 @@ export function CalibrationPage() {
                   <div className="cal-act">
                     <button
                       type="button" className="cal-btn"
-                      disabled={!snapshotJson.trim()}
-                      onClick={() => runSnapMprt(snapshotJson)}
+                      disabled={snpsMprtBusy || (!snapshotFile && !hasSnapshotText)}
+                      onClick={() => { void runSnapMprt() }}
                     >
-                      Import data
+                      {snpsMprtBusy ? 'Importing...' : 'Import data'}
                     </button>
                     <p className="cal-help">
-                      {snapshotJson.trim()
-                        ? 'Ready. You will see what was read once it lands.'
+                      {snpsMprtBusy
+                        ? 'Reading and validating...'
+                        : snapshotFile || hasSnapshotText
+                        ? 'Ready. You will see what was read once it\'s done.'
                         : 'Nothing to import yet.'}
                     </p>
                   </div>
@@ -1411,7 +1569,6 @@ export function CalibrationPage() {
               </div>
             </section>
 
-            {/* ---------------------------------------------------- backup */}
             <section className="cal-sec" id="cal-backup" ref={keepSec('backup')}>
               <div className="cal-sech">
                 <h2>Backup</h2>
@@ -1510,15 +1667,20 @@ export function CalibrationPage() {
                     </span>
                     <span className="cal-legacy__cue">Choose a file</span>
                   </label>
-                  {lgcyMprtJson.trim() ? (
+                  {legacyFile ? (
                     <div className="cal-act">
                       <button
                         type="button" className="cal-btn"
-                        onClick={() => runLegAppMpr(lgcyMprtJson)}
+                        disabled={lgcyMprtBusy}
+                        onClick={() => { void runLegAppMpr() }}
                       >
-                        Import legacy backup
+                        {lgcyMprtBusy ? 'Importing...' : 'Import legacy backup'}
                       </button>
-                      <p className="cal-help">A file is loaded and ready to read.</p>
+                      <p className="cal-help">
+                        {lgcyMprtBusy
+                          ? 'Reading and converting...'
+                          : `${legacyFile.name} (${formatBytes(legacyFile.size)}) is ready to read.`}
+                      </p>
                     </div>
                   ) : null}
                   {lgcyMprtStts ? <p className="cal-note cal-note--ok">{lgcyMprtStts}</p> : null}

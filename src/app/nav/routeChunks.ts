@@ -1,13 +1,7 @@
 /*
   Author: Runor Ewhro
-  Description: Every page the router can reach, held as a chunk that can be
-               warmed before it is needed. A page transition animates a
-               snapshot of the outgoing route against the incoming one, so a
-               route that is still fetching its module would hand the
-               animation a loader to cross-fade. Warming on intent, and
-               rendering straight from the resolved module rather than through
-               a suspending boundary, keeps the first frame of a navigation
-               the page itself.
+  Description: Caches route-module promises and resolved components, preloads
+               page dependencies, and retries rejected chunk requests.
 */
 
 import { createElement } from 'react'
@@ -65,9 +59,6 @@ export const simulationChunk = createRouteChunk(async () => (
 export const calibrationChunk = createRouteChunk(async () => (
   (await import('@/modules/calibration/pages/CalibrationPage')).CalibrationPage
 ))
-export const infoChunk = createRouteChunk(async () => (
-  (await import('@/modules/read/pages/InfoPage')).InfoPage
-))
 export const guidesChunk = createRouteChunk(async () => (
   (await import('@/modules/read/pages/GuidesPage')).GuidesPage
 ))
@@ -95,14 +86,12 @@ export const homeChunk = createRouteChunk(async () => (
 export const optimizerPane = createRouteChunk<{ variant?: 'embedded' | 'legacy' }>(async () => (
   (await import('@/modules/simulation/features/optimizer/Optimizer.tsx')).Optimizer
 ))
-// Modulation, Optimizer, and Showcase stand on this shared surface.
-// Optimizer adds its independently loaded search body, while Showcase swaps in
-// its distinct card-authoring layout without replacing the shared roster.
+// Modulation, Optimizer, and Showcase reuse the workspace module; Optimizer
+// additionally requires its independently loaded search module.
 export const buildWorkspacePane = createRouteChunk(async () => (
   (await import('@/modules/simulation/workspace/BuildWorkspaceSurface')).BuildWorkspaceSurface
 ))
-// Suggestions stands on the same board and loads its own body, the way the
-// optimizer does, because the search it runs is its own chunk of work
+// Suggestions requires both the shared workspace and its search module.
 export const suggestionsPane = createRouteChunk(async () => (
   (await import('@/modules/simulation/features/suggestions/climb/SuggestionsLab.tsx')).SuggestionsLab
 ))
@@ -131,7 +120,6 @@ const PAGE_CHUNKS: Array<[string, Warmable[]]> = [
   [LEGACY_SIMULATION_ROUTES.optimizer, [simulationChunk, legacyOptimizerPane]],
   [LEGACY_PROGRESSION_ALIAS, [simulationChunk, buildWorkspacePane]],
   [APP_ROUTES.calibration, [calibrationChunk]],
-  [APP_ROUTES.info, [infoChunk]],
   [APP_ROUTES.guides, [guidesChunk]],
   [APP_ROUTES.docs, [docsChunk]],
   [APP_ROUTES.changelog, [changelogChunk]],
@@ -149,8 +137,7 @@ function chunksFor(pathname: string): Warmable[] {
   return entry ? entry[1] : [notFoundChunk]
 }
 
-// warming is free to call as often as intent is shown; a resolved chunk
-// answers immediately and an in-flight one is shared
+// Repeated preload requests reuse resolved modules and in-flight promises.
 export function warmPath(pathname: string): Promise<void> {
   return Promise.all(chunksFor(pathname).map((page) => page.warm())).then(() => undefined)
 }
@@ -159,12 +146,10 @@ export function isPathWarm(pathname: string): boolean {
   return chunksFor(pathname).every((page) => page.isWarm())
 }
 
-// a page that is not in hand cannot be transitioned into, only cut to, so once
-// the app is quiet every page the chrome can reach is fetched. the surfaces
-// come first because the rail is the main way around; the references follow.
+// Preload navigation targets during idle time, with Simulation routes first.
 export function warmReachable(): void {
   const surfaces = [simulationChunk, buildWorkspacePane, optimizerPane, suggestionsPane, rotationPane]
-  const references = [docsChunk, guidesChunk, changelogChunk, calibrationChunk, infoChunk]
+  const references = [docsChunk, guidesChunk, changelogChunk, calibrationChunk, privacyChunk, termsChunk]
 
   const warmAll = (pages: Warmable[]) => Promise.all(
     pages.map((page) => page.warm().catch(() => undefined)),

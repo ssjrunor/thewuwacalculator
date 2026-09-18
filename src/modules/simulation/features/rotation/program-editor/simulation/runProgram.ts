@@ -274,8 +274,7 @@ export function memberToReg(member: RotationMember, sharePct: number): EditorMem
   const weaponId = build.weapon?.id ?? ''
   const weaponDef = weaponId ? getWpnById(weaponId) : null
   const weaponLevel = build.weapon?.level ?? 1
-  // the band states the weapon's own figures, so they are resolved once here
-  // rather than by every surface that reads the projection
+  // Resolve level-scaled weapon stats once for all consumers of this projection.
   const weaponStats = weaponDef ? weaponStatsAt(weaponDef, weaponLevel) : null
 
   return {
@@ -341,6 +340,7 @@ interface WalkCtx {
   /** every emitted feature row, used for engine-effective multipliers */
   featureEntriesByNode: Map<string, FeatureResult[]>
   members: Map<string, RotationMember>
+  runtimesById: Record<string, ResRuntime>
   snapshots: Map<string, RowSnapshot>
   /** every state the team can write, for naming what a step's writes touch */
   condChoices: CondChoice[]
@@ -724,6 +724,7 @@ function prepareRotationSummary({
 }: RotationSummaryInput): PreparedRotationSummary {
   const nodes = collectRotationNodes(items)
   const memberById = new Map(members.map((member) => [member.id, member]))
+  const runtimesById = Object.fromEntries(members.map((member) => [member.id, member.runtime]))
   let conditions = 0
   let loops = 0
   let repeats = 0
@@ -760,7 +761,9 @@ function prepareRotationSummary({
       const rawSkill = feature && member
         ? member.skills.find((candidate) => candidate.id === feature.skillId)
         : undefined
-      const skill = rawSkill && member ? resolveSkill(member.runtime, rawSkill) : null
+      const skill = rawSkill && member
+        ? resolveSkill(member.runtime, rawSkill, undefined, runtimesById)
+        : null
       return [{
         resonatorId: ownerId,
         resonatorName: member?.name ?? feature?.label ?? ownerId,
@@ -1041,8 +1044,8 @@ function buildStep(
     damageByRun[run] = (damageByRun[run] ?? 0) + row.value.avg / divisor
     normalDamageByRun[run] = (normalDamageByRun[run] ?? 0) + row.value.normal / divisor
     critDamageByRun[run] = (critDamageByRun[run] ?? 0) + row.value.crit / divisor
-    // the engine resolves the stat line per skill and per run, so it is read
-    // off the result rather than rebuilt from a context here
+    // Effective stats belong to this executed skill and loop pass; use the
+    // result snapshot rather than recomputing them from a generic context.
     if (row.value.effectiveStats) {
       statsByRun[run] = row.value.effectiveStats
     }
@@ -1069,7 +1072,9 @@ function buildStep(
   const rawSkill = feature && member
     ? member.skills.find((entry) => entry.id === feature.skillId)
     : undefined
-  const skill = rawSkill && member ? resolveSkill(member.runtime, rawSkill) : null
+  const skill = rawSkill && member
+    ? resolveSkill(member.runtime, rawSkill, undefined, ctx.runtimesById)
+    : null
   const echoSource = feature?.source.type === 'echo'
     ? feature.source
     : getEmbeddedEchoSource(node.featureId)
@@ -1106,7 +1111,7 @@ function buildStep(
   const negFixedStacks = Boolean(
     skill?.stackMode === 'fixedMax'
     || (negCombatKey && member
-      ? getNegFfctEn(member.runtime, negCombatKey)?.stackMode === 'fixedMax'
+      ? getNegFfctEn(member.runtime, negCombatKey, ctx.runtimesById)?.stackMode === 'fixedMax'
       : false),
   )
 
@@ -2211,6 +2216,7 @@ export function projectRun({
     snapshots,
     condChoices: makeConditionChoices(members, runtime, enemy.id),
     members: new Map(members.map((member) => [member.id, member])),
+    runtimesById: Object.fromEntries(members.map((member) => [member.id, member.runtime])),
     conditionHistoryByNode: new Map(),
     loopMeta: new Map(
       // totals are computed here from the rows walked, so the loop analysis is
@@ -2243,7 +2249,10 @@ export function projectRun({
   const skillById = new Map<string, string>()
   for (const member of members) {
     for (const skill of member.skills) {
-      skillById.set(`${member.id}:${skill.id}`, resolveSkill(member.runtime, skill).label ?? '')
+      skillById.set(
+        `${member.id}:${skill.id}`,
+        resolveSkill(member.runtime, skill, undefined, ctx.runtimesById).label ?? '',
+      )
     }
     for (const feature of member.features) {
       labels.set(

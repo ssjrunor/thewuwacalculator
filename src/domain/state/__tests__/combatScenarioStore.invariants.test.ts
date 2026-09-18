@@ -146,6 +146,82 @@ describe('combat scenario store', () => {
     expect(after.combat.scenariosById[selectedId]).toEqual(selectedBefore)
   })
 
+  it('keeps teammate controls when replacing an existing context build', () => {
+    const scenario = selectedCombatScenario(useAppStore.getState().combat)
+    const context = contextScenarioMember(scenario)
+    const teammateSeed = listResSds().find(
+      (candidate) => candidate.id !== context.resonatorId,
+    )!
+    const teammate = makeScenarioMemberFromProfile(makeResProfile(teammateSeed, { maxed: true }))
+    useAppStore.getState().insertScenarioMember(scenario.id, 1, teammate)
+
+    useAppStore.getState().updScenarioResRt(scenario.id, context.resonatorId, (runtime) => ({
+      ...runtime,
+      base: { ...runtime.base, level: 42 },
+    }))
+
+    const updated = selectedCombatScenario(useAppStore.getState().combat)
+    const updatedTeammate = updated.team.members[1]
+    expect(updatedTeammate).toBeDefined()
+    if (!updatedTeammate) return
+    expect(updated.team.members[0].progression.level).toBe(42)
+    expect(updatedTeammate.id).toBe(teammate.id)
+    expect(updatedTeammate.local.controls).toEqual(teammate.local.controls)
+  })
+
+  it("persists the context resonator's own team-scoped controls", () => {
+    const hiyuki = listResSds().find((candidate) => candidate.id === '1108')
+    if (!hiyuki) {
+      throw new Error('Expected Hiyuki in the resonator catalog')
+    }
+
+    useAppStore.getState().actRes(hiyuki)
+    const scenario = selectedCombatScenario(useAppStore.getState().combat)
+    const context = contextScenarioMember(scenario)
+    const outroControlKey = 'team:1108:snowlight_blessing:active'
+    const nextValue = context.local.controls[outroControlKey] !== true
+
+    expect(context.resonatorId).toBe(hiyuki.id)
+
+    useAppStore.getState().updScenarioResRt(scenario.id, hiyuki.id, (runtime) => ({
+      ...runtime,
+      state: {
+        ...runtime.state,
+        controls: {
+          ...runtime.state.controls,
+          [outroControlKey]: nextValue,
+        },
+      },
+    }))
+
+    const updated = selectedCombatScenario(useAppStore.getState().combat)
+    expect(contextScenarioMember(updated).local.controls[outroControlKey]).toBe(nextValue)
+  })
+
+  it("keeps an addressed teammate's controls on that member only", () => {
+    const scenario = selectedCombatScenario(useAppStore.getState().combat)
+    const teammateSeed = listResSds().find(
+      (candidate) => candidate.id !== scenario.team.members[0].resonatorId,
+    )!
+    const teammate = makeScenarioMemberFromProfile(makeResProfile(teammateSeed))
+    useAppStore.getState().insertScenarioMember(scenario.id, 1, teammate)
+
+    useAppStore.getState().updScenarioResRt(scenario.id, teammateSeed.id, (runtime) => ({
+      ...runtime,
+      state: {
+        ...runtime.state,
+        controls: { ...runtime.state.controls, supportMode: 2 },
+      },
+    }))
+
+    const updated = selectedCombatScenario(useAppStore.getState().combat)
+    const updatedTeammate = updated.team.members[1]
+    expect(updatedTeammate).toBeDefined()
+    expect(updatedTeammate?.local.controls.supportMode).toBe(2)
+    expect(updated.team.members[0].local.controls)
+      .not.toHaveProperty(`team:${teammateSeed.id}:supportMode`)
+  })
+
   it('loads an immutable saved snapshot into the context working slot without changing its live id', () => {
     const before = selectedCombatScenario(useAppStore.getState().combat)
     const saved = useAppStore.getState().saveScenario({ name: 'Snapshot A', note: 'kept' })
