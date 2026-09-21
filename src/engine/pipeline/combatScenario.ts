@@ -7,13 +7,13 @@
 
 import type { CombatScenario, TeamMemberId } from '@/domain/entities/combatScenario'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import { findCombatPartByMemberId, makeCombatGraph } from '@/domain/state/combatGraph'
+import { findCombatPartByMemberId, makeCombatGraph } from '@/engine/runtime/combatGraph'
 import {
   projectScenarioEngineRuntimes,
   projectScenarioUiRuntimes,
   type ScenarioRuntimeProjection,
-} from '@/domain/state/scenarioRuntime'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+} from '@/engine/runtime/scenarioRuntime'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import {
   mkPrepWork,
   runPrepWorkDetailedProgram,
@@ -27,7 +27,7 @@ import type { RotationNode } from '@/domain/gameData/contracts'
 import type { DamageTotals } from '@/engine/pipeline/types'
 import { summarizeRotationEntries } from '@/engine/pipeline/rotationTotals'
 import type { NumericTeamState } from '@/engine/effects/numericTeam'
-import { resolveEnvironmentManualBuffs } from '@/domain/state/scenarioEnvironment'
+import { resolveEnvironmentManualBuffs } from '@/engine/runtime/scenarioEnvironment'
 
 export interface PreparedCombatScenario {
   scenario: CombatScenario

@@ -1,13 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: Owns picker behavior and state transitions for the resonator module.
+  Description: Filters resonator catalog entries and returns a selected resonator identity.
 */
 
 import {type CSSProperties as CssProps, useMemo, useState} from 'react'
 import type { ReactNode } from 'react'
 import { Check, Flame, History } from 'lucide-react'
 import type { ResMenuEnt } from '@/domain/entities/resonator.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import {
   ATTR_FILTERS,
   WEAPON_FILTERS,
@@ -15,7 +15,7 @@ import {
 } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { toTitle } from '@/shared/lib/format.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { PickerModal as ShrdPckrMdl } from '@/shared/ui/PickerModal.tsx'
+import { PickerModal as ShrdPckrMdl } from '@/modules/simulation/ui/PickerModal.tsx'
 import { useResQStr } from '@/shared/util/resonatorQueueStore.ts'
 import {
   getRecs,

@@ -4,7 +4,7 @@
                URL owns which page is active.
 */
 
-import { AxLink } from '@/app/nav/useNavX'
+import { AxLink } from '@/shared/navigation/useNavX'
 import { SIMULATION_ROUTES } from '@/shared/lib/appRoutes'
 
 export type BuildWorkspacePage = 'modulation' | 'showcase' | 'optimizer' | 'suggestions'

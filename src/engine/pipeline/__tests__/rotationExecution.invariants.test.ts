@@ -8,9 +8,9 @@
 import { describe, expect, it } from 'vitest'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import type { ResSeed } from '@/domain/entities/runtime'
-import { makeResRuntime, makeEnemy } from '@/domain/state/defaults'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { listResFeats, listResSkll } from '@/domain/services/gameDataService'
+import { makeResRuntime, makeEnemy } from '@/engine/runtime/defaults'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { listResFeats, listResSkll } from '@/data/catalog/gameDataService'
 import {
   inspectResRotation,
   prepareResSimulation,
@@ -165,6 +165,277 @@ const seed: ResSeed = {
 }
 
 describe('rotation execution invariants', () => {
+  it('scales packet and skill Off-Tune by buildup rate, adds direct Off-Tune unscaled, resets on Tune Break, and holds the gauge until counting resumes', () => {
+    const offTuneSeed: ResSeed = {
+      ...seed,
+      skills: [
+        {
+          ...seed.skills![0]!,
+          id: 'off-tune-skill',
+          label: 'Off-Tune Skill',
+          multiplier: 3,
+          offTune: 15.2,
+          directOffTune: 19.2,
+          hitTable: [
+            { label: 'First packet', count: 2, values: [1] },
+            { label: 'Second packet', count: 1, values: [1] },
+          ],
+          damageEntries: [
+            {
+              id: 'packet-1',
+              resonatorId: seed.id,
+              rawSkillId: 'raw-off-tune',
+              skillId: 'off-tune-skill',
+              hitKey: 'off-tune-skill:hit:1',
+              hitIndex: 0,
+              label: 'First packet',
+              count: 2,
+              multiplier: 1,
+              values: [1],
+              skillType: ['basicAtk'],
+              element: 'spectro',
+              scaling: { atk: 1, hp: 0, def: 0, energyRegen: 0 },
+              damageType: 'Damage',
+              rawType: 'Basic Attack',
+              propertyName: 'ATK',
+              weakness: 0.5,
+              weaknessValues: [0.5],
+              provenance: 'matched',
+            },
+            {
+              id: 'packet-2',
+              resonatorId: seed.id,
+              rawSkillId: 'raw-off-tune',
+              skillId: 'off-tune-skill',
+              hitKey: 'off-tune-skill:hit:2',
+              hitIndex: 1,
+              label: 'Second packet',
+              count: 1,
+              multiplier: 1,
+              values: [1],
+              skillType: ['basicAtk'],
+              element: 'spectro',
+              scaling: { atk: 1, hp: 0, def: 0, energyRegen: 0 },
+              damageType: 'Damage',
+              rawType: 'Basic Attack',
+              propertyName: 'ATK',
+              weakness: 1,
+              weaknessValues: [1],
+              provenance: 'matched',
+            },
+          ],
+        },
+        {
+          ...seed.skills![0]!,
+          id: 'tune-break',
+          label: 'Tune Break',
+          tab: 'tuneBreak',
+          skillType: ['tuneRupture'],
+          archetype: 'tuneRupture',
+          hits: [],
+          tuneRuptureScale: 16,
+        },
+      ],
+      features: [
+        { id: 'damage:off-tune', label: 'Off-Tune Skill', source: { type: 'resonator', id: seed.id }, skillId: 'off-tune-skill' },
+        { id: 'damage:tune-break', label: 'Tune Break', source: { type: 'resonator', id: seed.id }, skillId: 'tune-break' },
+      ],
+    }
+    const runtime = makeResRuntime(offTuneSeed)
+    runtime.state.manualBuffs.modifiers.push({
+      id: 'off-tune-rate',
+      enabled: true,
+      label: 'Manual Off-Tune rate',
+      scope: 'topStat',
+      stat: 'offTuneBuildupRate',
+      value: 0.5,
+    })
+    const items: RotationNode[] = [
+      {
+        id: 'add-off-tune',
+        type: 'condition',
+        changes: [{
+          type: 'set',
+          path: 'runtime.rotation.formula.offTuneAdd',
+          value: 1,
+        }],
+      },
+      { id: 'build-1', type: 'feature', featureId: 'damage:off-tune', multiplier: 20 },
+      { id: 'break', type: 'feature', featureId: 'damage:tune-break', multiplier: 1 },
+      { id: 'build-2', type: 'feature', featureId: 'damage:off-tune', multiplier: 1 },
+      { id: 'build-3', type: 'feature', featureId: 'damage:off-tune', multiplier: 1 },
+      { id: 'build-4', type: 'feature', featureId: 'damage:off-tune', multiplier: 1 },
+      { id: 'build-5', type: 'feature', featureId: 'damage:off-tune', multiplier: 1 },
+    ]
+
+    const result = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, { items })
+
+    /* unmarked, the break holds three features after it and the fourth counts */
+    expect(result.entries.map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '930/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '46.5/38.4',
+    ])
+    expect(result.entries.map((entry) => entry.effectiveStats?.offTuneTrace?.sealed)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+    ])
+    expect(result.entries.map((entry) => entry.effectiveStats?.offTuneTrace?.afterBreak)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+    ])
+    expect(result.entries.at(-1)?.effectiveStats?.offTuneTrace?.resume).toBe('default')
+    expect(result.entries[0]?.effectiveStats?.offTuneTrace?.rateSources).toEqual([
+      { label: seed.name, value: 1 },
+      { label: 'Manual Off-Tune rate', value: 0.5 },
+    ])
+
+    const marked = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, {
+      items: items.map((item) => (item.id === 'build-3'
+        ? { ...item, offTuneResume: true }
+        : item)),
+    })
+
+    /* the mark governs, so the hold is one feature shorter than the default */
+    expect(marked.entries.map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '930/38.4',
+      '0/38.4',
+      '0/38.4',
+      '46.5/38.4',
+      '93/38.4',
+      '139.5/38.4',
+    ])
+
+    const looped = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, {
+      items: [
+        items[0]!,
+        { id: 'loop-start', type: 'loop', kind: 'start', loopId: 'cooldown', runs: 2 },
+        { id: 'loop-build-1', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'loop-build-2', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'loop-break', type: 'feature', featureId: 'damage:tune-break' },
+        { id: 'loop-end', type: 'loop', kind: 'end', loopId: 'cooldown' },
+      ],
+    })
+
+    /* the break at the end of pass one seals entries at the start of pass two */
+    expect(looped.entries.map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '46.5/38.4',
+      '93/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+    ])
+
+    const loopedMarked = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, {
+      items: [
+        items[0]!,
+        { id: 'marked-loop-start', type: 'loop', kind: 'start', loopId: 'marked-cooldown', runs: 2 },
+        { id: 'marked-loop-build-1', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'marked-loop-build-2', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'marked-loop-build-3', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'marked-loop-build-4', type: 'feature', featureId: 'damage:off-tune' },
+        {
+          id: 'marked-loop-landing',
+          type: 'feature',
+          featureId: 'damage:off-tune',
+          offTuneResume: true,
+        },
+        { id: 'marked-loop-break', type: 'feature', featureId: 'damage:tune-break' },
+        { id: 'marked-loop-end', type: 'loop', kind: 'end', loopId: 'marked-cooldown' },
+      ],
+    })
+
+    /* a moved landing beyond the default is also honored across the pass boundary */
+    expect(loopedMarked.entries.slice(6).map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '46.5/38.4',
+      '0/38.4',
+    ])
+
+    const attached = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, {
+      items: [
+        items[0]!,
+        { id: 'attached-break', type: 'feature', featureId: 'damage:tune-break' },
+        {
+          id: 'attached-parent',
+          type: 'feature',
+          featureId: 'damage:off-tune',
+          attached: {
+            conditions: [],
+            features: [{
+              id: 'attached-hit',
+              type: 'feature',
+              featureId: 'damage:off-tune',
+            }],
+          },
+        },
+        { id: 'attached-build-2', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'attached-build-3', type: 'feature', featureId: 'damage:off-tune' },
+        { id: 'attached-landing', type: 'feature', featureId: 'damage:off-tune' },
+      ],
+    })
+
+    /* attached hits share their parent's hold and do not consume another slot */
+    expect(attached.entries.map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '46.5/38.4',
+    ])
+
+    const setupNested = runDetailedResRotation(runtime, offTuneSeed, makeEnemy(), {}, {}, {
+      items: [
+        items[0]!,
+        {
+          id: 'setup-repeat',
+          type: 'repeat',
+          times: 1,
+          setup: [{
+            id: 'setup-uptime',
+            type: 'uptime',
+            ratio: 1,
+            items: [{
+              id: 'setup-break',
+              type: 'feature',
+              featureId: 'damage:tune-break',
+            }],
+          }],
+          items: [
+            { id: 'setup-build-1', type: 'feature', featureId: 'damage:off-tune' },
+            { id: 'setup-build-2', type: 'feature', featureId: 'damage:off-tune' },
+            { id: 'setup-build-3', type: 'feature', featureId: 'damage:off-tune' },
+            { id: 'setup-landing', type: 'feature', featureId: 'damage:off-tune' },
+          ],
+        },
+      ],
+    })
+
+    /* setup-only nested branches carry their cooldown state into the body */
+    expect(setupNested.entries.map((entry) => entry.effectiveStats?.offTune)).toEqual([
+      '0/38.4',
+      '0/38.4',
+      '0/38.4',
+      '46.5/38.4',
+    ])
+  })
+
   it('executes explicit prepared programs through the same path as the runtime wrapper', () => {
     const runtime = makeResRuntime(seed)
     const enemy = makeEnemy()

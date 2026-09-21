@@ -8,16 +8,16 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useShallow } from 'zustand/react/shallow'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selInitRtLkp, selWorkDrvd } from '@/domain/state/selectors.ts'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
+import { useAppStore } from '@/application/state'
+import { selInitRtLkp, selWorkDrvd } from '@/application/state'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
 import { mkDefEchoNst } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'
 import { useEchoCnsl } from '@/modules/simulation/features/echoes/lib/echoConsoleStore.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
-import { projectScenarioUiRuntimes } from '@/domain/state/scenarioRuntime.ts'
+import { projectScenarioUiRuntimes } from '@/engine/runtime/scenarioRuntime.ts'
 
 // Load picker and editor modules only when a slot request needs them.
 const EchoPicker = lazy(async () => ({

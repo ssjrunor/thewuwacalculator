@@ -12,8 +12,8 @@ import {
   scenarioForContextResonator,
   selectScenario,
 } from '@/domain/entities/scenarioLibrary.ts'
-import { makeAppState, makeResProfile, makeScenarioFromProfiles } from '@/domain/state/defaults.ts'
-import { listResSds } from '@/domain/services/resonatorSeedService.ts'
+import { makeAppState, makeResProfile, makeScenarioFromProfiles } from '@/engine/runtime/defaults.ts'
+import { listResSds } from '@/data/catalog/resonatorSeedService.ts'
 
 describe('scenario workspace', () => {
   it('indexes one stable working scenario for each context resonator', () => {

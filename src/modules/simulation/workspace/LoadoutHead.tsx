@@ -1,11 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: the head the echo strip stands under on every build surface. it
-               brackets the strip: the readings and the writes share the line
-               above, and the word for what these five echoes are sits inside
-               the rule rather than beside it. the strip already shows how many
-               slots are filled, so the head reports the one number it cannot:
-               the cost spent against the cap.
+  Description: Coordinates loadout summary, bulk actions, and inventory or parser entry points.
 */
 
 import { useCallback, useMemo } from 'react'
@@ -16,11 +11,11 @@ import {
   equalBuildSnapshots,
   saveEchoSlots,
 } from '@/domain/entities/inventoryStorage.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import { cmptTtlEchoC, MAX_ECHO_COST } from '@/modules/simulation/features/echoes/lib/echoes.ts'
 import { QuickSetup } from '@/modules/simulation/features/echoes/QuickSetup.tsx'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
@@ -70,7 +65,7 @@ export function LoadoutHead({
   const showToast = useTstStr((state) => state.show)
   const savedBuilds = useAppStore((state) => state.library.builds)
   const addBuildToInv = useAppStore((state) => state.addInvBuild)
-  const addEchoToInv = useAppStore((state) => state.addInvEcho)
+  const addEchoesToInv = useAppStore((state) => state.addInvEchoes)
   const confirmation = useConfirm()
   const forgeModal = useAppModal()
 
@@ -113,7 +108,7 @@ export function LoadoutHead({
 
   const onSaveAll = useCallback(() => {
     if (savableSlots.length === 0) return
-    const { savedCount, nextEchoes } = saveEchoSlots(echoes, savableSlots, addEchoToInv)
+    const { savedCount, nextEchoes } = saveEchoSlots(echoes, savableSlots, addEchoesToInv)
     if (nextEchoes) onEchoes?.(nextEchoes)
 
     showToast({
@@ -121,7 +116,7 @@ export function LoadoutHead({
       variant: 'success',
       duration: 2600,
     })
-  }, [addEchoToInv, echoes, onEchoes, savableSlots, showToast])
+  }, [addEchoesToInv, echoes, onEchoes, savableSlots, showToast])
 
   const onUnequipAll = useCallback(() => {
     confirmation.confirm({

@@ -10,9 +10,9 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { makeEnemy, mkMaxResRt } from '@/domain/state/defaults'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { makeEnemy, mkMaxResRt } from '@/engine/runtime/defaults'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
 import { runResSmlt } from '@/engine/pipeline'
 
 const seeds = listResSds()

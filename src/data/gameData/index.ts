@@ -9,12 +9,13 @@ import { initEchoStts, type EchoSttsCatD } from '@/data/gameData/catalog/echoSta
 import { initSntSets, type SntSetDef } from '@/data/gameData/catalog/sonataSets'
 import { initEchoSetD, sntSetSrcs, type SetDef } from '@/data/gameData/echoSets/effects'
 import type { GameDataReg, SrcPkg } from '@/domain/gameData/contracts'
-import { mkGameDataRe } from '@/domain/gameData/registry'
+import { mkGameDataRe } from '@/data/gameData/registry'
 import { materializeResonatorStatesById } from '@/domain/gameData/resonatorStateGraph'
 import type { EchoDef } from '@/domain/entities/catalog'
 import type { ResSeed } from '@/domain/entities/runtime'
 import type { ResDtls } from '@/domain/entities/resonator'
 import type { GenWpn } from '@/domain/entities/weapon'
+import type { SkillDamageEntry } from '@/domain/entities/stats'
 import { DEF_GAME_DATA_MODE, type GameDataMode } from '@/domain/entities/gameDataMode'
 import { initResCat, initResDtls } from '@/data/gameData/resonators/resonatorDataStore'
 import { initWpnData } from '@/data/gameData/weapons/weaponDataStore'
@@ -25,6 +26,7 @@ function makeDataUrls(mode: GameDataMode) {
   const root = `/data/${mode}`
   return {
     resonatorSources: `${root}/resonators/sources.json`,
+    resonatorDamageEntries: `${root}/resonators/damage-entries.json`,
     echoSources: `${root}/echoes/sources.json`,
     enemySources: `${root}/enemies/sources.json`,
     weaponSources: `${root}/weapons/sources.json`,
@@ -114,6 +116,7 @@ export async function initGameData(options: { mode?: GameDataMode } = {}): Promi
     state.initializationPromise = (async () => {
       const [
         resSrcs,
+        resDamageEntries,
         echoSources,
         enemySources,
         weaponSources,
@@ -127,6 +130,7 @@ export async function initGameData(options: { mode?: GameDataMode } = {}): Promi
       ] =
         await Promise.all([
           fetch(dataUrls.resonatorSources).then((r) => r.json() as Promise<SrcPkg[]>),
+          fetch(dataUrls.resonatorDamageEntries).then((r) => r.json() as Promise<SkillDamageEntry[]>),
           fetch(dataUrls.echoSources).then((r) => r.json() as Promise<SrcPkg[]>),
           fetch(dataUrls.enemySources).then((r) => r.json() as Promise<SrcPkg[]>),
           fetch(dataUrls.weaponSources).then((r) => r.json() as Promise<SrcPkg[]>),
@@ -147,8 +151,19 @@ export async function initGameData(options: { mode?: GameDataMode } = {}): Promi
       initSntSets(sonataSets)
       initEchoSetD(echoSetDefs)
 
+      const damageEntriesByResonatorId = new Map<string, SkillDamageEntry[]>()
+      for (const entry of resDamageEntries) {
+        const entries = damageEntriesByResonatorId.get(entry.resonatorId) ?? []
+        entries.push(entry)
+        damageEntriesByResonatorId.set(entry.resonatorId, entries)
+      }
+      const resonatorSources = resSrcs.map((source) => ({
+        ...source,
+        damageEntries: damageEntriesByResonatorId.get(source.source.id) ?? [],
+      }))
+
       const allSources: SrcPkg[] = [
-        ...resSrcs,
+        ...resonatorSources,
         ...echoSources,
         ...enemySources,
         ...weaponSources,

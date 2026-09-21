@@ -5,7 +5,7 @@
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
-import { resResCntrPt } from '@/domain/gameData/controlOptions.ts'
+import { resResCntrPt } from '@/engine/gameData/controlOptions.ts'
 import type { ResControlOption, ResControlOptionValue } from '@/domain/entities/resonator.ts'
 import type { ResonatorSkillTabKey as SkillTabKey, ResonatorStateControl as ResStateControl } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 

@@ -428,7 +428,9 @@ export function packTargetCtx(options: {
       pckdMplf = 1 + (compiled.statAmp / 100)
       pckdCritRate = compiled.tuneRptrCrny
       pckdCritDmg = compiled.tuneCritDmg
-      packedAux0 = 1 + (compiled.statTuneBrcq / 100)
+      packedAux0 =
+        (1 + (compiled.statTuneBrcq / 100)) *
+        (1 + (compiled.statFinalDmg / 100))
       break
 
     case ARCH_SPECTRO:

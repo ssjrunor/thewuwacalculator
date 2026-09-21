@@ -10,7 +10,7 @@ import { X } from 'lucide-react'
 import type { EchoDef } from '@/domain/entities/catalog.ts'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { makeEchoUid } from '@/domain/entities/runtime.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
 import {
   ECHO_MAIN_STATS,
   ECHO_SIDE_STATS,
@@ -63,7 +63,7 @@ function fmtStatValue(key: string, value: number): string {
   return `${value}%`
 }
 
-// the roll a value sits on, by nearest legal step
+// Map an arbitrary stored value to its nearest legal roll index.
 function stepIndex(key: string, value: number): number {
   const steps = getSbstStepP(key)
   let best = 0

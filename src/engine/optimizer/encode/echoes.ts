@@ -6,12 +6,12 @@
 */
 
 import { getGameData } from '@/data/gameData'
-import { makeTeamComp } from '@/domain/gameData/teamComposition.ts'
-import { listEffects, listSrcStts } from '@/domain/gameData/registry.ts'
+import { makeTeamComp } from '@/engine/gameData/teamComposition.ts'
+import { listEffects, listSrcStts } from '@/data/gameData/registry.ts'
 import type { EffectScope, EffectOp } from '@/domain/gameData/contracts.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { AttributeKey, FinalStats, ResBaseStats, SkillTypeKey } from '@/domain/entities/stats.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
 import { evalCond, evalForm } from '@/engine/effects/evaluator.ts'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext.ts'
 import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants.ts'

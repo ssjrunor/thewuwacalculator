@@ -160,6 +160,10 @@ function readCtrl(setId: number, stateId: string): FormExpr {
   }
 }
 
+function readSourceFinal(path: string, fallback = 0): FormExpr {
+  return { type: 'read', from: 'sourceFinalStats', path, default: fallback }
+}
+
 // multiply two formula expressions
 function mul(a: FormExpr, b: FormExpr): FormExpr {
   return { type: 'mul', values: [a, b] }
@@ -423,6 +427,31 @@ function mkSetPkg(def: SetDef): SrcPkg {
       active,
       ...(requirement ? [requirement] : []),
     )
+
+    // Healing is the authored trigger; the magnitude comes from the source's
+    // resolved buildup-rate stat, so this is an enabler instead of a stack input.
+    if (def.id === 25 && stateId === 'starryRadiance5pc') {
+      states.push(makeToggle(
+        def.id,
+        stateId,
+        part?.label ?? stateId,
+        part?.description ?? part?.trigger,
+      ))
+      effects.push(makeEffect(
+        def.id,
+        stateId,
+        effectName(def, pieceReq),
+        [addBaseStat(
+          'atk',
+          'percent',
+          clamp(mul(readSourceFinal('offTuneBuildupRate', 1), constVal(20)), 25),
+        )],
+        effectCond(truthyCond(def.id, stateId)),
+        'teamWide',
+        part?.description,
+      ))
+      continue
+    }
 
     // toggle state: one on/off control that grants the full max values
     if (isToggle) {

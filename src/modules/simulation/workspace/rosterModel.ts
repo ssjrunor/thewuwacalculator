@@ -1,9 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Builds the shared roster and its contiguous attribute groups
-               without depending on any page that presents them, including the
-               one fact a resonator carries that is not on its build: whether a
-               rotation has been written for it.
+  Description: Builds ordered roster groups and rotation-presence metadata from canonical profiles.
 */
 
 import type { RotationNode } from '@/domain/gameData/contracts'
@@ -19,6 +16,7 @@ import type {
 } from './BuildRoster.tsx'
 
 const DEF_ACCENT = '#6b7cff'
+const rosterCache = new WeakMap<object, BuildRosterEntry[]>()
 
 // The authored tree, counted the way the rotation editor's own MAIN header
 // counts it, so the roster and the page agree on the number.
@@ -47,7 +45,10 @@ function compareRosterEntries(
 export function makeRosterEntries(
   workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById'>,
 ): BuildRosterEntry[] {
-  return listContextResonatorScenarios(workspace)
+  const cached = rosterCache.get(workspace)
+  if (cached) return cached
+
+  const roster = listContextResonatorScenarios(workspace)
     .flatMap(({ resonatorId: id, scenarioId }) => {
       const scenario = workspace.scenariosById[scenarioId]
       if (!scenario) return []
@@ -70,6 +71,8 @@ export function makeRosterEntries(
       }]
     })
     .sort(compareRosterEntries)
+  rosterCache.set(workspace, roster)
+  return roster
 }
 
 // The roster is sorted by attribute, so every run of one attribute is contiguous

@@ -31,7 +31,7 @@ Startup order:
 3. Source packages are combined into the shared game data registry.
 4. React mounts only after the registry is ready.
 5. `AppProviders` installs persistence flushing, theme sync, wallpaper sync, font sync, Google OAuth, tooltips, context menus, and floating selection actions.
-6. `AppRoot` applies app wide hooks such as cookie bootstrap and route tracking, then renders the route tree.
+6. `AppRoot` renders the router; `AppLayout` owns route tracking, cookie bootstrap, global hosts, the header, and the routed outlet.
 
 The important constraint is that game data is not treated as optional late loaded feature content. Large parts of the app assume the registry already exists.
 
@@ -42,11 +42,21 @@ The important constraint is that game data is not treated as optional late loade
 Thin application orchestration:
 
 - router setup
-- app root hooks
+- shell composition
 - global providers
-- small app level hooks
 
 This layer should wire systems together, not own combat rules.
+
+### `src/application`
+
+Application-wide state and use cases:
+
+- Zustand store composition and selectors
+- persistence coordination and imports
+- navigation and context-menu contracts
+- theme, media, and integration-facing hooks
+
+This layer may coordinate domain, data, engine, and infrastructure code, but it does not render route-owned feature surfaces.
 
 ### `src/data`
 
@@ -58,21 +68,20 @@ Checked in runtime data and authored content:
 - guides and changelog content
 - scoring tables
 
-This layer is the bridge between checked in JSON and the domain plus engine layers.
+This layer is the bridge between checked in JSON and the domain plus engine layers. It does not import the engine.
 
 ### `src/domain`
 
-Durable concepts and state translation:
+Durable concepts and contracts:
 
 - app state entities
 - runtime entities
 - game data contracts and registry types
-- service lookups over catalogs and seeds
-- persistence schemas
-- selectors
-- runtime adapters and materialization helpers
+- game-data contracts
+- pure entities and value types
+- domain-only services
 
-This layer defines what the app means by profile, runtime, inventory entry, optimizer settings, enemy profile, and related concepts.
+This layer defines what the app means by profile, runtime, inventory entry, optimizer settings, enemy profile, and related concepts. It has no dependency on application state, catalogs, or engine execution.
 
 ### `src/engine`
 
@@ -92,7 +101,7 @@ This layer is mostly framework agnostic. UI modules call into it through selecto
 
 External integration and environment specific code:
 
-- local persistence
+- browser blob storage
 - Google Drive sync
 - OAuth token exchange and refresh
 - analytics
@@ -116,26 +125,30 @@ This is where domain state and engine outputs become interactive UI.
 
 Reusable UI primitives and low level helpers:
 
-- shell components
 - modals
 - toasts
 - context menus
 - tooltip system
 - small utility stores and helpers
 
+`shared` is the leaf layer and cannot import application or feature ownership.
+
+The import direction is enforced by `npm run check:architecture`. App-to-module and cross-module imports must use an explicit `api/` or route `pages/` entry.
+
 ## Route And Shell Model
 
 Primary files:
 
 - [src/app/router/routeTable.tsx](../src/app/router/routeTable.tsx)
-- [src/app/chrome/RouteChrome.tsx](../src/app/chrome/RouteChrome.tsx)
-- [src/modules/simulation/pages/SimulationPage.tsx](../src/modules/simulation/pages/SimulationPage.tsx)
+- [src/app/shell/AppLayout.tsx](../src/app/shell/AppLayout.tsx)
+- [src/app/shell/ChromeHeader.tsx](../src/app/shell/ChromeHeader.tsx)
+- [src/modules/simulation/shell/SimulationPage.tsx](../src/modules/simulation/shell/SimulationPage.tsx)
 
 The public route hierarchy is `Home > Read / Simulation`, expressed with flat URLs. Home is `/`. Simulation tools are `/modulation`, `/rotation`, `/showcase`, `/optimizer`, and `/suggestions`; Read owns Guides, Docs, Changelog, Privacy, and Terms; What's New is an act on Home. Simulation tools stay directly on the header, while reference pages and Calibration are in its Read dropdown.
 
-Pages mount under a shared `RouteChrome`. The chrome owns global shell behavior such as navigation, shell styling, toasts, the app status modal, cookie banner, and shared modal infrastructure.
+Pages mount under `AppLayout`. `ChromeHeader` owns header interaction only; `AppLayout` owns global shell behavior and `GlobalHosts` owns application-wide portals and notices.
 
-Modulation, Showcase, and Optimizer share one persistent parameterized route and mounted workspace. Rotation has its own editor surface under the same Simulation provider. Temporary direct legacy pages live below `src/modules/simulation/legacy` and are omitted from navigation and SEO.
+Modulation, Showcase, and Optimizer share one persistent parameterized route and mounted workspace. Rotation has its own editor surface under the same Simulation provider. Temporary direct legacy pages live below `src/modules/simulation/surfaces/legacy` and are omitted from navigation and SEO.
 
 See [app-shell-and-routing.md](./app-shell-and-routing.md) for detail.
 
@@ -145,7 +158,7 @@ Primary files:
 
 - [src/data/gameData/index.ts](../src/data/gameData/index.ts)
 - [src/domain/gameData/contracts.ts](../src/domain/gameData/contracts.ts)
-- [src/domain/gameData/registry.ts](../src/domain/gameData/registry.ts)
+- [src/data/gameData/registry.ts](../src/data/gameData/registry.ts)
 
 The runtime data model has two main layers.
 
@@ -177,10 +190,10 @@ See [game-data-and-content-pipeline.md](./game-data-and-content-pipeline.md) for
 
 Primary files:
 
-- [src/domain/state/store.ts](../src/domain/state/store.ts)
-- [src/domain/state/runtimeAdapters.ts](../src/domain/state/runtimeAdapters.ts)
-- [src/domain/state/runtimeMaterialization.ts](../src/domain/state/runtimeMaterialization.ts)
-- [src/infra/persistence/storage.ts](../src/infra/persistence/storage.ts)
+- [src/application/state/store.ts](../src/application/state/store.ts)
+- [src/engine/runtime/runtimeAdapters.ts](../src/engine/runtime/runtimeAdapters.ts)
+- [src/engine/runtime/runtimeMaterialization.ts](../src/engine/runtime/runtimeMaterialization.ts)
+- [src/application/persistence/storage.ts](../src/application/persistence/storage.ts)
 
 The app distinguishes between:
 

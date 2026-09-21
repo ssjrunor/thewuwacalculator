@@ -1,14 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: converts condition expressions and control dependencies into
-               readable disabled-reason strings for source states and
-               resonator controls in the ui.
+  Description: Explains unmet control dependencies and condition expressions from canonical runtime state.
 */
 
 import type { CondExpr, EvalScpRoot, SourceState } from '@/domain/gameData/contracts'
 import { prsCntrKey } from '@/domain/gameData/stateKeys'
-import { getOwnForKey, getSttForCnt } from '@/domain/services/gameDataService'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { getOwnForKey, getSttForCnt } from '@/data/catalog/gameDataService'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import type { ResStateControl } from '@/domain/entities/resonator.ts'
 
 // friendly labels for common combat stack paths that would otherwise look too raw

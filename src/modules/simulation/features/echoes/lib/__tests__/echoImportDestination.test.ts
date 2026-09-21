@@ -5,8 +5,8 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeResProfile, makeResRuntime } from '@/domain/state/defaults.ts'
-import { listResSds } from '@/domain/services/resonatorSeedService.ts'
+import { makeResProfile, makeResRuntime } from '@/engine/runtime/defaults.ts'
+import { listResSds } from '@/data/catalog/resonatorSeedService.ts'
 import {
   mergeEchoImportIntoProfile,
   resolveEchoImportRuntime,

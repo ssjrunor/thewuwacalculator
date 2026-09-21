@@ -4,7 +4,7 @@
                corresponding image paths and set ids.
 */
 
-import { listEchoes } from '@/domain/services/echoCatalogService'
+import { listEchoes } from '@/data/catalog/echoCatalogService'
 import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
 
 let echoMgMapCch: Record<string, string> | null = null

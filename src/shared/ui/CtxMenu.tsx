@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Owns ctx menu behavior and state transitions for the ui module.
-               Every level is a rail: a row of wells with a readout at its end,
-               or a stacked column when the entries are too long to sweep.
+  Description: Hosts nested context-menu state, keyboard navigation, dismissal, and submenu placement.
 */
 
 import type {
@@ -21,7 +19,7 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedVisibility } from '@/shared/hooks/useAnimatedVisibility'
 import { bodyPortal } from '@/shared/lib/portalTarget'
 import { AppPopupSurface, syncAppPopupTokens } from '@/shared/ui/AppPopup'
 
@@ -332,8 +330,6 @@ function CtxRail({
     return estRailWidth(items, 138) > budget
   }, [items, kind, preview])
 
-  /* Position is geometry, not render state: the rail is measured and moved in
-     the same layout pass, before the browser paints it. */
   useLayoutEffect(() => {
     const element = railRef.current
     if (!element) return
@@ -607,9 +603,6 @@ function CtxTree<TData>({
     railsRef.current[level] = element
   }, [])
 
-  /* Placement is the geometry of the whole design: a rail sits under the well
-     that opened it, the staircase commits to one direction at the root, and a
-     stacked rail sends its child out sideways instead of below. */
   const place = useCallback((
     level: number,
     element: HTMLDivElement,
@@ -815,7 +808,6 @@ function CtxTree<TData>({
     }
   }, [clsMenuTree, focusIn, levels, openBranch, trimTo])
 
-  // Hover must not fire on whatever already sits under the cursor at open time.
   useEffect(() => {
     if (!controller.isOpen) {
       hvrRmdRef.current = false

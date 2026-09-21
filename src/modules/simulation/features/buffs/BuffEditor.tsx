@@ -4,11 +4,11 @@
                payloads, and preset application for the active runtime.
 */
 
-import { readAppFile, xprtAppFile } from '@/shared/lib/fileCodec.ts'
+import { readAppFile, xprtAppFile } from '@/application/persistence/fileCodec.ts'
 import type { ChangeEvent, ReactNode } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { Copy, CopyPlus, Plus, Scissors, Sparkles, Trash2, Power, PowerOff } from 'lucide-react'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
@@ -27,18 +27,18 @@ import type {
 import {
   makeCustomBuff,
   mkDefMnlMod,
-} from '@/domain/state/defaults.ts'
-import { mnlBffsSchm } from '@/domain/state/manualBuffsSchema.ts'
+} from '@/engine/runtime/defaults.ts'
+import { mnlBffsSchm } from '@/engine/runtime/manualBuffsSchema.ts'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
-import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
+import { LiquidSelect } from '@/application/ui/LiquidSelect.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { BuffPresetModal } from './BuffPresetModal.tsx'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
-import {getResonatorById as getResById} from "@/domain/services/catalogService.ts";
+import {getResonatorById as getResById} from "@/data/catalog/catalogService.ts";
 import { resolveSkill } from '@/engine/pipeline/resolveSkill.ts'
 import { useSel, type SelAct } from '@/modules/simulation/lib/sel.tsx'
-import { useOptionalSimulationContext } from '@/modules/simulation/context/SimulationContext.tsx'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { useOptionalSimulationContext } from '@/modules/simulation/shell/context/SimulationContext.tsx'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.tsx'

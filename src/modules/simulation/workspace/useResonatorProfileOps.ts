@@ -1,22 +1,19 @@
 /*
   Author: Runor Ewhro
-  Description: What can be done to a context resonator's profile: copy, cut,
-               paste, and remove it from the roster. None of it is stateful, so
-               the roster column and any surface that wants the same actions on
-               its own menu can each hold their own and stay in step.
+  Description: Builds profile clipboard and removal actions against canonical scenario ownership.
 */
 
 import { useCallback, useMemo } from 'react'
 import { contextScenarioMember } from '@/domain/entities/combatScenario.ts'
-import { projectScenarioMemberProfile } from '@/domain/state/scenarioRuntime.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { projectScenarioMemberProfile } from '@/engine/runtime/scenarioRuntime.ts'
+import { useAppStore } from '@/application/state'
 import { nextResonatorSelection } from '@/modules/simulation/model/resonatorProfileActions.ts'
 import {
   makeProfileClip,
   readProfClip,
   writeProfClip,
 } from '@/modules/simulation/workspace/profileClipboard.ts'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import type { BuildRosterEntry } from './BuildRoster.tsx'
 

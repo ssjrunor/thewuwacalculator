@@ -8,13 +8,13 @@ import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useSt
 import type { KeyboardEvent as ReactKeyboardEvent, TouchEvent as ReactTouchEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Play } from 'lucide-react'
-import { AxLink } from '@/app/nav/useNavX'
+import { AxLink } from '@/shared/navigation/useNavX'
 import { getWhatsNewEntries } from '@/data/content/changelogEntries'
 import type { WnEntry, WnSection, WnShot } from '@/data/content/changelogEntries'
 import { APP_ROUTES } from '@/shared/lib/appRoutes'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { HtmlContent } from '@/shared/ui/HtmlContent'
-import { RailCardPreview } from '@/modules/simulation/workspace/RailCardPreview.tsx'
+import { RailCardPreview } from '@/modules/simulation/api/previews'
 
 interface WnStop {
   key: string

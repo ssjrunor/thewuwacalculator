@@ -21,8 +21,8 @@ import type { EffectScope, EffectDef, SourceState } from '@/domain/gameData/cont
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { SimResult } from '@/engine/pipeline/types'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
-import { listEffectsFor, listFfctForO, listStatesFor } from '@/domain/services/gameDataService'
-import { isStateVisible, mkSrcSttScp } from '@/domain/services/sourceStateService'
+import { listEffectsFor, listFfctForO, listStatesFor } from '@/data/catalog/gameDataService'
+import { isStateVisible, mkSrcSttScp } from '@/engine/services/sourceStateService'
 import { getStateText } from '@/modules/simulation/model/sourceStateDisplay'
 import { fmtSkllKey, skllLblMap } from '@/modules/simulation/features/resonator/lib/panel.ts'
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
@@ -42,7 +42,6 @@ export interface VulnRow {
   /** what it is worth right now, in percent */
   value: number
   active: boolean
-  /** the control that switches it, when the reader has one to switch */
   state: SourceState | null
   /** which side authored it: the target, or the team standing in front of it */
   side: 'target' | 'team'
@@ -117,15 +116,6 @@ function readEffect(effect: EffectDef, scope: EffectScope, active: boolean): {
   return null
 }
 
-/*
-  the target's own passives: the ones that are simply true of it. they carry no
-  control because there is nothing to switch, which is why they print without
-  one.
-
-  what separates a passive from a switched line is the condition, not the
-  owner: a target usually hangs both off one intrinsic owner, so asking which
-  owner an effect sits on would drop the passive on the floor.
-*/
 function targetPassives(
   runtime: ResRuntime,
   enemy: EnemyProfile,

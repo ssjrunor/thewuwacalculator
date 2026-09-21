@@ -13,10 +13,11 @@ import type {
   FinalStats,
   ModBuff,
   NegEffectKey,
+  OffTuneTrace,
   SkillDef,
   SkillTypeKey,
 } from '@/domain/entities/stats'
-import { getNegEffectDef, NEG_EFFECT_ELEM } from '@/domain/gameData/negativeEffects'
+import { getNegEffectDef, NEG_EFFECT_ELEM } from '@/engine/gameData/negativeEffects'
 import { getNegBase } from '@/engine/formulas/negativeEffects'
 import { getTuneLevel } from '@/engine/formulas/tuneRupture'
 import {
@@ -269,6 +270,8 @@ export interface NumericEffectiveStats {
   defShred: number | null
   dmgVuln: number | null
   resistance: number | null
+  offTune: string | null
+  offTuneTrace?: OffTuneTrace | null
   tuneBreakBoost: number | null
   finalDmg: number | null
   flatDmg: number | null
@@ -443,6 +446,7 @@ export function resolveNumericEffectiveStats(
     defShred: numericTop(lane, 'defShred') + layered('defShred'),
     dmgVuln: numericTop(lane, 'dmgVuln') + layered('dmgVuln'),
     resistance,
+    offTune: null,
     tuneBreakBoost: numericTop(lane, 'tuneBreakBoost'),
     finalDmg: numericTop(lane, 'finalDmg'),
     flatDmg: numericTop(lane, 'flatDmg') + skill.flat,
@@ -721,7 +725,8 @@ function runNumericDamageKernel(
       classMult *
       (1 + numericTop(lane, 'amplify') / 100) *
       (1 + numericSkillType(lane, kind, 'dmgBonus') / 100) *
-      (1 + numericTop(lane, 'tuneBreakBoost') / 100)
+      (1 + numericTop(lane, 'tuneBreakBoost') / 100) *
+      (1 + numericTop(lane, 'finalDmg') / 100)
     const critDmg = kind === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) : 1
     const critRate = kind === 'tuneRupture' ? (skill.tuneRuptureCritRate ?? 0) : 0
     const levelScale = getTuneLevel(level)

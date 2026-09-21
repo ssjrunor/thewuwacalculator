@@ -9,9 +9,9 @@ The global Zustand store separates durable UI preferences, canonical combat scen
 Primary files:
 
 - [src/domain/entities/appState.ts](../src/domain/entities/appState.ts)
-- [src/domain/state/store.ts](../src/domain/state/store.ts)
-- [src/domain/state/schema.ts](../src/domain/state/schema.ts)
-- [src/infra/persistence/storage.ts](../src/infra/persistence/storage.ts)
+- [src/application/state/store.ts](../src/application/state/store.ts)
+- [src/engine/runtime/schema.ts](../src/engine/runtime/schema.ts)
+- [src/application/persistence/storage.ts](../src/application/persistence/storage.ts)
 
 Current persisted roots are:
 
@@ -44,9 +44,9 @@ Saved rotations contain immutable scenario snapshots and can become substantiall
 
 Primary files:
 
-- [src/domain/state/runtimeAdapters.ts](../src/domain/state/runtimeAdapters.ts)
-- [src/domain/state/runtimeMaterialization.ts](../src/domain/state/runtimeMaterialization.ts)
-- [src/domain/state/combatGraph.ts](../src/domain/state/combatGraph.ts)
+- [src/engine/runtime/runtimeAdapters.ts](../src/engine/runtime/runtimeAdapters.ts)
+- [src/engine/runtime/runtimeMaterialization.ts](../src/engine/runtime/runtimeMaterialization.ts)
+- [src/engine/runtime/combatGraph.ts](../src/engine/runtime/combatGraph.ts)
 
 Runtime adapters turn persisted scenario members, routing, controls, and local conditionals into engine-ready resonator and teammate runtimes. Selectors expose those projections to Modulation, Rotation, Showcase, Optimizer, suggestions, and evaluation.
 

@@ -1,0 +1,196 @@
+
+
+:root {
+
+  view-transition-name: none;
+
+
+  --nav-ease: var(--ease, cubic-bezier(0.16, 1, 0.3, 1));
+
+
+  --nav-out: 170ms;
+  --nav-in: 250ms;
+}
+
+
+.main-content { view-transition-name: ax-page; }
+
+
+
+
+::view-transition-group(ax-page) {
+  animation-name: none;
+  overflow: clip;
+}
+
+::view-transition-image-pair(ax-page) {
+  isolation: isolate;
+}
+
+::view-transition-old(ax-page),
+::view-transition-new(ax-page) {
+  object-fit: cover;
+  object-position: center top;
+  mix-blend-mode: normal;
+  animation-fill-mode: both;
+}
+
+
+::view-transition-old(ax-page) {
+  animation: ax-ink-out var(--nav-out) ease-in both;
+}
+
+
+::view-transition-new(ax-page) {
+  animation: ax-ink-in var(--nav-in) var(--nav-ease) var(--nav-out) both;
+}
+
+
+
+:root.ax-dissolve::view-transition-old(ax-page),
+:root.ax-dissolve::view-transition-new(ax-page) {
+  mix-blend-mode: plus-lighter;
+  animation-delay: 0s;
+  animation-duration: var(--nav-in);
+  animation-timing-function: linear;
+}
+
+@keyframes ax-ink-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes ax-ink-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nav-out: 90ms;
+    --nav-in: 90ms;
+  }
+}
+
+
+
+
+.app-shell {
+  --hold-after: 120ms;
+  --hold: #d19c4e;
+  --hold-lit: color-mix(in srgb, #d19c4e 82%, #000000);
+}
+
+.app-shell.dark-text {
+  --hold: var(--loader-glow, #f8e56c);
+  --hold-lit: color-mix(in srgb, var(--loader-glow, #f8e56c) 68%, #ffffff);
+}
+
+.ax .ax-go.is-held { --nub: 14px; }
+
+.ax-hold {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+.ax-hold.is-closing { opacity: 0; }
+
+.ax-hold-warm {
+  position: absolute;
+  inset: 0;
+  display: block;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--hold) 26%, transparent),
+    inset 0 0 0.9rem color-mix(in srgb, var(--hold) 20%, transparent),
+    inset 0 0 3.4rem color-mix(in srgb, var(--hold) 12%, transparent);
+  animation:
+    ax-hold-in 320ms ease var(--hold-after) forwards,
+    ax-hold-warm 1.7s ease-in-out calc(var(--hold-after) + 320ms) infinite;
+}
+
+.app-shell:not(.dark-text) .ax-hold-warm {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--hold) 52%, transparent),
+    inset 0 0 0.9rem color-mix(in srgb, var(--hold) 34%, transparent),
+    inset 0 0 3.4rem color-mix(in srgb, var(--hold) 20%, transparent);
+}
+
+@keyframes ax-hold-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ax-hold-warm {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+
+.ax .ax-go.is-held .ax-go-bar {
+  width: var(--nub);
+  background: var(--hold);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--hold) 55%, transparent);
+  transition:
+    transform 440ms var(--ease),
+    width 260ms var(--ease) var(--hold-after),
+    background-color 260ms ease var(--hold-after),
+    box-shadow 260ms ease var(--hold-after);
+  animation: ax-hold-run 660ms cubic-bezier(0.5, 0, 0.5, 1)
+    calc(var(--hold-after) + 260ms) infinite alternate;
+}
+
+@keyframes ax-hold-run {
+  from { transform: translateX(var(--x, 0px)); }
+  to { transform: translateX(calc(var(--x, 0px) + var(--w, 0px) - var(--nub))); }
+}
+
+.ax .ax-go.is-held .ax-w.is-aim {
+  position: relative;
+  color: var(--ink);
+}
+
+.ax .ax-go.is-held .ax-w.is-aim::after {
+  content: attr(data-word);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--hold-lit);
+  -webkit-mask-image: linear-gradient(90deg, transparent 36%, #000000 50%, transparent 64%);
+  mask-image: linear-gradient(90deg, transparent 36%, #000000 50%, transparent 64%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: 100% 0;
+  mask-position: 100% 0;
+  animation: ax-hold-ink 1.15s cubic-bezier(0.55, 0, 0.35, 1)
+    var(--hold-after) infinite;
+}
+
+@keyframes ax-hold-ink {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+}
+
+:root.reduce-animation .ax-hold-warm {
+  animation: ax-hold-in 1ms linear var(--hold-after) forwards;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--hold) 30%, transparent),
+    inset 0 0 0.9rem color-mix(in srgb, var(--hold) 18%, transparent);
+}
+
+:root.reduce-animation .ax .ax-go.is-held .ax-go-bar {
+  width: var(--w, 0);
+  animation: none;
+}
+
+:root.reduce-animation .ax .ax-go.is-held .ax-w.is-aim::after {
+  animation: ax-hold-lit 1ms linear var(--hold-after) forwards;
+}
+
+@keyframes ax-hold-lit {
+  to { -webkit-mask-image: none; mask-image: none; }
+}

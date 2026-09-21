@@ -1,0 +1,539 @@
+.rdk {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  translate: 0 -50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  --rdk-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --rdk-io: cubic-bezier(0.7, 0, 0.2, 1);
+  --rdk-ink: color-mix(in srgb, var(--highlight) 90%, var(--text));
+  --rdk-resist: color-mix(in srgb, #ff6b5b 88%, var(--text));
+  --rdk-weak: color-mix(in srgb, #4fd494 88%, var(--text));
+  --rdk-hair: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+.rdk-key {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--text) 10%, var(--bg)), var(--bg) 72%);
+  box-shadow: 0 0.25rem 0.65rem color-mix(in srgb, #000 35%, transparent);
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  cursor: pointer;
+  transition: color 200ms ease, scale 200ms var(--rdk-ease);
+}
+
+.rdk-key:is(:hover, :focus-visible) {
+  color: var(--text);
+}
+
+.rdk-key:active {
+  scale: 0.92;
+}
+
+.rdk-key:focus-visible {
+  outline: 2px solid var(--rdk-ink);
+  outline-offset: 0.3rem;
+}
+
+.rdk-key[data-due] {
+  color: var(--rdk-ink);
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rdk-ink) 22%, var(--bg)), var(--bg) 72%);
+}
+
+.rdk-ring {
+  position: absolute;
+  inset: -0.25rem;
+  width: calc(100% + 0.5rem);
+  height: calc(100% + 0.5rem);
+  rotate: -90deg;
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+}
+
+.rdk-edge {
+  stroke: var(--rdk-hair);
+  stroke-width: 1.5;
+}
+
+.rdk-key[data-due] .rdk-edge {
+  stroke: var(--rdk-ink);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 3px var(--rdk-ink));
+}
+
+.rdk-measure {
+  stroke: var(--rdk-match);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 3px var(--rdk-match));
+  transition: stroke-dashoffset 600ms var(--rdk-ease), stroke 300ms ease;
+}
+
+.rdk-sweep {
+  stroke: var(--text);
+  stroke-width: 2.5;
+  animation: rdk-sweep 700ms var(--rdk-ease) forwards;
+}
+
+@keyframes rdk-sweep {
+  from { opacity: 1; stroke-dashoffset: var(--rdk-c); }
+  80% { opacity: 1; }
+  to { opacity: 0; stroke-dashoffset: 0; }
+}
+
+.rdk-icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rdk-kbd {
+  position: absolute;
+  left: -0.45rem;
+  bottom: -0.3rem;
+  z-index: 2;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font: 600 0.56rem/0.8rem var(--mono-font);
+  text-align: center;
+}
+
+.rdk-tip {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 0.9rem);
+  translate: 0.4rem -50%;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  box-shadow: 0 0.5rem 1.2rem color-mix(in srgb, #000 30%, transparent);
+  color: var(--text);
+  font: 600 0.78rem/1.2 var(--display-font);
+  text-align: right;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, translate 250ms var(--rdk-ease);
+}
+
+.rdk-tip small {
+  display: block;
+  margin-top: 0.15rem;
+  font: 500 0.62rem/1.3 var(--mono-font);
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+}
+
+.rdk-key:is(:hover, :focus-visible) .rdk-tip {
+  opacity: 1;
+  translate: 0 -50%;
+}
+
+.rdk-target {
+  --rdk-match-text: var(--rdk-match);
+  width: 3.375rem;
+  height: 3.375rem;
+  margin-top: 0.35rem;
+  background: radial-gradient(circle, color-mix(in srgb, var(--text) 8%, var(--bg)), var(--bg));
+}
+
+.rdk-face {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.rdk-plate {
+  position: absolute;
+  right: calc(100% + 1rem);
+  bottom: -0.9rem;
+  display: grid;
+  gap: 0.6rem;
+  width: 17.9rem;
+  padding: 0.8rem 0.9rem 0.75rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 0.65rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 6%, var(--bg)), color-mix(in srgb, var(--text) 3%, var(--bg)));
+  box-shadow: 0 1.1rem 2.5rem color-mix(in srgb, #000 45%, transparent);
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+  opacity: 0;
+  translate: 0.6rem 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, translate 320ms var(--rdk-ease);
+}
+
+.rdk-plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--rdk-enemy) 22%, transparent), transparent 65%);
+  pointer-events: none;
+}
+
+.rdk-plate > :not(.rdk-plate-art) {
+  position: relative;
+}
+
+.rdk-target:is(:hover, :focus-visible) .rdk-plate {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.rdk-plate-art {
+  position: absolute;
+  top: -0.9rem;
+  right: -1rem;
+  width: 6.6rem;
+  height: 6.6rem;
+  max-width: none;
+  object-fit: contain;
+  -webkit-mask-image: linear-gradient(to left, #000 45%, transparent 95%);
+  mask-image: linear-gradient(to left, #000 45%, transparent 95%);
+  filter: drop-shadow(0 0.5rem 1rem color-mix(in srgb, #000 50%, transparent));
+}
+
+.rdk-plate-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rdk-plate-name {
+  max-width: 10.6rem;
+  font: 700 1.06rem/1.1 var(--display-font);
+  white-space: normal;
+  text-wrap: balance;
+}
+
+.rdk-plate-pills {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.rdk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 99px;
+  font: 600 0.56rem/1.3 var(--mono-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+}
+
+.rdk-pill img {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.rdk-wells {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.rdk-well {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  font: 600 0.6rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 45%, transparent);
+}
+
+.rdk-well i {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 5%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.rdk-well img {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.rdk-well[data-you] {
+  color: var(--rdk-match-text);
+}
+
+.rdk-well[data-you] i {
+  background: color-mix(in srgb, var(--rdk-match) 12%, var(--bg));
+  box-shadow: inset 0 0 0 1.5px var(--rdk-match), 0 0 0.75rem color-mix(in srgb, var(--rdk-match) 45%, transparent);
+}
+
+.rdk-lands {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.rdk-lands > span:first-child {
+  font: 500 0.66rem/1.2 var(--body-font);
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  white-space: normal;
+}
+
+.rdk-lands b {
+  font: 700 1rem/1 var(--display-font);
+  font-variant-numeric: tabular-nums;
+  color: var(--rdk-match-text);
+}
+
+.rdk-cells {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.19rem;
+}
+
+.rdk-cells i {
+  height: 0.31rem;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.rdk-cells i[data-on] {
+  background: var(--rdk-match);
+  box-shadow: 0 0 0.4rem color-mix(in srgb, var(--rdk-match) 60%, transparent);
+}
+
+.rdk-ch {
+  display: inline-block;
+}
+
+.rdk-ch::before {
+  content: attr(data-t);
+}
+
+.rdk-ch[data-noise] {
+  opacity: 0.5;
+  font-family: var(--mono-font);
+  font-weight: 400;
+}
+
+.rdk-log {
+  position: absolute;
+  top: 1.4rem;
+  right: calc(100% + 0.8rem);
+  width: 19rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg) 95%, var(--text));
+  box-shadow: 0 18px 36px color-mix(in srgb, #000 45%, transparent);
+  font: 400 0.68rem/1 var(--mono-font);
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  animation: rdk-log-in 350ms var(--rdk-io) both;
+}
+
+.rdk-log[data-closing] {
+  animation: rdk-log-out 280ms var(--rdk-io) both;
+}
+
+@keyframes rdk-log-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes rdk-log-out {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 100% 0); }
+}
+
+.rdk-log-head,
+.rdk-log-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.rdk-log-head {
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-log-head b {
+  font-weight: 500;
+  color: var(--rdk-ink);
+}
+
+.rdk-log-rows {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.35rem 0.75rem 0.45rem;
+}
+
+.rdk-log-row {
+  display: grid;
+  grid-template-columns: 0.8rem 6.6rem minmax(0, 1fr) 1.6rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.26rem 0;
+  animation: rdk-row-in 1ms linear both;
+  animation-delay: calc(200ms + var(--i) * 190ms);
+}
+
+@keyframes rdk-row-in {
+  from { opacity: 0; }
+}
+
+.rdk-log-row i,
+.rdk-log-row em {
+  font-style: normal;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-log-row em {
+  text-align: right;
+  color: var(--rdk-ink);
+  animation: rdk-row-in 200ms ease both;
+  animation-delay: calc(580ms + var(--i) * 190ms);
+}
+
+.rdk-log-row span:nth-child(3) {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rdk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rdk-log-foot {
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.rdk-log-foot span {
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+.rdk-undo {
+  padding: 0.3rem 0.6rem;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--text);
+  font: 600 0.72rem/1 var(--display-font);
+  cursor: pointer;
+}
+
+.rdk-undo:hover {
+  border-color: var(--text);
+}
+
+.rdk-undo:focus-visible {
+  outline: 2px solid var(--rdk-ink);
+  outline-offset: 2px;
+}
+
+.rdk-undo:disabled {
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+  cursor: default;
+}
+
+.rdk-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--rdk-ink);
+  opacity: 0.7;
+  transform-origin: left;
+  animation: rdk-timer 6500ms linear forwards;
+  animation-delay: 1150ms;
+}
+
+.rdk-log:is(:hover, :focus-within) .rdk-timer {
+  animation-play-state: paused;
+}
+
+@keyframes rdk-timer {
+  to { transform: scaleX(0); }
+}
+
+.no-entrance-anim .rdk-log,
+.reduce-animation .rdk-log,
+.reduce-animation .rdk-log-row,
+.reduce-animation .rdk-log-row em {
+  animation-duration: 1ms;
+  animation-delay: 0ms;
+}
+
+.reduce-animation .rdk-timer {
+  animation-delay: 0ms;
+}
+
+.light-text .rdk {
+  --rdk-ink: color-mix(in srgb, var(--highlight) 60%, var(--text));
+}
+
+.light-text .rdk-target {
+  --rdk-match-text: color-mix(in srgb, var(--rdk-match) 45%, var(--text));
+}
+
+.reduce-animation .rdk-sweep {
+  animation-duration: 1ms;
+}
+
+.reduce-animation .rdk-key,
+.reduce-animation .rdk-tip,
+.reduce-animation .rdk-plate,
+.reduce-animation .rdk-measure {
+  transition-duration: 1ms;
+}
+
+@media (max-width: 80rem) {
+  .rdk:not([data-view='showcase']) {
+    display: none;
+  }
+}

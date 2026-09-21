@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { sameEchoUid, saveEchoSlots } from '@/domain/entities/inventoryStorage.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import type { EvaluationEchoActions } from '@/modules/simulation/workspace/ui.tsx'
 import { qpEchoAtSlot } from '@/modules/simulation/features/echoes/lib/equip.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
@@ -30,7 +30,7 @@ export function useWorkspaceEchoActions({
   onEchoLoadoutChange?: (echoes: Array<EchoInstance | null>) => void
 }): EvaluationEchoActions | undefined {
   const showToast = useTstStr((state) => state.show)
-  const addEchoToInventory = useAppStore((state) => state.addInvEcho)
+  const addEchoesToInventory = useAppStore((state) => state.addInvEchoes)
   const updateRuntime = useAppStore((state) => state.updResRt)
   const [liftedEcho, setLiftedEcho] = useState<{
     resonatorId: string
@@ -63,7 +63,7 @@ export function useWorkspaceEchoActions({
     const { savedCount, nextEchoes } = saveEchoSlots(
       echoLoadout,
       [slotIndex],
-      addEchoToInventory,
+      addEchoesToInventory,
     )
 
     if (savedCount === 0) {
@@ -92,7 +92,7 @@ export function useWorkspaceEchoActions({
       duration: 2400,
     })
   }, [
-    addEchoToInventory,
+    addEchoesToInventory,
     echoLoadout,
     editable,
     onEchoLoadoutChange,

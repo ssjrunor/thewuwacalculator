@@ -33,7 +33,7 @@ import {
 import { makeSkillDamage } from '@/engine/formulas/damage.ts'
 import { isSkillImmune } from '@/engine/formulas/immunity.ts'
 import { mergeSkillType, makeModBuff } from '@/engine/resolvers/buffPool.ts'
-import { getNegEffectDef } from '@/domain/gameData/negativeEffects.ts'
+import { getNegEffectDef } from '@/engine/gameData/negativeEffects.ts'
 
 // convert enemy resistance percent into the actual damage multiplier
 function resistMult(enemyResPct: number): number {
@@ -183,6 +183,7 @@ function makeLevelScale(options: {
     dmgVuln,
     dmgBonus: finalStats.skillType[kind].dmgBonus,
     amplify: finalStats.amplify,
+    finalDmg: finalStats.finalDmg,
     tuneBreakBoost: finalStats.tbb,
     critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
     critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
@@ -336,7 +337,7 @@ export function makeOptContext(options: {
       sttcCritDmg = buckets.critDmg
       sttcDmgBns = buckets.dmgBonus
       sttcMplf = buckets.amplify
-      statFinalDmg = 0
+      statFinalDmg = buckets.finalDmg
       sttcTuneBrkB = buckets.tuneBreakBoost
       sttcDmgVuln = buckets.dmgVuln
       break
@@ -357,7 +358,7 @@ export function makeOptContext(options: {
       sttcCritDmg = buckets.critDmg
       sttcDmgBns = buckets.dmgBonus
       sttcMplf = buckets.amplify
-      statFinalDmg = 0
+      statFinalDmg = buckets.finalDmg
       sttcTuneBrkB = buckets.tuneBreakBoost
       sttcDmgVuln = buckets.dmgVuln
       break

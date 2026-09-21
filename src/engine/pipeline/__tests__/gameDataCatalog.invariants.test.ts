@@ -5,8 +5,8 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { listEchoes, listResonators } from '@/domain/services/catalogService'
-import { listSources } from '@/domain/services/gameDataService'
+import { listEchoes, listResonators } from '@/data/catalog/catalogService'
+import { listSources } from '@/data/catalog/gameDataService'
 
 const CANONICAL_LEGACY_ECHO_IDS = [
   '390070067',

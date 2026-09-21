@@ -8,9 +8,11 @@
 import type {
   OptFinalResult,
   OptRawResult,
+  OptResultStats,
   OptStartPay,
   PrepOptPay,
 } from '@/engine/optimizer/types.ts'
+import type { SntSetConds } from '@/domain/entities/sonataSetConditionals.ts'
 
 // message sent to the compile worker to begin compiling a raw optimizer payload
 export interface OptCompStart {
@@ -24,6 +26,20 @@ export interface OptCompDoneM {
   type: 'done'
   runId: number
   payload: PrepOptPay
+}
+
+export interface OptBaselineStartM {
+  type: 'baseline'
+  runId: number
+  payload: OptStartPay
+  mainIndex: number
+  setConds: SntSetConds
+}
+
+export interface OptBaselineDoneM {
+  type: 'baselineDone'
+  runId: number
+  result: { damage: number; stats: OptResultStats | null } | null
 }
 
 // message sent to the worker when we already have a prepared payload
@@ -54,10 +70,12 @@ export interface OptCompRrrMs {
 // all valid inbound messages accepted by the compile worker
 export type OptCompInMsg =
     | OptCompStart
+    | OptBaselineStartM
     | OptMatStartM
 
 // all valid outbound messages produced by the compile worker
 export type OptCompOutMs =
     | OptCompDoneM
+    | OptBaselineDoneM
     | OptMatDoneMs
     | OptCompRrrMs

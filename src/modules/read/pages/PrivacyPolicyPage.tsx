@@ -1,9 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the privacy policy page.
+  Description: Renders the authored privacy policy with shared legal-page metadata.
 */
 
-import { useNavX } from '@/app/nav/useNavX'
+import { useNavX } from '@/shared/navigation/useNavX'
 import { ChevronLeft, Shield } from 'lucide-react'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 

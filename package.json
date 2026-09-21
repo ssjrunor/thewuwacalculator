@@ -14,6 +14,8 @@
     "postbuild": "node tools/seo/writeStaticRoutes.mjs",
     "seo:sync": "node tools/seo/writeStaticRoutes.mjs --sync-public",
     "lint": "eslint .",
+    "check:architecture": "node tools/architecture/checkImports.mjs",
+    "bench:import": "node tools/analysis/importCardBench.mjs",
     "preview": "vite preview",
     "dev:cloudflare": "wrangler dev",
     "deploy:cloudflare": "npm run build && wrangler deploy",

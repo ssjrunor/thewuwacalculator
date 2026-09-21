@@ -8,7 +8,7 @@ import type { HydratedAppState, LegacyProfileMap, PersistedState } from '@/domai
 import type { ResProf } from '@/domain/entities/profile'
 import type { CombatSession } from '@/domain/entities/session'
 import type { SuggestState } from '@/domain/entities/suggestions'
-import { initAppState, makeScenarioFromProfiles, makeSuggest } from '@/domain/state/defaults'
+import { initAppState, makeScenarioFromProfiles, makeSuggest } from '@/engine/runtime/defaults'
 import {
   addScenario,
   replaceScenario,
@@ -17,10 +17,10 @@ import {
   selectedCombatScenario,
 } from '@/domain/entities/scenarioLibrary'
 import { combatScenarioId, contextScenarioMember } from '@/domain/entities/combatScenario'
-import type { AppStore } from '@/domain/state/store'
-import { selectPersisted } from '@/domain/state/serialization'
-import { parsePersisted } from '@/infra/persistence/storage'
-import { projectScenarioWorkspaceProfiles } from '@/domain/state/scenarioRuntime'
+import type { AppStore } from '@/application/state'
+import { selectPersisted } from '@/application/state/serialization'
+import { parsePersisted } from '@/application/persistence/appStorage'
+import { projectScenarioWorkspaceProfiles } from '@/engine/runtime/scenarioRuntime'
 
 export type DataXprtKind =
   | 'current-resonator'

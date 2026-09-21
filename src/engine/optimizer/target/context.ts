@@ -10,7 +10,7 @@
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime.ts'
 import type { SkillDef } from '@/domain/entities/stats.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { prepSkill, makeSkillCtx } from '@/engine/pipeline/prepareRuntimeSkill.ts'
 import type { CompTargetSkill } from '@/engine/optimizer/types.ts'
 import { selOptTgtSkl, type OptTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'

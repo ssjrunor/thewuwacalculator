@@ -17,7 +17,7 @@ import {
 import { applyMnlBffs } from '@/engine/manualBuffs'
 import type { UnifiedBuffPool } from '@/domain/entities/stats'
 import { isNoWeaponId, type EchoInstance, type ResRuntime } from '@/domain/entities/runtime'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { getWpnById } from '@/data/catalog/weaponCatalogService'
 import type { AttributeKey } from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
@@ -26,7 +26,7 @@ import {
   materializeNumericContext,
   type NumericTeamState,
 } from '@/engine/effects/numericTeam.ts'
-import { applyEnvironmentTargetModifiers } from '@/domain/state/scenarioEnvironment'
+import { applyEnvironmentTargetModifiers } from '@/engine/runtime/scenarioEnvironment'
 
 // echo stat keys that should be routed into elemental damage bonus buckets
 const TTRBECHOSTAT = new Set<string>([

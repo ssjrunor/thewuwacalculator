@@ -4,9 +4,9 @@
 */
 
 import { bench, describe } from 'vitest'
-import { makeEnemy, makeResRuntime } from '@/domain/state/defaults.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { listResRttn } from '@/domain/services/gameDataService.ts'
+import { makeEnemy, makeResRuntime } from '@/engine/runtime/defaults.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { listResRttn } from '@/data/catalog/gameDataService.ts'
 import { prepareResSimulation } from '@/engine/pipeline/index.ts'
 import {
   executeRotationProgram,

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { makeEchoUid } from '@/domain/entities/runtime'
-import { getEchoSets, listChsByCos } from '@/domain/services/echoCatalogService'
+import { getEchoSets, listChsByCos } from '@/data/catalog/echoCatalogService'
 import { ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import {
   applyMainSur,

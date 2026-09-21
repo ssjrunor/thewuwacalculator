@@ -5,9 +5,9 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeEvaluationKey } from '@/data/scoring/buildEvaluationKey.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { makeResRuntime } from '@/domain/state/defaults.ts'
+import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { makeResRuntime } from '@/engine/runtime/defaults.ts'
 import { applyEvaluationAsm, applyEvaluationMapAsm } from '@/modules/simulation/model/evaluationAssumptions.ts'
 
 describe('evaluation assumptions', () => {

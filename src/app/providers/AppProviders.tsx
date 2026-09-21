@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the AppProviders logic for the providers module.
+  Description: Composes application-wide router, error, SEO, store-bootstrap, and interaction providers.
 */
 
 /*
@@ -11,13 +11,10 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { GoogleOAuthProvider as GglOAuthProv } from '@react-oauth/google'
-import { useAppStore } from '@/domain/state/store'
+import { useAppStore } from '@/application/state'
 import {
-  consumePersist,
-  saveAppState,
   sbscToDrtyPr,
-} from '@/infra/persistence/storage'
-import { selectPersisted } from '@/domain/state/serialization'
+} from '@/application/persistence/storage'
 import {
   applyBgColor,
   applyBgToDocument,
@@ -28,10 +25,10 @@ import {
   readStoredBg,
   resolveBg,
   writeStoredBgColor,
-} from '@/modules/calibration/model/backgroundTheme'
-import { applyBodyFon } from '@/modules/calibration/model/typography'
+} from '@/application/theme/backgroundTheme'
+import { applyBodyFon } from '@/application/theme/typography'
 import { AppTltpProv } from '@/shared/ui/Tooltip'
-import { AppCtxMenuPr } from '@/shared/ui/AppContextMenu'
+import { AppCtxMenuPr } from '@/application/context-menu/AppContextMenu'
 import { FltnSelCtnsP } from '@/shared/ui/FloatingSelectionActions'
 import { getSystTheme } from '@/shared/lib/systemTheme'
 
@@ -53,16 +50,29 @@ export function AppProviders({ children }: AppPrvdPrps) {
 
   useEffect(() => {
     let persistTimer: number | null = null
+    let persistIdle: number | null = null
 
     const flush = () => {
       if (persistTimer !== null) {
         window.clearTimeout(persistTimer)
         persistTimer = null
       }
+      if (persistIdle !== null && window.cancelIdleCallback) {
+        window.cancelIdleCallback(persistIdle)
+        persistIdle = null
+      }
+      useAppStore.getState().flushPrssNow()
+    }
 
-      const dirtyDomains = consumePersist()
-      if (dirtyDomains.length > 0) {
-        saveAppState(selectPersisted(useAppStore.getState()), { domains: dirtyDomains })
+    const flushWhenIdle = () => {
+      persistTimer = null
+      if (window.requestIdleCallback) {
+        persistIdle = window.requestIdleCallback(() => {
+          persistIdle = null
+          useAppStore.getState().flushPrssNow()
+        }, { timeout: 750 })
+      } else {
+        useAppStore.getState().flushPrssNow()
       }
     }
 
@@ -71,7 +81,7 @@ export function AppProviders({ children }: AppPrvdPrps) {
         window.clearTimeout(persistTimer)
       }
 
-      persistTimer = window.setTimeout(flush, PERSIST_DELAY)
+      persistTimer = window.setTimeout(flushWhenIdle, PERSIST_DELAY)
     }
 
     const onVisChng = () => {

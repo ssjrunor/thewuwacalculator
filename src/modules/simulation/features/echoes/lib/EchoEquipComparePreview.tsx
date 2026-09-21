@@ -6,7 +6,7 @@
 
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { ArrowRight } from 'lucide-react'
-import { EchoCard } from '@/shared/ui/EchoGrid.tsx'
+import { EchoCard } from '@/modules/simulation/features/echoes/ui/EchoGrid.tsx'
 
 interface EchoQpCmprPr {
   currentEcho: EchoInstance | null

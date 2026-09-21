@@ -6,7 +6,7 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { getWpnById } from '@/data/catalog/weaponCatalogService'
 import { getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'

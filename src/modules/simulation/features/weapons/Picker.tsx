@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react'
 import type { CSSProperties as CssProps } from 'react'
 import { ThumbsUp } from 'lucide-react'
 import type { GenWpn } from '@/domain/entities/weapon.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import {
   WPNSTATLBLS,
   WPN_STAT_CNS,
@@ -16,7 +16,7 @@ import {
   withDefWpnMg,
 } from '@/modules/simulation/features/weapons/lib/weapon.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { PickerModal as ShrdPckrMdl } from '@/shared/ui/PickerModal.tsx'
+import { PickerModal as ShrdPckrMdl } from '@/modules/simulation/ui/PickerModal.tsx'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { rarityVars } from '@/modules/simulation/model/display.ts'
 import {FaStar} from "react-icons/fa";

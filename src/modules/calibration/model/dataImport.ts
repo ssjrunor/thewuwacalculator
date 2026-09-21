@@ -5,9 +5,9 @@
 */
 
 import type { PersistedState } from '@/domain/entities/appState'
-import type { LegAppSttMpr } from '@/domain/services/legacyAppStateImport/shared'
-import { importLegacyApp } from '@/domain/services/legacyAppStateImport'
-import { decAppFileBy } from '@/shared/lib/fileCodec'
+import type { LegAppSttMpr } from '@/application/imports/legacy/shared'
+import { importLegacyApp } from '@/application/imports/legacy/index'
+import { decAppFileBy } from '@/application/persistence/fileCodec'
 import { resMprtData, type RslvMprtData } from './dataManagement'
 
 export type DataImportSource =

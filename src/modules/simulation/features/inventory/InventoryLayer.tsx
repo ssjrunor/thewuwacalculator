@@ -11,12 +11,12 @@ import {
   cloneEchoFor,
   cloneEchoLoadout,
 } from '@/domain/entities/inventoryStorage'
-import { initWpnStts } from '@/domain/state/sourceStateInit'
-import { useAppStore } from '@/domain/state/store'
-import { selActRt, selInvSg, selScenarioProfiles } from '@/domain/state/selectors'
-import { getEchoById } from '@/domain/services/echoCatalogService'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { initWpnStts } from '@/engine/runtime/sourceStateInit'
+import { useAppStore } from '@/application/state'
+import { selActRt, selInvSg, selScenarioProfiles } from '@/application/state'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { getWpnById } from '@/data/catalog/weaponCatalogService'
 import { MODAL_EXIT_MS, useAppModal } from '@/shared/ui/useAppModal'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { useTstStr } from '@/shared/util/toastStore.ts'
@@ -24,7 +24,7 @@ import { InvMdl } from '@/modules/simulation/features/inventory/InventoryModal'
 import { Edit } from '@/modules/simulation/features/echoes/Edit.tsx'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 
-export function InvLyr() {
+export function InvLyr({ onReady }: { onReady: () => void }) {
   const invOpen = useAppStore((state) => state.invOpen)
   const invEchoSrch = useAppStore((state) => state.invEchoQ)
   const setInvOpen = useAppStore((state) => state.setInvOpen)
@@ -140,6 +140,7 @@ export function InvLyr() {
             rstDtngInvEc()
           }}
           onEditInvEcho={openDtngInvE}
+          onReady={onReady}
           onClsEchoDtr={clsDtngInvEc}
           onQpInvEcho={(entry, slotIndex) => {
             runtimeSession.update((prev) => {
@@ -212,6 +213,7 @@ function MntdInvLyr(props: {
   ntlEchoSrch: string
   onClose: () => void
   onEditInvEcho: (entryId: string) => void
+  onReady: () => void
   onClsEchoDtr: () => void
   onQpInvEcho: (entry: SavedEcho, slotIndex: number) => void
   onQpInvBld: (entry: SavedBuild) => void
@@ -227,6 +229,17 @@ function MntdInvLyr(props: {
   const clrInvChs = useAppStore((state) => state.clrInvEcho)
   const cleanInvalidEchoes = useAppStore((state) => state.cleanInvEcho)
   const showToast = useTstStr((state) => state.show)
+
+  useEffect(() => {
+    if (!props.open) {
+      return undefined
+    }
+
+    // Chunk resolution precedes the modal commit; one frame keeps the loader
+    // active until the opened dialog is eligible to paint.
+    const frame = window.requestAnimationFrame(props.onReady)
+    return () => window.cancelAnimationFrame(frame)
+  }, [props.onReady, props.open])
 
   const dtngInvEchoE = props.editingEchoId
     ? invChs.find((entry) => entry.id === props.editingEchoId) ?? null

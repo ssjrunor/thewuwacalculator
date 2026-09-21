@@ -4,7 +4,7 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeResRuntime } from '@/domain/state/defaults.ts'
+import { makeResRuntime } from '@/engine/runtime/defaults.ts'
 import type { ResSeed } from '@/domain/entities/runtime.ts'
 import { mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'

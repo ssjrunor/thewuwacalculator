@@ -45,6 +45,7 @@ export function calcFinalStats(
     defIgnore: pool.defIgnore,
     defShred: pool.defShred,
     dmgVuln: pool.dmgVuln,
+    offTuneBuildupRate: 1 + pool.offTuneBuildupRate,
     tbb: baseStats.tuneBreakBoost + pool.tuneBreakBoost,
     finalDmg: pool.finalDmg,
     immunities: pool.immunities,

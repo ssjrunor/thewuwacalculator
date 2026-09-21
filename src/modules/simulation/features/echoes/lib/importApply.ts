@@ -6,9 +6,9 @@
 
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { ParsedBuildScreenshot } from '@/engine/echoParser/ocrParsing.ts'
-import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { normResRtCnt } from '@/domain/gameData/controlOptions.ts'
+import { getWpnById } from '@/data/catalog/weaponCatalogService.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { normResRtCnt } from '@/engine/gameData/controlOptions.ts'
 import { clampNumber } from '@/shared/lib/number.ts'
 import {
   setResLvl,

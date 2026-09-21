@@ -1,21 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: The app's one roster. It is mounted by the chrome rather than by
-               a page, so every working surface is looking at the same column in
-               the same DOM: moving between them scrolls nothing, rebuilds
-               nothing, and leaves the subject exactly where it was standing.
-
-               Everything the column can do to a resonator travels with it,
-               because picking, adding, copying and removing one are facts about
-               the roster and not about whichever surface is reading it.
+  Description: Hosts the persistent scenario roster and profile add, select, copy, paste, and removal actions.
 */
 
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Copy, Scissors, Trash2 } from 'lucide-react'
 import { isSimulationSurfaceRoute } from '@/shared/lib/appRoutes'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selContextResonatorId } from '@/domain/state/selectors.ts'
+import { useAppStore } from '@/application/state'
+import { selContextResonatorId } from '@/application/state'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 import { contextScenarioMember } from '@/domain/entities/combatScenario.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'

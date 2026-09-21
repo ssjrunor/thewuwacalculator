@@ -10,9 +10,9 @@ import {ArrowBigDownDash as ArrowDownIcon, Check, Clipboard, Copy, Maximize2, Mi
 import type { SavedEcho, SavedBuild } from '@/domain/entities/inventoryStorage'
 import type { EchoInstance, WeaponState } from '@/domain/entities/runtime'
 import { equalBuildSnapshots } from '@/domain/entities/inventoryStorage'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { getWpnById } from '@/data/catalog/weaponCatalogService'
 import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { cmptEchoCrit } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'
@@ -23,7 +23,7 @@ import {
   sortEntsByNa,
   type InvSlotFitSt,
 } from '@/modules/simulation/features/inventory/lib/inventory.ts'
-import type { InvBldUsr, InvEchoSg } from '@/domain/state/inventoryUsage.ts'
+import type { InvBldUsr, InvEchoSg } from '@/engine/runtime/inventoryUsage.ts'
 import { toTitle } from '@/shared/lib/format'
 import { hideBrknMg, withDefIconM, withDefResMg, withDefWpnMg } from '@/shared/lib/imageFallback'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
@@ -31,18 +31,18 @@ import { mergeRefs } from '@/shared/lib/mergeRefs.ts'
 import { useGridColumns } from '@/shared/lib/useGridColumns.ts'
 import { AppModal } from '@/shared/ui/AppModal'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
 import {
   EchoCardBand,
   EchoCardList,
   echoCardVars,
   type EchoCardStat,
-} from '@/shared/ui/EchoCard.tsx'
+} from '@/modules/simulation/features/echoes/ui/EchoCard.tsx'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
-import { useMediaQuery } from '@/app/hooks/useMediaQuery.ts'
-import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
+import { useMediaQuery } from '@/shared/hooks/useMediaQuery.ts'
+import { useCtxBuilder } from '@/modules/simulation/shell/context-menu/useContextMenuBuilder.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import {
   makeEchoClip,
@@ -54,10 +54,10 @@ import { EchoQpCmprdn } from '@/modules/simulation/features/echoes/lib/EchoEquip
 import { mkSrchTkns, mtchSrchTkns } from '@/modules/simulation/features/echoes/lib/search.ts'
 import { useSel } from '@/modules/simulation/lib/sel.tsx'
 import { getInvEchoCt } from '@/modules/simulation/features/inventory/lib/ctx.tsx'
-import {useAppStore} from "@/domain/state/store.ts";
-import { useAppCtxMen } from '@/shared/ui/AppContextMenu'
-import { EchoStatPreview } from '@/shared/ui/EchoStatPreview'
-import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import {useAppStore} from "@/application/state";
+import { useAppCtxMen } from '@/application/context-menu/AppContextMenu'
+import { EchoStatPreview } from '@/modules/simulation/features/echoes/ui/EchoStatPreview'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
 import { rarityVars } from '@/modules/simulation/model/display.ts'
 
 type InventoryTab = 'echoes' | 'builds'

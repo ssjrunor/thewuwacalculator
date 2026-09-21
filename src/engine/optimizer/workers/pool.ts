@@ -630,6 +630,7 @@ export function rstOptWrkrPo(): void {
     dspsWrkrOn(handle, reason)
   }
 
+  stopThryProd()
   workers = []
   activeRunId = null
   actRunCtx = null

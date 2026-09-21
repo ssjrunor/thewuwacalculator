@@ -13,15 +13,15 @@ import type { OptStartPay } from '@/engine/optimizer/types.ts'
 import type { ResRuntime, WeaponState } from '@/domain/entities/runtime.ts'
 import type { GenWpn } from '@/domain/entities/weapon.ts'
 import type { SourceState } from '@/domain/gameData/contracts.ts'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
-import { getWpnById, listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters.ts'
+import { getWpnById, listWpnsByTy } from '@/data/catalog/weaponCatalogService.ts'
 import type { WeaponPlanSet } from '@/domain/entities/suggestions.ts'
 import {
   resolveWeaponRank,
   weaponRarityVisible,
   weaponStatsAt,
 } from '@/domain/services/weaponPlan.ts'
-import { listStatesFor } from '@/domain/services/gameDataService.ts'
+import { listStatesFor } from '@/data/catalog/gameDataService.ts'
 import { compOptTgtCt } from '@/engine/optimizer/target/context.ts'
 import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
 import { stripEchoes } from '@/engine/optimizer/compiler/shared.ts'

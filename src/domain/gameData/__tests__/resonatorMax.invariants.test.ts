@@ -6,12 +6,12 @@
 
 import { describe, expect, it } from 'vitest'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
-import { getResCntrMax, mkResCntrScp, normResRtCnt } from '@/domain/gameData/controlOptions'
+import { getResCntrMax, mkResCntrScp, normResRtCnt } from '@/engine/gameData/controlOptions'
 import { getResModeGroups, getResStateControls, getResStateGroups } from '@/domain/gameData/resonatorStateGraph'
-import { maxResRt, setResRtSequence } from '@/domain/gameData/resonatorMax'
-import { listFfctForO } from '@/domain/services/gameDataService'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { makeResRuntime } from '@/domain/state/defaults'
+import { maxResRt, setResRtSequence } from '@/engine/gameData/resonatorMax'
+import { listFfctForO } from '@/data/catalog/gameDataService'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { makeResRuntime } from '@/engine/runtime/defaults'
 import { evalCond } from '@/engine/effects/evaluator'
 import type { CondExpr } from '@/domain/gameData/contracts'
 

@@ -6,7 +6,7 @@
 */
 
 import type { GenWpn } from '@/domain/entities/weapon.ts'
-import { getWpnById as getWpnFromCa } from '@/domain/services/weaponCatalogService.ts'
+import { getWpnById as getWpnFromCa } from '@/data/catalog/weaponCatalogService.ts'
 import { formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 // user-facing labels for weapon secondary stat keys

@@ -1,20 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: The roster: one thread down the column, resonators as beads on
-               it, attributes as collapsible knots, and a parked caption that
-               reads whichever bead is being pointed at.
-
-               There is one of these in the app and it is mounted by the chrome,
-               not by a page, so every surface is looking at the same column in
-               the same DOM: moving between them scrolls nothing, rebuilds
-               nothing, and holds the subject exactly where it was.
-
-               What the column says is the part that changes with the surface.
-               A rotation is only of interest while you are writing one, so on
-               that surface alone the column notches everyone who has one and a
-               bead with something to say stretches into a capsule.
-               That is an attribute on a node that is already standing, which is
-               why the column can answer to the page without being rebuilt by it.
+  Description: Projects canonical profiles into ordered attribute groups and surface-specific roster metadata.
 */
 
 import {
@@ -32,7 +18,7 @@ import type { CombatScenarioId } from '@/domain/entities/combatScenario'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { toTitle } from '@/shared/lib/format'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { type CssVars } from '@/modules/simulation/workspace/ui.tsx'
 import { RosterCapsule, type CapsuleMate, type CapsuleTarget } from './RosterCapsule.tsx'
@@ -145,9 +131,6 @@ export function BuildRoster({
     threadRef.current?.querySelector<HTMLElement>(`[data-bead][data-res-id="${CSS.escape(id)}"]`) ?? null
   ), [])
 
-  // A bead inside a folded knot cannot be pointed at, so whenever the surface
-  // moves to a new subject its run opens back up. Adjusted during render rather
-  // than in an effect so the column never paints the subject as missing.
   const [lastContextId, setLastContextId] = useState(contextResId)
   if (contextResId !== lastContextId) {
     setLastContextId(contextResId)
@@ -176,16 +159,6 @@ export function BuildRoster({
     })
   }, [beadOf, contextEntry, folded])
 
-  /*
-    Pointing is let go of on a short grace rather than at once, because on the
-    rotation surface the capsule grows over the very bead being pointed at: the
-    pointer ends up on the capsule without moving, and that must not be read as
-    leaving. The beads and the capsule both answer pointer events, so a bead's
-    leave and the capsule's enter come from one event in that order; and when
-    the grace runs out it asks the capsule itself, so no ordering of events can
-    make it let go of a capsule the pointer or focus is resting on. Without that
-    it lets go, the bead is under the cursor again, and it grows straight back.
-  */
   const holdPreview = useCallback(() => window.clearTimeout(releaseTimer.current), [])
   const releasePreview = useCallback((id?: string) => {
     window.clearTimeout(releaseTimer.current)
@@ -205,11 +178,6 @@ export function BuildRoster({
     return entry.id === contextEntry?.id || entry.rotationNodes > 0 ? entry : null
   }, [contextEntry, previewId, reads, roster])
 
-  // The capsule stands outside the scroller, which clips on both axes, so it
-  // is placed against the bead rather than parented to it. Only the bead's
-  // centre is measured; its radius is the column's own size, read by the
-  // capsule's stylesheet, so a bead still growing into the lead is never
-  // caught mid-growth.
   const measureFor = useCallback((id: string) => {
     const bead = beadOf(id)
     const column = columnRef.current
@@ -217,9 +185,6 @@ export function BuildRoster({
     if (!bead || !column || !box) return
     const b = bead.getBoundingClientRect()
     const c = column.getBoundingClientRect()
-    // The capsule has to stand exactly on its bead to read as the bead
-    // stretching, so a bead scrolled out under the column's fade grows nothing
-    // rather than a capsule pinned somewhere it is not.
     const view = box.getBoundingClientRect()
     const mid = b.top + b.height / 2
     if (mid < view.top + 8 || mid > view.bottom - 8) {
@@ -236,12 +201,6 @@ export function BuildRoster({
     if (capsuleEntry) measureFor(capsuleEntry.id)
   }, [capsuleEntry, measureFor])
 
-  // Measured in the same event that points at the bead, so the bead and where
-  // it stands arrive in one render. Measured a render later, the capsule would
-  // spend that render with nowhere to be, let go, and grow back from scratch
-  // instead of gliding across.
-  // A touch has no hover to rest on, so a tap names the bead in the caption
-  // without growing a capsule over the thing being tapped.
   const pointAt = useCallback((id: string, grow = true) => {
     window.clearTimeout(releaseTimer.current)
     setPreviewId(id)
@@ -261,9 +220,6 @@ export function BuildRoster({
       : null
   ), [capsuleEntry, contextEntry, geom])
 
-  // The capsule's face stands over the bead, so anything the bead would have
-  // done is handed back to it: switching, selecting, and its context menu. The
-  // lead's face alone opens a console, since switching to it is a no-op.
   const onCapsuleFace = useCallback((entry: BuildRosterEntry) => {
     if (entry.id !== contextEntry?.id || selection?.selectionMode || !onOpenMember) {
       beadOf(entry.id)?.click()
@@ -372,8 +328,6 @@ export function BuildRoster({
     selection?.surfaceProps.onKeyDown?.(event)
   }, [focusBead, selection, stepFocus, typeToFind, visibleEntries])
 
-  // One tab stop for the whole roster: the column hands focus to the bead the
-  // surface is already showing.
   const onFocusColumn = useCallback((event: { target: EventTarget | null; currentTarget: HTMLElement }) => {
     if (event.target !== event.currentTarget) return
     focusBead(contextEntry ?? undefined)

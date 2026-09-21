@@ -18,7 +18,7 @@ import type {
 import type { ResSeed } from '@/domain/entities/runtime.ts'
 import type { AttributeKey } from '@/domain/entities/stats.ts'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
-import { getResSeedBy, listResSds } from '@/domain/services/resonatorSeedService.ts'
+import { getResSeedBy, listResSds } from '@/data/catalog/resonatorSeedService.ts'
 import {
   WPNTYPEPTNS,
   WPNTYPETOKEY as DSPLWPNTYPET,

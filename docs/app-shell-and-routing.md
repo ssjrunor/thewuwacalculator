@@ -48,7 +48,7 @@ Settings is now Calibration at `/calibration`; `/settings` redirects to it.
 
 ## Shared Simulation Workspace
 
-[SimulationPage.tsx](../src/modules/simulation/pages/SimulationPage.tsx) owns initialization and providers shared by Simulation tools. Modulation, Showcase, and Optimizer use one persistent parameterized route and [BuildWorkspaceSurface.tsx](../src/modules/simulation/workspace/BuildWorkspaceSurface.tsx), so their roster, rail, and workspace furniture remain mounted while the tool body changes. Rotation uses its own editor surface but the same Simulation provider boundary.
+[SimulationPage.tsx](../src/modules/simulation/shell/SimulationPage.tsx) owns initialization and providers shared by Simulation tools. Modulation, Showcase, and Optimizer use one persistent parameterized route and [BuildWorkspaceSurface.tsx](../src/modules/simulation/workspace/BuildWorkspaceSurface.tsx), so their roster, rail, and workspace furniture remain mounted while the tool body changes. Rotation uses its own editor surface but the same Simulation provider boundary.
 
 Route chunks preserve lazy loading and prewarm tool modules on navigation intent.
 
@@ -59,17 +59,17 @@ The following direct development URLs are intentionally hidden from primary navi
 - `/calculator`
 - `/legacy-optimizer`
 
-Their components live under `src/modules/simulation/legacy`. They reuse the Simulation provider and initialization boundary; the old Calculator no longer owns shared startup behavior. The former Benchmark and standalone Progression pages have been removed. Historical `/progression` and `/calculator/benchmark` links redirect to Modulation.
+Their components live under `src/modules/simulation/surfaces/legacy`. They reuse the Simulation provider and initialization boundary; the old Calculator no longer owns shared startup behavior. The former Benchmark and standalone Progression pages have been removed. Historical `/progression` and `/calculator/benchmark` links redirect to Modulation.
 
 ## Route Chrome
 
 Primary files:
 
-- [src/app/chrome/RouteChrome.tsx](../src/app/chrome/RouteChrome.tsx)
-- [src/app/chrome/AppChrome.tsx](../src/app/chrome/AppChrome.tsx)
-- [src/app/chrome/appIndex.ts](../src/app/chrome/appIndex.ts)
+- [src/app/shell/AppLayout.tsx](../src/app/shell/AppLayout.tsx)
+- [src/app/shell/ChromeHeader.tsx](../src/app/shell/ChromeHeader.tsx)
+- [src/application/navigation/appIndex.ts](../src/application/navigation/appIndex.ts)
 
-The header always presents Simulation tools directly. Docs, Guides, Changelog, Calibration, Privacy, and Terms are in the Read dropdown on every route. Home is the front door. Hidden legacy pages are never added to the authored navigation index.
+`AppLayout` is the single route layout and owns global hosts, route effects, the roster aperture, and the outlet. `ChromeHeader` owns only the header UI. The header always presents Simulation tools directly. Docs, Guides, Changelog, Calibration, Privacy, and Terms are in the Read dropdown on every route. Home is the front door. Hidden legacy pages are never added to the authored navigation index.
 
 ## Related Docs
 

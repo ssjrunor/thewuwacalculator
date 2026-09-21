@@ -1,9 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: renders the not found page.
+  Description: Renders the unmatched-route fallback with canonical navigation back to the application.
 */
 
-import { useNavX } from '@/app/nav/useNavX'
+import { useNavX } from '@/shared/navigation/useNavX'
 import {TbGoGame} from "react-icons/tb";
 
 export function NotFoundPage() {

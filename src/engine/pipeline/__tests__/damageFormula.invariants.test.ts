@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { FeatureResult } from '@/domain/gameData/contracts'
 import type { FinalStats, SkillDef } from '@/domain/entities/stats'
-import { makeCombatState } from '@/domain/state/defaults'
+import { makeCombatState } from '@/engine/runtime/defaults'
 import { calcSkillDamage, calcSkillDamageScoreInto } from '@/engine/formulas/damage'
 import { formBrkd, fmtBreakdown } from '@/modules/simulation/features/results/lib/damageFormula'
 
@@ -80,6 +80,7 @@ function makeFinalStats(overrides: Partial<FinalStats> = {}): FinalStats {
       glacioChafe: makeNegativeEffectBuff(),
       electroFlare: makeNegativeEffectBuff(),
     },
+    offTuneBuildupRate: 1,
     flatDmg: 0,
     amplify: 0,
     critRate: 5,
@@ -377,6 +378,7 @@ describe('damage formula invariants', () => {
         flatDmg: 500,
         amplify: 25,
         dmgBonus: 40,
+        finalDmg: 250,
         skillType: {
           ...makeFinalStats().skillType,
           basicAtk: {
@@ -447,7 +449,14 @@ describe('damage formula invariants', () => {
     // tune rupture and hack both reuse damage output fields, but each takes its
     // multiplier from different stat channels and must stay separately testable
     const tuneResult = calcSkillDamage(makeFinalStats({ tbb: 40 }), tuneRuptureSkill, enemy, 90)
+    const finalTune = calcSkillDamage(
+      makeFinalStats({ tbb: 40, finalDmg: 25 }),
+      tuneRuptureSkill,
+      enemy,
+      90,
+    )
     const baseHack = calcSkillDamage(makeFinalStats(), hackSkill, enemy, 90)
+    const finalHack = calcSkillDamage(makeFinalStats({ finalDmg: 25 }), hackSkill, enemy, 90)
     const buffedHack = calcSkillDamage(
       makeFinalStats({
         tbb: 999,
@@ -462,8 +471,10 @@ describe('damage formula invariants', () => {
     )
 
     expect(tuneResult.avg).toBeGreaterThan(0)
+    expect(finalTune.avg).toBeCloseTo(tuneResult.avg * 1.25, 10)
     expect(tuneResult.subHits).toHaveLength(2)
     expect(baseHack.avg).toBeGreaterThan(0)
+    expect(finalHack.avg).toBeCloseTo(baseHack.avg * 1.25, 10)
     expect(buffedHack.avg).toBeGreaterThan(baseHack.avg)
   })
 
@@ -546,7 +557,7 @@ describe('damage formula invariants', () => {
   it('builds tune rupture and hack breakdowns without duplicated output', () => {
     // the text formatter should expose the special branch math while still
     // emitting one final output assignment per breakdown
-    const tuneStats = makeFinalStats({ tbb: 40 })
+    const tuneStats = makeFinalStats({ tbb: 40, finalDmg: 25 })
     const tuneResult = calcSkillDamage(tuneStats, tuneRuptureSkill, enemy, 90)
     const tuneBreakdown = formBrkd(
       makeFeatureResult(tuneRuptureSkill, tuneResult),
@@ -567,6 +578,7 @@ describe('damage formula invariants', () => {
     )
 
     expect(tuneBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.tuneAmp')
+    expect(fmtBreakdown(tuneBreakdown)).toContain('mod.finalDmg = 25%')
     expect(hackBreakdown.sections.flatMap((section) => section.lines).join('\n')).toContain('core.hackAmp')
     expect(fmtBreakdown(hackBreakdown)).toContain('mod.tuneBoost')
     expect(fmtBreakdown(tuneBreakdown).split('\n').filter((line) => line.startsWith('out.normal ='))).toHaveLength(1)

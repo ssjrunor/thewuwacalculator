@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Owns runtime state utils behavior and state transitions for the lib module.
+  Description: Applies immutable runtime control, target-routing, and cascading state updates.
 */
 
 import type { SyntheticEvent as SyntVnt } from 'react'
@@ -12,15 +12,15 @@ import {
   getResCntrNc,
   getSrcSttNct,
   normResRtCnt,
-} from '@/domain/gameData/controlOptions.ts'
+} from '@/engine/gameData/controlOptions.ts'
 import { writeRtPath } from '@/domain/gameData/runtimePath.ts'
 import type { CondExpr, EffectDef, FormExpr, SourceState } from '@/domain/gameData/contracts.ts'
 import { getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
-import { listFfctForO, listStatesFor } from '@/domain/services/gameDataService.ts'
+import { listFfctForO, listStatesFor } from '@/data/catalog/gameDataService.ts'
 import {
   isStateEnabled,
   isStateVisible,
-} from '@/domain/services/sourceStateService.ts'
+} from '@/engine/services/sourceStateService.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 
 // shared helpers that keep runtime controls in sync across left pane panes and modals.

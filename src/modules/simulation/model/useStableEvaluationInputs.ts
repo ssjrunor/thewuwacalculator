@@ -6,7 +6,7 @@
 */
 
 import { useMemo } from 'react'
-import { makeEvaluationKey } from '@/data/scoring/buildEvaluationKey.ts'
+import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey.ts'
 
 export function useStableEvaluationInputs<T>(value: T): T {
   const key = useMemo(() => makeEvaluationKey(value), [value])

@@ -27,7 +27,7 @@ import {
 } from '@/data/content/guidesContent'
 import { resGdCtgr } from '@/modules/read/model/guides'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
-import { useNavX } from '@/app/nav/useNavX'
+import { useNavX } from '@/shared/navigation/useNavX'
 import { AnchoredAppPopup, useAppPopupDismiss } from '@/shared/ui/AppPopup'
 
 type ActiveTarget = {

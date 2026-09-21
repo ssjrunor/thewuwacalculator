@@ -6,12 +6,12 @@
 import { describe, expect, it } from 'vitest'
 import type { CombatGraph } from '@/domain/entities/combatGraph.ts'
 import type { SlotId } from '@/domain/entities/combatGraph.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { listResRttn, listSkillsFor } from '@/domain/services/gameDataService.ts'
-import { makeEnemy, makeResRuntime } from '@/domain/state/defaults.ts'
-import { makeCombatGraph } from '@/domain/state/combatGraph.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { listResRttn, listSkillsFor } from '@/data/catalog/gameDataService.ts'
+import { makeEnemy, makeResRuntime } from '@/engine/runtime/defaults.ts'
+import { makeCombatGraph } from '@/engine/runtime/combatGraph.ts'
 import { writeRtPath } from '@/domain/gameData/runtimePath.ts'
-import { wpnAtkAt } from '@/domain/state/weaponState.ts'
+import { wpnAtkAt } from '@/engine/runtime/weaponState.ts'
 import { applyEnemyRtDataF, applyRtDataF } from '@/engine/effects/dataEffects.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'
 import { makeCombatEnv, mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext.ts'
@@ -67,6 +67,14 @@ function legacyContext(graph: CombatGraph, targetSlotId: SlotId, enemy: ReturnTy
   applyRtDataF(participant.runtime, pool, {
     graph, targetSlotId, baseStats: participant.baseStats, finalStats: preFinal, sourceStats, enemy,
   }, 'postStats')
+  const postFinal = calcFinalStats(
+    participant.baseStats,
+    pool,
+    wpnAtkAt(participant.runtime.build.weapon.id, participant.runtime.build.weapon.level),
+  )
+  applyRtDataF(participant.runtime, pool, {
+    graph, targetSlotId, baseStats: participant.baseStats, finalStats: postFinal, sourceStats, enemy,
+  }, 'finalStats')
   return {
     buffs: pool,
     finalStats: calcFinalStats(
@@ -78,6 +86,74 @@ function legacyContext(graph: CombatGraph, targetSlotId: SlotId, enemy: ReturnTy
 }
 
 describe('numeric team effect kernel', () => {
+  it('resolves Syntony Field and High Syntony Field without stacking their shared buildup rate', () => {
+    const seed = getResSeedBy('1209')
+    if (!seed) throw new Error('Missing Mornye test data')
+
+    const resolve = (
+      controls: Record<string, boolean>,
+      sequence = 0,
+    ) => {
+      const runtime = makeResRuntime(seed)
+      runtime.base.sequence = sequence
+      Object.assign(runtime.state.controls, controls)
+      const graph = makeCombatGraph({ actRt: runtime, activeSeed: seed })
+      const context = makeCombatEnv({ graph, targetSlotId: 'active', enemy: makeEnemy() })
+      return {
+        buildupRate: context.finalStats.offTuneBuildupRate,
+        defPercent: context.buffs.def.percent,
+      }
+    }
+
+    const none = resolve({})
+    const syntony = resolve({ 'team:1209:syntony_field:active': true })
+    const high = resolve({ 'team:1209:high_syntony_field:active': true })
+    const both = resolve({
+      'team:1209:syntony_field:active': true,
+      'team:1209:high_syntony_field:active': true,
+    })
+    const syntonyS2 = resolve({ 'team:1209:syntony_field:active': true }, 2)
+
+    expect(none.buildupRate).toBe(1)
+    expect(syntony.buildupRate).toBe(1.5)
+    expect(syntony.defPercent).toBe(none.defPercent)
+    expect(high.buildupRate).toBe(1.5)
+    expect(high.defPercent - none.defPercent).toBe(20)
+    expect(both.buildupRate).toBe(1.5)
+    expect(syntonyS2.buildupRate).toBe(1.7)
+  })
+
+  it('resolves Denia Tune Break Boost before Qingxiao Tune Strain response damage', () => {
+    const seeds = ['1413', '1211', '1209'].map((id) => getResSeedBy(id))
+    if (seeds.some((seed) => !seed)) throw new Error('Missing Qingxiao Tune Strain team data')
+    const [qingxiao, denia, mornye] = seeds as NonNullable<typeof seeds[number]>[]
+    const ids = [qingxiao!.id, denia!.id, mornye!.id] as [string, string, string]
+    const [qingxiaoRuntime, deniaRuntime, mornyeRuntime] = [qingxiao!, denia!, mornye!].map((seed) => {
+      const runtime = makeResRuntime(seed)
+      runtime.base.level = 90
+      runtime.build.team = [...ids]
+      return runtime
+    })
+
+    qingxiaoRuntime!.state.controls['combatState:1413:draw_and_sunder:active'] = true
+    deniaRuntime!.state.controls['resonator:1211:entropy_shift:active'] = true
+    deniaRuntime!.state.controls['resonator:1211:mode:value'] = 'tune_strain'
+    mornyeRuntime!.state.controls['team:1209:high_syntony_field:active'] = true
+
+    const graph = makeCombatGraph({
+      actRt: qingxiaoRuntime!,
+      activeSeed: qingxiao!,
+      partRts: { [denia!.id]: deniaRuntime!, [mornye!.id]: mornyeRuntime! },
+    })
+    const enemy = makeEnemy()
+    enemy.status = { ...enemy.status, tuneStrain: 4 }
+    const context = makeCombatEnv({ graph, targetSlotId: 'active', enemy })
+
+    expect(context.finalStats.offTuneBuildupRate).toBeCloseTo(1.5)
+    expect(context.finalStats.tbb).toBeGreaterThan(10)
+    expect(context.finalStats.finalDmg).toBeCloseTo(context.finalStats.tbb * 4 * 0.12)
+  })
+
   it('limits Everbright Polestar RES ignore to Fusion Resonance Liberation skills', () => {
     const prepare = (resonatorId: string) => {
       const seed = getResSeedBy(resonatorId)

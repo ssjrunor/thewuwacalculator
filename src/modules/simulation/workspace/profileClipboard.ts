@@ -8,7 +8,7 @@
 import { decShareText, encShareText } from '@/shared/lib/shareCodec.ts'
 import type { ResProf } from '@/domain/entities/profile.ts'
 import type { ResonatorId } from '@/domain/entities/runtime.ts'
-import { cloneResProf } from '@/domain/state/runtimeCloning.ts'
+import { cloneResProf } from '@/engine/runtime/runtimeCloning.ts'
 
 export const PROF_CLIP_KEY = 'evaluation-profile-clipboard'
 const LEGACY_PROF_CLIP_KEY = 'overview-profile-clipboard'

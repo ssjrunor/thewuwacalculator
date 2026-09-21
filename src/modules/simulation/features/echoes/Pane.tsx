@@ -17,12 +17,12 @@ import {
 } from 'lucide-react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import { equalEchoes, equalBuildSnapshots, cloneEchoLoadout, sameEchoUid, saveEchoSlots } from '@/domain/entities/inventoryStorage.ts'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { listStatesFor } from '@/domain/services/gameDataService.ts'
-import { getMainEchoS } from '@/domain/services/runtimeSourceService.ts'
-import { selActTgtSlc } from '@/domain/state/selectors.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { listStatesFor } from '@/data/catalog/gameDataService.ts'
+import { getMainEchoS } from '@/engine/services/runtimeSourceService.ts'
+import { selActTgtSlc } from '@/application/state'
+import { useAppStore } from '@/application/state'
 import { Edit } from '@/modules/simulation/features/echoes/Edit.tsx'
 import { QuickSetup } from '@/modules/simulation/features/echoes/QuickSetup.tsx'
 import { Parser } from '@/modules/simulation/features/echoes/Parser.tsx'
@@ -30,18 +30,18 @@ import {
   mkDefEchoNst,
 } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'
-import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
+import { useEchoScores } from '@/engine/evaluation/useEchoScoringRevision.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
 import { useAppModal, useAppModalValue } from '@/shared/ui/useAppModal.ts'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
-import { isStateVisible } from '@/domain/services/sourceStateService.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
+import { isStateVisible } from '@/engine/services/sourceStateService.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { IoArchive } from 'react-icons/io5'
 import { EchoPicker } from '@/modules/simulation/features/echoes/Picker.tsx'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
-import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
+import { useCtxBuilder } from '@/modules/simulation/shell/context-menu/useContextMenuBuilder.ts'
 import {
   mkMainEchoPn,
   EchoSetBonus,
@@ -72,7 +72,7 @@ export function Echoes({
   const showToast = useTstStr((s) => s.show)
   const confirmation = useConfirm()
   const portalTarget = mainPortal()
-  const addEchoToInv = useAppStore((state) => state.addInvEcho)
+  const addEchoesToInv = useAppStore((state) => state.addInvEchoes)
   const addMkToInv = useAppStore((state) => state.addInvBuild)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
   const setInvEchoSr = useAppStore((state) => state.setInvEchoQ)
@@ -373,7 +373,7 @@ export function Echoes({
   }, [onRtPdt])
 
   const saveSlotsToInv = useCallback((slotIndexes: number[]) => {
-    const result = saveEchoSlots(runtime.build.echoes, slotIndexes, addEchoToInv)
+    const result = saveEchoSlots(runtime.build.echoes, slotIndexes, addEchoesToInv)
     const nextEchoes = result.nextEchoes
     if (nextEchoes) {
       onRtPdt((prev) => {
@@ -381,7 +381,7 @@ export function Echoes({
       })
     }
     return result.savedCount
-  }, [addEchoToInv, onRtPdt, runtime.build.echoes])
+  }, [addEchoesToInv, onRtPdt, runtime.build.echoes])
 
   const {
     copyEchoes: copyChsToClp,

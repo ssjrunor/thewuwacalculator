@@ -6,10 +6,10 @@
 
 import { describe, expect, it } from 'vitest'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { listSkillsFor } from '@/domain/services/gameDataService'
-import { makeCombatGraph } from '@/domain/state/combatGraph'
-import { makeEnemy, makeResRuntime } from '@/domain/state/defaults'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { listSkillsFor } from '@/data/catalog/gameDataService'
+import { makeCombatGraph } from '@/engine/runtime/combatGraph'
+import { makeEnemy, makeResRuntime } from '@/engine/runtime/defaults'
 import { prepareNumericSkill } from '@/engine/effects/numericTeam'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 

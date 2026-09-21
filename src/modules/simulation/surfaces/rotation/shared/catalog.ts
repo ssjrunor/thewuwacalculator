@@ -1,0 +1,292 @@
+/*
+  Author: Runor Ewhro
+  Description: Prepares authored condition choices, feature metadata, and
+               runtime-backed rotation editor options from the live scenario
+               state.
+*/
+
+import type { ResRuntime } from '@/domain/entities/runtime'
+import { getRotFormulaPath, ROT_FORMULA_STAT_DEFS } from '@/domain/gameData/rotationFormulaStats'
+import { makeSourceCat } from '@/engine/services/runtimeSourceService'
+import { resolveSkill } from '@/engine/pipeline/resolveSkill'
+import { getNegFfctCm, getNegFfctEn } from '@/engine/gameData/negativeEffects'
+import { getSkillType } from '@/domain/gameData/skillTypes'
+import {
+  getStateTeamTag,
+  getTeamTgtPt,
+} from '@/modules/simulation/features/controls/lib/runtimeStateUtils'
+import { scopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'
+import { getStateText } from '@/modules/simulation/model/sourceStateDisplay'
+import {
+  enemyChoices,
+  getDjcnSkllI,
+  getFeatVar,
+  getPrvsSkllI,
+  listRotMemSt,
+} from '@/modules/simulation/surfaces/rotation/shared/nodeTools'
+import { buildConditionChoices } from '@/modules/simulation/surfaces/rotation/shared/conditions'
+import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData'
+import type {
+  CondChoice,
+  FeatureMeta,
+  RotationMember,
+} from '@/modules/simulation/surfaces/rotation/shared/authoringTypes'
+import {
+  ACTIVE_RESONATOR_PATH,
+  SELECTED_TARGET_PATH_PREFIX,
+} from '@/domain/gameData/rotationPaths.ts'
+
+export function currentTeamIds(runtime: ResRuntime): string[] {
+  return Array.from(
+    new Set([runtime.id, ...runtime.build.team.filter((member): member is string => Boolean(member))]),
+  )
+}
+
+export function visibleRotMembers(
+  runtime: ResRuntime,
+  runtimesById: Record<string, ResRuntime>,
+): RotationMember[] {
+  const ids = currentTeamIds(runtime)
+
+  return ids
+    .map((resonatorId) => {
+      const seed = seedRsntById[resonatorId]
+      const memRt = resonatorId === runtime.id ? runtime : runtimesById[resonatorId]
+      if (!seed || !memRt) {
+        return null
+      }
+
+      const catalog = makeSourceCat(memRt)
+
+      return {
+        id: seed.id,
+        name: seed.name,
+        profile: seed.profile,
+        attribute: seed.attribute,
+        runtime: memRt,
+        skills: catalog.skills,
+        features: catalog.features,
+        states: listRotMemSt(memRt, runtime),
+      }
+    })
+    .filter((entry): entry is RotationMember => Boolean(entry))
+}
+
+export function presentRotMembers(runtime: ResRuntime): RotationMember[] {
+  const seed = seedRsntById[runtime.id]
+  if (!seed) {
+    return []
+  }
+
+  const catalog = makeSourceCat(runtime)
+  return [{
+    id: seed.id,
+    name: seed.name,
+    profile: seed.profile ?? '',
+    attribute: seed.attribute,
+    runtime,
+    skills: catalog.skills,
+    features: catalog.features,
+    states: listRotMemSt(runtime, runtime),
+  }]
+}
+
+export function editableRotMembers(
+  visibleMember: RotationMember[],
+): RotationMember[] {
+  return visibleMember
+}
+
+export function makeFeatureMeta(
+  visibleMember: RotationMember[],
+): Record<string, FeatureMeta> {
+  const lookup: Record<string, FeatureMeta> = {}
+  const runtimesById = Object.fromEntries(
+    visibleMember.map((member) => [member.id, member.runtime]),
+  )
+
+  for (const member of visibleMember) {
+    for (const feature of member.features) {
+      const skill = member.skills.find((entry) => entry.id === feature.skillId)
+      const skillResult = skill ? resolveSkill(member.runtime, skill, undefined, runtimesById) : null
+      const negFfctCmbtK = getNegFfctCm(skillResult?.archetype)
+      const fixedStacks = skillResult?.stackMode === 'fixedMax' || (
+        negFfctCmbtK
+          ? getNegFfctEn(member.runtime, negFfctCmbtK, runtimesById)?.stackMode === 'fixedMax'
+          : false
+      )
+
+      lookup[feature.id] = {
+        label: skillResult?.label ?? feature.label,
+        skillId: feature.skillId,
+        tab: skillResult?.tab ?? skill?.tab ?? 'feature',
+        archetype: skillResult?.archetype ?? skill?.archetype,
+        section: skillResult?.sectionTitle ?? skill?.sectionTitle,
+        skillTypeLabel: getSkillType(skillResult?.skillType?.[0] ?? skill?.skillType?.[0]).label,
+        element: skillResult?.element ?? skill?.element ?? member.attribute,
+        ggrgType: skillResult?.aggregationType ?? skill?.aggregationType ?? 'damage',
+        resonatorId: member.id,
+        resName: member.name,
+        variant: getFeatVar(feature),
+        hitIndex: typeof feature.hitIndex === 'number' ? feature.hitIndex : undefined,
+        fixedStacks,
+      }
+    }
+  }
+
+  return lookup
+}
+
+function linkedFeatures(
+  visibleMember: RotationMember[],
+  resLnkdSkllI: (skillId: string | undefined) => string | null | undefined,
+): Record<string, string | undefined> {
+  const lookup: Record<string, string | undefined> = {}
+
+  for (const member of visibleMember) {
+    const prmrFeatBySk = new Map<string, string>()
+
+    for (const feature of member.features) {
+      if (feature.variant === 'subHit' || !feature.skillId) {
+        continue
+      }
+
+      if (!prmrFeatBySk.has(feature.skillId)) {
+        prmrFeatBySk.set(feature.skillId, feature.id)
+      }
+    }
+
+    for (const feature of member.features) {
+      const lnkdSkllId = resLnkdSkllI(feature.skillId)
+      lookup[feature.id] = lnkdSkllId ? prmrFeatBySk.get(lnkdSkllId) : undefined
+    }
+  }
+
+  return lookup
+}
+
+export function adjacentFeatures(
+  visibleMember: RotationMember[],
+): Record<string, string | undefined> {
+  return linkedFeatures(visibleMember, getDjcnSkllI)
+}
+
+export function priorFeatures(
+  visibleMember: RotationMember[],
+): Record<string, string | undefined> {
+  return linkedFeatures(visibleMember, getPrvsSkllI)
+}
+
+export function makeConditionChoices(
+  visibleMember: RotationMember[],
+  runtime: ResRuntime,
+  enemyId?: string,
+): CondChoice[] {
+  const activeChoice: CondChoice[] = visibleMember.length > 0
+    ? [{
+      id: 'rotation:active-resonator',
+      resonatorId: 'rotation',
+      resName: 'Rotation',
+      sourceName: 'Overrides',
+      label: 'Active Resonator',
+      description: 'Switch which team member active-targeted effects treat as active during this rotation.',
+      changeTarget: 'rotation',
+      state: {
+        id: 'rotation:active-resonator',
+        label: 'Active Resonator',
+        source: { type: 'resonator', id: runtime.id },
+        ownerKey: 'rotation:active',
+        controlKey: 'rotation.activeResonatorId',
+        path: ACTIVE_RESONATOR_PATH,
+        kind: 'select' as const,
+        options: visibleMember.map((member) => ({
+          id: member.id,
+          label: member.name,
+        })),
+        defaultValue: runtime.id,
+        description: 'Switch which team member active-targeted effects treat as active during this rotation.',
+      },
+    }]
+    : []
+  const formulaChoices: CondChoice[] = ROT_FORMULA_STAT_DEFS.map((definition) => ({
+    id: `rotation:formula:${definition.key}`,
+    resonatorId: 'rotation',
+    resName: 'Rotation',
+    sourceName: 'Overrides',
+    label: definition.label,
+    description: definition.description,
+    changeTarget: 'rotation',
+    state: {
+      id: `rotation:formula:${definition.key}`,
+      label: definition.label,
+      source: { type: 'resonator', id: runtime.id },
+      ownerKey: 'rotation:formula',
+      controlKey: `rotation.formula.${definition.key}`,
+      path: getRotFormulaPath(definition.key),
+      kind: 'number' as const,
+      defaultValue: 0,
+      description: definition.description,
+    },
+  }))
+
+  const memChcs = visibleMember.flatMap((member) => {
+    const stateChoices = member.states.map((state) => buildConditionChoices(member, state))
+
+    const tgtChcs = member.states.flatMap((state) => {
+      const targetMode = getStateTeamTag(state)
+      if (!targetMode) {
+        return []
+      }
+
+      const options = getTeamTgtPt(runtime, member.id, targetMode)
+      if (options.length === 0) {
+        return []
+      }
+
+      const display = getStateText(state)
+      const routeKey = scopedTargetOwnerKey(member.id, state.ownerKey)
+
+      return [buildConditionChoices(
+        member,
+        {
+          id: `${state.id}:target`,
+          label: `${display.label} Target`,
+          source: state.source,
+          ownerKey: routeKey,
+          controlKey: `${state.controlKey}:target`,
+          path: `${SELECTED_TARGET_PATH_PREFIX}${routeKey}`,
+          kind: 'select' as const,
+          options: options.map((option) => ({
+            id: option.value,
+            label: option.label,
+          })),
+          defaultValue: options[0]?.value ?? '',
+          description:
+            targetMode === 'activeOther'
+              ? 'Select which other teammate receives this buff during the rotation.'
+              : 'Select which team member receives this active-targeted buff during the rotation.',
+        },
+        {
+          id: `${member.id}:${state.controlKey}:target`,
+          label: `${display.label} Target`,
+          description:
+            targetMode === 'activeOther'
+              ? 'Select which other teammate receives this buff during the rotation.'
+              : 'Select which team member receives this active-targeted buff during the rotation.',
+        },
+      )]
+    })
+
+    return [...stateChoices, ...tgtChcs]
+  })
+
+  const runtimesById = Object.fromEntries(
+    visibleMember.map((member) => [member.id, member.runtime]),
+  )
+  return [
+    ...activeChoice,
+    ...formulaChoices,
+    ...memChcs,
+    ...enemyChoices(runtime, enemyId, runtimesById),
+  ]
+}

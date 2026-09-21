@@ -1,178 +1,18 @@
 /*
   Author: Runor Ewhro
-  Description: Builds echo instances from parsed OCR results and normalizes
-               legacy desc and number mismatches into valid echo stat data.
+  Description: Builds echo instances from parsed OCR results; the stat lines
+               themselves are read in statReading.
 */
 
-import { listEchoes } from '@/domain/services/echoCatalogService'
-import {
-  ECHO_MAIN_STATS,
-  ECHO_SIDE_STATS,
-  SUBSTAT_KEYS,
-  snapToNrstSb,
-} from '@/data/gameData/catalog/echoStats'
+import { listEchoes } from '@/data/catalog/echoCatalogService'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
 import { makeEchoUid } from '@/domain/entities/runtime'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { getSetNameTo } from '@/engine/echoParser/imageMap'
 import type { RawPrsdEcho } from '@/engine/echoParser/ocrParsing'
+import { readSubstats, resolveMainKey } from '@/engine/echoParser/statReading'
 
-const labelToKey: Record<string, string> = {
-  'Crit. Rate': 'critRate',
-  'Crit. DMG': 'critDmg',
-  'Crit. MG': 'critDmg',
-  'ATK': 'atk',
-  'LULS': 'atk',
-  'ATK EX': 'atk',
-  'HP': 'hp',
-  'B ATK': 'atk',
-  'HESS': 'hp',
-  'AK': 'atk',
-  '1': 'hp',
-  'def': 'def',
-  'Energy Regen': 'energyRegen',
-  'Basic Attack DMG Bonus': 'basicAtk',
-  'Basic': 'basicAtk',
-  'Basic Attack': 'basicAtk',
-  'Basic Attack DMG': 'basicAtk',
-  'Heavy Attack DMG Bonus': 'heavyAtk',
-  'Heavy': 'heavyAtk',
-  'Heavy Attack': 'heavyAtk',
-  'Heavy Attack DMG': 'heavyAtk',
-  'Resonance Skill DMG Bonus': 'resonanceSkill',
-  'Resonance Skill': 'resonanceSkill',
-  'Resonance Skill DMG': 'resonanceSkill',
-  'Resonance Liberation DMG Bonus': 'resonanceLiberation',
-  'Resonance Liberation': 'resonanceLiberation',
-  'Resonance Liberation DMG': 'resonanceLiberation',
-  'Glacio DMG Bonus': 'glacio',
-  'Fusion DMG Bonus': 'fusion',
-  'Spectro DMG Bonus': 'spectro',
-  'Electro DMG Bonus': 'electro',
-  'Havoc DMG Bonus': 'havoc',
-  'Aero DMG Bonus': 'aero',
-  'Healing Bonus': 'healingBonus',
-}
-
-// correct common OCR numeric misreads
-const crrcMap: Record<string, string> = {
-  '1.9': '7.9',
-  '1.8': '7.8',
-  '1.7': '7.7',
-  '1.6': '7.6',
-  '1.5': '7.5',
-  '1.4': '7.4',
-  '1.3': '7.3',
-  '1.2': '7.2',
-  '1.1': '7.1',
-  '1.0': '7.0',
-  EX: '9.4',
-}
-
-// fix a known OCR number mismatch
-function fixOCRNumber(str: string): string {
-  return crrcMap[str] ?? str
-}
-
-// normalize a stat desc for fuzzy matching
-function normLbl(label: string): string {
-  return label
-      .toLowerCase()
-      .replace(/\./g, '')
-      .replace(/%/g, '')
-      .replace(/bonus/g, '')
-      .replace(/\s+/g, '')
-}
-
-// normalized entries for primary key resolution
-const keyEntries = Object.entries(labelToKey).map(([label, key]) => ({
-  normalized: normLbl(label),
-  key,
-}))
-
-// normalized entries for substat parsing
-const subKeyEnts = Object.entries(labelToKey).map(([label, key]) => ({
-  label: label.toLowerCase().replace(/\./g, '').replace(/\s+/g, ''),
-  key,
-}))
-
-// parse OCR substat strings into normalized substat values
-function prsSbst(substats: string[]): Record<string, number> {
-  const result: Record<string, number> = {}
-
-  for (const raw of substats) {
-    // bare number > 100 with no desc is treated as flat hp
-    const bareNum = parseFloat(raw.trim())
-    if (!isNaN(bareNum) && /^\d+(\.\d+)?$/.test(raw.trim()) && bareNum > 100) {
-      result.hpFlat = snapToNrstSb('hpFlat', bareNum)
-      continue
-    }
-
-    const match = raw.match(/^([\w\s.]+?)\s+([\d.]+)\s*%?/)
-    if (!match) continue
-
-    const rawLabel = match[1]
-    const rawValue = fixOCRNumber(match[2].trim())
-    const value = parseFloat(rawValue)
-    const hasPercent = raw.includes('%')
-    if (isNaN(value)) continue
-
-    // bare numeric desc > 100 is also treated as flat hp
-    const labelNum = parseFloat(rawLabel.trim())
-    if (!isNaN(labelNum) && /^\d+(\.\d+)?$/.test(rawLabel.trim()) && labelNum > 100) {
-      result.hpFlat = labelNum
-      continue
-    }
-
-    const cleanedLabel = rawLabel
-        .toLowerCase()
-        .replace(/\./g, '')
-        .replace(/bonus/g, '')
-        .replace(/\s+/g, '')
-
-    let matchKey: string | null = null
-    for (const { label, key } of subKeyEnts) {
-      if (cleanedLabel.includes(label)) {
-        matchKey = key
-        break
-      }
-    }
-    if (!matchKey) continue
-
-    if (['atk', 'hp', 'def'].includes(matchKey)) {
-      matchKey = hasPercent ? `${matchKey}Percent` : `${matchKey}Flat`
-    } else if (matchKey === 'luls') {
-      matchKey = hasPercent ? 'atkPercent' : 'atkFlat'
-    } else if (['1', 'hess'].includes(matchKey)) {
-      matchKey = hasPercent ? 'hpPercent' : 'hpFlat'
-    }
-
-    // element dmg and healing bonus are not valid substats
-    if (!(SUBSTAT_KEYS as readonly string[]).includes(matchKey)) continue
-
-    result[matchKey] = snapToNrstSb(matchKey, value)
-  }
-
-  return result
-}
-
-// resolve the primary main stat key from OCR desc text
-function resPrmrKey(rawLabel: string, cost: number): string | null {
-  const normalized = normLbl(rawLabel)
-
-  let matchKey = keyEntries.find((entry) => normalized === entry.normalized)?.key ?? null
-  if (!matchKey) {
-    matchKey = keyEntries.find((entry) => normalized.includes(entry.normalized))?.key ?? null
-  }
-  if (!matchKey) return null
-
-  if (['atk', 'hp', 'def'].includes(matchKey)) {
-    matchKey = `${matchKey}Percent`
-  }
-
-  const primaryStats = ECHO_MAIN_STATS[cost]
-  if (!primaryStats || !(matchKey in primaryStats)) return null
-  return matchKey
-}
+export { costForMain } from '@/engine/echoParser/statReading'
 
 // build echo instances from parsed OCR results
 export function mkEchoNstnFr(raw: RawPrsdEcho[]): Array<EchoInstance | null> {
@@ -183,7 +23,7 @@ export function mkEchoNstnFr(raw: RawPrsdEcho[]): Array<EchoInstance | null> {
     const echoDef = item.echoName ? echoCatalog.find((echo) => echo.name === item.echoName) : null
     if (!echoDef) return null
 
-    const primaryKey = resPrmrKey(item.mainStatLbl ?? '', cost)
+    const primaryKey = resolveMainKey(item.mainStatLbl ?? '', cost)
     const primaryStats = ECHO_MAIN_STATS[cost]
     const secondaryStat = ECHO_SIDE_STATS[cost]
     if (!primaryKey || !primaryStats || !secondaryStat) return null
@@ -207,7 +47,7 @@ export function mkEchoNstnFr(raw: RawPrsdEcho[]): Array<EchoInstance | null> {
         primary: { key: primaryKey, value: primaryValue },
         secondary: { key: secondaryStat.key, value: secondaryStat.value },
       },
-      substats: prsSbst(item.substats),
+      substats: readSubstats(item.substats, item.substatValues),
     }
   })
 }

@@ -1,10 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: re-exports resonator seed collections for convenient access
-               in ui and domain layers.
+  Description: Exposes resonator seed collections through the Simulation feature boundary.
 */
 
-import { listResSds, resSdsById } from '@/domain/services/resonatorSeedService.ts'
+import { listResSds, resSdsById } from '@/data/catalog/resonatorSeedService.ts'
 
 // eager list of all registered resonator seeds
 export const seedRsnt = listResSds()

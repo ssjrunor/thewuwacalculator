@@ -13,8 +13,9 @@ import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import type { CombatScenario } from '@/domain/entities/combatScenario.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
+import { useInventoryLease } from '@/application/hooks/useInventoryLease.ts'
 
 // Defer the member-editor module while keeping modal lifecycle state in this host.
 const MemberStage = lazy(async () => ({
@@ -24,6 +25,7 @@ const MemberStage = lazy(async () => ({
 // Load the console only after a request and retain it until close completion.
 export function TeamConsoleHost() {
   const target = useTeamCnsl((state) => state.target)
+  useInventoryLease(Boolean(target))
 
   if (!target) {
     return null

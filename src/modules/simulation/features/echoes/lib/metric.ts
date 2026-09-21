@@ -5,7 +5,7 @@
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
 
 type MetricTier = {
   min: number

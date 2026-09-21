@@ -1,13 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: Owns skill data host behavior and state transitions for the resonator module.
+  Description: Hosts shared skill-detail modal requests across persistent and routed Simulation surfaces.
 */
 
 import { createContext as mkCtx, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { SkillTabKey } from '@/domain/entities/resonator'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selWorkDrvd } from '@/domain/state/selectors.ts'
+import { useAppStore } from '@/application/state'
+import { selWorkDrvd } from '@/application/state'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { SkillData } from '@/modules/simulation/features/resonator/SkillData.tsx'

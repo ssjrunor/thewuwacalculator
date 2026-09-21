@@ -1,0 +1,870 @@
+.workspace-main {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 1rem;
+  padding-right: 4.5rem;
+  min-width: 0;
+  transition:
+    opacity 180ms ease,
+    transform 180ms var(--workspace-ease);
+}
+
+.workspace-main-body {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(18rem, 3fr);
+  gap: 1.5rem;
+  position: relative;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.workspace-main-body[data-side='off'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace-main-stack {
+  display: grid;
+  align-self: start;
+  height: max-content;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.workspace-state-sources {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.workspace-span {
+  grid-column: 1 / -1;
+}
+
+.workspace-band {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2.1rem;
+  padding: 1rem 1.7rem;
+  height: fit-content;
+  border: 1px solid color-mix(in srgb, var(--grade, var(--resonator-accent)) 32%, var(--workspace-line));
+  background:
+    radial-gradient(62% 150% at 5% 50%, color-mix(in srgb, var(--grade, var(--resonator-accent)) 10%, transparent), transparent 56%),
+    radial-gradient(80% 170% at 102% 130%, color-mix(in srgb, var(--grade, var(--resonator-accent)) 5%, transparent), transparent 55%),
+    var(--item-bg);
+  box-shadow:
+    0 20px 52px -22px color-mix(in srgb, var(--grade, var(--resonator-accent)) 23%, transparent),
+    0 16px 36px -18px color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+.workspace-band[data-score="200"] :is(.workspace-band-figure, .workspace-track-marker-flag),
+.workspace-portrait-grade[data-score="200"] {
+  --game-font: var(--game-font4);
+  font-weight: normal;
+}
+
+.workspace-band::after {
+  content: attr(data-emoji);
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  top: 48%;
+  transform: translateY(-50%);
+  font: bold clamp(6rem, 12vw, 9rem)/0.74 var(--game-font);
+  letter-spacing: -0.05em;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 8%, transparent);
+  pointer-events: none;
+}
+
+.workspace-band-core {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.45rem;
+}
+
+.workspace-band-score {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.workspace-band-figure {
+  font: normal clamp(2.5rem, 4.2vw, 3.6rem)/0.8 var(--game-font);
+  letter-spacing: -0.03em;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 96%, var(--text));
+  text-shadow: 0 0 32px color-mix(in srgb, var(--grade, var(--resonator-accent)) 42%, transparent);
+}
+
+.workspace-band-score-sub {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.32rem;
+  font: 600 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.workspace-band-score-sub em {
+  font: 700 0.92rem/1 var(--mono-font);
+  font-style: normal;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 70%, var(--text));
+}
+
+.workspace-band-gauge {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-ruler-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workspace-ruler-dmg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+  text-align: left;
+}
+
+.workspace-ruler-dmg--mid {
+  text-align: center;
+}
+
+.workspace-ruler-dmg--end {
+  text-align: right;
+}
+
+.workspace-ruler-dmg em {
+  font: 700 0.92rem/1 var(--mono-font);
+  letter-spacing: -0.02em;
+  font-style: normal;
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.workspace-ruler-dmg--mid em {
+  color: color-mix(in srgb, var(--avg, var(--resonator-accent)) 82%, var(--text));
+  text-shadow: 0 0 14px color-mix(in srgb, var(--grade, var(--resonator-accent)) 35%, transparent);
+}
+
+.workspace-ruler-dmg span {
+  font: 700 0.5rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+@keyframes workspace-seal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes workspace-seal-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 30px color-mix(in srgb, var(--grade, var(--resonator-accent)) 32%, transparent),
+      inset 0 0 24px color-mix(in srgb, var(--grade, var(--resonator-accent)) 16%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--grade, var(--resonator-accent)) 26%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 48px color-mix(in srgb, var(--grade, var(--resonator-accent)) 52%, transparent),
+      inset 0 0 28px color-mix(in srgb, var(--grade, var(--resonator-accent)) 22%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--grade, var(--resonator-accent)) 40%, transparent);
+  }
+}
+
+.workspace-track {
+  position: relative;
+  height: 1.5rem;
+  margin: 1.25rem 0 0;
+  --track-fade: 20%;
+}
+
+.workspace-track-bar {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--track-fade, 7%), #000 calc(100% - var(--track-fade, 7%)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--track-fade, 7%), #000 calc(100% - var(--track-fade, 7%)), transparent 100%);
+}
+
+.workspace-track-scale {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--grade-scale, color-mix(in srgb, var(--text) 8%, transparent));
+  opacity: 0.16;
+  filter: saturate(0.8) brightness(0.9);
+}
+
+.workspace-track-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--grade-scale, var(--grade, var(--resonator-accent)));
+  clip-path: inset(0 calc(100% - var(--pos, 0%)) 0 0 round 0);
+  transition: clip-path 800ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1));
+
+  mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 40%,
+      black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      black 40%,
+      black 100%
+  );
+}
+
+.workspace-track-tick {
+  position: absolute;
+  top: 50%;
+  left: var(--at, 0%);
+  z-index: 3;
+  width: 2px;
+  height: 1.5rem;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--text) 26%, transparent);
+}
+
+.workspace-track-tick--mid {
+  background: white;
+  box-shadow: 0 0 8px color-mix(in srgb, white 40%, transparent);
+}
+
+.workspace-track-tick::after {
+  content: attr(data-cap);
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 0.56rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.workspace-track-tick--mid::after {
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 78%, var(--text));
+}
+
+.workspace-track-notch {
+  position: absolute;
+  top: 50%;
+  left: var(--at, 0%);
+  z-index: 3;
+  width: 1px;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, black 20%, transparent);
+  pointer-events: none;
+}
+
+.workspace-track-marker {
+  position: absolute;
+  top: 50%;
+  left: var(--pos, 0%);
+  z-index: 4;
+  width: 0;
+  height: 0;
+  transform: translate(-50%, -50%);
+  transition: left 700ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.workspace-track-marker::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -0.85rem;
+  bottom: -0.85rem;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, white 90%, var(--grade, var(--resonator-accent))),
+    transparent
+  );
+  box-shadow: 0 0 10px color-mix(in srgb, var(--grade, var(--resonator-accent)) 80%, transparent);
+}
+
+.workspace-track-marker::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.25rem;
+  height: 1.75rem;
+  transform: translate(-50%, -50%);
+  border-radius: 0.18rem;
+  background: white;
+  box-shadow:
+    0 0 18px color-mix(in srgb, white 80%, transparent),
+    0 0 4px color-mix(in srgb, white 70%, transparent);
+}
+
+.workspace-track-marker-flag {
+  position: absolute;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  padding: 0.14rem 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--grade, var(--resonator-accent)) 60%, var(--item-border));
+  color: color-mix(in srgb, var(--grade, var(--resonator-accent)) 96%, white);
+  font: 800 0.68rem/1.2 var(--game-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow:
+    0 4px 12px color-mix(in srgb, black 36%, transparent),
+    0 0 16px color-mix(in srgb, var(--grade, var(--resonator-accent)) 35%, transparent);
+}
+
+.workspace-track-marker-flag::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 0.34rem;
+  height: 0.34rem;
+  margin-top: -0.2rem;
+  transform: translateX(-50%) rotate(45deg);
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+}
+
+.workspace-ruler-tiers {
+  position: relative;
+  height: 1.5rem;
+  margin-top: 0.35rem;
+}
+
+.workspace-ruler-tier {
+  position: absolute;
+  top: 0;
+  left: var(--at, 0%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.workspace-ruler-tier-stem {
+  width: 1px;
+  height: 0.34rem;
+  background: color-mix(in srgb, var(--tier-color, var(--text)) 30%, var(--muted));
+  transition: background 320ms ease, box-shadow 320ms ease;
+}
+
+.workspace-ruler-tier b {
+  font: 800 0.6rem/1 var(--game-font);
+  letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--tier-color, var(--text)) 40%, var(--muted));
+  transition: color 320ms ease, text-shadow 320ms ease;
+}
+
+.workspace-ruler-tier.is-reached .workspace-ruler-tier-stem {
+  background: color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 82%, var(--text));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 55%, transparent);
+}
+
+.workspace-ruler-tier.is-reached b {
+  color: color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 68%, var(--text));
+  text-shadow: 0 0 12px color-mix(in srgb, var(--tier-color, var(--resonator-accent)) 32%, transparent);
+}
+
+.workspace-ruler-cap {
+  position: absolute;
+  top: 0.5rem;
+  font: 700 0.54rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--muted) 80%, transparent);
+}
+
+.workspace-ruler-cap--start {
+  left: 0;
+}
+
+.workspace-ruler-cap--end {
+  right: 0;
+}
+
+
+
+
+@property --workspace-hunt {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: true;
+}
+
+
+.workspace-band {
+  animation:
+    workspace-rise 0.62s var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)) both,
+    workspace-hunt 6.4s var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)) infinite;
+  animation-play-state: running, paused;
+}
+
+.workspace-band[data-state='reading'] {
+  --pos: calc(var(--workspace-hunt) * 0.5%);
+  animation-play-state: running, running;
+}
+
+
+.workspace-band[data-state='reading'] .workspace-track-marker,
+.workspace-band[data-state='reading'] .workspace-track-fill {
+  transition: none;
+}
+
+
+.workspace-band[data-state='reading'] .workspace-track-fill {
+  opacity: 0.5;
+}
+
+
+.workspace-band[data-state='reading'] .workspace-track-marker::after {
+  background: color-mix(in srgb, var(--resonator-accent) 62%, var(--text));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--resonator-accent) 40%, transparent);
+}
+
+.workspace-band[data-state='reading'] .workspace-track-marker::before {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--resonator-accent) 52%, var(--text)),
+    transparent
+  );
+  box-shadow: none;
+}
+
+
+.workspace-band[data-state='reading'] .workspace-band-figure {
+  display: inline-block;
+  min-width: 4ch;
+  color: color-mix(in srgb, var(--resonator-accent) 40%, var(--text));
+  text-shadow: none;
+  font-variant-numeric: tabular-nums;
+  counter-reset: workspace-hunt var(--workspace-hunt);
+}
+
+.workspace-band[data-state='reading'] .workspace-band-figure::after {
+  content: counter(workspace-hunt) '%';
+}
+
+.workspace-band[data-state='reading'] .workspace-band-score-sub {
+  color: color-mix(in srgb, var(--text) 40%, transparent);
+}
+
+.workspace-band[data-state='reading'] .workspace-ruler-dmg em {
+  color: color-mix(in srgb, var(--text) 32%, transparent);
+}
+
+
+@keyframes workspace-hunt {
+  0%, 3% { --workspace-hunt: 16; }
+  13%, 19% { --workspace-hunt: 108; }
+  29%, 33% { --workspace-hunt: 52; }
+  45%, 52% { --workspace-hunt: 163; }
+  63%, 67% { --workspace-hunt: 84; }
+  79%, 84% { --workspace-hunt: 127; }
+  97%, 100% { --workspace-hunt: 16; }
+}
+
+
+.reduce-animation .workspace-band[data-state='reading'] {
+  animation: none;
+  --pos: 0%;
+}
+
+.reduce-animation .workspace-band[data-state='reading'] .workspace-track-marker,
+.reduce-animation .workspace-band[data-state='reading'] .workspace-track-fill {
+  display: none;
+}
+
+
+.reduce-animation .workspace-band[data-state='reading'] .workspace-band-figure {
+  min-width: 0;
+  font: 700 2rem/1.35 var(--mono-font);
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--text) 34%, transparent);
+}
+
+.reduce-animation .workspace-band[data-state='reading'] .workspace-band-figure::after {
+  content: '--';
+}
+
+.workspace-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.workspace-main:has(.workspace-section.loading) {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.workspace-section.loading {
+  height: 100%;
+}
+
+.workspace-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--workspace-line-soft);
+}
+
+.workspace-section-title {
+  margin: 0;
+  font: 700 1.02rem/1 var(--display-font);
+  letter-spacing: -0.01em;
+}
+
+.workspace-section-meta {
+  font: 600 0.64rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.workspace-build-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: 0.12rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--workspace-line-soft);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  white-space: normal;
+}
+
+.workspace-build-toggle__btn {
+  min-width: 4.2rem;
+  padding: 0.4rem 0.58rem;
+  border: none;
+  border-radius: 0.52rem;
+  background: transparent;
+  color: var(--muted);
+  font: 800 0.62rem/1 var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.workspace-build-toggle__btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--resonator-accent) 8%, transparent);
+}
+
+.workspace-build-toggle__btn.is-active {
+  color: color-mix(in srgb, var(--resonator-accent) 88%, var(--text));
+  background: color-mix(in srgb, var(--resonator-accent) 16%, transparent);
+}
+
+.workspace-stat-glyph {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  background-color: var(--stat-color, var(--resonator-accent));
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.workspace-echoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+  gap: 0.7rem;
+}
+
+
+
+
+:is(.workspace-echo, .ecr__row).has-gutter {
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    padding 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+:is(.workspace-echo, .ecr__row).has-gutter:hover,
+:is(.workspace-echo, .ecr__row).has-gutter:focus-within {
+  padding-left: 1.9rem;
+}
+
+
+:is(.workspace-echo, .ecr__row).has-gutter:hover:not(:focus-within) {
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    padding 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)) 350ms;
+}
+
+.workspace-echo-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.42rem 0.65rem 0;
+  min-width: 0;
+}
+
+.workspace-echo-name {
+  flex: 1;
+  font: 600 0.74rem/1.1 var(--display-font);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-echo.is-main .workspace-echo-name {
+  color: color-mix(in srgb, var(--ecr-snt) 28%, var(--text));
+}
+
+.workspace-echo-cost {
+  font: 700 0.58rem/1 var(--mono-font);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 45%, transparent);
+}
+
+.workspace-echo-subs-empty {
+  margin: 0;
+  padding: 0.9rem 0 1rem;
+  text-align: center;
+  font: 600 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: color-mix(in srgb, var(--text) 34%, transparent);
+}
+
+
+.workspace-echo-gut {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  width: 1.9rem;
+  padding: 0.5rem 0;
+  border-right: 1px solid color-mix(in srgb, var(--ecr-snt) 45%, var(--c-transparent));
+  background:
+    linear-gradient(color-mix(in srgb, var(--text) 7%, var(--c-transparent)), color-mix(in srgb, var(--text) 7%, var(--c-transparent))),
+    color-mix(in srgb, var(--ecr-snt) 20%, var(--c-transparent));
+  transform: translateX(-100%);
+  opacity: 0;
+  transition:
+    transform 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    background 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity 180ms ease;
+}
+
+:is(.workspace-echo, .ecr__row).has-gutter:hover .workspace-echo-gut,
+:is(.workspace-echo, .ecr__row).has-gutter:focus-within .workspace-echo-gut {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+:is(.workspace-echo, .ecr__row).has-gutter:hover:not(:focus-within) .workspace-echo-gut {
+  transition:
+    transform 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)) 350ms,
+    background 260ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity 180ms ease 350ms;
+}
+
+.workspace-echo-ctl {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.4rem;
+  background: var(--c-transparent);
+  color: color-mix(in srgb, var(--text) 68%, var(--c-transparent));
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.workspace-echo-ctl:hover {
+  background: color-mix(in srgb, var(--text) 10%, var(--c-transparent));
+  color: var(--text);
+}
+
+.workspace-echo-ctl:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--resonator-accent) 70%, var(--c-transparent));
+  outline-offset: 1px;
+}
+
+.workspace-echo-ctl--lift:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, var(--c-transparent));
+}
+
+.workspace-echo-gut:has(.workspace-echo-ctl--lift:hover) {--ecr-snt: var(--danger);}
+
+.workspace-echo-ctl[data-saved='true'] {
+  color: color-mix(in srgb, var(--ecr-snt) 85%, var(--text));
+  cursor: default;
+}
+
+.workspace-echo-ctl[data-saved='true']:hover {
+  background: var(--c-transparent);
+}
+
+.workspace-echo-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  margin-top: 0.15rem;
+  padding: 0.34rem 0.6rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, var(--c-transparent));
+  background: var(--c-transparent);
+  color: color-mix(in srgb, var(--text) 70%, var(--c-transparent));
+  font: 700 0.6rem/1 var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.workspace-echo-undo:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--resonator-accent) 40%, var(--c-transparent));
+}
+
+.workspace-echo-undo:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--resonator-accent) 70%, var(--c-transparent));
+  outline-offset: 2px;
+}
+
+
+.workspace-echo-wear {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  transform-origin: left center;
+  background: color-mix(in srgb, var(--resonator-accent) 55%, var(--c-transparent));
+  animation: workspace-echo-wear 6s linear forwards;
+}
+
+@keyframes workspace-echo-wear {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.reduce-animation .workspace-echo.has-gutter:hover,
+.reduce-animation .workspace-echo.has-gutter:focus-within {
+  transition: none;
+}
+
+.reduce-animation .workspace-echo-gut {
+  transition: none;
+}
+
+.reduce-animation :is(.workspace-echo, .ecr__row).has-gutter:hover:not(:focus-within) .workspace-echo-gut {
+  transition: none;
+}
+
+.reduce-animation .workspace-echo-wear {
+  animation: none;
+  opacity: 0.5;
+}
+
+
+.workspace-echo--empty {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  min-height: 11rem;
+  padding: 0.72rem;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px dashed var(--workspace-line);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent);
+  transition:
+    transform 300ms var(--workspace-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 300ms ease,
+    background 300ms ease;
+}
+
+.workspace-echo--empty.is-openable { cursor: pointer; }
+
+.workspace-echo--empty.is-openable:hover {
+  transform: translateY(-2px);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--resonator-accent) 30%, var(--item-border));
+  background: color-mix(in srgb, var(--resonator-accent) 5%, transparent);
+}
+
+.workspace-echo--empty.is-openable:hover .workspace-echo-empty-mark {
+  color: color-mix(in srgb, var(--resonator-accent) 40%, var(--text));
+}
+
+.workspace-echo--empty.is-openable:hover .workspace-echo-empty-label {
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+.workspace-echo:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--resonator-accent) 70%, var(--c-transparent));
+  outline-offset: 2px;
+}
+
+.reduce-animation .workspace-echo--empty.is-openable:hover { transform: none; }
+
+.workspace-echo-empty-mark {
+  font: 700 1.7rem/1 var(--mono-font);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.workspace-echo-empty-label {
+  font: 700 0.56rem/1 var(--mono-font);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: color-mix(in srgb, var(--text) 32%, transparent);
+}

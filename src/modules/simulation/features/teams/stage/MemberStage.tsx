@@ -19,17 +19,17 @@ import type { GenWpn } from '@/domain/entities/weapon.ts'
 import { equalEchoes, equalBuildSnapshots, cloneEchoFor, cloneEchoLoadout, sameEchoUid, saveEchoSlots, type SavedBuild, type SavedEcho } from '@/domain/entities/inventoryStorage.ts'
 import type { SourceState } from '@/domain/gameData/contracts.ts'
 import { getResStateControls } from '@/domain/gameData/resonatorStateGraph'
-import { initWpnStts } from '@/domain/state/sourceStateInit.ts'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selInvSg } from '@/domain/state/selectors.ts'
-import { listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
-import { getOwnForKey, listStatesFor, listOwnersFor } from '@/domain/services/gameDataService.ts'
-import { getMainEchoS } from '@/domain/services/runtimeSourceService.ts'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
+import { initWpnStts } from '@/engine/runtime/sourceStateInit.ts'
+import { useAppStore } from '@/application/state'
+import { selInvSg } from '@/application/state'
+import { listWpnsByTy } from '@/data/catalog/weaponCatalogService.ts'
+import { getOwnForKey, listStatesFor, listOwnersFor } from '@/data/catalog/gameDataService.ts'
+import { getMainEchoS } from '@/engine/services/runtimeSourceService.ts'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects.ts'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
 import { fmtEchoStatL, fmtEchoStatV, getEchoStatI, mkDefEchoNst } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
-import { isStateVisible } from '@/domain/services/sourceStateService.ts'
+import { isStateVisible } from '@/engine/services/sourceStateService.ts'
 import { buildSonataPlan } from '@/modules/simulation/workspace/ui.tsx'
 import {
   applyCscdRst,
@@ -39,7 +39,7 @@ import {
 } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { readRtPath, writeRtPath } from '@/domain/gameData/runtimePath.ts'
 import { mkCntrPath } from '@/domain/gameData/stateKeys.ts'
-import { getSrcSttNct } from '@/domain/gameData/controlOptions.ts'
+import { getSrcSttNct } from '@/engine/gameData/controlOptions.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { TeammateManualBuffs } from '@/modules/simulation/features/teams/TeammateManualBuffs.tsx'
 import {
@@ -73,13 +73,13 @@ import { useAppModal, useAppModalValue } from '@/shared/ui/useAppModal.ts'
 import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
 import { eligibleForSlot, useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
-import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
+import { useCtxBuilder } from '@/modules/simulation/shell/context-menu/useContextMenuBuilder.ts'
 import { SourceStateCtrl } from '@/modules/simulation/features/controls/SourceStateControl.tsx'
-import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
-import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import { LiquidSelect } from '@/application/ui/LiquidSelect.tsx'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { getResonator, spriteVars, type ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import {
@@ -705,7 +705,6 @@ function ResonatorView({
   const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const invChs = useAppStore((state) => state.library.echoes)
   const invSg = useAppStore(selInvSg)
-  const addEchoToInv = useAppStore((state) => state.addInvEcho)
   const addEchoesToInv = useAppStore((state) => state.addInvEchoes)
   const updEchoInInv = useAppStore((state) => state.updInvEcho)
   const rmEchoFromInv = useAppStore((state) => state.rmInvEcho)
@@ -1091,7 +1090,7 @@ function ResonatorView({
   }, [onRtPdt])
 
   const saveSlotsToInv = useCallback((slotIndexes: number[]) => {
-    const result = saveEchoSlots(runtime.build.echoes, slotIndexes, addEchoToInv)
+    const result = saveEchoSlots(runtime.build.echoes, slotIndexes, addEchoesToInv)
     const nextEchoes = result.nextEchoes
     if (nextEchoes) {
       onRtPdt((prev) => {
@@ -1099,7 +1098,7 @@ function ResonatorView({
       })
     }
     return result.savedCount
-  }, [addEchoToInv, onRtPdt, runtime.build.echoes])
+  }, [addEchoesToInv, onRtPdt, runtime.build.echoes])
 
   const {
     copyEchoes: copyChsToClp,

@@ -1,9 +1,9 @@
 /*
   Author: Runor Ewhro
-  Description: Renders the terms of service page.
+  Description: Renders the authored terms of service with shared legal-page metadata.
 */
 
-import { useNavX } from '@/app/nav/useNavX'
+import { useNavX } from '@/shared/navigation/useNavX'
 import { ChevronLeft, FileText } from 'lucide-react'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 

@@ -6,12 +6,12 @@
 
 import { useCallback, useEffect, useMemo } from 'react'
 import { create } from 'zustand'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selActResId, selEnemyProf, selWorkDrvd } from '@/domain/state/selectors.ts'
+import { useAppStore } from '@/application/state'
+import { selActResId, selEnemyProf, selWorkDrvd } from '@/application/state'
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { reviseCombatScenario } from '@/domain/entities/combatScenario.ts'
-import { applyRuntimeToSimulation, materializeScenarioRuntime } from '@/domain/state/runtimeAdapters.ts'
+import { applyRuntimeToSimulation, materializeScenarioRuntime } from '@/engine/runtime/runtimeAdapters.ts'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import { selLiveRun } from '@/modules/simulation/model/selectors.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
@@ -68,6 +68,7 @@ export function EnemyConsoleHost() {
   }, [actResId, commitScenarioConfig, scenarioId])
   const session = useConfigurationSession<EnemyConfigDraft>({
     source: { runtime: actRt, enemy: enemyProfile },
+    active: modal.visible,
     commit: commitDraft,
   })
   const draftRuntime = session.draft.runtime

@@ -4,9 +4,7 @@
                safe during server-side or non-browser execution.
 */
 
-import type { ThemeMode } from '@/domain/entities/appState'
-
-export type RslvSystThem = Exclude<ThemeMode, 'background'>
+export type RslvSystThem = 'light' | 'dark'
 
 // resolve the browser's current light or dark preference with a light fallback outside the browser.
 export function getSystTheme(): RslvSystThem {

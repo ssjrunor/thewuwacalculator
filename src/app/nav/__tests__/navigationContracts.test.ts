@@ -6,8 +6,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { ComponentType } from 'react'
-import { createNavigationIntentTracker } from '@/app/nav/useNavX'
-import { createRouteChunk } from '@/app/nav/routeChunks'
+import { createNavigationIntentTracker } from '@/shared/navigation/useNavX'
+import { createRouteChunk } from '@/shared/navigation/routeChunk'
 
 describe('navigation intent ordering', () => {
   it('allows only the newest navigation request to commit', () => {

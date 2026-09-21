@@ -1,15 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: The Build Lab roster's add flow. The socket at the base of the
-               column opens the ordinary resonator picker: picking someone the
-               roster already holds switches to them, picking anyone else puts
-               them on it.
+  Description: Coordinates resonator selection, existing-profile activation, and new-profile creation.
 */
 
 import { useCallback } from 'react'
 import type { ReactNode } from 'react'
-import { useAppStore } from '@/domain/state/store.ts'
-import { selContextResonatorId } from '@/domain/state/selectors.ts'
+import { useAppStore } from '@/application/state'
+import { selContextResonatorId } from '@/application/state'
 import { RES_MENU, getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
 import { mainPortal } from '@/shared/lib/portalTarget'

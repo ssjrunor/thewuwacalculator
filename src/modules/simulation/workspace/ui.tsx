@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Owns ui behavior and state transitions for the evaluation module.
+  Description: Provides shared workspace glyph, stat, rating, and formatting primitives.
 */
 
 import type { CSSProperties, KeyboardEvent, MouseEvent, RefCallback } from 'react'
@@ -12,22 +12,22 @@ import type {
   EvaluationBuildKey,
   EvaluationEchoSlot,
   EvaluationSetSummary,
-} from '@/data/scoring/buildEvaluation.ts'
+} from '@/engine/evaluation/buildEvaluation.ts'
 import type { MenuEntry } from '@/shared/ui/CtxMenu.tsx'
 import { ArrowUpFromLine, LibraryBig, Undo2 } from 'lucide-react'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import {
   EchoCardBand,
   EchoCardList,
   EchoCardRibbon,
   echoCardVars,
-} from '@/shared/ui/EchoCard.tsx'
+} from '@/modules/simulation/features/echoes/ui/EchoCard.tsx'
 import { cmptEchoCrit } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
-import { makeEffectiveSetPlan } from '@/domain/gameData/sonataPlan'
+import { makeEffectiveSetPlan } from '@/engine/gameData/sonataPlan'
 import { getSntSetClr, getSntSetIco } from '@/data/gameData/catalog/sonataSets'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
 import { formatCompactNum, formatStatKeyLabel } from '@/modules/simulation/model/statsView.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { glyphVars, resSeqIcon, SEQ_NODES } from '@/shared/lib/gameAssets.ts'
@@ -461,8 +461,6 @@ export function EchoCard({
   index: number
   selection?: EvaluationEchoSelection
   score?: number | null
-  /* a card the surface is only proposing: it wears the sonata's lines without
-     its fill until the build it belongs to is actually equipped */
   unpainted?: boolean
   /* the slot is the way into its own editor: an empty one opens the picker, a
      filled one opens the editor. a surface that cannot write leaves it out. */

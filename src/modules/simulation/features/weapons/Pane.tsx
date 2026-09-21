@@ -9,12 +9,12 @@ import type { CSSProperties as CssProps } from 'react'
 import { Star, Zap } from 'lucide-react'
 import type { PickFreqWeapon } from '@/domain/entities/appState'
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime.ts'
-import { maxWpnRt, wpnSttsMaxed } from '@/domain/state/sourceStateInit.ts'
-import { listWpnsByTy } from '@/domain/services/weaponCatalogService.ts'
-import { listOwnersFor, listStatesFor } from '@/domain/services/gameDataService.ts'
+import { maxWpnRt, wpnSttsMaxed } from '@/engine/runtime/sourceStateInit.ts'
+import { listWpnsByTy } from '@/data/catalog/weaponCatalogService.ts'
+import { listOwnersFor, listStatesFor } from '@/data/catalog/gameDataService.ts'
 import { getResonator, WPNTYPETOKEY } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { setWpnLvl } from '@/modules/simulation/features/resonator/lib/buildEdits.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import { toTitle } from '@/shared/lib/format.ts'
 import {
   getWeapon,
@@ -36,7 +36,7 @@ import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtim
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { rarityVars } from '@/modules/simulation/model/display.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
-import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
 
 interface WeaponPaneProps {
   runtime: ResRuntime

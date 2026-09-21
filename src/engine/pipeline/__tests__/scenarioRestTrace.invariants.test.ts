@@ -11,8 +11,8 @@ import {
   type CombatScenario,
   type ScenarioTeamMember,
 } from '@/domain/entities/combatScenario'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { makeAppState, makeResProfile } from '@/domain/state/defaults'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { makeAppState, makeResProfile } from '@/engine/runtime/defaults'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
 import {
   traceScenarioRestState,

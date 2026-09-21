@@ -19,7 +19,7 @@ import type {
   RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedVisibility } from '@/shared/hooks/useAnimatedVisibility'
 import { bodyPortal } from '@/shared/lib/portalTarget'
 
 export const APP_POPUP_EXIT_MS = 180
@@ -91,11 +91,7 @@ interface AnchoredAppPopupProps extends AppPopupSurfaceProps {
   flipBelowHeight?: number
 }
 
-/**
- * Portal-mounted popup anchored to a real DOM element. Placement is written
- * directly to the floating node before paint, keeping transient geometry out
- * of React state and making every consumer resilient to clipped ancestors.
- */
+/** Writes portal-relative placement before paint without storing transient geometry in React. */
 export function AnchoredAppPopup({
   visible,
   anchorRef,

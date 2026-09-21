@@ -1,12 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: Owns damage formula behavior and state transitions for the lib module.
+  Description: Projects canonical damage factors into inspectable formula rows and formatted totals.
 */
 
 import type { FeatureResult } from '@/domain/gameData/contracts.ts'
 import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import { ATTR_ENEMY_RES, isNoEnemy } from '@/domain/entities/appState.ts'
-import { getNegEffectDef } from '@/domain/gameData/negativeEffects.ts'
+import { getNegEffectDef } from '@/engine/gameData/negativeEffects.ts'
 import type { CombatState } from '@/domain/entities/runtime.ts'
 import type { FinalStats, NegEffectKey, SkillDef, SkillTypeKey } from '@/domain/entities/stats.ts'
 import { getNegBase as cmptNegFfctB } from '@/engine/formulas/negativeEffects.ts'
@@ -24,7 +24,7 @@ import {
 } from '@/engine/formulas/damageFactors.ts'
 import { getTuneLevel } from '@/engine/formulas/tuneRupture.ts'
 import { mergeSkillType } from '@/engine/resolvers/buffPool.ts'
-import { getSkillType, fmtSkllTypeL } from '@/modules/simulation/model/skillTypes.ts'
+import { getSkillType, fmtSkllTypeL } from '@/domain/gameData/skillTypes.ts'
 import { formatTrunc, formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 
 /** The engine's factors, plus how this pane names the skill's types. */
@@ -376,7 +376,7 @@ function modParts(finalStats: FinalStats, skill: SkillDef, shared: ShrdDmgCtx) {
     globalLabel = 'Global',
   ) => [
     { label: globalLabel, value: global },
-    { label: 'Elem All', value: pick(shared.attributeAll) },
+    { label: 'Attr All', value: pick(shared.attributeAll) },
     { label: skill.element, value: pick(shared.attrElement) },
     { label: 'Type All', value: pick(shared.skillTypeAll) },
     { label: shared.skillTypeLabel, value: pick(shared.skillTypeBuff) },
@@ -794,6 +794,7 @@ function tuneBrkd(
     ])}`,
     `mod.dmgBonus = ${fmtPct(formulaSkillType.dmgBonus)} = ${kindLabel} ${fmtPct(formulaSkillType.dmgBonus)}`,
     `mod.amp = ${fmtPct(finalStats.amplify)} = Global ${fmtPct(finalStats.amplify)}`,
+    `mod.finalDmg = ${fmtPct(finalStats.finalDmg)} = Global ${fmtPct(finalStats.finalDmg)}`,
     `mod.tuneBoost = ${fmtTuneBreakBoost(finalStats.tbb)}`,
     `crit.rate = ${fmtPct(critRatePrcn)}`,
     `crit.dmg = ${fmtPct(critDmgPrcn)}`,
@@ -855,6 +856,13 @@ function tuneBrkd(
           terms: srcTerms([{ label: kindLabel, value: formulaSkillType.dmgBonus }]),
         },
         {
+          key: 'mod.finalDmg',
+          label: 'Final DMG',
+          factor: 1 + finalStats.finalDmg / 100,
+          value: fmtPct(100 + finalStats.finalDmg),
+          terms: srcTerms([{ label: 'Global', value: finalStats.finalDmg }]),
+        },
+        {
           key: 'mod.tuneBoost',
           label: `${kindLabel} Break Boost`,
           factor: 1 + finalStats.tbb / 100,
@@ -877,7 +885,7 @@ function tuneBrkd(
     ].join('\n'),
     equation: !ignoresEnemy && baseRes === 100
       ? `out.normal = ${fmtInt(entry.normal)} = 0 (enemy base RES shortcut)`
-      : `out.normal = ${fmtInt(entry.normal)} = ${fmtNum(levelScale, 2)} x ${fmtPct(ampPrcn)} x ${pctMul(defenseMult, 10)} x ${pctMul(resMult, 10)} x (1 + ${fmtPct(dmgVuln)}) x ${fmtNum(classMult, 2)} x (1 + ${fmtPct(finalStats.amplify)}) x (1 + ${fmtPct(formulaSkillType.dmgBonus)}) x (1 + ${fmtTuneBreakBoost(finalStats.tbb)} / 100)`,
+      : `out.normal = ${fmtInt(entry.normal)} = ${fmtNum(levelScale, 2)} x ${fmtPct(ampPrcn)} x ${pctMul(defenseMult, 10)} x ${pctMul(resMult, 10)} x (1 + ${fmtPct(dmgVuln)}) x ${fmtNum(classMult, 2)} x (1 + ${fmtPct(finalStats.amplify)}) x (1 + ${fmtPct(formulaSkillType.dmgBonus)}) x (1 + ${fmtTuneBreakBoost(finalStats.tbb)} / 100) x (1 + ${fmtPct(finalStats.finalDmg)})`,
     sections,
   }
 }

@@ -100,7 +100,7 @@ interface ScenarioRestEffectBase {
   ownerKey?: string
   owner: SrcOwnDef | null
   definition: EffectDef | null
-  stage: 'base' | 'preStats' | 'postStats'
+  stage: 'base' | 'preStats' | 'postStats' | 'finalStats'
   resolution: ScenarioRestResolution
   stateIds: ScenarioRestStateId[]
 }

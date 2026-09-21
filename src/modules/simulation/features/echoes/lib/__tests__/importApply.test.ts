@@ -7,9 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { ParsedBuildScreenshot } from '@/engine/echoParser/ocrParsing'
-import { makeResRuntime } from '@/domain/state/defaults'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
+import { makeResRuntime } from '@/engine/runtime/defaults'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { listWpnsByTy } from '@/data/catalog/weaponCatalogService'
 import { applyImprtRd } from '@/modules/simulation/features/echoes/lib/importApply'
 
 function makeRead(weaponId: string | null): ParsedBuildScreenshot {

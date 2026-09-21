@@ -1,10 +1,14 @@
 /*
   Author: Runor Ewhro
-  Description: Root application component that mounts the top-level router.
-               Everything a route shares is held by the shell inside it.
+  Description: Root application composition for global providers and routing.
 */
 import { AppRouter } from '@/app/router/AppRouter'
+import { AppProviders } from '@/app/providers/AppProviders'
 
 export function AppRoot() {
-  return <AppRouter />
+  return (
+    <AppProviders>
+      <AppRouter />
+    </AppProviders>
+  )
 }

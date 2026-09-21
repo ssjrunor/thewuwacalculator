@@ -5,10 +5,9 @@
 
 import { Suspense } from 'react'
 import type { ReactNode } from 'react'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
-import type { LoaderFunctionArgs, RouteObject } from 'react-router-dom'
-import { AppShell } from '@/app/AppShell'
-import { RouteChrome } from '@/app/chrome/RouteChrome'
+import { Navigate, useLocation } from 'react-router-dom'
+import type { RouteObject } from 'react-router-dom'
+import { AppLayout } from '@/app/shell/AppLayout'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
 import {
   changelogChunk,
@@ -27,12 +26,13 @@ import {
   LEGACY_NESTED_SIMULATION_ROUTES,
   LEGACY_PROGRESSION_ALIAS,
   LEGACY_SETTINGS_ROUTE,
-  LEGACY_SIMULATION_ROUTES,
   LEGACY_WHATS_NEW_ROUTE,
   SIMULATION_ROUTES,
+  SIMULATION_SURFACE_IDS,
+  SIMULATION_SURFACES,
   whatsNewHref,
 } from '@/shared/lib/appRoutes'
-import { useAppStore } from '@/domain/state/store'
+import type { SimulationSurfaceHandle } from '@/modules/simulation/api/route'
 
 const SimulationPage = simulationChunk.Mount
 const CalibrationPage = calibrationChunk.Mount
@@ -67,76 +67,50 @@ function WhatsNewRedirect() {
   return <Navigate to={whatsNewHref(entryId || null)} replace />
 }
 
-function hydrateOptimizerInventory() {
-  useAppStore.getState().ensInvHydr()
-  return null
-}
-
-const SHARED_WORKSPACE_SURFACES = ['modulation', 'optimizer', 'showcase', 'suggestions'] as const
-
-function SharedWorkspaceRoute() {
-  const { simulationSurface } = useParams()
-  const surface = SHARED_WORKSPACE_SURFACES.find((candidate) => candidate === simulationSurface)
-  return surface ? <SimulationPage surface={surface} /> : <NotFoundPage />
-}
-
-function hydrateSharedWorkspaceInventory({ params }: LoaderFunctionArgs) {
-  if (params.simulationSurface === 'optimizer') hydrateOptimizerInventory()
-  return null
+// One pathless layout holds every simulation surface. Moving between its
+// children keeps SimulationPage (and everything it initializes) mounted; the
+// page picks its pane from the matched child's handle.
+const simulationRoute: RouteObject = {
+  element: lazyRoute(<SimulationPage />),
+  children: SIMULATION_SURFACE_IDS.map((surface) => ({
+    path: SIMULATION_SURFACES[surface].path,
+    // The surface is rendered by the persistent parent from this route's
+    // handle. An explicit inert element keeps the leaf route well-formed.
+    element: <></>,
+    handle: { surface } satisfies SimulationSurfaceHandle,
+  })),
 }
 
 export const rootRoutes: RouteObject[] = [
   {
-    element: <AppShell />,
+    path: '/',
+    element: <AppLayout />,
     children: [
+      { index: true, element: lazyRoute(<HomePage />) },
+      simulationRoute,
+      { path: LEGACY_HOME_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.home} /> },
+      { path: LEGACY_PROGRESSION_ALIAS, element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} /> },
       {
-        path: '/',
-        element: <RouteChrome />,
-        children: [
-          { index: true, element: lazyRoute(<HomePage />) },
-          {
-            path: '/:simulationSurface',
-            loader: hydrateSharedWorkspaceInventory,
-            element: lazyRoute(<SharedWorkspaceRoute />),
-          },
-          {
-            path: SIMULATION_ROUTES.rotation,
-            element: lazyRoute(<SimulationPage surface="rotation" />),
-          },
-          {
-            path: LEGACY_SIMULATION_ROUTES.calculator,
-            element: lazyRoute(<SimulationPage surface="legacy-calculator" />),
-          },
-          {
-            path: LEGACY_SIMULATION_ROUTES.optimizer,
-            loader: hydrateOptimizerInventory,
-            element: lazyRoute(<SimulationPage surface="legacy-optimizer" />),
-          },
-          { path: LEGACY_HOME_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.home} /> },
-          { path: LEGACY_PROGRESSION_ALIAS, element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} /> },
-          {
-            path: LEGACY_NESTED_SIMULATION_ROUTES.optimizer,
-            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.optimizer} />,
-          },
-          {
-            path: LEGACY_NESTED_SIMULATION_ROUTES.benchmark,
-            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} />,
-          },
-          {
-            path: LEGACY_NESTED_SIMULATION_ROUTES.rotation,
-            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
-          },
-          { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
-          { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
-          { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
-          { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
-          { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },
-          { path: LEGACY_WHATS_NEW_ROUTE, element: <WhatsNewRedirect /> },
-          { path: APP_ROUTES.privacy, element: lazyRoute(<PrvcPlcyPage />) },
-          { path: APP_ROUTES.terms, element: lazyRoute(<TrmsOfSrvcPa />) },
-          { path: '*', element: lazyRoute(<NotFoundPage />) },
-        ],
+        path: LEGACY_NESTED_SIMULATION_ROUTES.optimizer,
+        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.optimizer} />,
       },
+      {
+        path: LEGACY_NESTED_SIMULATION_ROUTES.benchmark,
+        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} />,
+      },
+      {
+        path: LEGACY_NESTED_SIMULATION_ROUTES.rotation,
+        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
+      },
+      { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
+      { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
+      { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
+      { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
+      { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },
+      { path: LEGACY_WHATS_NEW_ROUTE, element: <WhatsNewRedirect /> },
+      { path: APP_ROUTES.privacy, element: lazyRoute(<PrvcPlcyPage />) },
+      { path: APP_ROUTES.terms, element: lazyRoute(<TrmsOfSrvcPa />) },
+      { path: '*', element: lazyRoute(<NotFoundPage />) },
     ],
   },
 ]

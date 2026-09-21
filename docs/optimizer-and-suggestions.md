@@ -24,7 +24,7 @@ Primary files:
 - [src/engine/suggestions/mainStat-suggestion](../src/engine/suggestions/mainStat-suggestion)
 - [src/engine/suggestions/setPlan-suggestion](../src/engine/suggestions/setPlan-suggestion)
 - [src/engine/suggestions/worker.ts](../src/engine/suggestions/worker.ts)
-- [src/modules/simulation/features/suggestions/surfaceAlgorithms](../src/modules/simulation/features/suggestions/surfaceAlgorithms)
+- [src/modules/simulation/surfaces/suggestions/surfaceAlgorithms](../src/modules/simulation/surfaces/suggestions/surfaceAlgorithms)
 
 Top level suggestion families:
 
@@ -129,8 +129,8 @@ This separation matters because:
 
 Primary files:
 
-- [src/domain/state/storeOptimizerRuntime.ts](../src/domain/state/storeOptimizerRuntime.ts)
-- [src/domain/state/store.ts](../src/domain/state/store.ts)
+- [src/application/state/storeOptimizerRuntime.ts](../src/application/state/storeOptimizerRuntime.ts)
+- [src/application/state/store.ts](../src/application/state/store.ts)
 
 The store layer owns:
 

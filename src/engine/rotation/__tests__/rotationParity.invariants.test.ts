@@ -8,9 +8,9 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeEnemy, makeResRuntime } from '@/domain/state/defaults'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { listResRttn } from '@/domain/services/gameDataService'
+import { makeEnemy, makeResRuntime } from '@/engine/runtime/defaults'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { listResRttn } from '@/data/catalog/gameDataService'
 import { prepareResSimulation } from '@/engine/pipeline'
 import type { RotationNode } from '@/domain/gameData/contracts'
 import {

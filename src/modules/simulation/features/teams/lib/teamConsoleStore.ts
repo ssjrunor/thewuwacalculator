@@ -6,7 +6,7 @@
 
 import { create } from 'zustand'
 import type { ChannelId } from '@/modules/simulation/features/teams/stage/MemberStage.tsx'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 
 interface ConsoleTarget {

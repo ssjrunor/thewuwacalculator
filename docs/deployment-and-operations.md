@@ -88,7 +88,7 @@ Operationally, Drive sync is a backup and restore path over the same persistence
 Primary roots:
 
 - [src/infra/persistence](../src/infra/persistence)
-- [src/domain/state/schema.ts](../src/domain/state/schema.ts)
+- [src/engine/runtime/schema.ts](../src/engine/runtime/schema.ts)
 
 Operational persistence concerns include:
 

@@ -112,6 +112,8 @@ export interface UnifiedBuffPool {
   defIgnore: number
   defShred: number
   dmgVuln: number
+  /** Additive bonus applied on top of the native 1.0 (100%) baseline. */
+  offTuneBuildupRate: number
   tuneBreakBoost: number
   finalDmg: number
   immunities: ImmunitySet
@@ -146,6 +148,8 @@ export interface FinalStats {
   defIgnore: number
   defShred: number
   dmgVuln: number
+  /** Resolved factor; 1 is the native 100% buildup rate. */
+  offTuneBuildupRate: number
   tbb: number
   finalDmg: number
   immunities?: ImmunitySet
@@ -170,6 +174,106 @@ export interface SkillHitTable {
   label?: string
   count: number
   values: number[]
+}
+
+/**
+ * One concrete DamageList packet. Unlike SkillDef, this owns the packet's
+ * coefficient and combat metadata instead of inheriting them from the
+ * displayed parent action.
+ */
+export interface SkillDamageEntry {
+  id: string
+  resonatorId: string
+  rawSkillId: string
+  skillId: string | null
+  hitKey: string
+  hitIndex: number | null
+  label: string
+  count: number
+  multiplier: number
+  values: number[]
+  skillType: SkillTypeKey[]
+  element: AttributeKey
+  scaling: ScalingStats
+  damageType: string
+  rawType: string
+  propertyName: string
+  rawCondition?: string
+  energy?: number
+  energyValues?: number[]
+  elementPower?: number
+  elementPowerValues?: number[]
+  hardness?: number
+  hardnessValues?: number[]
+  toughness?: number
+  toughnessValues?: number[]
+  weakness?: number
+  weaknessValues?: number[]
+  replacesEntryId?: string
+  variantWhen?: CondExpr
+  provenance: 'matched' | 'authored' | 'unlinked'
+}
+
+/** One hit's share of a skill's Off-Tune, before any buildup rate. */
+export interface OffTuneHit {
+  label: string
+  count: number
+  /** the hit's Off-Tune for a single landing */
+  weakness: number
+  /** weakness x count */
+  total: number
+}
+
+/** A named addition to a skill's Off-Tune, on one side of the buildup rate. */
+export interface OffTuneSource {
+  label: string
+  value: number
+}
+
+/**
+ * How one execution arrived at its Off-Tune.
+ *
+ * The register cell can only show where the gauge ended up. This is the work
+ * behind that figure, kept unrounded, so the readout can name every hit and
+ * every buff rather than asking the reader to trust a total.
+ */
+export interface OffTuneTrace {
+  /** the gauge before this entry */
+  before: number
+  /** the gauge after it */
+  after: number
+  /** the ceiling the gauge is read against */
+  max: number
+  /** this entry emptied the gauge, which only a Tune Break does */
+  reset: boolean
+  /** the gain was dropped: the target still refuses Off-Tune after a break */
+  sealed: boolean
+  /** this entry stands in a Tune Break's aftermath, so it can carry the mark */
+  afterBreak: boolean
+  /** this entry is where counting starts again, by mark or by default */
+  resume: 'mark' | 'default' | null
+  /** the first entry to fill the gauge since the last reset */
+  crest: boolean
+  /** the gauge was already full when this entry landed */
+  held: boolean
+  hits: OffTuneHit[]
+  hitTotal: number
+  /** additions that ride the buildup rate alongside the hits */
+  pre: OffTuneSource[]
+  preTotal: number
+  /** the rate those were multiplied by */
+  rate: number
+  /** what the rate is made of, each as a share of 1 */
+  rateSources: OffTuneSource[]
+  /** (hitTotal + preTotal) x rate */
+  rated: number
+  /** additions the rate never touches */
+  post: OffTuneSource[]
+  postTotal: number
+  /** the node's repeat count, which the whole gain is taken through */
+  repeats: number
+  /** what this entry actually put on the gauge */
+  gain: number
 }
 
 export interface SkillSubHit {
@@ -197,6 +301,10 @@ export interface SkillDef {
   flatValues?: number[]
   fixedDmg?: number
   fixedDmgValues?: number[]
+  /** Additional Off-Tune that is multiplied by Off-Tune Buildup Rate. */
+  offTune?: number
+  /** Fixed Off-Tune applied after Off-Tune Buildup Rate. */
+  directOffTune?: number
   scaling: ScalingStats
   skillBuffs?: Partial<ModBuff>
   skillHealingBonus?: number
@@ -226,6 +334,7 @@ export interface SkillDef {
     multiplier: number
   }>
   hitTable?: SkillHitTable[]
+  damageEntries?: SkillDamageEntry[]
   fixedMv?: number
 }
 

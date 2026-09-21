@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
 import { SUBSTAT_KEYS, getSbstStepP, snapToNrstSb } from '@/data/gameData/catalog/echoStats.ts'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
 import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
@@ -29,7 +29,7 @@ import {
 import { EchoPicker } from '@/modules/simulation/features/echoes/Picker.tsx'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
 import { ModalHeader } from '@/shared/ui/AppModalShell.tsx'
-import { LiquidSelect, type SelectOption } from '@/shared/ui/LiquidSelect.tsx'
+import { LiquidSelect, type SelectOption } from '@/application/ui/LiquidSelect.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback'
 import { Dices, Minus, Plus, RotateCcw, TriangleAlert, X } from 'lucide-react'

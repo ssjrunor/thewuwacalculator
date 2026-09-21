@@ -30,3 +30,4 @@ prod-app.json
 # local development and OCR artifacts; neither is loaded by the application
 /dev-app-state-test.json
 /eng.traineddata
+/text-sample.png

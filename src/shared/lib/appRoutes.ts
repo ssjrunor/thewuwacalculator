@@ -4,6 +4,8 @@
                temporary development-only surfaces retained for comparison.
 */
 
+import { matchPath } from 'react-router-dom'
+
 export const SIMULATION_ROUTES = {
   modulation: '/modulation',
   rotation: '/rotation',
@@ -73,13 +75,49 @@ export type SimulationRoute = keyof typeof SIMULATION_ROUTES
 export type LegacySimulationRoute = keyof typeof LEGACY_SIMULATION_ROUTES
 
 const SIMULATION_ROUTE_KEYS = Object.keys(SIMULATION_ROUTES) as SimulationRoute[]
-const LEGACY_SIMULATION_PATHS = new Set<string>(Object.values(LEGACY_SIMULATION_ROUTES))
-const PERSISTENT_WORKSPACE_ROUTES = new Set<string>([
-  SIMULATION_ROUTES.modulation,
-  SIMULATION_ROUTES.optimizer,
-  SIMULATION_ROUTES.showcase,
-  SIMULATION_ROUTES.suggestions,
-])
+const LEGACY_SIMULATION_PATHS = Object.values(LEGACY_SIMULATION_ROUTES)
+
+// Every surface the simulation page can stand. The router builds its routes
+// from this table and the chrome reads it back, so a surface is declared once.
+// `workspace` surfaces share one Build Lab body and move between each other
+// without a page transition; `roster` stands the chrome-mounted roster column.
+export type SimulationPane = 'workspace' | 'rotation' | 'legacy-calculator' | 'legacy-optimizer'
+
+interface SimulationSurfaceSpec {
+  path: string
+  pane: SimulationPane
+  roster: boolean
+}
+
+export const SIMULATION_SURFACES = {
+  modulation: { path: SIMULATION_ROUTES.modulation, pane: 'workspace', roster: true },
+  optimizer: { path: SIMULATION_ROUTES.optimizer, pane: 'workspace', roster: true },
+  showcase: { path: SIMULATION_ROUTES.showcase, pane: 'workspace', roster: true },
+  suggestions: { path: SIMULATION_ROUTES.suggestions, pane: 'workspace', roster: true },
+  rotation: { path: SIMULATION_ROUTES.rotation, pane: 'rotation', roster: true },
+  'legacy-calculator': { path: LEGACY_SIMULATION_ROUTES.calculator, pane: 'legacy-calculator', roster: false },
+  'legacy-optimizer': { path: LEGACY_SIMULATION_ROUTES.optimizer, pane: 'legacy-optimizer', roster: true },
+} as const satisfies Record<string, SimulationSurfaceSpec>
+
+export type SimulationSurface = keyof typeof SIMULATION_SURFACES
+
+export type WorkspaceSurface = {
+  [K in SimulationSurface]: (typeof SIMULATION_SURFACES)[K]['pane'] extends 'workspace' ? K : never
+}[SimulationSurface]
+
+export const SIMULATION_SURFACE_IDS = Object.keys(SIMULATION_SURFACES) as SimulationSurface[]
+
+export function isWorkspaceSurface(surface: SimulationSurface | null): surface is WorkspaceSurface {
+  return surface !== null && SIMULATION_SURFACES[surface].pane === 'workspace'
+}
+
+// Resolves a path the router has not rendered yet (a navigation target, a chunk
+// to warm) with the router's own matching, trailing slash included.
+export function surfaceAt(pathname: string): SimulationSurface | null {
+  return SIMULATION_SURFACE_IDS.find((surface) => (
+    matchPath({ path: SIMULATION_SURFACES[surface].path, end: true }, pathname) !== null
+  )) ?? null
+}
 
 function matchesPath(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`)
@@ -93,24 +131,18 @@ export function isSimulationSurfaceRoute(
 }
 
 export function isLegacySimulationRoute(pathname: string): boolean {
-  return LEGACY_SIMULATION_PATHS.has(pathname)
-    || Object.values(LEGACY_NESTED_SIMULATION_ROUTES).some((route) => matchesPath(pathname, route))
+  return [...LEGACY_SIMULATION_PATHS, ...Object.values(LEGACY_NESTED_SIMULATION_ROUTES)]
+    .some((route) => matchesPath(pathname, route))
 }
 
 export function isSimulationRoute(pathname: string): boolean {
   return SIMULATION_ROUTE_KEYS.some((surface) => isSimulationSurfaceRoute(pathname, surface))
     || isLegacySimulationRoute(pathname)
-    || pathname === LEGACY_PROGRESSION_ALIAS
+    || matchesPath(pathname, LEGACY_PROGRESSION_ALIAS)
 }
 
 export function isPersistentWorkspaceRoute(pathname: string): boolean {
-  return PERSISTENT_WORKSPACE_ROUTES.has(pathname)
-}
-
-export function standsRoster(pathname: string): boolean {
-  return isPersistentWorkspaceRoute(pathname)
-    || isSimulationSurfaceRoute(pathname, 'rotation')
-    || pathname === LEGACY_SIMULATION_ROUTES.optimizer
+  return isWorkspaceSurface(surfaceAt(pathname))
 }
 
 export function resolveLegacyRoute(pathname: string): string | null {

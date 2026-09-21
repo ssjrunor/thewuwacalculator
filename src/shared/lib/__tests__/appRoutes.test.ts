@@ -16,6 +16,7 @@ import {
   isSimulationRoute,
   isSimulationSurfaceRoute,
   resolveLegacyRoute,
+  surfaceAt,
 } from '@/shared/lib/appRoutes'
 
 describe('simulation route contract', () => {
@@ -61,5 +62,14 @@ describe('application navigation contract', () => {
     ])
 
     expect(Object.values(APP_NAVIGATION).every(({ to }) => declared.has(to))).toBe(true)
+  })
+
+  it('resolves a surface with the router\'s own matching, trailing slash included', () => {
+    expect(surfaceAt(SIMULATION_ROUTES.modulation)).toBe('modulation')
+    expect(surfaceAt(`${SIMULATION_ROUTES.modulation}/`)).toBe('modulation')
+    expect(surfaceAt(LEGACY_SIMULATION_ROUTES.optimizer)).toBe('legacy-optimizer')
+    expect(surfaceAt(`${SIMULATION_ROUTES.modulation}/report`)).toBeNull()
+    expect(surfaceAt(APP_ROUTES.guides)).toBeNull()
+    expect(isPersistentWorkspaceRoute(`${SIMULATION_ROUTES.optimizer}/`)).toBe(true)
   })
 })

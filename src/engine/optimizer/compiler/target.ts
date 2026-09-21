@@ -6,7 +6,7 @@
 */
 
 import type { OptStartPay, PrepTargetSkill } from '@/engine/optimizer/types.ts'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters.ts'
 import { encStatCstrs } from '@/engine/optimizer/constraints/statConstraints.ts'
 import { mkMainEchoRo, encEchoRows } from '@/engine/optimizer/encode/echoes.ts'
 import { buildSetRows, makeSetMask } from '@/engine/optimizer/encode/sets.ts'

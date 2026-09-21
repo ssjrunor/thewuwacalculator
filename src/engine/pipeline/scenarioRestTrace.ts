@@ -38,22 +38,22 @@ import type {
   SourceState,
   SrcOwnDef,
 } from '@/domain/gameData/contracts'
-import { getSrcSttNct } from '@/domain/gameData/controlOptions'
-import { NEG_EFFECT_CATS, type NegEffectKey } from '@/domain/gameData/negativeEffects'
+import { getSrcSttNct } from '@/engine/gameData/controlOptions'
+import { NEG_EFFECT_CATS, type NegEffectKey } from '@/engine/gameData/negativeEffects'
 import { readRtPath } from '@/domain/gameData/runtimePath'
 import {
   getOwnForKey,
   listEffectsFor,
   listStatesFor,
-} from '@/domain/services/gameDataService'
+} from '@/data/catalog/gameDataService'
 import {
   isStateEnabled,
   isStateVisible,
-} from '@/domain/services/sourceStateService'
-import { findCombatPartByMemberId } from '@/domain/state/combatGraph'
+} from '@/engine/services/sourceStateService'
+import { findCombatPartByMemberId } from '@/engine/runtime/combatGraph'
 import {
   environmentSelectorMatches,
-} from '@/domain/state/scenarioEnvironment'
+} from '@/engine/runtime/scenarioEnvironment'
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
 import { listGraphEffectRows } from '@/engine/effects/dataEffects'
 import { ffctTrgtRt } from '@/engine/effects/targetScope'
@@ -605,6 +605,7 @@ export function tracePreparedRestState(
       const stages = [
         ['preStats', row.rtPreSttsExe],
         ['postStats', row.postStatEffects],
+        ['finalStats', row.finalStatEffects],
       ] as const
       for (const [stage, effects] of stages) {
         for (const effect of effects) {

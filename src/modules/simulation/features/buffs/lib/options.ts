@@ -153,6 +153,8 @@ export const NEG_EFFECT_MODS: Array<BuffOption<MnlNegFfctModKey>> = [
 
 export const SKLLSCLRPTNS: Array<BuffOption<MnlSkllSclrK>> = [
   { value: 'fixedDmg', label: 'Fixed DMG', max: 9999999 },
+  { value: 'offTune', label: 'Off-Tune', max: 9999 },
+  { value: 'directOffTune', label: 'Off-Tune Level', max: 9999 },
   { value: 'skillHealingBonus', label: 'Healing Bonus' },
   { value: 'skillShieldBonus', label: 'Shield Bonus' },
   { value: 'tuneRuptureCritRate', label: 'Tune Rupture Crit Rate' },

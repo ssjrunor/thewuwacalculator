@@ -15,7 +15,7 @@ import {
 } from '@/domain/entities/enemy.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
-import { PickerModal } from '@/shared/ui/PickerModal.tsx'
+import { PickerModal } from '@/modules/simulation/ui/PickerModal.tsx'
 
 interface EnemyPckrPrp {
   visible: boolean

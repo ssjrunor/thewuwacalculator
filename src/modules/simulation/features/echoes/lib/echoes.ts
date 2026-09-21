@@ -1,11 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: shared echo helpers for cost lookups, total cost summaries,
-               and cost-based sorting used across Simulation UI surfaces.
+  Description: Calculates Echo costs and provides canonical cost-based loadout ordering.
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
 
 // read a catalog cost from an echo id with a configurable fallback
 export function getEchoCostB(echoId: string, fallback = 0): number {

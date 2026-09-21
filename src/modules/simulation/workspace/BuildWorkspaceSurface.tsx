@@ -6,18 +6,19 @@
 */
 
 import { Suspense, startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import {
   selActResId,
   selVrvwDrvd,
-} from '@/domain/state/selectors.ts'
+} from '@/application/state'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import { getResonator, type ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
+import type { WorkspaceSurface } from '@/shared/lib/appRoutes'
 import {
   flattenScenarioRouting,
   projectScenarioUiRuntimes,
-} from '@/domain/state/scenarioRuntime.ts'
+} from '@/engine/runtime/scenarioRuntime.ts'
 import { getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { useEchoSrfcM } from '@/modules/simulation/features/echoes/lib/useEchoSurfaceMenu.tsx'
 import { qpEchoAtSlot } from '@/modules/simulation/features/echoes/lib/equip.ts'
@@ -26,11 +27,15 @@ import {
   copyBuildCard,
   downloadBuildCard,
   renderBuildCardPng,
-} from '@/modules/simulation/showcase/captureBuildCard.ts'
+} from '@/modules/simulation/surfaces/showcase/captureBuildCard.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
-import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE } from '@/domain/entities/preferences'
-import { useEvaluationReport } from '@/modules/simulation/model/useBuildEvaluation.ts'
+import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE, type ShowcaseCardStyle } from '@/domain/entities/preferences'
+import {
+  FULL_EVALUATION_REPORT_OPTIONS,
+  SCORE_ONLY_EVALUATION_REPORT_OPTIONS,
+  useEvaluationReport,
+} from '@/modules/simulation/model/useBuildEvaluation.ts'
 import { useEvaluationTarget } from '@/modules/simulation/model/useEvaluationTarget.ts'
 import { useStableEvaluationInputs } from '@/modules/simulation/model/useStableEvaluationInputs.ts'
 import {
@@ -38,27 +43,30 @@ import {
   applyEvaluationMapAsm,
   makeEvaluationEnemy,
 } from '@/modules/simulation/model/evaluationAssumptions.ts'
-import { getTuneStrainMaxForTeam } from '@/domain/gameData/tuneStrain.ts'
+import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain.ts'
 import {
   getBuildEvaluationGrade,
   getBuildEvaluationTone,
 } from '@/modules/simulation/model/buildEvaluationDisplay.ts'
 import { makeStatsTree, makeStatsView } from '@/modules/simulation/model/statsView.ts'
-import { getMaxEchoSc } from '@/data/scoring/echoScoring.ts'
-import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
+import { getMaxEchoSc } from '@/engine/evaluation/echoScoring.ts'
+import { useEchoScores } from '@/engine/evaluation/useEchoScoringRevision.ts'
 import { getBuildStats } from '@/engine/pipeline/buildStats.ts'
-import { resResBaseSt } from '@/domain/services/resonatorSeedService.ts'
+import { mkPrepWork } from '@/engine/pipeline/preparedWorkspace.ts'
+import { selLiveRun } from '@/modules/simulation/model/selectors.ts'
+import { prepareEchoMainStatScoring } from '@/engine/evaluation/echoMainStatProfile.ts'
+import { resResBaseSt } from '@/data/catalog/resonatorSeedService.ts'
 import { useAppModal } from '@/shared/ui/useAppModal'
-import { useMediaQuery } from '@/app/hooks/useMediaQuery'
-import { ImageUploadModal } from '@/shared/ui/ImageUploadModal'
-import { resolveImageRef } from '@/shared/lib/imageUpload.ts'
-import type { StoredImage } from '@/shared/lib/imageUpload.ts'
+import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
+import { ImageUploadModal } from '@/application/media/ImageUploadModal'
+import { resolveImageRef } from '@/application/media/imageUpload.ts'
+import type { StoredImage } from '@/application/media/imageUpload.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
-import type { EvaluationBuildSnapshot } from '@/data/scoring/buildEvaluation.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import type { EvaluationBuildSnapshot } from '@/engine/evaluation/buildEvaluation.ts'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import { Copy } from 'lucide-react'
 import { useSel } from '@/modules/simulation/lib/sel.tsx'
 import {
@@ -67,11 +75,11 @@ import {
   buildSonataPlan, getEvaluationSpinePlacement,
   preloadEvaluationRailImages, scheduleEvaluationTargetWork,
 } from '@/modules/simulation/workspace/ui.tsx'
-import { ShowcaseCssEditorDock, ShowcaseCustomizePanel } from '@/modules/simulation/showcase/Customize.tsx'
-import { buildTextSlotVars, collectCardFontFamilies, splitHoistedCss } from '@/modules/simulation/showcase/cardStyleVars.ts'
-import { buildCardExport, parseCardImport, type CardExportTarget } from '@/modules/simulation/showcase/cardTransfer.ts'
-import { readAppFile, xprtAppFile } from '@/shared/lib/fileCodec.ts'
-import { ensureGoogleFamily } from '@/modules/calibration/model/typography.ts'
+import { ShowcaseCssEditorDock, ShowcaseCustomizePanel } from '@/modules/simulation/surfaces/showcase/Customize.tsx'
+import { buildTextSlotVars, collectCardFontFamilies, splitHoistedCss } from '@/modules/simulation/surfaces/showcase/cardStyleVars.ts'
+import { buildCardExport, parseCardImport, type CardExportTarget } from '@/modules/simulation/surfaces/showcase/cardTransfer.ts'
+import { readAppFile, xprtAppFile } from '@/application/persistence/fileCodec.ts'
+import { ensureGoogleFamily } from '@/application/theme/typography.ts'
 import {
   type BuildRosterEntry,
 } from '@/modules/simulation/workspace/BuildRoster.tsx'
@@ -85,23 +93,53 @@ import {
   BuildWorkspaceRailSlot,
   BuildWorkspaceWorkspace,
 } from '@/modules/simulation/workspace/BuildWorkspaceLayout.tsx'
-import { ModulationReport } from '@/modules/simulation/modulation/ModulationReport.tsx'
+import { ModulationReport } from '@/modules/simulation/surfaces/modulation/ModulationReport.tsx'
+import type { MemberAnalysisSource } from '@/modules/simulation/surfaces/modulation/lib/memberSim.ts'
 import { NarrowEvaluationBanner } from '@/modules/simulation/workspace/NarrowEvaluationBanner.tsx'
 import { getEvaluationStageCtx } from '@/modules/simulation/workspace/context.tsx'
 import { makeEchoSlot } from '@/modules/simulation/workspace/echoSlot.ts'
 import { useWorkspaceEchoActions } from '@/modules/simulation/workspace/useWorkspaceEchoActions.ts'
-import { optimizerPane, suggestionsPane } from '@/app/nav/routeChunks.ts'
+import { optimizerPane, suggestionsPane } from '@/modules/simulation/shell/surfaceChunks.ts'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay.tsx'
+import { useInventoryLease } from '@/application/hooks/useInventoryLease.ts'
 
 const EMPTY_ECHO_LOADOUT: Array<EchoInstance | null> = []
 const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
 
-export type BuildWorkspaceSurfacePage = 'modulation' | 'optimizer' | 'showcase' | 'suggestions'
-
 const EmbeddedOptimizer = optimizerPane.Mount
 const EmbeddedSuggestions = suggestionsPane.Mount
 
-export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePage }) {
+function useResolvedImageRef(ref: string | null): string | null {
+  const [resolved, setResolved] = useState<{ ref: string, url: string } | null>(null)
+
+  useEffect(() => {
+    if (!ref?.startsWith('upload:')) return undefined
+    let disposed = false
+    let release: (() => void) | undefined
+
+    void resolveImageRef(ref).then((image) => {
+      if (!image) return
+      if (disposed) {
+        image.revoke?.()
+        return
+      }
+      release = image.revoke
+      setResolved({ ref, url: image.url })
+    })
+
+    return () => {
+      disposed = true
+      release?.()
+    }
+  }, [ref])
+
+  if (!ref) return null
+  if (!ref.startsWith('upload:')) return ref
+  return resolved?.ref === ref ? resolved.url : null
+}
+
+export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
+  useInventoryLease()
   const showToast = useTstStr((state) => state.show)
   const confirmation = useConfirm()
   const portalTarget = mainPortal()
@@ -114,7 +152,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const isDarkTheme = themeMode === 'background' ? backgroundTextMode === 'dark' : themeMode === 'dark'
   const animatedPortraits = useAppStore((state) => state.ui.preferences.animatedRailPortraits)
   const optimizerRunning = useAppStore((state) => state.optimizer.status === 'running')
-  const { actRt: runtime, partRtsById, actTgtSels } = useAppStore(selVrvwDrvd)
+  const { prepWork, actRt: runtime, partRtsById, actTgtSels } = useAppStore(selVrvwDrvd)
   const updateScenarioRuntime = useAppStore((state) => state.updScenarioResRt)
   const setAnimatedPortraits = useAppStore((state) => state.setAnimatedRailPortraits)
   const selectedScenarioId = scenarioLibrary.selectedScenarioId
@@ -132,7 +170,6 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const [captureAction, setCaptureAction] = useState<'download' | 'clipboard' | null>(null)
 
   // Showcase customization persists independently for each resonator.
-  const showcaseCards = useAppStore((state) => state.ui.preferences.showcaseCards)
   const patchShowcaseCardStyle = useAppStore((state) => state.patchShowcaseCardStyle)
   const toggleShowcaseHide = useAppStore((state) => state.toggleShowcaseHide)
   const patchShowcaseCardHidden = useAppStore((state) => state.patchShowcaseCardHidden)
@@ -150,60 +187,87 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const railRuntime = railProjection?.subjectRuntime ?? null
   const railPartRtsById = railProjection?.runtimesById ?? EMPTY_RUNTIME_MAP
   const railResId = railRuntime?.id ?? null
-  const cardConfig = (railResId && showcaseCards[railResId]) || null
-  const cardStyle = cardConfig?.style ?? DEF_SHOWCASE_CARD_STYLE
+  const cardConfig = useAppStore((state) => (
+    railResId ? state.ui.preferences.showcaseCards[railResId] ?? null : null
+  ))
+  const persistedCardStyle = cardConfig?.style ?? DEF_SHOWCASE_CARD_STYLE
+  const persistedCardStyleRef = useRef(persistedCardStyle)
+  persistedCardStyleRef.current = persistedCardStyle
+  const [cardStyleDraft, setCardStyleDraft] = useState<{
+    resonatorId: string | null
+    style: ShowcaseCardStyle
+  }>(() => ({ resonatorId: railResId, style: persistedCardStyle }))
+  const pendingStylePatch = useRef<{
+    resonatorId: string
+    patch: Partial<ShowcaseCardStyle>
+  } | null>(null)
+  const styleCommitTimer = useRef<number | null>(null)
+  const flushShowcaseStyle = useCallback(() => {
+    if (styleCommitTimer.current != null) {
+      window.clearTimeout(styleCommitTimer.current)
+      styleCommitTimer.current = null
+    }
+    const pending = pendingStylePatch.current
+    pendingStylePatch.current = null
+    if (pending) patchShowcaseCardStyle(pending.resonatorId, pending.patch)
+  }, [patchShowcaseCardStyle])
+  const discardPendingShowcaseStyle = useCallback(() => {
+    if (styleCommitTimer.current != null) window.clearTimeout(styleCommitTimer.current)
+    styleCommitTimer.current = null
+    pendingStylePatch.current = null
+  }, [])
+  const updateShowcaseStyle = useCallback((patch: Partial<ShowcaseCardStyle>) => {
+    if (!railResId) return
+    setCardStyleDraft((current) => ({
+      resonatorId: railResId,
+      style: {
+        ...(current.resonatorId === railResId ? current.style : persistedCardStyleRef.current),
+        ...patch,
+      },
+    }))
+    const pending = pendingStylePatch.current
+    if (pending && pending.resonatorId !== railResId) flushShowcaseStyle()
+    pendingStylePatch.current = {
+      resonatorId: railResId,
+      patch: pending?.resonatorId === railResId ? { ...pending.patch, ...patch } : patch,
+    }
+    if (styleCommitTimer.current != null) window.clearTimeout(styleCommitTimer.current)
+    styleCommitTimer.current = window.setTimeout(flushShowcaseStyle, 320)
+  }, [flushShowcaseStyle, railResId])
+  const cardStyle = cardStyleDraft.resonatorId === railResId
+    ? cardStyleDraft.style
+    : persistedCardStyle
   const cardHidden = cardConfig?.hidden ?? DEF_SHOWCASE_HIDE
   const [tuneResetKey, setTuneResetKey] = useState(0)
   const [editMode, setEditMode] = useState<'portrait' | 'backdrop' | null>(null)
+
+  useEffect(() => {
+    flushShowcaseStyle()
+    setCardStyleDraft({ resonatorId: railResId, style: persistedCardStyleRef.current })
+  }, [flushShowcaseStyle, railResId])
+
+  useEffect(() => flushShowcaseStyle, [flushShowcaseStyle])
 
   const [cssExpanded, setCssExpanded] = useState(false)
   const [tuneDrawerOpen, setTuneDrawerOpen] = useState(false)
   // Session uploads are deliberately kept outside persisted preferences.
   const [sessionImages, setSessionImages] = useState<Record<string, { portrait?: string; backdrop?: string }>>({})
+  const sessionImagesRef = useRef(sessionImages)
+  sessionImagesRef.current = sessionImages
   const [uploadTarget, setUploadTarget] = useState<'portrait' | 'backdrop'>('portrait')
   const uploadModal = useAppModal()
-  // Session images override persisted refs; IndexedDB refs resolve through the URL cache.
+  // Session images override persisted refs; IndexedDB refs resolve only while active.
   const sessionForRail = railResId ? sessionImages[railResId] : undefined
   const portraitRef = sessionForRail?.portrait ?? cardStyle.portraitImage
   const backdropRef = sessionForRail?.backdrop ?? cardStyle.backdropImage
-  // Resolve direct refs synchronously; only IndexedDB blobs require asynchronous hydration.
-  const [idbImageUrls, setIdbImageUrls] = useState<Record<string, string>>({})
-  const idbImageUrlsRef = useRef(idbImageUrls)
-  idbImageUrlsRef.current = idbImageUrls
-  const resolveRefSync = useCallback(
-    (ref: string | null): string | null => {
-      if (!ref) return null
-      if (ref.startsWith('upload:')) return idbImageUrls[ref] ?? null
-      return ref
-    },
-    [idbImageUrls],
-  )
-  const resolvedPortrait = resolveRefSync(portraitRef)
-  const resolvedBackdrop = resolveRefSync(backdropRef)
-
-  useEffect(() => {
-    const pending = [portraitRef, backdropRef].filter(
-      (ref): ref is string => !!ref && ref.startsWith('upload:') && !idbImageUrlsRef.current[ref],
-    )
-    if (pending.length === 0) return undefined
-    let cancelled = false
-    void Promise.all(
-      pending.map(async (ref) => [ref, (await resolveImageRef(ref))?.url] as const),
-    ).then((pairs) => {
-      if (cancelled) return
-      setIdbImageUrls((prev) => {
-        const next = { ...prev }
-        for (const [ref, url] of pairs) if (url) next[ref] = url
-        return next
-      })
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [portraitRef, backdropRef])
+  const resolvedPortrait = useResolvedImageRef(portraitRef)
+  const resolvedBackdrop = useResolvedImageRef(backdropRef)
 
   useEffect(() => () => {
-    for (const url of Object.values(idbImageUrlsRef.current)) URL.revokeObjectURL(url)
+    for (const images of Object.values(sessionImagesRef.current)) {
+      if (images.portrait?.startsWith('blob:')) URL.revokeObjectURL(images.portrait)
+      if (images.backdrop?.startsWith('blob:')) URL.revokeObjectURL(images.backdrop)
+    }
   }, [])
 
   const handlePickImage = useCallback((target: 'portrait' | 'backdrop') => {
@@ -218,33 +282,36 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
       ? { portraitCredit: creditValue }
       : { backdropCredit: creditValue }
     if (result.persisted) {
-      patchShowcaseCardStyle(
-        railResId,
-        uploadTarget === 'portrait'
-          ? { portraitImage: result.ref, ...creditPatch }
-          : { backdropImage: result.ref, ...creditPatch },
-      )
+      updateShowcaseStyle(uploadTarget === 'portrait'
+        ? { portraitImage: result.ref, ...creditPatch }
+        : { backdropImage: result.ref, ...creditPatch })
       setSessionImages((prev) => {
         const current = prev[railResId]
         if (!current) return prev
+        const previousRef = current[uploadTarget]
+        if (previousRef?.startsWith('blob:')) URL.revokeObjectURL(previousRef)
         return { ...prev, [railResId]: { ...current, [uploadTarget]: undefined } }
       })
     } else {
       // Credits remain persisted even when the selected image is session-only.
-      patchShowcaseCardStyle(railResId, creditPatch)
-      setSessionImages((prev) => ({
-        ...prev,
-        [railResId]: { ...prev[railResId], [uploadTarget]: result.ref },
-      }))
+      updateShowcaseStyle(creditPatch)
+      setSessionImages((prev) => {
+        const previousRef = prev[railResId]?.[uploadTarget]
+        if (previousRef?.startsWith('blob:')) URL.revokeObjectURL(previousRef)
+        return {
+          ...prev,
+          [railResId]: { ...prev[railResId], [uploadTarget]: result.ref },
+        }
+      })
     }
     setEditMode(uploadTarget)
-  }, [railResId, uploadTarget, patchShowcaseCardStyle])
+  }, [railResId, updateShowcaseStyle, uploadTarget])
 
   // Reset all persisted and session fields owned by one image group.
   const handleResetGroup = useCallback((group: 'portrait' | 'backdrop') => {
     if (!railResId) return
     if (group === 'portrait') {
-      patchShowcaseCardStyle(railResId, {
+      updateShowcaseStyle({
         portraitImage: null,
         portraitCredit: null,
         portraitX: null,
@@ -261,7 +328,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
       })
       patchShowcaseCardHidden(railResId, { portraitCredit: false })
     } else {
-      patchShowcaseCardStyle(railResId, {
+      updateShowcaseStyle({
         backdropImage: null,
         backdropCredit: null,
         backdropX: null,
@@ -275,10 +342,12 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     setSessionImages((prev) => {
       const current = prev[railResId]
       if (!current) return prev
+      const previousRef = current[group]
+      if (previousRef?.startsWith('blob:')) URL.revokeObjectURL(previousRef)
       return { ...prev, [railResId]: { ...current, [group]: undefined } }
     })
     setEditMode(null)
-  }, [railResId, patchShowcaseCardStyle, patchShowcaseCardHidden])
+  }, [railResId, patchShowcaseCardHidden, updateShowcaseStyle])
 
   const handleExportTarget = useCallback(async (target: CardExportTarget) => {
     const { raw, filename, mime } = buildCardExport(target, cardStyle, cardHidden)
@@ -300,13 +369,13 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     if (!railResId) return
     try {
       const result = parseCardImport(file.name, await readAppFile(file))
-      if (result.stylePatch) patchShowcaseCardStyle(railResId, result.stylePatch)
+      if (result.stylePatch) updateShowcaseStyle(result.stylePatch)
       if (result.hiddenPatch) patchShowcaseCardHidden(railResId, result.hiddenPatch)
       showToast({ content: `Imported ${result.label}.`, variant: 'success' })
     } catch (error) {
       showToast({ content: error instanceof Error ? error.message : 'That card file could not be imported.', variant: 'error' })
     }
-  }, [railResId, patchShowcaseCardStyle, patchShowcaseCardHidden, showToast])
+  }, [railResId, patchShowcaseCardHidden, showToast, updateShowcaseStyle])
   const railScenarioIdRef = useRef(selectedScenarioId)
   const buildCardRef = useRef<HTMLElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
@@ -362,6 +431,12 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     ? progResId
     : railResId
   const modulationRuntime = modulationMemberId ? railPartRtsById[modulationMemberId] ?? null : null
+  const railTargets = useMemo(
+    () => railScenarioId === selectedScenarioId
+      ? actTgtSels
+      : railScenario ? flattenScenarioRouting(railScenario) : {},
+    [actTgtSels, railScenario, railScenarioId, selectedScenarioId],
+  )
 
   useEffect(() => {
     setModulationMemberId(null)
@@ -439,6 +514,85 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
   const echoSeed = (isModulation && echoRuntime ? seedRsntById[echoRuntime.id] ?? null : null)
     ?? railSeed
   const echoLoadout = echoRuntime?.build.echoes ?? EMPTY_ECHO_LOADOUT
+  const echoScoringWork = useMemo(() => {
+    if (!echoRuntime || !echoSeed || !railScenario) return null
+    if (echoRuntime.id === railRuntime?.id && railScenarioId === selectedScenarioId) {
+      return prepWork
+    }
+    return mkPrepWork({
+      revision: railScenario.revision,
+      runtime: echoRuntime,
+      seed: echoSeed,
+      enemy: railScenario.target,
+      prtcRntmById: railPartRtsById,
+      activeTarget: railTargets,
+      combatGraph: railScenarioId === selectedScenarioId ? prepWork.combatGraph : null,
+    })
+  }, [
+    echoRuntime,
+    echoSeed,
+    prepWork,
+    railPartRtsById,
+    railRuntime?.id,
+    railScenario,
+    railScenarioId,
+    railTargets,
+    selectedScenarioId,
+  ])
+  const echoScoringSimulation = useMemo(
+    () => selLiveRun(echoScoringWork),
+    [echoScoringWork],
+  )
+  const modulationAnalysisSource = useMemo<MemberAnalysisSource | null>(() => (
+    railScenario && railRuntime
+      ? {
+          scenario: railScenario,
+          subjectRuntime: railRuntime,
+          runtimesById: railPartRtsById,
+          selectedTargets: railTargets,
+          workspace: echoScoringWork,
+          simulation: echoScoringSimulation,
+        }
+      : null
+  ), [
+    echoScoringSimulation,
+    echoScoringWork,
+    railPartRtsById,
+    railRuntime,
+    railScenario,
+    railTargets,
+  ])
+
+  useEffect(() => {
+    if (!echoRuntime || !echoSeed || !railScenario || !echoScoringSimulation) return undefined
+    const member = railScenario.team.members.find((entry) => entry.resonatorId === echoRuntime.id)
+    if (!member) return undefined
+
+    const timer = window.setTimeout(() => {
+      void prepareEchoMainStatScoring({
+        scenarioId: railScenario.id,
+        memberId: member.id,
+        runtime: echoRuntime,
+        seed: echoSeed,
+        enemy: railScenario.target,
+        runtimesById: railPartRtsById,
+        selectedTargets: railTargets,
+        setConds: member.local.setConditionals,
+        simulation: echoScoringSimulation,
+      }).catch((error) => {
+        console.error('Failed to prepare Echo main-stat scoring.', error)
+      })
+    }, 220)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    echoRuntime,
+    echoScoringSimulation,
+    echoSeed,
+    railPartRtsById,
+    railScenario,
+    railTargets,
+  ])
   const loadoutSlots = useMemo(
     () => echoLoadout.map((echo) => (echo ? makeEchoSlot(echo) : null)),
     [echoLoadout],
@@ -555,17 +709,13 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
     onEchoLoadoutChange: setEchoLoadout,
   })
 
-  // Showcase only consumes the normalized score and live damage. Avoid
+  // Only Modulation consumes the full report. Other workspace pages retain
+  // the normalized score without generating sections they never render.
   // generating upgrade rows, target snapshots, feature breakdowns, and stat
   // tables that are never rendered on that surface.
-  const reportOptions = useMemo(() => isShowcase ? {
-    sections: {
-      rotationFeatures: false,
-      upgradePaths: false,
-      echoStatsTable: false,
-      evaluationTargets: false,
-    },
-  } : undefined, [isShowcase])
+  const reportOptions = isModulation
+    ? FULL_EVALUATION_REPORT_OPTIONS
+    : SCORE_ONLY_EVALUATION_REPORT_OPTIONS
 
   const { report, loading, error } = useEvaluationReport({
     runtime: evaluationRuntime,
@@ -876,7 +1026,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                 value={cardStyle.customCss ?? ''}
                 isDark={isDarkTheme}
                 onChange={(value) => {
-                  if (railResId) patchShowcaseCardStyle(railResId, { customCss: value || null })
+                  updateShowcaseStyle({ customCss: value || null })
                 }}
                 onClose={() => {
                   setCssExpanded(false)
@@ -919,7 +1069,6 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                   layout={showcaseLayout}
                 />
                 <RailDock
-                  anchorRef={buildCardRef}
                   resId={dockResId}
                   runtime={dockRuntime}
                   scenarioId={railScenarioId}
@@ -966,12 +1115,16 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                       if (railResId) toggleShowcaseHide(railResId, key)
                     }}
                     onStyleChange={(patch) => {
-                      if (railResId) patchShowcaseCardStyle(railResId, patch)
+                      updateShowcaseStyle(patch)
                     }}
                     onPickImage={handlePickImage}
                     onResetGroup={handleResetGroup}
                     onReset={() => {
-                      if (railResId) resetShowcaseCard(railResId)
+                      if (railResId) {
+                        discardPendingShowcaseStyle()
+                        resetShowcaseCard(railResId)
+                        setCardStyleDraft({ resonatorId: railResId, style: DEF_SHOWCASE_CARD_STYLE })
+                      }
                       setEditMode(null)
                       setTuneResetKey((key) => key + 1)
                     }}
@@ -1029,7 +1182,7 @@ export function BuildWorkspaceSurface({ page }: { page: BuildWorkspaceSurfacePag
                   modulation={isModulation}
                   modulationRuntime={modulationRuntime}
                   modulationActRt={railRuntime}
-                  modulationScenario={railScenario}
+                  modulationAnalysisSource={modulationAnalysisSource}
                   modulationRoster={modulationRoster}
                   modulationMemberId={modulationMemberId}
                   onModulationMember={setModulationMemberId}

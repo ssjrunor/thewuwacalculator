@@ -10,18 +10,18 @@ import type { ResRuntime, WeaponState } from '@/domain/entities/runtime'
 import type { SkillDef } from '@/domain/entities/stats'
 import type { GenWpn } from '@/domain/entities/weapon'
 import type { WeaponPlanSet, WpnStCfg } from '@/domain/entities/suggestions'
-import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
+import { listWpnsByTy } from '@/data/catalog/weaponCatalogService'
 import {
   resolveWeaponRank,
   weaponRarityVisible,
   weaponStatsAt,
 } from '@/domain/services/weaponPlan'
-import { listStatesFor } from '@/domain/services/gameDataService'
+import { listStatesFor } from '@/data/catalog/gameDataService'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import { prepareNumericSkill } from '@/engine/effects/numericTeam.ts'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
-import { makeCombatGraph } from '@/domain/state/combatGraph'
-import { listRtSkills } from '@/domain/services/runtimeSourceService'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
+import { makeCombatGraph } from '@/engine/runtime/combatGraph'
+import { listRtSkills } from '@/engine/services/runtimeSourceService'
 import { prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
 import { makeOptContext } from '@/engine/optimizer/context/compiled'
 import { packTargetCtx } from '@/engine/optimizer/context/pack'

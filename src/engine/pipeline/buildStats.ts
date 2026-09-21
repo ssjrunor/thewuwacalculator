@@ -15,8 +15,8 @@ import { evalCond } from '@/engine/effects/evaluator.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'
 import { applyRtDataF } from '@/engine/effects/dataEffects.ts'
 import { mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext'
-import { makeCombatState, makeCustomBuff, makeEnemy } from '@/domain/state/defaults'
-import { wpnAtkAt } from '@/domain/state/weaponState.ts'
+import { makeCombatState, makeCustomBuff, makeEnemy } from '@/engine/runtime/defaults'
+import { wpnAtkAt } from '@/engine/runtime/weaponState.ts'
 
 // Clear toggleable inputs as a second line of defense. The effect classifier
 // keeps control-driven effects out entirely; neutral state also prevents an
@@ -79,6 +79,15 @@ export function getBuildStats(runtime: ResRuntime, baseStats: ResBaseStats): Fin
     undefined,
     includeBuildEffect,
   )
+  const postStats = calcFinalStats(baseStats, postStatsPool, weaponAttack)
+  const finalStatsPool = applyRtDataF(
+    neutral,
+    postStatsPool,
+    { ...options, finalStats: postStats },
+    'finalStats',
+    undefined,
+    includeBuildEffect,
+  )
 
-  return calcFinalStats(baseStats, postStatsPool, weaponAttack)
+  return calcFinalStats(baseStats, finalStatsPool, weaponAttack)
 }

@@ -1,12 +1,12 @@
 /*
   Author: Runor Ewhro
-  Description: Owns source state display behavior and state transitions for the model module.
+  Description: Projects source-state ownership, values, labels, and descriptions for Simulation controls.
 */
 
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
 import type { DataSrcRef, EffectDef, SourceState } from '@/domain/gameData/contracts'
-import { getEchoById } from '@/domain/services/echoCatalogService'
-import { getWpnById } from '@/domain/services/weaponCatalogService'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
+import { getWpnById } from '@/data/catalog/weaponCatalogService'
 
 export interface SrcSttDspl {
   sourceName?: string

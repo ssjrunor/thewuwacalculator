@@ -12,6 +12,7 @@ import { hideBrknMg } from '@/shared/lib/imageFallback'
 import {
   CARD_HEIGHT,
   CARD_WIDTH,
+  MIN_CARD_WIDTH,
   getCardReadAreas,
   type CardReadGroup,
 } from '@/engine/echoParser/cardRegions'
@@ -143,7 +144,7 @@ export function ImportStrip({
     if (file) onFile(file)
   }
 
-  // areas already sampled, so the card fills in behind the reader
+  // Progressively expose only parser regions already processed by the worker.
   const readCount = loading && progress?.area != null ? progress.area : -1
   const readPct = loading ? Math.round(getReadFraction(progress ?? {
     stage: 'catalog',
@@ -249,7 +250,7 @@ export function ImportStrip({
             <span className="fls-step__n">3</span>
             <span className="fls-step__k">
               {loading ? 'Reading the card' : 'Drop it in'}
-              <small>1920 × 1080, uncropped, English</small>
+              <small>The bot's card, uncropped, English</small>
             </span>
             <span className="fls-step__v">{loading ? `${readCount + 1} / ${READ_AREAS.length}` : ''}</span>
           </button>
@@ -296,7 +297,7 @@ export function ImportStrip({
               </div>
             </div>
             )}
-            {loading ? null : <p className="fls-hint">1920 × 1080 · uncropped · English</p>}
+            {loading ? null : <p className="fls-hint">{MIN_CARD_WIDTH} px wide or more · uncropped · English</p>}
           </div>
         </section>
       </div>

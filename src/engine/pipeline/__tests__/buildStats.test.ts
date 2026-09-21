@@ -5,8 +5,8 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService.ts'
-import { makeResRuntime } from '@/domain/state/defaults.ts'
+import { getResSeedBy, resResBaseSt } from '@/data/catalog/resonatorSeedService.ts'
+import { makeResRuntime } from '@/engine/runtime/defaults.ts'
 import { getBuildStats } from '@/engine/pipeline/buildStats.ts'
 import { makeStatsView } from '@/modules/simulation/model/statsView.ts'
 

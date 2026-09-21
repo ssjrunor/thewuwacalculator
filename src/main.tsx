@@ -7,22 +7,17 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initGameData } from '@/data/gameData/index'
-import { readPersistedGameDataMode } from '@/infra/persistence/gameDataMode'
+import { readPersistedGameDataMode } from '@/application/persistence/gameDataMode'
 import '@/index.css'
 
 const gameDataMode = readPersistedGameDataMode()
 
 initGameData({ mode: gameDataMode }).then(async () => {
-  const [{ AppRoot }, { AppProviders }] = await Promise.all([
-    import('@/app/AppRoot'),
-    import('@/app/providers/AppProviders'),
-  ])
+  const { AppRoot } = await import('@/app/AppRoot')
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <AppProviders>
-        <AppRoot />
-      </AppProviders>
+      <AppRoot />
     </StrictMode>,
   )
 

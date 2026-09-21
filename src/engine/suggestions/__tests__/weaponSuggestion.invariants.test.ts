@@ -7,9 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import { makeEnemy, mkDefWpnSug, mkMaxResRt } from '@/domain/state/defaults'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
+import { makeEnemy, mkDefWpnSug, mkMaxResRt } from '@/engine/runtime/defaults'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { mkPrepWpnSu, resSuggDmg, runSuggSmlt } from '@/engine/suggestions/shared'
 import { runPrepWpn } from '@/engine/suggestions/weapon-suggestion/compute'
 

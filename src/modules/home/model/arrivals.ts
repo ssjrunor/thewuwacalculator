@@ -5,11 +5,11 @@
                local catalogs.
 */
 
-import { getResonatorSeedById, getEchoById } from '@/domain/services/catalogService'
+import { getResonatorSeedById, getEchoById } from '@/data/catalog/catalogService'
 import { getWpnsById } from '@/data/gameData/weapons/weaponDataStore'
 import { spineSetupUrl } from '@/shared/spine/spineManifest'
 import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
-import { WPNTYPELBLS } from '@/modules/simulation/model/display'
+import { WPNTYPELBLS } from '@/modules/simulation/api/display'
 import type { AttributeKey } from '@/domain/entities/stats'
 
 const MANIFEST_URL = 'https://static.nanoka.cc/manifest.json'

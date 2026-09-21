@@ -5,9 +5,9 @@
 */
 
 import Tesseract from 'tesseract.js'
-import { listEchoes } from '@/domain/services/echoCatalogService'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { listWpnsByTy } from '@/domain/services/weaponCatalogService'
+import { listEchoes } from '@/data/catalog/echoCatalogService'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { listWpnsByTy } from '@/data/catalog/weaponCatalogService'
 import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 import { getEchoMgMap, getSetNameMg, getSetNameTo } from '@/engine/echoParser/imageMap'
 import {
@@ -15,10 +15,18 @@ import {
   BUILD_REGIONS,
   CARD_HEIGHT,
   CARD_WIDTH,
+  FILLED_PANEL_MIN_INK,
   HEAD_AREA,
   HEAD_AREA_BASE,
   HEAD_SAMPLE_COUNT,
-  RESONATOR_LEVEL_REGIONS,
+  LEVEL_BADGE_BAND,
+  LEVEL_BADGE_DIGITS,
+  LEVEL_BADGE_PLATE,
+  MAX_ASPECT_SKEW,
+  MAX_DRIFT,
+  MIN_CARD_WIDTH,
+  NAME_BADGE_GAP,
+  QR_PLATE,
   SEQUENCE_CENTERS,
   SEQUENCE_SAMPLE,
   SLOT_AREA_COUNT,
@@ -43,6 +51,7 @@ import {
   loadImage,
 } from '@/engine/echoParser/imageMatching'
 import type { ImageRegion } from '@/engine/echoParser/imageMatching'
+import { costForMain } from '@/engine/echoParser/echoBuilder'
 import type { AttributeKey } from '@/domain/entities/stats'
 import type { EchoDef } from '@/domain/entities/catalog'
 
@@ -50,6 +59,8 @@ export interface RawPrsdEcho {
   cost: string
   mainStatLbl: string
   substats: string[]
+  /** each substat's number, read on its own with a digits-only whitelist */
+  substatValues?: string[]
   echoName: string | null
   setName: string | null
 }
@@ -57,6 +68,14 @@ export interface RawPrsdEcho {
 export interface ParsedBuildScreenshot extends ParsedBuildMetadata {
   echoes: RawPrsdEcho[]
 }
+
+// a short value ("21%") alone in its box sometimes reads as nothing; each pass
+// retries only the rows still empty, and the roll tables vet whatever comes back
+const VALUE_PASSES = [
+  { scale: 2, psm: '7' },
+  { scale: 3, psm: '7' },
+  { scale: 3, psm: '13' },
+] as const
 
 // module-level caches so reference images are only loaded once
 const echoCache: Record<string, CanvasRenderingContext2D> = {}
@@ -70,17 +89,49 @@ function clrCnvsCch(cache: Record<string, CanvasRenderingContext2D>): void {
   }
 }
 
-// extract OCR text from an image region after grayscale and contrast cleanup
+// Otsu's threshold: the grey level that best splits a crop into ink and ground
+function otsuThreshold(gray: Uint8ClampedArray): number {
+  const histogram = new Array<number>(256).fill(0)
+  for (const value of gray) histogram[value] += 1
+  let sum = 0
+  for (let level = 0; level < 256; level += 1) sum += level * histogram[level]
+  let sumBelow = 0
+  let weightBelow = 0
+  let best = 0
+  let threshold = 128
+  for (let level = 0; level < 256; level += 1) {
+    weightBelow += histogram[level]
+    if (weightBelow === 0) continue
+    const weightAbove = gray.length - weightBelow
+    if (weightAbove === 0) break
+    sumBelow += level * histogram[level]
+    const between = weightBelow * weightAbove
+        * (sumBelow / weightBelow - (sum - sumBelow) / weightAbove) ** 2
+    if (between > best) {
+      best = between
+      threshold = level
+    }
+  }
+  return threshold
+}
+
+type TextCleanup = 'contrast' | 'threshold'
+
+// extract OCR text from an image region after grayscale cleanup: a contrast
+// stretch by default, or a hard ink/ground split framed in white for the few
+// dark-on-light marks (the level badge) that a stretch leaves soft
 async function extractText(
     canvas: HTMLCanvasElement,
     worker: Tesseract.Worker,
     region: ImageRegion,
     scale = 1,
+    cleanup: TextCleanup = 'contrast',
 ): Promise<string> {
   const tmp = document.createElement('canvas')
   tmp.width = region.width * scale
   tmp.height = region.height * scale
   const ctx = tmp.getContext('2d', { willReadFrequently: true })!
+  if (cleanup === 'threshold') ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(
     canvas,
     region.x,
@@ -95,22 +146,38 @@ async function extractText(
 
   const imgData = ctx.getImageData(0, 0, tmp.width, tmp.height)
   const d = imgData.data
+  const gray = new Uint8ClampedArray(d.length / 4)
 
   for (let i = 0; i < d.length; i += 4) {
-    const gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])
-    d[i] = d[i + 1] = d[i + 2] = gray
+    gray[i / 4] = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])
   }
 
+  const threshold = cleanup === 'threshold' ? otsuThreshold(gray) : 0
   for (let i = 0; i < d.length; i += 4) {
-    const v = Math.max(0, Math.min(255, (d[i] - 128) * 1.5 + 128))
+    const value = gray[i / 4]
+    const v = cleanup === 'threshold'
+      ? (value > threshold ? 255 : 0)
+      : Math.max(0, Math.min(255, (value - 128) * 1.5 + 128))
     d[i] = d[i + 1] = d[i + 2] = v
   }
 
   ctx.putImageData(imgData, 0, 0)
 
+  let image = tmp
+  if (cleanup === 'threshold') {
+    const margin = 12
+    image = document.createElement('canvas')
+    image.width = tmp.width + margin * 2
+    image.height = tmp.height + margin * 2
+    const framed = image.getContext('2d')!
+    framed.fillStyle = '#fff'
+    framed.fillRect(0, 0, image.width, image.height)
+    framed.drawImage(tmp, margin, margin)
+  }
+
   const {
     data: { text },
-  } = await worker.recognize(tmp.toDataURL())
+  } = await worker.recognize(image.toDataURL())
 
   return text.trim()
 }
@@ -119,9 +186,10 @@ async function safeExtractText(
     canvas: HTMLCanvasElement,
     worker: Tesseract.Worker,
     region: ImageRegion,
+    scale = 2,
 ): Promise<string> {
   try {
-    return await extractText(canvas, worker, region, 2)
+    return await extractText(canvas, worker, region, scale)
   } catch {
     return ''
   }
@@ -174,6 +242,81 @@ function detectAttribute(canvas: HTMLCanvasElement): AttributeKey | null {
     },
     { attribute: null, distance: Infinity },
   ).attribute
+}
+
+// the level badge is dark type on a gold plate, so it is found by the plate:
+// every chase window that straddled the name's bright glyphs read it wrong.
+// the box comes back in the band's own coordinates.
+export function fndLvlPlate(
+    pixels: Uint8ClampedArray,
+    width: number,
+    height: number,
+): ImageRegion | null {
+  const isGold = (column: number, row: number): boolean => {
+    const index = (row * width + column) * 4
+    const r = pixels[index]
+    const g = pixels[index + 1]
+    const b = pixels[index + 2]
+    return r > 130 && g > 105 && r >= g - 10 && g > b + 25
+  }
+
+  const columns = new Array<number>(width).fill(0)
+  for (let row = 0; row < height; row += 1) {
+    for (let column = 0; column < width; column += 1) {
+      if (isGold(column, row)) columns[column] += 1
+    }
+  }
+
+  // the glyphs cut the plate into pieces, so near columns join back up
+  let widest: [number, number] | null = null
+  let start = -1
+  let last = -1
+  for (let column = 0; column < width; column += 1) {
+    if (columns[column] < LEVEL_BADGE_PLATE.minRows) continue
+    if (start < 0) start = column
+    else if (column - last > LEVEL_BADGE_PLATE.maxGap) {
+      if (!widest || last - start > widest[1] - widest[0]) widest = [start, last]
+      start = column
+    }
+    last = column
+  }
+  if (start >= 0 && (!widest || last - start > widest[1] - widest[0])) widest = [start, last]
+  if (!widest || widest[1] - widest[0] + 1 < LEVEL_BADGE_PLATE.minWidth) return null
+
+  const [left, right] = widest
+  const span = right - left + 1
+  let top = -1
+  let bottom = -1
+  for (let row = 0; row < height; row += 1) {
+    let hits = 0
+    for (let column = left; column <= right; column += 1) {
+      if (isGold(column, row)) hits += 1
+    }
+    if (hits <= span * LEVEL_BADGE_PLATE.rowFill) continue
+    if (top < 0) top = row
+    bottom = row
+  }
+  if (top < 0) return null
+
+  return { x: left, y: top, width: span, height: bottom - top + 1 }
+}
+
+// the plate's box on the card, with the breathing room the reader wants
+function findLvlBdg(canvas: HTMLCanvasElement): ImageRegion | null {
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const { x, y, width, height } = LEVEL_BADGE_BAND
+  const plate = fndLvlPlate(context.getImageData(x, y, width, height).data, width, height)
+  if (!plate) return null
+
+  const pad = LEVEL_BADGE_PLATE.pad
+  const badgeX = Math.max(0, x + plate.x - pad.x)
+  const badgeY = Math.max(0, y + plate.y - pad.y)
+  return {
+    x: badgeX,
+    y: badgeY,
+    width: Math.min(CARD_WIDTH - badgeX, plate.width + pad.x * 2),
+    height: Math.min(CARD_HEIGHT - badgeY, plate.height + pad.y * 2),
+  }
 }
 
 function detectActiveSequences(canvas: HTMLCanvasElement): boolean[] {
@@ -278,8 +421,17 @@ async function extractBuildMetadata(
     tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.'_-:/ ",
     tessedit_pageseg_mode: '7' as Tesseract.PSM,
   })
+  // the badge sits on the name's line, so finding it also says where the name ends
+  const levelBadge = findLvlBdg(canvas)
+  const nameRegion = levelBadge
+    ? {
+      ...BUILD_REGIONS.resonatorName,
+      width: Math.max(40, levelBadge.x - NAME_BADGE_GAP - BUILD_REGIONS.resonatorName.x),
+    }
+    : BUILD_REGIONS.resonatorName
+
   readHead(HEAD_AREA.resonatorName)
-  const resonatorNameText = await safeExtractText(canvas, worker, BUILD_REGIONS.resonatorName)
+  const resonatorNameText = await safeExtractText(canvas, worker, nameRegion)
   thrwIfAbrtd(signal)
   readHead(HEAD_AREA.playerId)
   const playerIdText = await safeExtractText(canvas, worker, BUILD_REGIONS.playerId)
@@ -287,20 +439,38 @@ async function extractBuildMetadata(
   readHead(HEAD_AREA.weaponName)
   const weaponNameText = await safeExtractText(canvas, worker, BUILD_REGIONS.weaponName)
   thrwIfAbrtd(signal)
-
-  await worker.setParameters({
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./ ',
-    tessedit_pageseg_mode: '7' as Tesseract.PSM,
-  })
-  const resonatorLevelReadings: string[] = []
-  for (const region of RESONATOR_LEVEL_REGIONS) {
-    readHead(HEAD_AREA.resonatorLevel)
-    resonatorLevelReadings.push(await safeExtractText(canvas, worker, region))
-    thrwIfAbrtd(signal)
-  }
-  const resonatorLevelText = resonatorLevelReadings.join(' ')
+  // the colon belongs to this pass, so the UID is read before the level whitelist
   readHead(HEAD_AREA.uid)
   const uidText = await safeExtractText(canvas, worker, BUILD_REGIONS.uid)
+  thrwIfAbrtd(signal)
+
+  await worker.setParameters({
+    tessedit_char_whitelist: 'LVlv.0123456789/ ',
+    tessedit_pageseg_mode: '7' as Tesseract.PSM,
+  })
+  readHead(HEAD_AREA.resonatorLevel)
+  // the digits alone, so neither the "LV." nor the hatching can be misread into them;
+  // the whole badge, then the name line, stand in when that read fails
+  let resonatorLevelText = resonatorNameText
+  if (levelBadge) {
+    const plateLeft = levelBadge.x + LEVEL_BADGE_PLATE.pad.x
+    await worker.setParameters({
+      tessedit_char_whitelist: '0123456789',
+      tessedit_pageseg_mode: '7' as Tesseract.PSM,
+    })
+    const digits = await extractText(canvas, worker, {
+      ...levelBadge,
+      x: plateLeft + LEVEL_BADGE_DIGITS.from,
+      width: LEVEL_BADGE_DIGITS.width,
+    }, 4, 'threshold').catch(() => '')
+    await worker.setParameters({
+      tessedit_char_whitelist: 'LVlv.0123456789/ ',
+      tessedit_pageseg_mode: '7' as Tesseract.PSM,
+    })
+    resonatorLevelText = /^\d{1,2}$/.test(digits)
+      ? `LV.${digits}`
+      : await safeExtractText(canvas, worker, levelBadge)
+  }
   thrwIfAbrtd(signal)
   readHead(HEAD_AREA.weaponLevel)
   const weaponLevelText = await safeExtractText(canvas, worker, BUILD_REGIONS.weaponLevel)
@@ -345,13 +515,74 @@ async function extractBuildMetadata(
     : metadata
 }
 
+export interface CardDrift {
+  dx: number
+  dy: number
+}
+
+// every coordinate is fixed, so a card that sits a few pixels off (cropped,
+// padded, re-framed) is measured against the QR plate and moved back
+export function findDrift(canvas: HTMLCanvasElement): CardDrift {
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height)
+  const bright = (x: number, y: number): boolean => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return false
+    const index = (y * width + x) * 4
+    return 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2] > 200
+  }
+  // a run of white, so one stray light pixel is never taken for the plate
+  const RUN = 6
+  const runFrom = (x: number, y: number, stepX: number, stepY: number): boolean => {
+    for (let step = 0; step < RUN; step += 1) {
+      if (!bright(x + step * stepX, y + step * stepY)) return false
+    }
+    return true
+  }
+  const median = (values: number[]): number | null => {
+    const found = values.filter((value) => value >= 0).sort((left, right) => left - right)
+    return found.length >= 2 ? found[Math.floor(found.length / 2)] : null
+  }
+  const scan = (from: number, to: number, hit: (at: number) => boolean): number => {
+    const step = from < to ? 1 : -1
+    for (let at = from; at !== to; at += step) if (hit(at)) return at
+    return -1
+  }
+
+  const left = median(QR_PLATE.rows.map((y) => scan(
+    QR_PLATE.left - MAX_DRIFT, QR_PLATE.left + MAX_DRIFT, (x) => runFrom(x, y, 1, 0),
+  )))
+  const right = median(QR_PLATE.rows.map((y) => scan(
+    QR_PLATE.left + QR_PLATE.width + MAX_DRIFT, QR_PLATE.left + QR_PLATE.width - MAX_DRIFT, (x) => runFrom(x, y, -1, 0),
+  )))
+  const top = median(QR_PLATE.columns.map((x) => scan(
+    Math.max(0, QR_PLATE.top - MAX_DRIFT), QR_PLATE.top + MAX_DRIFT, (y) => runFrom(x, y, 0, 1),
+  )))
+  if (left === null || right === null || top === null) return { dx: 0, dy: 0 }
+
+  // a plate of the wrong width is not the plate, so nothing moves
+  if (Math.abs(right - left + 1 - QR_PLATE.width) > 3) return { dx: 0, dy: 0 }
+  return { dx: left - QR_PLATE.left, dy: top - QR_PLATE.top }
+}
+
+// an empty panel is bare background; reading it anyway makes up an echo from noise
+function slotHasEcho(canvas: HTMLCanvasElement, region: ImageRegion): boolean {
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const pixels = context.getImageData(region.x, region.y, region.width, region.height).data
+  let ink = 0
+  for (let index = 0; index < pixels.length; index += 4) {
+    const luminance = 0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]
+    if (luminance > 110) ink += 1
+  }
+  return ink >= FILLED_PANEL_MIN_INK
+}
+
 // the sonata marks say which echoes a card can hold, so only those icons load
 function pickSetEchoMgs(
     echoImages: Record<string, string>,
     catalog: EchoDef[],
     slotSets: Array<string | null>,
 ): Record<string, string> {
-  if (slotSets.some((setName) => setName === null)) return echoImages
+  if (slotSets.length === 0 || slotSets.some((setName) => setName === null)) return echoImages
 
   const nameToId = getSetNameTo()
   const setIds = new Set(slotSets.map((setName) => nameToId[setName!]))
@@ -382,14 +613,27 @@ export async function prsBldFromMg(
       img.src = objectUrl
     })
 
-    if (loadedImg.naturalWidth !== CARD_WIDTH || loadedImg.naturalHeight !== CARD_HEIGHT) {
+    // a resized card (a chat preview, a phone save) is scaled back to the bot's own size
+    const aspect = loadedImg.naturalWidth / loadedImg.naturalHeight
+    if (
+      Math.abs(aspect / (CARD_WIDTH / CARD_HEIGHT) - 1) > MAX_ASPECT_SKEW
+      || loadedImg.naturalWidth < MIN_CARD_WIDTH
+    ) {
       throw new Error('invalid_image_size')
     }
 
     const canvas = document.createElement('canvas')
     canvas.width = CARD_WIDTH
     canvas.height = CARD_HEIGHT
-    canvas.getContext('2d')!.drawImage(loadedImg, 0, 0)
+    const context = canvas.getContext('2d')!
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(loadedImg, 0, 0, CARD_WIDTH, CARD_HEIGHT)
+
+    const drift = findDrift(canvas)
+    if (drift.dx !== 0 || drift.dy !== 0) {
+      context.clearRect(0, 0, CARD_WIDTH, CARD_HEIGHT)
+      context.drawImage(loadedImg, -drift.dx, -drift.dy, CARD_WIDTH, CARD_HEIGHT)
+    }
 
     const echoImages = getEchoMgMap()
     const setImages = getSetNameMg()
@@ -403,9 +647,16 @@ export async function prsBldFromMg(
       thrwIfAbrtd(signal)
     })
 
-    // match the sonata marks before loading any echo art
-    const slotSets = coords.map((slot) => mtchSetFrst(canvas, slot.set, setCache))
-    const wantedEchoMgs = pickSetEchoMgs(echoImages, echoCatalog, slotSets)
+    // match the sonata marks before loading any echo art; empty panels have none
+    const filled = coords.map((slot) => slotHasEcho(canvas, slot.sideStat))
+    const slotSets = coords.map((slot, index) => (
+      filled[index] ? mtchSetFrst(canvas, slot.set, setCache) : null
+    ))
+    const wantedEchoMgs = pickSetEchoMgs(
+      echoImages,
+      echoCatalog,
+      slotSets.filter((_, index) => filled[index]),
+    )
     const catalogTotal = setCount + Object.keys(wantedEchoMgs).length
 
     await prldEchoMgs(wantedEchoMgs, echoCache, (done) => {
@@ -462,32 +713,62 @@ export async function prsBldFromMg(
         const slot = coords[index]
         thrwIfAbrtd(signal)
 
-        // read cost
+        if (!filled[index]) {
+          for (let part = 0; part < SLOT_AREA_COUNT; part += 1) readSlot(index, part)
+          results.push({ cost: '', mainStatLbl: '', substats: [], substatValues: [], echoName: null, setName: null })
+          continue
+        }
+
+        // the cost is one small digit, which the reader only sees scaled up and read alone
         await worker.setParameters({
           tessedit_char_whitelist: '0123456789',
-          tessedit_pageseg_mode: '7' as Tesseract.PSM,
+          tessedit_pageseg_mode: '10' as Tesseract.PSM,
         })
 
         readSlot(index, 0)
-        let cost = await extractText(canvas, worker, slot.cost)
-        cost = cost.replace(/[^0-9]/g, '')
-        if (!['1', '3', '4'].includes(cost)) cost = '4'
+        let cost = (await extractText(canvas, worker, slot.cost, 4)).replace(/[^0-9]/g, '')
 
-        // read main stat desc and substats
+        // the main stat is one short line; at card size a lone "DEF" can read as noise
+        await worker.setParameters({
+          tessedit_char_whitelist: whitelist,
+          tessedit_pageseg_mode: '7' as Tesseract.PSM,
+        })
+
+        readSlot(index, 1)
+        const mainStatLbl = await extractText(canvas, worker, slot.mainStatLabel, 2)
+
+        // a digit that did not read falls back on the main stat, which often names its cost
+        if (!['1', '3', '4'].includes(cost)) cost = String(costForMain(mainStatLbl) ?? 4)
+
+        // substat labels wrap onto a second line, so they are read as a block
         await worker.setParameters({
           tessedit_char_whitelist: whitelist,
           tessedit_pageseg_mode: '6' as Tesseract.PSM,
         })
 
-        readSlot(index, 1)
-        const mainStatLbl = await extractText(canvas, worker, slot.mainStatLabel)
-
         const substats: string[] = []
         for (const [subIndex, sub] of slot.substats.entries()) {
           readSlot(index, 2 + subIndex)
-          const raw = await extractText(canvas, worker, sub)
+          const raw = await extractText(canvas, worker, sub, 3)
           substats.push(raw.replace(/\n/g, ' ').replace(/[^\w.%+ ]/g, '').trim())
           thrwIfAbrtd(signal)
+        }
+
+        // a blurred number read with letters allowed comes back as a word ("pURLL"),
+        // so the numbers are read on their own
+        const substatValues: string[] = slot.substatValues.map(() => '')
+        for (const pass of VALUE_PASSES) {
+          const pending = substatValues.flatMap((value, row) => (/\d/.test(value) ? [] : [row]))
+          if (pending.length === 0) break
+          await worker.setParameters({
+            tessedit_char_whitelist: '0123456789.%',
+            tessedit_pageseg_mode: pass.psm as Tesseract.PSM,
+          })
+          for (const row of pending) {
+            const text = await extractText(canvas, worker, slot.substatValues[row], pass.scale)
+            substatValues[row] = text.replace(/\s+/g, '')
+            thrwIfAbrtd(signal)
+          }
         }
 
         // the sonata mark was matched before the icons loaded
@@ -523,6 +804,7 @@ export async function prsBldFromMg(
           cost,
           mainStatLbl: mainStatLbl,
           substats,
+          substatValues,
           echoName,
           setName,
         })

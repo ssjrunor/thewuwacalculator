@@ -4,7 +4,7 @@
                operations so local teammate state matches Simulation semantics.
 */
 
-import { readAppFile, xprtAppFile } from '@/shared/lib/fileCodec.ts'
+import { readAppFile, xprtAppFile } from '@/application/persistence/fileCodec.ts'
 import { type ChangeEvent, type CSSProperties as CssProps, type ReactNode, useMemo, useRef } from 'react'
 import { Bookmark, Copy, Plus, Trash2 } from 'lucide-react'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
@@ -19,13 +19,13 @@ import type {
   QuickBuffs,
 } from '@/domain/entities/manualBuffs.ts'
 import type { AttributeKey, NegEffectKey, SkillTypeKey } from '@/domain/entities/stats.ts'
-import { mkDefMnlMod } from '@/domain/state/defaults.ts'
-import { mnlBffsSchm } from '@/domain/state/manualBuffsSchema.ts'
-import { getResonatorById as getResById } from '@/domain/services/catalogService.ts'
+import { mkDefMnlMod } from '@/engine/runtime/defaults.ts'
+import { mnlBffsSchm } from '@/engine/runtime/manualBuffsSchema.ts'
+import { getResonatorById as getResById } from '@/data/catalog/catalogService.ts'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill.ts'
 import { getEchoStatI } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
 import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.tsx'
-import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
+import { LiquidSelect } from '@/application/ui/LiquidSelect.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { BuffPresetModal } from '@/modules/simulation/features/buffs/BuffPresetModal.tsx'

@@ -26,12 +26,12 @@ import type {
   SkllMtchRule,
   SourceState,
 } from '@/domain/gameData/contracts.ts'
-import { makeTeamComp } from '@/domain/gameData/teamComposition.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
-import { getResSeedBy, resResBaseSt } from '@/domain/services/resonatorSeedService.ts'
-import { getWpnById } from '@/domain/services/weaponCatalogService.ts'
-import { listSkillsFor } from '@/domain/services/gameDataService.ts'
-import { wpnAtkAt } from '@/domain/state/weaponState.ts'
+import { makeTeamComp } from '@/engine/gameData/teamComposition.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
+import { getResSeedBy, resResBaseSt } from '@/data/catalog/resonatorSeedService.ts'
+import { getWpnById } from '@/data/catalog/weaponCatalogService.ts'
+import { listSkillsFor } from '@/data/catalog/gameDataService.ts'
+import { wpnAtkAt } from '@/engine/runtime/weaponState.ts'
 import { evalForm } from '@/engine/effects/evaluator.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'
 import { countEchoSets, mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext.ts'
@@ -433,7 +433,7 @@ function formatValue(value: number, suffix = '%'): string {
 }
 
 function scalarSuffix(field: string): string {
-  return field === 'fixedDmg' ? '' : '%'
+  return field === 'fixedDmg' || field === 'offTune' || field === 'directOffTune' ? '' : '%'
 }
 
 function hasEvery<T extends string>(values: Set<string>, required: T[]): boolean {

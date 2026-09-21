@@ -17,6 +17,8 @@ import type {
 import { getGameDataMode } from '@/data/gameData'
 
 let worker: Worker | null = null
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+const IDLE_TEARDOWN_MS = 8_000
 
 let nextJobId = 1
 
@@ -25,7 +27,34 @@ const pendingJobs = new Map<number, {
   reject: (error: Error) => void
 }>()
 
+function clearIdleTeardown(): void {
+  if (idleTimer != null) {
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+}
+
+function scheduleIdleTeardown(): void {
+  clearIdleTeardown()
+  if (pendingJobs.size > 0 || !worker) return
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    if (pendingJobs.size > 0) return
+    worker?.terminate()
+    worker = null
+  }, IDLE_TEARDOWN_MS)
+  ;(idleTimer as unknown as { unref?: () => void }).unref?.()
+}
+
+export function disposeSuggestionsWorker(): void {
+  clearIdleTeardown()
+  if (pendingJobs.size > 0) return
+  worker?.terminate()
+  worker = null
+}
+
 function ensureWorker(): Worker {
+  clearIdleTeardown()
   if (worker) {
     return worker
   }
@@ -47,10 +76,12 @@ function ensureWorker(): Worker {
 
     if (message.ok) {
       pending.resolve(message.result)
+      scheduleIdleTeardown()
       return
     }
 
     pending.reject(new Error(message.error))
+    scheduleIdleTeardown()
   }
 
   // A worker failure invalidates every request awaiting that shared instance.
@@ -62,6 +93,9 @@ function ensureWorker(): Worker {
     }
 
     pendingJobs.clear()
+    worker?.terminate()
+    worker = null
+    clearIdleTeardown()
   }
 
   return worker

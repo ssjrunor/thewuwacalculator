@@ -29,6 +29,7 @@ export type RotFormulaStatKey =
   | 'flatDmg'
   | 'mvAdd'
   | 'mvScale'
+  | 'offTuneAdd'
   | 'fixedDmg'
   | 'fixedMv'
 
@@ -62,6 +63,7 @@ export const ROT_FORMULA_STAT_DEFS: RotFormulaStatDef[] = [
   { key: 'flatDmg', label: 'Flat DMG', description: 'Adds Flat DMG to later direct damage formulas.' },
   { key: 'mvAdd', label: 'MV Add', description: 'Adds to the MV of later feature formulas where an MV exists.' },
   { key: 'mvScale', label: 'MV Scale', description: 'Scales the MV of later feature formulas where an MV exists.' },
+  { key: 'offTuneAdd', label: 'Off-Tune Add', description: 'Adds directly to the Off-Tune applied by later skill or hit formulas.' },
   { key: 'fixedDmg', label: 'Fixed DMG', description: 'Adds Fixed DMG to later direct damage formulas.' },
   { key: 'fixedMv', label: 'Fixed MV', description: 'Adds Fixed MV to later negative-effect formulas that use a fixed MV.' },
 ]

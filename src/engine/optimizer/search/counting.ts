@@ -6,10 +6,10 @@
 
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
 import type { OptSets } from '@/domain/entities/optimizer'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService'
 import { getGameData } from '@/data/gameData'
 import { ECHO_MAIN_STATS, getEchoSttsSrc } from '@/data/gameData/catalog/echoStats.ts'
-import { listEffects } from '@/domain/gameData/registry.ts'
+import { listEffects } from '@/data/gameData/registry.ts'
 import { mkSetPlanCnd } from '@/engine/suggestions/mutate.ts'
 import {
   normOptSets,

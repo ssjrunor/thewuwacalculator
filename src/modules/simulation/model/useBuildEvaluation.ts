@@ -6,12 +6,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import type { EvaluationReportOpts, BuildEvaluationReport, DefRotEvaluationIn } from '@/data/scoring/buildEvaluation.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import type { EvaluationReportOpts, BuildEvaluationReport, DefRotEvaluationIn } from '@/engine/evaluation/buildEvaluation.ts'
 import {
   runEvaluationReport,
   cancelEvaluationReport,
-} from '@/data/scoring/buildEvaluationClient.ts'
+} from '@/engine/evaluation/buildEvaluationClient.ts'
 import type { SimResult } from '@/engine/pipeline/types'
 import {
   applyEvaluationAsm,
@@ -20,13 +20,33 @@ import {
 } from '@/modules/simulation/model/evaluationAssumptions.ts'
 import { useEvaluationTarget } from '@/modules/simulation/model/useEvaluationTarget.ts'
 import { scheduleAfterSettled } from '@/shared/lib/scheduleAfterSettled.ts'
-import { getTuneStrainMaxForTeam } from '@/domain/gameData/tuneStrain.ts'
+import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain.ts'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario.ts'
-import { useAppStore } from '@/domain/state/store.ts'
+import { useAppStore } from '@/application/state'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 import { useStableEvaluationInputs } from '@/modules/simulation/model/useStableEvaluationInputs.ts'
 
 const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
+
+export const FULL_EVALUATION_REPORT_OPTIONS: EvaluationReportOpts = Object.freeze({
+  alternativesLimit: 12,
+  sections: Object.freeze({
+    rotationFeatures: true,
+    upgradePaths: true,
+    echoStatsTable: true,
+    evaluationTargets: true,
+  }),
+})
+
+export const SCORE_ONLY_EVALUATION_REPORT_OPTIONS: EvaluationReportOpts = Object.freeze({
+  alternativesLimit: 0,
+  sections: Object.freeze({
+    rotationFeatures: false,
+    upgradePaths: false,
+    echoStatsTable: false,
+    evaluationTargets: false,
+  }),
+})
 
 export interface UseAsmEvaluationReportIn {
   runtime: ResRuntime | null

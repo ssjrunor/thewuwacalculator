@@ -7,7 +7,7 @@
 import type { EchoDef } from '@/domain/entities/catalog'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { makeEchoUid } from '@/domain/entities/runtime'
-import { getEchoById, getEchoSets, listEchoes, listChsByCos } from '@/domain/services/echoCatalogService'
+import { getEchoById, getEchoSets, listEchoes, listChsByCos } from '@/data/catalog/echoCatalogService'
 import {
   ECHO_MAIN_STATS,
   ECHO_SIDE_STATS,

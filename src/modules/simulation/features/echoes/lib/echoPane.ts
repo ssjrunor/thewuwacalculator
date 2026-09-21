@@ -6,7 +6,7 @@
 
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { makeEchoUid } from '@/domain/entities/runtime.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats.ts'
 import { formatStatKeyLabel, formatStatKeyValue, STAT_ICON_MAP } from '@/modules/simulation/model/statsView.ts'
 import { echoStatIconSrc } from '@/modules/simulation/features/echoes/lib/statGlyph.tsx'

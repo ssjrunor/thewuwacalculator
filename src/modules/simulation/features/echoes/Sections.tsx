@@ -7,14 +7,14 @@
 import {useMemo, type HTMLAttributes as HtmlAttrs, type CSSProperties as CssProps} from 'react'
 import { ChevronDown, Plus } from 'lucide-react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService.ts'
-import { listStatesFor } from '@/domain/services/gameDataService.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
+import { listStatesFor } from '@/data/catalog/gameDataService.ts'
 import {getSntSetNam, getSntSetIco, getSntSetClr} from '@/data/gameData/catalog/sonataSets.ts'
 import { getEchoSetDe, getEchoSetCn } from '@/data/gameData/echoSets/effects.ts'
 import type { SetDef } from '@/data/gameData/echoSets/effects.ts'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { StepScrubber } from '@/shared/ui/StepScrubber.tsx'
-import { RichDscr } from '@/shared/ui/RichDescription.tsx'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { cmptBldCritGr, cmptEchoCrit, getCvBdgClss, getScrBdgCls } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import {
@@ -25,7 +25,7 @@ import {
 } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
 import {
   ggrgEchoStts,
-} from '@/data/scoring/echoScoring.ts'
+} from '@/engine/evaluation/echoScoring.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { SourceStateCtrl } from '@/modules/simulation/features/controls/SourceStateControl.tsx'
 import {
@@ -33,7 +33,7 @@ import {
   getTeamTgtPt,
 } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { hideBrknMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { fmtDscr } from '@/shared/lib/formatDescription.ts'
+import { fmtDscr } from '@/modules/simulation/model/formatDescription.ts'
 import { IoArchive } from 'react-icons/io5'
 import { RiDeleteBin2Fill as DeleteBinIcon } from 'react-icons/ri'
 import { scopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'

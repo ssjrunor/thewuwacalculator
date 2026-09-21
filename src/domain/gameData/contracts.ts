@@ -5,7 +5,6 @@
 */
 
 import type { EnemyProfile } from '@/domain/entities/appState'
-import type { TeamCmpsInfo } from '@/domain/gameData/teamComposition'
 import type { ResNegFfcthn } from '@/domain/entities/resonator'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type {
@@ -18,10 +17,27 @@ import type {
   SkillAggType,
   SkillArch,
   SkillDef,
+  OffTuneTrace,
+  SkillDamageEntry,
   SkillSubHit,
   SkillTypeKey,
   UnifiedBuffPool,
 } from '@/domain/entities/stats'
+
+export interface TeamCmpsMemI {
+  id: string
+  attribute: AttributeKey
+  weaponType: number
+}
+
+export interface TeamCmpsInfo {
+  ids: string[]
+  size: number
+  presenceById: Record<string, boolean>
+  membersById: Record<string, TeamCmpsMemI>
+  attributeCounts: Record<AttributeKey, number>
+  weaponTypeCounts: Record<string, number>
+}
 
 export type DataSrcType = 'resonator' | 'weapon' | 'echo' | 'echoSet' | 'enemy'
 
@@ -229,6 +245,7 @@ export type TopBuffStatK =
     | 'dmgVuln'
     | 'shieldBonus'
     | 'dmgBonus'
+    | 'offTuneBuildupRate'
     | 'tuneBreakBoost'
     | 'finalDmg'
 
@@ -300,6 +317,8 @@ export type EffectOp =
   type: 'add_skill_scalar'
   field:
       | 'fixedDmg'
+      | 'offTune'
+      | 'directOffTune'
       | 'skillHealingBonus'
       | 'skillShieldBonus'
       | 'tuneRuptureCritRate'
@@ -323,7 +342,7 @@ export interface EffectDef {
   source: DataSrcRef
   ownerKey?: string
   trigger: 'runtime' | 'skill'
-  stage?: 'preStats' | 'postStats'
+  stage?: 'preStats' | 'postStats' | 'finalStats'
   targetScope?: 'self' | 'active' | 'activeOther' | 'teamWide' | 'otherTeammates'
   condition?: CondExpr
   operations: EffectOp[]
@@ -398,6 +417,10 @@ export interface FeatDef {
   skillId: string
   variant?: 'subHit'
   hitIndex?: number
+  /** Concrete DamageList packet selected by this sub-hit feature. */
+  damageEntryId?: string
+  /** Base packet ids aggregated by the parent feature. */
+  damageEntryIds?: string[]
 }
 
 export type RotVl = number | FormExpr
@@ -419,6 +442,15 @@ export type RotationNode =
   type: 'feature'
   featureId: string
   multiplier?: number
+  /**
+   * Off-Tune starts counting again on this feature.
+   *
+   * A Tune Break empties the gauge and the target then refuses Off-Tune for a
+   * few seconds. The program has no clock, so the authored mark stands in for
+   * the duration: everything between the break and the marked feature is held.
+   * Unmarked breaks hold the three features after them, so the fourth counts.
+   */
+  offTuneResume?: boolean
   negativeEffectStacks?: number
   negativeEffectInstances?: number
   negativeEffectStableWidth?: number
@@ -496,6 +528,7 @@ export interface SrcPkg {
   states?: SourceState[]
   conditions?: CondDef[]
   skills?: SkillDef[]
+  damageEntries?: SkillDamageEntry[]
   effects?: EffectDef[]
   features?: FeatDef[]
   rotations?: RotDef[]
@@ -506,6 +539,7 @@ export interface EffectBuckets {
   runtime: EffectDef[]
   runtimePreStats: EffectDef[]
   runtimePostStats: EffectDef[]
+  runtimeFinalStats: EffectDef[]
   skill: EffectDef[]
 }
 
@@ -524,7 +558,11 @@ export interface GameDataReg {
   featuresBySourceKey: Record<string, FeatDef[]>
   rotationsBySourceKey: Record<string, RotDef[]>
   skillsBySourceKey: Record<string, SkillDef[]>
+  damageEntriesBySourceKey: Record<string, SkillDamageEntry[]>
+  /** DamageList ids are only unique within a resonator. */
+  damageEntriesByKey: Record<string, SkillDamageEntry>
   resonatorSkillsById: Record<string, SkillDef[]>
+  resonatorDamageEntriesById: Record<string, SkillDamageEntry[]>
   resonatorFeaturesById: Record<string, FeatDef[]>
   resonatorRotationsById: Record<string, RotDef[]>
 }
@@ -608,6 +646,10 @@ export interface FeatureResult {
     dmgVuln: number | null
     /** the enemy's resistance to this element after every shred */
     resistance: number | null
+    /** Accumulated enemy Off-Tune after this entry, formatted as current/max. */
+    offTune: string | null
+    /** The working behind that figure: every hit, every addition, and the rate. */
+    offTuneTrace?: OffTuneTrace | null
     tuneBreakBoost: number | null
     finalDmg: number | null
     flatDmg: number | null

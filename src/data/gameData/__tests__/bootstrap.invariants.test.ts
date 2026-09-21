@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: protects game-data bootstrap behavior that is hard to see from
-               the ui: initialization ordering, concurrent fetch sharing,
-               retry cleanup, and prehydrated registry short-circuiting.
+  Description: Verifies game-data initialization ordering, shared concurrent loads, retry cleanup, and prehydration.
 */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -62,6 +60,7 @@ describe('game data bootstrap invariants', () => {
 
       switch (url) {
         case '/data/beta/resonators/sources.json':
+        case '/data/beta/resonators/damage-entries.json':
         case '/data/beta/echoes/sources.json':
         case '/data/beta/enemies/sources.json':
         case '/data/beta/weapons/sources.json':
@@ -96,7 +95,7 @@ describe('game data bootstrap invariants', () => {
         initializeGameData(),
       ])
 
-      expect(fetchMock).toHaveBeenCalledTimes(11)
+      expect(fetchMock).toHaveBeenCalledTimes(12)
       expect(() => getGameData()).not.toThrow()
     } finally {
       globalThis.fetch = previousFetch
@@ -118,6 +117,7 @@ describe('game data bootstrap invariants', () => {
 
       switch (url) {
         case '/data/beta/resonators/sources.json':
+        case '/data/beta/resonators/damage-entries.json':
         case '/data/beta/echoes/sources.json':
         case '/data/beta/enemies/sources.json':
         case '/data/beta/weapons/sources.json':
@@ -156,7 +156,7 @@ describe('game data bootstrap invariants', () => {
 
       await expect(initGameData()).resolves.toBeUndefined()
 
-      expect(fetchMock).toHaveBeenCalledTimes(22)
+      expect(fetchMock).toHaveBeenCalledTimes(24)
       expect(() => getGameData()).not.toThrow()
     } finally {
       globalThis.fetch = previousFetch
@@ -201,6 +201,7 @@ describe('game data bootstrap invariants', () => {
 
       switch (url) {
         case '/data/live/resonators/sources.json':
+        case '/data/live/resonators/damage-entries.json':
         case '/data/live/echoes/sources.json':
         case '/data/live/enemies/sources.json':
         case '/data/live/weapons/sources.json':
@@ -231,7 +232,7 @@ describe('game data bootstrap invariants', () => {
 
       await expect(initGameData({ mode: 'live' })).resolves.toBeUndefined()
 
-      expect(fetchMock).toHaveBeenCalledTimes(11)
+      expect(fetchMock).toHaveBeenCalledTimes(12)
       expect(getGameDataMode()).toBe('live')
     } finally {
       globalThis.fetch = previousFetch

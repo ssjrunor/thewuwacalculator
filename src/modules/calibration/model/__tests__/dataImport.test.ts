@@ -5,7 +5,7 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeAppState } from '@/domain/state/defaults'
+import { makeAppState } from '@/engine/runtime/defaults'
 import { runDataImportJob } from '../dataImport'
 
 describe('calibration data import jobs', () => {

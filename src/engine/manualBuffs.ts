@@ -4,7 +4,13 @@
                unified buff pools and individual skill definitions.
 */
 
-import type { ManualBuffs, MnlMod, MnlSkllMod } from '@/domain/entities/manualBuffs'
+import type {
+  ManualBuffs,
+  MnlMod,
+  MnlSkllMod,
+  MnlSkllSclrK,
+  MnlTopStatKe,
+} from '@/domain/entities/manualBuffs'
 import type { SkillDef, UnifiedBuffPool } from '@/domain/entities/stats'
 import { makeModBuff } from '@/engine/resolvers/buffPool'
 
@@ -179,6 +185,7 @@ function applyHitMltp(skill: SkillDef, hitIndex: number, dddMltp: number): Skill
 // apply one enabled skill modifier after target matching. stat-style modifiers
 // become skill-local buffs, while multiplier rows rewrite the skill definition
 // itself so later damage evaluation sees the adjusted scaling.
+
 function applySkllMod(skill: SkillDef, modifier: MnlSkllMod): SkillDef {
   if (modifier.effect === 'mod') {
     return {
@@ -226,4 +233,73 @@ export function applyMnlSkll(skill: SkillDef, manualBuffs: ManualBuffs): SkillDe
   }
 
   return next
+}
+
+/** One manual row's contribution to a skill scalar, kept for the register's readouts. */
+export interface MnlSclrWrite {
+  field: MnlSkllSclrK
+  label: string
+  value: number
+}
+
+/** One named manual contribution to a shared top-level stat. */
+export interface MnlTopStatWrite {
+  stat: MnlTopStatKe
+  label: string
+  value: number
+}
+
+/**
+ * Read enabled top-stat rows back for result attribution.
+ *
+ * The final pool only retains their sum. Keeping this read beside the manual
+ * buff application rules ensures a rotation trace uses the same eligibility
+ * rules without putting presentation bookkeeping into the combat pool.
+ */
+export function listMnlTopStatWrites(
+  manualBuffs: ManualBuffs,
+  stats: readonly MnlTopStatKe[],
+): MnlTopStatWrite[] {
+  const out: MnlTopStatWrite[] = []
+
+  for (const modifier of manualBuffs.modifiers) {
+    if (modifier.scope !== 'topStat' || !stats.includes(modifier.stat)) continue
+    if (!isEnabled(modifier)) continue
+    out.push({
+      stat: modifier.stat,
+      label: modifier.label?.trim() || 'Manual buff',
+      value: modifier.value,
+    })
+  }
+
+  return out
+}
+
+/*
+  Which manual rows moved a scalar on this skill, and what each is called.
+
+  `applyMnlSkll` only returns the sum, and the resolver it runs inside caches
+  its result, so a trace taken there would go silent the second time a skill
+  came up. Reading the rows back off the resolved skill is cache-proof and asks
+  the same question of the same matcher.
+*/
+export function listMnlSclrWrites(
+    skill: SkillDef,
+    manualBuffs: ManualBuffs,
+    fields: readonly MnlSkllSclrK[],
+): MnlSclrWrite[] {
+  const out: MnlSclrWrite[] = []
+
+  for (const modifier of manualBuffs.modifiers) {
+    if (modifier.scope !== 'skill' || modifier.effect !== 'scalar') continue
+    if (modifier.value === 0 || !fields.includes(modifier.field)) continue
+    if (!isEnabled(modifier) || !mtchSkllMod(skill, modifier)) continue
+    out.push({
+      field: modifier.field,
+      label: modifier.label?.trim() || 'Manual buff',
+      value: modifier.value,
+    })
+  }
+
+  return out
 }

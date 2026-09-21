@@ -8,9 +8,9 @@ import { cloneElement, isValidElement as isVldElem, useEffect, useMemo, useRef, 
 import type { CSSProperties, HTMLAttributes as HtmlAttrs } from 'react'
 import type { ReactNode } from 'react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
-import { getResAccent, getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { getEchoById, listEchoes } from '@/domain/services/echoCatalogService.ts'
-import { useEchoScores } from '@/data/scoring/useEchoScoringRevision.ts'
+import { getResAccent, getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
+import { useEchoScores } from '@/engine/evaluation/useEchoScoringRevision.ts'
 import { AppModal } from '@/shared/ui/AppModal'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
@@ -25,12 +25,13 @@ import {
   readIdentity,
   type PlayerIdentity,
 } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
-import { EchoRows, EchoRowsFoot, makeEchoRows } from '@/shared/ui/EchoRows.tsx'
-import { useAppStore } from '@/domain/state/store.ts'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
+import { EchoRows, EchoRowsFoot, makeEchoRows } from '@/modules/simulation/features/echoes/ui/EchoRows.tsx'
+import { useAppStore } from '@/application/state'
 import { prsBldFromMg, type ParsedBuildScreenshot } from '@/engine/echoParser/ocrParsing.ts'
 import { READ_CANCELLED, type ReadProgress } from '@/engine/echoParser/readProgress.ts'
 import { mkEchoNstnFr } from '@/engine/echoParser/echoBuilder.ts'
+import { MIN_CARD_HEIGHT, MIN_CARD_WIDTH } from '@/engine/echoParser/cardRegions'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { useEchoSrfcM } from '@/modules/simulation/features/echoes/lib/useEchoSurfaceMenu.tsx'
 import { qpEchoAtSlot } from '@/modules/simulation/features/echoes/lib/equip.ts'
@@ -213,7 +214,7 @@ export function Parser({
       setProgress(null)
       dropReadSrc()
       if (err instanceof Error && err.message === 'invalid_image_size') {
-        setError('This image is not 1920 × 1080. Save the bot\'s picture at full size, uncropped.')
+        setError(`This image is not the card's shape, or is under ${MIN_CARD_WIDTH} × ${MIN_CARD_HEIGHT}. Save the bot's picture uncropped, as large as you can.`)
       } else {
         setError('No echo panels found. This needs a card from /create, with the bottom row intact.')
       }

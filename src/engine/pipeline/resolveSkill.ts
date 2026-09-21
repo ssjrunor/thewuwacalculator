@@ -7,14 +7,14 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { EffectScope } from '@/domain/gameData/contracts'
-import { makeTeamComp } from '@/domain/gameData/teamComposition'
+import { makeTeamComp } from '@/engine/gameData/teamComposition'
 import {
   getNegFfctCm,
   getNegFfctqf,
   getNegFfctEn,
   isNegFfctVsb,
-} from '@/domain/gameData/negativeEffects'
-import type { SkillDef } from '@/domain/entities/stats'
+} from '@/engine/gameData/negativeEffects'
+import type { SkillDamageEntry, SkillDef } from '@/domain/entities/stats'
 import { evalCond } from '@/engine/effects/evaluator'
 import { applyMnlSkll } from '@/engine/manualBuffs'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
@@ -55,6 +55,36 @@ function resTblVl(values: number[] | undefined, index: number, fallback = 0): nu
   }
 
   return values[index] ?? values[values.length - 1] ?? fallback
+}
+
+function selectDamageEntries(
+    skill: SkillDef,
+    evaluate: SkillConditionEvaluator,
+): SkillDamageEntry[] | undefined {
+  const entries = skill.damageEntries
+  if (!entries?.length) {
+    return undefined
+  }
+
+  const baseEntries = entries
+    .filter((entry) => entry.hitIndex != null && !entry.replacesEntryId)
+    .sort((left, right) => left.hitIndex! - right.hitIndex!)
+  if (baseEntries.length !== skill.hits.length) {
+    return undefined
+  }
+
+  const selected = new Map(baseEntries.map((entry) => [entry.id, entry]))
+  for (const variant of entries) {
+    if (!variant.replacesEntryId || !variant.variantWhen || !evaluate(variant.variantWhen)) {
+      continue
+    }
+    if (selected.has(variant.replacesEntryId)) {
+      selected.delete(variant.replacesEntryId)
+      selected.set(variant.id, variant)
+    }
+  }
+
+  return [...selected.values()].sort((left, right) => left.hitIndex! - right.hitIndex!)
 }
 
 function getRtSkllEva(runtime: ResRuntime): EffectScope {
@@ -209,6 +239,7 @@ export function resolveSkill(
   const rslvSkll = skllVrntAt(skill, variantIndex)
   const visible = isSkllVsbl(runtime, rslvSkll, evaluate, runtimesById)
   const skillTypeIndex = pickSkllTypeI(rslvSkll, evaluate)
+  const damageEntries = selectDamageEntries(rslvSkll, evaluate)
 
   let bySkill: WeakMap<SkillDef, Map<string, SkillDef>>
   if (runtimesById) {
@@ -228,7 +259,8 @@ export function resolveSkill(
     bySignature = new Map()
     bySkill.set(skill, bySignature)
   }
-  const signature = `${variantIndex}|${visible ? 1 : 0}|${skillTypeIndex}`
+  const damageEntrySignature = damageEntries?.map((entry) => entry.id).join(',') ?? ''
+  const signature = `${variantIndex}|${visible ? 1 : 0}|${skillTypeIndex}|${damageEntrySignature}`
   const cached = bySignature.get(signature)
   if (cached) {
     return cached
@@ -239,6 +271,7 @@ export function resolveSkill(
     rslvSkll,
     visible,
     skllTypeAt(rslvSkll, skillTypeIndex),
+    damageEntries,
     runtimesById,
   )
   bySignature.set(signature, resolved)
@@ -250,6 +283,7 @@ function buildResolvedSkill(
     rslvSkll: SkillDef,
     visible: boolean,
     skillType: SkillDef['skillType'],
+    damageEntries: SkillDamageEntry[] | undefined,
     runtimesById?: Readonly<Record<string, ResRuntime>>,
 ): SkillDef {
   const levelIndex = resLvlNdx(runtime, rslvSkll)
@@ -291,11 +325,17 @@ function buildResolvedSkill(
   }
 
   // otherwise expand every hit row into its resolved multiplier for this level
-  const hits = rslvSkll.hitTable.map((hit) => ({
-    label: hit.label,
-    count: hit.count,
-    multiplier: hit.values[levelIndex] ?? hit.values[hit.values.length - 1] ?? 0,
-  }))
+  const hits = damageEntries?.length
+    ? damageEntries.map((entry) => ({
+      label: entry.label,
+      count: entry.count,
+      multiplier: resTblVl(entry.values, levelIndex, entry.multiplier),
+    }))
+    : rslvSkll.hitTable.map((hit) => ({
+      label: hit.label,
+      count: hit.count,
+      multiplier: hit.values[levelIndex] ?? hit.values[hit.values.length - 1] ?? 0,
+    }))
 
   // recompute the aggregate multiplier from the resolved hit entries
   return applyMnlSkll({
@@ -307,6 +347,7 @@ function buildResolvedSkill(
     fixedDmg,
     multiplier: sumHits({ hits }),
     hits,
+    ...(damageEntries ? { damageEntries } : {}),
     stackMax,
   }, runtime.state.manualBuffs)
 }

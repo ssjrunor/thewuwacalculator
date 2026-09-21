@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the targetContexts logic for the rotation module.
+  Description: Builds packed per-target rotation contexts and display context for optimizer execution.
 */
 
 /*
@@ -14,7 +14,7 @@ import type { SkillDef } from '@/domain/entities/stats.ts'
 import type { FinalStats } from '@/domain/entities/stats.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { DamageCombatState } from '@/engine/formulas/damage.ts'
-import { findCombatPart } from '@/domain/state/combatGraph.ts'
+import { findCombatPart } from '@/engine/runtime/combatGraph.ts'
 import { CTX_FLOATS } from '@/engine/optimizer/config/constants.ts'
 import { makeOptContext } from '@/engine/optimizer/context/compiled.ts'
 import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'

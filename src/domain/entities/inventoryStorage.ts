@@ -240,22 +240,22 @@ export interface SaveEchoResult {
 export function saveEchoSlots(
   echoes: Array<EchoInstance | null>,
   slotIndexes: readonly number[],
-  addEcho: (echo: EchoInstance) => SavedEcho | null | undefined,
+  addEchoes: (echoes: EchoInstance[]) => SavedEcho[],
 ): SaveEchoResult {
-  let savedCount = 0
+  const selected = slotIndexes.flatMap((slotIndex) => {
+    const echo = echoes[slotIndex]
+    return echo ? [{ slotIndex, echo }] : []
+  })
+  const saved = addEchoes(selected.map(({ echo }) => echo))
+  const savedCount = saved.length
   let nextEchoes: Array<EchoInstance | null> | null = null
 
-  for (const slotIndex of slotIndexes) {
-    const echo = echoes[slotIndex]
-    if (!echo) continue
-
-    const saved = addEcho(echo)
-    if (!saved) continue
-    savedCount += 1
-
-    if (!sameEchoUid(saved.echo, echo)) {
+  for (const { slotIndex, echo } of selected) {
+    const savedEntry = saved.find((entry) => equalEchoes(entry.echo, echo))
+    if (!savedEntry) continue
+    if (!sameEchoUid(savedEntry.echo, echo)) {
       nextEchoes ??= [...echoes]
-      nextEchoes[slotIndex] = cloneEchoFor(saved.echo, slotIndex)
+      nextEchoes[slotIndex] = cloneEchoFor(savedEntry.echo, slotIndex)
     }
   }
 

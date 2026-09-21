@@ -1,13 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: Owns skill data behavior and state transitions for the resonator module.
+  Description: Resolves and displays runtime-prepared skill data, parameters, hits, and effect descriptions.
 */
 
 import { Fragment, type CSSProperties, useMemo, useState } from 'react'
 import type { SkillTabKey } from '@/domain/entities/resonator'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { AppModal } from '@/shared/ui/AppModal'
-import { RichDscr } from '@/shared/ui/RichDescription'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
 import { resNodeIcon, resSeqIcon, type ResNodeKey } from '@/shared/lib/gameAssets'
 import { Expandable } from '@/shared/ui/Expandable'

@@ -5,7 +5,7 @@
 */
 
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime.ts'
-import { cmptTrcNodeB } from '@/domain/state/traceNodes.ts'
+import { cmptTrcNodeB } from '@/engine/runtime/traceNodes.ts'
 import { clampNumber } from '@/shared/lib/number.ts'
 import type { GenWpn } from '@/domain/entities/weapon.ts'
 import { weaponStatsAt } from '@/modules/simulation/features/weapons/lib/weapon.ts'

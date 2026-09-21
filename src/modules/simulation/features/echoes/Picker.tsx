@@ -9,7 +9,7 @@ import { Check, Search } from 'lucide-react'
 import type { EchoDef } from '@/domain/entities/catalog.ts'
 import { getSntSetClr, getSntSetIco, SONATA_SETS } from '@/data/gameData/catalog/sonataSets.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { PickerModal as ShrdPckrMdl } from '@/shared/ui/PickerModal.tsx'
+import { PickerModal as ShrdPckrMdl } from '@/modules/simulation/ui/PickerModal.tsx'
 import { mkSrchTkns, mtchSrchTkns } from '@/modules/simulation/features/echoes/lib/search.ts'
 
 interface EchoPckrMdlP {

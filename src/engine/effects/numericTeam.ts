@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the numericTeam logic for the effects module.
+  Description: Compiles participant effects into packed numeric team state for repeated combat evaluation.
 */
 
 /*
@@ -26,7 +26,7 @@ import type {
   RotationNode,
 } from '@/domain/gameData/contracts.ts'
 import { getScopedTargetSelection } from '@/domain/gameData/targetRouting.ts'
-import { listSrcRtFfc } from '@/domain/gameData/registry.ts'
+import { listSrcRtFfc } from '@/data/gameData/registry.ts'
 import { readRtPath } from '@/domain/gameData/runtimePath.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type {
@@ -39,9 +39,9 @@ import type {
   SkillTypeKey,
   UnifiedBuffPool,
 } from '@/domain/entities/stats.ts'
-import { wpnAtkAt } from '@/domain/state/weaponState.ts'
-import { makeRuntimeCat } from '@/domain/services/runtimeSourceService.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
+import { wpnAtkAt } from '@/engine/runtime/weaponState.ts'
+import { makeRuntimeCat } from '@/engine/services/runtimeSourceService.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { listGraphEffectRows } from '@/engine/effects/dataEffects.ts'
 import {
   NUMERIC_FINAL_CELL_COUNT,
@@ -162,7 +162,7 @@ interface NumericRuntimeProgram {
   routedLane: number
   routeIndex: number
   ownerKey: string
-  stage: 0 | 1
+  stage: 0 | 1 | 2
   condition: NumericConditionProgram
   opcodes: Uint8Array
   destinations: Int32Array
@@ -265,9 +265,32 @@ export interface NumericTeamState {
   readonly formulaStack: Float64Array
   readonly skillBuffScratch: Float64Array
   readonly skillScalarScratch: Float64Array
+  /*
+    Who moved a figure, not just by how much. The sum alone cannot say which
+    buff put the Off-Tune there, and a register readout that names no source is
+    a number the reader has to take on faith. Off by default: the search paths
+    run the same kernel and have nothing to read it with.
+  */
+  traceContributions: boolean
+  skillScalarTrace: SkillScalarWrite[]
+  /* one list per lane, since a lane is recomputed on its own */
+  buildupRateTrace: ContributionWrite[][]
   /** Delta log used only while a scoped rotation branch is open. */
   readonly transactionLog: NumericUndoEntry[]
   transactionDepth: number
+}
+
+/** One effect's contribution to a figure, as the kernel applied it. */
+export interface ContributionWrite {
+  ownerKey: string
+  /** the lane the effect came from, which is not always the lane it landed on */
+  sourceLane: number
+  value: number
+}
+
+/** One effect's contribution to one skill scalar, as the kernel applied it. */
+export interface SkillScalarWrite extends ContributionWrite {
+  field: SkillScalarField
 }
 
 type NumericUndoEntry =
@@ -376,7 +399,8 @@ function finalCell(path: string): number {
   const top = path === 'tuneBreakBoost' ? 'tuneBreakBoost' : path
   const allowed = new Set([
     'flatDmg', 'amplify', 'critRate', 'critDmg', 'energyRegen', 'healingBonus',
-    'shieldBonus', 'dmgBonus', 'defIgnore', 'defShred', 'dmgVuln', 'finalDmg',
+    'shieldBonus', 'dmgBonus', 'defIgnore', 'defShred', 'dmgVuln',
+    'offTuneBuildupRate', 'finalDmg',
   ])
   if (allowed.has(top)) return finalTopCell(top as Parameters<typeof finalTopCell>[0])
   throw new Error(`Unsupported numeric final-stat path: ${path}`)
@@ -618,7 +642,7 @@ function compileRuntimeProgram(
     context: EffectContext,
     sourceLane: number,
     targetLane: number,
-    stage: 0 | 1,
+    stage: 0 | 1 | 2,
     routeIndex: number,
 ): NumericRuntimeProgram {
   const condition = compileCondition(state, context, sourceLane, targetLane, effect.condition)
@@ -657,9 +681,11 @@ const skillModFields: readonly (keyof ModBuff)[] = [
   'resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg',
 ]
 const skillScalarFields = [
-  'fixedDmg', 'skillHealingBonus', 'skillShieldBonus', 'tuneRuptureCritRate',
+  'fixedDmg', 'offTune', 'directOffTune', 'skillHealingBonus', 'skillShieldBonus', 'tuneRuptureCritRate',
   'tuneRuptureCritDmg', 'negativeEffectCritRate', 'negativeEffectCritDmg',
 ] as const
+
+export type SkillScalarField = (typeof skillScalarFields)[number]
 
 function compileSkillProgram(
     state: CompileState,
@@ -874,8 +900,22 @@ function clearImmunities(state: NumericTeamState, lane: number): void {
   state.immunitySkillTypes[lane] = 0; state.immunityNegative[lane] = 0
 }
 
-function executePrograms(state: NumericTeamState, lane: number, stage: 0 | 1, sourceFinalReady: boolean): void {
+/*
+  The one pool cell a readout names sources for. Watching a single destination
+  keeps the cost of tracing to one integer compare per write, which is what
+  makes it affordable in the recompute loop at all.
+*/
+const RATE_POOL_CELL = poolTopCell('offTuneBuildupRate')
+
+function executePrograms(
+  state: NumericTeamState,
+  lane: number,
+  stage: 0 | 1 | 2,
+  sourceFinalReady: boolean,
+): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
+  const rateTrace = state.traceContributions ? state.buildupRateTrace[lane] : undefined
+  const rateCell = poolOffset + RATE_POOL_CELL
   for (const program of state.program.programsByTarget[lane] ?? []) {
     if (program.stage !== stage || !programTargetsActive(state, program)) continue
     if (!executeConditionNode(state, program.condition, 0)) continue
@@ -894,7 +934,10 @@ function executePrograms(state: NumericTeamState, lane: number, stage: 0 | 1, so
       const destination = poolOffset + (program.destinations[op] ?? 0)
       let formulaScale = 1
       for (const ref of formula.scaleRefs) formulaScale = Math.min(formulaScale, refScale(state, ref))
-      const value = executeFormula(state, formula, sourceFinalReady, stage === 1) * Math.min(effectScale, formulaScale)
+      const value = executeFormula(state, formula, sourceFinalReady, stage !== 0) * Math.min(effectScale, formulaScale)
+      if (rateTrace && destination === rateCell && value !== 0) {
+        rateTrace.push({ ownerKey: program.ownerKey, sourceLane: program.sourceLane, value })
+      }
       if (program.opcodes[op] === OP_SET) state.pools[destination] = value
       else state.pools[destination] = (state.pools[destination] ?? 0) + value
     }
@@ -904,6 +947,7 @@ function executePrograms(state: NumericTeamState, lane: number, stage: 0 | 1, so
 function recomputeSourceLane(state: NumericTeamState, lane: number): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
   state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
+  if (state.traceContributions) state.buildupRateTrace[lane]!.length = 0
   clearImmunities(state, lane)
   executePrograms(state, lane, 0, false)
   deriveFinalPlane(
@@ -922,6 +966,11 @@ function recomputeSourceLane(state: NumericTeamState, lane: number): void {
 function recomputeTargetLane(state: NumericTeamState, lane: number): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
   state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
+  /*
+    target lanes are recomputed after source lanes, so what a readout finds
+    here is the pass that produced the final plane it is reading.
+  */
+  if (state.traceContributions) state.buildupRateTrace[lane]!.length = 0
   clearImmunities(state, lane)
   executePrograms(state, lane, 0, true)
   const base = {
@@ -934,6 +983,10 @@ function recomputeTargetLane(state: NumericTeamState, lane: number): void {
     state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
     state.preFinals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
   executePrograms(state, lane, 1, true)
+  deriveFinalPlane(base, state.weaponAttack[lane] ?? 0,
+    state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
+    state.preFinals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
+  executePrograms(state, lane, 2, true)
   deriveFinalPlane(base, state.weaponAttack[lane] ?? 0,
     state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
     state.finals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
@@ -1029,6 +1082,10 @@ function compileProgram(input: NumericTeamInput): NumericTeamProgram {
       }
       for (const effect of row.postStatEffects) {
         const program = compileRuntimeProgram(state, effect, row.baseContext, sourceLane, targetLane, 1, routeCount++)
+        programsByTarget[targetLane]!.push(program); flatPrograms.push(program)
+      }
+      for (const effect of row.finalStatEffects) {
+        const program = compileRuntimeProgram(state, effect, row.baseContext, sourceLane, targetLane, 2, routeCount++)
         programsByTarget[targetLane]!.push(program); flatPrograms.push(program)
       }
       for (const effect of row.skillEffects) {
@@ -1169,6 +1226,9 @@ export function createNumericTeam(input: NumericTeamInput): NumericTeamState {
     formulaStack: new Float64Array(program.maxFormulaStack),
     skillBuffScratch: new Float64Array(skillModFields.length),
     skillScalarScratch: new Float64Array(skillScalarFields.length),
+    traceContributions: false,
+    skillScalarTrace: [],
+    buildupRateTrace: program.laneIds.map(() => []),
     transactionLog: [],
     transactionDepth: 0,
     dirtySources: 0,
@@ -1199,6 +1259,18 @@ export function createNumericTeam(input: NumericTeamInput): NumericTeamState {
   return state
 }
 
+/*
+  Recompute every lane so the contribution traces describe the state as it
+  stands. A trace is only written while a lane is being recomputed, so a lane
+  that never goes dirty during a run would otherwise have nothing to show and
+  its whole figure would fall to the unattributed remainder.
+*/
+export function primeNumericTraces(state: NumericTeamState): void {
+  const all = (1 << state.program.laneIds.length) - 1
+  markNumericDirty(state, all, all)
+  syncNumericTeam(state)
+}
+
 export function forkNumericTeam(source: NumericTeamState): NumericTeamState {
   syncNumericTeam(source)
   return {
@@ -1214,6 +1286,8 @@ export function forkNumericTeam(source: NumericTeamState): NumericTeamState {
     formulaStack: new Float64Array(source.program.maxFormulaStack),
     skillBuffScratch: new Float64Array(skillModFields.length),
     skillScalarScratch: new Float64Array(skillScalarFields.length),
+    skillScalarTrace: [],
+    buildupRateTrace: source.program.laneIds.map(() => []),
     transactionLog: [],
     transactionDepth: 0,
   }
@@ -1431,6 +1505,8 @@ export function prepareNumericSkill(state: NumericTeamState, lane: number, skill
   for (let index = 0; index < skillModFields.length; index += 1) buffs[index] = skill.skillBuffs?.[skillModFields[index]!] ?? 0
   const scalars = state.skillScalarScratch
   for (let index = 0; index < skillScalarFields.length; index += 1) scalars[index] = skill[skillScalarFields[index]!] ?? 0
+  const trace = state.traceContributions ? state.skillScalarTrace : null
+  if (trace) trace.length = 0
   let changed = false
   for (const program of state.program.skillProgramsByTarget[lane] ?? []) {
     if (!programTargetsActive(state, program) || !executeConditionNode(state, program.condition, 0)) continue
@@ -1446,6 +1522,14 @@ export function prepareNumericSkill(state: NumericTeamState, lane: number, skill
         buffs[operation.destination] = (buffs[operation.destination] ?? 0) + raw * scale
       } else if (operation.opcode === SKILL_SCALAR) {
         scalars[operation.destination] = (scalars[operation.destination] ?? 0) + raw * scale
+        if (trace && raw * scale !== 0) {
+          trace.push({
+            field: skillScalarFields[operation.destination]!,
+            ownerKey: program.ownerKey,
+            sourceLane: program.sourceLane,
+            value: raw * scale,
+          })
+        }
       } else if (operation.opcode === SKILL_ADD_MULTIPLIER) {
         const delta = raw * scale
         if (multiplier > 0 && delta !== 0) {

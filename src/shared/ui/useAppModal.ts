@@ -1,10 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: Owns use app modal behavior and state transitions for the ui module.
+  Description: Coordinates modal visible, open, closing, payload, and delayed-unmount state transitions.
 */
 
 import { useCallback, useMemo, useState } from 'react'
-import { useAnimatedModalValue, useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedModalValue, useAnimatedVisibility } from '@/shared/hooks/useAnimatedVisibility'
 import type { AppModalState } from '@/shared/ui/AppModal'
 
 export const MODAL_EXIT_MS = 320

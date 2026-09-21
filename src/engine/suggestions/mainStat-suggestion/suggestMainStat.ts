@@ -20,7 +20,7 @@ import { mkMainStatPo } from '@/engine/suggestions/mainStat-suggestion/ctx-build
 import { makeMainStatScorer } from '@/engine/suggestions/mainStat-suggestion/compute'
 import type { MainStatRecipe } from '@/engine/suggestions/mainStat-suggestion/utils'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
 import { applyMainSta } from '@/engine/suggestions/mainStat-suggestion/utils'
 
 // search through valid main-stat recipes and return the best-scoring options

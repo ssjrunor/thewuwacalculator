@@ -7,7 +7,7 @@
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { ResStateControl } from '@/domain/entities/resonator.ts'
 import type { CondExpr } from '@/domain/gameData/contracts.ts'
-import { mkResCntrScp } from '@/domain/gameData/controlOptions.ts'
+import { mkResCntrScp } from '@/engine/gameData/controlOptions.ts'
 import { evalCond } from '@/engine/effects/evaluator.ts'
 
 function controlRequirementsMet(runtime: ResRuntime, control: ResStateControl): boolean {

@@ -5,13 +5,13 @@
                and normal optimizer target or rotation contexts.
 */
 
-import { listEchoes } from '@/domain/services/echoCatalogService.ts'
+import { listEchoes } from '@/data/catalog/echoCatalogService.ts'
 import { getGameData } from '@/data/gameData'
 import {
   ECHO_MAIN_STATS,
   ECHO_SIDE_STATS,
 } from '@/data/gameData/catalog/echoStats.ts'
-import { listEffects } from '@/domain/gameData/registry.ts'
+import { listEffects } from '@/data/gameData/registry.ts'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import type {
   OptStartPay,

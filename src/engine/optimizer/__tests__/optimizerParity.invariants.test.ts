@@ -11,11 +11,12 @@
 
 import { describe, expect, it } from 'vitest'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
+import type { SkillDef } from '@/domain/entities/stats.ts'
 import { cloneEchoFor } from '@/domain/entities/inventoryStorage'
-import { listChsByCos } from '@/domain/services/echoCatalogService'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { makeEnemy, makeOptSets, makeResRuntime, mkMaxResRt } from '@/domain/state/defaults'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
+import { listChsByCos } from '@/data/catalog/echoCatalogService'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { makeEnemy, makeOptSets, makeResRuntime, mkMaxResRt } from '@/engine/runtime/defaults'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
 import { compOptPay } from '@/engine/optimizer/compiler'
 import { buildSetRows, listDynamicSetStateParts, makeSetMask } from '@/engine/optimizer/encode/sets'
 import { runOptSrch } from '@/engine/optimizer/engine'
@@ -23,8 +24,11 @@ import { evalPrepOptB } from '@/engine/optimizer/results/materialize'
 import { runResSmlt } from '@/engine/pipeline'
 import { prepSkill } from '@/engine/pipeline/prepareRuntimeSkill'
 import { calcSkillDamage } from '@/engine/formulas/damage'
+import { makeOptContext } from '@/engine/optimizer/context/compiled.ts'
+import { packTargetCtx } from '@/engine/optimizer/context/pack.ts'
+import { AUX0 } from '@/engine/optimizer/config/constants.ts'
 import { getGameData } from '@/data/gameData'
-import { listSrcStts } from '@/domain/gameData/registry'
+import { listSrcStts } from '@/data/gameData/registry'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 
 const enemy = makeEnemy()
@@ -299,6 +303,67 @@ function targetableSeeds(limit: number): Array<{ id: string; skillId: string }> 
 const cases = targetableSeeds(5)
 
 describe('optimizer parity invariants', () => {
+  it('packs Final DMG together with Tune Break Boost for level-scaled damage', () => {
+    const fixture = cases[0]
+    expect(fixture).toBeTruthy()
+    if (!fixture) return
+    const seed = listResSds().find((entry) => entry.id === fixture.id)
+    expect(seed).toBeTruthy()
+    if (!seed) return
+
+    const runtime = makeResRuntime(seed)
+    const prepared = prepSkill({
+      runtime,
+      seed,
+      enemy,
+      skillId: fixture.skillId,
+      runtimesById: makeRuntimeMap(runtime),
+    })
+    expect(prepared).toBeTruthy()
+    if (!prepared) return
+
+    const tuneSkill: SkillDef = {
+      ...prepared.skill,
+      id: 'optimizer-final-dmg-tune-rupture',
+      label: 'Tune Rupture',
+      tab: 'tuneBreak',
+      archetype: 'tuneRupture',
+      skillType: ['tuneRupture'],
+      hits: [],
+      tuneRuptureScale: 16,
+      tuneRuptureCritRate: 0,
+      tuneRuptureCritDmg: 1,
+    }
+
+    const finalStats = {
+      ...prepared.context.finalStats,
+      tbb: 40,
+      finalDmg: 25,
+    }
+    const compiled = makeOptContext({
+      resonatorId: seed.id,
+      runtime,
+      skill: tuneSkill,
+      finalStats,
+      enemy,
+      combatState: runtime.state.combat,
+    })
+    const packed = packTargetCtx({
+      compiled,
+      skill: tuneSkill,
+      runtime,
+      comboN: 5,
+      comboK: 5,
+      comboCount: 1,
+      comboBaseIndex: 0,
+      lockEchoIdx: -1,
+      setRtMask: 0,
+    })
+
+    expect(compiled.statFinalDmg).toBe(25)
+    expect(packed[AUX0]).toBeCloseTo(1.4 * 1.25, 6)
+  })
+
   it('finds targetable resonators to check', () => {
     expect(cases.length).toBeGreaterThan(0)
   })

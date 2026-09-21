@@ -22,6 +22,15 @@ import {
 } from '@/domain/gameData/loopPasses.ts'
 import { stripRotationNotes } from '@/domain/gameData/rotationNotes.ts'
 import {
+  makeOffTuneSealState,
+  planOffTuneSeal,
+  planOffTuneSealOrder,
+  startOffTuneSeal,
+  stepOffTuneSeal,
+  type OffTuneSealPlan,
+  type OffTuneSealState,
+} from '@/engine/rotation/offTuneSeal.ts'
+import {
   normalizeFeatureAttachments,
   stripFeatureAttachments,
   type RotFeatureNode,
@@ -33,27 +42,40 @@ import {
   type RotFormulaStats,
 } from '@/domain/gameData/rotationFormulaStats'
 import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
-import { findCombatPart, rbldCmbtPart } from '@/domain/state/combatGraph'
+import { findCombatPart, rbldCmbtPart } from '@/engine/runtime/combatGraph'
 import type { ResRuntime, ResSeed } from '@/domain/entities/runtime'
-import type { DamageResult, SkillAggType, SkillDef } from '@/domain/entities/stats'
+import type {
+  DamageResult,
+  OffTuneHit,
+  OffTuneSource,
+  OffTuneTrace,
+  SkillAggType,
+  SkillDef,
+} from '@/domain/entities/stats'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import {
   listEquippedSourceStates,
   makeRuntimeCat,
-} from '@/domain/services/runtimeSourceService'
-import { makeTeamComp } from '@/domain/gameData/teamComposition'
+} from '@/engine/services/runtimeSourceService'
+import { makeTeamComp } from '@/engine/gameData/teamComposition'
 import {
   getNegFfctCm,
   getNegFfctEn,
   negEffectsFor,
-} from '@/domain/gameData/negativeEffects'
-import { getTuneStrainMaxForTeam } from '@/domain/gameData/tuneStrain'
-import { getSrcNumMax } from '@/domain/gameData/controlOptions'
+} from '@/engine/gameData/negativeEffects'
+import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain'
+import { getSrcNumMax } from '@/engine/gameData/controlOptions'
 import { readRtPath, writeBjctPat, writeRtPath } from '@/domain/gameData/runtimePath'
-import { listStatesFor } from '@/domain/services/gameDataService'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { cloneSlotRml } from '@/domain/state/defaults'
-import { cloneSlotLuo } from '@/domain/state/runtimeMaterialization'
+import { getOwnForKey, listStatesFor } from '@/data/catalog/gameDataService'
+import {
+  listMnlSclrWrites,
+  listMnlTopStatWrites,
+  type MnlSclrWrite,
+  type MnlTopStatWrite,
+} from '@/engine/manualBuffs'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { cloneSlotRml } from '@/engine/runtime/defaults'
+import { cloneSlotLuo } from '@/engine/runtime/runtimeMaterialization'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
 import {
   calcNumericSkillDamage,
@@ -106,7 +128,10 @@ import {
   writeNumericRuntime,
   syncNumericTeam,
   type NumericTeamState,
+  type ContributionWrite,
+  type SkillScalarWrite,
   prepareNumericSkill,
+  primeNumericTraces,
   rollbackNumericTeam,
 } from '@/engine/effects/numericTeam.ts'
 import type {
@@ -270,6 +295,10 @@ interface RotationExec {
   mutableOverlay: boolean
   numericTeam: NumericTeamState
   formulaRegisters: Float64Array
+  /** Enemy Off-Tune accumulated since the last authored Tune Break entry. */
+  offTune: number
+  /** execution-order cooldown state following the latest Tune Break */
+  offTuneSeal: OffTuneSealState
 
   // lazily resolved runtime snapshots for the current overlay version
   rslvRtCch: Record<string, { version: number; runtime: ResRuntime }>
@@ -487,6 +516,155 @@ function sumSkillHits(skill: Pick<SkillDef, 'hits'>): number {
   return skill.hits.reduce((total, hit) => total + hit.multiplier * hit.count, 0)
 }
 
+export const OFF_TUNE_MAX = 38.4
+
+const EMPTY_SCALAR_WRITES: readonly SkillScalarWrite[] = []
+const EMPTY_RATE_WRITES: readonly ContributionWrite[] = []
+
+/** what to call the lane a buff came from, as the reader knows it */
+function laneName(state: RotationExec, lane: number): string {
+  const resonatorId = state.numericTeam.program.laneIds[lane]
+  if (!resonatorId) return ''
+  return state.environment.seedLookup[resonatorId]?.name ?? ''
+}
+
+const OFF_TUNE_SCALARS = ['offTune', 'directOffTune'] as const
+const OFF_TUNE_RATE_STATS = ['offTuneBuildupRate'] as const
+
+function resolvedOffTune(
+  skill: Pick<SkillDef, 'damageEntries' | 'offTune'>,
+  formula?: RotFormulaStats,
+): number {
+  const base = skill.damageEntries?.reduce(
+    (total, entry) => total + (entry.weakness ?? 0) * entry.count,
+    0,
+  ) ?? 0
+  return base + (skill.offTune ?? 0) + (formula?.offTuneAdd ?? 0)
+}
+
+function formatOffTune(value: number): string {
+  return `${value}/${OFF_TUNE_MAX}`
+}
+
+/*
+  The register can only print where the gauge ended up. This rebuilds the
+  working behind that figure from the same operands the line above used, so the
+  readout names every hit and every buff instead of asking the reader to take a
+  total on faith. It runs only when entries are being captured.
+*/
+function traceOffTune(
+  skill: SkillDef,
+  scalarWrites: readonly SkillScalarWrite[],
+  manualWrites: readonly MnlSclrWrite[],
+  manualRateWrites: readonly MnlTopStatWrite[],
+  rateWrites: readonly ContributionWrite[],
+  /* who a lane is, so a source can say whose it is */
+  nameOfLane: (lane: number) => string,
+  casterName: string,
+  formula: RotFormulaStats | undefined,
+  rate: number,
+  repeats: number,
+  before: number,
+  after: number,
+  reset: boolean,
+  sealed: boolean,
+  afterBreak: boolean,
+  resume: 'mark' | 'default' | null,
+): OffTuneTrace {
+  const hits: OffTuneHit[] = []
+  let hitTotal = 0
+  for (const entry of skill.damageEntries ?? []) {
+    const weakness = entry.weakness ?? 0
+    if (weakness === 0) continue
+    const total = weakness * entry.count
+    hits.push({ label: entry.label, count: entry.count, weakness, total })
+    hitTotal += total
+  }
+
+  /*
+    An effect's own name is not enough on a team: two members can grant the
+    same thing, and the reader is choosing between them. The lane that cast it
+    goes in front of it.
+  */
+  const sourceName = (write: ContributionWrite): string => {
+    const effect = getOwnForKey(write.ownerKey)?.label
+    const from = nameOfLane(write.sourceLane)
+    if (!effect) return from || 'Buff'
+    return from ? `${from}: ${effect}` : effect
+  }
+
+  const named = (field: 'offTune' | 'directOffTune', catalog: number): [OffTuneSource[], number] => {
+    const sources: OffTuneSource[] = []
+    let buffed = 0
+    for (const write of manualWrites) {
+      if (write.field !== field) continue
+      buffed += write.value
+      sources.push({ label: write.label, value: write.value })
+    }
+    for (const write of scalarWrites) {
+      if (write.field !== field) continue
+      buffed += write.value
+      sources.push({ label: sourceName(write), value: write.value })
+    }
+    /*
+      the trace is read off the resolved skill, so the catalog's own figure is
+      whatever the buffs did not put there. a skill variant or a subhit can move
+      it, and taking the remainder keeps the parts summing to the whole.
+    */
+    const own = catalog - buffed
+    if (own !== 0) sources.unshift({ label: skill.label, value: own })
+    return [sources, catalog]
+  }
+
+  const [pre, preFromSkill] = named('offTune', skill.offTune ?? 0)
+  const formulaAdd = formula?.offTuneAdd ?? 0
+  if (formulaAdd !== 0) pre.push({ label: 'Node formula', value: formulaAdd })
+  const preTotal = preFromSkill + formulaAdd
+  const [post, postTotal] = named('directOffTune', skill.directOffTune ?? 0)
+
+  /*
+    The rate is one figure made of shares: the caster's own 1 plus whatever the
+    team put on top. The caster's row carries the remainder as well, so the
+    rows always add up to the rate actually applied even where a node formula
+    or a base pool moved it outside the kernel's view.
+  */
+  const rateSources: OffTuneSource[] = []
+  let rateBuffed = 0
+  for (const write of manualRateWrites) {
+    rateBuffed += write.value
+    rateSources.push({ label: write.label, value: write.value })
+  }
+  for (const write of rateWrites) {
+    rateBuffed += write.value
+    rateSources.push({ label: sourceName(write), value: write.value })
+  }
+  rateSources.unshift({ label: casterName, value: rate - rateBuffed })
+
+  const rated = (hitTotal + preTotal) * rate
+  return {
+    before,
+    after,
+    max: OFF_TUNE_MAX,
+    reset,
+    sealed,
+    afterBreak,
+    resume,
+    crest: !reset && !sealed && after >= OFF_TUNE_MAX && before < OFF_TUNE_MAX,
+    held: !reset && !sealed && after >= OFF_TUNE_MAX && before >= OFF_TUNE_MAX,
+    hits,
+    hitTotal,
+    pre,
+    preTotal,
+    rate,
+    rateSources,
+    rated,
+    post,
+    postTotal,
+    repeats,
+    gain: after - before,
+  }
+}
+
 function addSkillMv(skill: SkillDef, value: number): SkillDef {
   const delta = value / 100
   if (delta === 0 || skill.multiplier <= 0) {
@@ -636,16 +814,29 @@ function slcSkllForFe(skill: SkillDef, feature: FeatDef): SkillDef {
     return skill
   }
 
-  const hit = skill.hits[feature.hitIndex]
+  const damageEntry = feature.damageEntryId
+    ? skill.damageEntries?.find((entry) =>
+      entry.id === feature.damageEntryId || entry.replacesEntryId === feature.damageEntryId)
+    : undefined
+  const hitIndex = damageEntry?.hitIndex ?? feature.hitIndex
+  const hit = skill.hits[hitIndex]
   if (!hit) {
     return skill
   }
 
-  const hitTblEnt = skill.hitTable?.[feature.hitIndex]
+  const hitTblEnt = skill.hitTable?.[hitIndex]
 
   return {
     ...skill,
     label: feature.label,
+    ...(damageEntry
+      ? {
+        skillType: damageEntry.skillType,
+        element: damageEntry.element,
+        scaling: damageEntry.scaling,
+        damageEntries: [damageEntry],
+      }
+      : {}),
     multiplier: hit.multiplier,
     hits: [{ ...hit, count: 1 }],
     hitTable: hitTblEnt ? [{
@@ -778,6 +969,10 @@ function mkRotStt(
   const scoreIds = captureEntries
     ? []
     : Object.values(environment.graph.participants).map((participant) => participant.resonatorId)
+  const numericTeam = forkNumericTeam(environment.numericBase)
+  /* only a captured run has anywhere to put the attribution */
+  numericTeam.traceContributions = captureEntries
+  if (captureEntries) primeNumericTraces(numericTeam)
   return {
     environment,
     program,
@@ -792,8 +987,10 @@ function mkRotStt(
       effectScalesByRuntimePath: {},
     },
     mutableOverlay: !captureEntries && !inspect,
-    numericTeam: forkNumericTeam(environment.numericBase),
+    numericTeam,
     formulaRegisters: new Float64Array(ROT_FORMULA_STAT_DEFS.length),
+    offTune: 0,
+    offTuneSeal: makeOffTuneSealState(),
     rslvRtCch: {},
     mtrlGrphVrsn: -1,
     mtrlGrph: null,
@@ -851,6 +1048,111 @@ export function prepareRotationProgram(items: RotationNode[]): PreparedRotationP
   return prepared
 }
 
+const offTuneSealCache = new WeakMap<
+  RunEnvironment,
+  WeakMap<PreparedRotationProgram, OffTuneSealPlan>
+>()
+
+/**
+ * Expand the compiled structural order used by literal repeats and loop
+ * passes. The cooldown itself still advances at runtime; this cold pass only
+ * tells a break whether an authored landing exists before the next break.
+ */
+function appendOffTuneFeatureOrder(
+  block: CompiledRotationBlock,
+  plan: CompiledRotationPlan,
+  out: Array<Extract<RotationNode, { type: 'feature' }>>,
+): void {
+  for (let index = 0; index < block.items.length; index += 1) {
+    const item = block.items[index]!
+    if (item.type === 'feature') {
+      out.push(item)
+      continue
+    }
+    if (item.type === 'repeat') {
+      if (item.setup) {
+        const setup = plan.blockByItems.get(item.setup)
+        if (setup) appendOffTuneFeatureOrder(setup, plan, out)
+      }
+      const body = plan.blockByItems.get(item.items)
+      const compiledTimes = block.numericOperandByIndex[index]
+      const times = Number.isFinite(compiledTimes)
+        ? Math.max(0, Math.floor(compiledTimes ?? 0))
+        : 1
+      if (body) {
+        for (let run = 0; run < times; run += 1) {
+          appendOffTuneFeatureOrder(body, plan, out)
+        }
+      }
+      continue
+    }
+    if (item.type === 'uptime') {
+      if (item.setup) {
+        const setup = plan.blockByItems.get(item.setup)
+        if (setup) appendOffTuneFeatureOrder(setup, plan, out)
+      }
+      const body = plan.blockByItems.get(item.items)
+      if (body) appendOffTuneFeatureOrder(body, plan, out)
+      continue
+    }
+    if (item.type !== 'loop' || item.kind !== 'start') continue
+
+    const loop = block.loopsByIndex[index]
+    if (!loop) continue
+    for (const pass of loop.passBlocks) {
+      appendOffTuneFeatureOrder(pass, plan, out)
+    }
+    if (loop.circular) {
+      return
+    }
+    if (loop.endIndex != null) index = loop.endIndex
+  }
+}
+
+/** whether a feature node is the Tune Break that empties the gauge */
+function isTuneBreakFeat(
+  environment: RunEnvironment,
+  node: Extract<RotationNode, { type: 'feature' }>,
+): boolean {
+  const preferred = node.resonatorId
+    ? environment.catalogByResonator[node.resonatorId]
+    : undefined
+  const catalogs = preferred
+    ? [preferred, ...Object.values(environment.catalogByResonator)]
+    : Object.values(environment.catalogByResonator)
+  for (const catalog of catalogs) {
+    const feature = catalog?.featuresById[node.featureId]
+    if (!feature) continue
+    return catalog.skillsById[feature.skillId]?.tab === 'tuneBreak'
+  }
+  return false
+}
+
+/*
+  Which feature empties the gauge is a question for the catalog, so the plan is
+  held against the environment that answered it as well as against the program.
+  Both are stable across a search, which is the only place this runs hot.
+*/
+function offTuneSealFor(
+  environment: RunEnvironment,
+  program: PreparedRotationProgram,
+): OffTuneSealPlan {
+  let byProgram = offTuneSealCache.get(environment)
+  if (!byProgram) {
+    byProgram = new WeakMap()
+    offTuneSealCache.set(environment, byProgram)
+  }
+  const cached = byProgram.get(program)
+  if (cached) return cached
+  const executionOrder: Array<Extract<RotationNode, { type: 'feature' }>> = []
+  appendOffTuneFeatureOrder(program.plan.root, program.plan, executionOrder)
+  const sealPlan = executionOrder.length > 0
+    ? planOffTuneSealOrder(executionOrder, (node) => isTuneBreakFeat(environment, node))
+    : planOffTuneSeal(program.items, (node) => isTuneBreakFeat(environment, node))
+  byProgram.set(program, sealPlan)
+  return sealPlan
+}
+
 // Execute one prepared authored program. Callers choose the program explicitly;
 // program selection belongs to callers; preparation only normalizes the AST.
 export function executeRotationProgram(
@@ -863,6 +1165,7 @@ export function executeRotationProgram(
       includeSnapshots: options.includeSnapshots,
       captureEntries: options.captureEntries,
     })
+  executionState.offTuneSeal = makeOffTuneSealState(offTuneSealFor(environment, program))
   executionState.onDamageInvocation = options.onDamageInvocation
   const result = runRotTimes(
     executionState,
@@ -886,14 +1189,13 @@ export function executeRotationScore(
   program: PreparedRotationProgram,
   options: { aggregationType?: SkillAggType } = {},
 ): NumericScore {
-  const result = runRotTimes(
-    mkRotStt(environment, program.plan, false, {
-      detail: 'summary',
-      captureEntries: false,
-      scoreAggregationType: options.aggregationType ?? null,
-    }),
-    program.items,
-  )
+  const executionState = mkRotStt(environment, program.plan, false, {
+    detail: 'summary',
+    captureEntries: false,
+    scoreAggregationType: options.aggregationType ?? null,
+  })
+  executionState.offTuneSeal = makeOffTuneSealState(offTuneSealFor(environment, program))
+  const result = runRotTimes(executionState, program.items)
   const values = result.scoreValues ?? new Float64Array(0)
   const normalizedValues = result.normalizedScoreValues ?? new Float64Array(0)
   const resonators = result.scoreIds.map((id, index) => ({
@@ -1049,6 +1351,8 @@ function mergeScopedRotRslt(
   if (state.nspcNtrs && scopedState.nspcNtrs) {
     appendAll(state.nspcNtrs, scopedState.nspcNtrs)
   }
+  state.offTune = scopedState.offTune
+  state.offTuneSeal = scopedState.offTuneSeal
 
   return state
 }
@@ -1126,8 +1430,12 @@ function mergePtmBodyOverlay(
     resultState.overlay.effectScalesByRuntimePath,
   )
   const activeChanged = !Object.is(setupState.overlay.activeResonatorId, resultState.overlay.activeResonatorId)
+  const offTuneChanged = !Object.is(setupState.offTune, resultState.offTune)
+  const offTuneSealChanged = setupState.offTuneSeal !== resultState.offTuneSeal
   const hasChanges =
     activeChanged ||
+    offTuneChanged ||
+    offTuneSealChanged ||
     Object.keys(runtimeChanges).length > 0 ||
     Object.keys(routingChanges).length > 0 ||
     Object.keys(enemyChanges).length > 0 ||
@@ -1199,6 +1507,8 @@ function mergePtmBodyOverlay(
       }
     }
     state.formulaRegisters = formulaRegisters
+    state.offTune = resultState.offTune
+    state.offTuneSeal = resultState.offTuneSeal
     state.overlay.version += 1
     state.overlay.runtimeVersion += hasRuntimeChanges ? 1 : 0
     state.overlay.combatVersion += hasCombatChanges ? 1 : 0
@@ -1211,6 +1521,8 @@ function mergePtmBodyOverlay(
     ...state,
     numericTeam,
     formulaRegisters,
+    offTune: resultState.offTune,
+    offTuneSeal: resultState.offTuneSeal,
     overlay: {
       ...state.overlay,
       version: state.overlay.version + 1,
@@ -2326,6 +2638,15 @@ interface AppliedRotWrite {
   resonatorId: string
 }
 
+/** One authored entry's cooldown treatment, shared by its attached hit rows. */
+interface FeatOffTuneSeal {
+  resolved: boolean
+  reset: boolean
+  sealed: boolean
+  afterBreak: boolean
+  resume: 'mark' | 'default' | null
+}
+
 interface RunFeatOptions {
   /**
    * Multiplies this feature's authored multiplier. Used so a parent's
@@ -2343,6 +2664,8 @@ interface RunFeatOptions {
   preAppliedWrites?: AppliedRotWrite[]
   /** Intern-table feature id from the compiled instruction stream. */
   compiledFeatureId?: string
+  /** Parent entry treatment inherited by attached hits without advancing it. */
+  offTuneSeal?: FeatOffTuneSeal
 }
 
 /**
@@ -2377,6 +2700,13 @@ function runFeatNode(
       (feature): feature is RotFeatureNode => feature.type === 'feature',
     )
   const preAppliedWrites: AppliedRotWrite[] = [...(options.preAppliedWrites ?? [])]
+  const offTuneSeal: FeatOffTuneSeal = options.offTuneSeal ?? {
+    resolved: false,
+    reset: false,
+    sealed: false,
+    afterBreak: false,
+    resume: null,
+  }
 
   // Any attachment opens one local group. Catalog follow-up writes produced by
   // the parent or a child stay visible to later siblings in the group, but do
@@ -2435,6 +2765,7 @@ function runFeatNode(
     ownResId,
     preAppliedWrites,
     options.compiledFeatureId,
+    offTuneSeal,
   )
 
   if (!asAttachment) {
@@ -2455,6 +2786,7 @@ function runFeatNode(
         multiplierScale: parentMultiplier,
         asAttachment: true,
         preAppliedWrites,
+        offTuneSeal,
       })
     }
   }
@@ -2474,6 +2806,7 @@ function runFeatBody(
   /** writes already applied into `state` by attached conditions */
   preAppliedWrites: AppliedRotWrite[] = [],
   compiledFeatureId?: string,
+  entryOffTuneSeal?: FeatOffTuneSeal,
 ): RotationExec {
   const ownResId = resNodeResId(state, node, fallbackResId)
   const lclFeatStt = state
@@ -2509,6 +2842,13 @@ function runFeatBody(
   }
 
   const skillResult = resolveRotationSkill(lclFeatStt, participant, skill)
+  /*
+    the kernel writes its trace into one scratch list, so it has to be taken
+    before anything else prepares a skill on this team.
+  */
+  const skillScalarWrites = lclFeatStt.numericTeam.skillScalarTrace.length > 0
+    ? lclFeatStt.numericTeam.skillScalarTrace.slice()
+    : EMPTY_SCALAR_WRITES
 
   if (skillResult.visible === false) {
     return ppndNspcEnt(lclFeatStt, {
@@ -2520,8 +2860,9 @@ function runFeatBody(
 
   const ftrdSkll = slcSkllForFe(skillResult, feature)
   const hasFormulaStats = hasRotFormulaStats(lclFeatStt)
-  const formulaSkill = hasFormulaStats
-    ? applyFormulaToSkill(ftrdSkll, materializeFormulaStats(lclFeatStt))
+  const formulaStats = hasFormulaStats ? materializeFormulaStats(lclFeatStt) : undefined
+  const formulaSkill = formulaStats
+    ? applyFormulaToSkill(ftrdSkll, formulaStats)
     : ftrdSkll
   const flatScoreOnly = !lclFeatStt.captureEntries && !lclFeatStt.nspcNtrs
     && Boolean(lclFeatStt.scoreValues)
@@ -2535,7 +2876,7 @@ function runFeatBody(
     ? applyFormulaToFinalPlane(lclFeatStt, participant.lane, scaledSkill)
     : null
   const enemy = getActEnemy(lclFeatStt)
-  const effectiveStats = lclFeatStt.captureEntries || lclFeatStt.nspcNtrs
+  const effectiveStatsBase = lclFeatStt.captureEntries || lclFeatStt.nspcNtrs
     ? resolveNumericEffectiveStats(
       lclFeatStt.numericTeam,
       participant.lane,
@@ -2543,6 +2884,71 @@ function runFeatBody(
       scaledSkill,
       enemy,
     )
+    : undefined
+  const finalPlane = formulaFinalPlane ?? lclFeatStt.numericTeam.finals
+  const finalOffset = formulaFinalPlane ? 0 : participant.lane * NUMERIC_FINAL_CELL_COUNT
+  const buildupRate = Math.max(
+    0,
+    finalPlane[finalOffset + finalTopCell('offTuneBuildupRate')] ?? 1,
+  )
+  const offTuneBefore = lclFeatStt.offTune
+  const offTuneReset = entryOffTuneSeal?.resolved
+    ? entryOffTuneSeal.reset
+    : scaledSkill.tab === 'tuneBreak'
+  let offTuneSealed = entryOffTuneSeal?.sealed ?? false
+  let offTuneAfterBreak = entryOffTuneSeal?.afterBreak ?? false
+  let offTuneResume = entryOffTuneSeal?.resume ?? null
+
+  if (!entryOffTuneSeal?.resolved) {
+    if (offTuneReset) {
+      lclFeatStt.offTuneSeal = startOffTuneSeal(lclFeatStt.offTuneSeal, node.id)
+    } else {
+      const step = stepOffTuneSeal(lclFeatStt.offTuneSeal, node)
+      lclFeatStt.offTuneSeal = step.state
+      offTuneSealed = step.sealed
+      offTuneAfterBreak = step.afterBreak
+      offTuneResume = step.resume
+    }
+    if (entryOffTuneSeal) {
+      entryOffTuneSeal.resolved = true
+      entryOffTuneSeal.reset = offTuneReset
+      entryOffTuneSeal.sealed = offTuneSealed
+      entryOffTuneSeal.afterBreak = offTuneAfterBreak
+      entryOffTuneSeal.resume = offTuneResume
+    }
+  }
+  /* the target is still refusing Off-Tune, so this feature puts none on it */
+  lclFeatStt.offTune = offTuneReset
+    ? 0
+    : offTuneSealed
+      ? lclFeatStt.offTune
+      : lclFeatStt.offTune + (
+        resolvedOffTune(scaledSkill, formulaStats) * buildupRate
+        + (scaledSkill.directOffTune ?? 0)
+      ) * nodeState.multiplier
+  const effectiveStats = effectiveStatsBase
+    ? {
+      ...effectiveStatsBase,
+      offTune: formatOffTune(lclFeatStt.offTune),
+      offTuneTrace: traceOffTune(
+        scaledSkill,
+        skillScalarWrites,
+        listMnlSclrWrites(scaledSkill, participant.runtime.state.manualBuffs, OFF_TUNE_SCALARS),
+        listMnlTopStatWrites(participant.runtime.state.manualBuffs, OFF_TUNE_RATE_STATS),
+        lclFeatStt.numericTeam.buildupRateTrace[participant.lane] ?? EMPTY_RATE_WRITES,
+        (lane) => laneName(lclFeatStt, lane),
+        participant.seed.name || participant.seed.id,
+        formulaStats,
+        buildupRate,
+        nodeState.multiplier,
+        offTuneBefore,
+        lclFeatStt.offTune,
+        offTuneReset,
+        offTuneSealed,
+        offTuneAfterBreak,
+        offTuneResume,
+      ),
+    }
     : undefined
 
   // negative-effect skills depend on stack count in combat state
@@ -3158,6 +3564,8 @@ function runSetupUptimeNode(
       ...state,
       overlay: branchState.overlay,
       numericTeam: branchState.numericTeam,
+      offTune: branchState.offTune,
+      offTuneSeal: branchState.offTuneSeal,
       rslvRtCch: branchState.rslvRtCch,
       mtrlGrphVrsn: branchState.mtrlGrphVrsn,
       mtrlGrph: branchState.mtrlGrph,

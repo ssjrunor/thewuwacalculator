@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Owns source state control behavior and state transitions for the controls module.
+  Description: Edits boolean, numeric, and enumerated source-state controls through canonical runtime paths.
 */
 
 import type { ReactNode } from 'react'
@@ -10,12 +10,12 @@ import type { SourceState } from '@/domain/gameData/contracts.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { ResModeGroup } from '@/domain/entities/resonator.ts'
 import { getResModeGroups } from '@/domain/gameData/resonatorStateGraph.ts'
-import { RichDscr } from '@/shared/ui/RichDescription.tsx'
-import { LiquidSelect } from '@/shared/ui/LiquidSelect.tsx'
+import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
+import { LiquidSelect } from '@/application/ui/LiquidSelect.tsx'
 import { ModeGlyph } from '@/modules/simulation/features/controls/ModeGlyph.tsx'
 import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.tsx'
 import { getStateText } from '@/modules/simulation/model/sourceStateDisplay.ts'
-import { sourceOptions as sourceOptions } from '@/domain/services/sourceStateService.ts'
+import { sourceOptions as sourceOptions } from '@/engine/services/sourceStateService.ts'
 import {
   isSrcSttOn,
   setSourceState,
@@ -23,8 +23,8 @@ import {
 } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import { getSrcSttDsb } from '@/modules/simulation/model/stateDisabledReason.ts'
-import { getSrcSttNct } from '@/domain/gameData/controlOptions.ts'
-import { srcSttNumMax } from '@/domain/state/sourceStateInit.ts'
+import { getSrcSttNct } from '@/engine/gameData/controlOptions.ts'
+import { srcSttNumMax } from '@/engine/runtime/sourceStateInit.ts'
 
 // renders the control for each resonator source state and wires into the runtime update helpers.
 interface SrcSttCntrPr {

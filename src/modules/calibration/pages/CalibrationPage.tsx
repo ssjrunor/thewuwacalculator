@@ -6,16 +6,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties as CssProps, ReactNode } from 'react'
-import { hasWwcbMgc, readAppFile, xprtAppFile } from '@/shared/lib/fileCodec'
-import { useAppStore, type AppStore } from '@/domain/state/store'
+import { hasWwcbMgc, readAppFile, xprtAppFile } from '@/application/persistence/fileCodec'
+import { useAppStore, type AppStore } from '@/application/state'
+import { useInventoryLease } from '@/application/hooks/useInventoryLease.ts'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
-import { useConfirm } from '@/app/hooks/useConfirmation.ts'
+import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { mainPortal } from '@/shared/lib/portalTarget'
-import { clrPrssAppSt, saveAppState, APP_STORAGE_KEY } from '@/infra/persistence/storage'
-import { rstrLtstSnap, pldSnapToDrv } from '@/infra/googleDrive/driveSync'
-import { selectPersisted } from '@/domain/state/serialization'
+import { clrPrssAppSt, saveAppState, APP_STORAGE_KEY } from '@/application/persistence/appStorage'
+import { rstrLtstSnap, pldSnapToDrv } from '@/application/backup/driveSync'
+import { selectPersisted } from '@/application/state/serialization'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
-import { projectScenarioWorkspaceProfiles } from '@/domain/state/scenarioRuntime'
+import { projectScenarioWorkspaceProfiles } from '@/engine/runtime/scenarioRuntime'
 import {
   applyBgColor,
   applyBgToDocument,
@@ -26,17 +27,17 @@ import {
   resolveBg,
   switchBg,
   writeStoredBgColor,
-} from '@/modules/calibration/model/backgroundTheme'
-import { resolveImageRef } from '@/shared/lib/imageUpload.ts'
-import type { StoredImage } from '@/shared/lib/imageUpload.ts'
+} from '@/application/theme/backgroundTheme'
+import { resolveImageRef } from '@/application/media/imageUpload.ts'
+import type { StoredImage } from '@/application/media/imageUpload.ts'
 import { useAppModal } from '@/shared/ui/useAppModal'
-import { ImageUploadModal } from '@/shared/ui/ImageUploadModal'
+import { ImageUploadModal } from '@/application/media/ImageUploadModal'
 import {
   applyBodyFon,
   applyPrvwBod,
   ensureGoogleFamily,
   extractGoogleFamily,
-} from '@/modules/calibration/model/typography'
+} from '@/application/theme/typography'
 import {
   BG_PRESETS,
   BODY_FONT_PRESETS,
@@ -45,14 +46,14 @@ import {
   SYSTEM_FONT_NAME,
   WUWA_FONT_NAME,
 } from '@/domain/entities/appearance'
-import { useGglDrvAut } from '@/app/hooks/useGoogleDriveAuth'
+import { useGglDrvAut } from '@/application/hooks/useGoogleDriveAuth'
 import { DATAXPRTCTNS, mkDataXprtFi } from '@/modules/calibration/model/dataManagement'
 import { runDataImport } from '@/modules/calibration/model/dataImportClient'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { gameDataModeFromBeta, type GameDataMode } from '@/domain/entities/gameDataMode'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
 import { HIST_MAX_OPTS, type HistoryMax } from '@/domain/entities/appState'
-import { groupUid } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
+import { groupUid } from '@/modules/simulation/api/playerIdentity'
 import {
   THEME_BY_MODE,
   THEME_INK,
@@ -84,6 +85,7 @@ function runWhenIdle(task: () => void): void {
 }
 
 const MAX_INLINE_IMPORT_BYTES = 1024 * 1024
+let activeSessionBackgroundUrl: string | null = null
 
 interface ModeCatalogIds {
   resonators: Set<string>
@@ -459,6 +461,7 @@ function PlayerPlate() {
 }
 
 export function CalibrationPage() {
+  useInventoryLease()
   const ui = useAppStore((state) => state.ui)
   const setTheme = useAppStore((state) => state.setTheme)
   const setThemePref = useAppStore((state) => state.setThemePref)
@@ -849,10 +852,18 @@ export function CalibrationPage() {
     try {
       if (result.persisted) {
         await applyBgSel(result.ref, result.ref)
+        if (activeSessionBackgroundUrl) URL.revokeObjectURL(activeSessionBackgroundUrl)
+        activeSessionBackgroundUrl = null
       } else {
         // session: show it now without persisting the active key.
         const resolved = await resolveImageRef(result.ref)
-        if (resolved) applyBgToDocument(resolved.url)
+        if (resolved) {
+          applyBgToDocument(resolved.url)
+          if (activeSessionBackgroundUrl && activeSessionBackgroundUrl !== resolved.url) {
+            URL.revokeObjectURL(activeSessionBackgroundUrl)
+          }
+          activeSessionBackgroundUrl = resolved.url.startsWith('blob:') ? resolved.url : null
+        }
       }
       showToast({ content: 'Applied as the background wallpaper.', variant: 'success' })
     } catch (error) {
@@ -914,7 +925,7 @@ export function CalibrationPage() {
         throw new Error('Google Drive session expired. Sign in again to continue.')
       }
 
-      // Let React paint the busy state before snapshot serialization runs.
+      // Yield one frame so the busy state commits before synchronous serialization.
       await waitForNextP()
       const raw = mkCurSnapJso()
       const result = await pldSnapToDrv(accessToken, raw)

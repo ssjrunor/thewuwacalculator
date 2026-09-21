@@ -6,7 +6,7 @@
 import type { EchoDef } from '@/domain/entities/catalog'
 import { makeEchoUid, type EchoInstance } from '@/domain/entities/runtime'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
-import { getEchoById, listEchoes, listChsByCos } from '@/domain/services/echoCatalogService'
+import { getEchoById, listEchoes, listChsByCos } from '@/data/catalog/echoCatalogService'
 
 export interface MainStatRecipe {
   cost: number

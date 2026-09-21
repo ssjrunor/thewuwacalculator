@@ -31,7 +31,7 @@ The shared execution flow is:
 Primary files:
 
 - [src/domain/entities/combatGraph.ts](../src/domain/entities/combatGraph.ts)
-- [src/domain/state/combatGraph.ts](../src/domain/state/combatGraph.ts)
+- [src/engine/runtime/combatGraph.ts](../src/engine/runtime/combatGraph.ts)
 
 The combat graph is the transient execution structure that ties active participants, runtime state, slot ownership, and targeting together. It is not itself durable persisted app state.
 

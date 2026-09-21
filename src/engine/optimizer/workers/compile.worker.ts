@@ -24,6 +24,7 @@ import type {
 } from '@/engine/optimizer/types.ts'
 import type {
   OptCompDoneM,
+  OptBaselineDoneM,
   OptCompRrrMs,
   OptCompInMsg,
   OptMatDoneMs,
@@ -33,6 +34,10 @@ import { errorOpt, logOptimizer } from '@/engine/optimizer/config/log.ts'
 let optCompMdlsP: Promise<{
   cmplOptPay: typeof import('@/engine/optimizer/compiler').compOptPay
   matOptResults: typeof import('@/engine/optimizer/results/materialize.ts').matOptRsltsF
+  evalBaseline: typeof import('@/engine/optimizer/results/materialize.ts').evalPrepOptB
+  listDynamicSetStateParts: typeof import('@/engine/optimizer/encode/sets.ts').listDynamicSetStateParts
+  makeSetMask: typeof import('@/engine/optimizer/encode/sets.ts').makeSetMask
+  buildSetRows: typeof import('@/engine/optimizer/encode/sets.ts').buildSetRows
 }> | null = null
 
 // the compile worker is now reused across runs, so game data only needs to be
@@ -46,9 +51,14 @@ async function loadOptCompM() {
     optCompMdlsP = Promise.all([
       import('@/engine/optimizer/compiler'),
       import('@/engine/optimizer/results/materialize.ts'),
-    ]).then(([compiler, materialize]) => ({
+      import('@/engine/optimizer/encode/sets.ts'),
+    ]).then(([compiler, materialize, sets]) => ({
       cmplOptPay: compiler.compOptPay,
       matOptResults: materialize.matOptRsltsF,
+      evalBaseline: materialize.evalPrepOptB,
+      listDynamicSetStateParts: sets.listDynamicSetStateParts,
+      makeSetMask: sets.makeSetMask,
+      buildSetRows: sets.buildSetRows,
     }))
   }
 
@@ -260,7 +270,7 @@ self.onmessage = async (event: MessageEvent<OptCompInMsg>) => {
   })
 
   try {
-    if (message.type === 'start') {
+    if (message.type === 'start' || message.type === 'baseline') {
       if (!gameDataReady) {
         if (message.payload.staticData) {
           logOptimizer('[optimizer:compile-worker] hydrating game data from static snapshot', {
@@ -279,7 +289,8 @@ self.onmessage = async (event: MessageEvent<OptCompInMsg>) => {
       }
 
       logOptimizer('[optimizer:compile-worker] loading compiler modules', { runId: message.runId })
-      const { cmplOptPay: cmplPtmzPyld } = await loadOptCompM()
+      const modules = await loadOptCompM()
+      const { cmplOptPay: cmplPtmzPyld } = modules
       logOptimizer('[optimizer:compile-worker] compiler modules loaded', { runId: message.runId })
 
       logOptimizer('[optimizer:compile-worker] compiling payload', {
@@ -290,6 +301,26 @@ self.onmessage = async (event: MessageEvent<OptCompInMsg>) => {
 
       const t0 = performance.now()
       const compiled = cmplPtmzPyld(message.payload)
+
+      if (message.type === 'baseline') {
+        const baselinePayload = compiled.mode === 'targetSkill' || compiled.mode === 'rotation'
+          ? (() => {
+              const dynamicStateParts = modules.listDynamicSetStateParts(compiled.runtime)
+              return {
+                ...compiled,
+                setRtMask: modules.makeSetMask(compiled.runtime, message.setConds, { dynamicStateParts }),
+                setConstLut: modules.buildSetRows(compiled.runtime, message.setConds, { dynamicStateParts }),
+              }
+            })()
+          : compiled
+        const response: OptBaselineDoneM = {
+          type: 'baselineDone',
+          runId: message.runId,
+          result: modules.evalBaseline(baselinePayload, message.mainIndex),
+        }
+        scope.postMessage(response)
+        return
+      }
 
       logOptimizer('[optimizer:compile-worker] payload compiled, upgrading buffers', {
         runId: message.runId,

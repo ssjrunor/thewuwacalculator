@@ -1,13 +1,11 @@
 /*
   Author: Runor Ewhro
-  Description: the writes a weapon slot takes: picking a weapon, and setting its
-               syntonize rank. The pane and the weapon console both stand on
-               this, so a pick means the same thing wherever it is made.
+  Description: Applies weapon selection and rank changes while resetting weapon-owned runtime state.
 */
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { GenWpn } from '@/domain/entities/weapon.ts'
-import { initWpnStts, maxWpnRt } from '@/domain/state/sourceStateInit.ts'
+import { initWpnStts, maxWpnRt } from '@/engine/runtime/sourceStateInit.ts'
 import { weaponStatsAt } from '@/modules/simulation/features/weapons/lib/weapon.ts'
 import { clampNumber } from '@/shared/lib/number.ts'
 

@@ -139,6 +139,7 @@ export function mkNfdBuffPoo(): UnifiedBuffPool {
     defIgnore: 0,
     defShred: 0,
     dmgVuln: 0,
+    offTuneBuildupRate: 0,
     tuneBreakBoost: 0,
     finalDmg: 0,
     immunities: mkImmunitySet(),

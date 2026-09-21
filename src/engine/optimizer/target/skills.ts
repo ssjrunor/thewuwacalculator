@@ -8,7 +8,7 @@
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { CombatContext } from '@/engine/pipeline/types.ts'
 import type { SkillDef } from '@/domain/entities/stats.ts'
-import { listRtSkills } from '@/domain/services/runtimeSourceService.ts'
+import { listRtSkills } from '@/engine/services/runtimeSourceService.ts'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill.ts'
 import { prepareSkill } from '@/engine/pipeline/prepareRuntimeSkill.ts'
 import { isOptDmgSkll } from '@/engine/optimizer/rules/eligibility.ts'

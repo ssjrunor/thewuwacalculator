@@ -10,8 +10,8 @@ import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import {
   listEffects,
   listSrcRtFfc,
-} from '@/domain/gameData/registry'
-import { makeTeamComp } from '@/domain/gameData/teamComposition'
+} from '@/data/gameData/registry'
+import { makeTeamComp } from '@/engine/gameData/teamComposition'
 import type {
   CondExpr,
   DataSrcRef,
@@ -43,7 +43,7 @@ import type {
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
 import { ffctTrgtRt } from '@/engine/effects/targetScope'
 import { makeModBuff } from '@/engine/resolvers/buffPool'
-import { getMainEchoS } from '@/domain/services/runtimeSourceService'
+import { getMainEchoS } from '@/engine/services/runtimeSourceService'
 
 interface LegDataFfctP {
   teamRuntime?: ResRuntime
@@ -89,6 +89,7 @@ export interface EffectContextRow {
   // contexts can reuse the same source expansion without re-querying registries.
   rtPreSttsExe: EffectDef[]
   postStatEffects: EffectDef[]
+  finalStatEffects: EffectDef[]
   skillEffects: EffectDef[]
 }
 
@@ -124,6 +125,7 @@ function mkFfctCtxEnt(baseContext: EffectContext): EffectContextRow {
     baseContext,
     rtPreSttsExe: listSrcRtFfc(registry, baseContext.source, 'preStats'),
     postStatEffects: listSrcRtFfc(registry, baseContext.source, 'postStats'),
+    finalStatEffects: listSrcRtFfc(registry, baseContext.source, 'finalStats'),
     skillEffects: listEffects(registry, baseContext.source, 'skill'),
   }
 }
@@ -629,10 +631,14 @@ function executeRuntimeEffect(
 export function applyCandRt(
     pool: UnifiedBuffPool,
     input: CandFxNpt,
-    stage: 'preStats' | 'postStats' = 'preStats',
+    stage: 'preStats' | 'postStats' | 'finalStats' = 'preStats',
 ): UnifiedBuffPool {
   const ent = mkFfctCtxEnt(mkCandCtx(input, pool))
-  const effects = stage === 'postStats' ? ent.postStatEffects : ent.rtPreSttsExe
+  const effects = stage === 'finalStats'
+    ? ent.finalStatEffects
+    : stage === 'postStats'
+      ? ent.postStatEffects
+      : ent.rtPreSttsExe
   if (effects.length === 0) {
     return pool
   }
@@ -836,7 +842,7 @@ export function applyRtDataF(
     runtime: ResRuntime,
     baseBuffs: UnifiedBuffPool,
     options: DataFfctPtns = {},
-    stage: 'preStats' | 'postStats' = 'preStats',
+    stage: 'preStats' | 'postStats' | 'finalStats' = 'preStats',
     sourceFilter?: (source: DataSrcRef) => boolean,
     effectFilter?: (effect: EffectDef, context: EffectContext) => boolean,
 ): UnifiedBuffPool {
@@ -847,7 +853,11 @@ export function applyRtDataF(
       continue
     }
 
-    const effects = stage === 'postStats' ? entry.postStatEffects : entry.rtPreSttsExe
+    const effects = stage === 'finalStats'
+      ? entry.finalStatEffects
+      : stage === 'postStats'
+        ? entry.postStatEffects
+        : entry.rtPreSttsExe
     if (effects.length === 0) {
       continue
     }
@@ -883,7 +893,7 @@ export function applyEnemyRtDataF(
     runtime: ResRuntime,
     baseBuffs: UnifiedBuffPool,
     options: DataFfctPtns = {},
-    stage: 'preStats' | 'postStats' = 'preStats',
+    stage: 'preStats' | 'postStats' | 'finalStats' = 'preStats',
 ): UnifiedBuffPool {
   const next = baseBuffs
   const enemy = options.enemy

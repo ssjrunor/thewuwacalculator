@@ -1,13 +1,13 @@
 /*
   Author: Runor Ewhro
-  Description: Owns use echo surface menu behavior and state transitions for the lib module.
+  Description: Builds Echo context actions from the active loadout, inventory, and clipboard capabilities.
 */
 
 import { useCallback, useMemo } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { equalEchoes } from '@/domain/entities/inventoryStorage.ts'
-import { useAppStore } from '@/domain/state/store.ts'
-import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
+import { useAppStore } from '@/application/state'
+import { useCtxBuilder } from '@/modules/simulation/shell/context-menu/useContextMenuBuilder.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { makeEchoClip, writeEchoClip } from '@/modules/simulation/features/echoes/lib/clipboard.ts'
 import { cmptTtlEchoC } from '@/modules/simulation/features/echoes/lib/echoes.ts'

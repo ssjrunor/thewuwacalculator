@@ -21,6 +21,7 @@ export type MnlTopStatKe =
     | 'defIgnore'
     | 'defShred'
     | 'dmgVuln'
+    | 'offTuneBuildupRate'
     | 'tuneBreakBoost'
     | 'finalDmg'
 
@@ -30,6 +31,8 @@ export type MnlModScp = 'baseStat' | 'topStat' | 'attribute' | 'skillType' | 'ne
 export type MnlSkllMtchM = 'skillId' | 'tab' | 'skillType' | 'archetype'
 export type MnlSkllSclrK =
     | 'fixedDmg'
+    | 'offTune'
+    | 'directOffTune'
     | 'skillHealingBonus'
     | 'skillShieldBonus'
     | 'tuneRuptureCritRate'

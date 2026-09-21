@@ -7,7 +7,7 @@
 
 import type { EchoDef } from '@/domain/entities/catalog.ts'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
-import { getEchoById, listChsByCos } from '@/domain/services/echoCatalogService.ts'
+import { getEchoById, listChsByCos } from '@/data/catalog/echoCatalogService.ts'
 import {
   ECHO_MAIN_STATS,
   SUBSTAT_KEYS,

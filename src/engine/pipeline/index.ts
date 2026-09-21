@@ -9,7 +9,7 @@ import type { CombatGraph, SlotId } from '@/domain/entities/combatGraph'
 import type { ResSeed } from '@/domain/entities/runtime'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import { makeCombatGraph } from '@/domain/state/combatGraph'
+import { makeCombatGraph } from '@/engine/runtime/combatGraph'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import { smltRot } from '@/engine/pipeline/simulateRotation'
 import {

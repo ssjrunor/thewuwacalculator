@@ -3,9 +3,24 @@
   Description: Verifies the inventoryStorage.test behavior and its compatibility invariants.
 */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
-import { cloneRotationNodes } from '@/domain/entities/inventoryStorage.ts'
+import type { EchoInstance } from '@/domain/entities/runtime.ts'
+import { cloneRotationNodes, saveEchoSlots } from '@/domain/entities/inventoryStorage.ts'
+
+function echo(uid: string, id: string): EchoInstance {
+  return {
+    uid,
+    id,
+    set: 1,
+    mainEcho: false,
+    mainStats: {
+      primary: { key: 'atkPercent', value: 0.18 },
+      secondary: { key: 'atkFlat', value: 40 },
+    },
+    substats: { critRate: 0.063 },
+  }
+}
 
 describe('cloneRotationNodes', () => {
   it('clones canonical loop forks with fresh loop and node identities', () => {
@@ -104,5 +119,25 @@ describe('cloneRotationNodes', () => {
     expect(feature?.id).not.toBe('feature')
     expect(feature?.type === 'feature' ? feature.note?.id : null).not.toBe('owned-note')
     expect(feature?.type === 'feature' ? feature.note?.text : null).toBe('Owned')
+  })
+})
+
+describe('saveEchoSlots', () => {
+  it('publishes selected echoes in one inventory batch and adopts assigned identities', () => {
+    const loadout = [echo('local-a', 'echo-a'), null, echo('local-b', 'echo-b')]
+    const addEchoes = vi.fn((echoes: EchoInstance[]) => echoes.map((item, index) => ({
+      id: `saved-${index}`,
+      echo: { ...item, uid: `inventory-${index}` },
+      createdAt: 1,
+      updatedAt: 1,
+    })))
+
+    const result = saveEchoSlots(loadout, [0, 2], addEchoes)
+
+    expect(addEchoes).toHaveBeenCalledTimes(1)
+    expect(addEchoes.mock.calls[0][0]).toEqual([loadout[0], loadout[2]])
+    expect(result.savedCount).toBe(2)
+    expect(result.nextEchoes?.[0]?.uid).toBe('inventory-0')
+    expect(result.nextEchoes?.[2]?.uid).toBe('inventory-1')
   })
 })

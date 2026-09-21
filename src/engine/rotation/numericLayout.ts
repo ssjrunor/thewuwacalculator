@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Implements the numericLayout logic for the rotation module.
+  Description: Defines and validates packed numeric rotation buffers shared by compiler and executor.
 */
 
 /*
@@ -45,7 +45,7 @@ export const NUMERIC_MOD_FIELDS: readonly (keyof ModBuff)[] = [
 export const NUMERIC_TOP_STATS = [
   'flatDmg', 'amplify', 'critRate', 'critDmg', 'energyRegen', 'healingBonus',
   'shieldBonus', 'dmgBonus', 'defIgnore', 'defShred', 'dmgVuln',
-  'tuneBreakBoost', 'finalDmg',
+  'offTuneBuildupRate', 'tuneBreakBoost', 'finalDmg',
 ] as const
 
 export const NUMERIC_BASE_KEYS: readonly BaseStatKey[] = ['atk', 'hp', 'def']
@@ -168,6 +168,7 @@ export function deriveFinalPlane(
     else if (stat === 'critDmg') value += base.critDmg
     else if (stat === 'energyRegen') value += base.energyRegen
     else if (stat === 'healingBonus') value += base.healingBonus
+    else if (stat === 'offTuneBuildupRate') value += 1
     else if (stat === 'tuneBreakBoost') value += base.tuneBreakBoost
     output[FINAL_TOP_OFFSET + index] = value
   }
@@ -203,6 +204,7 @@ export function packFinalStats(finalStats: FinalStats): Float64Array {
     defIgnore: finalStats.defIgnore,
     defShred: finalStats.defShred,
     dmgVuln: finalStats.dmgVuln,
+    offTuneBuildupRate: finalStats.offTuneBuildupRate,
     tuneBreakBoost: finalStats.tbb,
     finalDmg: finalStats.finalDmg,
   }
@@ -320,6 +322,7 @@ export function unpackFinalStats(
     defIgnore: cells[finalTopCell('defIgnore')] ?? 0,
     defShred: cells[finalTopCell('defShred')] ?? 0,
     dmgVuln: cells[finalTopCell('dmgVuln')] ?? 0,
+    offTuneBuildupRate: cells[finalTopCell('offTuneBuildupRate')] ?? 1,
     tbb: cells[finalTopCell('tuneBreakBoost')] ?? 0,
     finalDmg: cells[finalTopCell('finalDmg')] ?? 0,
     immunities: pool.immunities,

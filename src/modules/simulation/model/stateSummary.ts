@@ -6,8 +6,8 @@
 */
 
 import type { CombatGraph, CombatPart } from '@/domain/entities/combatGraph'
-import { getSrcSttNct } from '@/domain/gameData/controlOptions'
-import { makeTeamComp } from '@/domain/gameData/teamComposition'
+import { getSrcSttNct } from '@/engine/gameData/controlOptions'
+import { makeTeamComp } from '@/engine/gameData/teamComposition'
 import { readRtPath } from '@/domain/gameData/runtimePath'
 import type {
   DataSrcRef,
@@ -19,10 +19,10 @@ import type {
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime'
 import type { SkillDef } from '@/domain/entities/stats'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext'
-import { makeCombatGraph, findCombatPart } from '@/domain/state/combatGraph'
-import { makeEnemy } from '@/domain/state/defaults'
+import { makeCombatGraph, findCombatPart } from '@/engine/runtime/combatGraph'
+import { makeEnemy } from '@/engine/runtime/defaults'
 import { evalCond, evalForm } from '@/engine/effects/evaluator'
-import { mkSrcSttScp as mkSrcSttScp } from '@/domain/services/sourceStateService.ts'
+import { mkSrcSttScp as mkSrcSttScp } from '@/engine/services/sourceStateService.ts'
 import { ffctTrgtRt } from '@/engine/effects/targetScope'
 import { makeCombatEnv } from '@/engine/pipeline/buildCombatContext'
 import type { CombatContext } from '@/engine/pipeline/types'
@@ -31,10 +31,10 @@ import {
   listSkillsFor,
   listOwnersFor,
   listSttsForO,
-} from '@/domain/services/gameDataService'
-import { getMainEchoS } from '@/domain/services/runtimeSourceService'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService'
-import { getSkillType } from '@/modules/simulation/model/skillTypes'
+} from '@/data/catalog/gameDataService'
+import { getMainEchoS } from '@/engine/services/runtimeSourceService'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
+import { getSkillType } from '@/domain/gameData/skillTypes'
 import { getSourceOwnerName } from '@/modules/simulation/model/sourceStateDisplay'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
 import { toTitle } from '@/shared/lib/format'
@@ -72,7 +72,19 @@ export interface StateGroup {
 
 interface SkillStateSummaryTarget {
   resonatorId: string
-  skill: Pick<SkillDef, 'id' | 'label' | 'tab' | 'skillType' | 'element' | 'archetype' | 'aggregationType' | 'scaling' | 'fixedDmg'>
+  skill: Pick<
+    SkillDef,
+    | 'id'
+    | 'label'
+    | 'tab'
+    | 'skillType'
+    | 'element'
+    | 'archetype'
+    | 'aggregationType'
+    | 'scaling'
+    | 'fixedDmg'
+    | 'damageEntries'
+  >
 }
 
 export interface StatStateSummaryTarget {
@@ -120,6 +132,7 @@ function fmtTopStatLb(stat: string): string {
     shieldBonus: 'Shield Bonus',
     dmgBonus: 'DMG Bonus',
     dmgVuln: 'DMG Vulnerability',
+    offTuneBuildupRate: 'Off-Tune Buildup Rate',
     tuneBreakBoost: 'Tune Break Boost',
     finalDmg: 'Final DMG',
   }
@@ -135,6 +148,8 @@ function fmtTopStatSfx(stat: string): string {
 function fmtSkllSclrL(field: string): string {
   const labels: Record<string, string> = {
     fixedDmg: 'Fixed DMG',
+    offTune: 'Off-Tune',
+    directOffTune: 'Off-Tune Level',
     skillHealingBonus: 'Healing Bonus',
     skillShieldBonus: 'Shield Bonus',
     tuneRuptureCritRate: 'Tune Rupture Crit Rate',
@@ -261,6 +276,12 @@ function targetUsesBaseStat(target: SkillStateSummaryTarget, stat: string): bool
 }
 
 function targetUsesTopStat(target: SkillStateSummaryTarget, stat: string): boolean {
+  if (stat === 'offTuneBuildupRate') {
+    return target.skill.tab !== 'tuneBreak' && Boolean(
+      target.skill.damageEntries?.some((entry) => (entry.weakness ?? 0) * entry.count !== 0),
+    )
+  }
+
   if (isSkillDamageFormula(target)) {
     if ((target.skill.fixedDmg ?? 0) > 0) {
       return false
@@ -382,6 +403,10 @@ function targetUsesSkillMod(target: SkillStateSummaryTarget, mod: string): boole
 }
 
 function targetUsesSkillScalar(target: SkillStateSummaryTarget, field: string): boolean {
+  if (field === 'offTune' || field === 'directOffTune') {
+    return target.skill.tab !== 'tuneBreak'
+  }
+
   if (isSkillDamageFormula(target)) {
     return field === 'fixedDmg'
   }
@@ -762,7 +787,8 @@ function fmtOpLbls(
     // top-level scalar adders like crit rate, flat damage, healing bonus, etc.
     if (operation.type === 'add_top_stat') {
       const rawValue = evalForm(operation.value, scope)
-      const value = fmtSgndVl(rawValue, fmtTopStatSfx(operation.stat))
+      const displayValue = operation.stat === 'offTuneBuildupRate' ? rawValue * 100 : rawValue
+      const value = fmtSgndVl(displayValue, fmtTopStatSfx(operation.stat))
       return withHghl(fmtTopStatLb(operation.stat), '', value)
     }
 

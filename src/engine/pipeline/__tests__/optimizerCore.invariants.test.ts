@@ -6,10 +6,10 @@
 
 import { describe, expect, it } from 'vitest'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { listChsByCos } from '@/domain/services/echoCatalogService'
-import { listResSds } from '@/domain/services/resonatorSeedService'
-import { makeEnemy, makeOptSets, makeResRuntime } from '@/domain/state/defaults'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters'
+import { listChsByCos } from '@/data/catalog/echoCatalogService'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
+import { makeEnemy, makeOptSets, makeResRuntime } from '@/engine/runtime/defaults'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
 import {
   OPT_RDC_K,
   SET_SLOT_COUNT,

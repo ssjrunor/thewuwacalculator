@@ -1,13 +1,11 @@
 /*
   Author: Runor Ewhro
-  Description: Turns an equipped echo into the slot shape the bench echo strip
-               reads. Shared so any surface standing that strip presents echoes
-               the same way the evaluation report does.
+  Description: Projects equipped Echoes into the shared workspace slot contract.
 */
 
 import type { EchoInstance } from '@/domain/entities/runtime'
-import type { EvaluationEchoSlot } from '@/data/scoring/buildEvaluation.ts'
-import { getEchoById } from '@/domain/services/echoCatalogService'
+import type { EvaluationEchoSlot } from '@/engine/evaluation/buildEvaluation.ts'
+import { getEchoById } from '@/data/catalog/echoCatalogService'
 import { getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 
 function roundEchoStat(value: number): number {

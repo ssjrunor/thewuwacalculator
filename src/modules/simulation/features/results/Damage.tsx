@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  Description: Owns damage behavior and state transitions for the results module.
+  Description: Groups prepared skill damage rows and coordinates skill, hit, and formula inspection.
 */
 
 import { Fragment, useMemo, useState, type CSSProperties as CssProps } from 'react'
@@ -8,8 +8,8 @@ import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { FeatureResult } from '@/domain/gameData/contracts.ts'
 import type { SimResult } from '@/engine/pipeline/types.ts'
-import { useAppStore } from '@/domain/state/store.ts'
-import { getPrimarySkill, getSkillType } from '@/modules/simulation/model/skillTypes.ts'
+import { useAppStore } from '@/application/state'
+import { getPrimarySkill, getSkillType } from '@/domain/gameData/skillTypes.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
 import { formatCompactNum } from '@/modules/simulation/model/statsView.ts'
 import { Tooltip, DmgTltp } from '@/shared/ui/Tooltip.tsx'
@@ -23,8 +23,8 @@ import {
 } from '@/modules/simulation/features/results/lib/utils.ts'
 import { skillFormula } from '@/modules/simulation/features/results/lib/damageFormula.ts'
 import { DtrCnsl } from '@/shared/ui/EditorConsole.tsx'
-import { useCtxBuilder } from '@/shared/context-menu/useCtxBuilder.ts'
-import { ContextTrigger } from '@/shared/ui/CtxTrigger.tsx'
+import { useCtxBuilder } from '@/modules/simulation/shell/context-menu/useContextMenuBuilder.ts'
+import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 
 interface DamageProps {
   simulation: SimResult

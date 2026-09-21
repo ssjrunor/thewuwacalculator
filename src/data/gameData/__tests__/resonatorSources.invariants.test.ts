@@ -6,9 +6,15 @@
 
 import { describe, expect, it } from 'vitest'
 import type { ResDtls } from '@/domain/entities/resonator'
+import type { ResRuntime } from '@/domain/entities/runtime'
+import type { SkillDamageEntry, SkillDef } from '@/domain/entities/stats'
 import type { EffectScope, FormExpr, SrcPkg } from '@/domain/gameData/contracts'
+import { mkGameDataRe } from '@/data/gameData/registry'
 import { applySkllOp } from '@/engine/effects/dataEffects'
 import { evalForm } from '@/engine/effects/evaluator'
+import { resolveSkill } from '@/engine/pipeline/resolveSkill'
+import { makeCustomBuff } from '@/engine/runtime/defaults'
+import resonatorDamageEntriesRaw from '../../../../public/data/beta/resonators/damage-entries.json?raw'
 import resonatorDetailsRaw from '../../../../public/data/beta/resonators/details.json?raw'
 import resonatorSourcesRaw from '../../../../public/data/beta/resonators/sources.json?raw'
 
@@ -19,15 +25,20 @@ const TUNE_STRAIN_RESPONSE_EFFECTS = [
   ['1413', '1413:s6:tune-strain-extra', 0.2],
   ['1509', '1509:spectral-analysis', 1],
   ['1510', '1510:silent-debate', 1],
+  ['1510', '1510:s6:tune-strain-extra', 1],
 ] as const
 
-function makeTuneStrainScope(tbb: number, tuneStrain: number): EffectScope {
+function makeTuneStrainScope(
+  tbb: number,
+  tuneStrain: number,
+  offTuneBuildupRate = 1,
+): EffectScope {
   const runtime = {
     state: {
       combat: {},
     },
   } as unknown as EffectScope['sourceRuntime']
-  const finalStats = { tbb } as NonNullable<EffectScope['finalStats']>
+  const finalStats = { tbb, offTuneBuildupRate } as NonNullable<EffectScope['finalStats']>
 
   return {
     sourceRuntime: runtime,
@@ -113,6 +124,189 @@ function makeSanhuaScope(stacks: number): EffectScope {
 }
 
 describe('resonator source invariants', () => {
+  it('preserves every fully linked base skill coefficient at level 1 and 10', () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const allEntries = JSON.parse(resonatorDamageEntriesRaw) as SkillDamageEntry[]
+    const entriesByResonator = new Map<string, SkillDamageEntry[]>()
+    for (const entry of allEntries) {
+      const entries = entriesByResonator.get(entry.resonatorId) ?? []
+      entries.push(entry)
+      entriesByResonator.set(entry.resonatorId, entries)
+    }
+
+    for (const source of sources) {
+      const registry = mkGameDataRe([{
+        ...source,
+        damageEntries: entriesByResonator.get(source.source.id) ?? [],
+      }])
+
+      for (const skill of registry.resonatorSkillsById[source.source.id] ?? []) {
+        if (!skill.damageEntries?.some((entry) => !entry.replacesEntryId)) {
+          continue
+        }
+
+        for (const level of [1, 10]) {
+          const runtime = {
+            id: source.source.id,
+            base: {
+              sequence: 0,
+              skillLevels: {
+                normalAttack: level,
+                resonanceSkill: level,
+                forteCircuit: level,
+                resonanceLiberation: level,
+                introSkill: level,
+                tuneBreak: level,
+              },
+            },
+            build: { team: [], echoes: [] },
+            state: {
+              controls: {},
+              combat: {},
+              manualBuffs: makeCustomBuff(),
+            },
+          } as unknown as ResRuntime
+          const withEntries = resolveSkill(runtime, skill)
+          const withoutEntries = resolveSkill(runtime, { ...skill, damageEntries: undefined })
+
+          expect(withEntries.multiplier, `${source.source.id}:${skill.id}@${level}`).toBeCloseTo(
+            withoutEntries.multiplier,
+            10,
+          )
+          const hitShape = (hits: SkillDef['hits']) => hits.map(({ count, multiplier }) => ({
+            count,
+            multiplier,
+          }))
+          expect(hitShape(withEntries.hits), `${source.source.id}:${skill.id}@${level}`).toEqual(
+            hitShape(withoutEntries.hits),
+          )
+        }
+      }
+    }
+  })
+
+  it('links Lynae DamageList packets to hits and resolves authored sequence replacements', () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const allEntries = JSON.parse(resonatorDamageEntriesRaw) as SkillDamageEntry[]
+    const lynae = sources.find((source) => source.source.id === '1509')
+    const entries = allEntries.filter((entry) => entry.resonatorId === '1509')
+
+    expect(entries).toHaveLength(45)
+    expect(entries.filter((entry) => entry.provenance === 'matched')).toHaveLength(39)
+    expect(entries.filter((entry) => entry.provenance === 'authored')).toHaveLength(6)
+    expect(entries.filter((entry) => entry.provenance === 'unlinked')).toHaveLength(0)
+
+    const visualBase = entries.find((entry) => entry.id === '15090270020')
+    const visualS3 = entries.find((entry) => entry.id === '15090270021')
+    expect(visualBase).toMatchObject({
+      skillId: '1509009',
+      hitIndex: 0,
+      count: 1,
+      multiplier: 6.12,
+      skillType: ['basicAtk'],
+      element: 'spectro',
+      scaling: { atk: 1, hp: 0, def: 0, energyRegen: 0 },
+      energy: 14.05,
+      elementPower: 14.58,
+      toughness: 2,
+      weakness: 6.096,
+    })
+    expect(visualBase?.values).toHaveLength(20)
+    expect(visualS3).toMatchObject({
+      skillId: '1509009',
+      replacesEntryId: '15090270020',
+      variantWhen: {
+        type: 'gte',
+        from: 'sourceRuntime',
+        path: 'base.sequence',
+        value: 3,
+      },
+    })
+    expect(visualS3?.values).toHaveLength(20)
+
+    if (!lynae) {
+      throw new Error('Lynae source data is missing')
+    }
+    const registry = mkGameDataRe([{ ...lynae, damageEntries: entries }])
+    const visual = registry.resonatorSkillsById['1509']?.find((skill) => skill.id === '1509009')
+    const visualFeature = lynae.features?.find((feature) => feature.damageEntryId === '15090270020')
+    expect(registry.damageEntriesByKey['1509:15090270020']).toBeDefined()
+    expect(visual?.damageEntries).toHaveLength(2)
+    expect(visualFeature).toMatchObject({
+      variant: 'subHit',
+      hitIndex: 0,
+      damageEntryId: '15090270020',
+    })
+    if (!visual) {
+      throw new Error('Visual Impact skill is missing')
+    }
+
+    const makeRuntime = (sequence: number): ResRuntime => ({
+      id: '1509',
+      base: {
+        sequence,
+        skillLevels: {
+          normalAttack: 1,
+          resonanceSkill: 1,
+          forteCircuit: 1,
+          resonanceLiberation: 1,
+          introSkill: 1,
+          tuneBreak: 1,
+        },
+      },
+      build: { team: [], echoes: [] },
+      state: {
+        controls: {},
+        combat: {},
+        manualBuffs: makeCustomBuff(),
+      },
+    } as unknown as ResRuntime)
+
+    const baseResolved = resolveSkill(makeRuntime(0), visual)
+    const s3Resolved = resolveSkill(makeRuntime(3), visual)
+    expect(baseResolved.multiplier).toBeCloseTo(6.12)
+    expect(baseResolved.damageEntries?.[0]?.id).toBe('15090270020')
+    expect(s3Resolved.multiplier).toBeCloseTo(11.628)
+    expect(s3Resolved.damageEntries?.[0]).toMatchObject({
+      id: '15090270021',
+      replacesEntryId: '15090270020',
+    })
+  })
+
+  it('retains Lynae S1 and S5 multiplier effects through resonator generation', () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const lynae = sources.find((source) => source.source.id === '1509')
+
+    expect(lynae?.effects?.find((effect) => effect.id === '1509:s1:polychrome-leap'))
+      .toMatchObject({
+        condition: {
+          type: 'gte',
+          from: 'sourceRuntime',
+          path: 'base.sequence',
+          value: 1,
+        },
+        operations: [{
+          type: 'scale_skill_multiplier',
+          match: { skillIds: ['1509020', '1509021', '1509022'] },
+          value: { type: 'const', value: 2.2 },
+        }],
+      })
+    expect(lynae?.effects?.find((effect) => effect.id === '1509:s5:prismatic-overblast'))
+      .toMatchObject({
+        condition: {
+          type: 'gte',
+          from: 'sourceRuntime',
+          path: 'base.sequence',
+          value: 5,
+        },
+        operations: [{
+          type: 'scale_skill_multiplier',
+          match: { skillIds: ['1509010'] },
+          value: { type: 'const', value: 1.7 },
+        }],
+      })
+  })
+
   it('converts Sanhua Daybreak Radiance stacks to 10% team ATK each', () => {
     const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
     const sanhua = sources.find((source) => source.source.id === '1102')
@@ -199,6 +393,7 @@ describe('resonator source invariants', () => {
       const operation = effect?.operations[0]
 
       expect(effect, `${resonatorId} is missing ${effectId}`).toBeDefined()
+      expect(effect?.stage).toBe('finalStats')
       expect(effect?.operations).toHaveLength(1)
       expect(operation).toMatchObject({
         type: 'add_top_stat',
@@ -210,6 +405,124 @@ describe('resonator source invariants', () => {
 
       expect(evalForm(operation.value, makeTuneStrainScope(100, 2))).toBeCloseTo(24 * responseScale)
     }
+  })
+
+  it('authors Mornye buildup rate and Denia Shifting as distinct Off-Tune effects', () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const mornye = sources.find((source) => source.source.id === '1209')
+    const denia = sources.find((source) => source.source.id === '1211')
+    const mornyeBase = mornye?.effects?.find((effect) => effect.id === '1209:syntony-field')
+    const mornyeHigh = mornye?.effects?.find((effect) => effect.id === '1209:high-syntony')
+    const mornyeS2 = mornye?.effects?.find((effect) => effect.id === '1209:s2:syntony-off-tune')
+    const deniaShifting = denia?.effects?.find(
+      (effect) => effect.id === '1211:tune-strain:direct-off-tune',
+    )
+    const deniaBoost = denia?.effects?.find(
+      (effect) => effect.id === '1211:lvl70:tune-break-boost',
+    )
+
+    expect(mornyeBase).toMatchObject({
+      targetScope: 'teamWide',
+      operations: expect.arrayContaining([{
+        type: 'add_top_stat',
+        stat: 'offTuneBuildupRate',
+        value: { type: 'const', value: 0.5 },
+      }]),
+    })
+    expect(mornyeS2).toMatchObject({
+      targetScope: 'teamWide',
+      operations: [{
+        type: 'add_top_stat',
+        stat: 'offTuneBuildupRate',
+        value: { type: 'const', value: 0.2 },
+      }],
+    })
+    expect(mornyeHigh).toMatchObject({
+      targetScope: 'teamWide',
+      operations: [{
+        type: 'add_base_stat',
+        stat: 'def',
+        field: 'percent',
+        value: { type: 'const', value: 20 },
+      }],
+    })
+    expect(deniaShifting).toMatchObject({
+      description: expect.stringContaining('50% of the max (19.2)'),
+      trigger: 'skill',
+      targetScope: 'teamWide',
+      condition: {
+        type: 'and',
+        values: expect.arrayContaining([{
+          type: 'truthy',
+          from: 'sourceRuntime',
+          path: 'state.controls.team:1211:tune_strain_shifting:active',
+        }]),
+      },
+      operations: [{
+        type: 'add_skill_scalar',
+        field: 'directOffTune',
+        value: { type: 'const', value: 19.2 },
+      }],
+    })
+    expect(mornye?.owners?.find((owner) => owner.id === 'high_syntony_field')?.description)
+      .toContain('50%')
+    expect(mornye?.owners?.find((owner) => owner.id === 'syntony_field')?.description)
+      .toContain('50%')
+    expect(mornye?.owners?.find((owner) => owner.id === 'entropic_morning')?.description)
+      .toContain('20%')
+    expect(deniaBoost?.stage).toBe('postStats')
+
+    const mornyeDetails = (JSON.parse(resonatorDetailsRaw) as Record<string, ResDtls>)['1209']
+    expect(mornyeDetails?.stateGraph?.nodes).toContainEqual(expect.objectContaining({
+      key: 'team:1209:syntony_field:active',
+      label: 'Syntony Field',
+    }))
+
+    const boostOperation = deniaBoost?.operations[0]
+    if (!boostOperation || !('value' in boostOperation)) {
+      throw new Error('Denia Etched Colors is missing its Tune Break Boost formula')
+    }
+    expect(evalForm(boostOperation.value, makeTuneStrainScope(0, 0, 1))).toBe(10)
+    expect(evalForm(boostOperation.value, makeTuneStrainScope(0, 0, 1.5))).toBe(50)
+
+    const deniaDetails = (JSON.parse(resonatorDetailsRaw) as Record<string, ResDtls>)['1211']
+    const deniaStates = deniaDetails?.stateGraph?.nodes ?? []
+    expect(deniaStates.some((state) => state.key.includes('off_tune_overcap'))).toBe(false)
+    expect(deniaDetails?.statePanels.some((panel) => panel.title === 'Tune Strain - Shifting')).toBe(false)
+    expect(deniaStates.find(
+      (state) => state.key === 'team:1211:tune_strain_shifting:active',
+    )).toMatchObject({
+      kind: 'toggle',
+      label: 'Tune Strain - Shifting Applied',
+    })
+  })
+
+  it("adds Qingxiao Heaven's Clarity Off-Tune before buildup rate", () => {
+    const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
+    const qingxiao = sources.find((source) => source.source.id === '1413')
+    const effect = qingxiao?.effects?.find((candidate) => candidate.id === '1413:heavens-clarity')
+
+    expect(effect).toMatchObject({
+      trigger: 'skill',
+      targetScope: 'self',
+      operations: expect.arrayContaining([
+        {
+          type: 'scale_skill_multiplier',
+          match: { skillIds: ['1413406'] },
+          value: { type: 'const', value: 2 },
+        },
+        {
+          type: 'add_skill_scalar',
+          field: 'offTune',
+          match: { skillIds: ['1413406'] },
+          value: { type: 'const', value: 15.2 },
+        },
+      ]),
+    })
+
+    const qingxiaoDetails = (JSON.parse(resonatorDetailsRaw) as Record<string, ResDtls>)['1413']
+    expect(qingxiaoDetails?.statePanels.find((panel) => panel.title === "Heaven's Clarity")?.body)
+      .toBe("When casting Heavy Attack - Stringblade, inflict 3 stacks of Mindlock on nearby targets, and enhance the next Heavy Attack - Heaven's Reckoning: Ephemeral Transcendence: its DMG Multiplier is increased by 100% and it builds additional Off-Tune Level on the target.")
   })
 
   it('keeps Luuk S6 at a flat two additional Tune Strain stacks', () => {

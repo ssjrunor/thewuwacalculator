@@ -8,8 +8,8 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
-import { getResSeedBy } from '@/domain/services/resonatorSeedService.ts'
-import { makeRuntimeMap } from '@/domain/state/runtimeAdapters.ts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
+import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters.ts'
 import type { OptTargetSkill } from '@/engine/optimizer/target/selectedSkill.ts'
 import { selOptTgtSkl } from '@/engine/optimizer/target/selectedSkill.ts'
 import type { OptStartPay, PrepRotRun } from '@/engine/optimizer/types.ts'

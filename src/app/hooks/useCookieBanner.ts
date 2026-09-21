@@ -5,7 +5,7 @@
 */
 
 import { useEffect } from 'react'
-import { useAnimatedVisibility } from '@/app/hooks/useAnimatedVisibility'
+import { useAnimatedVisibility } from '@/shared/hooks/useAnimatedVisibility'
 import {
   CONSENT_EVENT,
   hasAckdCkCns,

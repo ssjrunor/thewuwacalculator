@@ -1,10 +1,10 @@
 /*
   Author: Runor Ewhro
-  Description: renders the changelog page.
+  Description: Renders versioned changelog entries with route metadata and anchored release navigation.
 */
 
 import React from 'react'
-import { AxLink } from '@/app/nav/useNavX'
+import { AxLink } from '@/shared/navigation/useNavX'
 import { chngSctn, getLatestWhatsNew, getLinkedWhatsNew, ltstCurChngE } from '@/data/content/changelogEntries'
 import { HtmlContent } from '@/shared/ui/HtmlContent'
 import { whatsNewHref } from '@/shared/lib/appRoutes'
