@@ -27,12 +27,7 @@ import { useAppModal, useAppModalValue } from '@/shared/ui/useAppModal.ts'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import type {SelectOption, SelectGroup} from '@/application/ui/LiquidSelect'
-import {getEchoCatBy} from '@/data/gameData/catalog/echoes'
-import {getGameData} from '@/data/gameData'
-import {ECHO_SET_DEFS} from '@/data/gameData/echoSets/effects'
-import {getEchoSttsSrc} from '@/data/gameData/catalog/echoStats'
-import {getResCatByI, getResDtlsBy} from '@/data/gameData/resonators/resonatorDataStore'
-import {getWpnsById} from '@/data/gameData/weapons/weaponDataStore'
+import {getGameDataMode} from '@/data/gameData'
 import {getEchoById, listEchoes} from '@/data/catalog/echoCatalogService'
 import {weaponEquipState} from '@/engine/optimizer/context/weaponOverlays.ts'
 import {getWpnById} from '@/data/catalog/weaponCatalogService'
@@ -813,15 +808,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       memberId: optimizerMember.id,
       resonatorId: optResId,
       resSeed: seedRsntById[optResId],
-      staticData: {
-        gameDataReg: getGameData(),
-        resCatById: getResCatByI(),
-        resDtlsById: getResDtlsBy(),
-        weaponsById: getWpnsById(),
-        echoCatById: getEchoCatBy(),
-        echoSetDefs: ECHO_SET_DEFS,
-        echoStats: getEchoSttsSrc() ?? undefined,
-      },
+      gameDataMode: getGameDataMode(),
       runtime: effectRuntime,
       runtimesById: effectRuntimesById,
       settings: {
@@ -1649,15 +1636,7 @@ export function Optimizer({ variant = 'embedded' }: { variant?: OptimizerVariant
       memberId: optimizerMember.id,
       resonatorId: optResId,
       resSeed: seedRsntById[optResId],
-      staticData: {
-        gameDataReg: getGameData(),
-        resCatById: getResCatByI(),
-        resDtlsById: getResDtlsBy(),
-        weaponsById: getWpnsById(),
-        echoCatById: getEchoCatBy(),
-        echoSetDefs: ECHO_SET_DEFS,
-        echoStats: getEchoSttsSrc() ?? undefined,
-      },
+      gameDataMode: getGameDataMode(),
       runtime: optRt,
       runtimesById: effectRuntimesById,
       settings: runOptSets,

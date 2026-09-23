@@ -18,7 +18,7 @@ import { ConfirmModal } from '@/shared/ui/ConfirmationModal.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { resolveShareText } from '@/shared/lib/shareCodec.ts'
-import { readAppFile } from '@/application/persistence/fileCodec.ts'
+
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import {
   defineImport,
@@ -80,22 +80,26 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
     }
 
     for (const entry of registry) {
-      const matched = entry.tryResolve(parsed)
+      const matched = await entry.tryResolve(parsed)
       if (matched) return matched
     }
     return null
   }, [registry])
 
   const queryImport = useCallback(async (raw: string) => {
-    const resolved = await resolve(raw)
-    if (!resolved) {
-      showToast({ content: NOT_FOUND, variant: 'error', duration: 3500 })
-      return
+    try {
+      const resolved = await resolve(raw)
+      if (!resolved) {
+        showToast({ content: NOT_FOUND, variant: 'error', duration: 3500 })
+        return
+      }
+      setInputText('')
+      setError(null)
+      setPhase({ mode: 'review', resolved })
+      modal.show()
+    } catch {
+      showToast({ content: 'Could not load the imported data. Please try again.', variant: 'error' })
     }
-    setInputText('')
-    setError(null)
-    setPhase({ mode: 'review', resolved })
-    modal.show()
   }, [modal, resolve, showToast])
 
   const openImport = useCallback(() => {
@@ -110,14 +114,19 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
   const toReview = useCallback(async (raw: string) => {
     if (!raw.trim()) return
     setBusy(true)
-    const resolved = await resolve(raw)
-    setBusy(false)
-    if (!resolved) {
-      setError(NOT_FOUND)
-      return
+    try {
+      const resolved = await resolve(raw)
+      if (!resolved) {
+        setError(NOT_FOUND)
+        return
+      }
+      setError(null)
+      setPhase({ mode: 'review', resolved })
+    } catch {
+      setError('Could not load the imported data. Please try again.')
+    } finally {
+      setBusy(false)
     }
-    setError(null)
-    setPhase({ mode: 'review', resolved })
   }, [resolve])
 
   const onPasteToken = useCallback(async () => {
@@ -136,6 +145,7 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
     const file = event.target.files?.[0]
     if (!file) return
     try {
+      const { readAppFile } = await import('@/application/persistence/fileCodec.ts')
       await toReview(await readAppFile(file))
     } catch {
       setError('Failed to read that file. Make sure it is a valid export.')
@@ -146,9 +156,13 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
 
   const runApply = useCallback(async (variant: ImportApplyVariant) => {
     if (phase.mode !== 'review') return
-    await phase.resolved.apply(variant)
-    modal.hide()
-  }, [modal, phase])
+    try {
+      await phase.resolved.apply(variant)
+      modal.hide()
+    } catch {
+      showToast({ content: 'Could not apply the imported data. Please try again.', variant: 'error' })
+    }
+  }, [modal, phase, showToast])
 
   const api = useMemo<ImportSurfaceApi>(() => ({ queryImport, openImport }), [queryImport, openImport])
 

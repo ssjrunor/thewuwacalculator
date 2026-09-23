@@ -90,7 +90,7 @@ export function LoadoutHead({
   const onSaveBuild = useCallback(() => {
     if (!runtime || alreadySaved) return
 
-    addBuildToInv({
+    const saved = addBuildToInv({
       resonatorId: runtime.id,
       resonatorName: resonatorName ?? runtime.id,
       build: {
@@ -100,8 +100,10 @@ export function LoadoutHead({
     })
 
     showToast({
-      content: proposal ? 'Result saved to your builds.' : 'Build saved.',
-      variant: 'success',
+      content: saved
+        ? (proposal ? 'Result saved to your builds.' : 'Build saved.')
+        : 'This build is already saved.',
+      variant: saved ? 'success' : 'warning',
       duration: 2600,
     })
   }, [addBuildToInv, alreadySaved, echoes, proposal, resonatorName, runtime, showToast])

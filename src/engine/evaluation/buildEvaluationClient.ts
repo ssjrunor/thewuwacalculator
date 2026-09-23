@@ -27,7 +27,7 @@ const workers: Record<WorkerLane, Worker | null> = {
 let nextJobId = 1
 // Completed reports are large object graphs. Keep only a few recent reports in
 // the one cache owner; the worker deliberately does not retain a second copy.
-const MAX_REPORT_CACHE = 4
+const MAX_REPORT_CACHE = 1
 let activeReportKey: string | null = null
 let activeReportCancel: Int32Array | null = null
 const pendingJobs = new Map<number, {
@@ -54,7 +54,7 @@ function canonicalReportOptions(options?: EvaluationReportOpts): EvaluationRepor
 // The report worker holds the evaluation catalog and is torn down after a short
 // idle period. Completed reports remain in the client cache, so teardown only
 // trades a later cold start for reclaiming the worker's catalog memory.
-const IDLE_TEARDOWN_MS: Record<WorkerLane, number> = { report: 8_000 }
+const IDLE_TEARDOWN_MS: Record<WorkerLane, number> = { report: 1_200 }
 const idleTimers: Record<WorkerLane, ReturnType<typeof setTimeout> | null> = {
   report: null,
 }
@@ -245,7 +245,11 @@ function dispatchCachedEvaluationJob(
 
 export function runEvaluationReport(
   payload: DefRotEvaluationIn,
-  options: { force?: boolean; reportOptions?: EvaluationReportOpts } = {},
+  options: {
+    force?: boolean
+    reportOptions?: EvaluationReportOpts
+    cacheResult?: boolean
+  } = {},
 ): Promise<BuildEvaluationReport | null> {
   // Equivalent omitted/default section options share one cache entry instead
   // of retaining duplicate reports under syntactically different requests.
@@ -254,9 +258,10 @@ export function runEvaluationReport(
     payload,
     reportOptions: canonicalOptions,
   })
+  const cacheResult = options.cacheResult !== false
   if (options.force) {
     reportCache.delete(reportKey)
-  } else {
+  } else if (cacheResult) {
     const cached = readCacheEntry(reportCache, reportKey)
     if (cached !== undefined) {
       return Promise.resolve(cached)
@@ -277,7 +282,9 @@ export function runEvaluationReport(
     cancelFlag,
   ), 'report').then((report) => {
     const result = report as BuildEvaluationReport | null
-    touchCacheEntry(reportCache, reportKey, result, MAX_REPORT_CACHE)
+    if (cacheResult) {
+      touchCacheEntry(reportCache, reportKey, result, MAX_REPORT_CACHE)
+    }
     return result
   }).finally(() => {
     if (activeReportKey === key) activeReportKey = null

@@ -4,6 +4,7 @@
                main echo sources, including skills, features, and states.
 */
 
+import { onGameDataChange } from '@/data/gameData'
 import type {
   DataSrcRef,
   FeatDef,
@@ -35,7 +36,11 @@ export type PrepRtCat = RtSrcCat
 
 const srcRefsCch = new Map<string, DataSrcRef[]>()
 const rtSrcCatCch = new Map<string, RtSrcCat>()
-const prepRtCatCch = new WeakMap<ResSeed, Map<string, PrepRtCat>>()
+let prepRtCatCch = new WeakMap<ResSeed, Map<string, PrepRtCat>>()
+onGameDataChange(() => {
+  rtSrcCatCch.clear()
+  prepRtCatCch = new WeakMap()
+})
 const SRC_CACHE_MAX = 64
 
 function isQppdEcho(

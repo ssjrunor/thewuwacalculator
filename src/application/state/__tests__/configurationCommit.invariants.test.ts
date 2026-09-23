@@ -64,6 +64,37 @@ describe('configuration commit boundaries', () => {
     expect(consumePersist()).toEqual(['ui.appearance'])
   })
 
+  it('applies common member edits without replacing unrelated scenario payloads', () => {
+    const scenario = selectedCombatScenario(useAppStore.getState().combat)
+    const resonatorId = scenario.team.members[0].resonatorId
+    const previous = materializeScenarioRuntime(scenario, resonatorId)!
+    const edits = [
+      { ...previous, base: { ...previous.base, level: previous.base.level + 1 } },
+      { ...previous, state: {
+        ...previous.state,
+        controls: { ...previous.state.controls, 'test:toggle': true },
+      } },
+      { ...previous, build: {
+        ...previous.build,
+        weapon: { ...previous.build.weapon, rank: previous.build.weapon.rank + 1 },
+      } },
+      { ...previous, build: {
+        ...previous.build,
+        echoes: [...previous.build.echoes],
+      } },
+    ]
+
+    for (const edited of edits) {
+      const expected = applyRuntimeToSimulation(scenario, resonatorId, edited).scenario
+      const actual = applyRuntimeToSimulation(scenario, resonatorId, edited, previous).scenario
+      expect(actual).toEqual(expected)
+      expect(actual.environment).toBe(scenario.environment)
+      expect(actual.program).toBe(scenario.program)
+      expect(actual.team.members[0].local.setConditionals)
+        .toBe(scenario.team.members[0].local.setConditionals)
+    }
+  })
+
   it('keeps nested teammate replacements and subsequent edits in the owning draft', () => {
     const initial = selectedCombatScenario(useAppStore.getState().combat)
     const seeds = listResSds().filter((seed) => seed.id !== initial.team.members[0].resonatorId)

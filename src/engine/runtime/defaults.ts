@@ -173,7 +173,7 @@ import { maxResRt } from '@/engine/gameData/resonatorMax'
 import { initWpnStts, maxWpnRt } from '@/engine/runtime/sourceStateInit'
 import { mkMaxTrcNode } from '@/engine/runtime/traceNodes'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
-import { getGameData } from '@/data/gameData'
+import { getGameData, getKnownFeatureIds } from '@/data/gameData'
 import { listResRttn, listStatesFor } from '@/data/catalog/gameDataService'
 import { makeSourceKey } from '@/data/gameData/registry'
 import { splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting'
@@ -189,7 +189,7 @@ import {
   catTmWpnAtk,
   catWpnAtk,
 } from '@/engine/runtime/weaponState'
-import { APP_STATE_VER } from '@/engine/runtime/schema'
+import { APP_STATE_VER } from '@/domain/entities/appStateVersion'
 import { makeDefaultRotationEditorPreferences } from '@/domain/entities/rotationEditorPreferences'
 import {
   repairEchoLoadoutForCatalog,
@@ -200,7 +200,8 @@ import {
   normOptSets,
 } from '@/engine/optimizer/config/allowedSets'
 
-export const DEF_RES_ID = '1506'
+import { DEF_RES_ID } from '@/data/gameData/constants'
+export { DEF_RES_ID } from '@/data/gameData/constants'
 
 export const MAX_RES_LVL = 90
 export const MAX_SKILL_LEVEL = 10
@@ -564,12 +565,9 @@ function normEnemyForCatalog(enemy: EnemyProfile | undefined): EnemyProfile {
   return cloneEnemyPr(enemy)
 }
 
-function getCatalogFeatureIds(): Set<string> {
+function getCatalogFeatureIds(): ReadonlySet<string> {
   try {
-    return new Set(
-      Object.values(getGameData().featuresBySourceKey)
-        .flatMap((features) => features.map((feature) => feature.id)),
-    )
+    return getKnownFeatureIds()
   } catch {
     return new Set()
   }
@@ -1297,6 +1295,10 @@ function normalizeScenario(
       ? scenario.initialOnFieldMemberId
       : team.members[0].id,
   }
+}
+
+export function normalizeStoredCombatScenario(scenario: CombatScenario): CombatScenario {
+  return normalizeScenario(scenario, scenario, scenario.revision ?? 0)
 }
 
 interface InitializedData {

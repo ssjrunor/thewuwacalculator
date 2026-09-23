@@ -74,7 +74,7 @@ function nodeToControl(details: ResDtls, node: ResStateNode): ResStateControl {
   }
 }
 
-export function getResStateControls(
+function buildResStateControls(
   details: ResDtls | null | undefined,
   stateKeys?: string[],
 ): ResStateControl[] {
@@ -116,6 +116,20 @@ export function getResStateControls(
     .map((key) => nodesByKey.get(key))
     .filter((node): node is ResStateNode => Boolean(node))
     .map((node) => nodeToControl(details, node))
+}
+
+const controlsByDetail = new WeakMap<ResDtls, { all: ResStateControl[]; byKey: Map<string, ResStateControl> }>()
+export function getResStateControls(details: ResDtls | null | undefined, stateKeys?: string[]): ResStateControl[] {
+  if (!details) return EMPTY_CONTROLS
+  let cached = controlsByDetail.get(details)
+  if (!cached) {
+    const all = buildResStateControls(details)
+    cached = { all, byKey: new Map(all.map((control) => [control.key, control])) }
+    controlsByDetail.set(details, cached)
+  }
+  return stateKeys
+    ? stateKeys.map((key) => cached.byKey.get(key)).filter((control): control is ResStateControl => Boolean(control))
+    : cached.all
 }
 
 export function getResPanelControls(details: ResDtls | null | undefined, panel: ResDtls['statePanels'][number]): ResStateControl[] {

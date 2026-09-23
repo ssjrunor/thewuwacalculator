@@ -172,22 +172,24 @@ export function normResRtCnt(
 
   const vlblCntr = getResStateControls(details)
 
-  const nextControls = { ...controls }
-  let changed = false
+  let nextControls = controls
+  const setControl = (key: string, value: boolean | number | string) => {
+    if (nextControls === controls) nextControls = { ...controls }
+    nextControls[key] = value
+  }
 
   for (const control of vlblCntr) {
     if (nextControls[control.key] !== undefined) {
       continue
     }
 
-    nextControls[control.key] = getResCntrNc(control, {
+    setControl(control.key, getResCntrNc(control, {
       ...runtime,
       state: {
         ...runtime.state,
         controls: nextControls,
       },
-    })
-    changed = true
+    }))
   }
 
   for (const control of vlblCntr) {
@@ -209,8 +211,7 @@ export function normResRtCnt(
 
       const nctvVl = getResCntrNc(control, scpdRt)
       if (nextControls[control.key] !== nctvVl) {
-        nextControls[control.key] = nctvVl
-        changed = true
+        setControl(control.key, nctvVl)
       }
       continue
     }
@@ -222,8 +223,7 @@ export function normResRtCnt(
 
       const nctvVl = getResCntrNc(control, scpdRt)
       if (nextControls[control.key] !== nctvVl) {
-        nextControls[control.key] = nctvVl
-        changed = true
+        setControl(control.key, nctvVl)
       }
       continue
     }
@@ -237,8 +237,7 @@ export function normResRtCnt(
           continue
         }
 
-        nextControls[control.key] = getResCntrNc(control, scpdRt)
-        changed = true
+        setControl(control.key, getResCntrNc(control, scpdRt))
       }
       continue
     }
@@ -253,13 +252,12 @@ export function normResRtCnt(
         : clampNumber(numericValue, min, max)
 
       if (boundedValue !== numericValue) {
-        nextControls[control.key] = boundedValue
-        changed = true
+        setControl(control.key, boundedValue)
       }
     }
   }
 
-  return changed ? nextControls : controls
+  return nextControls
 }
 
 function resSttTgtRt(

@@ -6,10 +6,7 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/application/state'
-import {
-  selScenarioProfiles,
-  selSubjectResonatorId,
-} from '@/application/state'
+import { selSubjectResonatorId } from '@/application/state'
 import { seedRsnt, seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
 import { ResQBbbl } from '@/modules/simulation/shell/ResonatorQueueBubble'
@@ -51,8 +48,7 @@ export function SimulationPage() {
   const pane = surface ? SIMULATION_SURFACES[surface].pane : null
   const layoutRef = useRef<HTMLDivElement | null>(null)
   const subjectResonatorId = useAppStore(selSubjectResonatorId)
-  const profiles = useAppStore(selScenarioProfiles)
-  const hasSubjectProfile = Boolean(subjectResonatorId && profiles[subjectResonatorId])
+  const hasSubjectProfile = Boolean(subjectResonatorId)
   const swtcToRes = useAppStore((state) => state.swRes)
   const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
   const [isCllpMode, setIsCllpMod] = useState(() =>

@@ -29,7 +29,13 @@ self.onmessage = async (event: MessageEvent<SuggsWrkrInM>) => {
   const scope = self as DedicatedWorkerGlobalScope
 
   try {
-    await initGameData({ mode: message.gameDataMode })
+    const input = message.type === 'weapons'
+      ? message.payload
+      : message.payload.scoringInput
+    await initGameData({
+      mode: message.gameDataMode,
+      resonatorIds: [input.runtime.id, ...Object.keys(input.runtimesById)],
+    })
     const {
       runMainStats: mainRunner,
       runSetPlanqc: setRunner,

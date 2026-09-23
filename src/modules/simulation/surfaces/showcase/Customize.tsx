@@ -5,15 +5,13 @@
 */
 
 import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useAppStore } from '@/application/state'
 import { Expandable } from '@/shared/ui/Expandable'
-import { Check, Clipboard, Download, Maximize2, Pipette, RotateCcw, SlidersHorizontal, Upload, X } from 'lucide-react'
+import { Clipboard, Download, Maximize2, RotateCcw, SlidersHorizontal, Upload } from 'lucide-react'
 import type { ShowcaseCardHidden, ShowcaseLayout, StatsColumnHighlight, TextSlot, TextSlotStyle } from '@/domain/entities/preferences'
 import { EMPTY_TEXT_SLOT, familyFromStack } from './cardStyleVars.ts'
 import { isValidGoogleFont, loadGglFontStack } from '@/application/theme/typography.ts'
-import CodeMirror from '@uiw/react-codemirror'
-import { css } from '@codemirror/lang-css'
 import type { CardExportTarget } from './cardTransfer.ts'
 import type { CssVars } from '@/modules/simulation/workspace/ui.tsx'
 import {TbCameraDown} from "react-icons/tb";
@@ -363,7 +361,7 @@ function TuneIdentityDraft({
           type="text" className="workspace-tune-input"
           id="showcase-player-uid"
           inputMode="numeric"
-          placeholder="500395087"
+          placeholder="500295087"
           value={draft.uid}
           onChange={(event) => updateDraft({ ...draft, uid: event.target.value })}
           onBlur={commit}
@@ -409,79 +407,6 @@ function TuneCreditField({
   )
 }
 
-// Expanded editing replaces the rail without changing the underlying style contract.
-export function ShowcaseCssEditorDock({
-  value,
-  isDark,
-  onChange,
-  onClose,
-}: {
-  value: string
-  isDark: boolean
-  onChange: (value: string) => void
-  onClose: () => void
-}) {
-  const colorInputRef = useRef<HTMLInputElement>(null)
-  const [pickedColor, setPickedColor] = useState('#5b8cff')
-  const [copied, setCopied] = useState(false)
-
-  const handlePickColor = (event: ChangeEvent<HTMLInputElement>) => {
-    const hex = event.target.value
-    setPickedColor(hex)
-    setCopied(false)
-    void navigator.clipboard?.writeText(hex).then(() => setCopied(true)).catch(() => {})
-  }
-
-  return (
-    <div className="workspace-css-dock" data-phase="in">
-      <header className="workspace-css-dock-head">
-        <span className="workspace-css-dock-eyebrow">
-          Custom CSS
-        </span>
-        <div className="workspace-css-dock-actions">
-          <button
-            type="button" className="workspace-css-dock-pick"
-            onClick={() => colorInputRef.current?.click()}
-            aria-label={copied ? `Copied ${pickedColor}` : 'Pick a color and copy its hex'}
-          >
-            <span className="workspace-css-dock-swatch" style={{ background: pickedColor }} aria-hidden="true" />
-            <span className="workspace-css-dock-pick-label">{copied ? `${pickedColor} copied` : 'Pick color'}</span>
-            {copied
-              ? <Check size="0.8125rem" aria-hidden="true" />
-              : <Pipette size="0.8125rem" aria-hidden="true" />}
-          </button>
-          <input
-            ref={colorInputRef}
-            type="color" className="workspace-css-dock-color-input"
-            value={pickedColor}
-            onChange={handlePickColor}
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-          <button type="button" className="workspace-css-dock-close" onClick={onClose} aria-label="Collapse editor">
-            <X size="0.875rem" aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-      <CodeMirror
-        value={value}
-        height="100%"
-        extensions={[css()]}
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: true,
-          highlightActiveLine: true,
-          highlightSelectionMatches: true,
-        }}
-        theme={isDark ? 'dark' : 'light'}
-        onChange={onChange} className="workspace-css-dock-editor"
-      />
-      <p className="workspace-css-dock-note">
-        Live, scoped to this card. Frame with <code>.workspace-rail</code>; reach any inner class like <code>.showcase-echo-name</code>.
-      </p>
-    </div>
-  )
-}
 
 function TuneToggle({ label, on, onChange }: { label: string; on: boolean; onChange: () => void }) {
   return (

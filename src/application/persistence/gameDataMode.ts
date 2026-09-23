@@ -6,7 +6,7 @@
 
 import { DEF_UI_PREFS } from '@/domain/entities/preferences'
 import { gameDataModeFromBeta, type GameDataMode } from '@/domain/entities/gameDataMode'
-import { APP_STORAGE_KEY, APPSTOREUILY } from '@/application/persistence/storage'
+import { APP_STORAGE_KEY, APPSTOREUILY } from '@/application/persistence/storageKeys'
 
 function readBetaFlag(raw: string | null): boolean | null {
   if (!raw) {

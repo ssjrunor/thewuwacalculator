@@ -16,6 +16,8 @@ import type { CombatScenario } from '@/domain/entities/combatScenario.ts'
 import { useAppStore } from '@/application/state'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { useInventoryLease } from '@/application/hooks/useInventoryLease.ts'
+import { holdResonatorData } from '@/data/gameData'
+import { useResonatorData } from '@/application/hooks/useResonatorData'
 
 // Defer the member-editor module while keeping modal lifecycle state in this host.
 const MemberStage = lazy(async () => ({
@@ -26,8 +28,12 @@ const MemberStage = lazy(async () => ({
 export function TeamConsoleHost() {
   const target = useTeamCnsl((state) => state.target)
   useInventoryLease(Boolean(target))
+  const scenario = useAppStore((state) => target
+    ? state.combat.scenariosById[target.scenarioId ?? state.combat.selectedScenarioId]
+    : null)
+  const ready = useResonatorData(scenario?.team.members.map((member) => member.resonatorId) ?? [])
 
-  if (!target) {
+  if (!target || !ready) {
     return null
   }
 
@@ -64,6 +70,10 @@ function ConsoleView({
       'Updated Team Configuration',
     ),
   })
+  const draftMembers = session.draft?.team.members
+  useEffect(() => draftMembers
+    ? holdResonatorData(draftMembers.map((member) => member.resonatorId))
+    : undefined, [draftMembers])
   const model = useMemberModel(
     resonatorId,
     resolvedScenarioId,

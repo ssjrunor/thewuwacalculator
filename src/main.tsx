@@ -7,12 +7,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { initGameData } from '@/data/gameData/index'
+import { readBootstrapResonatorIds } from '@/application/persistence/resonatorScope'
 import { readPersistedGameDataMode } from '@/application/persistence/gameDataMode'
 import '@/index.css'
 
 const gameDataMode = readPersistedGameDataMode()
 
-initGameData({ mode: gameDataMode }).then(async () => {
+initGameData({ mode: gameDataMode, resonatorIds: readBootstrapResonatorIds() }).then(async () => {
   const { AppRoot } = await import('@/app/AppRoot')
 
   createRoot(document.getElementById('root')!).render(

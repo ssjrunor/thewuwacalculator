@@ -7,10 +7,11 @@
                build data. Carries its own Live2D on/off toggle.
 */
 
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { useRef } from 'react'
 import type { ResSeed } from '@/domain/entities/runtime'
 import { DEF_SHOWCASE_HIDE } from '@/domain/entities/preferences'
-import { getResonator, spriteVars } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+import { spriteVars } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { getEvaluationSpinePlacement } from './ui.tsx'
@@ -19,7 +20,7 @@ import { BuildRail, type BuildRailModel } from '@/modules/simulation/workspace/B
 export function RailCardPreview({ resId, animated }: { resId: string; animated: boolean }) {
   const cardRef = useRef<HTMLElement | null>(null)
 
-  const res = getResonator(resId)
+  const res = getResSeedBy(resId)
   const accent = res ? ATTR_COLORS[res.attribute] ?? '#6b7cff' : '#6b7cff'
   const portraitSrc = res?.sprite ?? res?.profile ?? '/assets/game/default.webp'
 

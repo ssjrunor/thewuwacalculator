@@ -3,7 +3,7 @@
   Description: Provides searchable, grouped modal selection with keyboard focus and active-item scrolling.
 */
 
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { CSSProperties as CssProps, ReactNode } from 'react'
 import { AppModal } from '@/shared/ui/AppModal'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
@@ -68,6 +68,33 @@ export function PickerModal({
 }: PckrMdlPrps) {
   const titleId = useId()
   const [gridRef, columns] = useGridColumns()
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!visible || !body) return
+    const images = body.querySelectorAll<HTMLImageElement>('img[data-deferred-src]')
+    if (!images.length) return
+    const load = (image: HTMLImageElement) => {
+      const source = image.dataset.deferredSrc
+      if (source && image.getAttribute('src') !== source) image.src = source
+    }
+    if (typeof IntersectionObserver === 'undefined') {
+      images.forEach(load)
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        load(entry.target as HTMLImageElement)
+        observer.unobserve(entry.target)
+      }
+    }, { root: body })
+    images.forEach((image) => {
+      if (!image.getAttribute('src')) observer.observe(image)
+    })
+    return () => observer.disconnect()
+  }, [items, visible, portalTarget])
 
   if (!visible || !portalTarget) {
     return null
@@ -99,7 +126,7 @@ export function PickerModal({
             </nav>
           ) : null}
 
-          <div className="picker-modal__body">
+          <div className="picker-modal__body" ref={bodyRef}>
             {items.length === 0 ? (
               <div className="picker-modal__empty">
                 {emptyState ?? <p>No items available.</p>}

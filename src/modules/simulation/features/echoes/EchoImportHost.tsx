@@ -5,17 +5,18 @@
                both happen to use the same resonator id.
 */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ensureResonatorData, hasResonatorData, holdResonatorData } from '@/data/gameData'
 import { useLocation } from 'react-router-dom'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { useAppStore } from '@/application/state'
-import { selScenarioProfiles, selVrvwDrvd } from '@/application/state'
+import { selInitRtLkp, selScenarioProfiles, selWorkDrvd } from '@/application/state'
 import { runtimeFromSnapshot } from '@/engine/runtime/runtimeAdapters.ts'
 import { scenarioIdForContextResonator } from '@/domain/entities/scenarioLibrary.ts'
 import { isSimulationRoute } from '@/shared/lib/appRoutes.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
-import { RES_MENU, getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+import { RES_MENU } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { makeResProfile } from '@/engine/runtime/defaults.ts'
 import { eligibleForSlot, useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
@@ -45,19 +46,29 @@ interface ContextOptions {
   ids: string[]
 }
 
+const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
+const EMPTY_PROFILES: ReturnType<typeof selScenarioProfiles> = Object.freeze({})
+
 export function EchoImportHost() {
+  const pendingDestination = useRef(0)
   const location = useLocation()
   const isOpen = useEchoImport((state) => state.isOpen)
   const initialResonatorId = useEchoImport((state) => state.initialResonatorId)
   const requestId = useEchoImport((state) => state.requestId)
   const closeRequest = useEchoImport((state) => state.close)
-  const { actRt, partRtsById, initRtsById } = useAppStore(selVrvwDrvd)
-  const profiles = useAppStore(selScenarioProfiles)
+  const modal = useAppModal()
+  const { hide: hideModal, show: showModal, visible: modalVisible, closing: modalClosing } = modal
+  const importActive = isOpen || modalVisible || modalClosing
+  const actRt = useAppStore((state) => importActive ? selWorkDrvd(state).actRt : null)
+  const partRtsById = useAppStore((state) => importActive
+    ? selWorkDrvd(state).partRtsById : EMPTY_RUNTIME_MAP)
+  const initRtsById = useAppStore((state) => importActive
+    ? selInitRtLkp(state) : EMPTY_RUNTIME_MAP)
+  const profiles = useAppStore((state) => importActive
+    ? selScenarioProfiles(state) : EMPTY_PROFILES)
   const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const showToast = useTstStr((state) => state.show)
   const { setMember } = useTeamSlots()
-  const modal = useAppModal()
-  const { hide: hideModal, show: showModal, visible: modalVisible, closing: modalClosing } = modal
   const picker = useAppModal()
   const [selection, setSelection] = useState<DestinationSelection>({
     requestId: -1,
@@ -86,7 +97,7 @@ export function EchoImportHost() {
     ...(destination?.kind === 'context' ? [destination.resonatorId] : []),
   ]))
   const contexts = contextIds.flatMap((id) => {
-    const resonator = getResonator(id)
+    const resonator = getResSeedBy(id)
     return resonator ? [resonator] : []
   })
 
@@ -95,7 +106,7 @@ export function EchoImportHost() {
 
     return actRt.build.team.flatMap((resonatorId, slotIndex) => {
       if (!resonatorId || !partRtsById[resonatorId]) return []
-      const member = getResonator(resonatorId)
+      const member = getResSeedBy(resonatorId)
       return member ? [{ member, slotIndex }] : []
     })
   }, [actRt, partRtsById, working])
@@ -108,6 +119,7 @@ export function EchoImportHost() {
       return initRtsById
     }
 
+    if (!hasResonatorData([destination.resonatorId])) return initRtsById
     const seed = getResSeedBy(destination.resonatorId)
     if (!seed) return initRtsById
     const profile = profiles[destination.resonatorId]
@@ -136,10 +148,24 @@ export function EchoImportHost() {
   }, [maxResOnInit])
 
   const selectContext = useCallback((resonatorId: string) => {
-    setSelection({ requestId, destination: { kind: 'context', resonatorId } })
-  }, [requestId])
+    const pending = ++pendingDestination.current
+    void ensureResonatorData([resonatorId]).then(() => {
+      if (pending !== pendingDestination.current) return
+      setSelection({ requestId, destination: { kind: 'context', resonatorId } })
+    }).catch(() => showToast({ content: 'Could not load resonator data. Please try again.', variant: 'error' }))
+  }, [requestId, showToast])
+
+  const cancelPendingDestination = useCallback(() => { pendingDestination.current++ }, [])
+  useEffect(() => {
+    if (isOpen && initialResonatorId) selectContext(initialResonatorId)
+    return cancelPendingDestination
+  }, [isOpen, initialResonatorId, selectContext, cancelPendingDestination])
+
+  const destinationId = importActive ? destination?.resonatorId : null
+  useEffect(() => destinationId ? holdResonatorData([destinationId]) : undefined, [destinationId])
 
   const selectTeamMember = useCallback((slotIndex: number, resonatorId: string) => {
+    pendingDestination.current++
     setSelection({
       requestId,
       destination: { kind: 'team', slotIndex, resonatorId },
@@ -223,14 +249,16 @@ export function EchoImportHost() {
     const target = destination ?? (read.resonator.id
       ? { kind: 'context', resonatorId: read.resonator.id } satisfies EchoImportDestination
       : null)
-    if (!target || !updateDestination(target, updater, 'Imported Echo Build Card')) return
-
-    const name = getResSeedBy(target.resonatorId)?.name ?? 'resonator'
-    showToast({
-      content: `Imported ${name} ${target.kind === 'team' ? 'team' : 'context'} build.`,
-      variant: 'success',
-      duration: 2800,
-    })
+    if (!target) return
+    void ensureResonatorData([target.resonatorId]).then(() => {
+      if (!updateDestination(target, updater, 'Imported Echo Build Card')) return
+      const name = getResSeedBy(target.resonatorId)?.name ?? 'resonator'
+      showToast({
+        content: `Imported ${name} ${target.kind === 'team' ? 'team' : 'context'} build.`,
+        variant: 'success',
+        duration: 2800,
+      })
+    }).catch(() => showToast({ content: 'Could not load resonator data. Please try again.', variant: 'error' }))
   }, [destination, showToast, updateDestination])
 
   const detectResonator = useCallback((resonatorId: string) => {
@@ -242,8 +270,8 @@ export function EchoImportHost() {
       ])),
     }))
     // Detection changes only this modal's destination view; app context stays put.
-    setSelection({ requestId, destination: { kind: 'context', resonatorId } })
-  }, [requestId])
+    selectContext(resonatorId)
+  }, [requestId, selectContext])
 
   if (!isOpen && !modalVisible) return null
 

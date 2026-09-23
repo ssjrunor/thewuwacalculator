@@ -6,10 +6,10 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavX } from '@/shared/navigation/useNavX'
-import { listResonators, listEchoes } from '@/data/catalog/catalogService'
+import { listResonatorSeeds, listEchoes } from '@/data/catalog/catalogService'
 import { getWeapons } from '@/data/gameData/weapons/weaponDataStore'
 import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
-import { loadEnemyCat } from '@/data/catalog/enemyCatalogService'
+import { loadEnemySummary } from '@/data/catalog/enemyCatalogService'
 import { AppModal } from '@/shared/ui/AppModal'
 import { ModalHeader } from '@/shared/ui/AppModalShell'
 import { Tooltip } from '@/shared/ui/Tooltip'
@@ -36,14 +36,14 @@ export function AppSttsMdl({ visible, open, closing = false, onClose }: AppSttsM
   const [enemyCount, setEnemyCount] = useState<number | null>(null)
   useEffect(() => {
     let live = true
-    void loadEnemyCat()
-      .then((entries) => { if (live) setEnemyCount(entries.length) })
+    void loadEnemySummary()
+      .then((entries) => { if (live) setEnemyCount(Object.keys(entries).length) })
       .catch(() => { if (live) setEnemyCount(null) })
     return () => { live = false }
   }, [])
 
   const catalogSize: Record<string, number | null> = {
-    resonators: listResonators().length,
+    resonators: listResonatorSeeds().length,
     weapons: getWeapons().length,
     echoes: listEchoes().length,
     enemies: enemyCount,

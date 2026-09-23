@@ -26,6 +26,7 @@ import { projectCombatScenario } from '@/engine/runtime/combatScenarioProjection
 import {
   projectScenarioMemberProfile,
   projectScenarioProfiles,
+  projectScenarioRuntimes,
 } from '@/engine/runtime/scenarioRuntime.ts'
 import { parseCombatScenario } from '@/engine/runtime/schema.ts'
 import {
@@ -33,7 +34,7 @@ import {
   simulateCombatScenarioTeam,
 } from '@/engine/pipeline/combatScenario.ts'
 import { evaluateObjective } from '@/engine/objectives/evaluationObjective.ts'
-import { getActResId } from '@/engine/runtime/runtimeAdapters.ts'
+import { applyRuntimeToSimulation, getActResId } from '@/engine/runtime/runtimeAdapters.ts'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 
 function makeMember(id: string): ScenarioTeamMember {
@@ -54,6 +55,39 @@ function makeMember(id: string): ScenarioTeamMember {
 }
 
 describe('combat scenario invariants', () => {
+  it('shares unchanged runtime branches and leaves frozen canonical state untouched during simulation', () => {
+    const base = selectedCombatScenario(makeAppState().combat)
+    const member = base.team.members[0]
+    const teammate = makeMember(listResSds().find((seed) => seed.id !== member.resonatorId)!.id)
+    const scenario = { ...base, team: makeScenarioTeam([member, teammate]) }
+    function freeze(value: unknown): void {
+      if (!value || typeof value !== 'object' || Object.isFrozen(value)) return
+      Object.freeze(value)
+      Object.values(value).forEach(freeze)
+    }
+    freeze(scenario)
+    const before = projectScenarioRuntimes(scenario)
+    const runtime = before.runtimesById[member.resonatorId]
+    expect(runtime.base).toBe(member.progression)
+    expect(runtime.build.echoes).toBe(member.loadout.echoes)
+    expect(runtime.rotation).toBe(scenario.program)
+    expect(() => simulateCombatScenarioTeam(prepareCombatScenario(scenario))).not.toThrow()
+
+    const edited = { ...runtime, state: { ...runtime.state, controls: { ...runtime.state.controls, testControl: 1 } } }
+    const updated = applyRuntimeToSimulation(scenario, member.resonatorId, edited, runtime).scenario
+    const afterMember = updated.team.members[0]
+    expect(afterMember.progression).toBe(member.progression)
+    expect(afterMember.loadout).toBe(member.loadout)
+    expect(afterMember.local.controls).not.toBe(member.local.controls)
+    expect(member.local.controls).not.toHaveProperty('testControl')
+    const after = projectScenarioRuntimes(updated)
+    expect(after.runtimesById[teammate.resonatorId]).toBe(before.runtimesById[teammate.resonatorId])
+    expect(after.subjectRuntime.build.echoes).toBe(runtime.build.echoes)
+    expect(after.subjectRuntime.rotation).toBe(runtime.rotation)
+    const targetEdit = { ...updated, target: { ...updated.target, level: updated.target.level + 1 } }
+    expect(projectScenarioRuntimes(targetEdit).subjectRuntime).toBe(after.subjectRuntime)
+  })
+
   it('requires a dense unique team of one to three equal members', () => {
     const seeds = listResSds().slice(0, 4)
     expect(seeds).toHaveLength(4)

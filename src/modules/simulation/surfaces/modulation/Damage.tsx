@@ -13,7 +13,6 @@ import type { SimResult } from '@/engine/pipeline/types'
 import { Expandable } from '@/shared/ui/Expandable'
 import { useAppStore } from '@/application/state'
 import { selEnemyProf } from '@/application/state'
-import { isNoEnemy } from '@/domain/entities/appState.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { formatCompactNum } from '@/modules/simulation/model/statsView.ts'
@@ -272,13 +271,6 @@ function FormulaCard({
       </div>
     </aside>
   )
-}
-
-export function useDamageMeta(runtime: ResRuntime | null): string {
-  const enemy = useAppStore(selEnemyProf)
-  if (!runtime) return 'No subject'
-  if (isNoEnemy(enemy)) return 'No target set'
-  return `vs Lv.${enemy.level}${enemy.toa ? ` · ${enemy.class}` : ''}`
 }
 
 export function ModulationDamage({

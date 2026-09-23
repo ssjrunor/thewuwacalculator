@@ -26,7 +26,8 @@ import { assembleEvaluation, buildEvaluation, buildEvaluationAnchors } from '@/e
 import { makeEvaluationEchoFrame, preservedMainEchoFor } from '@/engine/evaluation/evaluation/echoDiscovery.ts'
 import { evaluationAnchorCacheKey } from '@/engine/evaluation/evaluation/report.ts'
 import { makeEvaluationOverviewStats } from '@/engine/evaluation/evaluation/stats.ts'
-import { resolveEvaluationStats } from '@/engine/evaluation/evaluation/scoring.ts'
+import { resolveEvaluationStats, scoreStats } from '@/engine/evaluation/evaluation/scoring.ts'
+import { CTX_FLOATS, MV, SET_MASK, SKILL_ID } from '@/engine/optimizer/config/constants'
 import {
   rotationBuildEvaluationReport,
   type BuildEvaluation,
@@ -235,6 +236,86 @@ const norm = (value: unknown) => JSON.parse(
 )
 
 describe('evaluation scoring invariants', () => {
+  it('keeps prepared target and weighted rotation scores exact across repeated stat trials', () => {
+    for (const seedId of ['1311', '1506', '1212', '1209', '1505', '1306']) {
+      const echoes = buildInvariantEchoes('energyRegen').filter((echo): echo is EchoInstance => echo != null)
+      const direct = evaluationContextFor(seedId, echoes)
+      if (!direct || direct.mode !== 'target') throw new Error(`missing target context for ${seedId}`)
+      const contexts = new Float32Array(CTX_FLOATS * 4)
+      const packed = new Uint32Array(contexts.buffer)
+      for (let index = 0; index < 4; index += 1) {
+        contexts.set(direct.pckdCtx, index * CTX_FLOATS)
+        contexts[index * CTX_FLOATS + MV] *= index + 1
+        // Distinct skill/runtime masks must not share conditional set effects.
+        if (index > 0) {
+          packed[index * CTX_FLOATS + SKILL_ID] = (packed[index * CTX_FLOATS + SKILL_ID] & ~0x7fff) | (1 << (index === 1 ? 6 : 1))
+          packed[index * CTX_FLOATS + SET_MASK] = index === 3 ? 1 : 0
+        }
+      }
+      const rotation: SuggestContext = {
+        ...direct,
+        mode: 'rotation',
+        sklls: [direct.skll],
+        resIds: [seedId],
+        contexts,
+        contextStride: CTX_FLOATS,
+        contextWeight: new Float32Array([0.25, 1.5, 0]),
+        contextCount: 4,
+        displayContext: direct.pckdCtx,
+      }
+      for (const ctx of [direct, rotation]) {
+        for (const set of [0, 14, 22, 29, 33]) {
+          const frameEchoes = echoes.map((echo) => ({ ...echo, set }))
+          const frame = makeEvaluationEchoFrame(ctx, frameEchoes, mkSuggMainEc(ctx, frameEchoes))
+          const original = frame.stats.slice()
+          const scratch = frame.stats.slice()
+          const expected = (stats: Float32Array, sets = frame.sets) => scoreStats(
+            ctx, stats, sets, frame.kinds, frame.comboIds, frame.mainEchoBuffs, frame.mainIndex,
+          )
+          for (const factor of [2.25, 0, 1, 0.375]) {
+            for (let index = 0; index < scratch.length; index += 1) scratch[index] = original[index] * factor
+            expect(frame.score(scratch)).toBe(expected(scratch))
+            expect(frame.score(original)).toBe(expected(original))
+          }
+          // Alternate set buffers are live inputs, not part of the fixed frame.
+          const alternateSets = frame.sets.slice()
+          alternateSets.fill(1)
+          expect(frame.score(scratch, alternateSets)).toBe(expected(scratch, alternateSets))
+          alternateSets.fill(33)
+          expect(frame.score(scratch, alternateSets)).toBe(expected(scratch, alternateSets))
+          expect(frame.stats).toEqual(original)
+        }
+        const empty = makeEvaluationEchoFrame(ctx, [], mkSuggMainEc(ctx, []))
+        expect(empty.score(empty.stats)).toBe(scoreStats(
+          ctx, empty.stats, empty.sets, empty.kinds, empty.comboIds, empty.mainEchoBuffs, empty.mainIndex,
+        ))
+      }
+    }
+  })
+
+  it('produces the same report from sequence-only worker simulation input', () => {
+    const seed = getResSeedBy('1212')!
+    const runtime = applyEvaluationAsm(makeResRuntime(seed))
+    const enemy = EVALUATION_ENEMY
+    const runtimesById = makeRuntimeMap(runtime)
+    const simulation = runResSmlt(runtime, seed, enemy, runtimesById, {})
+    const input = {
+      scenarioId: combatScenarioId('evaluation:compact'),
+      memberId: teamMemberId(runtime.id),
+      runtime,
+      enemy,
+      runtimesById,
+    }
+    const complete = rotationBuildEvaluationReport({ ...input, simulation })
+    const compact = rotationBuildEvaluationReport({
+      ...input,
+      simulation: { rotation: { sequence: { entries: simulation.rotation.sequence.entries } } },
+      runtimesById: {},
+    })
+
+    expect(compact).toEqual(complete)
+  }, 20_000)
+
   it('keeps ordinary Echo stat edits out of the anchor cache key', () => {
     const seed = getResSeedBy('1212')
     if (!seed) throw new Error('missing Jingran seed')
@@ -351,8 +432,15 @@ describe('evaluation scoring invariants', () => {
       checked += 1
 
       const cached = assembleEvaluation(ctxB, buildB, anchorsA)
+      const plainArrayAnchors = structuredClone(anchorsA)
+      for (const anchor of Object.values(plainArrayAnchors.builds)) {
+        // Older compact cache entries used regular arrays for this vector.
+        anchor.stats = Array.from(anchor.stats) as unknown as Float32Array
+      }
+      const cachedFromArrays = assembleEvaluation(ctxB, buildB, plainArrayAnchors)
 
       expect(cached.baselineDamage).toBe(full.baselineDamage)
+      expect(norm(cachedFromArrays)).toEqual(norm(cached))
       expect(cached.referenceDamage).toBe(full.referenceDamage)
       expect(cached.maximumDamage).toBe(full.maximumDamage)
       expect(norm(cached.builds.baselineBuild)).toEqual(norm(full.builds.baselineBuild))

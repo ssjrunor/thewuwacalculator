@@ -139,12 +139,16 @@ async function startRun(
     batchSize: number,
     shard?: { index: number; count: number },
 ): Promise<void> {
-  if (!gameDataReady) {
-    if (payload.staticData) {
+  if (payload.staticData) {
+    if (!gameDataReady) {
       hydrFromSnpsh(payload.staticData)
-    } else {
-      await initGameData({ mode: payload.gameDataMode })
     }
+    gameDataReady = true
+  } else {
+    await initGameData({
+      mode: payload.gameDataMode,
+      resonatorIds: [payload.runtime.id],
+    })
     gameDataReady = true
   }
 

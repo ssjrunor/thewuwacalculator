@@ -165,7 +165,10 @@ export function SimulationProvider({
   children,
   actResId: actResId,
 }: SimulationProviderProps) {
-  const ui = useAppStore((state) => state.ui)
+  const theme = useAppStore((state) => state.ui.theme)
+  const backgroundTextMode = useAppStore((state) => state.ui.backgroundTextMode)
+  const leftPaneView = useAppStore((state) => state.ui.leftPaneView)
+  const showSubHits = useAppStore((state) => state.ui.showSubHits)
   const openLeftPane = useAppStore((state) => state.openLeftView)
   const setShowSubHi = useAppStore((state) => state.setSubHits)
   const swtcToRes = useAppStore((state) => state.swRes)
@@ -188,9 +191,9 @@ export function SimulationProvider({
 
   const curResName = actResId ? seedRsntById[actResId]?.name ?? actResId : 'None'
   const toolbarIconTheme = (
-    ui.theme === 'background'
-      ? ui.backgroundTextMode === 'dark'
-      : ui.theme === 'dark'
+    theme === 'background'
+      ? backgroundTextMode === 'dark'
+      : theme === 'dark'
   ) ? 'dark' : 'light'
   const swtcToEnts = useMemo<MenuEntry[]>(() => {
 
@@ -225,20 +228,20 @@ export function SimulationProvider({
           alt=""
           loading="lazy"
       />,
-      hint: ui.leftPaneView === option.id ? 'Current' : undefined,
-      disabled: ui.leftPaneView === option.id,
+      hint: leftPaneView === option.id ? 'Current' : undefined,
+      disabled: leftPaneView === option.id,
       onSelect: () => {
         openLeftPane(option.id)
       },
     }))
-  ), [openLeftPane, toolbarIconTheme, ui.leftPaneView])
+  ), [leftPaneView, openLeftPane, toolbarIconTheme])
 
   const simulationMoreEntries = useMemo(() => simulationMenuBuilder.simulation.more({
     swtcToNtrs: swtcToEnts,
     paneEntries,
-    showSubHits: ui.showSubHits,
-    onToggleSubHits: () => setShowSubHi(!ui.showSubHits),
-  }), [paneEntries, setShowSubHi, swtcToEnts, ui.showSubHits])
+    showSubHits,
+    onToggleSubHits: () => setShowSubHi(!showSubHits),
+  }), [paneEntries, setShowSubHi, showSubHits, swtcToEnts])
 
   const rtMoreEnts = useMemo(
     () => rtChrmMenu.builders.routeChrome.simulationSection(),
@@ -268,8 +271,8 @@ export function SimulationProvider({
       workspace: () => simulationMenuBuilder.simulation.workspace({
         swtcToNtrs: swtcToEnts,
         paneEntries,
-        showSubHits: ui.showSubHits,
-        onToggleSubHits: () => setShowSubHi(!ui.showSubHits),
+        showSubHits,
+        onToggleSubHits: () => setShowSubHi(!showSubHits),
       }),
       more: () => moreEntries,
       damage: {
@@ -326,7 +329,7 @@ export function SimulationProvider({
     rtChrmMenu.builders.routeChrome,
     setShowSubHi,
     swtcToEnts,
-    ui.showSubHits,
+    showSubHits,
   ])
 
   const value = useMemo<SimulationContextValue>(() => ({

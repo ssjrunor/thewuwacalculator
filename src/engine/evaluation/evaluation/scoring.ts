@@ -4,7 +4,7 @@
                suggestion contexts.
 */
 
-import { evalTarget } from '@/engine/optimizer/target/evaluate'
+import { evalTarget, prepareTargetScoring } from '@/engine/optimizer/target/evaluate'
 import type { OptResultStats } from '@/engine/optimizer/types.ts'
 import type { SuggestContext } from '@/engine/suggestions/types'
 
@@ -43,6 +43,27 @@ export function resolveEvaluationStats(
   const context = ctx.mode === 'target' ? ctx.pckdCtx : ctx.displayContext
   if (!context) return null
   return evaluateContext(context, ctx, build)?.stats ?? null
+}
+
+// Search frames share an immutable suggestion context. Weak keys release its
+// compiled scorer with the search, without retaining completed reports/teams.
+const scoringByContext = new WeakMap<SuggestContext, ReturnType<typeof prepareTargetScoring>>()
+
+export function prepareEvaluationScorer(
+    ctx: SuggestContext,
+    build: Omit<EncodedEvaluationBuild, 'stats'>,
+): (stats: Float32Array) => number {
+  let prepare = scoringByContext.get(ctx)
+  if (!prepare) {
+    const contexts = ctx.mode === 'target'
+      ? [ctx.pckdCtx]
+      : Array.from({ length: ctx.contextCount }, (_, index) => ctx.contexts.subarray(
+        index * ctx.contextStride, (index + 1) * ctx.contextStride,
+      ))
+    prepare = prepareTargetScoring(contexts, ctx.setConstLut, ctx.mode === 'rotation' ? ctx.contextWeight : undefined)
+    scoringByContext.set(ctx, prepare)
+  }
+  return prepare(build)
 }
 
 export function scoreStats(

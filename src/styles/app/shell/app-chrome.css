@@ -99,8 +99,8 @@ body,
   pointer-events: none;
   background: radial-gradient(
     circle,
-    color-mix(in srgb, var(--resonator-accent, var(--live)) 9%, transparent) 0%,
-    transparent 70%
+    color-mix(in srgb, var(--resonator-accent, var(--live)) 5%, transparent) 0%,
+    transparent 50%
   );
 }
 

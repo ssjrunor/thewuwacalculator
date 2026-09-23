@@ -15,10 +15,10 @@ import { useAppSnapshot } from '@/modules/home/model/useAppSnapshot'
 import { useChromeIndex } from '@/application/navigation/chromeIndex'
 import { STATE_LABELS, STATUS_DATA } from '@/data/content/appStatus'
 import { getWhatsNewEntries } from '@/data/content/changelogEntries'
-import { listResonators, listEchoes } from '@/data/catalog/catalogService'
+import { listResonatorSeeds, listEchoes } from '@/data/catalog/catalogService'
 import { getWeapons } from '@/data/gameData/weapons/weaponDataStore'
 import { SONATA_SETS } from '@/data/gameData/catalog/sonataSets'
-import { loadEnemyCat } from '@/data/catalog/enemyCatalogService'
+import { loadEnemySummary } from '@/data/catalog/enemyCatalogService'
 import { APP_ROUTES, WHATS_NEW_ACT } from '@/shared/lib/appRoutes'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { ArrivalPlate } from '@/modules/home/features/ArrivalPlate'
@@ -69,15 +69,15 @@ function useCoverage() {
 
   useEffect(() => {
     let live = true
-    void loadEnemyCat()
-        .then((entries) => { if (live) setEnemies(entries.length) })
+    void loadEnemySummary()
+        .then((entries) => { if (live) setEnemies(Object.keys(entries).length) })
         .catch(() => { if (live) setEnemies(null) })
     return () => { live = false }
   }, [])
 
   return useMemo(() => {
     const size: Record<string, number | null> = {
-      resonators: listResonators().length,
+      resonators: listResonatorSeeds().length,
       weapons: getWeapons().length,
       echoes: listEchoes().length,
       enemies,

@@ -12,7 +12,7 @@ import { addEchoStat, encEchoRows } from '@/engine/optimizer/encode/echoes';
 import { getSetCntBkt, getSetRowFfs, SET_ROT_TOGGLES, SETCNSTLUTRO, SETRTTGLST14, SETRTTGLST22, SETRTTGLST29 } from '@/engine/optimizer/encode/sets';
 import { mkSuggMainEc } from '@/engine/suggestions/shared';
 import type { SuggestContext } from '@/engine/suggestions/types';
-import { scoreStats } from '@/engine/evaluation/evaluation/scoring';
+import { prepareEvaluationScorer, scoreStats } from '@/engine/evaluation/evaluation/scoring';
 import type { SetPlanEntry } from '@/engine/suggestions/types';
 import { getSntSetNam } from '@/data/gameData/catalog/sonataSets';
 import { listEffectsFor } from '@/data/catalog/gameDataService';
@@ -190,54 +190,61 @@ export function mainBuffDominates(left: Float32Array, right: Float32Array): bool
   return strictlyBetter
 }
 
+// Fixtures and dominance depend on the profile catalog, not on the thousands
+// of set/cost plans visited by an anchor search. Prepare them once per search.
+export function prepareMainEchoChoices(
+  profiles: MainEchoProfile[],
+  requiredMainEchoId: string | null = null,
+): (costPlan: readonly number[], setPlan: SetPlanEntry[]) => MainEchoChoice[] {
+  const groups = profiles
+    .filter((profile) => !requiredMainEchoId || profile.def.id === requiredMainEchoId)
+    .map((profile) => {
+      const dominated = (setId?: number) => !requiredMainEchoId && profiles.some((candidate) => (
+        candidate !== profile
+        && candidate.relevant
+        && candidate.def.cost === profile.def.cost
+        && (setId === undefined || candidate.def.sets.includes(setId))
+        && mainBuffDominates(candidate.buffs, profile.buffs)
+      ))
+      const choice = (setId?: number) => {
+        const echo = makeMainEchoFixture(profile.def, setId)
+        return echo ? { echo, effectSig: profile.relevant ? profile.effectSig : 'neutral' } : null
+      }
+      return {
+        profile,
+        filler: profile.relevant && !dominated() ? choice() : null,
+        carriers: profile.def.sets.map((setId) => ({
+          setId,
+          choice: !profile.relevant || !dominated(setId) ? choice(setId) : null,
+        })),
+      }
+    })
+
+  return (costPlan, setPlan) => {
+    const choices = new Map<string, MainEchoChoice>()
+    for (const { profile, filler, carriers } of groups) {
+      if (!costPlan.includes(profile.def.cost)) continue
+      let hasCarrier = false
+      for (const { setId, choice } of carriers) {
+        if (!setPlan.some((entry) => entry.setId === setId)) continue
+        hasCarrier = true
+        if (choice) choices.set(`${profile.def.cost}:${choice.effectSig}:${setId}`, choice)
+      }
+      if (!hasCarrier && filler) {
+        choices.set(`${profile.def.cost}:${profile.effectSig}:filler`, filler)
+      }
+    }
+    return [...choices.values()]
+  }
+}
+
 export function mainEchoChoices(
   profiles: MainEchoProfile[],
   costPlan: readonly number[],
   setPlan: SetPlanEntry[],
   requiredMainEchoId: string | null = null,
 ): MainEchoChoice[] {
-  const costs = new Set(costPlan)
-  const plannedSets = new Set(setPlan.map((entry) => entry.setId))
-  const choices = new Map<string, MainEchoChoice>()
-
-  for (const profile of profiles) {
-    if (!costs.has(profile.def.cost)) continue
-    if (requiredMainEchoId && profile.def.id !== requiredMainEchoId) continue
-    const carrierSets = profile.def.sets.filter((setId) => plannedSets.has(setId))
-
-    if (profile.relevant) {
-      if (carrierSets.length === 0) {
-        if (!requiredMainEchoId && profiles.some((candidate) => (
-          candidate !== profile
-          && candidate.relevant
-          && candidate.def.cost === profile.def.cost
-          && mainBuffDominates(candidate.buffs, profile.buffs)
-        ))) continue
-        const echo = makeMainEchoFixture(profile.def)
-        if (echo) choices.set(`${profile.def.cost}:${profile.effectSig}:filler`, { echo, effectSig: profile.effectSig })
-      } else {
-        for (const setId of carrierSets) {
-          if (!requiredMainEchoId && profiles.some((candidate) => (
-            candidate !== profile
-            && candidate.relevant
-            && candidate.def.cost === profile.def.cost
-            && candidate.def.sets.includes(setId)
-            && mainBuffDominates(candidate.buffs, profile.buffs)
-          ))) continue
-          const echo = makeMainEchoFixture(profile.def, setId)
-          if (echo) choices.set(`${profile.def.cost}:${profile.effectSig}:${setId}`, { echo, effectSig: profile.effectSig })
-        }
-      }
-      continue
-    }
-
-    for (const setId of carrierSets) {
-      const echo = makeMainEchoFixture(profile.def, setId)
-      if (echo) choices.set(`${profile.def.cost}:neutral:${setId}`, { echo, effectSig: 'neutral' })
-    }
-  }
-
-  return [...choices.values()]
+  return prepareMainEchoChoices(profiles, requiredMainEchoId)(costPlan, setPlan)
 }
 
 export function setPlanSignature(plan: ReadonlyArray<{ setId: number; pieces: number }>): string {
@@ -578,8 +585,11 @@ export function makeEvaluationEchoFrame(
   const { stats, sets, kinds } = encEchoRows(echoes, ctx.selectedSkill, 'self')
   const comboIds = Int32Array.from(echoes.map((_, index) => index))
   const mainIndex = Math.max(0, echoes.findIndex((echo) => echo.mainEcho))
+  const scorePrepared = prepareEvaluationScorer(ctx, { sets, kinds, comboIds, mainEchoBuffs, mainIndex })
   const score = (buffer: Float32Array, setRows = sets) =>
-    scoreStats(ctx, buffer, setRows, kinds, comboIds, mainEchoBuffs, mainIndex)
+    setRows === sets
+      ? scorePrepared(buffer)
+      : scoreStats(ctx, buffer, setRows, kinds, comboIds, mainEchoBuffs, mainIndex)
 
   return {
     echoes,

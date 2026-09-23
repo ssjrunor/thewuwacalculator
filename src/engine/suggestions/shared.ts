@@ -28,7 +28,7 @@ import type {
   SuggestInput,
 } from '@/engine/suggestions/types'
 import { materializeResRotation, runResSmlt } from '@/engine/pipeline'
-import type { SimResult } from '@/engine/pipeline/types'
+import type { SimResult, RotationTargetSimulation } from '@/engine/pipeline/types'
 import { stripEchoes } from '@/engine/optimizer/compiler/shared'
 import { buildSetRows, listDynamicSetStateParts, makeSetMask } from '@/engine/optimizer/encode/sets'
 import { mkGnrcMainEc, mkMainEchoRo, encEchoRows } from '@/engine/optimizer/encode/echoes'
@@ -401,7 +401,7 @@ function mkRotTrgt(
 // build the packed multi-context rotation evaluation context
 export function mkRotSuggCtx(
     input: SuggestInput,
-    simulation: SimResult,
+    simulation: RotationTargetSimulation,
 ): RotSuggCtx | null {
   const seed = getResSeedBy(input.runtime.id)
   if (!seed) {

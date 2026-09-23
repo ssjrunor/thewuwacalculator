@@ -46,6 +46,25 @@ type RawEnemyElem =
     }
 
 const enemyCatPrmsByMode: Partial<Record<GameDataMode, Promise<EnemyCatEnt[]>>> = {}
+export type EnemySummary = Record<string, Pick<EnemyCatEnt, 'name' | 'element'>>
+const enemySummaryByMode: Partial<Record<GameDataMode, Promise<EnemySummary>>> = {}
+
+export function loadEnemySummary(): Promise<EnemySummary> {
+  const mode = getGameDataMode()
+  const existing = enemySummaryByMode[mode]
+  if (existing) return existing
+  const request = fetch(gameDataUrl(mode, 'enemies/summary.json'))
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Enemy summary request failed with ${response.status}`)
+      return response.json() as Promise<EnemySummary>
+    })
+    .catch((error) => {
+      delete enemySummaryByMode[mode]
+      throw error
+    })
+  enemySummaryByMode[mode] = request
+  return request
+}
 
 // normalize a raw numeric element into a valid enemy element id
 function toEnemyElemI(value: RawEnemyElem): EnemyElemId | null {

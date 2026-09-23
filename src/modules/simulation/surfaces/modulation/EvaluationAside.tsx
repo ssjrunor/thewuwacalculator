@@ -10,7 +10,7 @@ import type {
   EvaluationFeature,
   BuildEvaluationReport,
 } from '@/engine/evaluation/buildEvaluation.ts'
-import { GRADE_LADDER } from '@/engine/evaluation/buildEvaluation.ts'
+import { GRADE_LADDER } from '@/engine/evaluation/evaluation/grades.ts'
 import {
   formatBuildEvaluationScore,
   getBuildEvaluationTone,

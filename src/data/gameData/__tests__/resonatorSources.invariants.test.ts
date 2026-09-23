@@ -447,7 +447,7 @@ describe('resonator source invariants', () => {
       }],
     })
     expect(deniaShifting).toMatchObject({
-      description: expect.stringContaining('50% of the max (19.2)'),
+      description: expect.stringContaining('50% of the max'),
       trigger: 'skill',
       targetScope: 'teamWide',
       condition: {

@@ -10,12 +10,12 @@ const DB_VERSION = 1
 // Persisted anchors encode scoring-engine and generated-data assumptions that
 // are not fully represented by a user's runtime. Bump this whenever those
 // assumptions change so an older bundle cannot grade a current build.
-export const EVALUATION_ANCHOR_CACHE_REVISION = 14
-// Anchor bundles contain generated build details. Keep persistence bounded too;
+export const EVALUATION_ANCHOR_CACHE_REVISION = 16
+// Anchor bundles contain compact scoring inputs. Keep persistence bounded too;
 // the in-memory LRU remains the hot path and a miss is preferable to retaining
 // an unbounded catalog of stale reports on disk.
 const MAX_STORED_ANCHORS = 16
-const MAX_HYDRATED_ANCHORS = 8
+const MAX_HYDRATED_ANCHORS = 2
 
 export interface StoredAnchor {
   key: string
@@ -74,17 +74,28 @@ export function selectCurrentAnchorEntries(
     .map((row) => [row.key, row.anchors])
 }
 
-// Read every persisted anchor, oldest first, so the caller can rebuild an LRU
-// map by re-inserting in order (the most-recently-used ends up newest).
+// Cursor through persisted entries one at a time. getAll() materialized every
+// large anchor bundle together, even though the worker retains only two.
 export async function loadPersistedAnchors(): Promise<Array<[string, EvaluationAnchors]>> {
   const db = await openDb()
   if (!db) return []
   return new Promise((resolve) => {
     try {
-      const request = storeFor(db, 'readonly').getAll()
+      const recent: StoredAnchor[] = []
+      const request = storeFor(db, 'readonly').openCursor()
       request.onsuccess = () => {
-        const rows = (request.result as StoredAnchor[]) ?? []
-        resolve(selectCurrentAnchorEntries(rows))
+        const cursor = request.result
+        if (!cursor) {
+          resolve(selectCurrentAnchorEntries(recent))
+          return
+        }
+        const row = cursor.value as StoredAnchor
+        if (row.revision === EVALUATION_ANCHOR_CACHE_REVISION) {
+          recent.push(row)
+          recent.sort((left, right) => right.ts - left.ts)
+          recent.length = Math.min(recent.length, MAX_HYDRATED_ANCHORS)
+        }
+        cursor.continue()
       }
       request.onerror = () => resolve([])
     } catch {
@@ -107,12 +118,19 @@ export function persistAnchor(key: string, anchors: EvaluationAnchors): void {
         ts: Date.now(),
         revision: EVALUATION_ANCHOR_CACHE_REVISION,
       } satisfies StoredAnchor)
-      const allRequest = store.getAll()
-      allRequest.onsuccess = () => {
-        const rows = (allRequest.result as StoredAnchor[]) ?? []
-        if (rows.length <= MAX_STORED_ANCHORS) return
-        rows.sort((left, right) => left.ts - right.ts)
-        for (const row of rows.slice(0, rows.length - MAX_STORED_ANCHORS)) {
+      const entries: Array<{ key: string; ts: number }> = []
+      const cursorRequest = store.openCursor()
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result
+        if (cursor) {
+          const row = cursor.value as StoredAnchor
+          entries.push({ key: row.key, ts: row.ts })
+          cursor.continue()
+          return
+        }
+        if (entries.length <= MAX_STORED_ANCHORS) return
+        entries.sort((left, right) => left.ts - right.ts)
+        for (const row of entries.slice(0, entries.length - MAX_STORED_ANCHORS)) {
           store.delete(row.key)
         }
       }

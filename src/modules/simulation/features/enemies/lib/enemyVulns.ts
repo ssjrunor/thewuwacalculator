@@ -186,9 +186,13 @@ function stateRow(
   }
 
   const text = getStateText(state)
+  // Select controls are active when their selected branch produces an effect;
+  // their stored option has no numeric activation threshold.
   const active = state.kind === 'toggle'
     ? value === true
-    : Number(value) > Number(state.min ?? 0)
+    : state.kind === 'select'
+      ? total !== 0
+      : Number(value) > Number(state.min ?? 0)
 
   return {
     id: state.controlKey,

@@ -3,7 +3,9 @@
   Description: Filters resonator catalog entries and returns a selected resonator identity.
 */
 
-import {type CSSProperties as CssProps, useMemo, useState} from 'react'
+import { ensureResonatorData } from '@/data/gameData'
+import { useTstStr } from '@/shared/util/toastStore'
+import {type CSSProperties as CssProps, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import type { ReactNode } from 'react'
 import { Check, Flame, History } from 'lucide-react'
 import type { ResMenuEnt } from '@/domain/entities/resonator.ts'
@@ -53,7 +55,24 @@ interface ResPckrPrps {
   onClose: () => void
 }
 
-export function ResPckr({
+function usePickerFilters() {
+  const [selWpnFltr, setSelWpnFlt] = useState<string | null>(null)
+  const [selTtrbFltr, setSelTtrbFl] = useState<string | null>(null)
+  const [selRoleFltr, setSelRoleFl] = useState<string>(ALL_ROLE_ID)
+  const [rarityFilter, setSelRrtyFl] = useState<number[]>([4, 5])
+  return { selWpnFltr, setSelWpnFlt, selTtrbFltr, setSelTtrbFl, selRoleFltr, setSelRoleFl, rarityFilter, setSelRrtyFl }
+}
+
+export function ResPckr(props: ResPckrPrps) {
+  // Preserve filter choices between openings without subscribing to the store
+  // or building every card while this picker is closed.
+  const filters = usePickerFilters()
+  return props.visible && props.portalTarget
+    ? <ResPickerContent {...props} filterState={filters} />
+    : null
+}
+
+function ResPickerContent({
   visible,
   open,
   closing = false,
@@ -70,15 +89,17 @@ export function ResPckr({
   emptyState,
   onSelect,
   onClose,
-}: ResPckrPrps) {
+  filterState,
+}: ResPckrPrps & { filterState: ReturnType<typeof usePickerFilters> }) {
+  const selectionRequest = useRef(0)
+  const cancelSelection = useCallback(() => { selectionRequest.current++ }, [])
+  useEffect(() => cancelSelection, [cancelSelection])
+  useEffect(() => { if (closing) cancelSelection() }, [closing, cancelSelection])
   const rcmmMenuTms = useAppStore((state) => state.ui.preferences.recommendedMenuItems)
   const frqnResBkt = useAppStore((state) => state.ui.itemFreq.resonator)
   const lastUsedResI = useResQStr((state) => state.queueIds)
 
-  const [selWpnFltr, setSelWpnFlt] = useState<string | null>(null)
-  const [selTtrbFltr, setSelTtrbFl] = useState<string | null>(null)
-  const [selRoleFltr, setSelRoleFl] = useState<string>(ALL_ROLE_ID)
-  const [rarityFilter, setSelRrtyFl] = useState<number[]>([4, 5])
+  const { selWpnFltr, setSelWpnFlt, selTtrbFltr, setSelTtrbFl, selRoleFltr, setSelRoleFl, rarityFilter, setSelRrtyFl } = filterState
 
   const roleOptions = useMemo<RoleOption[]>(() => {
     const roleMap = new Map<string, RoleOption>()
@@ -291,13 +312,23 @@ export function ResPckr({
       title: entry.displayName,
       rarity: entry.rarity,
       selected: isSelected,
-      onSelect: () => onSelect(entry.id),
+      onSelect: () => {
+        const request = ++selectionRequest.current
+        void ensureResonatorData([entry.id]).then(() => {
+          if (selectionRequest.current === request) onSelect(entry.id)
+        }).catch((error: unknown) => {
+          if (selectionRequest.current !== request) return
+          useTstStr.getState().show({ content: error instanceof Error ? error.message : 'Could not load resonator data.', variant: 'error' })
+        })
+      },
       leading: (
         <div className="picker-modal__media-frame"
           style={rarityVars(entry.rarity) as CssProps}
         >
           <img
-            src={entry.sprite}
+            data-deferred-src={entry.sprite.replace('/sprites/', '/picker/')}
+            loading="lazy"
+            decoding="async"
             alt={entry.displayName} className="picker-modal__media-image"
             onError={withDefIconM}
           />

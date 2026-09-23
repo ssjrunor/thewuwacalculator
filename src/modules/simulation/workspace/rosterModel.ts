@@ -3,12 +3,11 @@
   Description: Builds ordered roster groups and rotation-presence metadata from canonical profiles.
 */
 
-import type { RotationNode } from '@/domain/gameData/contracts'
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import type { ScenarioWorkspace } from '@/domain/entities/scenarioLibrary'
-import { listContextResonatorScenarios } from '@/domain/entities/scenarioLibrary'
-import { contextScenarioMember } from '@/domain/entities/combatScenario'
+import { listContextResonatorScenarios, summarizeScenario } from '@/domain/entities/scenarioLibrary'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
-import { getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+
 import { toTitle } from '@/shared/lib/format'
 import type {
   BuildAttrGroup,
@@ -17,20 +16,6 @@ import type {
 
 const DEF_ACCENT = '#6b7cff'
 const rosterCache = new WeakMap<object, BuildRosterEntry[]>()
-
-// The authored tree, counted the way the rotation editor's own MAIN header
-// counts it, so the roster and the page agree on the number.
-function countProgramNodes(items: readonly RotationNode[]): number {
-  let total = 0
-  for (const node of items) {
-    total += 1
-    if (node.type === 'repeat' || node.type === 'uptime') {
-      total += countProgramNodes(node.setup ?? [])
-      total += countProgramNodes(node.items)
-    }
-  }
-  return total
-}
 
 function compareRosterEntries(
   left: BuildRosterEntry,
@@ -43,21 +28,23 @@ function compareRosterEntries(
 
 // One entry per context resonator and therefore one working scenario.
 export function makeRosterEntries(
-  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById'>,
+  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById' | 'summaryById'>,
 ): BuildRosterEntry[] {
-  const cached = rosterCache.get(workspace)
+  const cacheKey = workspace.summaryById ?? workspace
+  const cached = rosterCache.get(cacheKey)
   if (cached) return cached
 
   const roster = listContextResonatorScenarios(workspace)
     .flatMap(({ resonatorId: id, scenarioId }) => {
-      const scenario = workspace.scenariosById[scenarioId]
-      if (!scenario) return []
-      const member = contextScenarioMember(scenario)
-      const res = getResonator(id)
+      const summary = workspace.summaryById?.[scenarioId]
+        ?? (workspace.scenariosById[scenarioId]
+          ? summarizeScenario(workspace.scenariosById[scenarioId])
+          : null)
+      if (!summary) return []
+      const res = getResSeedBy(id)
       const attribute = res?.attribute ?? 'aero'
       /* a scenario owns its own program, so this is a fact about the resonator
          and not about whichever surface happens to be reading it */
-      const nodes = countProgramNodes(scenario.program.program)
       return [{
         id,
         scenarioId,
@@ -65,13 +52,13 @@ export function makeRosterEntries(
         profile: res?.profile ?? res?.sprite ?? '/assets/game/default.webp',
         attribute,
         accent: ATTR_COLORS[attribute] ?? DEF_ACCENT,
-        level: member.progression.level ?? 1,
-        sequence: member.progression.sequence ?? 0,
-        rotationNodes: nodes,
+        level: summary.level,
+        sequence: summary.sequence,
+        rotationNodes: summary.rotationNodes,
       }]
     })
     .sort(compareRosterEntries)
-  rosterCache.set(workspace, roster)
+  rosterCache.set(cacheKey, roster)
   return roster
 }
 

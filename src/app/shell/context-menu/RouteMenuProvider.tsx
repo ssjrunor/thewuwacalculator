@@ -292,12 +292,12 @@ export function RtMenuProv({ children }: { children: ReactNode }) {
     <RouteMenuContext.Provider value={value}>
       {children}
       <ConfirmHost control={confirmation} portalTarget={typeof document !== 'undefined' ? document.body : null} />
-      <AppSttsMdl
+      {appStatus.visible ? <AppSttsMdl
         visible={appStatus.visible}
         open={appStatus.open}
         closing={appStatus.closing}
         onClose={appStatus.hide}
-      />
+      /> : null}
       <TeamConsoleHost />
       <WeaponConsoleHost />
       <EchoConsoleHost />

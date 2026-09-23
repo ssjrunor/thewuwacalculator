@@ -75,6 +75,13 @@ export interface RotationSimulationResult {
   totalsByGroup: Record<SkillAggType, DamageTotals>
 }
 
+/** Feature rows consumed when building rotation scoring targets. */
+export interface RotationTargetSimulation {
+  rotation: {
+    sequence: Pick<RotationSimulationResult, 'entries'>
+  }
+}
+
 // top-level simulation result returned by the pipeline
 export interface SimResult {
   // final stats for the active combat context

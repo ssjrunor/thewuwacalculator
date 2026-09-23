@@ -425,24 +425,24 @@ function SpineLayers({
     if (setupFrameRef.current != null) cancelAnimationFrame(setupFrameRef.current)
   }, [])
 
-  // Pausing preserves the worker, WebGL context, and decoded atlas; `animated`
-  // controls playback while the allocated canvas remains mounted.
-  const [canvasMounted, setCanvasMounted] = useState(animated)
+  // The setup image remains visible while animation is off. Unmount the canvas
+  // so its worker, WebGL context, and decoded atlas can be released.
   const [wasAnimated, setWasAnimated] = useState(animated)
   if (wasAnimated !== animated) {
     setWasAnimated(animated)
     if (animated) {
-      setCanvasMounted(true)
       // Re-enabling after a failed attempt is the user asking to retry, and
       // that retry does mount a fresh canvas owing its own ready signal.
       if (animationUnsupported) {
         setAnimationUnsupported(false)
         setAnimationReady(false)
       }
+    } else {
+      setAnimationReady(false)
     }
   }
 
-  const showAnimation = canvasMounted && !animationUnsupported
+  const showAnimation = animated && !animationUnsupported
   const animationVisible = animated && showAnimation && animationReady && setupPresented
 
   return (

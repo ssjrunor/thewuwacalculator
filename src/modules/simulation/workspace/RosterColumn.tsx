@@ -3,6 +3,7 @@
   Description: Hosts the persistent scenario roster and profile add, select, copy, paste, and removal actions.
 */
 
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Copy, Scissors, Trash2 } from 'lucide-react'
@@ -12,7 +13,7 @@ import { selContextResonatorId } from '@/application/state'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 import { contextScenarioMember } from '@/domain/entities/combatScenario.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
-import { getResonator } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+
 import { openTeamCnsl } from '@/modules/simulation/features/teams/lib/teamConsoleStore.ts'
 import { toTitle } from '@/shared/lib/format'
 import { useSel } from '@/modules/simulation/lib/sel.tsx'
@@ -44,7 +45,7 @@ export function RosterColumn() {
     return scenario.team.members
       .filter((member) => member.id !== lead.id)
       .map((member) => {
-        const res = getResonator(member.resonatorId)
+        const res = getResSeedBy(member.resonatorId)
         return {
           id: member.resonatorId,
           name: res?.name ?? toTitle(member.resonatorId),

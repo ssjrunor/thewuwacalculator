@@ -4,6 +4,7 @@
                local data import/export, storage accounting, and Drive backups.
 */
 
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties as CssProps, ReactNode } from 'react'
 import { hasWwcbMgc, readAppFile, xprtAppFile } from '@/application/persistence/fileCodec'
@@ -446,7 +447,7 @@ function PlayerPlate() {
             inputMode="numeric"
             className="cal-num"
             value={draft.uid}
-            placeholder="500395087"
+            placeholder="500295087"
             onChange={(event) => commit({ ...draft, uid: event.target.value })}
           />
         </label>
@@ -461,6 +462,14 @@ function PlayerPlate() {
 }
 
 export function CalibrationPage() {
+  return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? 'missing-google-client-id'}>
+      <CalibrationContent />
+    </GoogleOAuthProvider>
+  )
+}
+
+function CalibrationContent() {
   useInventoryLease()
   const ui = useAppStore((state) => state.ui)
   const setTheme = useAppStore((state) => state.setTheme)

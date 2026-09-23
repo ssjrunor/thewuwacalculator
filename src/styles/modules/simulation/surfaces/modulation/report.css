@@ -40,6 +40,10 @@
   transform: none;
 }
 
+.rpt > .app-loader-overlay.rpt-loader {
+  top: 3.45rem;
+}
+
 :is(.no-entrance-anim, .reduce-animation) .rpt {
   transition: none;
 }

@@ -7,7 +7,7 @@ import type { EnemyProfile } from '@/domain/entities/appState';
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats';
 import { getEchoById, listChsByCos } from '@/data/catalog/echoCatalogService';
 import { encEchoRows } from '@/engine/optimizer/encode/echoes';
-import { mkSuggMainEc, mkSuggVltnCt } from '@/engine/suggestions/shared';
+import { mkSuggMainEc, mkRotSuggCtx } from '@/engine/suggestions/shared';
 import type { SuggestContext } from '@/engine/suggestions/types';
 import { scoreStats } from '@/engine/evaluation/evaluation/scoring';
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService';
@@ -22,7 +22,7 @@ import type { SntSetConds } from '@/domain/entities/sonataSetConditionals';
 import type { EvaluationAlternative, EvaluationReportOpts, EvaluationReportSections, EvaluationRotationSummary, EvaluationSetSummary, BuildEvaluation, BuildEvaluationReport, DefRotEvaluationIn } from './types.ts';
 import { ENERGY_REGEN, scorePercentX100 } from './stats.ts';
 import { cloneEchoSlot, makeSetSummary, preservedMainEchoFor, retainsUtilityPlan, utilityPlanFor } from './echoDiscovery.ts';
-import { assembleEvaluation, evaluationErTarget, buildEvaluation, buildEvaluationAnchors, LEAN_SCORE_OPTIONS, type EvaluationCancelCheck, type EvaluationAnchors, type BuildEvaluationOptions } from './search.ts';
+import { assembleEvaluation, evaluationErTarget, buildEvaluation, buildEvaluationAnchors, type EvaluationCancelCheck, type EvaluationAnchors, type BuildEvaluationOptions } from './search.ts';
 import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey';
 import { getGameDataMode } from '@/data/gameData';
 import { EVALUATION_ANCHOR_CACHE_REVISION, loadPersistedAnchors, persistAnchor } from './anchorStore.ts';
@@ -42,7 +42,7 @@ export function cloneEchoes(equipped: Array<EchoInstance | null>): Array<EchoIns
 // survives worker idle-teardown and page reloads.
 // Anchor snapshots include the generated 0/100/200% build details. A small LRU
 // avoids pinning dozens of large object graphs after browsing many scenarios.
-const MAX_ANCHOR_CACHE_ENTRIES = 8
+const MAX_ANCHOR_CACHE_ENTRIES = 2
 const anchorCache = new Map<string, EvaluationAnchors>()
 
 const DEFAULT_REPORT_SECTIONS: EvaluationReportSections = {
@@ -224,23 +224,19 @@ function withUtilitySetRows(
 // Build a evaluation reusing cached anchors when the anchor inputs are unchanged.
 // `runtime` here is the evaluation runtime (default rotation), so user rotation
 // edits don't fragment the cache.
-function cachedBuildEvaluation(
+function cachedEvaluationAnchors(
   ctx: SuggestContext,
   runtime: ResRuntime,
   enemy: EnemyProfile,
-  options: BuildEvaluationOptions = {},
   checkCancel?: EvaluationCancelCheck,
-): BuildEvaluation | null {
+): EvaluationAnchors | null {
   const equipped = runtime.build.echoes
   const key = evaluationAnchorCacheKey(ctx, runtime, enemy)
   const cached = touchAnchors(key)
-  if (cached) {
-    return assembleEvaluation(ctx, equipped, cached, options)
-  }
+  if (cached) return cached
   const anchors = buildEvaluationAnchors(ctx, equipped, checkCancel)
   if (!anchors) return null
-  rememberAnchors(key, anchors)
-  return assembleEvaluation(ctx, equipped, anchors, options)
+  return rememberAnchors(key, anchors)
 }
 
 export function scoreEchoAlternative(
@@ -528,23 +524,14 @@ export function buildEvaluationReport(
   inputCtx: SuggestContext,
   equipped: Array<EchoInstance | null>,
   options: EvaluationReportOpts = {},
-  existingEvaluation?: BuildEvaluation | null,
+  existingAnchors?: EvaluationAnchors | null,
   rotation: EvaluationRotationSummary | null = null,
   checkCancel?: EvaluationCancelCheck,
 ): BuildEvaluationReport | null {
   const ctx = inputCtx
   const sections = resolveReportSections(options)
-  const evaluation = existingEvaluation
-    ? assembleEvaluation(ctx, equipped, {
-        baselineDamage: existingEvaluation.baselineDamage,
-        referenceDamage: existingEvaluation.referenceDamage,
-        maximumDamage: existingEvaluation.maximumDamage,
-        builds: {
-          baselineBuild: existingEvaluation.builds.baselineBuild,
-          referenceBuild: existingEvaluation.builds.referenceBuild,
-          maximumBuild: existingEvaluation.builds.maximumBuild,
-        },
-      }, reportBuildOptions(options))
+  const evaluation = existingAnchors
+    ? assembleEvaluation(ctx, equipped, existingAnchors, reportBuildOptions(options))
     : buildEvaluation(ctx, equipped, undefined, reportBuildOptions(options), checkCancel)
   if (!evaluation) {
     return null
@@ -592,13 +579,13 @@ export function rotationBuildEvaluationReport(
     preservedUtilityControls: runtime.state.controls,
   })
 
-  const context = mkSuggVltnCt({
+  const context = mkRotSuggCtx({
     scenarioId: input.scenarioId,
     memberId: input.memberId,
     runtime: evaluationRuntime,
     seed,
     enemy,
-    runtimesById,
+    runtimesById: { ...runtimesById, [runtime.id]: runtime },
     selectedTargets: {},
     setConds,
     tgtFeatId: null,
@@ -610,16 +597,16 @@ export function rotationBuildEvaluationReport(
   }
 
   const evaluationContext = withUtilitySetRows(context, evaluationRuntime, setConds, utilityPlan)
+  const includeRotationDetails = options.sections?.rotationFeatures ?? true
   // Report jobs are assembled from the same anchor contract used by the report
   // sections, so the report remains the single evaluation computation path.
-  const evaluation = cachedBuildEvaluation(
+  const anchors = cachedEvaluationAnchors(
     evaluationContext,
     evaluationRuntime,
     enemy,
-    LEAN_SCORE_OPTIONS,
     checkCancel,
   )
-  if (!evaluation) {
+  if (!anchors) {
     return null
   }
 
@@ -627,13 +614,13 @@ export function rotationBuildEvaluationReport(
     evaluationContext,
     runtime.build.echoes,
     options,
-    evaluation,
-    {
+    anchors,
+    includeRotationDetails ? {
       id: defaultRotation.id,
       name: defaultRotation.label,
       resonatorId: runtime.id,
       items: cloneRotationNodes(defaultRotation.items),
-    },
+    } : null,
     checkCancel,
   )
 }

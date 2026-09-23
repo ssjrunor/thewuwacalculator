@@ -30,6 +30,11 @@ export interface StatsView {
   dmgMdfrStts: StatViewRow[]
 }
 
+// makeStatsView always exposes three core, five secondary, six attribute, and
+// four skill-type rows. Consumers that only need a badge should not allocate
+// the formatted row objects or the substantially larger nested stats tree.
+export const STATS_VIEW_ROW_COUNT = 3 + 5 + 6 + 4
+
 // icon lookup used by stat rows and stat displays
 export const STAT_ICON_MAP: Record<string, string> = {
   ATK: '/assets/game/stats/icons/atk.png',
@@ -343,7 +348,7 @@ const ATTR_KEYS: ('all' | AttributeKey)[] = [
 ]
 
 const TTRB_LBLS: Record<'all' | AttributeKey, string> = {
-  all: 'Universal',
+  all: 'All-Attribute',
   aero: 'Aero',
   glacio: 'Glacio',
   spectro: 'Spectro',

@@ -4,17 +4,17 @@
                source-state controls, progression edits, and report access.
 */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { readRtPath } from '@/domain/gameData/runtimePath'
 import { mkCntrPath } from '@/domain/gameData/stateKeys.ts'
 import { Expandable } from '@/shared/ui/Expandable'
+import AppLdrVrly from '@/shared/ui/AppLoaderOverlay.tsx'
 import { SourceStateCtrl } from '@/modules/simulation/features/controls/SourceStateControl.tsx'
 import { withDefIconM, withDefResMg } from '@/shared/lib/imageFallback'
 import { glyphVars, resNodeIcon } from '@/shared/lib/gameAssets'
 import { ATTR_COLORS, rarityVars } from '@/modules/simulation/model/display.ts'
-import { ForteTree } from '@/modules/simulation/features/resonator/ForteTree.tsx'
 import { useSkllData } from '@/modules/simulation/features/resonator/SkillDataHost.tsx'
 import {
   mkForteDock,
@@ -22,11 +22,14 @@ import {
   mkForteTree,
 } from '@/modules/simulation/features/resonator/lib/forteTree.ts'
 import { getResonator, type ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
-import { ModulationDamage, useDamageMeta } from './Damage.tsx'
 import { SeatStack } from './SeatStack.tsx'
 import { ModulationStats } from './Stats.tsx'
-import { EvaluationAside } from './EvaluationAside.tsx'
-import { makeStatsTree, makeStatsView, STAT_ICON_MAP } from '@/modules/simulation/model/statsView.ts'
+import {
+  makeStatsTree,
+  makeStatsView,
+  STAT_ICON_MAP,
+  STATS_VIEW_ROW_COUNT,
+} from '@/modules/simulation/model/statsView.ts'
 import type {
   EvaluationBuildSnapshot,
   EvaluationOverviewStats,
@@ -42,10 +45,87 @@ import {
 } from '@/modules/simulation/features/resonator/lib/buildEdits.ts'
 import { setRtPath } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
 import type { RtUpdHnd } from '@/modules/simulation/features/controls/lib/runtimeStateUtils.ts'
-import { countLive, makeModulationBays, type BayGlyph, type BayRow } from './lib/modulationBays.ts'
+import {
+  countLive,
+  countModulationEffects,
+  makeModulationBays,
+  type BayGlyph,
+  type BayRow,
+} from './lib/modulationBays.ts'
 import { useMemberAnalysis, type MemberAnalysisSource } from './lib/memberSim.ts'
+import { useAppStore, selEnemyProf } from '@/application/state'
+import { isNoEnemy } from '@/domain/entities/appState.ts'
 
 type CssVars = CSSProperties & Record<string, string | number>
+
+const LazyEvaluationAside = lazy(async () => ({
+  default: (await import('./EvaluationAside.tsx')).EvaluationAside,
+}))
+const LazyModulationDamage = lazy(async () => ({
+  default: (await import('./Damage.tsx')).ModulationDamage,
+}))
+const LazyForteTree = lazy(async () => ({
+  default: (await import('@/modules/simulation/features/resonator/ForteTree.tsx')).ForteTree,
+}))
+
+const REPORT_ASIDE_TRANSITION_MS = 460
+
+function useDamageMeta(runtime: ResRuntime | null): string {
+  const enemy = useAppStore(selEnemyProf)
+  if (!runtime) return 'No subject'
+  if (isNoEnemy(enemy)) return 'No target set'
+  return `vs Lv.${enemy.level}${enemy.toa ? ` · ${enemy.class}` : ''}`
+}
+
+function CommittedRange({
+  value,
+  min,
+  max,
+  label,
+  onCommit,
+}: {
+  value: number
+  min: number
+  max: number
+  label: string
+  onCommit: (value: number) => void
+}) {
+  const [draft, setDraft] = useState<number | null>(null)
+  const editing = useRef(false)
+
+  const displayedValue = draft ?? value
+
+  const finish = (next: number) => {
+    if (!editing.current) return
+    editing.current = false
+    setDraft(null)
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      value={displayedValue}
+      aria-label={label}
+      style={{ '--fill': `${((displayedValue - min) / (max - min)) * 100}%` } as CssVars}
+      onPointerDown={() => {
+        editing.current = true
+        setDraft(value)
+      }}
+      onPointerUp={(event) => finish(Number(event.currentTarget.value))}
+      onPointerCancel={(event) => finish(Number(event.currentTarget.value))}
+      onKeyDown={() => {
+        editing.current = true
+        setDraft((current) => current ?? value)
+      }}
+      onKeyUp={(event) => finish(Number(event.currentTarget.value))}
+      onChange={(event) => setDraft(Number(event.target.value))}
+      onBlur={(event) => finish(Number(event.currentTarget.value))}
+    />
+  )
+}
 
 /* The live combat pipeline already owns current stats. Only the evaluation
    targets need the search program; normalize the three core row keys here so
@@ -69,11 +149,20 @@ export function memberAccent(member: ResView | null | undefined): CssVars | unde
   return member ? { '--resonator-accent': ATTR_COLORS[member.attribute] } : undefined
 }
 
-function useForteFacts(runtime: ResRuntime, isDark: boolean) {
+function useForteFacts(runtime: ResRuntime, isDark: boolean, enabled: boolean) {
   const member = useMemo(() => getResonator(runtime.id), [runtime.id])
-  const branches = useMemo(() => (member ? mkForteTree(member, isDark) : []), [member, isDark])
-  const dock = useMemo(() => (member ? mkForteDock(member) : []), [member])
-  const mode = useMemo(() => (member ? mkForteMode(member) : null), [member])
+  const branches = useMemo(
+    () => (enabled && member ? mkForteTree(member, isDark) : []),
+    [enabled, isDark, member],
+  )
+  const dock = useMemo(
+    () => (enabled && member ? mkForteDock(member) : []),
+    [enabled, member],
+  )
+  const mode = useMemo(
+    () => (enabled && member ? mkForteMode(member) : null),
+    [enabled, member],
+  )
 
   const levelled = [
     ...branches.map((branch) => branch.key),
@@ -245,6 +334,13 @@ interface StatesProps {
   maximumBuild: EvaluationBuildSnapshot | null
   /** Complete evaluation report used by the report modal. */
   report: BuildEvaluationReport | null
+  /** Detail-only report, requested and retained only while the drawer is open. */
+  detailReport: BuildEvaluationReport | null
+  detailReportReady: boolean
+  detailReportLoading: boolean
+  reportOpen: boolean
+  onReportOpen: () => void
+  onReportClose: () => void
 }
 
 function PanelSeat({
@@ -270,6 +366,55 @@ function PanelSeat({
   )
 }
 
+function PendingReportAside({
+  open,
+  ready,
+  loading,
+  onClose,
+}: {
+  open: boolean
+  ready: boolean
+  loading: boolean
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div
+        className={open ? 'rpt-scrim is-open' : 'rpt-scrim'}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className={open
+          ? 'rpt rte-scope workspace-ink app-loader-host is-open'
+          : 'rpt rte-scope workspace-ink app-loader-host'}
+        aria-label="Build Details"
+        aria-hidden={open ? undefined : true}
+        aria-busy={!ready || loading}
+      >
+        {ready ? (
+          <>
+            <header className="rpt-head">
+              <span>
+                <span className="rpt-eyebrow">Build Details</span>
+                <b className="rpt-name">{loading ? 'Preparing report…' : 'Report unavailable'}</b>
+              </span>
+              <button type="button" className="rpt-x" aria-label="Close" onClick={onClose}>&times;</button>
+            </header>
+            {loading ? (
+              <AppLdrVrly mode="overlay" className="rpt-loader" text="Preparing report..." />
+            ) : (
+              <div className="rpt-body">
+                <p className="workspace-empty">No detailed evaluation report is available for this build.</p>
+              </div>
+            )}
+          </>
+        ) : null}
+      </aside>
+    </>
+  )
+}
+
 export function ModulationView({
   runtime,
   actRt,
@@ -286,29 +431,76 @@ export function ModulationView({
   referenceBuild,
   maximumBuild,
   report,
+  detailReport,
+  detailReportReady,
+  detailReportLoading,
+  reportOpen,
+  onReportOpen,
+  onReportClose,
 }: StatesProps) {
-  const bays = useMemo(() => makeModulationBays(runtime, actRt), [runtime, actRt])
-  const live = useMemo(() => countLive(bays), [bays])
-  const forte = useForteFacts(runtime, isDark)
+  const bays = useMemo(
+    () => view === 'states' ? makeModulationBays(runtime, actRt) : [],
+    [actRt, runtime, view],
+  )
+  const live = useMemo(
+    () => view === 'states' ? countLive(bays) : countModulationEffects(runtime, actRt),
+    [actRt, bays, runtime, view],
+  )
+  const forte = useForteFacts(runtime, isDark, view === 'forte')
   const panel = useRef<HTMLDivElement>(null)
+  const reportCloseTimer = useRef<number | null>(null)
+  const [reportVisible, setReportVisible] = useState(false)
   const damageMeta = useDamageMeta(runtime)
   const memberAnalysis = useMemberAnalysis(runtime, analysisSource)
   const currentStats = useMemo(
-    () => memberAnalysis.simulation
+    () => view === 'stats' && memberAnalysis.simulation
       ? makeModulationOverviewStats(runtime, memberAnalysis.simulation.finalStats)
       : null,
-    [memberAnalysis.simulation, runtime],
+    [memberAnalysis.simulation, runtime, view],
   )
   // Build the nested stat graph once for consumers that need rows omitted by the flat view.
   const statsTree = useMemo(
-    () => memberAnalysis.simulation
+    () => view === 'stats' && memberAnalysis.simulation
       ? makeStatsTree(memberAnalysis.simulation.finalStats)
       : [],
-    [memberAnalysis.simulation],
+    [memberAnalysis.simulation, view],
   )
-  const [reportOut, setReportOut] = useState(false)
-
   const toPanel = useViewScroll(panel)
+
+  useEffect(() => {
+    if (!reportOpen) {
+      if (reportCloseTimer.current != null) {
+        window.clearTimeout(reportCloseTimer.current)
+        reportCloseTimer.current = null
+      }
+    }
+
+    const frame = window.requestAnimationFrame(() => setReportVisible(reportOpen))
+    return () => window.cancelAnimationFrame(frame)
+  }, [reportOpen])
+
+  useEffect(() => () => {
+    if (reportCloseTimer.current != null) {
+      window.clearTimeout(reportCloseTimer.current)
+    }
+  }, [])
+
+  const closeReport = () => {
+    if (reportCloseTimer.current != null) return
+    setReportVisible(false)
+
+    const reduceMotion = document.documentElement.classList.contains('reduce-animation')
+      || document.documentElement.classList.contains('no-entrance-anim')
+    if (reduceMotion) {
+      onReportClose()
+      return
+    }
+
+    reportCloseTimer.current = window.setTimeout(() => {
+      reportCloseTimer.current = null
+      onReportClose()
+    }, REPORT_ASIDE_TRANSITION_MS)
+  }
 
   // Re-selecting the active panel still scrolls its anchor into view.
   const takeView = (next: ModulationPanel) => {
@@ -322,7 +514,7 @@ export function ModulationView({
     ? currentStats.mainStats.length
       + currentStats.secondaryStats.length
       + currentStats.dmgMdfrStts.length
-    : 0
+    : memberAnalysis.simulation ? STATS_VIEW_ROW_COUNT : 0
   const dmgGlyph = glyphVars(resNodeIcon(runtime.id, 'normalAttack'), '--g')
 
   return (
@@ -335,8 +527,8 @@ export function ModulationView({
         {report ? (
           <button
             type="button" className="pgs-report"
-            aria-expanded={reportOut}
-            onClick={() => setReportOut(true)}
+            aria-expanded={reportVisible}
+            onClick={onReportOpen}
           >
             <em aria-hidden="true" />
             Report
@@ -414,13 +606,26 @@ export function ModulationView({
         </div>
       </div>
 
-      {report ? (
-        <EvaluationAside
-          open={reportOut}
-          onClose={() => setReportOut(false)}
-          report={report}
-          resonatorId={report.rotation?.resonatorId ?? runtime.id}
-        />
+      {reportOpen ? (
+        detailReport ? (
+          <Suspense fallback={(
+            <PendingReportAside open={reportVisible} ready loading onClose={closeReport} />
+          )}>
+            <LazyEvaluationAside
+              open={reportVisible}
+              onClose={closeReport}
+              report={detailReport}
+              resonatorId={detailReport.rotation?.resonatorId ?? runtime.id}
+            />
+          </Suspense>
+        ) : (
+          <PendingReportAside
+            open={reportVisible}
+            ready={detailReportReady}
+            loading={detailReportLoading}
+            onClose={closeReport}
+          />
+        )
       ) : null}
 
       {view === 'stats' ? (
@@ -436,7 +641,9 @@ export function ModulationView({
       ) : view === 'damage' ? (
         /* Keep component identity across member changes so panel-local state is
            not reset when only the inspected subject changes. */
-        <ModulationDamage runtime={runtime} simulation={memberAnalysis.simulation} />
+        <Suspense fallback={<p className="pgs-empty">Loading damage analysis…</p>}>
+          <LazyModulationDamage runtime={runtime} simulation={memberAnalysis.simulation} />
+        </Suspense>
       ) : view === 'forte' ? (
         <ForteBody runtime={runtime} facts={forte} onRtPdt={onRtPdt} />
       ) : bays.length > 0 ? (
@@ -522,16 +729,12 @@ function ForteBody({
         </div>
 
         <div className="pgs-track">
-          <input
-            type="range"
+          <CommittedRange
             min={RES_LVL_MIN}
             max={RES_LVL_MAX}
             value={runtime.base.level}
-            aria-label="Resonator level"
-            style={{
-              '--fill': `${((runtime.base.level - RES_LVL_MIN) / (RES_LVL_MAX - RES_LVL_MIN)) * 100}%`,
-            } as CssVars}
-            onChange={(event) => onRtPdt((prev) => setResLvl(prev, Number(event.target.value)))}
+            label="Resonator level"
+            onCommit={(level) => onRtPdt((prev) => setResLvl(prev, level))}
           />
 
           <div className="pgs-marks" aria-hidden="true">
@@ -571,32 +774,32 @@ function ForteBody({
           <path d="M148 200 A152 64 0 0 1 452 200" fill="none" stroke="currentColor" />
         </svg>
 
-        <ForteTree
-          surface="modulation"
-          branches={branches}
-          dock={dock}
-          mode={mode}
-          modeValue={mode
-            ? String(readRtPath(runtime, mkCntrPath(mode.controlKey)) ?? mode.defaultValue)
-            : ''}
-          skillLevel={(branch) => runtime.base.skillLevels[branch.key]}
-          dockLevel={(entry) => (entry.key === 'outroSkill' ? 0 : runtime.base.skillLevels[entry.key])}
-          activeNodes={runtime.base.traceNodes.activeNodes}
-          onSkillChange={(branch, next) => onRtPdt((prev) => setSkllLvl(prev, branch.key, next))}
-          onDockChange={(entry, next) => {
-            const key = entry.key
-            // Outro skills have no mutable level.
-            if (key === 'outroSkill') return
-            onRtPdt((prev) => setSkllLvl(prev, key, next))
-          }}
-          onModeChange={(next) => {
-            if (mode) setRtPath(onRtPdt, mkCntrPath(mode.controlKey), next)
-          }}
-          onTraceToggle={(nodeId) => onRtPdt((prev) => tglTrcNd(prev, nodeId, member))}
-          subject={member?.name ?? null}
-          // Open skill data for the currently inspected runtime.
-          onSkillData={(tab) => skillData.open({ resonatorId: runtime.id, tab })}
-        />
+        <Suspense fallback={<p className="pgs-empty">Loading Forte…</p>}>
+          <LazyForteTree
+            surface="modulation"
+            branches={branches}
+            dock={dock}
+            mode={mode}
+            modeValue={mode
+              ? String(readRtPath(runtime, mkCntrPath(mode.controlKey)) ?? mode.defaultValue)
+              : ''}
+            skillLevel={(branch) => runtime.base.skillLevels[branch.key]}
+            dockLevel={(entry) => (entry.key === 'outroSkill' ? 0 : runtime.base.skillLevels[entry.key])}
+            activeNodes={runtime.base.traceNodes.activeNodes}
+            onSkillChange={(branch, next) => onRtPdt((prev) => setSkllLvl(prev, branch.key, next))}
+            onDockChange={(entry, next) => {
+              const key = entry.key
+              if (key === 'outroSkill') return
+              onRtPdt((prev) => setSkllLvl(prev, key, next))
+            }}
+            onModeChange={(next) => {
+              if (mode) setRtPath(onRtPdt, mkCntrPath(mode.controlKey), next)
+            }}
+            onTraceToggle={(nodeId) => onRtPdt((prev) => tglTrcNd(prev, nodeId, member))}
+            subject={member?.name ?? null}
+            onSkillData={(tab) => skillData.open({ resonatorId: runtime.id, tab })}
+          />
+        </Suspense>
       </div>
     </section>
   )

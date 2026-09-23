@@ -98,17 +98,6 @@ export function spriteVars(
   } as CssProps
 }
 
-// canonical ordering for the main resonator skill tabs
-const mainSkllTabs: SkillTabKey[] = [
-  'normalAttack',
-  'resonanceSkill',
-  'forteCircuit',
-  'resonanceLiberation',
-  'introSkill',
-  'outroSkill',
-  'tuneBreak',
-]
-
 // trace node text -> icon key mapping for ui rendering
 export const TRCNODEICONM: Record<string, string> = {
   'ATK+': 'atk',
@@ -164,17 +153,10 @@ export function visibleTabs(details: ResDtls | null): ResSldrSkllT[] {
 
 // fetch detailed resonator data and attach only the tabs that actually exist
 export function getResDtls(resonatorId: string): ResDtls | null {
-  const details = getResDtlsBy()[resonatorId]
-  if (!details) {
-    return null
-  }
-
-  return {
-    ...details,
-    skillTabs: mainSkllTabs.filter((tab) => Boolean(details.skillsByTab[tab])),
-  }
+  return getResDtlsBy()[resonatorId] ?? null
 }
 
+const viewsByDetail = new WeakMap<ResDtls, { seed: ResSeed; view: ResView }>()
 // fetch the combined resonator view used by higher-level ui
 // returns null if either seed data or detail data is missing
 export function getResonator(resonatorId: string): ResView | null {
@@ -185,8 +167,9 @@ export function getResonator(resonatorId: string): ResView | null {
     return null
   }
 
-  return {
-    ...seed,
-    ...details,
-  }
+  const cached = viewsByDetail.get(details)
+  if (cached?.seed === seed) return cached.view
+  const view = { ...seed, ...details }
+  viewsByDetail.set(details, { seed, view })
+  return view
 }

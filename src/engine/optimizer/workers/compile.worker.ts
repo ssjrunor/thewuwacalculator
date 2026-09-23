@@ -271,20 +271,21 @@ self.onmessage = async (event: MessageEvent<OptCompInMsg>) => {
 
   try {
     if (message.type === 'start' || message.type === 'baseline') {
-      if (!gameDataReady) {
-        if (message.payload.staticData) {
+      if (message.payload.staticData) {
+        if (!gameDataReady) {
           logOptimizer('[optimizer:compile-worker] hydrating game data from static snapshot', {
             runId: message.runId,
           })
           hydrOptSttcD(message.payload.staticData)
           logOptimizer('[optimizer:compile-worker] static data hydrated', { runId: message.runId })
-        } else {
-          logOptimizer('[optimizer:compile-worker] fetching game data via initializeGameData()', {
-            runId: message.runId,
-          })
-          await initGameData({ mode: message.payload.gameDataMode })
-          logOptimizer('[optimizer:compile-worker] game data ready', { runId: message.runId })
         }
+        gameDataReady = true
+      } else {
+        await initGameData({
+          mode: message.payload.gameDataMode,
+          resonatorIds: [message.payload.runtime.id,
+            ...Object.keys(message.payload.runtimesById ?? {})],
+        })
         gameDataReady = true
       }
 

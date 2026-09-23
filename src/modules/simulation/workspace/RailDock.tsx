@@ -12,9 +12,8 @@ import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
 import { isResRtMaxed, maxResRt } from '@/engine/gameData/resonatorMax.ts'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
-import { getEnemyCatE } from '@/data/catalog/enemyCatalogService.ts'
+import { loadEnemySummary, type EnemySummary } from '@/data/catalog/enemyCatalogService.ts'
 import { useAppStore, selEnemyProf } from '@/application/state'
-import { useEnemyCat } from '@/application/hooks/useEnemyCatalog.ts'
 import type { EnemyProfile } from '@/domain/entities/appState'
 import type { AttributeKey } from '@/domain/entities/stats'
 import {
@@ -185,7 +184,15 @@ export function RailDock({
 }) {
   const skillData = useSkllData()
   const enemy = useAppStore(selEnemyProf)
-  const { catalog } = useEnemyCat()
+  const [enemySummary, setEnemySummary] = useState<EnemySummary | null>(null)
+  useEffect(() => {
+    if (!/^\d+$/.test(enemy.id)) return
+    let active = true
+    void loadEnemySummary().then((summary) => {
+      if (active) setEnemySummary(summary)
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [enemy.id])
   const details = resId ? getResDtlsBy()[resId] ?? null : null
 
   const preparedMax = useMemo(() => (
@@ -286,7 +293,7 @@ export function RailDock({
 
   const shownLog = log && log.resId === resId ? log : null
   const seed = getResSeedBy(resId)
-  const catalogEntry = getEnemyCatE(catalog, enemy.id)
+  const catalogEntry = enemySummary?.[enemy.id]
   const enemyName = catalogEntry?.name
     ?? ENEMY_PRST.find((preset) => preset.id === enemy.id)?.label
     ?? 'Custom target'

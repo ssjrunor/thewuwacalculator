@@ -30,6 +30,7 @@ import type {
   MainStatSugg,
   MainStatSuwo,
 } from '@/engine/suggestions/types'
+import type { BuildEvaluationReport } from '@/engine/evaluation/buildEvaluation'
 
 type MainStatRunner = (payload: MainStatPrep) => Promise<MainStatSugg[]>
 
@@ -198,14 +199,6 @@ function profileFromSuggestion(options: {
       }, concreteReference)
     : concreteReference
 
-  console.info('[echo-score:max-main-stats]', {
-    charId,
-    stats,
-    idealSubstatCounts,
-    idealSubstatValues,
-    damage: suggestion.damage,
-  })
-
   return {
     cacheKey,
     charId,
@@ -216,6 +209,105 @@ function profileFromSuggestion(options: {
     mainCountsByCost,
     referenceEchoes: rolledReferenceEchoes,
   }
+}
+
+/**
+ * Reuse Modulation's legal reference build for Echo scoring. This avoids
+ * launching a second catalog-heavy Suggestions worker for the same resonator
+ * immediately after the summary evaluation worker finishes.
+ */
+export function cacheEchoMainStatScoringFromEvaluation(
+  input: EchoMainStatProfileInput,
+  report: BuildEvaluationReport,
+): string | null {
+  const referenceBuild = report.evaluation.builds.referenceBuild
+  const referenceSlots = referenceBuild.echoes
+  if (referenceSlots.length !== 5) return null
+
+  const cacheKey = makeEchoMainStatProfileKey(input)
+  latestProfileKeyByChar.set(input.runtime.id, cacheKey)
+  if (activateEchoMainStatScoreProfile(input.runtime.id, cacheKey)) {
+    return cacheKey
+  }
+
+  const bestByCost: Record<number, string[]> = {}
+  const weightsByCost: Record<number, Record<string, number>> = {}
+  const mainCountsByCost: Record<number, Record<string, number>> = {}
+
+  for (const cost of [1, 3, 4]) {
+    const bestSet = new Set(referenceSlots
+      .filter((slot) => slot.cost === cost)
+      .map((slot) => slot.primary.key))
+    bestByCost[cost] = [...bestSet].sort()
+    weightsByCost[cost] = Object.fromEntries(
+      Object.keys(ECHO_MAIN_STATS[cost] ?? {}).map((key) => [
+        key,
+        bestSet.has(key) ? 1 : getGeneratedMainStatWeight(input.runtime.id, key, cost),
+      ]),
+    )
+    mainCountsByCost[cost] = input.runtime.build.echoes.reduce<Record<string, number>>((counts, echo) => {
+      if (echo && getEchoById(echo.id)?.cost === cost) {
+        counts[echo.mainStats.primary.key] = (counts[echo.mainStats.primary.key] ?? 0) + 1
+      }
+      return counts
+    }, {})
+  }
+
+  const idealSubstatCounts: Record<string, number> = {}
+  const idealSubstatValues: Record<string, number> = {}
+  for (const row of referenceBuild.statRows) {
+    const count = Math.round(row.substatCount)
+    if (count <= 0 || !Number.isFinite(row.substatTotal) || row.substatTotal <= 0) continue
+    idealSubstatCounts[row.key] = count
+    idealSubstatValues[row.key] = row.substatTotal
+  }
+
+  if (Object.values(idealSubstatCounts).reduce((sum, count) => sum + count, 0) !== 25) {
+    return null
+  }
+
+  const referenceEchoes = referenceSlots.map((slot, index): EchoInstance => ({
+    uid: `echo-score-reference-${index}`,
+    id: slot.echoId,
+    set: slot.setId,
+    mainEcho: slot.mainEcho,
+    mainStats: {
+      primary: { ...slot.primary },
+      secondary: { ...slot.secondary },
+    },
+    substats: {},
+  }))
+
+  Object.entries(idealSubstatCounts)
+    .sort(([leftKey, leftCount], [rightKey, rightCount]) => (
+      rightCount - leftCount || leftKey.localeCompare(rightKey)
+    ))
+    .forEach(([key, count]) => {
+      const maxValue = SUBSTAT_RANGES[key]?.max ?? 0
+      if (maxValue <= 0) return
+      const targetSlots = referenceEchoes
+        .map((echo, index) => ({ echo, index }))
+        .sort((left, right) => (
+          Object.keys(left.echo.substats).length - Object.keys(right.echo.substats).length
+          || left.index - right.index
+        ))
+        .slice(0, count)
+      for (const { echo } of targetSlots) {
+        echo.substats[key] = maxValue
+      }
+    })
+
+  cacheEchoMainStatScoreProfile({
+    cacheKey,
+    charId: input.runtime.id,
+    weightsByCost,
+    bestByCost,
+    idealSubstatCounts,
+    idealSubstatValues,
+    mainCountsByCost,
+    referenceEchoes,
+  })
+  return cacheKey
 }
 
 // Called from the route shell so every scoring surface shares one reference

@@ -12,7 +12,7 @@ import { applySetPlan, mkSetPlanCnd, prepSetPlanFsb } from '@/engine/suggestions
 import { ignoresEr } from '@/engine/evaluation/energyRegenPolicy';
 import type { EvaluationBuildSnapshot, EvaluationSubstatEntry, BuildEvaluation } from './types.ts';
 import { addStatTotal, EVALUATION_ROLL_SOURCE, effectiveRollCount, ENERGY_REGEN, equivalentRollCounts, gradeForPercent, makeEvaluationInvariantStats, makeEvaluationOverviewStats, makeSubstatPlan, MAXIMUM_ROLL_SOURCE, MAX_ROLLS_PER_KEY, normalizeRollParams, removeSubstatTotals, rollAtQuality, scorePercent, sumEncodedEnergyRegen, sumEncodedStats, sumSubstats, type EvaluationEchoFrame, type EvaluationScoringParams, type MainStatCandidate, type SubstatCandidate } from './stats.ts';
-import { echoesMatchSetPlan, enumerateMainStatCandidates, findUsefulStatImpacts, mainEchoChoices, makeEvaluationBuildSnapshot, makeEvaluationEchoFrame, makeMainEchoProfiles, makeReferenceEvaluationEchoes, preservedMainEchoFor, retainsUtilityPlan, setEffectSig, utilityPlanFor } from './echoDiscovery.ts';
+import { echoesMatchSetPlan, enumerateMainStatCandidates, findUsefulStatImpacts, prepareMainEchoChoices, makeEvaluationBuildSnapshot, makeEvaluationEchoFrame, makeMainEchoProfiles, makeReferenceEvaluationEchoes, makeSetSummary, preservedMainEchoFor, retainsUtilityPlan, setEffectSig, utilityPlanFor } from './echoDiscovery.ts';
 import { buildEvaluationFeatureBreakdownFromEncoded } from './features.ts';
 
 
@@ -28,10 +28,19 @@ export interface EvaluationAnchors {
   referenceDamage: number
   maximumDamage: number
   builds: {
-    baselineBuild: EvaluationBuildSnapshot
-    referenceBuild: EvaluationBuildSnapshot
-    maximumBuild: EvaluationBuildSnapshot
+    baselineBuild: EvaluationAnchorBuild
+    referenceBuild: EvaluationAnchorBuild
+    maximumBuild: EvaluationAnchorBuild
   }
+}
+
+// Retain only the scoring inputs. Report-only feature trees and stat rows are
+// derived from these when a report actually asks for them.
+interface EvaluationAnchorBuild {
+  echoes: EchoInstance[]
+  stats: Float32Array
+  primaryStats: Array<{ key: string; value: number }>
+  substats: EvaluationSubstatEntry[]
 }
 
 export interface BuildEvaluationOptions {
@@ -85,22 +94,76 @@ function resolveEvaluationOptions(options: BuildEvaluationOptions = {}): Require
   }
 }
 
-function stripSnapshotDetails(snapshot: EvaluationBuildSnapshot): EvaluationBuildSnapshot {
+function materializeAnchorBuild(
+  ctx: SuggestContext,
+  anchor: EvaluationAnchorBuild,
+  label: string,
+  score: number,
+  damage: number,
+  includeDetails: boolean,
+  includeStatRows: boolean,
+  includeFeatures: boolean,
+): EvaluationBuildSnapshot {
+  if (!includeDetails) {
+    return {
+      label,
+      score,
+      damage,
+      sets: makeSetSummary(Uint8Array.from(anchor.echoes.map((echo) => echo.set)), anchor.echoes),
+      echoes: [],
+      substatMode: score === 0 ? 'none' : 'generated',
+      statRows: [],
+      overviewStats: { mainStats: [], secondaryStats: [], dmgMdfrStts: [] },
+      features: [],
+      featureGroups: { skillTypes: [], tabs: [] },
+    }
+  }
+  const frame = makeEvaluationEchoFrame(ctx, anchor.echoes, mkSuggMainEc(ctx, anchor.echoes))
+  // Early compact anchors stored this vector as a plain array. IndexedDB can
+  // still return one during a hot update, and scoring requires subarray().
+  const stats = Float32Array.from(anchor.stats)
+  return makeEvaluationBuildSnapshot({
+    label,
+    score,
+    damage,
+    echoes: anchor.echoes,
+    setRows: frame.sets,
+    primaryStats: anchor.primaryStats,
+    substats: anchor.substats,
+    substatMode: score === 0 ? 'none' : 'generated',
+    stats,
+    scoreDamage: (buffer) => frame.score(buffer, frame.sets),
+    features: includeDetails && includeFeatures
+      ? evaluationFeatures(ctx, frame, stats, frame.sets)
+      : [],
+    overviewStats: includeDetails
+      ? evaluationOverview(ctx, frame, stats, frame.sets)
+      : { mainStats: [], secondaryStats: [], dmgMdfrStts: [] },
+    includeStatRows: includeDetails && includeStatRows,
+  })
+}
+
+export function materializeEvaluationAnchorBuilds(
+  ctx: SuggestContext,
+  anchors: EvaluationAnchors,
+  options: BuildEvaluationOptions = {},
+): {
+  baselineBuild: EvaluationBuildSnapshot
+  referenceBuild: EvaluationBuildSnapshot
+  maximumBuild: EvaluationBuildSnapshot
+} {
+  const resolved = resolveEvaluationOptions(options)
+  const details = resolved.includeEvaluationTargets
   return {
-    ...snapshot,
-    echoes: [],
-    sets: [],
-    statRows: [],
-    overviewStats: {
-      mainStats: [],
-      secondaryStats: [],
-      dmgMdfrStts: [],
-    },
-    features: [],
-    featureGroups: {
-      skillTypes: [],
-      tabs: [],
-    },
+    baselineBuild: materializeAnchorBuild(ctx, anchors.builds.baselineBuild,
+      'Baseline build', 0, anchors.baselineDamage, details,
+      resolved.includeStatRows, resolved.includeFeatures),
+    referenceBuild: materializeAnchorBuild(ctx, anchors.builds.referenceBuild,
+      'Reference build', 100, anchors.referenceDamage, details,
+      resolved.includeStatRows, resolved.includeFeatures),
+    maximumBuild: materializeAnchorBuild(ctx, anchors.builds.maximumBuild,
+      'Maximum build', 200, anchors.maximumDamage, details,
+      resolved.includeStatRows, resolved.includeFeatures),
   }
 }
 
@@ -225,45 +288,75 @@ export function buildEvaluationAnchors(
   const setPlans = mkSetPlanCnd(5)
     .filter((plan) => retainsUtilityPlan(plan, requiredUtilityPlan))
     .map((plan) => ({
-    plan,
-    effectSig: setEffectSig(ctx, plan),
+      plan,
+      effectSig: setEffectSig(ctx, plan),
     }))
-  const evaluationFrames = costPlans.flatMap((costPlan) => {
-    if (requiredMainEchoCost != null && !costPlan.includes(requiredMainEchoCost)) return []
-    const reference = makeReferenceEvaluationEchoes(costPlan, null)
-    if (reference.length !== 5) return []
-    const seenFrames = new Set<string>()
-    const isFeasible = prepSetPlanFsb(reference)
+  const selectMainEchoChoices = prepareMainEchoChoices(mainEchoProfiles, requiredMainEcho?.id ?? null)
+  const forEachEvaluationFrame = (visit: (frame: EvaluationEchoFrame, index: number) => void, stride = 1): number => {
+    let frameIndex = 0
+    for (const costPlan of costPlans) {
+      if (requiredMainEchoCost != null && !costPlan.includes(requiredMainEchoCost)) continue
+      const reference = makeReferenceEvaluationEchoes(costPlan, null)
+      if (reference.length !== 5) continue
+      const seenFrames = new Set<string>()
+      const isFeasible = prepSetPlanFsb(reference)
 
-    return setPlans.flatMap(({ plan: setPlan, effectSig }) => {
-      if (!isFeasible(setPlan)) return []
-      const choices = mainEchoChoices(mainEchoProfiles, costPlan, setPlan, requiredMainEcho?.id ?? null)
-      return choices.flatMap((choice) => {
-        // The frame's `mainSig` is fully determined by the main Echo's own
-        // effect class (`choice.effectSig`), the team-facing main-Echo buff
-        // never depends on the filler echoes or the set assignment, so the real
-        // `mainEchoEffectSig` always equals `choice.effectSig`. That makes the
-        // whole dedup key knowable before any echo assembly, so the ~95% of
-        // (set-effect x main-Echo) combos that collapse to an already-seen frame
-        // skip the expensive applySetPlan / validity / mkSuggMainEc work.
-        const frameSig = `${effectSig}|${choice.effectSig}`
-        if (seenFrames.has(frameSig)) return []
+      for (const { plan: setPlan, effectSig } of setPlans) {
+        if (!isFeasible(setPlan)) continue
+        const choices = selectMainEchoChoices(costPlan, setPlan)
+        for (const choice of choices) {
+          // The frame's `mainSig` is fully determined by the main Echo's own
+          // effect class (`choice.effectSig`), the team-facing main-Echo buff
+          // never depends on the filler echoes or the set assignment, so the real
+          // `mainEchoEffectSig` always equals `choice.effectSig`. That makes the
+          // whole dedup key knowable before any echo assembly, so the ~95% of
+          // (set-effect x main-Echo) combos that collapse to an already-seen frame
+          // skip the expensive applySetPlan / validity / mkSuggMainEc work.
+          const frameSig = `${effectSig}|${choice.effectSig}`
+          if (seenFrames.has(frameSig)) continue
 
-        const base = makeReferenceEvaluationEchoes(costPlan, choice.echo)
-        if (base.length !== 5) return []
-        const echoes = applySetPlan(setPlan, base).filter((echo): echo is EchoInstance => echo != null)
-        // distinct by id|set (the in-game piece rule): the same id may serve two
-        // different sets, but a duplicated id+set pair would waste a slot.
-        if (echoes.length !== 5 || new Set(echoes.map((echo) => `${echo.id}|${echo.set}`)).size !== 5) return []
-        if (!echoes.some((echo) => echo.mainEcho && echo.id === choice.echo.id)) return []
-        if (!echoesMatchSetPlan(echoes, setPlan)) return []
+          const base = makeReferenceEvaluationEchoes(costPlan, choice.echo)
+          if (base.length !== 5) continue
+          const echoes = applySetPlan(setPlan, base).filter((echo): echo is EchoInstance => echo != null)
+          // distinct by id|set (the in-game piece rule): the same id may serve two
+          // different sets, but a duplicated id+set pair would waste a slot.
+          if (echoes.length !== 5 || new Set(echoes.map((echo) => `${echo.id}|${echo.set}`)).size !== 5) continue
+          if (!echoes.some((echo) => echo.mainEcho && echo.id === choice.echo.id)) continue
+          if (!echoesMatchSetPlan(echoes, setPlan)) continue
 
-        seenFrames.add(frameSig)
-        return [makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, echoes), setPlan)]
-      })
-    })
+          seenFrames.add(frameSig)
+          const index = frameIndex++
+          if (index % stride === 0) {
+            visit(makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, echoes), setPlan), index)
+          }
+        }
+      }
+    }
+    return frameIndex
+  }
+
+  // Only 128 frame families can enter the bounded search. Keep those frames
+  // and their score proxies, releasing every other candidate immediately.
+  const frameInfos: Array<{
+    echoes: EchoInstance[]
+    setPlan: EvaluationEchoFrame['setPlan']
+    order: number
+  }> = []
+  const frameCount = forEachEvaluationFrame((frame) => {
+    checkCancel?.()
+    const mainsOnly = frame.stats.slice()
+    removeSubstatTotals(mainsOnly, sumSubstats(frame.echoes))
+    const info = {
+      echoes: frame.echoes,
+      setPlan: frame.setPlan,
+      order: frame.score(mainsOnly, frame.sets),
+    }
+    const insertAt = frameInfos.findIndex((existing) => existing.order < info.order)
+    if (insertAt < 0) frameInfos.push(info)
+    else frameInfos.splice(insertAt, 0, info)
+    if (frameInfos.length > APPROXIMATE_FRAME_LIMIT) frameInfos.pop()
   })
-  if (evaluationFrames.length === 0) {
+  if (frameCount === 0) {
     return null
   }
 
@@ -278,10 +371,8 @@ export function buildEvaluationAnchors(
   const evaluationParams = normalizeRollParams(EVALUATION_ROLL_SOURCE, SUBSTAT_KEYS.length)
   const maximumParams = normalizeRollParams(MAXIMUM_ROLL_SOURCE, SUBSTAT_KEYS.length)
 
-  // Per-frame search inputs are computed once and reused by both anchor passes.
-  // Main-stat candidates are enumerated lazily per frame inside findBestSubstats
-  // (see below) rather than materialized into one giant array, so the live set
-  // stays at O(one frame) instead of O(all candidates). The search is still an
+  // Main-stat candidates are enumerated lazily for the retained beam rather
+  // than materialized into one giant array. The search is still an
   // exhaustive branch-and-bound that visits every candidate, and the anchor
   // damages are a max over candidates, so the 0%/100%/200% damages are identical
   // to a fully-materialized search and stay independent of the equipped build.
@@ -296,20 +387,19 @@ export function buildEvaluationAnchors(
   // greedy already handles). So we compute one SHARED useful set instead of
   // re-deriving it (~21 scores) on every frame. A superset is always safe here:
   // an over-included stat simply never gets allocated, so we union the result
-  // across a wide spread sample of frames to guard against any rare variation
-  // while keeping this at O(sample) rather than O(frames) probes.
-  const mainsOnlyByFrame = evaluationFrames.map((frame) => {
+  // across a wide spread sample of frames to guard against any rare variation.
+  // Regenerating these sparse samples trades construction work for lower peak
+  // memory than retaining every frame and its stats buffer.
+  const usefulSampleStride = Math.max(1, Math.floor(frameCount / 48))
+  const sharedUsefulImpacts = new Map<string, number>()
+  forEachEvaluationFrame((frame) => {
+    checkCancel?.()
     const mainsOnly = frame.stats.slice()
     removeSubstatTotals(mainsOnly, sumSubstats(frame.echoes))
-    return mainsOnly
-  })
-  const usefulSampleStride = Math.max(1, Math.floor(evaluationFrames.length / 48))
-  const sharedUsefulImpacts = new Map<string, number>()
-  for (let index = 0; index < evaluationFrames.length; index += usefulSampleStride) {
-    for (const { key, impact } of findUsefulStatImpacts(evaluationFrames[index], mainsOnlyByFrame[index])) {
+    for (const { key, impact } of findUsefulStatImpacts(frame, mainsOnly)) {
       sharedUsefulImpacts.set(key, Math.max(sharedUsefulImpacts.get(key) ?? 0, impact))
     }
-  }
+  }, usefulSampleStride)
   if (ignoreEr) {
     sharedUsefulImpacts.delete(ENERGY_REGEN)
   }
@@ -348,19 +438,12 @@ export function buildEvaluationAnchors(
   const evaluationRolls = Object.fromEntries(usefulSubKeys.map((key) => [key, bounds[key]?.evaluation ?? 0]))
   const maximumRolls = Object.fromEntries(usefulSubKeys.map((key) => [key, bounds[key]?.max ?? 0]))
 
-  const frameInfos = evaluationFrames.map((frame, index) => {
-    const mainsOnly = mainsOnlyByFrame[index]
-    // mains-only score is a cheap proxy used only to visit promising frames
-    // first so the running best prunes more candidates; it never changes which
-    // candidate wins.
-    return { frame, mainsOnly, usefulStats: mainUsefulStats, order: frame.score(mainsOnly, frame.sets) }
-  })
-  frameInfos.sort((left, right) => right.order - left.order)
-
   // shared scratch vectors for the substat search; reused across every candidate
   // to avoid allocating a fresh Float32Array per trial roll (the dominant source
   // of GC churn in the greedy fill).
-  const scratchLen = evaluationFrames[0].stats.length
+  const firstFrame = makeEvaluationEchoFrame(ctx, frameInfos[0].echoes,
+    mkSuggMainEc(ctx, frameInfos[0].echoes), frameInfos[0].setPlan)
+  const scratchLen = firstFrame.stats.length
   const workingScratch = new Float32Array(scratchLen)
   const trialScratch = new Float32Array(scratchLen)
 
@@ -550,12 +633,15 @@ export function buildEvaluationAnchors(
   // useful estimate over exhaustive accuracy.
   let evaluation: SubstatCandidate | null = null
   let perfection: SubstatCandidate | null = null
-  const frameBeam = frameInfos.slice(0, APPROXIMATE_FRAME_LIMIT)
-  for (const info of frameBeam) {
+  for (const info of frameInfos) {
     checkCancel?.()
+    const frame = makeEvaluationEchoFrame(ctx, info.echoes,
+      mkSuggMainEc(ctx, info.echoes), info.setPlan)
+    const mainsOnly = frame.stats.slice()
+    removeSubstatTotals(mainsOnly, sumSubstats(frame.echoes))
     // enumerate this frame's main-stat candidates on demand; the array is
     // released once the frame is processed, so peak memory stays flat.
-    const candidates = enumerateMainStatCandidates(info.frame, info.mainsOnly, info.usefulStats)
+    const candidates = enumerateMainStatCandidates(frame, mainsOnly, mainUsefulStats)
     let candidateCount = 0
     for (const candidate of candidates) {
       checkCancel?.()
@@ -589,55 +675,29 @@ export function buildEvaluationAnchors(
       ),
     } : {},
   )
-  const baselineSubstats: EvaluationSubstatEntry[] = []
-
   return {
     baselineDamage: evaluationBaselineDamage,
     referenceDamage: evaluation.damage,
     maximumDamage: perfection.damage,
     builds: {
-      baselineBuild: makeEvaluationBuildSnapshot({
-        label: 'Baseline build',
-        score: 0,
-        damage: evaluationBaselineDamage,
+      baselineBuild: {
         echoes: noEchoFrame.echoes,
-        setRows: noEchoFrame.sets,
         primaryStats: [],
-        substats: baselineSubstats,
-        substatMode: 'none',
-        stats: noEchoFrame.stats,
-        scoreDamage: (buffer) => noEchoFrame.score(buffer, noEchoFrame.sets),
-        features: evaluationFeatures(ctx, noEchoFrame, noEchoFrame.stats, noEchoFrame.sets),
-        overviewStats: evaluationOverview(ctx, noEchoFrame, noEchoFrame.stats, noEchoFrame.sets),
-      }),
-      referenceBuild: makeEvaluationBuildSnapshot({
-        label: 'Reference build',
-        score: 100,
-        damage: evaluation.damage,
+        substats: [],
+        stats: noEchoFrame.stats.slice(),
+      },
+      referenceBuild: {
         echoes: evaluation.main.frame.echoes,
-        setRows: evaluation.main.frame.sets,
         primaryStats: evaluation.main.primaryStats,
         substats: evaluationSubstats,
-        substatMode: 'generated',
-        stats: evaluation.stats,
-        scoreDamage: (buffer) => evaluation.main.frame.score(buffer, evaluation.main.frame.sets),
-        features: evaluationFeatures(ctx, evaluation.main.frame, evaluation.stats, evaluation.main.frame.sets),
-        overviewStats: evaluationOverview(ctx, evaluation.main.frame, evaluation.stats, evaluation.main.frame.sets),
-      }),
-      maximumBuild: makeEvaluationBuildSnapshot({
-        label: 'Maximum build',
-        score: 200,
-        damage: perfection.damage,
+        stats: evaluation.stats.slice(),
+      },
+      maximumBuild: {
         echoes: perfection.main.frame.echoes,
-        setRows: perfection.main.frame.sets,
         primaryStats: perfection.main.primaryStats,
         substats: perfectionSubstats,
-        substatMode: 'generated',
-        stats: perfection.stats,
-        scoreDamage: (buffer) => perfection.main.frame.score(buffer, perfection.main.frame.sets),
-        features: evaluationFeatures(ctx, perfection.main.frame, perfection.stats, perfection.main.frame.sets),
-        overviewStats: evaluationOverview(ctx, perfection.main.frame, perfection.stats, perfection.main.frame.sets),
-      }),
+        stats: perfection.stats.slice(),
+      },
     },
   }
 }
@@ -681,6 +741,7 @@ export function assembleEvaluation(
     .sort((left, right) => right.total - left.total)
 
   const percent = scorePercent(userDamage, anchors.baselineDamage, anchors.referenceDamage, anchors.maximumDamage)
+  const anchorBuilds = materializeEvaluationAnchorBuilds(ctx, anchors, options)
 
   return {
     userDamage,
@@ -693,7 +754,7 @@ export function assembleEvaluation(
       ? makeEvaluationInvariantStats(ctx.sourceFinals)
       : [],
     builds: {
-      baselineBuild: anchors.builds.baselineBuild,
+      baselineBuild: anchorBuilds.baselineBuild,
       active: makeEvaluationBuildSnapshot({
         label: 'Active build',
         score: percent * 100,
@@ -711,12 +772,8 @@ export function assembleEvaluation(
         overviewStats: evaluationOverview(ctx, activeEvalFrame, activeStats, activeSetRows),
         includeStatRows: resolvedOptions.includeStatRows,
       }),
-      referenceBuild: resolvedOptions.includeEvaluationTargets
-        ? anchors.builds.referenceBuild
-        : stripSnapshotDetails(anchors.builds.referenceBuild),
-      maximumBuild: resolvedOptions.includeEvaluationTargets
-        ? anchors.builds.maximumBuild
-        : stripSnapshotDetails(anchors.builds.maximumBuild),
+      referenceBuild: anchorBuilds.referenceBuild,
+      maximumBuild: anchorBuilds.maximumBuild,
     },
   }
 }

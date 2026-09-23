@@ -24,10 +24,12 @@ import {
   subscribeEchoScoring,
 } from '@/engine/evaluation/echoScoring'
 import {
+  cacheEchoMainStatScoringFromEvaluation,
   makeEchoMainStatProfileKey,
   prepareEchoMainStatScoring,
 } from '@/engine/evaluation/echoMainStatProfile'
-import { listChsByCos } from '@/data/catalog/echoCatalogService'
+import type { BuildEvaluationReport } from '@/engine/evaluation/buildEvaluation'
+import { getEchoById, listChsByCos } from '@/data/catalog/echoCatalogService'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { makeEnemy, makeResRuntime, mkMaxResRt } from '@/engine/runtime/defaults'
 import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
@@ -434,6 +436,80 @@ describe('Echo scoring invariants', () => {
 
     // Every main selected by the optimal 4-3-3-1-1 layout receives full
     // item-quality credit, even when its isolated marginal value is lower.
+    expect(getEchoScrs(AUGUSTA_ID, makeEcho(3, 'electro')).mainScore).toBeCloseTo(44, 8)
+  })
+
+  it('reuses a completed evaluation reference without launching another search', () => {
+    const seed = getResSeedBy(AUGUSTA_ID)
+    if (!seed) throw new Error('Missing Augusta fixture.')
+
+    const enemy = makeEnemy()
+    const runtime = makeResRuntime(seed)
+    runtime.build.echoes = [
+      makeEcho(4, 'critRate'),
+      makeEcho(3, 'electro'),
+      makeEcho(3, 'atkPercent'),
+      makeEcho(1, 'atkPercent'),
+      makeEcho(1, 'atkPercent'),
+    ]
+    const runtimesById = makeRuntimeMap(runtime, {})
+    const simulation = runResSmlt(runtime, seed, enemy, runtimesById, {})
+    const report = {
+      evaluation: {
+        builds: {
+          referenceBuild: {
+            echoes: runtime.build.echoes.map((echo) => {
+              if (!echo) throw new Error('Missing reference Echo fixture.')
+              const definition = getEchoById(echo.id)
+              return {
+                echoId: echo.id,
+                echoName: definition?.name ?? echo.id,
+                cost: definition?.cost ?? 1,
+                mainEcho: echo.mainEcho,
+                setId: echo.set,
+                setName: String(echo.set),
+                primary: { ...echo.mainStats.primary },
+                secondary: { ...echo.mainStats.secondary },
+                // Generated evaluation slots preserve the base Echo instance;
+                // the generated 25-roll plan lives in statRows instead.
+                equippedSubstats: [],
+              }
+            }),
+            statRows: Object.entries(runtime.build.echoes.reduce<Record<string, { count: number; total: number }>>(
+              (rows, echo) => {
+                for (const [key, value] of Object.entries(echo?.substats ?? {})) {
+                  const row = rows[key] ?? { count: 0, total: 0 }
+                  row.count += 1
+                  row.total += value
+                  rows[key] = row
+                }
+                return rows
+              },
+              {},
+            )).map(([key, row]) => ({
+              key,
+              substatCount: row.count,
+              substatTotal: row.total,
+            })),
+          },
+        },
+      },
+    } as unknown as BuildEvaluationReport
+
+    expect(cacheEchoMainStatScoringFromEvaluation({
+      scenarioId: combatScenarioId('echo-score:report-reuse'),
+      memberId: teamMemberId('echo-score:report-member'),
+      runtime,
+      seed,
+      enemy,
+      runtimesById,
+      selectedTargets: {},
+      simulation,
+    }, report)).not.toBeNull()
+
+    const reference = getEchoScoringReference(AUGUSTA_ID)
+    expect(reference?.referenceEchoes).toHaveLength(5)
+    expect(Object.values(reference?.idealSubstatCounts ?? {}).reduce((sum, count) => sum + count, 0)).toBe(25)
     expect(getEchoScrs(AUGUSTA_ID, makeEcho(3, 'electro')).mainScore).toBeCloseTo(44, 8)
   })
 

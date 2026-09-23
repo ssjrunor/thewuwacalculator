@@ -17,6 +17,8 @@ const SKILL_TABS = [
   'tuneBreak',
 ] as const
 
+const normalizedDetails = new WeakMap<ResDtls, ResDtls>()
+
 let catalogCache: ResSeed[] = []
 let catByIdCch: Record<string, ResSeed> = {}
 let dtlsByIdCch: Record<string, ResDtls> = {}
@@ -26,11 +28,15 @@ export function initResCat(catalog: ResSeed[]): void {
   catByIdCch = Object.fromEntries(catalog.map((r) => [r.id, r]))
 }
 
+export function initResKitSeeds(seeds: Record<string, ResSeed>): void {
+  catByIdCch = { ...Object.fromEntries(catalogCache.map((seed) => [seed.id, seed])), ...seeds }
+}
+
 export function initResDtls(details: Record<string, ResDtls>): void {
-  dtlsByIdCch = Object.fromEntries(
-    Object.entries(details).map(([id, detail]) => [
-      id,
-      {
+  dtlsByIdCch = Object.fromEntries(Object.entries(details).map(([id, detail]) => {
+    let normalized = normalizedDetails.get(detail)
+    if (!normalized) {
+      normalized = {
         ...detail,
         skillTabs: SKILL_TABS.filter((tab) => Boolean(detail.skillsByTab[tab])),
         statePanels: detail.statePanels ?? [],
@@ -39,9 +45,11 @@ export function initResDtls(details: Record<string, ResDtls>): void {
         outroSkills: detail.outroSkills ?? [],
         resonanceChains: detail.resonanceChains ?? [],
         traceNodes: detail.traceNodes ?? catByIdCch[id]?.traceNodes ?? [],
-      },
-    ]),
-  )
+      }
+      normalizedDetails.set(detail, normalized)
+    }
+    return [id, normalized]
+  }))
 }
 
 export function getResCat(): ResSeed[] {

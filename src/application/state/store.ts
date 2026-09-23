@@ -4,6 +4,9 @@
                projections, inventory operations, and optimizer execution state.
 */
 
+import { ensureResonatorData, hasResonatorData, retainResonatorData } from '@/data/gameData'
+import { collectResonatorIds, readStoredScenarioIds } from '@/application/persistence/resonatorScope'
+import { useTstStr } from '@/shared/util/toastStore'
 import {create} from 'zustand'
 import type {
     EnemyProfile,
@@ -49,10 +52,12 @@ import {
 } from '@/engine/runtime/scenarioMembers'
 import {
     addScenario,
+    copyScenarioRecords,
     replaceScenario,
     scenarioIdForContextResonator,
     selectScenario,
     selectedCombatScenario,
+    summarizeScenario,
 } from '@/domain/entities/scenarioLibrary'
 import type { ScenarioWorkspace } from '@/domain/entities/scenarioLibrary'
 import type { CombatState, RotationState } from '@/domain/entities/runtime'
@@ -100,8 +105,8 @@ import {
     cnclActOptWr,
     rstOptWrkrPo,
     runOptWithWr,
-} from '@/engine/optimizer/workers/pool'
-import {matOptRsltsF, matThryRsltCh} from '@/engine/optimizer/results/materialize.ts'
+} from '@/engine/optimizer/workers/poolClient'
+import {matThryRsltCh} from '@/engine/optimizer/results/theoryEchoes.ts'
 import {ROT_GPU_JOB, CPU_THEORY_JOB, GPU_THEORY_JOB,} from '@/engine/optimizer/config/constants'
 import {errorOpt, logOptimizer} from '@/engine/optimizer/config/log.ts'
 import {
@@ -560,7 +565,10 @@ const ntlInvHydr =
     (typeof window !== 'undefined' && isSimulationSurfaceRoute(window.location.pathname, 'optimizer'))
     || INV_LEFT_PANES.has(ntlPrssStt.ui.leftPaneView)
 
-const INVENTORY_IDLE_EVICT_MS = 30_000
+// Inventory data is intentionally cold outside an owning surface. Keep it only
+// long enough for the close transition to finish, then persist and release the
+// large library arrays instead of holding them through Modulation rest state.
+const INVENTORY_IDLE_EVICT_MS = 400
 let inventoryLeaseCount = 0
 let inventoryEvictTimer: number | null = null
 
@@ -689,6 +697,32 @@ export const useAppStore = create<AppStore>((set, get) => {
     })
   }
 
+  const pendingDataActions = new Map<string, object>()
+  const deferForData = (ids: string[], action: () => void, key?: string): boolean => {
+    if (key) pendingDataActions.delete(key)
+    if (hasResonatorData(ids)) return false
+    const request = {}
+    if (key) pendingDataActions.set(key, request)
+    void ensureResonatorData(ids).then(() => {
+      if (key && pendingDataActions.get(key) !== request) return
+      if (key) pendingDataActions.delete(key)
+      action()
+    }).catch((error: unknown) => {
+      if (key && pendingDataActions.get(key) !== request) return
+      if (key) pendingDataActions.delete(key)
+      useTstStr.getState().show({ content: error instanceof Error ? error.message : 'Could not load resonator data.', variant: 'error' })
+    })
+    return true
+  }
+
+  const scenarioDataIds = (scenarioId: CombatScenarioId): string[] => {
+    const descriptor = Object.getOwnPropertyDescriptor(get().combat.scenariosById, scenarioId)
+    const recordKey = (descriptor?.get as (() => CombatScenario) & { recordKey?: string } | undefined)?.recordKey
+    if (recordKey) return readStoredScenarioIds(recordKey)
+    const scenario = descriptor?.value as CombatScenario | undefined
+    return scenario?.team.members.map((member) => member.resonatorId) ?? []
+  }
+
   const persistedSet = (
     dirtyDomains: PersistKey[],
     updater: (state: AppStore) => AppStore,
@@ -699,6 +733,11 @@ export const useAppStore = create<AppStore>((set, get) => {
   ) => {
     set((state) => {
       const next = updater(state)
+      if (next !== state && next.combat !== state.combat) {
+        const ids = selectedCombatScenario(next.combat).team.members.map((member) => member.resonatorId)
+        if (deferForData(ids, () => persistedSet(dirtyDomains, updater, options), 'combat-commit')) return state
+        retainResonatorData(ids)
+      }
       if (next !== state) {
         if (RUNTIME_APP_HISTORY_ENABLED
           && !state.history.isRestoring
@@ -737,6 +776,7 @@ export const useAppStore = create<AppStore>((set, get) => {
     if (profiles.length === 0) {
       return
     }
+    if (deferForData(collectResonatorIds(profiles), () => psrtResPrflI(profiles, historyLabel))) return
 
     persistedSet(['combat.workspace', 'simulation.suggestions', 'ui.layout'], (state) => {
       let workspace: ScenarioWorkspace = state.combat
@@ -803,16 +843,22 @@ export const useAppStore = create<AppStore>((set, get) => {
       const nextSuggsByR = { ...state.simulation.suggestionsByResonatorId }
       const removedResonatorIds = new Set(resonatorIds)
       const removedScenarioIds = state.combat.order.filter((scenarioId) => {
-        const scenario = state.combat.scenariosById[scenarioId]
-        const contextId = scenario ? contextScenarioMember(scenario).resonatorId : null
+        const contextId = state.combat.summaryById?.[scenarioId]?.resonatorId
+          ?? contextScenarioMember(state.combat.scenariosById[scenarioId]).resonatorId
         return Boolean(contextId && removedResonatorIds.has(contextId))
       })
       if (removedScenarioIds.length === 0) return state
 
       const removedScenarioSet = new Set(removedScenarioIds)
       let order = state.combat.order.filter((scenarioId) => !removedScenarioSet.has(scenarioId))
-      const scenariosById = { ...state.combat.scenariosById }
+      const scenariosById = copyScenarioRecords(state.combat.scenariosById)
+      const summaryById = state.combat.summaryById
+        ? { ...state.combat.summaryById }
+        : undefined
       for (const scenarioId of removedScenarioIds) delete scenariosById[scenarioId]
+      for (const scenarioId of removedScenarioIds) {
+        if (summaryById) delete summaryById[scenarioId]
+      }
 
       if (order.length === 0) {
         const fallbackSeed = resSdsById[DEF_RES_ID]
@@ -834,13 +880,15 @@ export const useAppStore = create<AppStore>((set, get) => {
           id: fallbackId,
         }
         scenariosById[fallbackId] = fallbackScenario
+        if (summaryById) summaryById[fallbackId] = summarizeScenario(fallbackScenario)
         order = [fallbackId]
         nextSuggsByR[fallbackSeed.id] ??= makeSuggest()
       }
 
       const preferredScenarioId = prfrNextResI
         ? order.find((scenarioId) => (
-            contextScenarioMember(scenariosById[scenarioId]).resonatorId === prfrNextResI
+            (summaryById?.[scenarioId]?.resonatorId
+              ?? contextScenarioMember(scenariosById[scenarioId]).resonatorId) === prfrNextResI
           ))
         : null
       const selectedScenarioId = !removedScenarioSet.has(state.combat.selectedScenarioId)
@@ -850,9 +898,11 @@ export const useAppStore = create<AppStore>((set, get) => {
         selectedScenarioId,
         order,
         scenariosById,
+        ...(summaryById ? { summaryById } : {}),
       }
       const remainingPrimaryIds = new Set(order.map((scenarioId) => (
-        contextScenarioMember(scenariosById[scenarioId]).resonatorId
+        summaryById?.[scenarioId]?.resonatorId
+          ?? contextScenarioMember(scenariosById[scenarioId]).resonatorId
       )))
       for (const resonatorId of removedResonatorIds) {
         if (!remainingPrimaryIds.has(resonatorId)) delete nextSuggsByR[resonatorId]
@@ -882,6 +932,7 @@ export const useAppStore = create<AppStore>((set, get) => {
   optimizer: mkIdleOptStt(),
 
   hydrate: (payload) => {
+    if (deferForData(collectResonatorIds(payload), () => get().hydrate(payload), 'hydrate')) return
     const curSnap = selectPersisted(get())
     const nextSnapshot = clonePrssSna(payload)
     const { ui } = get()
@@ -900,10 +951,14 @@ export const useAppStore = create<AppStore>((set, get) => {
       future: [],
       isRestoring: false,
     }))
+    retainResonatorData(selectedCombatScenario(get().combat).team.members.map((member) => member.resonatorId))
     markPrssDmns(ALL_DOMAIN_KEYS)
   },
 
   resetState: () => {
+    if (deferForData([DEF_RES_ID], () => get().resetState(), 'selection')) return
+    pendingDataActions.clear()
+    retainResonatorData([DEF_RES_ID])
     stopOptCompW()
     cnclActOptWr()
     set(() => ({
@@ -1572,6 +1627,8 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   selectContextResonator: (resonatorId) => {
+    const id = scenarioIdForContextResonator(get().combat, resonatorId)
+    if (id && deferForData(scenarioDataIds(id), () => get().selectContextResonator(resonatorId), 'selection')) return
     persistedSet(['combat.workspace'], (state) => {
       const scenarioId = scenarioIdForContextResonator(state.combat, resonatorId)
       if (!scenarioId || scenarioId === state.combat.selectedScenarioId) return state
@@ -1807,6 +1864,8 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   setActRes: (resonatorId) => {
+    const id = scenarioIdForContextResonator(get().combat, resonatorId)
+    if (id && deferForData(scenarioDataIds(id), () => get().setActRes(resonatorId), 'selection')) return
     if (getActResId(selectedCombatScenario(get().combat)) === resonatorId) {
       return
     }
@@ -1829,6 +1888,8 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   actRes: (seed) => {
+    const existingId = scenarioIdForContextResonator(get().combat, seed.id)
+    if (deferForData(existingId ? scenarioDataIds(existingId) : [seed.id], () => get().actRes(seed), 'selection')) return
     persistedSet(['combat.workspace', 'simulation.suggestions', 'ui.layout'], (state) => {
       const existingScenarioId = scenarioIdForContextResonator(state.combat, seed.id)
       if (existingScenarioId === state.combat.selectedScenarioId) {
@@ -1905,6 +1966,7 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   resetRes: (resonatorId) => {
+    if (deferForData([resonatorId], () => get().resetRes(resonatorId), `reset:${resonatorId}`)) return
     const seed = resSdsById[resonatorId]
     if (!seed) return
 
@@ -1957,6 +2019,7 @@ export const useAppStore = create<AppStore>((set, get) => {
   },
 
   updScenarioResRt: (scenarioId, resonatorId, updater) => {
+    if (deferForData(scenarioDataIds(scenarioId), () => get().updScenarioResRt(scenarioId, resonatorId, updater))) return
     const scenario = get().combat.scenariosById[scenarioId]
     if (!scenario) return
 
@@ -1972,7 +2035,7 @@ export const useAppStore = create<AppStore>((set, get) => {
       (state) => {
       const currentScenario = state.combat.scenariosById[scenarioId]
       if (!currentScenario) return state
-      const update = applyRuntimeToSimulation(currentScenario, resonatorId, next)
+      const update = applyRuntimeToSimulation(currentScenario, resonatorId, next, target)
       return applyUiFreqP(replaceScenarioInState(
         state,
         update.scenario,
@@ -2737,7 +2800,7 @@ export const useAppStore = create<AppStore>((set, get) => {
             compPay.mode === 'theoryTarget' ||
             compPay.mode === 'theoryRotation'
         const fnlzRslts = lazyTheory
-            ? matOptRsltsF([], results, {
+            ? (await import('@/engine/optimizer/results/materialize.ts')).matOptRsltsF([], results, {
                 payload: compPay,
                 limit: compPay.resultsLimit,
               })

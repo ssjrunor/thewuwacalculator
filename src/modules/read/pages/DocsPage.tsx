@@ -23,7 +23,7 @@ import {
   type DocTopic,
 } from '@/data/content/docsContent'
 import { resDocTopic } from '@/modules/read/model/docs'
-import { GRADE_LADDER } from '@/engine/evaluation/buildEvaluation'
+import { GRADE_LADDER } from '@/engine/evaluation/evaluation/grades.ts'
 import { getNegBase, type NegFfctArch } from '@/engine/formulas/negativeEffects'
 import { getTuneLevel } from '@/engine/formulas/tuneRupture'
 import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'

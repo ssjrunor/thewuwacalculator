@@ -3,7 +3,7 @@
   flex-direction: column;
   width: 100%;
   gap: 1rem;
-  padding-right: 4.5rem;
+  padding-right: 4.75rem;
   min-width: 0;
   transition:
     opacity 180ms ease,

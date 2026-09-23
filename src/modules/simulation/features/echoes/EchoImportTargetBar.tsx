@@ -7,17 +7,17 @@
 
 import type { CSSProperties } from 'react'
 import { Plus } from 'lucide-react'
-import type { ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+import type { ResSeed } from '@/domain/entities/runtime.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display.ts'
 import { withDefResMg } from '@/shared/lib/imageFallback.ts'
 
 interface TeamDestination {
-  member: ResView
+  member: ResSeed
   slotIndex: number
 }
 
 interface EchoImportTargetBarProps {
-  contexts: ResView[]
+  contexts: ResSeed[]
   selectedContextId: string | null
   team: TeamDestination[]
   selectedTeamSlot: number | null

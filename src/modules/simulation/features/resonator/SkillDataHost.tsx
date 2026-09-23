@@ -3,7 +3,9 @@
   Description: Hosts shared skill-detail modal requests across persistent and routed Simulation surfaces.
 */
 
-import { createContext as mkCtx, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext as mkCtx, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { ensureResonatorData, hasResonatorData, holdResonatorData } from '@/data/gameData'
+import { useTstStr } from '@/shared/util/toastStore'
 import type { ReactNode } from 'react'
 import type { SkillTabKey } from '@/domain/entities/resonator'
 import { useAppStore } from '@/application/state'
@@ -33,22 +35,36 @@ export function SkllDataProv({ children }: { children: ReactNode }) {
   const { actRt, partRtsById: partRntmById } = useAppStore(selWorkDrvd)
   const modal = useAppModal()
   const [target, setTarget] = useState<SkllDataTgt | null>(null)
+  const pending = useRef(0)
+  const targetId = target?.resonatorId
+  useEffect(() => targetId ? holdResonatorData([targetId]) : undefined, [targetId])
+  const cancelPending = useCallback(() => { pending.current++ }, [])
+  useEffect(() => cancelPending, [cancelPending])
 
-  const open = useCallback((next: SkllDataTgt) => {
-    setTarget(next)
-    modal.show()
+  const open = useCallback((next: { resonatorId: string; tab?: SkillTabKey }) => {
+    const request = ++pending.current
+    const show = () => {
+      if (pending.current !== request) return
+      setTarget({
+        resonatorId: next.resonatorId,
+        tab: next.tab ?? getResDtls(next.resonatorId)?.skillTabs?.[0] ?? 'normalAttack',
+      })
+      modal.show()
+    }
+    if (hasResonatorData([next.resonatorId])) show()
+    else void ensureResonatorData([next.resonatorId]).then(show).catch(() => {
+      if (pending.current === request) useTstStr.getState().show({ content: 'Could not load resonator data. Please try again.', variant: 'error' })
+    })
   }, [modal])
 
   // the common case only knows which resonator was clicked, so land on
   // whichever tab that one authored first.
   const openFor = useCallback((resonatorId: string) => {
-    open({
-      resonatorId,
-      tab: (getResDtls(resonatorId)?.skillTabs ?? [])[0] ?? 'normalAttack',
-    })
+    open({ resonatorId })
   }, [open])
 
   const close = useCallback(() => {
+    pending.current++
     modal.hide(() => {
       setTarget(null)
     })

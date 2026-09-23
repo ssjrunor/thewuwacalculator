@@ -6,7 +6,7 @@
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties as CssProps, HTMLAttributes as HtmlAttrs, KeyboardEvent as KeyboardEvent, MouseEvent as RctMsVnt, ReactNode } from 'react'
-import {ArrowBigDownDash as ArrowDownIcon, Check, Clipboard, Copy, Maximize2, Minimize2, Pencil, Plus, Rows3, Scissors, Search, Trash2, X} from 'lucide-react'
+import {ArrowBigDownDash as ArrowDownIcon, Check, ChevronLeft, ChevronRight, Clipboard, Copy, Maximize2, Minimize2, Pencil, Plus, Rows3, Scissors, Search, Trash2, X} from 'lucide-react'
 import type { SavedEcho, SavedBuild } from '@/domain/entities/inventoryStorage'
 import type { EchoInstance, WeaponState } from '@/domain/entities/runtime'
 import { equalBuildSnapshots } from '@/domain/entities/inventoryStorage'
@@ -20,6 +20,7 @@ import { mkDefEchoNst } from '@/modules/simulation/features/echoes/lib/echoPane.
 import { EchoPicker } from '@/modules/simulation/features/echoes/Picker.tsx'
 import {
   getInvSlotFi,
+  paginateInventoryGroups,
   sortEntsByNa,
   type InvSlotFitSt,
 } from '@/modules/simulation/features/inventory/lib/inventory.ts'
@@ -93,6 +94,56 @@ interface InvMdlPrps {
 
 const COST_FILTERS = [4, 3, 1]
 const ECHO_COST_CAP = 12
+const EXPANDED_ECHO_PAGE_SIZE = 48
+const COMPACT_ECHO_PAGE_SIZE = 160
+const BUILD_PAGE_SIZE = 48
+
+function InventoryPager({
+  label,
+  page,
+  pageCount,
+  start,
+  end,
+  total,
+  onPage,
+}: {
+  label: string
+  page: number
+  pageCount: number
+  start: number
+  end: number
+  total: number
+  onPage: (page: number) => void
+}) {
+  if (pageCount <= 1) return null
+
+  return (
+    <nav className="inv-page" aria-label={`${label} pages`}>
+      <button
+        type="button"
+        className="inv-page__button"
+        aria-label={`Previous ${label} page`}
+        disabled={page === 0}
+        onClick={() => onPage(page - 1)}
+      >
+        <ChevronLeft size="0.9rem" aria-hidden="true" />
+      </button>
+      <span className="inv-page__read" aria-live="polite">
+        <b>{start + 1}–{end}</b> of {total}
+        <i>Page {page + 1}/{pageCount}</i>
+      </span>
+      <button
+        type="button"
+        className="inv-page__button"
+        aria-label={`Next ${label} page`}
+        disabled={page >= pageCount - 1}
+        onClick={() => onPage(page + 1)}
+      >
+        <ChevronRight size="0.9rem" aria-hidden="true" />
+      </button>
+    </nav>
+  )
+}
 
 function getInvEchoDs(entry: SavedEcho) {
   // saved echoes only store ids, so sort/search labels must tolerate catalog entries that no longer exist.
@@ -693,6 +744,8 @@ export function InvMdl({
     })
   }, [bumpPickerFreq, onAddInvChs, showToast])
   const [activeTab, setActiveTab] = useState<InventoryTab>('echoes')
+  const [echoPage, setEchoPage] = useState(0)
+  const [buildPage, setBuildPage] = useState(0)
   const railVisible = useMediaQuery('(min-width: 64rem)')
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [echoSearch, setEchoSrch] = useState(initEchoSrch)
@@ -735,6 +788,7 @@ export function InvMdl({
     setGridSwtc(true)
     cmpcTglTmrRe.current = window.setTimeout(() => {
       setCmpcInv((current) => !current)
+      setEchoPage(0)
       cmpcTglTmrRe.current = null
       window.requestAnimationFrame(() => {
         setGridSwtc(false)
@@ -991,6 +1045,8 @@ export function InvMdl({
 
     setActiveTab(nextTab)
     setFcsdTileI(null)
+    if (nextTab === 'echoes') setEchoPage(0)
+    else setBuildPage(0)
   }, [exitSelMode])
 
   useEffect(() => {
@@ -1194,6 +1250,28 @@ export function InvMdl({
       .map(([resonatorId, group]) => ({ resonatorId, icon: undefined as string | undefined, ...group }))
   }, [fltrBlds, grouped])
 
+  const echoPageSize = compact ? COMPACT_ECHO_PAGE_SIZE : EXPANDED_ECHO_PAGE_SIZE
+  const pagedEchoes = useMemo(
+    () => paginateInventoryGroups(echoGroups, echoPage, echoPageSize),
+    [echoGroups, echoPage, echoPageSize],
+  )
+  const pagedBuilds = useMemo(
+    () => paginateInventoryGroups(buildGroups, buildPage, BUILD_PAGE_SIZE),
+    [buildGroups, buildPage],
+  )
+  const echoEntryIndexById = useMemo(
+    () => new Map(fltrBagIds.map((id, index) => [id, index])),
+    [fltrBagIds],
+  )
+
+  const showInventoryPage = useCallback((tab: InventoryTab, page: number) => {
+    if (tab === 'echoes') setEchoPage(page)
+    else setBuildPage(page)
+    window.requestAnimationFrame(() => {
+      modalBodyRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+    })
+  }, [])
+
   const invSetCounts = useMemo(() => {
     const counts = new Map<number, number>()
     for (const entry of invChs) {
@@ -1236,8 +1314,21 @@ export function InvMdl({
     setSelSet(null)
     setEchoSrch('')
     setPreviewId(savedId)
+    const sorted = sortEntsByNa(invChs, getInvEchoDs)
+    const displayIds = grouped
+      ? [...sorted.reduce<Map<number, SavedEcho[]>>((groups, entry) => {
+          const entries = groups.get(entry.echo.set)
+          if (entries) entries.push(entry)
+          else groups.set(entry.echo.set, [entry])
+          return groups
+        }, new Map())]
+          .sort((left, right) => getSntSetNam(left[0]).localeCompare(getSntSetNam(right[0])))
+          .flatMap(([, entries]) => entries.map((entry) => entry.id))
+      : sorted.map((entry) => entry.id)
+    const displayIndex = displayIds.indexOf(savedId)
+    if (displayIndex >= 0) setEchoPage(Math.floor(displayIndex / echoPageSize))
     setJumpToId(savedId)
-  }, [])
+  }, [echoPageSize, grouped, invChs])
 
   useEffect(() => {
     if (!jumpToId) {
@@ -1277,7 +1368,11 @@ export function InvMdl({
         title={grouped ? 'Stop grouping' : (activeTab === 'echoes' ? 'Group by sonata' : 'Group by resonator')}
         aria-label={activeTab === 'echoes' ? 'Group by sonata' : 'Group by resonator'}
         aria-pressed={grouped}
-        onClick={() => setGroupedDraft(!grouped)}
+        onClick={() => {
+          setGroupedDraft(!grouped)
+          setEchoPage(0)
+          setBuildPage(0)
+        }}
       >
         <Rows3 size="0.82rem" />
       </button>
@@ -1380,7 +1475,10 @@ export function InvMdl({
             <input
               type="search"
               value={echoSearch}
-              onChange={(event) => setEchoSrch(event.target.value)}
+              onChange={(event) => {
+                setEchoSrch(event.target.value)
+                setEchoPage(0)
+              }}
               placeholder="Search saved echoes"
             />
           </label>
@@ -1392,7 +1490,10 @@ export function InvMdl({
                 type="button"
                 className={selectedCost === cost ? 'pkr-rail__chip is-on' : 'pkr-rail__chip'}
                 aria-pressed={selectedCost === cost}
-                onClick={() => setSelCost((current) => (current === cost ? null : cost))}
+                onClick={() => {
+                  setSelCost((current) => (current === cost ? null : cost))
+                  setEchoPage(0)
+                }}
               >
                 {cost}C
               </button>
@@ -1410,7 +1511,10 @@ export function InvMdl({
                   type="button"
                   className={picked ? 'amdl__tab is-on' : 'amdl__tab'}
                   aria-pressed={picked}
-                  onClick={() => setSelSet(picked ? null : setId)}
+                  onClick={() => {
+                    setSelSet(picked ? null : setId)
+                    setEchoPage(0)
+                  }}
                 >
                   {setIcon ? <img src={setIcon} alt="" aria-hidden="true" onError={withDefIconM} /> : <span />}
                   <span className="amdl__tab-label">{getSntSetNam(setId)}</span>
@@ -1428,7 +1532,10 @@ export function InvMdl({
             <input
               type="search"
               value={buildSearch}
-              onChange={(event) => setBldSrch(event.target.value)}
+              onChange={(event) => {
+                setBldSrch(event.target.value)
+                setBuildPage(0)
+              }}
               placeholder="Search saved builds"
             />
           </label>
@@ -1439,7 +1546,10 @@ export function InvMdl({
               <button
                 key={resId}
                 type="button" className="amdl__tab"
-                onClick={() => setBldSrch(info.name)}
+                onClick={() => {
+                  setBldSrch(info.name)
+                  setBuildPage(0)
+                }}
                 title={`Show only ${info.name} builds`}
               >
                 {info.icon ? (
@@ -1528,7 +1638,7 @@ export function InvMdl({
                       {...echoSel.scopeProps}
                       ref={mergeRefs(echoGridRef, echoSel.scopeProps.ref)}
                     >
-                      {echoGroups.map((group) => (
+                      {pagedEchoes.groups.map((group) => (
                         <Fragment key={group.setId ?? '__all__'}>
                           {group.setId != null ? (
                             <div className="inv-band" style={{ '--inv-tone': sntTone(group.setId) } as CssProps}>
@@ -1542,14 +1652,14 @@ export function InvMdl({
                               ) : null}
                               <span className="inv-band__name">{getSntSetNam(group.setId)}</span>
                               <i className="inv-band__rule" aria-hidden="true" />
-                              <span className="inv-band__n">{group.entries.length}</span>
+                              <span className="inv-band__n">{group.totalEntries}</span>
                             </div>
                           ) : null}
 
                           {group.entries.map((entry) => {
                             const slotFitStates = mkInvSlotFit(entry.echo)
                             const selected = ffctSelEchoE.has(entry.id)
-                            const entryIndex = fltrBagIds.indexOf(entry.id)
+                            const entryIndex = echoEntryIndexById.get(entry.id) ?? 0
 
                             return (
                               <ContextTrigger
@@ -1561,7 +1671,7 @@ export function InvMdl({
                                 <InvEchoEntCa
                                   entry={entry}
                                   compact={compact}
-                                  index={entryIndex < 0 ? 0 : entryIndex}
+                                  index={entryIndex}
                                   columns={echoGridCols}
                                   isPreview={compact && railVisible && entry.id === previewEntry?.id}
                                   usage={entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []}
@@ -1595,6 +1705,15 @@ export function InvMdl({
                           })}
                         </Fragment>
                       ))}
+                      <InventoryPager
+                        label="Echo inventory"
+                        page={pagedEchoes.page}
+                        pageCount={pagedEchoes.pageCount}
+                        start={pagedEchoes.start}
+                        end={pagedEchoes.end}
+                        total={pagedEchoes.total}
+                        onPage={(page) => showInventoryPage('echoes', page)}
+                      />
                     </div>
 
                     {compact && previewEntry ? (
@@ -1623,7 +1742,7 @@ export function InvMdl({
                   </div>
                 ) : (
                   <div ref={buildsGridRef} className="inv-grid inv-grid--builds">
-                    {buildGroups.map((group) => (
+                    {pagedBuilds.groups.map((group) => (
                       <Fragment key={group.resonatorId}>
                         {group.resonatorId === '__all__' ? null : (
                         <div className="inv-band">
@@ -1637,7 +1756,7 @@ export function InvMdl({
                           ) : null}
                           <span className="inv-band__name">{group.resName}</span>
                           <i className="inv-band__rule" aria-hidden="true" />
-                          <span className="inv-band__n">{group.entries.length}</span>
+                          <span className="inv-band__n">{group.totalEntries}</span>
                         </div>
                         )}
 
@@ -1674,6 +1793,15 @@ export function InvMdl({
                         ))}
                       </Fragment>
                     ))}
+                    <InventoryPager
+                      label="Saved build inventory"
+                      page={pagedBuilds.page}
+                      pageCount={pagedBuilds.pageCount}
+                      start={pagedBuilds.start}
+                      end={pagedBuilds.end}
+                      total={pagedBuilds.total}
+                      onPage={(page) => showInventoryPage('builds', page)}
+                    />
                   </div>
                 )
               )}

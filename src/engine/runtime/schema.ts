@@ -4,7 +4,9 @@
                application state from local storage.
 */
 
-import { z } from 'zod'
+import * as z from 'zod/mini'
+import { APP_STATE_VER } from '@/domain/entities/appStateVersion'
+export { APP_STATE_VER } from '@/domain/entities/appStateVersion'
 import { DEF_UI_PREFS } from '@/domain/entities/preferences'
 import { DEFAULT_BODY_FONT, getPresetFontUrl } from '@/domain/entities/appearance'
 import { DEF_SET_COND } from '@/domain/entities/sonataSetConditionals'
@@ -24,7 +26,7 @@ import {
 import { mnlBffsSchm } from '@/engine/runtime/manualBuffsSchema'
 import { migrateLegacySavedRotationRecord } from '@/engine/runtime/savedRotationMigration.ts'
 import { migrateLegacyRotationItems } from '@/domain/gameData/loopPasses.ts'
-import type { RotationNode } from '@/domain/gameData/contracts.ts'
+import type { CondExpr, FormExpr, RotationNode } from '@/domain/gameData/contracts.ts'
 import {
   mkDefPckrFre,
   mkEmptyPckrFreqBkt,
@@ -42,13 +44,13 @@ function stripLegacyMainMode(value: unknown): unknown {
 }
 
 // shared base stat buff shape
-const baseStatBuff = z.object({
+const baseStatBuff = z.lazy(() => z.strictObject({
   percent: z.number(),
   flat: z.number(),
-}).strict()
+}))
 
 // shared modifier buff shape
-const modBuffSchm = z.object({
+const modBuffSchm = z.lazy(() => z.strictObject({
   resShred: z.number(),
   dmgBonus: z.number(),
   amplify: z.number(),
@@ -57,10 +59,10 @@ const modBuffSchm = z.object({
   dmgVuln: z.number(),
   critRate: z.number(),
   critDmg: z.number(),
-}).strict()
+}))
 
 // supported elemental attributes
-const ttrbSchm = z.enum([
+const ttrbSchm = z.lazy(() => z.enum([
   'aero',
   'glacio',
   'spectro',
@@ -68,10 +70,10 @@ const ttrbSchm = z.enum([
   'electro',
   'havoc',
   'physical',
-])
+]))
 
 // trace node buff storage
-const trcNodeBffsS = z.object({
+const trcNodeBffsS = z.lazy(() => z.strictObject({
   atk: baseStatBuff,
   hp: baseStatBuff,
   def: baseStatBuff,
@@ -80,20 +82,20 @@ const trcNodeBffsS = z.object({
   critDmg: z.number(),
   healingBonus: z.number(),
   activeNodes: z.record(z.string(), z.boolean()),
-}).strict()
+}))
 
 // per-tab skill level storage
-const skllLvlsSchm = z.object({
+const skllLvlsSchm = z.lazy(() => z.strictObject({
   normalAttack: z.number(),
   resonanceSkill: z.number(),
   forteCircuit: z.number(),
   resonanceLiberation: z.number(),
   introSkill: z.number(),
   tuneBreak: z.number(),
-}).strict()
+}))
 
 // combat status effect state
-const cmbtSttSchm = z.object({
+const cmbtSttSchm = z.lazy(() => z.strictObject({
   spectroFrazzle: z.number(),
   aeroErosion: z.number(),
   fusionBurst: z.number(),
@@ -101,13 +103,13 @@ const cmbtSttSchm = z.object({
   glacioChafe: z.number(),
   electroFlare: z.number(),
   electroRage: z.number(),
-}).strict()
+}))
 
-const cntrVlSchm = z.union([z.string(), z.number(), z.boolean()])
+const cntrVlSchm = z.lazy(() => z.union([z.string(), z.number(), z.boolean()]))
 
-const prssCntrSchm = z.record(z.string(), cntrVlSchm)
+const prssCntrSchm = z.lazy(() => z.record(z.string(), cntrVlSchm))
 
-const uiBoolSchm = (defaultValue: boolean) => z.preprocess((value) => {
+const uiBoolSchm = (defaultValue: boolean) => z.pipe(z.transform((value) => {
   if (typeof value === 'string') {
     if (value === 'on') {
       return true
@@ -118,100 +120,100 @@ const uiBoolSchm = (defaultValue: boolean) => z.preprocess((value) => {
   }
 
   return value
-}, z.boolean().default(defaultValue))
+}), z._default(z.boolean(), defaultValue))
 
 // equipped echo instance
-const echoNstnSchm = z.object({
+const echoNstnSchm = z.lazy(() => z.strictObject({
   uid: z.string(),
   id: z.string(),
   set: z.number(),
   mainEcho: z.boolean(),
-  mainStats: z.object({
-    primary: z.object({ key: z.string(), value: z.number() }).strict(),
-    secondary: z.object({ key: z.string(), value: z.number() }).strict(),
-  }).strict(),
+  mainStats: z.strictObject({
+    primary: z.strictObject({ key: z.string(), value: z.number() }),
+    secondary: z.strictObject({ key: z.string(), value: z.number() }),
+  }),
   substats: z.record(z.string(), z.number()),
-}).strict()
+}))
 
 // inventory echo entry
-const invChsEntSch = z.object({
+const invChsEntSch = z.lazy(() => z.strictObject({
   id: z.string(),
   echo: echoNstnSchm,
   createdAt: z.number(),
   updatedAt: z.number(),
-}).strict()
+}))
 
 // shared weapon build snapshot
-const wpnMkSchm = z.preprocess((value) => {
+const wpnMkSchm = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return value
   }
   const weapon = { ...value } as Record<string, unknown>
   delete weapon.baseAtk
   return weapon
-}, z.object({
-  id: z.string().nullable(),
+}), z.strictObject({
+  id: z.nullable(z.string()),
   level: z.number(),
   rank: z.number(),
-}).strict())
+})))
 
 // teammate weapon storage omits fixed level and resolves it at runtime
-const teamMemWpnMk = z.object({
-  id: z.string().nullable(),
+const teamMemWpnMk = z.lazy(() => z.object({
+  id: z.nullable(z.string()),
   rank: z.number(),
-})
+}))
 
 // saved build entry
-const svdMkSchm = z.preprocess((value) => {
+const svdMkSchm = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return value
   }
   const build = { ...value } as Record<string, unknown>
   delete build.resonatorName
   return build
-}, z.object({
+}), z.strictObject({
   id: z.string(),
   name: z.string(),
   resonatorId: z.string(),
-  build: z.object({
+  build: z.strictObject({
     weapon: wpnMkSchm,
-    echoes: z.array(echoNstnSchm.nullable()),
-  }).strict(),
+    echoes: z.array(z.nullable(echoNstnSchm)),
+  }),
   createdAt: z.number(),
   updatedAt: z.number(),
-}).strict())
+})))
 
 // shared base progression state
-const baseSttSchm = z.object({
+const baseSttSchm = z.lazy(() => z.strictObject({
   level: z.number(),
   sequence: z.number(),
   skillLevels: skllLvlsSchm,
   traceNodes: trcNodeBffsS,
-}).strict()
+}))
 
 // teammate progression persists only the player-editable sequence
-const teamMemBaseS = z.object({
+const teamMemBaseS = z.lazy(() => z.strictObject({
   sequence: z.number(),
-}).strict()
+}))
 
 // runtime mutation step used in rotations
-const rtChngSchm = z.object({
+const rtChngSchm = z.lazy(() => z.strictObject({
   type: z.enum(['set', 'add', 'toggle']),
   path: z.string(),
-  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
-  resonatorId: z.string().optional(),
-}).strict()
+  value: z.optional(z.union([z.string(), z.number(), z.boolean()])),
+  resonatorId: z.optional(z.string()),
+}))
 
 // recursive formula expression tree
-const formExprSchm: z.ZodTypeAny = z.lazy(() =>
+const formExprSchm: z.ZodMiniType<FormExpr> = z.lazy(() =>
     z.union([
-      z.object({
+      z.strictObject({
         type: z.literal('const'),
         value: z.number(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('read'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -220,13 +222,13 @@ const formExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
-        default: z.number().optional(),
-      }).strict(),
-      z.object({
+        default: z.optional(z.number()),
+      }),
+      z.strictObject({
         type: z.literal('table'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -235,41 +237,41 @@ const formExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         values: z.array(z.number()),
-        minIndex: z.number().optional(),
-        maxIndex: z.number().optional(),
-        defaultIndex: z.number().optional(),
-      }).strict(),
-      z.object({
+        minIndex: z.optional(z.number()),
+        maxIndex: z.optional(z.number()),
+        defaultIndex: z.optional(z.number()),
+      }),
+      z.strictObject({
         type: z.literal('add'),
         values: z.array(formExprSchm),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('mul'),
         values: z.array(formExprSchm),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('clamp'),
         value: formExprSchm,
-        min: z.number().optional(),
-        max: z.number().optional(),
-      }).strict(),
+        min: z.optional(z.number()),
+        max: z.optional(z.number()),
+      }),
     ]),
 )
 
 // recursive condition expression tree
-const condExprSchm: z.ZodTypeAny = z.lazy(() =>
+const condExprSchm: z.ZodMiniType<CondExpr> = z.lazy(() =>
     z.union([
-      z.object({ type: z.literal('always') }).strict(),
-      z.object({
+      z.strictObject({ type: z.literal('always') }),
+      z.strictObject({
         type: z.literal('not'),
         value: condExprSchm,
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('truthy'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -278,12 +280,12 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('eq'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -292,13 +294,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.union([z.string(), z.number(), z.boolean()]),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('neq'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -307,13 +309,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.union([z.string(), z.number(), z.boolean()]),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('gt'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -322,13 +324,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.number(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('gte'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -337,13 +339,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.number(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('lt'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -352,13 +354,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.number(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('lte'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -367,13 +369,13 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.number(),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('includes'),
-        from: z.enum([
+        from: z.optional(z.enum([
           'sourceRuntime',
           'sourceFinalStats',
           'targetRuntime',
@@ -382,130 +384,131 @@ const condExprSchm: z.ZodTypeAny = z.lazy(() =>
           'baseStats',
           'finalStats',
           'context',
-        ]).optional(),
+        ])),
         path: z.string(),
         value: z.union([z.string(), z.number(), z.boolean()]),
-        itemPath: z.string().optional(),
-      }).strict(),
-      z.object({
+        itemPath: z.optional(z.string()),
+      }),
+      z.strictObject({
         type: z.literal('and'),
         values: z.array(condExprSchm),
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         type: z.literal('or'),
         values: z.array(condExprSchm),
-      }).strict(),
+      }),
     ]),
 )
 
 // Input-only compatibility shape. rotItemsSchm migrates and removes it.
-const legacyRotWhenRuleS = z.object({
-  loops: z.array(z.object({
+const legacyRotWhenRuleS = z.lazy(() => z.strictObject({
+  loops: z.optional(z.array(z.strictObject({
     loopId: z.string(),
-    runs: z.array(z.number().int().positive()),
-  }).strict()).optional(),
-  overrides: z.array(z.object({
-    runs: z.record(z.string(), z.number().int().positive()),
-    multiplier: z.number().optional(),
-    times: z.number().optional(),
-    ratio: z.number().optional(),
-    changes: z.array(rtChngSchm).optional(),
-  }).strict()).optional(),
-}).strict()
+    runs: z.array(z.number().check(z.int()).check(z.positive())),
+  }))),
+  overrides: z.optional(z.array(z.strictObject({
+    runs: z.record(z.string(), z.number().check(z.int()).check(z.positive())),
+    multiplier: z.optional(z.number()),
+    times: z.optional(z.number()),
+    ratio: z.optional(z.number()),
+    changes: z.optional(z.array(rtChngSchm)),
+  }))),
+}))
 
 // recursive rotation node schema
-const rotEditorSectionS = z.enum(['preamble', 'main'])
-const rotNoteNodeS = z.object({
+const rotEditorSectionS = z.lazy(() => z.enum(['preamble', 'main']))
+const rotNoteNodeS = z.lazy(() => z.strictObject({
   id: z.string(),
   type: z.literal('note'),
-  label: z.string().optional(),
-  color: z.string().optional(),
+  label: z.optional(z.string()),
+  color: z.optional(z.string()),
   text: z.string(),
-  editorSection: rotEditorSectionS.optional(),
-}).strict()
-const rotNoteFieldS = { note: rotNoteNodeS.optional() }
+  editorSection: z.optional(rotEditorSectionS),
+}))
+const rotNoteFieldS = { note: z.optional(rotNoteNodeS) }
 
-const rotNodeSchm: z.ZodTypeAny = z.lazy(() =>
+// Persisted nodes include legacy changes normalized by the rotation migration.
+const rotNodeSchm: z.ZodMiniType<unknown> = z.lazy(() =>
     z.discriminatedUnion('type', [
       rotNoteNodeS,
-      z.object({
+      z.strictObject({
         id: z.string(),
         type: z.literal('feature'),
-        resonatorId: z.string().optional(),
-        enabled: z.boolean().optional(),
-        when: legacyRotWhenRuleS.optional(),
-        editorSection: rotEditorSectionS.optional(),
+        resonatorId: z.optional(z.string()),
+        enabled: z.optional(z.boolean()),
+        when: z.optional(legacyRotWhenRuleS),
+        editorSection: z.optional(rotEditorSectionS),
         featureId: z.string(),
-        multiplier: z.number().optional(),
-        offTuneResume: z.boolean().optional(),
-        negativeEffectStacks: z.number().optional(),
-        negativeEffectInstances: z.number().optional(),
-        negativeEffectStableWidth: z.number().optional(),
+        multiplier: z.optional(z.number()),
+        offTuneResume: z.optional(z.boolean()),
+        negativeEffectStacks: z.optional(z.number()),
+        negativeEffectInstances: z.optional(z.number()),
+        negativeEffectStableWidth: z.optional(z.number()),
         // legacy pre-attach write list; loaders fold this into attached.conditions
-        changes: z.array(rtChngSchm).optional(),
-        attached: z.object({
+        changes: z.optional(z.array(rtChngSchm)),
+        attached: z.optional(z.strictObject({
           conditions: z.array(rotNodeSchm),
           features: z.array(rotNodeSchm),
-        }).strict().optional(),
+        })),
         ...rotNoteFieldS,
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         id: z.string(),
         type: z.literal('condition'),
-        resonatorId: z.string().optional(),
-        enabled: z.boolean().optional(),
-        when: legacyRotWhenRuleS.optional(),
-        editorSection: rotEditorSectionS.optional(),
-        label: z.string().optional(),
+        resonatorId: z.optional(z.string()),
+        enabled: z.optional(z.boolean()),
+        when: z.optional(legacyRotWhenRuleS),
+        editorSection: z.optional(rotEditorSectionS),
+        label: z.optional(z.string()),
         changes: z.array(rtChngSchm),
         ...rotNoteFieldS,
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         id: z.string(),
         type: z.literal('repeat'),
-        resonatorId: z.string().optional(),
-        enabled: z.boolean().optional(),
-        when: legacyRotWhenRuleS.optional(),
-        editorSection: rotEditorSectionS.optional(),
-        label: z.string().optional(),
-        color: z.string().optional(),
+        resonatorId: z.optional(z.string()),
+        enabled: z.optional(z.boolean()),
+        when: z.optional(legacyRotWhenRuleS),
+        editorSection: z.optional(rotEditorSectionS),
+        label: z.optional(z.string()),
+        color: z.optional(z.string()),
         times: z.union([z.number(), formExprSchm]),
-        ratio: z.union([z.number(), formExprSchm]).optional(),
-        setup: z.array(rotNodeSchm).optional(),
+        ratio: z.optional(z.union([z.number(), formExprSchm])),
+        setup: z.optional(z.array(rotNodeSchm)),
         items: z.array(rotNodeSchm),
         ...rotNoteFieldS,
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         id: z.string(),
         type: z.literal('uptime'),
-        resonatorId: z.string().optional(),
-        enabled: z.boolean().optional(),
-        when: legacyRotWhenRuleS.optional(),
-        editorSection: rotEditorSectionS.optional(),
-        label: z.string().optional(),
-        color: z.string().optional(),
+        resonatorId: z.optional(z.string()),
+        enabled: z.optional(z.boolean()),
+        when: z.optional(legacyRotWhenRuleS),
+        editorSection: z.optional(rotEditorSectionS),
+        label: z.optional(z.string()),
+        color: z.optional(z.string()),
         ratio: z.union([z.number(), formExprSchm]),
-        setup: z.array(rotNodeSchm).optional(),
+        setup: z.optional(z.array(rotNodeSchm)),
         items: z.array(rotNodeSchm),
         ...rotNoteFieldS,
-      }).strict(),
-      z.object({
+      }),
+      z.strictObject({
         id: z.string(),
         type: z.literal('loop'),
-        resonatorId: z.string().optional(),
-        enabled: z.boolean().optional(),
-        when: legacyRotWhenRuleS.optional(),
-        editorSection: rotEditorSectionS.optional(),
+        resonatorId: z.optional(z.string()),
+        enabled: z.optional(z.boolean()),
+        when: z.optional(legacyRotWhenRuleS),
+        editorSection: z.optional(rotEditorSectionS),
         kind: z.enum(['start', 'end']),
         loopId: z.string(),
-        label: z.string().optional(),
-        color: z.string().optional(),
-        runs: z.number().int().positive().optional(),
+        label: z.optional(z.string()),
+        color: z.optional(z.string()),
+        runs: z.optional(z.number().check(z.int()).check(z.positive())),
         // lazy per-run bodies; keys are 1-based run numbers as strings
-        passForks: z.record(z.string(), z.array(rotNodeSchm)).optional(),
+        passForks: z.optional(z.record(z.string(), z.array(rotNodeSchm))),
         ...rotNoteFieldS,
-      }).strict(),
-    ]).superRefine((node, ctx) => {
+      }),
+    ]).check(z.superRefine((node, ctx) => {
       if (node.type === 'loop' && node.kind === 'end' && node.note) {
         ctx.addIssue({
           code: 'custom',
@@ -533,15 +536,14 @@ const rotNodeSchm: z.ZodTypeAny = z.lazy(() =>
           }
         })
       }
-    }),
+    })),
 )
 
-const rotItemsSchm = z.array(rotNodeSchm).transform((items) =>
-  migrateLegacyRotationItems(items as RotationNode[]),
-)
+const rotItemsSchm = z.lazy(() => z.pipe(z.array(rotNodeSchm), z.transform((items) =>
+  migrateLegacyRotationItems(items as RotationNode[]))))
 
 // saved rotation state
-const rotSttSchm = z.preprocess((value) => {
+const rotSttSchm = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return value
   }
@@ -552,157 +554,157 @@ const rotSttSchm = z.preprocess((value) => {
     program: stored.program ?? stored.runItems ?? stored.teamItems ?? [],
     lastRanAt: stored.lastRanAt ?? null,
   }
-}, z.object({
+}), z.strictObject({
   sequence: rotItemsSchm,
   program: rotItemsSchm,
-  lastRanAt: z.number().nullable().default(null),
-}).strict())
+  lastRanAt: z._default(z.nullable(z.number()), null),
+})))
 
 // optimizer settings payload
-const optSetsSchm = z.object({
-  targetSkillId: z.string().nullable(),
+const optSetsSchm = z.lazy(() => z.strictObject({
+  targetSkillId: z.nullable(z.string()),
   targetMode: z.enum(['skill', 'combo']),
-  targetComboSourceId: z.string().nullable(),
+  targetComboSourceId: z.nullable(z.string()),
   rotationMode: z.boolean(),
-  searchMode: z.enum(['inventory', 'theory']).default('inventory'),
+  searchMode: z._default(z.enum(['inventory', 'theory']), 'inventory'),
   resultsLimit: z.number(),
   keepPercent: z.number(),
   lowMemoryMode: z.boolean(),
   enableGpu: z.boolean(),
-  lockedMainEchoId: z.string().nullable(),
+  lockedMainEchoId: z.nullable(z.string()),
   // keys are optional so snapshots exported before a cost tier existed still validate;
   // cloneOptSets() backfills any missing tier from defaults during hydration.
-  allowedSets: z.object({
-    1: z.array(z.number()).optional(),
-    3: z.array(z.number()).optional(),
-    5: z.array(z.number()).optional(),
-  }).strict(),
+  allowedSets: z.strictObject({
+    1: z.optional(z.array(z.number())),
+    3: z.optional(z.array(z.number())),
+    5: z.optional(z.array(z.number())),
+  }),
   mainStatFilter: z.array(z.string()),
-  selectedBonus: z.string().nullable(),
+  selectedBonus: z.nullable(z.string()),
   // inventory-mode toggle. optional + default so older snapshots backfill.
-  excludeEquipped: z.boolean().optional().default(false),
+  excludeEquipped: z._default(z.optional(z.boolean()), false),
   // theory-mode weapon search toggle. optional + default so snapshots exported
   // before it existed still validate; cloneOptSets backfills the default.
-  includeWeapons: z.boolean().optional().default(false),
-  statConstraints: z.record(z.string(), z.object({
-    minTotal: z.string().optional(),
-    maxTotal: z.string().optional(),
-  }).strict()),
-}).strict()
+  includeWeapons: z._default(z.optional(z.boolean()), false),
+  statConstraints: z.record(z.string(), z.strictObject({
+    minTotal: z.optional(z.string()),
+    maxTotal: z.optional(z.string()),
+  })),
+}))
 
-const ovrSntSetCo = z.object({
+const ovrSntSetCo = z.lazy(() => z.strictObject({
   version: z.literal(1),
   encoding: z.literal('off-v1'),
   off: z.record(z.string(), z.array(z.string())),
-}).strict()
+}))
 
-const sntSetConS = ovrSntSetCo.catch(DEF_SET_COND)
+const sntSetConS = z.lazy(() => z.catch(ovrSntSetCo, DEF_SET_COND))
 
 // simplified teammate runtime used inside team state
-const teamMemRtSch = z.object({
+const teamMemRtSch = z.lazy(() => z.strictObject({
   id: z.string(),
   base: teamMemBaseS,
-  build: z.object({
+  build: z.strictObject({
     weapon: teamMemWpnMk,
-    echoes: z.array(echoNstnSchm.nullable()),
-  }).strict(),
+    echoes: z.array(z.nullable(echoNstnSchm)),
+  }),
   manualBuffs: mnlBffsSchm,
-}).strict()
+}))
 
 // resonator suggestion settings
-const suggSetsSchm = z.object({
-  targetFeatureId: z.string().nullable().default(null),
-  rotationMode: z.boolean().default(false),
-}).strict()
+const suggSetsSchm = z.lazy(() => z.strictObject({
+  targetFeatureId: z._default(z.nullable(z.string()), null),
+  rotationMode: z._default(z.boolean(), false),
+}))
 
 // random suggestion set preference
-const randGnrtSetP = z.object({
+const randGnrtSetP = z.lazy(() => z.strictObject({
   setId: z.number(),
   count: z.number(),
-}).strict()
+}))
 
 // random suggestion generation settings
-const randGnrtSets = z.object({
-  bias: z.number().default(0.5),
-  rollQuality: z.number().default(0.3),
-  targetEnergyRegen: z.number().default(0),
-  setPreferences: z.array(randGnrtSetP).default([]),
-  mainEchoId: z.string().nullable().default(null),
-}).strict()
+const randGnrtSets = z.lazy(() => z.strictObject({
+  bias: z._default(z.number(), 0.5),
+  rollQuality: z._default(z.number(), 0.3),
+  targetEnergyRegen: z._default(z.number(), 0),
+  setPreferences: z._default(z.array(randGnrtSetP), []),
+  mainEchoId: z._default(z.nullable(z.string()), null),
+}))
 
 // weapon suggestion settings
-const wpnStValS = z.union([z.boolean(), z.number(), z.string()])
-const wpnStCfgS = z.object({
-  off: z.literal(true).optional(),
-  max: wpnStValS.optional(),
-}).strict()
+const wpnStValS = z.lazy(() => z.union([z.boolean(), z.number(), z.string()]))
+const wpnStCfgS = z.lazy(() => z.strictObject({
+  off: z.optional(z.literal(true)),
+  max: z.optional(wpnStValS),
+}))
 
-const wpnSuggSetS = z.object({
-  mode: z.enum(['default', 'max', 'both']).default('both'),
-  target: z.enum(['default', 'max']).default('max'),
-  ranks: z.record(z.string(), z.number()).default({
+const wpnSuggSetS = z.lazy(() => z.strictObject({
+  mode: z._default(z.enum(['default', 'max', 'both']), 'both'),
+  target: z._default(z.enum(['default', 'max']), 'max'),
+  ranks: z._default(z.record(z.string(), z.number()), {
     '5': 1,
     '4': 5,
     '3': 5,
     '2': 5,
     '1': 5,
   }),
-  stdRank: z.number().default(1),
-  visible: z.record(z.string(), z.boolean()).default({
+  stdRank: z._default(z.number(), 1),
+  visible: z._default(z.record(z.string(), z.boolean()), {
     '5': true,
     '4': true,
     '3': false,
     '2': false,
     '1': false,
   }),
-  states: z.record(z.string(), z.record(z.string(), wpnStCfgS)).default({}),
-}).strict()
+  states: z._default(z.record(z.string(), z.record(z.string(), wpnStCfgS)), {}),
+}))
 
 // stored suggestion state per resonator
-const resSuggsSttS = z.object({
-  settings: suggSetsSchm.default({
+const resSuggsSttS = z.lazy(() => z.object({
+  settings: z._default(suggSetsSchm, {
     targetFeatureId: null,
     rotationMode: false,
   }),
-  random: randGnrtSets.default({
+  random: z._default(randGnrtSets, {
     bias: 0.5,
     rollQuality: 0.3,
     targetEnergyRegen: 0,
     setPreferences: [],
     mainEchoId: null,
   }),
-}).strip()
+}))
 
 // persisted resonator profile schema
-const resProfSchm = z.object({
+const resProfSchm = z.lazy(() => z.strictObject({
   resonatorId: z.string(),
-  runtime: z.object({
+  runtime: z.strictObject({
     progression: baseSttSchm,
-    build: z.object({
+    build: z.strictObject({
       weapon: wpnMkSchm,
-      echoes: z.array(echoNstnSchm.nullable()),
-    }).strict(),
-    local: z.object({
+      echoes: z.array(z.nullable(echoNstnSchm)),
+    }),
+    local: z.strictObject({
       controls: prssCntrSchm,
       manualBuffs: mnlBffsSchm,
       combat: cmbtSttSchm,
-      setConditionals: sntSetConS.default(DEF_SET_COND),
-      optimizerInventory: z.object({
-        mode: z.enum(['include', 'exclude']).default('exclude'),
-        echoUids: z.array(z.string()).default([]),
-      }).strict().default(makeOptInventorySelection()),
-    }).strict(),
-    routing: z.object({
-      selectedTargetsByOwnerKey: z.record(z.string(), z.string().nullable()),
-    }).strict(),
-    team: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
+      setConditionals: z._default(sntSetConS, DEF_SET_COND),
+      optimizerInventory: z._default(z.strictObject({
+        mode: z._default(z.enum(['include', 'exclude']), 'exclude'),
+        echoUids: z._default(z.array(z.string()), []),
+      }), makeOptInventorySelection()),
+    }),
+    routing: z.strictObject({
+      selectedTargetsByOwnerKey: z.record(z.string(), z.nullable(z.string())),
+    }),
+    team: z.tuple([z.nullable(z.string()), z.nullable(z.string()), z.nullable(z.string())]),
     rotation: rotSttSchm,
-    teamRuntimes: z.tuple([teamMemRtSch.nullable(), teamMemRtSch.nullable()]),
-  }).strict(),
-}).strict()
+    teamRuntimes: z.tuple([z.nullable(teamMemRtSch), z.nullable(teamMemRtSch)]),
+  }),
+}))
 
 // saved inventory rotation entry
-const invRotSchm = z.preprocess((value) => {
+const invRotSchm = z.lazy(() => z.pipe(z.transform((value) => {
   const migrated = migrateLegacySavedRotationRecord(value)
   if (!migrated || typeof migrated !== 'object' || Array.isArray(migrated)) {
     return migrated
@@ -727,24 +729,24 @@ const invRotSchm = z.preprocess((value) => {
       },
     }
     : entry
-}, z.object({
+}), z.strictObject({
   id: z.string(),
   name: z.string(),
-  resonatorId: z.string().optional(),
-  resonatorName: z.string().optional(),
-  duration: z.number().default(0),
-  note: z.string().default(''),
-  team: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]).optional(),
-  items: rotItemsSchm.optional(),
-  scenario: z.lazy(() => combatScenarioSchm).optional(),
-  snapshot: resProfSchm.optional(),
-  migration: z.object({
+  resonatorId: z.optional(z.string()),
+  resonatorName: z.optional(z.string()),
+  duration: z._default(z.number(), 0),
+  note: z._default(z.string(), ''),
+  team: z.optional(z.tuple([z.nullable(z.string()), z.nullable(z.string()), z.nullable(z.string())])),
+  items: z.optional(rotItemsSchm),
+  scenario: z.optional(z.lazy(() => combatScenarioSchm)),
+  snapshot: z.optional(resProfSchm),
+  migration: z.optional(z.strictObject({
     source: z.literal('advanced-sequence'),
     acknowledged: z.boolean(),
-  }).strict().optional(),
+  })),
   createdAt: z.number(),
   updatedAt: z.number(),
-}).strict().superRefine((entry, context) => {
+}).check(z.superRefine((entry, context) => {
   if (entry.scenario) return
   if (!entry.resonatorId || !entry.items) {
     context.addIssue({
@@ -753,18 +755,18 @@ const invRotSchm = z.preprocess((value) => {
       message: 'A saved rotation requires a scenario snapshot',
     })
   }
-}))
+}))))
 
-const enemyProfSchm = z.object({
+const enemyProfSchm = z.lazy(() => z.strictObject({
     id: z.string(),
     level: z.number(),
     class: z.number(),
     toa: z.boolean(),
-    source: z.enum(['catalog', 'custom']).optional(),
-    status: z.object({
+    source: z.optional(z.enum(['catalog', 'custom'])),
+    status: z.optional(z.catchall(z.object({
       tuneStrain: z.number(),
-    }).catchall(z.union([z.number(), z.boolean(), z.string()])).optional(),
-    res: z.object({
+    }), z.union([z.number(), z.boolean(), z.string()]))),
+    res: z.strictObject({
       0: z.number(),
       1: z.number(),
       2: z.number(),
@@ -772,34 +774,34 @@ const enemyProfSchm = z.object({
       4: z.number(),
       5: z.number(),
       6: z.number(),
-    }).strict(),
-  }).strict()
+    }),
+  }))
 
 // Legacy active/target projection accepted only while importing old snapshots.
-const cmbtSssnSchm = z.object({
-  activeResonatorId: z.string().nullable(),
+const cmbtSssnSchm = z.lazy(() => z.strictObject({
+  activeResonatorId: z.nullable(z.string()),
   enemyProfile: enemyProfSchm,
-}).strict()
+}))
 
-const scenarioMemberSchm = z.object({
+const scenarioMemberSchm = z.lazy(() => z.strictObject({
   id: z.string(),
   resonatorId: z.string(),
   progression: baseSttSchm,
-  loadout: z.object({
+  loadout: z.strictObject({
     weapon: wpnMkSchm,
-    echoes: z.array(echoNstnSchm.nullable()),
-  }).strict(),
-  local: z.object({
+    echoes: z.array(z.nullable(echoNstnSchm)),
+  }),
+  local: z.strictObject({
     controls: prssCntrSchm,
-    setConditionals: sntSetConS.default(DEF_SET_COND),
-    optimizerInventory: z.object({
-      mode: z.enum(['include', 'exclude']).default('exclude'),
-      echoUids: z.array(z.string()).default([]),
-    }).strict().default(makeOptInventorySelection()),
-  }).strict(),
-}).strict()
+    setConditionals: z._default(sntSetConS, DEF_SET_COND),
+    optimizerInventory: z._default(z.strictObject({
+      mode: z._default(z.enum(['include', 'exclude']), 'exclude'),
+      echoUids: z._default(z.array(z.string()), []),
+    }), makeOptInventorySelection()),
+  }),
+}))
 
-const combatScenarioSchm = z.preprocess((value) => {
+const combatScenarioSchm = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
   const scenario = { ...value } as Record<string, unknown>
   const rawEnvironment = scenario.environment
@@ -864,56 +866,43 @@ const combatScenarioSchm = z.preprocess((value) => {
   delete scenario.combatState
   delete scenario.routing
   return scenario
-}, z.object({
+}), z.strictObject({
   id: z.string(),
-  revision: z.number().int().nonnegative(),
-  team: z.object({
-    members: z.array(scenarioMemberSchm)
-      .min(1)
-      .max(3)
-      .refine(
-        (members) => new Set(members.map((member) => member.id)).size === members.length,
-        'Scenario member ids must be unique',
-      )
-      .refine(
-        (members) => new Set(members.map((member) => member.resonatorId)).size === members.length,
-        'Scenario resonators must be unique',
-      ),
-  }).strict(),
+  revision: z.number().check(z.int()).check(z.nonnegative()),
+  team: z.strictObject({
+    members: z.array(scenarioMemberSchm).check(z.minLength(1)).check(z.maxLength(3)).check(z.refine((members) => new Set(members.map((member) => member.id)).size === members.length, 'Scenario member ids must be unique')).check(z.refine((members) => new Set(members.map((member) => member.resonatorId)).size === members.length, 'Scenario resonators must be unique')),
+  }),
   contextMemberId: z.string(),
   target: enemyProfSchm,
-  environment: z.object({
+  environment: z.strictObject({
     combatState: cmbtSttSchm,
-    manualEffects: z.array(z.object({
+    manualEffects: z.array(z.strictObject({
       id: z.string(),
       enabled: z.boolean(),
-      label: z.string().optional(),
+      label: z.optional(z.string()),
       selector: z.discriminatedUnion('kind', [
-        z.object({ kind: z.literal('all') }).strict(),
-        z.object({ kind: z.literal('members'), memberIds: z.array(z.string()) }).strict(),
-        z.object({ kind: z.literal('attribute'), attributes: z.array(ttrbSchm) }).strict(),
-        z.object({ kind: z.literal('weaponType'), weaponTypes: z.array(z.number()) }).strict(),
+        z.strictObject({ kind: z.literal('all') }),
+        z.strictObject({ kind: z.literal('members'), memberIds: z.array(z.string()) }),
+        z.strictObject({ kind: z.literal('attribute'), attributes: z.array(ttrbSchm) }),
+        z.strictObject({ kind: z.literal('weaponType'), weaponTypes: z.array(z.number()) }),
       ]),
       buffs: mnlBffsSchm,
-    }).strict()).refine(
-      (effects) => new Set(effects.map((effect) => effect.id)).size === effects.length,
-      'Environment effect ids must be unique',
-    ),
-    targetModifiers: z.object({
+    })).check(z.refine((effects) => new Set(effects.map((effect) => effect.id)).size === effects.length, 'Environment effect ids must be unique')),
+    targetModifiers: z.strictObject({
       defenseReduction: z.number(),
       resistanceReduction: z.partialRecord(ttrbSchm, z.number()),
       damageTakenAmplification: z.number(),
-    }).strict(),
-    routing: z.object({
+    }),
+    routing: z.strictObject({
       bySourceMemberId: z.record(
         z.string(),
-        z.record(z.string(), z.string().nullable()),
+        z.record(z.string(), z.nullable(z.string())),
       ),
-    }).strict(),
-  }).strict(),
+    }),
+  }),
   program: rotSttSchm,
   initialOnFieldMemberId: z.string(),
-}).strict().superRefine((scenario, context) => {
+}).check(z.superRefine((scenario, context) => {
   const memberIds = new Set(scenario.team.members.map((member) => member.id))
   if (!memberIds.has(scenario.contextMemberId)) {
     context.addIssue({
@@ -961,7 +950,7 @@ const combatScenarioSchm = z.preprocess((value) => {
       }
     })
   })
-}))
+}))))
 
 /** Validate and normalize a standalone scenario carried by an import artifact. */
 export function parseCombatScenario(value: unknown) {
@@ -969,111 +958,104 @@ export function parseCombatScenario(value: unknown) {
 }
 
 // saved rotation page ui preferences
-const svdRotPrefsS = z.preprocess((value) => {
+const svdRotPrefsS = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return value
   }
   const preferences = { ...value } as Record<string, unknown>
   delete preferences.filterMode
   return preferences
-}, z.object({
-  sortBy: z.enum(['date', 'name', 'avg', 'dps']).default('date'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  contributionFilter: z.enum(['unset', 'solo', 'duo', 'trio']).default('unset'),
-  autoSearchActiveResonator: z.boolean().default(false),
-  showLiveRotation: z.boolean().default(false),
-  scaleToSelected: z.boolean().default(true),
-}).strict())
+}), z.strictObject({
+  sortBy: z._default(z.enum(['date', 'name', 'avg', 'dps']), 'date'),
+  sortOrder: z._default(z.enum(['asc', 'desc']), 'desc'),
+  contributionFilter: z._default(z.enum(['unset', 'solo', 'duo', 'trio']), 'unset'),
+  autoSearchActiveResonator: z._default(z.boolean(), false),
+  showLiveRotation: z._default(z.boolean(), false),
+  scaleToSelected: z._default(z.boolean(), true),
+})))
 
-const rotEditorPrefsS = z.object({
-  view: z.enum(['tree', 'flat']).default('tree'),
-  ghostRepeats: z.boolean().default(true),
-  showPriors: z.boolean().default(false),
-  statKeys: z.array(z.enum(ROTATION_EDITOR_STAT_KEYS))
-    .max(ROTATION_EDITOR_STAT_KEYS.length)
-    .refine((keys) => new Set(keys).size === keys.length, 'Rotation editor columns must be unique')
-    .default([...DEFAULT_ROTATION_EDITOR_STAT_KEYS]),
-  groupOrder: z.array(z.enum(ROTATION_EDITOR_REGISTER_GROUPS))
-    .length(ROTATION_EDITOR_REGISTER_GROUPS.length)
-    .refine((groups) => new Set(groups).size === groups.length, 'Rotation editor groups must be unique')
-    .default([...ROTATION_EDITOR_REGISTER_GROUPS]),
-  dockPane: z.boolean().default(false),
-  damageBasis: z.enum(['avg', 'full']).default('avg'),
-  decimals: z.union(ROTATION_EDITOR_DAMAGE_DECIMALS.map((value) => (
+const rotEditorPrefsS = z.lazy(() => z.strictObject({
+  view: z._default(z.enum(['tree', 'flat']), 'tree'),
+  ghostRepeats: z._default(z.boolean(), true),
+  showPriors: z._default(z.boolean(), false),
+  statKeys: z._default(z.array(z.enum(ROTATION_EDITOR_STAT_KEYS)).check(z.maxLength(ROTATION_EDITOR_STAT_KEYS.length)).check(z.refine((keys) => new Set(keys).size === keys.length, 'Rotation editor columns must be unique')), [...DEFAULT_ROTATION_EDITOR_STAT_KEYS]),
+  groupOrder: z._default(z.array(z.enum(ROTATION_EDITOR_REGISTER_GROUPS)).check(z.length(ROTATION_EDITOR_REGISTER_GROUPS.length)).check(z.refine((groups) => new Set(groups).size === groups.length, 'Rotation editor groups must be unique')), [...ROTATION_EDITOR_REGISTER_GROUPS]),
+  dockPane: z._default(z.boolean(), false),
+  damageBasis: z._default(z.enum(['avg', 'full']), 'avg'),
+  decimals: z._default(z.union(ROTATION_EDITOR_DAMAGE_DECIMALS.map((value) => (
     z.literal(value)
   )) as [
-    z.ZodLiteral<0>,
-    z.ZodLiteral<1>,
-    z.ZodLiteral<2>,
-    z.ZodLiteral<3>,
-    z.ZodLiteral<4>,
-  ]).default(2),
-  percentDisplay: z.enum(['percent', 'factor']).default('percent'),
-  savedView: z.enum(['off', 'list', 'groups']).default('off'),
-}).strict()
+    z.ZodMiniLiteral<0>,
+    z.ZodMiniLiteral<1>,
+    z.ZodMiniLiteral<2>,
+    z.ZodMiniLiteral<3>,
+    z.ZodMiniLiteral<4>,
+  ]), 2),
+  percentDisplay: z._default(z.enum(['percent', 'factor']), 'percent'),
+  savedView: z._default(z.enum(['off', 'list', 'groups']), 'off'),
+}))
 
-const histMaxSchm = z.union([
+const histMaxSchm = z.lazy(() => z._default(z.union([
   z.literal(5),
   z.literal(10),
   z.literal(25),
   z.literal(50),
   z.literal(75),
   z.literal(100),
-]).default(10)
+]), 10))
 
-const pckrFreqItmS = z.object({
+const pckrFreqItmS = z.lazy(() => z.strictObject({
   id: z.string(),
-  count: z.number().int().positive(),
-  firstUsedAt: z.string().nullable().default(null),
-  lastUsedAt: z.string().nullable().default(null),
-  previousUsedAt: z.string().nullable().default(null),
-  firstUseSeq: z.number().int().nonnegative().default(0),
-  lastUseSeq: z.number().int().nonnegative().default(0),
-  usesByDay: z.record(z.string(), z.number().int().positive()).default({}),
-  firstActiveResonatorId: z.string().nullable().default(null),
-  lastActiveResonatorId: z.string().nullable().default(null),
-  previousActiveResonatorId: z.string().nullable().default(null),
-  usesByActiveResonator: z.record(z.string(), z.number().int().positive()).default({}),
-}).strict()
+  count: z.number().check(z.int()).check(z.positive()),
+  firstUsedAt: z._default(z.nullable(z.string()), null),
+  lastUsedAt: z._default(z.nullable(z.string()), null),
+  previousUsedAt: z._default(z.nullable(z.string()), null),
+  firstUseSeq: z._default(z.number().check(z.int()).check(z.nonnegative()), 0),
+  lastUseSeq: z._default(z.number().check(z.int()).check(z.nonnegative()), 0),
+  usesByDay: z._default(z.record(z.string(), z.number().check(z.int()).check(z.positive())), {}),
+  firstActiveResonatorId: z._default(z.nullable(z.string()), null),
+  lastActiveResonatorId: z._default(z.nullable(z.string()), null),
+  previousActiveResonatorId: z._default(z.nullable(z.string()), null),
+  usesByActiveResonator: z._default(z.record(z.string(), z.number().check(z.int()).check(z.positive())), {}),
+}))
 
-const pckrFreqBktS = z.object({
-  version: z.literal(2).default(2),
-  totalUses: z.number().int().nonnegative().default(0),
-  firstUsedAt: z.string().nullable().default(null),
-  lastUsedAt: z.string().nullable().default(null),
-  order: z.array(z.string()).default([]),
-  items: z.record(z.string(), pckrFreqItmS).default({}),
-}).strict().default(mkEmptyPckrFreqBkt)
+const pckrFreqBktS = z.lazy(() => z._default(z.strictObject({
+  version: z._default(z.literal(2), 2),
+  totalUses: z._default(z.number().check(z.int()).check(z.nonnegative()), 0),
+  firstUsedAt: z._default(z.nullable(z.string()), null),
+  lastUsedAt: z._default(z.nullable(z.string()), null),
+  order: z._default(z.array(z.string()), []),
+  items: z._default(z.record(z.string(), pckrFreqItmS), {}),
+}), mkEmptyPckrFreqBkt))
 
-const pckrFreqSttS = z.preprocess(normalizePckrFreqState, z.object({
+const pckrFreqSttS = z.lazy(() => z.pipe(z.transform((value: unknown): unknown => normalizePckrFreqState(value)), z._default(z.strictObject({
   resonator: pckrFreqBktS,
   echo: pckrFreqBktS,
   enemy: pckrFreqBktS,
-  weaponByType: z.object({
+  weaponByType: z._default(z.strictObject({
     broadblade: pckrFreqBktS,
     sword: pckrFreqBktS,
     pistols: pckrFreqBktS,
     gauntlets: pckrFreqBktS,
     rectifier: pckrFreqBktS,
-  }).strict().default({
+  }), {
     broadblade: mkEmptyPckrFreqBkt(),
     sword: mkEmptyPckrFreqBkt(),
     pistols: mkEmptyPckrFreqBkt(),
     gauntlets: mkEmptyPckrFreqBkt(),
     rectifier: mkEmptyPckrFreqBkt(),
   }),
-  resonatorByTeamSlot: z.object({
+  resonatorByTeamSlot: z._default(z.strictObject({
     active: pckrFreqBktS,
     teammate1: pckrFreqBktS,
     teammate2: pckrFreqBktS,
-  }).strict().default({
+  }), {
     active: mkEmptyPckrFreqBkt(),
     teammate1: mkEmptyPckrFreqBkt(),
     teammate2: mkEmptyPckrFreqBkt(),
   }),
-}).strict().default(mkDefPckrFre))
+}), mkDefPckrFre)))
 
-export const APP_STATE_VER = 28 as const
 
 function normalizeSimulationPrefs(value: unknown): unknown {
   if (!value || typeof value !== 'object') {
@@ -1114,91 +1096,91 @@ function normalizeSimulationPrefs(value: unknown): unknown {
   return normalized
 }
 
-const uiPersistSchema = z.object({
+const uiPersistSchema = z.strictObject({
   theme: z.enum(['light', 'dark', 'background']),
-  themePreference: z.enum(['system', 'light', 'dark', 'background']).optional(),
+  themePreference: z.optional(z.enum(['system', 'light', 'dark', 'background'])),
   lightVariant: z.enum(LIGHT_THEMES),
   darkVariant: z.enum(DARK_THEMES),
   backgroundVariant: z.enum(BG_THEMES),
-  backgroundImageKey: z.string().default('builtin:wallpaperflare1.jpg'),
-  backgroundTextMode: z.enum(['light', 'dark']).default('dark'),
-  bodyFontName: z.string().default(DEFAULT_BODY_FONT),
-  bodyFontUrl: z.string().default(getPresetFontUrl(DEFAULT_BODY_FONT)),
+  backgroundImageKey: z._default(z.string(), 'builtin:wallpaperflare1.jpg'),
+  backgroundTextMode: z._default(z.enum(['light', 'dark']), 'dark'),
+  bodyFontName: z._default(z.string(), DEFAULT_BODY_FONT),
+  bodyFontUrl: z._default(z.string(), getPresetFontUrl(DEFAULT_BODY_FONT)),
   blurMode: uiBoolSchm(false),
   entranceAnimations: uiBoolSchm(true),
-  preferences: z.preprocess(normalizeSimulationPrefs, z.object({
-    ctxMenu: z.boolean().default(DEF_UI_PREFS.ctxMenu),
-    updateToast: z.boolean().default(DEF_UI_PREFS.updateToast),
-    gameBetaData: z.boolean().default(DEF_UI_PREFS.gameBetaData),
-    recommendedMenuItems: z.boolean().default(DEF_UI_PREFS.recommendedMenuItems),
-    showEvaluationStates: z.boolean().default(DEF_UI_PREFS.showEvaluationStates),
-    maxResOnInit: z.boolean().default(DEF_UI_PREFS.maxResOnInit),
-    animatedRailPortraits: z.boolean().default(DEF_UI_PREFS.animatedRailPortraits),
-    showcaseCards: z.record(
+  preferences: z.pipe(z.transform(normalizeSimulationPrefs), z._default(z.object({
+    ctxMenu: z._default(z.boolean(), DEF_UI_PREFS.ctxMenu),
+    updateToast: z._default(z.boolean(), DEF_UI_PREFS.updateToast),
+    gameBetaData: z._default(z.boolean(), DEF_UI_PREFS.gameBetaData),
+    recommendedMenuItems: z._default(z.boolean(), DEF_UI_PREFS.recommendedMenuItems),
+    showEvaluationStates: z._default(z.boolean(), DEF_UI_PREFS.showEvaluationStates),
+    maxResOnInit: z._default(z.boolean(), DEF_UI_PREFS.maxResOnInit),
+    animatedRailPortraits: z._default(z.boolean(), DEF_UI_PREFS.animatedRailPortraits),
+    showcaseCards: z._default(z.record(
       z.string(),
       z.object({
         style: z.object({
-          accent: z.string().nullable().default(null),
-          surface: z.string().nullable().default(null),
-          text: z.string().nullable().default(null),
-          opacity: z.number().nullable().default(null),
-          displayFont: z.string().nullable().default(null),
-          monoFont: z.string().nullable().default(null),
-          portraitX: z.number().nullable().default(null),
-          portraitY: z.number().nullable().default(null),
-          portraitScale: z.number().nullable().default(null),
-          maskTop: z.number().nullable().default(null),
-          maskRight: z.number().nullable().default(null),
-          maskBottom: z.number().nullable().default(null),
-          maskLeft: z.number().nullable().default(null),
-          maskTopSharp: z.number().nullable().default(null),
-          maskRightSharp: z.number().nullable().default(null),
-          maskBottomSharp: z.number().nullable().default(null),
-          maskLeftSharp: z.number().nullable().default(null),
-          backdropBlur: z.number().nullable().default(null),
-          backdropOpacity: z.number().nullable().default(null),
-          backdropX: z.number().nullable().default(null),
-          backdropY: z.number().nullable().default(null),
-          backdropScale: z.number().nullable().default(null),
-          portraitImage: z.string().nullable().default(null),
-          backdropImage: z.string().nullable().default(null),
-          portraitCredit: z.string().nullable().default(null),
-          backdropCredit: z.string().nullable().default(null),
-          statsColumn: z.enum(['build', 'combat', 'both']).nullable().default(null),
-          textSlots: z.record(
+          accent: z._default(z.nullable(z.string()), null),
+          surface: z._default(z.nullable(z.string()), null),
+          text: z._default(z.nullable(z.string()), null),
+          opacity: z._default(z.nullable(z.number()), null),
+          displayFont: z._default(z.nullable(z.string()), null),
+          monoFont: z._default(z.nullable(z.string()), null),
+          portraitX: z._default(z.nullable(z.number()), null),
+          portraitY: z._default(z.nullable(z.number()), null),
+          portraitScale: z._default(z.nullable(z.number()), null),
+          maskTop: z._default(z.nullable(z.number()), null),
+          maskRight: z._default(z.nullable(z.number()), null),
+          maskBottom: z._default(z.nullable(z.number()), null),
+          maskLeft: z._default(z.nullable(z.number()), null),
+          maskTopSharp: z._default(z.nullable(z.number()), null),
+          maskRightSharp: z._default(z.nullable(z.number()), null),
+          maskBottomSharp: z._default(z.nullable(z.number()), null),
+          maskLeftSharp: z._default(z.nullable(z.number()), null),
+          backdropBlur: z._default(z.nullable(z.number()), null),
+          backdropOpacity: z._default(z.nullable(z.number()), null),
+          backdropX: z._default(z.nullable(z.number()), null),
+          backdropY: z._default(z.nullable(z.number()), null),
+          backdropScale: z._default(z.nullable(z.number()), null),
+          portraitImage: z._default(z.nullable(z.string()), null),
+          backdropImage: z._default(z.nullable(z.string()), null),
+          portraitCredit: z._default(z.nullable(z.string()), null),
+          backdropCredit: z._default(z.nullable(z.string()), null),
+          statsColumn: z._default(z.nullable(z.enum(['build', 'combat', 'both'])), null),
+          textSlots: z._default(z.record(
             z.string(),
             z.object({
-              color: z.string().nullable().default(null),
-              font: z.string().nullable().default(null),
-              size: z.number().nullable().default(null),
-              weight: z.number().nullable().default(null),
-              spacing: z.number().nullable().default(null),
-              transform: z.enum(['none', 'uppercase', 'lowercase', 'capitalize']).nullable().default(null),
+              color: z._default(z.nullable(z.string()), null),
+              font: z._default(z.nullable(z.string()), null),
+              size: z._default(z.nullable(z.number()), null),
+              weight: z._default(z.nullable(z.number()), null),
+              spacing: z._default(z.nullable(z.number()), null),
+              transform: z._default(z.nullable(z.enum(['none', 'uppercase', 'lowercase', 'capitalize'])), null),
             }),
-          ).default({}),
-          customCss: z.string().nullable().default(null),
+          ), {}),
+          customCss: z._default(z.nullable(z.string()), null),
         }),
         hidden: z.object({
-          score: z.boolean().default(false),
-          damage: z.boolean().default(false),
-          cv: z.boolean().default(false),
-          team: z.boolean().default(false),
-          brand: z.boolean().default(false),
-          portraitCredit: z.boolean().default(false),
-          backdropCredit: z.boolean().default(false),
-          seqRail: z.boolean().default(false),
-          subVal: z.boolean().default(false),
-          subColor: z.boolean().default(false),
-          relStats: z.boolean().default(true),
+          score: z._default(z.boolean(), false),
+          damage: z._default(z.boolean(), false),
+          cv: z._default(z.boolean(), false),
+          team: z._default(z.boolean(), false),
+          brand: z._default(z.boolean(), false),
+          portraitCredit: z._default(z.boolean(), false),
+          backdropCredit: z._default(z.boolean(), false),
+          seqRail: z._default(z.boolean(), false),
+          subVal: z._default(z.boolean(), false),
+          subColor: z._default(z.boolean(), false),
+          relStats: z._default(z.boolean(), true),
         }),
       }),
-    ).default({}),
-    showcaseLayout: z.enum(['classic', 'seal']).default(DEF_UI_PREFS.showcaseLayout),
-    uploadPersist: z.enum(['indexeddb', 'imgbb']).nullable().default(DEF_UI_PREFS.uploadPersist),
-    imgbbApiKey: z.string().default(DEF_UI_PREFS.imgbbApiKey),
-    playerId: z.string().default(DEF_UI_PREFS.playerId),
-    playerUid: z.string().default(DEF_UI_PREFS.playerUid),
-  }).default(DEF_UI_PREFS)),
+    ), {}),
+    showcaseLayout: z._default(z.enum(['classic', 'seal']), DEF_UI_PREFS.showcaseLayout),
+    uploadPersist: z._default(z.nullable(z.enum(['indexeddb', 'imgbb'])), DEF_UI_PREFS.uploadPersist),
+    imgbbApiKey: z._default(z.string(), DEF_UI_PREFS.imgbbApiKey),
+    playerId: z._default(z.string(), DEF_UI_PREFS.playerId),
+    playerUid: z._default(z.string(), DEF_UI_PREFS.playerUid),
+  }), DEF_UI_PREFS)),
   leftPaneView: z.enum([
     'resonators',
     'buffs',
@@ -1209,24 +1191,24 @@ const uiPersistSchema = z.object({
     'rotations',
     'suggestions',
   ]),
-  suggsViewMode: z.enum(['mainStats', 'setPlans', 'weapons', 'random', 'substats']).default('mainStats'),
+  suggsViewMode: z._default(z.enum(['mainStats', 'setPlans', 'weapons', 'random', 'substats']), 'mainStats'),
   showSubHits: z.boolean(),
-  compactInv: z.boolean().default(false),
-  groupInv: z.boolean().default(false),
-  seeEquipped: z.boolean().default(true),
-  haveHistory: z.boolean().default(true),
+  compactInv: z._default(z.boolean(), false),
+  groupInv: z._default(z.boolean(), false),
+  seeEquipped: z._default(z.boolean(), true),
+  haveHistory: z._default(z.boolean(), true),
   historyMax: histMaxSchm,
   itemFreq: pckrFreqSttS,
-  optimizerCpuHintSeen: z.boolean().default(false),
+  optimizerCpuHintSeen: z._default(z.boolean(), false),
   // portrait-mode preference for the optimizer (sprite vs profile art). a
   // display preference, not resonator-scoped, so it persists globally with
   // other UI preferences.
-  optimizerUseSprite: z.boolean().default(true),
+  optimizerUseSprite: z._default(z.boolean(), true),
   // export files default to the compact .wwcalc format; plain json is the
   // readable fallback.
-  compressedExports: z.boolean().default(true),
-  rotationEditorPreferences: rotEditorPrefsS.default(makeDefaultRotationEditorPreferences()),
-  savedRotationPreferences: svdRotPrefsS.default({
+  compressedExports: z._default(z.boolean(), true),
+  rotationEditorPreferences: z._default(rotEditorPrefsS, makeDefaultRotationEditorPreferences()),
+  savedRotationPreferences: z._default(svdRotPrefsS, {
     sortBy: 'date',
     sortOrder: 'desc',
     contributionFilter: 'unset',
@@ -1234,9 +1216,9 @@ const uiPersistSchema = z.object({
     showLiveRotation: false,
     scaleToSelected: true,
   }),
-}).strict()
+})
 
-export const prssUiPprnSc = z.object({
+export const prssUiPprnSc = z.lazy(() => z.strictObject({
   theme: uiPersistSchema.shape.theme,
   themePreference: uiPersistSchema.shape.themePreference,
   lightVariant: uiPersistSchema.shape.lightVariant,
@@ -1248,9 +1230,9 @@ export const prssUiPprnSc = z.object({
   bodyFontUrl: uiPersistSchema.shape.bodyFontUrl,
   blurMode: uiPersistSchema.shape.blurMode,
   entranceAnimations: uiPersistSchema.shape.entranceAnimations,
-}).strict()
+}))
 
-export const prssUiLytSch = z.object({
+export const prssUiLytSch = z.lazy(() => z.strictObject({
   preferences: uiPersistSchema.shape.preferences,
   leftPaneView: uiPersistSchema.shape.leftPaneView,
   suggsViewMode: uiPersistSchema.shape.suggsViewMode,
@@ -1265,16 +1247,16 @@ export const prssUiLytSch = z.object({
   optimizerUseSprite: uiPersistSchema.shape.optimizerUseSprite,
   compressedExports: uiPersistSchema.shape.compressedExports,
   rotationEditorPreferences: uiPersistSchema.shape.rotationEditorPreferences,
-}).strict()
+}))
 
-export const prssUiSvdRot = z.object({
+export const prssUiSvdRot = z.lazy(() => z.strictObject({
   savedRotationPreferences: uiPersistSchema.shape.savedRotationPreferences,
-}).strict()
+}))
 
-const prssSimulationTools = z.object({
-  optimizerSettingsResonatorId: z.string().nullable().optional(),
-  optimizerSettings: optSetsSchm.optional(),
-  weaponSuggests: wpnSuggSetS.default({
+const prssSimulationTools = z.lazy(() => z.strictObject({
+  optimizerSettingsResonatorId: z.optional(z.nullable(z.string())),
+  optimizerSettings: z.optional(optSetsSchm),
+  weaponSuggests: z._default(wpnSuggSetS, {
     mode: 'both',
     target: 'max',
     ranks: {
@@ -1294,32 +1276,32 @@ const prssSimulationTools = z.object({
     },
     states: {},
   }),
-  suggestionsByResonatorId: z.record(z.string(), resSuggsSttS).default({}),
-}).strict()
+  suggestionsByResonatorId: z._default(z.record(z.string(), resSuggsSttS), {}),
+}))
 
-const prssSimulationInvS = z.object({
+const prssSimulationInvS = z.lazy(() => z.strictObject({
   inventoryEchoes: z.array(invChsEntSch),
   inventoryBuilds: z.array(svdMkSchm),
   inventoryRotations: z.array(invRotSchm),
-}).strict()
+}))
 
-const savedScenarioSchm = z.object({
+const savedScenarioSchm = z.lazy(() => z.strictObject({
   id: z.string(),
   name: z.string(),
-  note: z.string().default(''),
+  note: z._default(z.string(), ''),
   createdAt: z.number(),
   updatedAt: z.number(),
   scenario: combatScenarioSchm,
-}).strict()
+}))
 
-const savedArtifactLibrarySchm = z.object({
+const savedArtifactLibrarySchm = z.strictObject({
   echoes: z.array(invChsEntSch),
   builds: z.array(svdMkSchm),
   rotations: z.array(invRotSchm),
   scenarios: z.array(savedScenarioSchm),
-}).strict()
+})
 
-export const prssCombatWorkspace = z.preprocess((value) => {
+export const prssCombatWorkspace = z.lazy(() => z.pipe(z.transform((value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value
   const workspace = { ...value } as Record<string, unknown>
   if (workspace.scenariosById) {
@@ -1344,11 +1326,11 @@ export const prssCombatWorkspace = z.preprocess((value) => {
     order: [id],
     scenariosById: { [id]: scenario },
   }
-}, z.object({
+}), z.strictObject({
   selectedScenarioId: z.string(),
   order: z.array(z.string()),
   scenariosById: z.record(z.string(), combatScenarioSchm),
-}).strict().superRefine((workspace, context) => {
+}).check(z.superRefine((workspace, context) => {
   const scenarioIds = Object.keys(workspace.scenariosById)
   const orderIds = new Set(workspace.order)
   if (scenarioIds.length === 0) {
@@ -1382,55 +1364,55 @@ export const prssCombatWorkspace = z.preprocess((value) => {
     }
     if (resonatorId) contextOwners.add(resonatorId)
   }
-}))
+}))))
 
-export const prssSimulationOptS = z.object({
+export const prssSimulationOptS = z.lazy(() => z.strictObject({
   // Optional only while reading v28 records written before settings gained an
   // owner key. initAppState backfills the selected context resonator.
-  optimizerSettingsResonatorId: z.string().nullable().optional(),
+  optimizerSettingsResonatorId: z.optional(z.nullable(z.string())),
   optimizerSettings: optSetsSchm,
-}).strict()
+}))
 
-export const prssSimulationSugg = z.object({
-  weaponSuggests: prssSimulationTools.shape.weaponSuggests,
-  suggestionsByResonatorId: prssSimulationTools.shape.suggestionsByResonatorId,
-}).strict()
+export const prssSimulationSugg = z.lazy(() => z.strictObject({
+  weaponSuggests: prssSimulationTools.def.getter().shape.weaponSuggests,
+  suggestionsByResonatorId: prssSimulationTools.def.getter().shape.suggestionsByResonatorId,
+}))
 
-export const prssSimulationInvC = z.object({
+export const prssSimulationInvC = z.lazy(() => z.strictObject({
   echoes: savedArtifactLibrarySchm.shape.echoes,
-}).strict()
+}))
 
-export const prssSimulationInvB = z.object({
+export const prssSimulationInvB = z.lazy(() => z.strictObject({
   builds: savedArtifactLibrarySchm.shape.builds,
-}).strict()
+}))
 
-export const prssSimulationInvR = z.object({
+export const prssSimulationInvR = z.lazy(() => z.strictObject({
   rotations: savedArtifactLibrarySchm.shape.rotations,
-}).strict()
+}))
 
-export const prssInvScenarios = z.object({
+export const prssInvScenarios = z.lazy(() => z.strictObject({
   scenarios: savedArtifactLibrarySchm.shape.scenarios,
-}).strict()
+}))
 
 function makePersistSchema(version: typeof APP_STATE_VER) {
-  return z.object({
+  return z.strictObject({
     version: z.literal(version),
-    ui: z.preprocess(stripLegacyMainMode, uiPersistSchema),
+    ui: z.pipe(z.transform(stripLegacyMainMode), uiPersistSchema),
     // Optional only at the schema boundary so v22 state can materialize its
     // first scenario from legacy profiles/session during initialization.
-    combat: prssCombatWorkspace.optional(),
-    library: savedArtifactLibrarySchm.optional(),
-    simulation: z.object({
-      ...prssSimulationTools.shape,
-      runtimeRevision: z.number().int().nonnegative().optional(),
-      profiles: z.record(z.string(), resProfSchm).optional(),
-      inventoryEchoes: prssSimulationInvS.shape.inventoryEchoes.optional(),
-      inventoryBuilds: prssSimulationInvS.shape.inventoryBuilds.optional(),
-      inventoryRotations: prssSimulationInvS.shape.inventoryRotations.optional(),
-      session: cmbtSssnSchm.optional(),
-      workspace: z.object({ currentScenario: combatScenarioSchm.optional() }).passthrough().optional(),
-    }).strict(),
-  }).strict()
+    combat: z.optional(prssCombatWorkspace),
+    library: z.optional(savedArtifactLibrarySchm),
+    simulation: z.strictObject({
+      ...prssSimulationTools.def.getter().shape,
+      runtimeRevision: z.optional(z.number().check(z.int()).check(z.nonnegative())),
+      profiles: z.optional(z.record(z.string(), resProfSchm)),
+      inventoryEchoes: z.optional(prssSimulationInvS.def.getter().shape.inventoryEchoes),
+      inventoryBuilds: z.optional(prssSimulationInvS.def.getter().shape.inventoryBuilds),
+      inventoryRotations: z.optional(prssSimulationInvS.def.getter().shape.inventoryRotations),
+      session: z.optional(cmbtSssnSchm),
+      workspace: z.optional(z.looseObject({ currentScenario: z.optional(combatScenarioSchm) })),
+    }),
+  })
 }
 
 function collapseLegacyScenarioContexts(value: unknown): unknown {
@@ -1548,57 +1530,54 @@ function migratePersistedVersion(value: unknown): unknown {
 }
 
 // root persisted app state schema
-export const persistedSchema = z.preprocess(
-  migratePersistedVersion,
-  makePersistSchema(APP_STATE_VER),
-)
+export const persistedSchema = z.lazy(() => z.pipe(z.transform(migratePersistedVersion), makePersistSchema(APP_STATE_VER)))
 
-export const prssUiPprnSl = z.object({
+export const prssUiPprnSl = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   ui: prssUiPprnSc,
-}).strict()
+}))
 
-export const prssUiLytSlc = z.object({
+export const prssUiLytSlc = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
-  ui: z.preprocess(stripLegacyMainMode, prssUiLytSch),
-}).strict()
+  ui: z.pipe(z.transform(stripLegacyMainMode), prssUiLytSch),
+}))
 
-export const prssUiSvdRoh = z.object({
+export const prssUiSvdRoh = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   ui: prssUiSvdRot,
-}).strict()
+}))
 
-export const prssCmbtWrkspSlcS = z.object({
+export const prssCmbtWrkspSlcS = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   combat: prssCombatWorkspace,
-}).strict()
+}))
 
-export const prssOptSettingsSl = z.object({
+export const prssOptSettingsSl = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   simulation: prssSimulationOptS,
-}).strict()
+}))
 
-export const prssSuggsSlc = z.object({
+export const prssSuggsSlc = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   simulation: prssSimulationSugg,
-}).strict()
+}))
 
-export const prssInvChsSl = z.object({
+export const prssInvChsSl = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   library: prssSimulationInvC,
-}).strict()
+}))
 
-export const prssInvBldsS = z.object({
+export const prssInvBldsS = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   library: prssSimulationInvB,
-}).strict()
+}))
 
-export const prssInvRttnS = z.object({
+export const prssInvRttnS = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   library: prssSimulationInvR,
-}).strict()
+}))
 
-export const prssInvScenariosSl = z.object({
+export const prssInvScenariosSl = z.lazy(() => z.strictObject({
   version: z.literal(APP_STATE_VER),
   library: prssInvScenarios,
-}).strict()
+}))

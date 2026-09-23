@@ -4,6 +4,7 @@
                generated detail, and game data registry information.
 */
 
+import { onGameDataChange } from '@/data/gameData'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import type { Resonator } from '@/domain/entities/resonator'
 import { getResSeedBy, listResSds } from '@/data/catalog/resonatorSeedService'
@@ -19,6 +20,10 @@ import {
 
 const resGameDataC = new Map<string, Resonator>()
 let rsntCch: Resonator[] | null = null
+onGameDataChange(() => {
+  resGameDataC.clear()
+  rsntCch = null
+})
 
 // get full resonator game data by id
 export function getResGameDa(resonatorId: string): Resonator | null {

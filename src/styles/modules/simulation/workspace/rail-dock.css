@@ -1,13 +1,13 @@
 .rdk {
   position: absolute;
   top: 50%;
-  right: 0.45rem;
+  right: 1rem;
   translate: 0 -50%;
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.8rem;
+  gap: 1.5rem;
   --rdk-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --rdk-io: cubic-bezier(0.7, 0, 0.2, 1);
   --rdk-ink: color-mix(in srgb, var(--highlight) 90%, var(--text));
@@ -20,8 +20,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2rem;
+  height: 2rem;
   margin: 0;
   padding: 0;
   appearance: none;
@@ -151,8 +151,8 @@
 
 .rdk-target {
   --rdk-match-text: var(--rdk-match);
-  width: 3.375rem;
-  height: 3.375rem;
+  width: 2.5rem;
+  height: 2.5rem;
   margin-top: 0.35rem;
   background: radial-gradient(circle, color-mix(in srgb, var(--text) 8%, var(--bg)), var(--bg));
 }

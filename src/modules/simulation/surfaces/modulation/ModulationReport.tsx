@@ -48,6 +48,12 @@ export function ModulationReport({
   onModulationUpdate,
   loading,
   report,
+  detailReport,
+  detailReportReady,
+  detailReportLoading,
+  reportOpen,
+  onReportOpen,
+  onReportClose,
   activeBuild,
   referenceBuild,
   maximumBuild,
@@ -87,6 +93,12 @@ export function ModulationReport({
   onModulationUpdate: (updater: (runtime: ResRuntime) => ResRuntime) => void
   loading: boolean
   report: BuildEvaluationReport | null
+  detailReport: BuildEvaluationReport | null
+  detailReportReady: boolean
+  detailReportLoading: boolean
+  reportOpen: boolean
+  onReportOpen: () => void
+  onReportClose: () => void
   activeBuild: EvaluationBuildSnapshot | null
   referenceBuild: EvaluationBuildSnapshot | null
   maximumBuild: EvaluationBuildSnapshot | null
@@ -228,6 +240,12 @@ export function ModulationReport({
             referenceBuild={evaluationMatchesModulationMember ? referenceBuild : null}
             maximumBuild={evaluationMatchesModulationMember ? maximumBuild : null}
             report={report}
+            detailReport={detailReport}
+            detailReportReady={detailReportReady}
+            detailReportLoading={detailReportLoading}
+            reportOpen={reportOpen}
+            onReportOpen={onReportOpen}
+            onReportClose={onReportClose}
           />
         ) : null
       ) : !report || !activeBuild ? (

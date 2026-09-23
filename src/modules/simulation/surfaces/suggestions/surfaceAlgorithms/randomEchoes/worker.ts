@@ -1,10 +1,10 @@
-/// <reference lib="webworker" />
-
 /*
   Author: Runor Ewhro
   Description: Initializes worker-local game data and executes isolated
                random-Echo suggestion jobs for the requesting client.
 */
+
+/// <reference lib="webworker" />
 
 import { initGameData } from '@/data/gameData'
 import { runRandomEchoGeneration } from './compute'
@@ -18,7 +18,13 @@ self.onmessage = async (event: MessageEvent<RandomEchoWorkerRequest>) => {
   const scope = self as DedicatedWorkerGlobalScope
 
   try {
-    await initGameData({ mode: message.gameDataMode })
+    await initGameData({
+      mode: message.gameDataMode,
+      resonatorIds: [message.payload.runtimeId,
+        ...(message.payload.context.mode === 'rotation'
+          ? message.payload.context.resIds
+          : [message.payload.context.runtime.id])],
+    })
     const result = await runRandomEchoGeneration(message.payload)
     const response: RandomEchoWorkerResponse = { id: message.id, ok: true, result }
     scope.postMessage(response)

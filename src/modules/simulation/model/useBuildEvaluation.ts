@@ -38,6 +38,19 @@ export const FULL_EVALUATION_REPORT_OPTIONS: EvaluationReportOpts = Object.freez
   }),
 })
 
+// Modulation renders the comparison stat sheet before its report drawer opens.
+// Keep exactly those target snapshots, while deferring feature charts and the
+// alternative search until the user requests the report.
+export const MODULATION_SUMMARY_REPORT_OPTIONS: EvaluationReportOpts = Object.freeze({
+  alternativesLimit: 0,
+  sections: Object.freeze({
+    rotationFeatures: false,
+    upgradePaths: false,
+    echoStatsTable: true,
+    evaluationTargets: true,
+  }),
+})
+
 export const SCORE_ONLY_EVALUATION_REPORT_OPTIONS: EvaluationReportOpts = Object.freeze({
   alternativesLimit: 0,
   sections: Object.freeze({
@@ -71,22 +84,17 @@ interface EvaluationPayloadIn {
   runtimesById: Record<string, ResRuntime>
 }
 
-function compactEvaluationSimulation(simulation: SimResult | null): SimResult | null {
+function compactEvaluationSimulation(
+  simulation: SimResult | null,
+): DefRotEvaluationIn['simulation'] {
   if (!simulation) return null
 
-  // The report context only reads finalStats and the sequence feature entries.
-  // Drop duplicate flattened/program rows before postMessage so structured
-  // cloning does not copy several equivalent feature graphs into the worker.
+  // Rotation scoring reads only sequence entries. Do not copy the live result's
+  // final stats, flattened rows, program, or totals across the worker boundary.
   return {
-    ...simulation,
-    allFeatures: [],
-    allSkills: [],
-    perSkill: [],
     rotation: {
-      ...simulation.rotation,
-      program: {
-        ...simulation.rotation.program,
-        entries: [],
+      sequence: {
+        entries: simulation.rotation.sequence.entries,
       },
     },
   }
@@ -100,6 +108,9 @@ function mkEvaluationPayload({
 }: EvaluationPayloadIn): DefRotEvaluationIn {
   const scenario = selectedCombatScenario(useAppStore.getState().combat)
   const member = scenario.team.members.find((candidate) => candidate.resonatorId === runtime.id)
+  const teammateRuntimesById = Object.fromEntries(
+    Object.entries(runtimesById).filter(([id]) => id !== runtime.id),
+  )
   // workers receive one compact payload shape so report cache keys remain stable
   return {
     scenarioId: member ? scenario.id : combatScenarioId('evaluation:detached'),
@@ -107,7 +118,7 @@ function mkEvaluationPayload({
     runtime,
     simulation: compactEvaluationSimulation(simulation),
     enemy,
-    runtimesById,
+    runtimesById: teammateRuntimesById,
   }
 }
 
@@ -203,6 +214,8 @@ export function useEvaluationReport({
   enabled = true,
   reportOptions,
   identityKey,
+  cacheResult = true,
+  clearOnDisable = false,
 }: {
   runtime: ResRuntime | null
   simulation: SimResult | null
@@ -212,6 +225,8 @@ export function useEvaluationReport({
   enabled?: boolean
   reportOptions?: EvaluationReportOpts
   identityKey?: string | null
+  cacheResult?: boolean
+  clearOnDisable?: boolean
 }): EvaluationReportSt {
   const resolvedIdentityKey = identityKey ?? runtime?.id ?? null
   const alternativesLimit = reportOptions?.alternativesLimit ?? 12
@@ -274,7 +289,10 @@ export function useEvaluationReport({
       // Deferred preparation temporarily removes the simulation on every edit.
       // Keep the last completed report for this identity until its replacement
       // arrives; only a missing runtime means there is no result to display.
-      if (enabled && !runtime) setReport(null)
+      if ((enabled && !runtime) || (!enabled && clearOnDisable)) {
+        setReport(null)
+        setReportIdentityKey(resolvedReportIdentityKey)
+      }
       setLoading(Boolean(enabled && runtime))
       setError(null)
       return () => {
@@ -296,7 +314,11 @@ export function useEvaluationReport({
     setLoading(true)
     setError(null)
     const cancelScheduledReport = scheduleAfterSettled(() => {
-      void runEvaluationReport(payload, { force, reportOptions: resolvedReportOptions })
+      void runEvaluationReport(payload, {
+        force,
+        reportOptions: resolvedReportOptions,
+        cacheResult,
+      })
         .then((nextReport) => {
           if (!cancelled) {
             setReport(nextReport)
@@ -319,6 +341,8 @@ export function useEvaluationReport({
     }
   }, [
     debounceMs,
+    cacheResult,
+    clearOnDisable,
     enabled,
     enemy,
     refreshToken,

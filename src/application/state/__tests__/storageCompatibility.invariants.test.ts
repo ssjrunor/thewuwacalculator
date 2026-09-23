@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { combatScenarioId, contextScenarioMember } from '@/domain/entities/combatScenario'
 import { makeSavedScenario } from '@/domain/entities/inventoryStorage'
 import { makeSavedRotation } from '@/domain/entities/inventoryStorage'
-import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
-import { makeAppState } from '@/engine/runtime/defaults'
+import { addScenario, listContextResonatorScenarios, replaceScenario, selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
+import { makeAppState, makeResProfile, makeScenarioFromProfiles } from '@/engine/runtime/defaults'
+import { listResSds } from '@/data/catalog/resonatorSeedService'
 import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE } from '@/domain/entities/preferences'
 import { projectScenarioWorkspaceProfiles } from '@/engine/runtime/scenarioRuntime'
 import {
   APPSTORECMBT,
+  APPSTORECMBTINDEX,
   APPSTOREINVC,
   APPSTOREINVR,
   APPSTOREINVS,
@@ -211,7 +213,7 @@ describe('persisted state compatibility', () => {
     }, 123))
 
     saveAppState(state)
-    expect(localStorage.getItem(APPSTORECMBT)).toContain('scenariosById')
+    expect(localStorage.getItem(APPSTORECMBTINDEX)).toContain('recordsById')
     expect(localStorage.getItem(APPSTOREINVS)).toContain('Stored scenario')
     expect(localStorage.getItem(APPSTOREINVC)).toContain('"echoes"')
     const storedRotations = localStorage.getItem(APPSTOREINVR)
@@ -226,9 +228,109 @@ describe('persisted state compatibility', () => {
 
     const loaded = loadPrssAppS()
     expect(loaded).not.toBeNull()
-    expect(loaded?.combat).toEqual(state.combat)
+    expect(loaded?.combat.selectedScenarioId).toEqual(state.combat.selectedScenarioId)
+    expect(loaded?.combat.order).toEqual(state.combat.order)
+    expect(loaded?.combat.scenariosById).toEqual(state.combat.scenariosById)
     expect(loaded?.library.rotations).toEqual([rotation])
     expect(loaded?.library.scenarios).toEqual(state.library.scenarios)
+  })
+
+  it('rewrites only the edited scenario record and reloads the complete workspace', () => {
+    const state = makeAppState()
+    const first = selectedCombatScenario(state.combat)
+    const otherSeed = listResSds().find((seed) => seed.id !== first.team.members[0].resonatorId)!
+    const other = {
+      ...makeScenarioFromProfiles({ [otherSeed.id]: makeResProfile(otherSeed) }, null, 0, otherSeed.id),
+      id: combatScenarioId('storage:other'),
+    }
+    state.combat = addScenario(state.combat, other, false)
+    saveAppState(state, { domains: ['combat.workspace'] })
+    const before = JSON.parse(localStorage.getItem(APPSTORECMBTINDEX)!) as {
+      recordsById: Record<string, string>
+    }
+
+    const updated = {
+      ...first,
+      revision: first.revision + 1,
+      target: { ...first.target, level: first.target.level + 1 },
+    }
+    state.combat = {
+      ...state.combat,
+      scenariosById: { ...state.combat.scenariosById, [first.id]: updated },
+    }
+    saveAppState(state, { domains: ['combat.workspace'] })
+    const after = JSON.parse(localStorage.getItem(APPSTORECMBTINDEX)!) as {
+      recordsById: Record<string, string>
+    }
+
+    expect(after.recordsById[first.id]).not.toBe(before.recordsById[first.id])
+    expect(after.recordsById[other.id]).toBe(before.recordsById[other.id])
+    expect(localStorage.getItem(after.recordsById[first.id])?.startsWith('wwcalc-lz1:')).toBe(true)
+    expect(localStorage.getItem(before.recordsById[first.id])).toBeNull()
+    const reloaded = loadPrssAppS()?.combat
+    expect(Object.getOwnPropertyDescriptor(reloaded?.scenariosById, other.id)?.get).toBeTypeOf('function')
+    expect(reloaded?.selectedScenarioId).toEqual(state.combat.selectedScenarioId)
+    expect(reloaded?.order).toEqual(state.combat.order)
+    expect(reloaded?.scenariosById).toEqual(state.combat.scenariosById)
+  })
+
+  it('keeps an inactive scenario on disk during a selected-scenario edit', () => {
+    const initial = makeAppState()
+    const selected = selectedCombatScenario(initial.combat)
+    const seed = listResSds().find((entry) => entry.id !== contextScenarioMember(selected).resonatorId)!
+    const inactive = {
+      ...makeScenarioFromProfiles({ [seed.id]: makeResProfile(seed) }, null, 0, seed.id),
+      id: combatScenarioId('storage:lazy'),
+    }
+    initial.combat = addScenario(initial.combat, inactive, false)
+    saveAppState(initial, { domains: ['combat.workspace'] })
+    const before = JSON.parse(localStorage.getItem(APPSTORECMBTINDEX)!) as {
+      recordsById: Record<string, string>
+    }
+    const loaded = loadPrssAppS()!
+    expect(listContextResonatorScenarios(loaded.combat).map((entry) => entry.scenarioId))
+      .toContain(inactive.id)
+    expect(Object.getOwnPropertyDescriptor(loaded.combat.scenariosById, inactive.id)?.get)
+      .toBeTypeOf('function')
+    loaded.combat = replaceScenario(loaded.combat, {
+      ...selectedCombatScenario(loaded.combat),
+      revision: selected.revision + 1,
+    })
+    saveAppState(loaded, { domains: ['combat.workspace'] })
+    const after = JSON.parse(localStorage.getItem(APPSTORECMBTINDEX)!) as {
+      recordsById: Record<string, string>
+    }
+    expect(after.recordsById[inactive.id]).toBe(before.recordsById[inactive.id])
+    expect(Object.getOwnPropertyDescriptor(loaded.combat.scenariosById, inactive.id)?.get)
+      .toBeTypeOf('function')
+  })
+
+  it('migrates the prior whole-workspace key without losing its scenarios', () => {
+    const state = makeAppState()
+    localStorage.setItem(APPSTORECMBT, JSON.stringify({ version: state.version, combat: state.combat }))
+
+    expect(loadPrssAppS()?.combat).toEqual(state.combat)
+    expect(localStorage.getItem(APPSTORECMBTINDEX)).toContain('recordsById')
+    expect(localStorage.getItem(APPSTORECMBT)).toBeNull()
+  })
+
+  it('keeps the prior workspace and removes uncommitted records if migration runs out of quota', () => {
+    const state = makeAppState()
+    const legacy = JSON.stringify({ version: state.version, combat: state.combat })
+    localStorage.setItem(APPSTORECMBT, legacy)
+    const originalSetItem = localStorage.setItem.bind(localStorage)
+    vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === APPSTORECMBTINDEX) throw new DOMException('Quota exceeded', 'QuotaExceededError')
+      originalSetItem(key, value)
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    saveAppState(state, { domains: ['combat.workspace'] })
+
+    expect(localStorage.getItem(APPSTORECMBT)).toBe(legacy)
+    expect(localStorage.getItem(APPSTORECMBTINDEX)).toBeNull()
+    expect(Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter((key) => key?.startsWith(`${APPSTORECMBT}.scenario.`))).toEqual([])
   })
 
   it('keeps Echo attacks in the live program across storage hydration', () => {
@@ -340,7 +442,9 @@ describe('persisted state compatibility', () => {
     saveAppState(state)
 
     const loaded = loadPrssAppS({ includeInventory: false })
-    expect(loaded?.combat).toEqual(state.combat)
+    expect(loaded?.combat.selectedScenarioId).toEqual(state.combat.selectedScenarioId)
+    expect(loaded?.combat.order).toEqual(state.combat.order)
+    expect(loaded?.combat.scenariosById).toEqual(state.combat.scenariosById)
     expect(loaded?.library).toEqual({ echoes: [], builds: [], rotations: [], scenarios: [] })
   })
 })

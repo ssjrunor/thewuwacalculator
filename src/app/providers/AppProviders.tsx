@@ -10,7 +10,6 @@
 */
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { GoogleOAuthProvider as GglOAuthProv } from '@react-oauth/google'
 import { useAppStore } from '@/application/state'
 import {
   sbscToDrtyPr,
@@ -37,7 +36,6 @@ interface AppPrvdPrps {
 }
 
 const PERSIST_DELAY = 250
-const GOOGLE_ID_MISS = 'missing-google-client-id'
 
 export function AppProviders({ children }: AppPrvdPrps) {
   const theme = useAppStore((state) => state.ui.theme)
@@ -241,12 +239,10 @@ export function AppProviders({ children }: AppPrvdPrps) {
   }, [bgTextMode, setBgTextMod, theme])
 
   return (
-    <GglOAuthProv clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? GOOGLE_ID_MISS}>
       <AppTltpProv>
         <AppCtxMenuPr>
           <FltnSelCtnsP>{children}</FltnSelCtnsP>
         </AppCtxMenuPr>
       </AppTltpProv>
-    </GglOAuthProv>
   )
 }

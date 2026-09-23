@@ -42,6 +42,10 @@ export function openEnemyCnsl(): void {
 export function EnemyConsoleHost() {
   const open = useEnemyCnsl((state) => state.open)
   const closeRequest = useEnemyCnsl((state) => state.close)
+  return open ? <EnemyConsoleSession closeRequest={closeRequest} /> : null
+}
+
+function EnemyConsoleSession({ closeRequest }: { closeRequest: () => void }) {
   const scenarioId = useAppStore((state) => state.combat.selectedScenarioId)
   const actResId = useAppStore(selActResId)
   const enemyProfile = useAppStore(selEnemyProf)
@@ -85,8 +89,8 @@ export function EnemyConsoleHost() {
   // Depend on the stable callback, not the modal object rebuilt by state changes.
   const { show } = modal
   useEffect(() => {
-    if (open) show()
-  }, [open, show])
+    show()
+  }, [show])
 
   const close = useCallback(() => {
     modal.hide(() => {
@@ -94,10 +98,6 @@ export function EnemyConsoleHost() {
       closeRequest()
     })
   }, [closeRequest, modal, session])
-
-  if (!open) {
-    return null
-  }
 
   return (
     <EnemyConsole

@@ -10,11 +10,48 @@ import type {
 } from './combatScenario'
 import { contextScenarioMember } from './combatScenario'
 import type { ResonatorId } from './runtime'
+import type { RotationNode } from '@/domain/gameData/contracts'
+
+export interface ScenarioSummary {
+  resonatorId: ResonatorId
+  level: number
+  sequence: number
+  rotationNodes: number
+}
+
+function countProgramNodes(items: readonly RotationNode[]): number {
+  let total = 0
+  for (const node of items) {
+    total += 1
+    if (node.type === 'repeat' || node.type === 'uptime') {
+      total += countProgramNodes(node.setup ?? [])
+      total += countProgramNodes(node.items)
+    }
+  }
+  return total
+}
+
+export function summarizeScenario(scenario: CombatScenario): ScenarioSummary {
+  const member = contextScenarioMember(scenario)
+  return {
+    resonatorId: member.resonatorId,
+    level: member.progression.level ?? 1,
+    sequence: member.progression.sequence ?? 0,
+    rotationNodes: countProgramNodes(scenario.program.program),
+  }
+}
+
+export function copyScenarioRecords(
+  records: ScenarioWorkspace['scenariosById'],
+): ScenarioWorkspace['scenariosById'] {
+  return Object.defineProperties({}, Object.getOwnPropertyDescriptors(records))
+}
 
 export interface ScenarioWorkspace {
   selectedScenarioId: CombatScenarioId
   order: CombatScenarioId[]
   scenariosById: Record<CombatScenarioId, CombatScenario>
+  summaryById?: Record<CombatScenarioId, ScenarioSummary>
 }
 
 export interface ContextResonatorScenario {
@@ -23,9 +60,11 @@ export interface ContextResonatorScenario {
 }
 
 export function listContextResonatorScenarios(
-  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById'>,
+  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById' | 'summaryById'>,
 ): ContextResonatorScenario[] {
   return workspace.order.flatMap((scenarioId) => {
+    const summary = workspace.summaryById?.[scenarioId]
+    if (summary) return [{ resonatorId: summary.resonatorId, scenarioId }]
     const scenario = workspace.scenariosById[scenarioId]
     return scenario
       ? [{ resonatorId: contextScenarioMember(scenario).resonatorId, scenarioId }]
@@ -34,23 +73,26 @@ export function listContextResonatorScenarios(
 }
 
 export function scenarioForContextResonator(
-  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById'>,
+  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById' | 'summaryById'>,
   resonatorId: ResonatorId,
 ): CombatScenario | null {
-  for (const scenarioId of workspace.order) {
-    const scenario = workspace.scenariosById[scenarioId]
-    if (scenario && contextScenarioMember(scenario).resonatorId === resonatorId) {
-      return scenario
-    }
-  }
-  return null
+  const id = scenarioIdForContextResonator(workspace, resonatorId)
+  return id ? workspace.scenariosById[id] ?? null : null
 }
 
 export function scenarioIdForContextResonator(
-  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById'>,
+  workspace: Pick<ScenarioWorkspace, 'order' | 'scenariosById' | 'summaryById'>,
   resonatorId: ResonatorId,
 ): CombatScenarioId | null {
-  return scenarioForContextResonator(workspace, resonatorId)?.id ?? null
+  for (const scenarioId of workspace.order) {
+    const summary = workspace.summaryById?.[scenarioId]
+    if (summary?.resonatorId === resonatorId) return scenarioId
+    if (!summary) {
+      const scenario = workspace.scenariosById[scenarioId]
+      if (scenario && contextScenarioMember(scenario).resonatorId === resonatorId) return scenarioId
+    }
+  }
+  return null
 }
 
 export function selectedCombatScenario(workspace: ScenarioWorkspace): CombatScenario {
@@ -82,12 +124,24 @@ export function replaceScenario(
     throw new Error(`A working scenario already exists for ${contextResonatorId}`)
   }
 
+  const nextSummary = summarizeScenario(scenario)
+  const previousSummary = workspace.summaryById?.[scenario.id]
+  const summaryById = !workspace.summaryById
+    ? undefined
+    : previousSummary
+      && previousSummary.resonatorId === nextSummary.resonatorId
+      && previousSummary.level === nextSummary.level
+      && previousSummary.sequence === nextSummary.sequence
+      && previousSummary.rotationNodes === nextSummary.rotationNodes
+      ? workspace.summaryById
+      : { ...workspace.summaryById, [scenario.id]: nextSummary }
+
   return {
     ...workspace,
-    scenariosById: {
-      ...workspace.scenariosById,
+    ...(summaryById ? { summaryById } : {}),
+    scenariosById: Object.assign(copyScenarioRecords(workspace.scenariosById), {
       [scenario.id]: scenario,
-    },
+    }),
   }
 }
 
@@ -107,10 +161,12 @@ export function addScenario(
   return {
     selectedScenarioId: select ? scenario.id : workspace.selectedScenarioId,
     order: [...workspace.order, scenario.id],
-    scenariosById: {
-      ...workspace.scenariosById,
+    ...(workspace.summaryById ? {
+      summaryById: { ...workspace.summaryById, [scenario.id]: summarizeScenario(scenario) },
+    } : {}),
+    scenariosById: Object.assign(copyScenarioRecords(workspace.scenariosById), {
       [scenario.id]: scenario,
-    },
+    }),
   }
 }
 
@@ -136,13 +192,16 @@ export function removeScenario(
   }
 
   const order = workspace.order.filter((id) => id !== scenarioId)
-  const scenariosById = { ...workspace.scenariosById }
+  const scenariosById = copyScenarioRecords(workspace.scenariosById)
   delete scenariosById[scenarioId]
+  const summaryById = workspace.summaryById ? { ...workspace.summaryById } : undefined
+  if (summaryById) delete summaryById[scenarioId]
   return {
     selectedScenarioId: workspace.selectedScenarioId === scenarioId
       ? order[0]
       : workspace.selectedScenarioId,
     order,
     scenariosById,
+    ...(summaryById ? { summaryById } : {}),
   }
 }

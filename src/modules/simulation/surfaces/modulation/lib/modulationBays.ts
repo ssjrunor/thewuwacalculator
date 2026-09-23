@@ -193,6 +193,71 @@ function stackMax(srcRt: ResRuntime, tgtRt: ResRuntime, state: SourceState, actR
   return Number.isFinite(natural) && natural > 0 ? natural : 1
 }
 
+function modulationOwners(srcRt: ResRuntime): SrcOwnDef[] {
+  const weaponId = srcRt.build.weapon.id
+  const mainEcho = getMainEchoS(srcRt)
+  const setIds = new Set(
+    srcRt.build.echoes
+      .filter((echo): echo is NonNullable<typeof echo> => Boolean(echo))
+      .map((echo) => String(echo.set)),
+  )
+
+  return [
+    ...[...listOwnersFor('resonator', srcRt.id)].sort(
+      (a, b) => resOwnerRank(a) - resOwnerRank(b),
+    ),
+    ...(isNoWeaponId(weaponId) ? [] : listOwnersFor('weapon', weaponId)),
+    ...(mainEcho ? listOwnersFor(mainEcho.type, mainEcho.id) : []),
+    ...[...setIds].flatMap((setId) => listOwnersFor('echoSet', setId)),
+  ]
+}
+
+function forteModeControlKey(srcRt: ResRuntime): string | null {
+  const member = getResonator(srcRt.id)
+  return member ? mkForteMode(member)?.controlKey ?? null : null
+}
+
+function stateVisibility(
+  srcRt: ResRuntime,
+  actRt: ResRuntime,
+  state: SourceState,
+): { drawn: boolean; visible: boolean } {
+  const gate = gateOf(state)
+  const visible = isStateVisible(srcRt, srcRt, state, actRt)
+  return {
+    visible,
+    drawn: visible || Boolean(gate && !gate.met(srcRt)),
+  }
+}
+
+/** Counts active and available effects without materializing row metadata. */
+export function countModulationEffects(
+  srcRt: ResRuntime,
+  actRt: ResRuntime,
+): { on: number; all: number } {
+  const treeModeControlKey = forteModeControlKey(srcRt)
+  let on = 0
+  let all = 0
+
+  for (const owner of modulationOwners(srcRt)) {
+    for (const state of listSttsForO(owner.ownerKey)) {
+      if (treeModeControlKey && state.controlKey === treeModeControlKey) continue
+      const { drawn, visible } = stateVisibility(srcRt, actRt, state)
+      if (!drawn) continue
+
+      all += 1
+      if (!visible || !isSrcSttOn(srcRt, srcRt, state, actRt)) continue
+      const value = readValue(srcRt, state)
+      const lit = state.kind === 'toggle'
+        ? value === true
+        : Number(value) > Number(state.min ?? 0)
+      if (lit) on += 1
+    }
+  }
+
+  return { on, all }
+}
+
 /*
   the shown resonator's own switches, in bays.
 
@@ -214,15 +279,7 @@ export function makeModulationBays(
     ),
   )
 
-  const owners: SrcOwnDef[] = [
-    /* the sort is stable, so an inherent's unlock order and s1..s6 survive */
-    ...[...listOwnersFor('resonator', srcRt.id)].sort(
-      (a, b) => resOwnerRank(a) - resOwnerRank(b),
-    ),
-    ...(isNoWeaponId(weaponId) ? [] : listOwnersFor('weapon', weaponId)),
-    ...(mainEcho ? listOwnersFor(mainEcho.type, mainEcho.id) : []),
-    ...setIds.flatMap((setId) => listOwnersFor('echoSet', setId)),
-  ]
+  const owners = modulationOwners(srcRt)
 
   /*
     a resonator whose modes the tree can draw gets its sigil at the crown, so
@@ -230,8 +287,7 @@ export function makeModulationBays(
     tree declines (phoebe: a status she can also be in neither of, and no art)
     keeps it here as an ordinary cell.
   */
-  const member = getResonator(srcRt.id)
-  const treeMode = member ? mkForteMode(member) : null
+  const treeModeControlKey = forteModeControlKey(srcRt)
   const weaponIcon = weapon?.icon ?? null
 
   const byBay = new Map<BayId, { owners: SrcOwnDef[]; rows: BayRow[] }>()
@@ -242,15 +298,15 @@ export function makeModulationBays(
     entry.owners.push(owner)
 
     for (const state of listSttsForO(owner.ownerKey)) {
-      if (treeMode && state.controlKey === treeMode.controlKey) {
+      if (treeModeControlKey && state.controlKey === treeModeControlKey) {
         continue
       }
 
       const gate = gateOf(state)
-      const visible = isStateVisible(srcRt, srcRt, state, actRt)
+      const { drawn, visible } = stateVisibility(srcRt, actRt, state)
 
       // hidden and not merely gated: this state does not apply to the build
-      if (!visible && !(gate && !gate.met(srcRt))) {
+      if (!drawn) {
         continue
       }
 

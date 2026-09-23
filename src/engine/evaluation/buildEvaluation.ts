@@ -4,7 +4,7 @@
 */
 
 export * from './evaluation/types.ts'
-export { GRADE_LADDER } from './evaluation/stats.ts'
+export { GRADE_LADDER } from './evaluation/grades.ts'
 export { buildEvaluation } from './evaluation/search.ts'
 export { buildEvaluationFeatureBreakdown } from './evaluation/features.ts'
 export {

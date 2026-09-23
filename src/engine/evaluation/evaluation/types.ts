@@ -7,7 +7,7 @@ import type { SkillTypeKey } from '@/domain/entities/stats';
 import type { EnemyProfile } from '@/domain/entities/appState';
 import type { CombatScenarioId, TeamMemberId } from '@/domain/entities/combatScenario';
 import type { RotationNode } from '@/domain/gameData/contracts';
-import type { SimResult } from '@/engine/pipeline/types';
+import type { RotationTargetSimulation } from '@/engine/pipeline/types';
 
 
 
@@ -189,7 +189,7 @@ export interface DefRotEvaluationIn {
   scenarioId: CombatScenarioId
   memberId: TeamMemberId
   runtime: ResRuntime
-  simulation: SimResult | null
+  simulation: RotationTargetSimulation | null
   enemy: EnemyProfile
   runtimesById: Record<string, ResRuntime>
 }

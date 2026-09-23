@@ -43,7 +43,17 @@ scope.onmessage = async (event: MessageEvent<EvaluationWorkerIn>) => {
   const message = event.data
 
   try {
-    await initGameData({ mode: message.gameDataMode })
+    const resonatorIds = Array.from(new Set([
+      message.payload.runtime.id,
+      ...Object.keys(message.payload.runtimesById),
+    ]))
+    await initGameData({
+      mode: message.gameDataMode,
+      resonatorIds,
+      calculationOnly: true,
+      weaponIds: [message.payload.runtime, ...Object.values(message.payload.runtimesById)]
+        .flatMap((runtime) => runtime.build.weapon.id ? [runtime.build.weapon.id] : []),
+    })
     // Rehydrate persisted anchors before the first search so a cold worker (idle
     // teardown / page reload) can re-score from disk instead of re-searching.
     await ensureAnchorStoreHydrated()

@@ -7,10 +7,7 @@ import { useMemo } from 'react'
 import type { SavedRotation } from '@/domain/entities/inventoryStorage.ts'
 import { useAppStore } from '@/application/state'
 import { useTstStr } from '@/shared/util/toastStore.ts'
-import {
-  normalizeImportedRotationEntries,
-  type NormalizedImportedRotation,
-} from '@/application/imports/rotationPayload.ts'
+import type { NormalizedImportedRotation } from '@/application/imports/rotationPayload.ts'
 import { useLoadRotation } from '@/modules/simulation/surfaces/rotation/program-editor/saved/useLoadRotation.ts'
 import type { ImportHandler } from '@/application/imports/types.ts'
 
@@ -23,7 +20,13 @@ export function useRotationImportHandler(): ImportHandler<NormalizedImportedRota
 
   return useMemo<ImportHandler<NormalizedImportedRotation[]>>(() => ({
     kind: ROTATION_IMPORT_KIND,
-    detect: (parsed) => {
+    detect: async (parsed) => {
+      const [{ normalizeImportedRotationEntries }, { collectResonatorIds }, { ensureResonatorData }] = await Promise.all([
+        import('@/application/imports/rotationPayload.ts'),
+        import('@/application/persistence/resonatorScope'),
+        import('@/data/gameData'),
+      ])
+      await ensureResonatorData(collectResonatorIds(parsed))
       const entries = normalizeImportedRotationEntries(parsed)
       return entries.length > 0 ? entries : null
     },

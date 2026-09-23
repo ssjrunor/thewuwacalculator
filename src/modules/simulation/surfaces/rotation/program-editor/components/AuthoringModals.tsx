@@ -24,7 +24,7 @@ import {AppModal} from "@/shared/ui/AppModal.tsx";
 import { ModalHeader } from "@/shared/ui/AppModalShell";
 import {LiquidSelect, type SelectOption} from "@/application/ui/LiquidSelect.tsx";
 import {Check, Crosshair, Plus, Repeat, Search, Sparkles, X} from "lucide-react";
-import {getResById} from "@/data/catalog/resonatorCatalogService.ts";
+import {getResSeedBy} from "@/data/catalog/resonatorSeedService.ts";
 import {RichDscr} from "@/modules/simulation/ui/RichDescription.tsx";
 import {withDefIconM} from "@/shared/lib/imageFallback.ts";
 import {
@@ -182,7 +182,7 @@ export function Condition({
           key,
           label: getCondOwnerLabel(choice),
           kind,
-          profile: kind === 'resonator' ? (getResById(choice.resonatorId)?.profile ?? '') : '',
+          profile: kind === 'resonator' ? (getResSeedBy(choice.resonatorId)?.profile ?? '') : '',
           count: 0,
         }
         byKey.set(key, owner)

@@ -161,8 +161,36 @@ function mkCmbSetCnts(
   return setCounts
 }
 
+function createBaseStats() {
+  return {
+    atkP: 0,
+    atkF: 0,
+    hpP: 0,
+    hpF: 0,
+    defP: 0,
+    defF: 0,
+    critRate: 0,
+    critDmg: 0,
+    er: 0,
+    basic: 0,
+    heavy: 0,
+    skill: 0,
+    lib: 0,
+    aero: 0,
+    spectro: 0,
+    fusion: 0,
+    glacio: 0,
+    havoc: 0,
+    electro: 0,
+  }
+}
+
 // sum all raw echo stat rows for the chosen combo before main-echo bonuses
-function mkBaseStts(stats: Float32Array, comboIds: Int32Array) {
+function mkBaseStts(
+    stats: Float32Array,
+    comboIds: Int32Array,
+    base = createBaseStats(),
+) {
   let atkP = 0
   let atkF = 0
   let hpP = 0
@@ -208,27 +236,26 @@ function mkBaseStts(stats: Float32Array, comboIds: Int32Array) {
     electro += stats[base + 19]
   }
 
-  return {
-    atkP,
-    atkF,
-    hpP,
-    hpF,
-    defP,
-    defF,
-    critRate,
-    critDmg,
-    er,
-    basic,
-    heavy,
-    skill,
-    lib,
-    aero,
-    spectro,
-    fusion,
-    glacio,
-    havoc,
-    electro,
-  }
+  base.atkP = atkP
+  base.atkF = atkF
+  base.hpP = hpP
+  base.hpF = hpF
+  base.defP = defP
+  base.defF = defF
+  base.critRate = critRate
+  base.critDmg = critDmg
+  base.er = er
+  base.basic = basic
+  base.heavy = heavy
+  base.skill = skill
+  base.lib = lib
+  base.aero = aero
+  base.spectro = spectro
+  base.fusion = fusion
+  base.glacio = glacio
+  base.havoc = havoc
+  base.electro = electro
+  return base
 }
 
 // select the combined element bonus bucket that matches the target skill element
@@ -279,7 +306,7 @@ function selSkllTypeB(
   )
 }
 
-export function evalTarget(options: {
+interface TargetEvaluationOptions {
   context: Float32Array
   stats: Float32Array
   setConstLut: Float32Array
@@ -289,26 +316,83 @@ export function evalTarget(options: {
   constraints?: Float32Array
   comboIds: Int32Array
   mainIndex: number
-}): { damage: number; stats: OptResultStats } | null {
-  const {
-    context,
-    stats,
-    setConstLut,
-    mainEchoBuffs: mainEchoBuffs,
-    sets,
-    kinds,
-    constraints,
-    comboIds,
-    mainIndex,
-  } = options
+}
 
-  const prepared = mkPrepCtx(context)
-  const setCounts = mkCmbSetCnts(sets, kinds, comboIds)
-  const base = mkBaseStts(stats, comboIds)
+export function evalTarget(options: TargetEvaluationOptions): { damage: number; stats: OptResultStats } | null {
+  const prepared = mkPrepCtx(options.context)
+  const setCounts = mkCmbSetCnts(options.sets, options.kinds, options.comboIds)
+  const base = mkBaseStts(options.stats, options.comboIds)
+  const setBonus = applySetF(setCounts, prepared.skillMask, options.setConstLut, prepared.setRuntimeMask)
+  const stats = { atk: 0, hp: 0, def: 0, er: 0, cr: 0, cd: 0, bonus: 0, amp: 0 }
+  const damage = evaluatePreparedTarget(
+    prepared, base, setCounts, setBonus,
+    options.mainEchoBuffs, options.mainIndex, options.constraints, stats,
+  )
+  return damage == null ? null : { damage, stats }
+}
 
-  // apply all unconditional + skill-aware set effects for this exact combo
-  const setBonus = applySetF(setCounts, prepared.skillMask, setConstLut, prepared.setRuntimeMask)
+// Packed contexts are immutable during a search. Unpack them once, then
+// prepare each candidate frame's set effects once. A trial only totals the
+// changing stat rows and evaluates the shared formula, without result objects.
+export function prepareTargetScoring(
+  contexts: readonly Float32Array[],
+  setConstLut: Float32Array,
+  weights?: Float32Array,
+) {
+  const prepared = contexts.map(mkPrepCtx)
+  const setGroups: Array<{ skillMask: number; runtimeMask: number }> = []
+  const groupIndexes = new Map<string, number>()
+  const setGroupByContext = prepared.map((context) => {
+    const key = `${context.skillMask}:${context.setRuntimeMask}`
+    let index = groupIndexes.get(key)
+    if (index === undefined) {
+      index = setGroups.length
+      setGroups.push({ skillMask: context.skillMask, runtimeMask: context.setRuntimeMask })
+      groupIndexes.set(key, index)
+    }
+    return index
+  })
 
+  // Fixed frame inputs must not change for the lifetime of the returned scorer.
+  return ({ sets, kinds, comboIds, mainEchoBuffs, mainIndex }: Pick<
+    TargetEvaluationOptions, 'sets' | 'kinds' | 'comboIds' | 'mainEchoBuffs' | 'mainIndex'
+  >): (stats: Float32Array) => number => {
+    const setCounts = mkCmbSetCnts(sets, kinds, comboIds)
+    const setBonuses = setGroups.map(({ skillMask, runtimeMask }) =>
+      applySetF(setCounts, skillMask, setConstLut, runtimeMask),
+    )
+    const base = createBaseStats()
+    return (stats) => {
+      // Reuse JS-number totals rather than Float32 scratch to preserve the
+      // original summation precision, including conversion thresholds.
+      mkBaseStts(stats, comboIds, base)
+      if (!weights && prepared.length === 1) {
+        return evaluatePreparedTarget(
+          prepared[0], base, setCounts, setBonuses[setGroupByContext[0]], mainEchoBuffs, mainIndex,
+        ) ?? 0
+      }
+      let total = 0
+      for (let index = 0; index < prepared.length; index += 1) {
+        const damage = evaluatePreparedTarget(
+          prepared[index], base, setCounts, setBonuses[setGroupByContext[index]], mainEchoBuffs, mainIndex,
+        ) ?? 0
+        total += damage * (weights?.[index] ?? 1)
+      }
+      return total
+    }
+  }
+}
+
+function evaluatePreparedTarget(
+  prepared: ReturnType<typeof mkPrepCtx>,
+  base: ReturnType<typeof mkBaseStts>,
+  setCounts: Uint8Array,
+  setBonus: ReturnType<typeof applySetF>,
+  mainEchoBuffs: Float32Array,
+  mainIndex: number,
+  constraints?: Float32Array,
+  resultStats?: OptResultStats,
+): number | null {
   const finalHpBase =
       prepared.baseHp * ((base.hpP + setBonus.hpP) / 100) +
       base.hpF +
@@ -530,17 +614,15 @@ export function evalTarget(options: {
     return null
   }
 
-  return {
-    damage: avg,
-    stats: {
-      atk: finalAtk,
-      hp: finalHpBase,
-      def: finalDefBase,
-      er: finalER,
-      cr: statCritRate * 100,
-      cd: statCritDmg * 100,
-      bonus: (statBonus - 1) * 100,
-      amp: (statAmp - 1) * 100,
-    },
+  if (resultStats) {
+    resultStats.atk = finalAtk
+    resultStats.hp = finalHpBase
+    resultStats.def = finalDefBase
+    resultStats.er = finalER
+    resultStats.cr = statCritRate * 100
+    resultStats.cd = statCritDmg * 100
+    resultStats.bonus = (statBonus - 1) * 100
+    resultStats.amp = (statAmp - 1) * 100
   }
+  return avg
 }

@@ -3,8 +3,8 @@
     --loader-mascot-still: url('/assets/app/loader/phoebe-still.webp');
     --loader-glow: #f8e56c;
     --loader-spark: color-mix(in srgb, #f8e56c 68%, var(--text, #dddddd));
-   --loader-threshold: 0.55s;
-    --loader-unfold: 0.62s;
+   --loader-threshold: 0.1s;
+    --loader-unfold: 0.15s;
 }
 
 .app-loader-host {
@@ -174,7 +174,7 @@
     aspect-ratio: 282 / 270;
   margin-bottom: .5rem;
     background: var(--loader-mascot) center bottom / contain no-repeat;
-    mask-image: linear-gradient(to bottom, #000 58%, rgba(0, 0, 0, 0.35) 88%, transparent 99%);
+    mask-image: linear-gradient(to bottom, #000 80%, rgba(0, 0, 0, 0.35) 90%, transparent 99%);
     transform-origin: 50% 90%;
     animation: app-loader-tilt 13s ease-in-out infinite;
 }

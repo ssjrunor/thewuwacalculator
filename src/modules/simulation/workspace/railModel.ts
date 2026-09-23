@@ -4,6 +4,7 @@
                catalog metadata, equipment, team members, and Sonata sets.
 */
 
+import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { isNoWeaponId } from '@/domain/entities/runtime'
 import { getWpnById } from '@/data/catalog/weaponCatalogService'
@@ -11,7 +12,7 @@ import { getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
-import { getResonator, spriteVars } from '@/modules/simulation/features/resonator/lib/resonator.ts'
+import { spriteVars } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { toTitle } from '@/shared/lib/format'
 import { getWpnVisKey } from '@/modules/simulation/workspace/weaponVisual.ts'
 import { buildSonataPlan } from '@/modules/simulation/workspace/ui.tsx'
@@ -57,7 +58,7 @@ export function makeRailModel(resId: string | null, ctx: RailModelCtx): BuildRai
   const railTeamSupports = (railRuntime?.build.team?.slice(1) ?? [])
     .filter((id): id is string => Boolean(id))
     .map((id) => {
-      const res = getResonator(id)
+      const res = getResSeedBy(id)
       if (!res) return null
       const mateRt = railDisplayRuntimesById[id] ?? null
       const mateWpnState = mateRt?.build.weapon ?? null

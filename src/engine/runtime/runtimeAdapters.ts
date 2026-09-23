@@ -326,17 +326,22 @@ function memberFromRuntime(
   return {
     ...previous,
     resonatorId: runtime.id,
-    progression: {
+    progression: runtime.base === previous.progression ? previous.progression : {
       level: runtime.base.level,
       sequence: runtime.base.sequence,
-      skillLevels: cloneSkllLvl(runtime.base.skillLevels),
-      traceNodes: cloneTrcNode(runtime.base.traceNodes),
+      skillLevels: runtime.base.skillLevels === previous.progression.skillLevels
+        ? previous.progression.skillLevels : cloneSkllLvl(runtime.base.skillLevels),
+      traceNodes: runtime.base.traceNodes === previous.progression.traceNodes
+        ? previous.progression.traceNodes : cloneTrcNode(runtime.base.traceNodes),
     },
-    loadout: {
-      weapon: cloneWpnMkSt(runtime.build.weapon),
-      echoes: repairEchoLoadoutForCatalog(runtime.build.echoes),
-    },
-    local: {
+    loadout: runtime.build.weapon === previous.loadout.weapon && runtime.build.echoes === previous.loadout.echoes
+      ? previous.loadout : {
+        weapon: runtime.build.weapon === previous.loadout.weapon
+          ? previous.loadout.weapon : cloneWpnMkSt(runtime.build.weapon),
+        echoes: runtime.build.echoes === previous.loadout.echoes
+          ? previous.loadout.echoes : repairEchoLoadoutForCatalog(runtime.build.echoes),
+      },
+    local: runtime.state.controls === previous.local.controls ? previous.local : {
       ...previous.local,
       controls: { ...runtime.state.controls },
     },
@@ -385,13 +390,78 @@ function memberForAddedRuntime(
   return base
 }
 
+// Most workspace edits change one member field without changing team layout,
+// combat state, manual effects, or the program. Preserve all untouched
+// canonical branches instead of rebuilding the complete scenario for them.
+function applyMemberRuntimeDelta(
+  scenario: CombatScenario,
+  resonatorId: string,
+  previousRuntime: ResRuntime,
+  runtime: ResRuntime,
+): CombatScenario | null {
+  const memberIndex = scenario.team.members.findIndex((member) => member.resonatorId === resonatorId)
+  if (memberIndex < 0
+    || runtime.id !== previousRuntime.id
+    || runtime.build.team !== previousRuntime.build.team
+    || runtime.teamRuntimes !== previousRuntime.teamRuntimes
+    || runtime.rotation !== previousRuntime.rotation
+    || runtime.state.combat !== previousRuntime.state.combat
+    || runtime.state.manualBuffs !== previousRuntime.state.manualBuffs) {
+    return null
+  }
+
+  const baseChanged = runtime.base !== previousRuntime.base
+  const weaponChanged = runtime.build.weapon !== previousRuntime.build.weapon
+  const echoesChanged = runtime.build.echoes !== previousRuntime.build.echoes
+  const controlsChanged = runtime.state.controls !== previousRuntime.state.controls
+  if (!baseChanged && !weaponChanged && !echoesChanged && !controlsChanged) return null
+
+  const previousMember = scenario.team.members[memberIndex]
+  const normalizedRuntime = echoesChanged
+    ? maxEchoIfChg(runtime, previousMember.loadout.echoes)
+    : runtime
+  const nextMember: ScenarioTeamMember = {
+    ...previousMember,
+    progression: baseChanged ? {
+      level: normalizedRuntime.base.level,
+      sequence: normalizedRuntime.base.sequence,
+      skillLevels: normalizedRuntime.base.skillLevels === previousRuntime.base.skillLevels
+        ? previousMember.progression.skillLevels
+        : cloneSkllLvl(normalizedRuntime.base.skillLevels),
+      traceNodes: normalizedRuntime.base.traceNodes === previousRuntime.base.traceNodes
+        ? previousMember.progression.traceNodes
+        : cloneTrcNode(normalizedRuntime.base.traceNodes),
+    } : previousMember.progression,
+    loadout: weaponChanged || echoesChanged ? {
+      weapon: weaponChanged
+        ? cloneWpnMkSt(normalizedRuntime.build.weapon)
+        : previousMember.loadout.weapon,
+      echoes: echoesChanged
+        ? repairEchoLoadoutForCatalog(normalizedRuntime.build.echoes)
+        : previousMember.loadout.echoes,
+    } : previousMember.loadout,
+    local: controlsChanged ? {
+      ...previousMember.local,
+      controls: { ...normalizedRuntime.state.controls },
+    } : previousMember.local,
+  }
+  const members = scenario.team.members.map((member, index) =>
+    index === memberIndex ? nextMember : member)
+  return reviseCombatScenario(scenario, { team: makeScenarioTeam(members) })
+}
+
 // Apply a legacy runtime edit to the canonical scenario. Runtime team fields are
 // interpreted only as a compatibility command payload for existing UI surfaces.
 export function applyRuntimeToSimulation(
   scenario: CombatScenario,
   resonatorId: string,
   runtime: ResRuntime,
+  previousRuntime?: ResRuntime,
 ): { scenario: CombatScenario } {
+  const delta = previousRuntime
+    ? applyMemberRuntimeDelta(scenario, resonatorId, previousRuntime, runtime)
+    : null
+  if (delta) return { scenario: delta }
   const memberIndex = scenario.team.members.findIndex(
     (member) => member.resonatorId === resonatorId,
   )

@@ -62,7 +62,7 @@ export const BG_PRESETS: BgPreset[] = [
   {
     id: 'builtin:wallpaperflare1.jpg',
     label: 'wallpaper 1',
-    src: '/assets/app/backgrounds/wallpaperflare1.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare1-2560.webp',
     preview: 'linear-gradient(135deg, #4f6fa9 0%, #d49bc8 52%, #f4d5b4 100%)',
   },
   {
@@ -86,7 +86,7 @@ export const BG_PRESETS: BgPreset[] = [
   {
     id: 'builtin:wallpaperflare5.jpg',
     label: 'wallpaper 5',
-    src: '/assets/app/backgrounds/wallpaperflare5.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare5-2560.webp',
     preview: 'linear-gradient(135deg, #3e355d 0%, #8579be 50%, #f2b6a7 100%)',
   },
   {
@@ -98,31 +98,31 @@ export const BG_PRESETS: BgPreset[] = [
   {
     id: 'builtin:wallpaperflare7.jpg',
     label: 'wallpaper 7',
-    src: '/assets/app/backgrounds/wallpaperflare7.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare7-2560.webp',
     preview: 'linear-gradient(135deg, #3d5468 0%, #7fa1c8 46%, #f3cad1 100%)',
   },
   {
     id: 'builtin:wallpaperflare8.jpg',
     label: 'wallpaper 8',
-    src: '/assets/app/backgrounds/wallpaperflare8.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare8-2560.webp',
     preview: 'linear-gradient(135deg, #25484f 0%, #6ab6b0 50%, #dceab5 100%)',
   },
   {
     id: 'builtin:wallpaperflare10.jpg',
     label: 'wallpaper 10',
-    src: '/assets/app/backgrounds/wallpaperflare10.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare10-2560.webp',
     preview: 'linear-gradient(135deg, #353763 0%, #7d86d1 52%, #f0d8a4 100%)',
   },
   {
     id: 'builtin:wallpaperflare11.jpg',
     label: 'wallpaper 11',
-    src: '/assets/app/backgrounds/wallpaperflare11.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare11-2560.webp',
     preview: 'linear-gradient(135deg, #1e2f48 0%, #516b95 44%, #b4bcd2 72%, #efe3c0 100%)',
   },
   {
     id: 'builtin:wallpaperflare12.jpg',
     label: 'wallpaper 12',
-    src: '/assets/app/backgrounds/wallpaperflare12.jpg',
+    src: '/assets/app/backgrounds/wallpaperflare12-2560.webp',
     preview: 'linear-gradient(135deg, #364562 0%, #7d90ba 48%, #d6c1e5 100%)',
   },
   {

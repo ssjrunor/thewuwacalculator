@@ -20,7 +20,7 @@ export type ImportApplyVariant = 'primary' | 'secondary'
 // domain state changes, even when it arrived from a URL.
 export interface ImportHandler<P = unknown> {
   kind: string
-  detect: (parsed: unknown) => P | null
+  detect: (parsed: unknown) => P | null | Promise<P | null>
   review: (payload: P) => ImportReview
   apply: (payload: P, variant: ImportApplyVariant) => void | Promise<void>
 }
@@ -29,18 +29,18 @@ export interface ImportHandler<P = unknown> {
 // validated payload inside the bound apply callback.
 export interface RegisteredImport {
   kind: string
-  tryResolve: (parsed: unknown) => {
+  tryResolve: (parsed: unknown) => Promise<{
     kind: string
     review: ImportReview
     apply: (variant: ImportApplyVariant) => void | Promise<void>
-  } | null
+  } | null>
 }
 
 export function defineImport<P>(handler: ImportHandler<P>): RegisteredImport {
   return {
     kind: handler.kind,
-    tryResolve: (parsed) => {
-      const payload = handler.detect(parsed)
+    tryResolve: async (parsed) => {
+      const payload = await handler.detect(parsed)
       if (payload == null) return null
       return {
         kind: handler.kind,

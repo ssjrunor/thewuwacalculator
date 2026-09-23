@@ -5,11 +5,11 @@
                legacy Evaluation view.
 */
 
-import { Suspense, startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/application/state'
 import {
   selActResId,
-  selVrvwDrvd,
+  selWorkDrvd,
 } from '@/application/state'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
 import { getResonator, type ResView } from '@/modules/simulation/features/resonator/lib/resonator.ts'
@@ -23,16 +23,12 @@ import { getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { useEchoSrfcM } from '@/modules/simulation/features/echoes/lib/useEchoSurfaceMenu.tsx'
 import { qpEchoAtSlot } from '@/modules/simulation/features/echoes/lib/equip.ts'
 import { openEchoCnsl } from '@/modules/simulation/features/echoes/lib/echoConsoleStore.ts'
-import {
-  copyBuildCard,
-  downloadBuildCard,
-  renderBuildCardPng,
-} from '@/modules/simulation/surfaces/showcase/captureBuildCard.ts'
+
 import { ATTR_COLORS } from '@/modules/simulation/model/display'
-import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE, type ShowcaseCardStyle } from '@/domain/entities/preferences'
 import {
   FULL_EVALUATION_REPORT_OPTIONS,
+  MODULATION_SUMMARY_REPORT_OPTIONS,
   SCORE_ONLY_EVALUATION_REPORT_OPTIONS,
   useEvaluationReport,
 } from '@/modules/simulation/model/useBuildEvaluation.ts'
@@ -52,13 +48,18 @@ import { makeStatsTree, makeStatsView } from '@/modules/simulation/model/statsVi
 import { getMaxEchoSc } from '@/engine/evaluation/echoScoring.ts'
 import { useEchoScores } from '@/engine/evaluation/useEchoScoringRevision.ts'
 import { getBuildStats } from '@/engine/pipeline/buildStats.ts'
-import { mkPrepWork } from '@/engine/pipeline/preparedWorkspace.ts'
+import { mkPrepWork, type PrepWork } from '@/engine/pipeline/preparedWorkspace.ts'
 import { selLiveRun } from '@/modules/simulation/model/selectors.ts'
-import { prepareEchoMainStatScoring } from '@/engine/evaluation/echoMainStatProfile.ts'
+import type { SimResult } from '@/engine/pipeline/types.ts'
+import { scheduleAfterSettled } from '@/shared/lib/scheduleAfterSettled.ts'
+import {
+  cacheEchoMainStatScoringFromEvaluation,
+  prepareEchoMainStatScoring,
+} from '@/engine/evaluation/echoMainStatProfile.ts'
 import { resResBaseSt } from '@/data/catalog/resonatorSeedService.ts'
 import { useAppModal } from '@/shared/ui/useAppModal'
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
-import { ImageUploadModal } from '@/application/media/ImageUploadModal'
+
 import { resolveImageRef } from '@/application/media/imageUpload.ts'
 import type { StoredImage } from '@/application/media/imageUpload.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
@@ -75,10 +76,9 @@ import {
   buildSonataPlan, getEvaluationSpinePlacement,
   preloadEvaluationRailImages, scheduleEvaluationTargetWork,
 } from '@/modules/simulation/workspace/ui.tsx'
-import { ShowcaseCssEditorDock, ShowcaseCustomizePanel } from '@/modules/simulation/surfaces/showcase/Customize.tsx'
 import { buildTextSlotVars, collectCardFontFamilies, splitHoistedCss } from '@/modules/simulation/surfaces/showcase/cardStyleVars.ts'
-import { buildCardExport, parseCardImport, type CardExportTarget } from '@/modules/simulation/surfaces/showcase/cardTransfer.ts'
-import { readAppFile, xprtAppFile } from '@/application/persistence/fileCodec.ts'
+import type { CardExportTarget } from '@/modules/simulation/surfaces/showcase/cardTransfer.ts'
+
 import { ensureGoogleFamily } from '@/application/theme/typography.ts'
 import {
   type BuildRosterEntry,
@@ -101,13 +101,48 @@ import { makeEchoSlot } from '@/modules/simulation/workspace/echoSlot.ts'
 import { useWorkspaceEchoActions } from '@/modules/simulation/workspace/useWorkspaceEchoActions.ts'
 import { optimizerPane, suggestionsPane } from '@/modules/simulation/shell/surfaceChunks.ts'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay.tsx'
-import { useInventoryLease } from '@/application/hooks/useInventoryLease.ts'
 
+const ImageUploadModal = lazy(async () => ({ default: (await import('@/application/media/ImageUploadModal')).ImageUploadModal }))
 const EMPTY_ECHO_LOADOUT: Array<EchoInstance | null> = []
 const EMPTY_RUNTIME_MAP: Record<string, ResRuntime> = Object.freeze({})
+// Defer report construction beyond the 460ms drawer transition so its worker
+// and lazy module work do not contend with the transition.
+const REPORT_ASIDE_WORK_DELAY_MS = 500
 
 const EmbeddedOptimizer = optimizerPane.Mount
 const EmbeddedSuggestions = suggestionsPane.Mount
+const ShowcaseCustomizePanel = lazy(async () => ({
+  default: (await import('@/modules/simulation/surfaces/showcase/Customize.tsx')).ShowcaseCustomizePanel,
+}))
+const ShowcaseCssEditorDock = lazy(async () => ({
+  default: (await import('@/modules/simulation/surfaces/showcase/CssEditorDock.tsx')).ShowcaseCssEditorDock,
+}))
+
+function useSettledLiveRun(work: PrepWork | null, ownerKey: string): {
+  simulation: SimResult | null
+  ready: boolean
+} {
+  const [completed, setCompleted] = useState<{
+    ownerKey: string
+    work: PrepWork
+    simulation: SimResult | null
+  } | null>(null)
+
+  /* eslint-disable react-hooks/set-state-in-effect -- releases a different member's result at the idle-work boundary. */
+  useEffect(() => {
+    setCompleted((previous) => previous?.ownerKey === ownerKey ? previous : null)
+    if (!work) return undefined
+    return scheduleAfterSettled(() => {
+      setCompleted({ ownerKey, work, simulation: selLiveRun(work) })
+    })
+  }, [ownerKey, work])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  return {
+    simulation: completed?.ownerKey === ownerKey ? completed.simulation : null,
+    ready: Boolean(work && completed?.ownerKey === ownerKey && completed.work === work),
+  }
+}
 
 function useResolvedImageRef(ref: string | null): string | null {
   const [resolved, setResolved] = useState<{ ref: string, url: string } | null>(null)
@@ -139,11 +174,40 @@ function useResolvedImageRef(ref: string | null): string | null {
 }
 
 export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
-  useInventoryLease()
   const showToast = useTstStr((state) => state.show)
   const confirmation = useConfirm()
   const portalTarget = mainPortal()
   const [detailBuildKey, setDetailBuildKey] = useState<DetailBuildKey>('active')
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportWorkReady, setReportWorkReady] = useState(false)
+  const reportWorkTimer = useRef<number | null>(null)
+  const clearReportWorkTimer = useCallback(() => {
+    if (reportWorkTimer.current == null) return
+    window.clearTimeout(reportWorkTimer.current)
+    reportWorkTimer.current = null
+  }, [])
+  const closeEvaluationReport = useCallback(() => {
+    clearReportWorkTimer()
+    setReportWorkReady(false)
+    setReportOpen(false)
+  }, [clearReportWorkTimer])
+  const openEvaluationReport = useCallback(() => {
+    clearReportWorkTimer()
+    setReportWorkReady(false)
+    setReportOpen(true)
+
+    const reduceMotion = document.documentElement.classList.contains('reduce-animation')
+      || document.documentElement.classList.contains('no-entrance-anim')
+    if (reduceMotion) {
+      setReportWorkReady(true)
+      return
+    }
+
+    reportWorkTimer.current = window.setTimeout(() => {
+      reportWorkTimer.current = null
+      setReportWorkReady(true)
+    }, REPORT_ASIDE_WORK_DELAY_MS)
+  }, [clearReportWorkTimer])
   const actResId = useAppStore(selActResId)
   const scenarioLibrary = useAppStore((state) => state.combat)
   const showAllStates = useAppStore((state) => state.ui.preferences.showEvaluationStates)
@@ -152,7 +216,8 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   const isDarkTheme = themeMode === 'background' ? backgroundTextMode === 'dark' : themeMode === 'dark'
   const animatedPortraits = useAppStore((state) => state.ui.preferences.animatedRailPortraits)
   const optimizerRunning = useAppStore((state) => state.optimizer.status === 'running')
-  const { prepWork, actRt: runtime, partRtsById, actTgtSels } = useAppStore(selVrvwDrvd)
+  const inventoryOpen = useAppStore((state) => state.invOpen)
+  const { prepWork, actRt: runtime, partRtsById, actTgtSels } = useAppStore(selWorkDrvd)
   const updateScenarioRuntime = useAppStore((state) => state.updScenarioResRt)
   const setAnimatedPortraits = useAppStore((state) => state.setAnimatedRailPortraits)
   const selectedScenarioId = scenarioLibrary.selectedScenarioId
@@ -167,6 +232,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
 
   const isNarrow = useMediaQuery('(max-width: 80rem)')
   const surfacePhase = 'idle' as const
+  const analysisActive = surfacePhase === 'idle' && !inventoryOpen
   const [captureAction, setCaptureAction] = useState<'download' | 'clipboard' | null>(null)
 
   // Showcase customization persists independently for each resonator.
@@ -350,9 +416,11 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   }, [railResId, patchShowcaseCardHidden, updateShowcaseStyle])
 
   const handleExportTarget = useCallback(async (target: CardExportTarget) => {
+    const { buildCardExport } = await import('@/modules/simulation/surfaces/showcase/cardTransfer.ts')
     const { raw, filename, mime } = buildCardExport(target, cardStyle, cardHidden)
 
     if (mime === 'application/json') {
+      const { xprtAppFile } = await import('@/application/persistence/fileCodec.ts')
       await xprtAppFile(filename, raw)
       return
     }
@@ -368,6 +436,10 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   const handleImportFile = useCallback(async (file: File) => {
     if (!railResId) return
     try {
+      const [{ parseCardImport }, { readAppFile }] = await Promise.all([
+        import('@/modules/simulation/surfaces/showcase/cardTransfer.ts'),
+        import('@/application/persistence/fileCodec.ts'),
+      ])
       const result = parseCardImport(file.name, await readAppFile(file))
       if (result.stylePatch) updateShowcaseStyle(result.stylePatch)
       if (result.hiddenPatch) patchShowcaseCardHidden(railResId, result.hiddenPatch)
@@ -495,8 +567,8 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   )
   const reportTargets = evaluationInputs.targetSelections
   const reportTarget = useEvaluationTarget({
-    targetRuntime: evaluationRuntime,
-    targetSeed: reportSeed,
+    targetRuntime: analysisActive ? evaluationRuntime : null,
+    targetSeed: analysisActive ? reportSeed : null,
     targetSelections: reportTargets,
     // Evaluation scoring has its own normalized runtime/enemy assumptions, so
     // it must not reuse the live active prep even when evaluating the active resonator.
@@ -539,10 +611,8 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     railTargets,
     selectedScenarioId,
   ])
-  const echoScoringSimulation = useMemo(
-    () => selLiveRun(echoScoringWork),
-    [echoScoringWork],
-  )
+  const { simulation: echoScoringSimulation, ready: echoScoringSimulationReady } =
+    useSettledLiveRun(echoScoringWork, `${railScenarioId}:${echoRuntime?.id ?? ''}`)
   const modulationAnalysisSource = useMemo<MemberAnalysisSource | null>(() => (
     railScenario && railRuntime
       ? {
@@ -563,36 +633,6 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     railTargets,
   ])
 
-  useEffect(() => {
-    if (!echoRuntime || !echoSeed || !railScenario || !echoScoringSimulation) return undefined
-    const member = railScenario.team.members.find((entry) => entry.resonatorId === echoRuntime.id)
-    if (!member) return undefined
-
-    const timer = window.setTimeout(() => {
-      void prepareEchoMainStatScoring({
-        scenarioId: railScenario.id,
-        memberId: member.id,
-        runtime: echoRuntime,
-        seed: echoSeed,
-        enemy: railScenario.target,
-        runtimesById: railPartRtsById,
-        selectedTargets: railTargets,
-        setConds: member.local.setConditionals,
-        simulation: echoScoringSimulation,
-      }).catch((error) => {
-        console.error('Failed to prepare Echo main-stat scoring.', error)
-      })
-    }, 220)
-
-    return () => window.clearTimeout(timer)
-  }, [
-    echoRuntime,
-    echoScoringSimulation,
-    echoSeed,
-    railPartRtsById,
-    railScenario,
-    railTargets,
-  ])
   const loadoutSlots = useMemo(
     () => echoLoadout.map((echo) => (echo ? makeEchoSlot(echo) : null)),
     [echoLoadout],
@@ -709,12 +749,10 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     onEchoLoadoutChange: setEchoLoadout,
   })
 
-  // Only Modulation consumes the full report. Other workspace pages retain
-  // the normalized score without generating sections they never render.
-  // generating upgrade rows, target snapshots, feature breakdowns, and stat
-  // tables that are never rendered on that surface.
+  // Modulation requests target snapshots for its summary and defers feature and
+  // upgrade sections until detail is requested. Other consumers retain score only.
   const reportOptions = isModulation
-    ? FULL_EVALUATION_REPORT_OPTIONS
+    ? MODULATION_SUMMARY_REPORT_OPTIONS
     : SCORE_ONLY_EVALUATION_REPORT_OPTIONS
 
   const { report, loading, error } = useEvaluationReport({
@@ -722,10 +760,81 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     simulation,
     enemy: evaluationEnemy,
     runtimesById: reportRuntimesById,
-    enabled: surfacePhase === 'idle',
+    enabled: analysisActive,
     identityKey: reportTargetScenarioId,
     reportOptions,
   })
+
+  const { report: detailReport, loading: detailReportLoading } = useEvaluationReport({
+    runtime: evaluationRuntime,
+    simulation,
+    enemy: evaluationEnemy,
+    runtimesById: reportRuntimesById,
+    enabled: analysisActive && isModulation && reportOpen && reportWorkReady,
+    identityKey: reportTargetScenarioId,
+    reportOptions: FULL_EVALUATION_REPORT_OPTIONS,
+    cacheResult: false,
+    clearOnDisable: true,
+  })
+
+  useEffect(() => {
+    closeEvaluationReport()
+  }, [closeEvaluationReport, reportTargetScenarioId, evaluationRuntime?.id])
+
+  useEffect(() => {
+    if (inventoryOpen) closeEvaluationReport()
+  }, [closeEvaluationReport, inventoryOpen])
+
+  useEffect(() => clearReportWorkTimer, [clearReportWorkTimer])
+
+  useEffect(() => {
+    if (!analysisActive || !echoScoringSimulationReady || !echoRuntime || !echoSeed || !railScenario || !echoScoringSimulation) {
+      return undefined
+    }
+    const member = railScenario.team.members.find((entry) => entry.resonatorId === echoRuntime.id)
+    if (!member) return undefined
+
+    const input = {
+      scenarioId: railScenario.id,
+      memberId: member.id,
+      runtime: echoRuntime,
+      seed: echoSeed,
+      enemy: railScenario.target,
+      runtimesById: railPartRtsById,
+      selectedTargets: railTargets,
+      setConds: member.local.setConditionals,
+      simulation: echoScoringSimulation,
+    }
+    const reportMatchesEcho = reportTargetScenarioId === railScenarioId
+      && evaluationRuntime?.id === echoRuntime.id
+
+    if (reportMatchesEcho) {
+      if (!report || cacheEchoMainStatScoringFromEvaluation(input, report)) {
+        return undefined
+      }
+    }
+
+    const timer = window.setTimeout(() => {
+      void prepareEchoMainStatScoring(input).catch((nextError) => {
+        console.error('Failed to prepare Echo main-stat scoring.', nextError)
+      })
+    }, 320)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    analysisActive,
+    echoScoringSimulationReady,
+    echoRuntime,
+    echoScoringSimulation,
+    echoSeed,
+    evaluationRuntime?.id,
+    railPartRtsById,
+    railScenario,
+    railScenarioId,
+    railTargets,
+    report,
+    reportTargetScenarioId,
+  ])
 
   const overviewStatsTree = useMemo(
     () => simulation?.finalStats ? makeStatsTree(simulation.finalStats) : [],
@@ -845,11 +954,14 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
 
     setCaptureAction(action)
     try {
-      const png = renderBuildCardPng(card)
+      const capture = import('@/modules/simulation/surfaces/showcase/captureBuildCard.ts')
+      const png = capture.then(({ renderBuildCardPng }) => renderBuildCardPng(card))
       if (action === 'clipboard') {
-        await copyBuildCard(png)
+        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Image clipboard is unavailable in this browser.')
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
         showToast({ content: 'Build card copied to clipboard.', variant: 'success' })
       } else {
+        const { downloadBuildCard } = await capture
         downloadBuildCard(await png, railModel.seed?.name ?? 'build')
         showToast({ content: 'Build card captured.', variant: 'success' })
       }
@@ -873,13 +985,6 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
       incomingRailModel.portraitSrc,
       incomingRailModel.attrIcon,
       incomingRailModel.weaponIcon,
-      ...incomingRailModel.sonataSets.map((set) => set.icon),
-      ...incomingRailModel.teamSupports.flatMap((mate) => [
-        getAttributeIconSrc(mate.attribute),
-        mate.weaponIcon,
-        mate.sprite,
-        ...mate.sets.map((set) => set.icon),
-      ]),
     ].filter((url): url is string => Boolean(url))
   }, [incomingRailModel])
 
@@ -1022,6 +1127,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
               data-css-expanded={isShowcase && cssExpanded ? 'true' : undefined}
             >
             {isShowcase && cssExpanded ? (
+              <Suspense fallback={<div className="workspace-css-dock"><AppLdrVrly mode="centered" text="Loading CSS editor..." /></div>}>
               <ShowcaseCssEditorDock
                 value={cardStyle.customCss ?? ''}
                 isDark={isDarkTheme}
@@ -1033,6 +1139,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                   setTuneDrawerOpen(false)
                 }}
               />
+              </Suspense>
             ) : null}
             <BuildWorkspaceWorkspace>
               <BuildWorkspaceRailSlot>
@@ -1077,6 +1184,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                   onRuntimeUpdate={updateRailRuntime}
                 />
                 {isShowcase && (
+                  <Suspense fallback={null}>
                   <ShowcaseCustomizePanel
                     key={tuneResetKey}
                     layout={showcaseLayout}
@@ -1142,15 +1250,16 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                     }}
                     surfacePhase={surfacePhase}
                   />
+                  </Suspense>
                 )}
-                {isShowcase && (
-                  <ImageUploadModal
+                {isShowcase && uploadModal.visible && (
+                  <Suspense fallback={<AppLdrVrly mode="centered" text="Loading image upload..." />}><ImageUploadModal
                     state={uploadModal.dialogProps}
                     title={uploadTarget === 'portrait' ? 'Portrait image' : 'Backdrop image'}
                     initialCredit={(uploadTarget === 'portrait' ? cardStyle.portraitCredit : cardStyle.backdropCredit) ?? ''}
                     onClose={uploadModal.hide}
                     onApply={handleApplyImage}
-                  />
+                  /></Suspense>
                 )}
               </BuildWorkspaceRailSlot>
 
@@ -1176,7 +1285,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                 </Suspense>
               ) : null}
 
-              {!isOptimizer && !isSuggestions && !isShowcase ? (
+              {!inventoryOpen && !isOptimizer && !isSuggestions && !isShowcase ? (
                 <ModulationReport
                   phase={surfacePhase}
                   modulation={isModulation}
@@ -1190,6 +1299,12 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                   onModulationUpdate={updateModulationRuntime}
                   loading={loading || !reportMatchesRail}
                   report={visibleReport}
+                  detailReport={reportWorkReady ? detailReport : null}
+                  detailReportReady={reportWorkReady}
+                  detailReportLoading={detailReportLoading}
+                  reportOpen={reportOpen}
+                  onReportOpen={openEvaluationReport}
+                  onReportClose={closeEvaluationReport}
                   activeBuild={activeBuild}
                   referenceBuild={referenceBuild}
                   maximumBuild={maximumBuild}

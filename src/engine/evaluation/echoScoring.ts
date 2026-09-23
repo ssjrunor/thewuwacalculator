@@ -82,7 +82,10 @@ export interface EchoMainStatScoreProfile {
   referenceEchoes?: EchoInstance[]
 }
 
-const MAIN_STAT_PROFILE_LIMIT = 24
+// A Simulation team needs at most three active member contexts. Keep one spare
+// for a just-switched target, but do not retain every scenario visited during
+// a long Modulation session.
+const MAIN_STAT_PROFILE_LIMIT = 4
 const mainStatProfiles = new Map<string, EchoMainStatScoreProfile>()
 const activeMainStatProfileByChar = new Map<string, string>()
 const mainStatProfileRevisionByChar = new Map<string, number>()
@@ -411,15 +414,6 @@ export function getMaxEchoSc(
   const mainStatScore = includeMainStat ? 44 : 0
 
   const result = substatScore + mainStatScore
-  console.info('[echo-score:max-substats]', {
-    charId,
-    weightSet: getWeightSetKey(),
-    substatSlots,
-    stats: selected,
-    substatScore,
-    mainStatScore,
-    maxScore: result,
-  })
   maxEchoScoreCache.set(cacheKey, result)
   return result
 }

@@ -4,7 +4,7 @@
 */
 
 import type { ReactNode } from 'react'
-import { GRADE_LADDER } from '@/engine/evaluation/buildEvaluation.ts'
+import { GRADE_LADDER } from '@/engine/evaluation/evaluation/grades.ts'
 import type { BuildEvaluationReport } from '@/engine/evaluation/buildEvaluation.ts'
 import {
   formatBuildEvaluationScore,

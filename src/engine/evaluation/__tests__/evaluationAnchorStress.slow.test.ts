@@ -24,6 +24,7 @@ import {
   assembleEvaluation,
   evaluationErTarget,
   buildEvaluationAnchors,
+  materializeEvaluationAnchorBuilds,
   type EvaluationAnchors,
 } from '@/engine/evaluation/evaluation/search.ts'
 import {
@@ -220,14 +221,15 @@ function buildSignature(build: EvaluationBuildSnapshot) {
   }
 }
 
-function anchorSignature(anchors: EvaluationAnchors) {
+function anchorSignature(ctx: SuggestContext, anchors: EvaluationAnchors) {
+  const builds = materializeEvaluationAnchorBuilds(ctx, anchors)
   return {
     baselineDamage: round(anchors.baselineDamage, 2),
     referenceDamage: round(anchors.referenceDamage, 2),
     maximumDamage: round(anchors.maximumDamage, 2),
-    baselineBuild: buildSignature(anchors.builds.baselineBuild),
-    referenceBuild: buildSignature(anchors.builds.referenceBuild),
-    maximumBuild: buildSignature(anchors.builds.maximumBuild),
+    baselineBuild: buildSignature(builds.baselineBuild),
+    referenceBuild: buildSignature(builds.referenceBuild),
+    maximumBuild: buildSignature(builds.maximumBuild),
   }
 }
 
@@ -283,7 +285,7 @@ function expectStableAnchors(resonatorId: string): void {
       expect(anchors.baselineDamage).toBeLessThanOrEqual(anchors.referenceDamage)
       expect(anchors.referenceDamage).toBeLessThanOrEqual(anchors.maximumDamage)
 
-      const signature = anchorSignature(anchors)
+      const signature = anchorSignature(context, anchors)
       if (!reference) {
         reference = signature
         referenceAnchors = anchors

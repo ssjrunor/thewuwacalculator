@@ -4,16 +4,16 @@
                and custom manual modifier entries.
 */
 
-import { z } from 'zod'
+import * as z from 'zod/mini'
 
 // shared base stat buff schema
-const baseStatBuff = z.object({
+const baseStatBuff = z.lazy(() => z.strictObject({
   percent: z.number(),
   flat: z.number(),
-}).strict()
+}))
 
 // quick manual buff schema
-const mnlQckBffsSc = z.object({
+const mnlQckBffsSc = z.lazy(() => z.strictObject({
   atk: baseStatBuff,
   hp: baseStatBuff,
   def: baseStatBuff,
@@ -21,9 +21,9 @@ const mnlQckBffsSc = z.object({
   critDmg: z.number(),
   energyRegen: z.number(),
   healingBonus: z.number(),
-}).strict()
+}))
 
-const skillTypeSchema = z.enum([
+const skillTypeSchema = z.lazy(() => z.enum([
   'all',
   'basicAtk',
   'heavyAtk',
@@ -43,12 +43,10 @@ const skillTypeSchema = z.enum([
   'shield',
   'tuneRupture',
   'hack',
-])
+]))
 
 // Preserve imported and persisted buffs written before the finalDmg rename.
-const mnlTopStatSchema = z.preprocess(
-  (value) => value === 'special' ? 'finalDmg' : value,
-  z.enum([
+const mnlTopStatSchema = z.lazy(() => z.pipe(z.transform((value) => value === 'special' ? 'finalDmg' : value), z.enum([
     'flatDmg',
     'amplify',
     'critRate',
@@ -62,119 +60,118 @@ const mnlTopStatSchema = z.preprocess(
     'dmgVuln',
     'tuneBreakBoost',
     'finalDmg',
-  ]),
-)
+  ])))
 
 // discriminated manual modifier schema
-const mnlModSchm = z.union([
-  z.object({
+const mnlModSchm = z.lazy(() => z.union([
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('baseStat'),
     stat: z.enum(['atk', 'hp', 'def']),
     field: z.enum(['percent', 'flat']),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('topStat'),
     stat: mnlTopStatSchema,
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('attribute'),
     attribute: z.enum(['all', 'aero', 'glacio', 'spectro', 'fusion', 'electro', 'havoc', 'physical']),
     mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skillType'),
     skillType: skillTypeSchema,
     mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('negativeEffect'),
     negativeEffect: z.enum(['spectroFrazzle', 'aeroErosion', 'fusionBurst', 'havocBane', 'glacioChafe', 'electroFlare']),
     mod: z.enum(['critRate', 'critDmg', 'multiplier']),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skill'),
     matchMode: z.enum(['skillId', 'tab', 'skillType', 'archetype']),
-    skillId: z.string().optional(),
-    tab: z.string().optional(),
-    skillType: skillTypeSchema.optional(),
-    archetype: z.string().optional(),
+    skillId: z.optional(z.string()),
+    tab: z.optional(z.string()),
+    skillType: z.optional(skillTypeSchema),
+    archetype: z.optional(z.string()),
     effect: z.literal('mod'),
     mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skill'),
     matchMode: z.enum(['skillId', 'tab', 'skillType', 'archetype']),
-    skillId: z.string().optional(),
-    tab: z.string().optional(),
-    skillType: skillTypeSchema.optional(),
-    archetype: z.string().optional(),
+    skillId: z.optional(z.string()),
+    tab: z.optional(z.string()),
+    skillType: z.optional(skillTypeSchema),
+    archetype: z.optional(z.string()),
     effect: z.literal('addMultiplier'),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skill'),
     matchMode: z.enum(['skillId', 'tab', 'skillType', 'archetype']),
-    skillId: z.string().optional(),
-    tab: z.string().optional(),
-    skillType: skillTypeSchema.optional(),
-    archetype: z.string().optional(),
+    skillId: z.optional(z.string()),
+    tab: z.optional(z.string()),
+    skillType: z.optional(skillTypeSchema),
+    archetype: z.optional(z.string()),
     effect: z.literal('scaleMultiplier'),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skill'),
     matchMode: z.enum(['skillId', 'tab', 'skillType', 'archetype']),
-    skillId: z.string().optional(),
-    tab: z.string().optional(),
-    skillType: skillTypeSchema.optional(),
-    archetype: z.string().optional(),
+    skillId: z.optional(z.string()),
+    tab: z.optional(z.string()),
+    skillType: z.optional(skillTypeSchema),
+    archetype: z.optional(z.string()),
     effect: z.literal('addHitMultiplier'),
     hitIndex: z.number(),
     value: z.number(),
-  }).strict(),
-  z.object({
+  }),
+  z.strictObject({
     id: z.string(),
     enabled: z.boolean(),
-    label: z.string().optional(),
+    label: z.optional(z.string()),
     scope: z.literal('skill'),
     matchMode: z.enum(['skillId', 'tab', 'skillType', 'archetype']),
-    skillId: z.string().optional(),
-    tab: z.string().optional(),
-    skillType: skillTypeSchema.optional(),
-    archetype: z.string().optional(),
+    skillId: z.optional(z.string()),
+    tab: z.optional(z.string()),
+    skillType: z.optional(skillTypeSchema),
+    archetype: z.optional(z.string()),
     effect: z.literal('scalar'),
     field: z.enum([
       'fixedDmg',
@@ -188,11 +185,11 @@ const mnlModSchm = z.union([
       'negativeEffectCritDmg',
     ]),
     value: z.number(),
-  }).strict(),
-])
+  }),
+]))
 
 // full manual buffs schema
-export const mnlBffsSchm = z.object({
+export const mnlBffsSchm = z.lazy(() => z.strictObject({
   quick: mnlQckBffsSc,
   modifiers: z.array(mnlModSchm),
-}).strict()
+}))

@@ -283,31 +283,35 @@ export function preloadEvaluationRailImages(urls: string[]): Promise<void> {
   }
 
   const uniqueUrls = Array.from(new Set(urls))
-  const preload = Promise.all(
-    uniqueUrls.map((url) => new Promise<void>((resolve) => {
-      const image = new Image()
-      let settled = false
-      const finish = () => {
-        if (!settled) {
-          settled = true
-          resolve()
-        }
+  return new Promise((resolve) => {
+    let pending = uniqueUrls.length
+    let finished = false
+    const images: HTMLImageElement[] = []
+    const finish = () => {
+      if (finished) return
+      finished = true
+      window.clearTimeout(timeout)
+      for (const image of images) {
+        image.onload = null
+        image.onerror = null
+        // A timed-out transition must not keep decoding images that are no
+        // longer needed by the incoming rail.
+        if (!image.complete) image.removeAttribute('src')
       }
-      image.onload = finish
-      image.onerror = finish
+      resolve()
+    }
+    const timeout = window.setTimeout(finish, EVALUATION_RAIL_PRELOAD_TIMEOUT_MS)
+    for (const url of uniqueUrls) {
+      const image = new Image()
+      images.push(image)
+      image.onload = image.onerror = () => {
+        pending -= 1
+        if (pending === 0) finish()
+      }
       image.decoding = 'async'
       image.src = url
-      if (image.decode) {
-        image.decode().then(finish, finish)
-      }
-    })),
-  ).then(() => undefined)
-
-  const timeout = new Promise<void>((resolve) => {
-    window.setTimeout(resolve, EVALUATION_RAIL_PRELOAD_TIMEOUT_MS)
+    }
   })
-
-  return Promise.race([preload, timeout])
 }
 
 export function fmtSignedPct(value: number): string {

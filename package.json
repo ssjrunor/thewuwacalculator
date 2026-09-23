@@ -8,8 +8,11 @@
     "node": "24.x"
   },
   "scripts": {
+    "predev": "node tools/data/buildRuntimeAssets.mjs",
     "dev": "vite",
+    "prebuild": "node tools/data/buildRuntimeAssets.mjs",
     "build": "tsc -b && vite build",
+    "prebuild:beta": "node tools/data/buildRuntimeAssets.mjs",
     "build:beta": "tsc -b && vite build --mode beta && npm run postbuild",
     "postbuild": "node tools/seo/writeStaticRoutes.mjs",
     "seo:sync": "node tools/seo/writeStaticRoutes.mjs --sync-public",
