@@ -43,8 +43,20 @@ export function summarizeScenario(scenario: CombatScenario): ScenarioSummary {
 
 export function copyScenarioRecords(
   records: ScenarioWorkspace['scenariosById'],
+  replacement?: CombatScenario,
 ): ScenarioWorkspace['scenariosById'] {
-  return Object.defineProperties({}, Object.getOwnPropertyDescriptors(records))
+  const descriptors = Object.getOwnPropertyDescriptors(records)
+  if (replacement) {
+    // Loaded records can be getter-only. Replace the descriptor in the new
+    // map without assigning through that getter or hydrating unrelated records.
+    descriptors[replacement.id] = {
+      value: replacement,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    }
+  }
+  return Object.defineProperties({}, descriptors)
 }
 
 export interface ScenarioWorkspace {
@@ -139,9 +151,7 @@ export function replaceScenario(
   return {
     ...workspace,
     ...(summaryById ? { summaryById } : {}),
-    scenariosById: Object.assign(copyScenarioRecords(workspace.scenariosById), {
-      [scenario.id]: scenario,
-    }),
+    scenariosById: copyScenarioRecords(workspace.scenariosById, scenario),
   }
 }
 
@@ -164,9 +174,7 @@ export function addScenario(
     ...(workspace.summaryById ? {
       summaryById: { ...workspace.summaryById, [scenario.id]: summarizeScenario(scenario) },
     } : {}),
-    scenariosById: Object.assign(copyScenarioRecords(workspace.scenariosById), {
-      [scenario.id]: scenario,
-    }),
+    scenariosById: copyScenarioRecords(workspace.scenariosById, scenario),
   }
 }
 

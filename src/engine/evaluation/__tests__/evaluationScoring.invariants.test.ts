@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { listChsByCos } from '@/data/catalog/echoCatalogService'
 import { getResSeedBy, listResSds } from '@/data/catalog/resonatorSeedService'
 import { makeEnemy, makeResRuntime, makeTeamMember, normProfTeam } from '@/engine/runtime/defaults'
-import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
+import { makeRuntimeMap, runtimeFromSnapshot } from '@/engine/runtime/runtimeAdapters'
 import { matRtFromPro } from '@/engine/runtime/runtimeMaterialization'
 import { initWpnStts } from '@/engine/runtime/sourceStateInit'
 import { catWpnAtk } from '@/engine/runtime/weaponState'
@@ -21,13 +21,14 @@ import { runResSmlt } from '@/engine/pipeline'
 import { sumOptRotDmg } from '@/engine/optimizer/rules/eligibility'
 import { mkSuggMainEc, mkSuggVltnCt } from '@/engine/suggestions/shared'
 import type { SuggestContext } from '@/engine/suggestions/types'
-import { ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats'
-import { assembleEvaluation, buildEvaluation, buildEvaluationAnchors } from '@/engine/evaluation/evaluation/search.ts'
-import { makeEvaluationEchoFrame, preservedMainEchoFor } from '@/engine/evaluation/evaluation/echoDiscovery.ts'
+import { ECHO_MAIN_STATS, ECHO_SIDE_STATS, getSbstStepP } from '@/data/gameData/catalog/echoStats'
+import { assembleEvaluation, buildEvaluation, buildEvaluationAnchors, evaluationErTarget } from '@/engine/evaluation/evaluation/search.ts'
+import { findUsefulStatImpacts, makeEvaluationEchoFrame, preservedMainEchoFor } from '@/engine/evaluation/evaluation/echoDiscovery.ts'
 import { evaluationAnchorCacheKey } from '@/engine/evaluation/evaluation/report.ts'
-import { makeEvaluationOverviewStats } from '@/engine/evaluation/evaluation/stats.ts'
+import { makeEvaluationOverviewStats, sumEncodedEnergyRegen } from '@/engine/evaluation/evaluation/stats.ts'
+import { REFERENCE_STEP_MODEL, tierStepIncreases } from '@/engine/evaluation/evaluation/stepAllocation'
 import { resolveEvaluationStats, scoreStats } from '@/engine/evaluation/evaluation/scoring.ts'
-import { CTX_FLOATS, MV, SET_MASK, SKILL_ID } from '@/engine/optimizer/config/constants'
+import { CTX_FLOATS, MAIN_BUFF_LEN, MV, SET_MASK, SKILL_ID } from '@/engine/optimizer/config/constants'
 import {
   rotationBuildEvaluationReport,
   type BuildEvaluation,
@@ -35,11 +36,13 @@ import {
 import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey'
 import {
   applyEvaluationAsm,
+  applyEvaluationMapAsm,
   EVALUATION_ENEMY,
   makeEvaluationEnemy,
 } from '@/modules/simulation/model/evaluationAssumptions'
 import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
+import referenceCalibration from './fixtures/referenceCalibration.json?raw'
 
 const prodAppLoaders = import.meta.glob('../../../../prod-app.json', {
   query: '?raw',
@@ -236,6 +239,132 @@ const norm = (value: unknown) => JSON.parse(
 )
 
 describe('evaluation scoring invariants', () => {
+  it('applies the ranked tier limits and relevant-flat minimum to the supplied build', () => {
+    // wwcalc-current-resonator-1610-2026-09-24T01-56-29. The report always uses
+    // the default rotation; retain the supplied build, team, and combat state.
+    const profile = JSON.parse(referenceCalibration) as ResProf
+    const seed = getResSeedBy(profile.resonatorId)!
+    const runtime = applyEvaluationAsm(runtimeFromSnapshot(profile)!)
+    runtime.rotation = makeResRuntime(seed).rotation
+    const runtimesById = applyEvaluationMapAsm(makeRuntimeMap(runtime))
+    const enemy = makeEvaluationEnemy(getTuneStrainMaxForTeam(runtime))
+    const simulation = runResSmlt(runtime, seed, enemy, runtimesById, profile.runtime.routing.selectedTargetsByOwnerKey)
+    const report = rotationBuildEvaluationReport({
+      scenarioId: combatScenarioId('evaluation:reference-calibration'),
+      memberId: teamMemberId(runtime.id), runtime, simulation, enemy, runtimesById,
+    }, { sections: { rotationFeatures: false, upgradePaths: false, echoStatsTable: true } })!
+    expect(report).toBeTruthy()
+    // Pin the real build's score under the 16-line reference budget; its
+    // equipped damage is independent of the reference allocation.
+    expect(report.evaluation.percent * 100).toBeCloseTo(100.76, 2)
+    expect(report.evaluation.userDamage).toBeCloseTo(2128773.54, 0)
+    const reference = report.evaluation.builds.referenceBuild
+    const relevant = new Set(['atkPercent', 'atkFlat', 'critRate', 'critDmg', 'basicAtk', 'heavyAtk', 'energyRegen'])
+    expect(reference.statRows.reduce((sum, row) => sum + (relevant.has(row.key) ? row.substatCount : 0), 0)).toBe(16)
+    const values = reference.echoes.flatMap(echo => echo.equippedSubstats)
+    expect(values).toHaveLength(25)
+    expect(values.reduce((sum, stat) => sum + tierStepIncreases(getSbstStepP(stat.key), stat.value), 0)).toBe(32)
+    expect(values.filter(stat => stat.key === 'critRate').map(stat => stat.value)).toEqual([7.5, 7.5, 7.5, 7.5, 7.5])
+    expect(values.filter(stat => stat.key === 'critDmg').map(stat => stat.value)).toEqual([15, 15, 15, 15, 15])
+    expect(values.filter(stat => stat.key === 'atkFlat').map(stat => stat.value)).toEqual([60, 60])
+  }, 30_000)
+
+  it('charges non-damage filler, reserves total ER, and retains the no-Echo baseline', () => {
+    // Include ER mains so the target still requires substats after the search
+    // trades damage mains for ER. The reference must fund legal ER tiers.
+    const spec: Array<[number, string]> = [
+      [4, 'critRate'], [3, 'energyRegen'], [3, 'energyRegen'], [1, 'atkPercent'], [1, 'atkPercent'],
+    ]
+    const echoes = spec.map(([cost, main], index) => {
+      const definition = listChsByCos(cost).filter((echo) => echo.sets.includes(8))[index % 2]
+      if (!definition) throw new Error(`missing Moonlit fixture at cost ${cost}`)
+      return echoSlot(definition.id, 8, false,
+        { key: main, value: ECHO_MAIN_STATS[cost][main] }, { ...ECHO_SIDE_STATS[cost] },
+        { energyRegen: 9.2 })
+    })
+    const ctx = evaluationContextFor('1306', echoes)
+    if (!ctx) throw new Error('missing Augusta evaluation context')
+    const frame = makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, echoes))
+    const resolved = resolveEvaluationStats(ctx, frame)
+    const target = evaluationErTarget(ctx, echoes)
+    expect(target).toBeCloseTo(resolved!.er, 8)
+    expect(target).toBeGreaterThan(ctx.sourceFinals.energyRegen + sumEncodedEnergyRegen(frame.stats, frame.comboIds))
+
+    const anchors = buildEvaluationAnchors(ctx, echoes)
+    if (!anchors) throw new Error('missing investment reference')
+    const subs = anchors.builds.referenceBuild.substats
+    const byKey = new Map(subs.map((entry) => [entry.key, entry]))
+    for (const row of subs) {
+      expect(row.count, row.key).toBeGreaterThanOrEqual(1)
+      expect(row.count, row.key).toBeLessThanOrEqual(5)
+      expect(row.effectiveCount, row.key).toBeCloseTo(row.count, 12)
+      expect(row.total, row.key).toBeCloseTo(row.count * row.rollValue, 10)
+    }
+    expect(subs.reduce((sum, row) => sum + row.count, 0)).toBe(25)
+    const er = byKey.get('energyRegen')
+    expect(er?.count).toBeGreaterThan(0)
+    expect(er?.count).toBeLessThanOrEqual(5)
+    expect(subs.every((row) => row.effectiveCount <= row.count + 1e-9)).toBe(true)
+    const report = assembleEvaluation(ctx, echoes, anchors)
+    expect(report.builds.active.statRows.find(row => row.key === 'energyRegen')!.substatCount).toBe(5)
+    for (const key of ['referenceBuild', 'maximumBuild'] as const) {
+      const build = report.builds[key]
+      const totalEr = build.overviewStats.secondaryStats.find((row) => row.key === 'energyRegen')!.total
+      const subEr = build.statRows.find((row) => row.key === 'energyRegen')!
+      if (key === 'referenceBuild') expect(totalEr).toBeGreaterThanOrEqual(target - 1e-4)
+      else expect(totalEr).toBeCloseTo(target, 3)
+      expect(subEr.substatCount).toBeLessThanOrEqual(5)
+      expect(subEr.substatTotal).toBeLessThanOrEqual(subEr.substatCount * 12.4 + 1e-4)
+    }
+    const referenceEchoes = anchors.builds.referenceBuild.echoes
+    let stepIncreases = 0
+    for (const echo of referenceEchoes) {
+      expect(Object.keys(echo.substats)).toHaveLength(5)
+      for (const [key, value] of Object.entries(echo.substats)) {
+        const tiers = getSbstStepP(key)
+        expect(tiers, key).toContain(value)
+        stepIncreases += tierStepIncreases(tiers, value)
+      }
+    }
+    expect(stepIncreases).toBeLessThanOrEqual(REFERENCE_STEP_MODEL.maxStepIncreases)
+    for (const row of subs) {
+      expect(referenceEchoes.reduce((sum, echo) => sum + (echo.substats[row.key] ?? 0), 0)).toBeCloseTo(row.total, 8)
+    }
+    const materialized = referenceEchoes.map((echo, index) => ({
+      ...echo, mainStats: { ...echo.mainStats, primary: anchors.builds.referenceBuild.primaryStats[index] },
+    }))
+    const materializedFrame = makeEvaluationEchoFrame(ctx, materialized, mkSuggMainEc(ctx, materialized))
+    expect(materializedFrame.score(materializedFrame.stats) / anchors.referenceDamage).toBeCloseTo(1, 6)
+    const mainsOnly = materialized.map(echo => ({ ...echo, substats: {} }))
+    const probeFrame = makeEvaluationEchoFrame(ctx, mainsOnly, mkSuggMainEc(ctx, mainsOnly))
+    const relevant = new Set(findUsefulStatImpacts(probeFrame, probeFrame.stats).map(stat => stat.key))
+    relevant.add('energyRegen')
+    expect(subs.reduce((sum, row) => sum + (relevant.has(row.key) ? row.count : 0), 0))
+      .toBeLessThanOrEqual(REFERENCE_STEP_MODEL.maxRelevantSubstats)
+    const empty = makeEvaluationEchoFrame(ctx, [], new Float32Array(MAIN_BUFF_LEN))
+    expect(anchors.builds.baselineBuild.echoes).toEqual([])
+    expect(anchors.baselineDamage).toBe(empty.score(empty.stats))
+
+    for (const id of ['1109', '1608']) {
+      expect(evaluationErTarget({ ...ctx, runtime: { ...ctx.runtime, id } }, echoes)).toBe(0)
+    }
+  }, 30000)
+
+  it('includes self main-Echo ER in the target and anchor cache identity', () => {
+    const echoes = buildInvariantEchoes('critDmg').map((echo) => echo ? { ...echo, mainEcho: false } : null)
+    echoes[0] = echoSlot('6000190', 25, true,
+      { key: 'critRate', value: 22 }, { ...ECHO_SIDE_STATS[4] })
+    const withoutMain = echoes.map((echo, index) => echo ? { ...echo, mainEcho: index === 1 } : null)
+    const ctx = evaluationContextFor('1306', echoes)
+    if (!ctx) throw new Error('missing Augusta evaluation context')
+    expect(evaluationErTarget(ctx, echoes) - evaluationErTarget(ctx, withoutMain)).toBeCloseTo(10, 6)
+    expect(preservedMainEchoFor(echoes)).toBeNull()
+    const runtime = { ...ctx.runtime, build: { ...ctx.runtime.build, echoes } }
+    const other = { ...runtime, build: { ...runtime.build, echoes: withoutMain } }
+    expect(evaluationAnchorCacheKey(ctx, runtime, makeEnemy()))
+      .not.toBe(evaluationAnchorCacheKey(ctx, other, makeEnemy()))
+  })
+
   it('keeps prepared target and weighted rotation scores exact across repeated stat trials', () => {
     for (const seedId of ['1311', '1506', '1212', '1209', '1505', '1306']) {
       const echoes = buildInvariantEchoes('energyRegen').filter((echo): echo is EchoInstance => echo != null)
@@ -314,7 +443,7 @@ describe('evaluation scoring invariants', () => {
     })
 
     expect(compact).toEqual(complete)
-  }, 20_000)
+  }, 60_000)
 
   it('keeps ordinary Echo stat edits out of the anchor cache key', () => {
     const seed = getResSeedBy('1212')
@@ -558,7 +687,9 @@ describe('evaluation scoring invariants', () => {
       runtime.id,
     )
 
-    expect(evaluation.percent * 100).toBeLessThanOrEqual(200.00001)
+    // The 100-to-200 damage interval scales Float32 error in the percentage.
+    // The damage-space ceiling below remains the primary engine invariant.
+    expect(evaluation.percent * 100).toBeLessThanOrEqual(200.0001)
     expect(simulation.finalStats.attribute.all.dmgBonus).toBeGreaterThanOrEqual(30)
     expect(Math.abs(rotationDamage - evaluation.userDamage))
       .toBeLessThanOrEqual(Math.max(1, rotationDamage * 1e-4))

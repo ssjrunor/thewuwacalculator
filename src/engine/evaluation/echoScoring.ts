@@ -96,6 +96,48 @@ function activeMainStatProfile(charId: string): EchoMainStatScoreProfile | undef
   return activeKey ? mainStatProfiles.get(activeKey) : undefined
 }
 
+// Log the profile actually selected for scoring, including cache hits. The
+// loadout model uses useful totals and shared point caps, not static weights.
+function logActiveEchoScoringProfile(profile: EchoMainStatScoreProfile): void {
+  if (!import.meta.env.DEV) return
+
+  const counts = profile.idealSubstatCounts ?? {}
+  const usesLoadout = !!profile.mainCountsByCost
+    && Object.values(counts).reduce((sum, count) => sum + count, 0) === 25
+    && Object.values(counts).every((count) => count >= 0 && count <= 5)
+  console.info('[echo-score:in-use]', {
+    charId: profile.charId,
+    model: usesLoadout ? 'loadout reference' : 'generated-weight fallback',
+    mainCountsByCost: profile.mainCountsByCost,
+    mainWeightsByCost: profile.weightsByCost,
+    reference: getEchoScoringReference(profile.charId),
+  })
+  console.table(Object.entries(SUBSTAT_RANGES).map(([key, range]) => {
+    const count = counts[key] ?? 0
+    const utility = UTILITY_SCORE_STATS.has(key)
+    const target = Math.max(
+      Number.EPSILON,
+      Math.min(range.max * count, profile.idealSubstatValues?.[key] ?? range.max * count),
+    )
+    const pointCap = utility ? 0 : count * 21
+    return usesLoadout ? {
+      key,
+      utility,
+      referenceLines: count,
+      usefulTotal: count > 0 ? target : 0,
+      sharedPointCap: pointCap,
+      pointsPerUnitBeforeCaps: count > 0 ? pointCap / target : 0,
+      perEchoPointCap: count > 0 && !utility ? 21 : 0,
+    } : {
+      key,
+      utility,
+      generatedWeight: getWeight(profile.charId, key),
+      pointsPerUnitBeforeCaps: utility ? 0
+        : resScrVl(key, true, 0) * getWeight(profile.charId, key) * getSubstatScoreScale(profile.charId),
+    }
+  }))
+}
+
 export interface EchoScoringReference {
   idealSubstatCounts: Record<string, number>
   idealSubstatValues: Record<string, number>
@@ -212,10 +254,7 @@ export function activateEchoMainStatScoreProfile(
   mainStatProfiles.set(cacheKey, profile)
   if (activeMainStatProfileByChar.get(charId) !== cacheKey) {
     activeMainStatProfileByChar.set(charId, cacheKey)
-    console.info('[echo-score:max-main-stats:cache]', {
-      charId,
-      bestByCost: profile.bestByCost,
-    })
+    logActiveEchoScoringProfile(profile)
     notifyMainStatProfile(charId)
   }
   return true
@@ -230,6 +269,7 @@ export function cacheEchoMainStatScoreProfile(
   mainStatProfiles.delete(profile.cacheKey)
   mainStatProfiles.set(profile.cacheKey, profile)
   activeMainStatProfileByChar.set(profile.charId, profile.cacheKey)
+  logActiveEchoScoringProfile(profile)
   notifyMainStatProfile(profile.charId)
 
   while (mainStatProfiles.size > MAIN_STAT_PROFILE_LIMIT) {

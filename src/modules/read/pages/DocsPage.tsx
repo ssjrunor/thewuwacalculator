@@ -70,7 +70,7 @@ function fmtDec(value: number): string {
   return value.toFixed(3)
 }
 
-const SCALE_ANCHORS = { baseline: 161.7, reference: 906.2, maximum: 1325.6 }
+const SCALE_ANCHORS = { baseline: 159664, reference: 881047, maximum: 1333391 }
 
 function AnchorScale() {
   const { baseline, reference, maximum } = SCALE_ANCHORS

@@ -10,10 +10,12 @@ import type { SuggestContext } from '@/engine/suggestions/types';
 import { makeEvaluationCostPlans } from './costPlans';
 import { applySetPlan, mkSetPlanCnd, prepSetPlanFsb } from '@/engine/suggestions/mutate';
 import { ignoresEr } from '@/engine/evaluation/energyRegenPolicy';
+import { aggregateSubstats } from '@/engine/evaluation/substatMath';
 import type { EvaluationBuildSnapshot, EvaluationSubstatEntry, BuildEvaluation } from './types.ts';
-import { addStatTotal, EVALUATION_ROLL_SOURCE, effectiveRollCount, ENERGY_REGEN, equivalentRollCounts, gradeForPercent, makeEvaluationInvariantStats, makeEvaluationOverviewStats, makeSubstatPlan, MAXIMUM_ROLL_SOURCE, MAX_ROLLS_PER_KEY, normalizeRollParams, removeSubstatTotals, rollAtQuality, scorePercent, sumEncodedEnergyRegen, sumEncodedStats, sumSubstats, type EvaluationEchoFrame, type EvaluationScoringParams, type MainStatCandidate, type SubstatCandidate } from './stats.ts';
+import { addStatTotal, ENERGY_REGEN, gradeForPercent, makeEvaluationInvariantStats, makeEvaluationOverviewStats, makeSubstatPlan, MAXIMUM_SCORING_PARAMS, MAX_ROLLS_PER_KEY, removeSubstatTotals, scorePercent, sumEncodedEnergyRegen, sumSubstats, type EvaluationEchoFrame, type EvaluationScoringParams, type MainStatCandidate, type SubstatCandidate } from './stats.ts';
 import { echoesMatchSetPlan, enumerateMainStatCandidates, findUsefulStatImpacts, prepareMainEchoChoices, makeEvaluationBuildSnapshot, makeEvaluationEchoFrame, makeMainEchoProfiles, makeReferenceEvaluationEchoes, makeSetSummary, preservedMainEchoFor, retainsUtilityPlan, setEffectSig, utilityPlanFor } from './echoDiscovery.ts';
 import { buildEvaluationFeatureBreakdownFromEncoded } from './features.ts';
+import { distributeStepSubstats, prepareStepAllocator, stepSubstatPlan } from './stepAllocation';
 
 
 // The 0%/100%/200% anchors depend on the equipped build only through the ER
@@ -191,26 +193,6 @@ function evaluationOverview(ctx: SuggestContext, frame: EvaluationEchoFrame, buf
   })
 }
 
-// Legal evaluation / max roll value per substat. Depends only on static roll
-// sources, so it is computed once and shared (read-only) across every anchor
-// search and every live re-score instead of being rebuilt per call.
-let rollBoundsMemo: Record<string, { evaluation: number; max: number }> | null = null
-function getRollBounds(): Record<string, { evaluation: number; max: number }> {
-  if (rollBoundsMemo) return rollBoundsMemo
-  const evaluationQuality = normalizeRollParams(EVALUATION_ROLL_SOURCE, SUBSTAT_KEYS.length).quality
-  const maximumQuality = normalizeRollParams(MAXIMUM_ROLL_SOURCE, SUBSTAT_KEYS.length).quality
-  const bounds: Record<string, { evaluation: number; max: number }> = {}
-  for (const key of SUBSTAT_KEYS) {
-    const steps = getSbstStepP(key)
-    bounds[key] = {
-      evaluation: rollAtQuality(steps, evaluationQuality),
-      max: rollAtQuality(steps, maximumQuality),
-    }
-  }
-  rollBoundsMemo = bounds
-  return bounds
-}
-
 function limitUsefulStatsByImpact(
   impacts: Map<string, number>,
   options: {
@@ -260,8 +242,13 @@ function limitUsefulStatsByImpact(
   return limited.size > 0 ? limited : new Set(ranked.map(([key]) => key))
 }
 
-// The ER total the generated anchor builds must reproduce, taken from the
-// equipped build (one of the two ways the equipped build feeds the anchors).
+function frameEnergyRegen(ctx: SuggestContext, frame: EvaluationEchoFrame): number {
+  return evaluationOverview(ctx, frame, frame.stats, frame.sets)
+    .secondaryStats.find((row) => row.key === ENERGY_REGEN)?.total ?? 0
+}
+
+// Match the representative combat ER, including source stats, sets, and the
+// main Echo effect. Candidate ER uses that same evaluator snapshot.
 export function evaluationErTarget(
   ctx: SuggestContext,
   equipped: Array<EchoInstance | null>,
@@ -270,7 +257,7 @@ export function evaluationErTarget(
   const echoes = equipped.filter((echo): echo is EchoInstance => echo != null)
   if (echoes.length === 0) return 0
   const frame = makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, equipped))
-  return Math.max(0, sumEncodedStats(frame.stats, frame.comboIds).er)
+  return Math.max(0, frameEnergyRegen(ctx, frame))
 }
 
 export function buildEvaluationAnchors(
@@ -365,17 +352,16 @@ export function buildEvaluationAnchors(
 
   const ignoreEr = ignoresEr(ctx.runtime.id)
   const targetEr = evaluationErTarget(ctx, equipped)
+  const erInvestment = Math.max(0, targetEr - frameEnergyRegen(ctx, noEchoFrame))
 
-  // legal roll bounds and the evaluation-quality roll for each substat
-  const bounds = getRollBounds()
-  const evaluationParams = normalizeRollParams(EVALUATION_ROLL_SOURCE, SUBSTAT_KEYS.length)
-  const maximumParams = normalizeRollParams(MAXIMUM_ROLL_SOURCE, SUBSTAT_KEYS.length)
+  // Native legal tiers for the reference and maximum per-line values.
+  const tiers = Object.fromEntries(SUBSTAT_KEYS.map(key => [key, getSbstStepP(key)]))
+  const nonErSubKeys = SUBSTAT_KEYS.filter((key) => key !== ENERGY_REGEN)
+  const maximumParams = MAXIMUM_SCORING_PARAMS
 
   // Main-stat candidates are enumerated lazily for the retained beam rather
-  // than materialized into one giant array. The search is still an
-  // exhaustive branch-and-bound that visits every candidate, and the anchor
-  // damages are a max over candidates, so the 0%/100%/200% damages are identical
-  // to a fully-materialized search and stay independent of the equipped build.
+  // than materialized into one giant array. The bounded search compares the
+  // same candidates in both passes; neither pass is globally exhaustive.
   // The set of substats/mains that move damage is fixed by the resonator's
   // element, skill types, and base crit; it is invariant across every frame of
   // a single search (verified empirically: exactly one distinct useful set per
@@ -419,7 +405,7 @@ export function buildEvaluationAnchors(
   )
   const mainUsefulStats = limitUsefulStatsByImpact(mainUsefulImpacts, {
     ignoreEr,
-    targetEr,
+    targetEr: erInvestment,
     limit: MAIN_IMPACT_STAT_LIMIT,
     floor: MAIN_IMPACT_STAT_FLOOR,
     ratioFloor: MAIN_IMPACT_RATIO_FLOOR,
@@ -427,7 +413,7 @@ export function buildEvaluationAnchors(
   })
   const substatUsefulStats = limitUsefulStatsByImpact(substatUsefulImpacts, {
     ignoreEr,
-    targetEr,
+    targetEr: erInvestment,
     limit: SUBSTAT_IMPACT_STAT_LIMIT,
     floor: SUBSTAT_IMPACT_STAT_FLOOR,
     ratioFloor: SUBSTAT_IMPACT_RATIO_FLOOR,
@@ -435,8 +421,11 @@ export function buildEvaluationAnchors(
   })
   const usefulSubKeys = SUBSTAT_KEYS.filter((entry) => substatUsefulStats.has(entry))
   const usefulDamageSubKeys = usefulSubKeys.filter((entry) => entry !== ENERGY_REGEN)
-  const evaluationRolls = Object.fromEntries(usefulSubKeys.map((key) => [key, bounds[key]?.evaluation ?? 0]))
-  const maximumRolls = Object.fromEntries(usefulSubKeys.map((key) => [key, bounds[key]?.max ?? 0]))
+  // Use every damage-relevant key for the reference's relevant-line cap. The ranked
+  // maximum-search shortlist must not relabel weak damage stats as free filler.
+  const referenceRelevantKeys = [...substatUsefulImpacts.keys()].filter(key => key !== ENERGY_REGEN)
+  const allocateSteps = prepareStepAllocator(tiers, referenceRelevantKeys)
+  const maximumRolls = Object.fromEntries(SUBSTAT_KEYS.map((key) => [key, tiers[key].at(-1) ?? 0]))
 
   // shared scratch vectors for the substat search; reused across every candidate
   // to avoid allocating a fresh Float32Array per trial roll (the dominant source
@@ -447,20 +436,22 @@ export function buildEvaluationAnchors(
   const workingScratch = new Float32Array(scratchLen)
   const trialScratch = new Float32Array(scratchLen)
 
-  // Compose normalized substat roll counts: free/filler rolls across every
-  // substat category, caps reduced by matching main stats, and the remaining
-  // budget greedily assigned to the best damage stats.
-  const makeCaps = (candidate: MainStatCandidate, params: EvaluationScoringParams) => {
-    const caps: Record<string, number> = {}
-    for (const key of usefulSubKeys) {
-      const mainDeduction = (candidate.mainCounts[key] ?? 0) * params.deductionPerMain
-      const cap = Math.max(params.baselineFreeRolls, params.maxPerSub - mainDeduction)
-      caps[key] = key === ENERGY_REGEN && targetEr > 0
-        ? MAX_ROLLS_PER_KEY
-        : Math.min(MAX_ROLLS_PER_KEY, Math.max(0, cap))
+  // ER is additive in the packed evaluator. Resolve the source/set/main-Echo
+  // contribution once per frame, then add each candidate's encoded main ER.
+  const frameErOffsets = new WeakMap<EvaluationEchoFrame, number>()
+  const candidateEnergyRegen = (candidate: MainStatCandidate) => {
+    let offset = frameErOffsets.get(candidate.frame)
+    if (offset == null) {
+      offset = frameEnergyRegen(ctx, candidate.frame)
+        - sumEncodedEnergyRegen(candidate.frame.stats, candidate.frame.comboIds)
+      frameErOffsets.set(candidate.frame, offset)
     }
-    return caps
+    return offset + sumEncodedEnergyRegen(candidate.stats, candidate.frame.comboIds)
   }
+
+  const makeCaps = (params: EvaluationScoringParams) => Object.fromEntries(
+    SUBSTAT_KEYS.map(key => [key, Math.min(MAX_ROLLS_PER_KEY, params.maxPerSub)]),
+  )
 
   const requiredErSubstats = (
     candidate: MainStatCandidate,
@@ -468,7 +459,7 @@ export function buildEvaluationAnchors(
     caps: Record<string, number>,
     rolls: Record<string, number>,
   ): { count: number; total: number } | null => {
-    const mainEr = sumEncodedEnergyRegen(candidate.stats, candidate.frame.comboIds)
+    const mainEr = candidateEnergyRegen(candidate)
     const missing = Math.max(0, targetEr - mainEr)
     if (missing <= 0.000001) return { count: 0, total: 0 }
 
@@ -481,13 +472,12 @@ export function buildEvaluationAnchors(
     // such as 62.0000019 ER remains exactly five legal 12.4 rolls instead of
     // being rounded up to an impossible sixth roll.
     const count = Math.ceil((missing / roll) - 0.000001)
-    if (count > cap || count > params.substatGoal + 0.0001) return null
+    if (count > cap || count > params.substatGoal) return null
     return { count, total: missing }
   }
 
   const optimisticSubstatDamage = (
     candidate: MainStatCandidate,
-    params: EvaluationScoringParams,
     caps: Record<string, number>,
     er: { count: number; total: number },
     rolls: Record<string, number>,
@@ -495,13 +485,13 @@ export function buildEvaluationAnchors(
     const working = workingScratch
     working.set(candidate.stats)
     if (er.total > 0) addStatTotal(working, ENERGY_REGEN, er.total)
-    for (const key of usefulDamageSubKeys) {
+    for (const key of nonErSubKeys) {
       const roll = rolls[key] ?? 0
-      const cap = caps[key] ?? 0
+      const cap = substatUsefulStats.has(key) ? (caps[key] ?? 0) : 0
       if (roll <= 0 || cap <= 0) {
         continue
       }
-      addStatTotal(working, key, effectiveRollCount(cap, params) * roll)
+      addStatTotal(working, key, cap * roll)
     }
     return candidate.frame.score(working, candidate.frame.sets)
   }
@@ -525,9 +515,7 @@ export function buildEvaluationAnchors(
       if (rawDelta <= 0) {
         return 0
       }
-      const prevEffective = effectiveRollCount(currentCount, params)
-      const nextEffective = effectiveRollCount(boundedNext, params)
-      const effectiveDelta = nextEffective - prevEffective
+      const effectiveDelta = rawDelta
       counts[key] = boundedNext
       addStatTotal(working, key, effectiveDelta * (rolls[key] ?? 0))
       usedRolls += rawDelta
@@ -540,9 +528,6 @@ export function buildEvaluationAnchors(
       usedRolls += er.count
     }
 
-    for (const key of usefulDamageSubKeys) {
-      applyRawCount(key, Math.min(params.freeRolls, caps[key] ?? 0))
-    }
     let workingDamage = candidate.frame.score(working, candidate.frame.sets)
 
     while (usedRolls < params.substatGoal - 0.0001) {
@@ -559,9 +544,7 @@ export function buildEvaluationAnchors(
         }
         const trial = trialScratch
         trial.set(working)
-        const prevEffective = effectiveRollCount(currentCount, params)
-        const nextEffective = effectiveRollCount(nextCount, params)
-        addStatTotal(trial, key, (nextEffective - prevEffective) * roll)
+        addStatTotal(trial, key, rawDelta * roll)
         const gain = candidate.frame.score(trial, candidate.frame.sets) - workingDamage
         if (gain > bestGain) {
           bestGain = gain
@@ -589,19 +572,19 @@ export function buildEvaluationAnchors(
   // Try one main-stat candidate against one pass's running best, applying the
   // branch-and-bound prune. Returns the (possibly updated) best. The prune only
   // skips candidates whose valid upper bound can't beat the current best, so the
-  // returned maximum is exact regardless of visit order.
+  // remaining fill is still heuristic within the bounded candidate pool.
   const consider = (
     candidate: MainStatCandidate,
     params: EvaluationScoringParams,
     rolls: Record<string, number>,
     best: SubstatCandidate | null,
   ): SubstatCandidate | null => {
-    const caps = makeCaps(candidate, params)
+    const caps = makeCaps(params)
     const er = requiredErSubstats(candidate, params, caps, rolls)
     if (!er) {
       return best
     }
-    const upperBound = optimisticSubstatDamage(candidate, params, caps, er, rolls)
+    const upperBound = optimisticSubstatDamage(candidate, caps, er, rolls)
     if (best && upperBound <= best.damage + 0.000001) {
       return best
     }
@@ -625,12 +608,26 @@ export function buildEvaluationAnchors(
     return best
   }
 
-  // Both passes (evaluation-quality and perfection-quality rolls) search the
-  // identical bounded candidate set and differ only in roll values/budget, so
-  // each frame's main-stat candidates are enumerated once. This halves main
-  // stat enumeration vs. two separate passes while keeping peak memory at
-  // O(one frame). The bounded beam is intentional: the report favors a fast,
-  // useful estimate over exhaustive accuracy.
+  const considerReference = (candidate: MainStatCandidate, best: SubstatCandidate | null): SubstatCandidate | null => {
+    // A generous bound: all keys at five maximum values, ignoring slot and
+    // upgrade budgets. Include ER because some kits convert it into damage.
+    const optimistic = candidate.stats.slice()
+    for (const key of SUBSTAT_KEYS) addStatTotal(optimistic, key, MAX_ROLLS_PER_KEY * maximumRolls[key])
+    if (best && candidate.frame.score(optimistic, candidate.frame.sets) <= best.damage) return best
+    const next = allocateSteps(candidate.stats, Math.max(0, targetEr - candidateEnergyRegen(candidate)),
+      stats => candidate.frame.score(stats, candidate.frame.sets), checkCancel)
+    if (!next || (best && next.damage <= best.damage)) return best
+    return {
+      damage: next.damage,
+      counts: Object.fromEntries(Object.entries(next.values).map(([key, values]) => [key, values.length])),
+      values: next.values,
+      stats: next.stats,
+      main: { ...candidate, stats: candidate.stats.slice(), primaryStats: candidate.primaryStats.map(stat => ({ ...stat })), mainCounts: { ...candidate.mainCounts } },
+    }
+  }
+
+  // Both passes reuse the same bounded main-stat candidate pool. The reference
+  // allocates physical slots and tier upgrades; the maximum retains its fill.
   let evaluation: SubstatCandidate | null = null
   let perfection: SubstatCandidate | null = null
   for (const info of frameInfos) {
@@ -647,31 +644,20 @@ export function buildEvaluationAnchors(
       checkCancel?.()
       if (candidateCount >= APPROXIMATE_MAIN_CANDIDATE_LIMIT) break
       candidateCount += 1
-      evaluation = consider(candidate, evaluationParams, evaluationRolls, evaluation)
+      evaluation = considerReference(candidate, evaluation)
       perfection = consider(candidate, maximumParams, maximumRolls, perfection)
     }
   }
   if (!evaluation || !perfection) return null
 
-  const evaluationSubstats = makeSubstatPlan(
-    evaluation.counts,
-    (key) => bounds[key].evaluation,
-    evaluationParams,
-    targetEr > 0 ? {
-      [ENERGY_REGEN]: Math.max(
-        0,
-        targetEr - sumEncodedStats(evaluation.main.stats, evaluation.main.frame.comboIds).er,
-      ),
-    } : {},
-  )
+  const evaluationSubstats = stepSubstatPlan(evaluation.values!)
   const perfectionSubstats = makeSubstatPlan(
     perfection.counts,
-    (key) => bounds[key].max,
-    maximumParams,
+    (key) => maximumRolls[key],
     targetEr > 0 ? {
       [ENERGY_REGEN]: Math.max(
         0,
-        targetEr - sumEncodedStats(perfection.main.stats, perfection.main.frame.comboIds).er,
+        targetEr - candidateEnergyRegen(perfection.main),
       ),
     } : {},
   )
@@ -687,7 +673,7 @@ export function buildEvaluationAnchors(
         stats: noEchoFrame.stats.slice(),
       },
       referenceBuild: {
-        echoes: evaluation.main.frame.echoes,
+        echoes: distributeStepSubstats(evaluation.main.frame.echoes, evaluation.values!),
         primaryStats: evaluation.main.primaryStats,
         substats: evaluationSubstats,
         stats: evaluation.stats.slice(),
@@ -723,11 +709,8 @@ export function assembleEvaluation(
   const activeSetRows = activeFrame ? activeFrame.sets : noEchoFrame.sets
   const userDamage = activeEvalFrame.score(activeStats, activeSetRows)
 
-  const totals = sumSubstats(activeEchoes)
-  const currentRollCounts = equivalentRollCounts(totals)
+  const { totals, counts: currentRollCounts } = aggregateSubstats(activeEchoes)
   const activePrimaryStats = activeEchoes.map((echo) => ({ ...echo.mainStats.primary }))
-
-  const rollBounds = getRollBounds()
 
   const activeSubstats = Object.entries(totals)
     .filter(([, total]) => total > 0)
@@ -735,7 +718,7 @@ export function assembleEvaluation(
       key,
       count: currentRollCounts[key] ?? 0,
       effectiveCount: currentRollCounts[key] ?? 0,
-      rollValue: rollBounds[key]?.evaluation ?? 0,
+      rollValue: (currentRollCounts[key] ?? 0) > 0 ? total / currentRollCounts[key] : 0,
       total,
     }))
     .sort((left, right) => right.total - left.total)

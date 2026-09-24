@@ -3,8 +3,8 @@
 exports[`evaluation scoring invariants > pins scoring fingerprints for representative persisted fixtures 1`] = `
 [
   {
-    "baselineDamage": 223422.5,
-    "grade": "SS",
+    "baselineDamage": 194454.97,
+    "grade": "SSS",
     "maximumBuild": {
       "costs": [
         1,
@@ -27,8 +27,8 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "heavyAtk:5:58",
       ],
     },
-    "maximumDamage": 2320615.04,
-    "percent": 110.9198,
+    "maximumDamage": 2019989.15,
+    "percent": 123.4501,
     "referenceBuild": {
       "costs": [
         1,
@@ -43,21 +43,25 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "3:2",
       ],
       "substats": [
-        "atkFlat:2.538:473.306",
-        "atkPercent:3.783:67.752",
-        "critDmg:4.167:61.401",
-        "critRate:4.167:52.701",
+        "atkFlat:2:470",
+        "basicAtk:1:6.4",
+        "critDmg:5:75",
+        "critRate:5:59.5",
+        "defFlat:2:80",
+        "defPercent:1:8.1",
         "energyRegen:3:22.8",
-        "heavyAtk:3.783:31.752",
-        "resonanceSkill:0.783:7.271",
+        "heavyAtk:1:8.6",
+        "hpFlat:2:5200",
+        "hpPercent:2:12.8",
+        "resonanceLiberation:1:6.4",
       ],
     },
-    "referenceDamage": 1464720.91,
-    "userDamage": 1558183.15,
+    "referenceDamage": 1152942.85,
+    "userDamage": 1356266.44,
   },
   {
-    "baselineDamage": 10966.19,
-    "grade": "SS",
+    "baselineDamage": 9497.14,
+    "grade": "SSS",
     "maximumBuild": {
       "costs": [
         1,
@@ -80,8 +84,8 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "resonanceLiberation:2:23.2",
       ],
     },
-    "maximumDamage": 108010.86,
-    "percent": 111.081,
+    "maximumDamage": 93541.54,
+    "percent": 123.3483,
     "referenceBuild": {
       "costs": [
         1,
@@ -96,22 +100,24 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "8:2",
       ],
       "substats": [
-        "atkFlat:2.783:482.147",
-        "atkPercent:3.783:67.752",
-        "basicAtk:0.783:7.271",
-        "critDmg:4.138:105.115",
-        "critRate:4.167:30.701",
+        "atkFlat:2:470",
+        "atkPercent:1:42.4",
+        "critDmg:5:119",
+        "critRate:5:37.5",
+        "defFlat:2:80",
+        "defPercent:2:16.2",
         "energyRegen:3:25.2",
-        "resonanceLiberation:2.783:25.548",
-        "resonanceSkill:0.783:7.271",
+        "heavyAtk:1:6.4",
+        "hpFlat:2:5200",
+        "hpPercent:2:12.8",
       ],
     },
-    "referenceDamage": 68103.11,
-    "userDamage": 72525.3,
+    "referenceDamage": 53448.66,
+    "userDamage": 62809.68,
   },
   {
-    "baselineDamage": 19547.09,
-    "grade": "SS",
+    "baselineDamage": 16928.53,
+    "grade": "SSS",
     "maximumBuild": {
       "costs": [
         1,
@@ -133,8 +139,8 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "energyRegen:2:22.8",
       ],
     },
-    "maximumDamage": 294505.91,
-    "percent": 111.076,
+    "maximumDamage": 255053.38,
+    "percent": 121.8117,
     "referenceBuild": {
       "costs": [
         1,
@@ -148,18 +154,20 @@ exports[`evaluation scoring invariants > pins scoring fingerprints for represent
         "13:5",
       ],
       "substats": [
-        "atkFlat:1.783:439.591",
-        "atkPercent:3.783:67.752",
-        "basicAtk:3.783:31.752",
-        "critDmg:4.138:61.115",
-        "critRate:4.167:52.701",
+        "atkFlat:2:470",
+        "atkPercent:1:42.4",
+        "critDmg:5:78.6",
+        "critRate:5:59.5",
+        "defFlat:2:80",
+        "defPercent:2:16.2",
         "energyRegen:3:22.8",
-        "heavyAtk:0.783:7.271",
-        "resonanceSkill:0.783:7.271",
+        "hpFlat:2:5200",
+        "hpPercent:2:12.8",
+        "resonanceLiberation:1:6.4",
       ],
     },
-    "referenceDamage": 174967.7,
-    "userDamage": 188207.73,
+    "referenceDamage": 137314.21,
+    "userDamage": 162995.09,
   },
 ]
 `;

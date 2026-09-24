@@ -12,6 +12,7 @@ import { makeAppState, makeResProfile, makeScenarioFromProfiles } from '@/engine
 import { listResSds } from '@/data/catalog/resonatorSeedService'
 import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE } from '@/domain/entities/preferences'
 import { projectScenarioWorkspaceProfiles } from '@/engine/runtime/scenarioRuntime'
+import { useAppStore } from '@/application/state/store'
 import {
   APPSTORECMBT,
   APPSTORECMBTINDEX,
@@ -44,6 +45,38 @@ describe('persisted state compatibility', () => {
   })
 
   afterEach(() => vi.unstubAllGlobals())
+
+  it('edits a reloaded getter-backed scenario through the runtime store and persists the change', () => {
+    const originalState = useAppStore.getState()
+    try {
+      const initial = makeAppState()
+      const seed = listResSds().find((entry) => entry.id === '1108')!
+      const inactive = {
+        ...makeScenarioFromProfiles({ [seed.id]: makeResProfile(seed) }, null, 0, seed.id),
+        id: combatScenarioId(`legacy:${seed.id}`),
+      }
+      initial.combat = addScenario(initial.combat, inactive, false)
+      saveAppState(initial)
+      const loaded = loadPrssAppS()!
+      const scenario = loaded.combat.scenariosById[inactive.id]
+      expect(Object.getOwnPropertyDescriptor(loaded.combat.scenariosById, scenario.id)?.get).toBeTypeOf('function')
+      useAppStore.setState({ combat: loaded.combat })
+      useAppStore.getState().selectContextResonator(seed.id)
+      expect(useAppStore.getState().combat.selectedScenarioId).toBe(inactive.id)
+
+      useAppStore.getState().updScenarioResRt(scenario.id, scenario.team.members[0].resonatorId, (runtime) => ({
+        ...runtime,
+        base: { ...runtime.base, level: 42 },
+      }))
+      const edited = selectedCombatScenario(useAppStore.getState().combat)
+      expect(edited.team.members[0].progression.level).toBe(42)
+      expect(scenario.team.members[0].progression.level).not.toBe(42)
+      saveAppState(useAppStore.getState(), { domains: ['combat.workspace'] })
+      expect(selectedCombatScenario(loadPrssAppS()!.combat).team.members[0].progression.level).toBe(42)
+    } finally {
+      useAppStore.setState(originalState, true)
+    }
+  })
 
   it('migrates v22 profiles and calculator inventory into canonical scenarios and the root library', () => {
     const current = makeAppState()

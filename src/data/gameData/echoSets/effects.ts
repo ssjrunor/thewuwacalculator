@@ -574,7 +574,11 @@ function mkSetPkg(def: SetDef): SrcPkg {
   return {
     source: makeSource(def.id),
     owners: [makeOwner(def.id, def.name)],
-    states,
+    states: states.map((state) => ({
+      ...state,
+      // Controls require the same equipped-piece threshold as their effects.
+      visibleWhen: setGte(def.id, pieceReq),
+    })),
     effects,
   }
 }

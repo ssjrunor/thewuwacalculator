@@ -8,7 +8,8 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { makeEnemy, makeResRuntime } from '@/engine/runtime/defaults'
+import { makeResRuntime } from '@/engine/runtime/defaults'
+import type { EnemyProfile } from '@/domain/entities/appState'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { listResRttn } from '@/data/catalog/gameDataService'
 import { prepareResSimulation } from '@/engine/pipeline'
@@ -43,6 +44,18 @@ interface PinnedRotation {
 }
 
 const pinned = fixture.rotations as PinnedRotation[]
+
+// These totals were captured against this target before the application
+// default changed to level 100 with 20% resistance.
+const pinnedEnemy: EnemyProfile = {
+  id: '340000240',
+  level: 90,
+  class: 4,
+  toa: false,
+  source: 'catalog',
+  status: { tuneStrain: 0 },
+  res: { 0: 10, 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
+}
 
 /** Relative comparison: these are damage totals in the millions. */
 function expectClose(actual: number, expected: number, label: string): void {
@@ -121,7 +134,7 @@ describe('rotation execution parity', () => {
       expect(rotation?.items.length, `missing rotation for ${pin.resonatorId}`).toBeTruthy()
 
       const runtime = makeResRuntime(seed!)
-      const prepared = prepareResSimulation(runtime, seed!, makeEnemy(), {}, {})
+      const prepared = prepareResSimulation(runtime, seed!, structuredClone(pinnedEnemy), {}, {})
       const environment = prepareRunEnv(prepared.context, seed!)
       const program = prepareRotationProgram(rotation!.items as RotationNode[])
 

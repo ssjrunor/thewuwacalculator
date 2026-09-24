@@ -1,0 +1,659 @@
+{
+  "resonatorId": "1610",
+  "runtime": {
+    "progression": {
+      "level": 90,
+      "sequence": 0,
+      "skillLevels": {
+        "normalAttack": 10,
+        "resonanceSkill": 10,
+        "forteCircuit": 10,
+        "resonanceLiberation": 10,
+        "introSkill": 10,
+        "tuneBreak": 10
+      },
+      "traceNodes": {
+        "atk": {
+          "percent": 12,
+          "flat": 0
+        },
+        "hp": {
+          "percent": 0,
+          "flat": 0
+        },
+        "def": {
+          "percent": 0,
+          "flat": 0
+        },
+        "attribute": {
+          "aero": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "glacio": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "spectro": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "fusion": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "electro": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "havoc": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          },
+          "physical": {
+            "resShred": 0,
+            "dmgBonus": 0,
+            "amplify": 0,
+            "defIgnore": 0,
+            "defShred": 0,
+            "dmgVuln": 0,
+            "critRate": 0,
+            "critDmg": 0
+          }
+        },
+        "critRate": 7.999999999999999,
+        "critDmg": 0,
+        "healingBonus": 0,
+        "activeNodes": {
+          "trace_915": true,
+          "trace_916": true,
+          "trace_917": true,
+          "trace_918": true,
+          "trace_919": true,
+          "trace_920": true,
+          "trace_921": true,
+          "trace_922": true
+        }
+      }
+    },
+    "build": {
+      "weapon": {
+        "id": "21020096",
+        "level": 90,
+        "rank": 1,
+        "baseAtk": 587.5
+      },
+      "echoes": [
+        {
+          "uid": "calibration-0",
+          "id": "6000218",
+          "set": 33,
+          "mainEcho": true,
+          "mainStats": {
+            "primary": {
+              "key": "critDmg",
+              "value": 44
+            },
+            "secondary": {
+              "key": "atkFlat",
+              "value": 150
+            }
+          },
+          "substats": {
+            "defFlat": 40,
+            "critDmg": 15,
+            "critRate": 7.5,
+            "hpFlat": 430,
+            "resonanceLiberation": 7.9
+          }
+        },
+        {
+          "uid": "calibration-1",
+          "id": "6000206",
+          "set": 33,
+          "mainEcho": false,
+          "mainStats": {
+            "primary": {
+              "key": "atkPercent",
+              "value": 18
+            },
+            "secondary": {
+              "key": "hpFlat",
+              "value": 2280
+            }
+          },
+          "substats": {
+            "defFlat": 40,
+            "critDmg": 15,
+            "critRate": 7.5,
+            "hpFlat": 430,
+            "resonanceLiberation": 7.9
+          }
+        },
+        {
+          "uid": "calibration-2",
+          "id": "6000215",
+          "set": 33,
+          "mainEcho": false,
+          "mainStats": {
+            "primary": {
+              "key": "havoc",
+              "value": 30
+            },
+            "secondary": {
+              "key": "atkFlat",
+              "value": 100
+            }
+          },
+          "substats": {
+            "atkFlat": 40,
+            "atkPercent": 8.6,
+            "critDmg": 13.8,
+            "critRate": 6.9,
+            "heavyAtk": 8.6
+          }
+        },
+        {
+          "uid": "calibration-3",
+          "id": "6000216",
+          "set": 33,
+          "mainEcho": false,
+          "mainStats": {
+            "primary": {
+              "key": "havoc",
+              "value": 30
+            },
+            "secondary": {
+              "key": "atkFlat",
+              "value": 100
+            }
+          },
+          "substats": {
+            "atkFlat": 40,
+            "atkPercent": 8.6,
+            "critDmg": 13.8,
+            "critRate": 6.9,
+            "heavyAtk": 8.6
+          }
+        },
+        {
+          "uid": "calibration-4",
+          "id": "6000213",
+          "set": 33,
+          "mainEcho": false,
+          "mainStats": {
+            "primary": {
+              "key": "atkPercent",
+              "value": 18
+            },
+            "secondary": {
+              "key": "hpFlat",
+              "value": 2280
+            }
+          },
+          "substats": {
+            "energyRegen": 9.2,
+            "defPercent": 9,
+            "critDmg": 13.8,
+            "critRate": 6.9,
+            "hpFlat": 430
+          }
+        }
+      ]
+    },
+    "local": {
+      "controls": {
+        "resonator:1610:bated_breath:active": true,
+        "resonator:1610:drifting_mist:active": true,
+        "resonator:1610:feathered_oath:stacks": "6",
+        "team:1610:as_the_wind_wills:active": true,
+        "sequence:1610:s4:active": true,
+        "sequence:1610:s6_voice_flux:active": true,
+        "echoSet:33:bonus:xuanlingsFeather": true,
+        "echoSet:33:bonus:chongmingsFeather": false,
+        "weapon:21020096:passive:havoc_bane": true,
+        "team:1508:resonator:1508:thread_of_bane:active": true,
+        "team:1508:resonator:1508:woven_myriad_convergence:active": true,
+        "team:1508:resonator:1508:ring_of_chainsaw:value": 100,
+        "team:1508:inherent:1508:lvl70:active": true,
+        "team:1508:team:1508:unraveling_law_zero:active": true,
+        "team:1508:sequence:1508:s1:active": false,
+        "team:1508:team:1508:into_the_web_of_endless_bonds:active": false,
+        "team:1508:sequence:1508:s6:active": false,
+        "team:1508:team:1508:rising_dawn:active": false,
+        "team:1508:weapon:21010056:passive:stacks": 3,
+        "team:1508:weapon:21010056:passive:active": true,
+        "team:1508:echo:6000052:main:active": true,
+        "team:1508:echoSet:8:bonus:moonlit5": true,
+        "team:1110:team:1110:ceaseless_landscape:active": true,
+        "team:1110:team:1110:rippling_waters:active": true,
+        "team:1110:team:1110:reflecting_shadows:active": true,
+        "team:1110:team:1110:heavens_roam:active": true,
+        "team:1110:sequence:1110:s2:active": false,
+        "team:1110:team:1110:ceaseless_havoc_bane:active": true,
+        "team:1110:echoSet:33:bonus:xuanlingsFeather": true,
+        "team:1110:echoSet:33:bonus:chongmingsFeather": true,
+        "team:1110:weapon:21050096:passive:kingfisher": true
+      },
+      "manualBuffs": {
+        "quick": {
+          "atk": {
+            "flat": 0,
+            "percent": 0
+          },
+          "hp": {
+            "flat": 0,
+            "percent": 0
+          },
+          "def": {
+            "flat": 0,
+            "percent": 0
+          },
+          "critRate": 0,
+          "critDmg": 0,
+          "energyRegen": 0,
+          "healingBonus": 0
+        },
+        "modifiers": []
+      },
+      "combat": {
+        "spectroFrazzle": 0,
+        "aeroErosion": 0,
+        "fusionBurst": 0,
+        "havocBane": 6,
+        "glacioChafe": 6,
+        "electroFlare": 0,
+        "electroRage": 0
+      },
+      "setConditionals": {
+        "version": 1,
+        "encoding": "off-v1",
+        "off": {
+          "19": [
+            "dreamOfTheLost3pc"
+          ],
+          "20": [
+            "crownOfValor3pc"
+          ],
+          "21": [
+            "lawOfHarmony3p"
+          ],
+          "22": [
+            "flamewingsShadow2pcP1",
+            "flamewingsShadow2pcP2",
+            "threePiece"
+          ],
+          "32": [
+            "shadowOfShatteredDreams1pc"
+          ],
+          "33": [
+            "chongmingsFeather"
+          ]
+        }
+      },
+      "optimizerInventory": {
+        "mode": "exclude",
+        "echoUids": []
+      }
+    },
+    "routing": {
+      "selectedTargetsByOwnerKey": {}
+    },
+    "team": [
+      "1610",
+      "1508",
+      "1110"
+    ],
+    "rotation": {
+      "sequence": []
+    },
+    "teamRuntimes": [
+      {
+        "id": "1508",
+        "base": {
+          "sequence": 0
+        },
+        "build": {
+          "weapon": {
+            "id": "21010056",
+            "rank": 1,
+            "baseAtk": 500
+          },
+          "echoes": [
+            {
+              "uid": "calibration-5",
+              "id": "6000052",
+              "set": 8,
+              "mainEcho": true,
+              "mainStats": {
+                "primary": {
+                  "key": "critDmg",
+                  "value": 44
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 150
+                }
+              },
+              "substats": {
+                "atkPercent": 7.1,
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 7.6,
+                "resonanceLiberation": 7.1
+              }
+            },
+            {
+              "uid": "calibration-6",
+              "id": "390070074",
+              "set": 8,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "atkPercent",
+                  "value": 18
+                },
+                "secondary": {
+                  "key": "hpFlat",
+                  "value": 2280
+                }
+              },
+              "substats": {
+                "atkPercent": 7.1,
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 7.6,
+                "resonanceLiberation": 7.1
+              }
+            },
+            {
+              "uid": "calibration-7",
+              "id": "6000056",
+              "set": 8,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "havoc",
+                  "value": 30
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 100
+                }
+              },
+              "substats": {
+                "atkPercent": 7.1,
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 7.6,
+                "resonanceLiberation": 7.1
+              }
+            },
+            {
+              "uid": "calibration-8",
+              "id": "390070052",
+              "set": 8,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "atkPercent",
+                  "value": 18
+                },
+                "secondary": {
+                  "key": "hpFlat",
+                  "value": 2280
+                }
+              },
+              "substats": {
+                "atkFlat": 40,
+                "atkPercent": 7.1,
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "resonanceLiberation": 7.1
+              }
+            },
+            {
+              "uid": "calibration-9",
+              "id": "390077021",
+              "set": 8,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "havoc",
+                  "value": 30
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 100
+                }
+              },
+              "substats": {
+                "atkFlat": 40,
+                "atkPercent": 7.1,
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "resonanceLiberation": 7.1
+              }
+            }
+          ]
+        },
+        "manualBuffs": {
+          "quick": {
+            "atk": {
+              "flat": 0,
+              "percent": 0
+            },
+            "hp": {
+              "flat": 0,
+              "percent": 0
+            },
+            "def": {
+              "flat": 0,
+              "percent": 0
+            },
+            "critRate": 0,
+            "critDmg": 0,
+            "energyRegen": 0,
+            "healingBonus": 0
+          },
+          "modifiers": []
+        }
+      },
+      {
+        "id": "1110",
+        "base": {
+          "sequence": 0
+        },
+        "build": {
+          "weapon": {
+            "id": "21050096",
+            "rank": 1,
+            "baseAtk": 412.5
+          },
+          "echoes": [
+            {
+              "uid": "calibration-10",
+              "id": "6000216",
+              "set": 33,
+              "mainEcho": true,
+              "mainStats": {
+                "primary": {
+                  "key": "hpPercent",
+                  "value": 30
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 100
+                }
+              },
+              "substats": {
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 8.4,
+                "hpFlat": 430,
+                "hpPercent": 7.1
+              }
+            },
+            {
+              "uid": "calibration-11",
+              "id": "6000215",
+              "set": 33,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "energyRegen",
+                  "value": 32
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 100
+                }
+              },
+              "substats": {
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 8.4,
+                "hpFlat": 430,
+                "hpPercent": 7.1
+              }
+            },
+            {
+              "uid": "calibration-12",
+              "id": "6000218",
+              "set": 33,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "critDmg",
+                  "value": 44
+                },
+                "secondary": {
+                  "key": "atkFlat",
+                  "value": 150
+                }
+              },
+              "substats": {
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 8.4,
+                "hpFlat": 430,
+                "hpPercent": 7.1
+              }
+            },
+            {
+              "uid": "calibration-13",
+              "id": "6000214",
+              "set": 33,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "hpPercent",
+                  "value": 22.8
+                },
+                "secondary": {
+                  "key": "hpFlat",
+                  "value": 2280
+                }
+              },
+              "substats": {
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 8.4,
+                "hpFlat": 430,
+                "resonanceSkill": 7.1
+              }
+            },
+            {
+              "uid": "calibration-14",
+              "id": "6000213",
+              "set": 33,
+              "mainEcho": false,
+              "mainStats": {
+                "primary": {
+                  "key": "hpPercent",
+                  "value": 22.8
+                },
+                "secondary": {
+                  "key": "hpFlat",
+                  "value": 2280
+                }
+              },
+              "substats": {
+                "critDmg": 13.8,
+                "critRate": 6.9,
+                "energyRegen": 8.4,
+                "hpFlat": 430,
+                "resonanceSkill": 7.1
+              }
+            }
+          ]
+        },
+        "manualBuffs": {
+          "quick": {
+            "atk": {
+              "flat": 0,
+              "percent": 0
+            },
+            "hp": {
+              "flat": 0,
+              "percent": 0
+            },
+            "def": {
+              "flat": 0,
+              "percent": 0
+            },
+            "critRate": 0,
+            "critDmg": 0,
+            "energyRegen": 0,
+            "healingBonus": 0
+          },
+          "modifiers": [
+            {
+              "id": "5a9b55f7-0fb3-4884-9c0e-27cf44868463",
+              "enabled": true,
+              "scope": "topStat",
+              "stat": "dmgBonus",
+              "value": 0
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

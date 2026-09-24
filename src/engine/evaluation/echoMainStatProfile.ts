@@ -257,7 +257,11 @@ export function cacheEchoMainStatScoringFromEvaluation(
   const idealSubstatValues: Record<string, number> = {}
   for (const row of referenceBuild.statRows) {
     const count = Math.round(row.substatCount)
+    // A 25-slot benchmark can still contain minimum/tier-budget values. Only
+    // an all-maximum reference can seed the independent Echo-quality ideal.
+    if (Math.abs(count - row.substatCount) > 0.000001) return null
     if (count <= 0 || !Number.isFinite(row.substatTotal) || row.substatTotal <= 0) continue
+    if (Math.abs(row.substatTotal - count * (SUBSTAT_RANGES[row.key]?.max ?? 0)) > 0.0001) return null
     idealSubstatCounts[row.key] = count
     idealSubstatValues[row.key] = row.substatTotal
   }

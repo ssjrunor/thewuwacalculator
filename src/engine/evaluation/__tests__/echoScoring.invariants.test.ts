@@ -496,7 +496,7 @@ describe('Echo scoring invariants', () => {
       },
     } as unknown as BuildEvaluationReport
 
-    expect(cacheEchoMainStatScoringFromEvaluation({
+    const input = {
       scenarioId: combatScenarioId('echo-score:report-reuse'),
       memberId: teamMemberId('echo-score:report-member'),
       runtime,
@@ -505,7 +505,19 @@ describe('Echo scoring invariants', () => {
       runtimesById,
       selectedTargets: {},
       simulation,
-    }, report)).not.toBeNull()
+    }
+    const fractional = structuredClone(report)
+    fractional.evaluation.builds.referenceBuild.statRows.forEach((row) => {
+      row.substatCount -= 0.49
+    })
+    // These still round to 25 slots, but belong to the fractional build
+    // benchmark and must not replace the Echo-quality reference.
+    expect(cacheEchoMainStatScoringFromEvaluation(input, fractional)).toBeNull()
+    const tierBudget = structuredClone(report)
+    tierBudget.evaluation.builds.referenceBuild.statRows[0].substatTotal *= 0.8
+    // Integer occupancy alone must not turn the 100% build into the ideal.
+    expect(cacheEchoMainStatScoringFromEvaluation(input, tierBudget)).toBeNull()
+    expect(cacheEchoMainStatScoringFromEvaluation(input, report)).not.toBeNull()
 
     const reference = getEchoScoringReference(AUGUSTA_ID)
     expect(reference?.referenceEchoes).toHaveLength(5)
@@ -627,5 +639,5 @@ describe('Echo scoring invariants', () => {
     )
     expect(referenceSimulation.finalStats.hp.final).toBeGreaterThanOrEqual(49_000)
     expect(referenceSimulation.finalStats.hp.final).toBeLessThanOrEqual(51_200)
-  })
+  }, 30_000)
 })

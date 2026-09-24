@@ -4,7 +4,7 @@
 */
 import type { EchoInstance } from '@/domain/entities/runtime';
 import type { AttributeKey, FinalStats, ModBuff, SkillTypeKey } from '@/domain/entities/stats';
-import { SUBSTAT_KEYS, getSbstStepP, ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats';
+import { SUBSTAT_KEYS, ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats';
 import type { EchoDef } from '@/domain/entities/catalog';
 import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN, SET_SLOT_COUNT } from '@/engine/optimizer/config/constants';
 import { addEchoStat } from '@/engine/optimizer/encode/echoes';
@@ -19,16 +19,11 @@ import { resolveEvaluationStats } from './scoring.ts';
 import {
   aggregateSubstats,
   ENERGY_REGEN,
+  IDEAL_SUBSTAT_SLOTS,
   MAX_SUBSTAT_SLOTS_PER_KEY,
 } from '@/engine/evaluation/substatMath';
 
-
-
-export const WUWA_SUBSTAT_LINES = 25
-export const REFERENCE_MAX_ROLLS = 54
-export const REFERENCE_EVALUATION_ROLLS = 48
-export const REFERENCE_FREE_ROLL_STATS = 11
-export const REFERENCE_MAX_PER_SUB = 36
+export const MAX_SUBS = IDEAL_SUBSTAT_SLOTS
 export const MAX_ROLLS_PER_KEY = MAX_SUBSTAT_SLOTS_PER_KEY
 export { ENERGY_REGEN }
 export const EVALUATION_FEATURE_TAB_LABELS: Record<string, string> = {
@@ -68,13 +63,8 @@ export const EVALUATION_STAT_KEYS = [
 ]
 
 export interface EvaluationScoringParams {
-  quality: number
   substatGoal: number
-  freeRolls: number
   maxPerSub: number
-  deductionPerMain: number
-  baselineFreeRolls: number
-  diminishRolls: boolean
 }
 
 export interface MainStatCandidate {
@@ -99,6 +89,7 @@ export interface EvaluationEchoFrame {
 export interface SubstatCandidate {
   damage: number
   counts: Record<string, number>
+  values?: Record<string, number[]>
   main: MainStatCandidate
   stats: Float32Array
 }
@@ -123,24 +114,9 @@ export interface MainStatSourceSummary {
   secondarySlots: Record<string, number[]>
 }
 
-export const EVALUATION_ROLL_SOURCE = {
-  quality: 0.8,
-  substatGoal: REFERENCE_EVALUATION_ROLLS,
-  freeRolls: 2,
-  maxPerSub: 30,
-  deductionPerMain: 0,
-  baselineFreeRolls: 2,
-  diminishRolls: true,
-}
-
-export const MAXIMUM_ROLL_SOURCE = {
-  quality: 1,
-  substatGoal: REFERENCE_MAX_ROLLS,
-  freeRolls: 0,
-  maxPerSub: 36,
-  deductionPerMain: 0,
-  baselineFreeRolls: 0,
-  diminishRolls: false,
+export const MAXIMUM_SCORING_PARAMS: EvaluationScoringParams = {
+  substatGoal: MAX_SUBS,
+  maxPerSub: MAX_ROLLS_PER_KEY,
 }
 
 export { gradeForPercent } from './grades.ts'
@@ -161,68 +137,6 @@ export function scorePercent(score: number, baseline: number, reference: number,
 
 export function scorePercentX100(score: number, evaluation: BuildEvaluation): number {
   return scorePercent(score, evaluation.baselineDamage, evaluation.referenceDamage, evaluation.maximumDamage) * 100
-}
-
-// Quality scales a max-upgraded substat roll toward the low / mid / high range.
-export function rollAtQuality(steps: number[], quality: number): number {
-  if (steps.length === 0) {
-    return 0
-  }
-  const min = steps[0]
-  const max = steps[steps.length - 1]
-  const clampedQuality = Math.max(0, Math.min(1, quality))
-  return Math.max(min, max * clampedQuality)
-}
-
-export function normalizeRollParams(
-  source: typeof EVALUATION_ROLL_SOURCE,
-  substatCount: number,
-): EvaluationScoringParams {
-  const substatGoal = WUWA_SUBSTAT_LINES * (source.substatGoal / REFERENCE_MAX_ROLLS)
-  const freeBudgetRatio = source.substatGoal > 0
-    ? (source.freeRolls * REFERENCE_FREE_ROLL_STATS) / source.substatGoal
-    : 0
-  return {
-    quality: source.quality,
-    substatGoal,
-    freeRolls: substatCount > 0 ? (substatGoal * freeBudgetRatio) / substatCount : 0,
-    maxPerSub: MAX_ROLLS_PER_KEY * (source.maxPerSub / REFERENCE_MAX_PER_SUB),
-    deductionPerMain: MAX_ROLLS_PER_KEY * (source.deductionPerMain / REFERENCE_MAX_PER_SUB),
-    baselineFreeRolls: MAX_ROLLS_PER_KEY * (source.baselineFreeRolls / REFERENCE_MAX_PER_SUB),
-    diminishRolls: source.diminishRolls,
-  }
-}
-
-export function createDiminishingReturnsFormula(
-  baseLowerLimit: number,
-  penaltyPerMain: number,
-  exponent: number,
-) {
-  return (mainsCount: number, rolls: number) => {
-    const lowerLimit = baseLowerLimit - (penaltyPerMain * mainsCount)
-    if (rolls <= lowerLimit) {
-      return rolls
-    }
-
-    const excess = Math.max(0, rolls - lowerLimit)
-    return lowerLimit + (excess / Math.pow(excess, exponent))
-  }
-}
-
-export const DIMINISHING_STAT_ROLLS = createDiminishingReturnsFormula(
-  MAX_ROLLS_PER_KEY * (12 / REFERENCE_MAX_PER_SUB),
-  MAX_ROLLS_PER_KEY * (2 / REFERENCE_MAX_PER_SUB),
-  0.25,
-)
-
-export function effectiveRollCount(
-  rawCount: number,
-  params: EvaluationScoringParams,
-): number {
-  if (!params.diminishRolls) {
-    return rawCount
-  }
-  return DIMINISHING_STAT_ROLLS(0, rawCount)
 }
 
 export function addStatTotal(buffer: Float32Array, key: string, value: number): void {
@@ -588,19 +502,6 @@ export function removeSubstatTotals(buffer: Float32Array, totals: Record<string,
   }
 }
 
-export function equivalentRollCounts(totals: Record<string, number>): Record<string, number> {
-  const counts: Record<string, number> = {}
-  for (const key of SUBSTAT_KEYS) {
-    const steps = getSbstStepP(key)
-    const max = steps.length ? steps[steps.length - 1] : 0
-    const total = totals[key] ?? 0
-    counts[key] = max > 0 && total > 0
-      ? Math.min(MAX_ROLLS_PER_KEY, total / max)
-      : 0
-  }
-  return counts
-}
-
 export function sumSubstats(echoes: EchoInstance[]): Record<string, number> {
   return aggregateSubstats(echoes).totals
 }
@@ -671,7 +572,6 @@ export function getEvaluationStatKeys(
 export function makeSubstatPlan(
   counts: Record<string, number>,
   rollOf: (key: string) => number,
-  params: EvaluationScoringParams,
   fixedTotals: Record<string, number> = {},
 ): EvaluationSubstatEntry[] {
   return Object.entries(counts)
@@ -688,7 +588,7 @@ export function makeSubstatPlan(
         }
       }
       const roll = rollOf(key)
-      const effectiveCount = effectiveRollCount(count, params)
+      const effectiveCount = count
       return {
         key,
         count,
