@@ -4,7 +4,7 @@
                their state survives navigation.
 */
 
-import { EchoImportHost, EnemyConsoleHost } from '@/modules/simulation/api/chrome'
+import { EchoImportHost, EnemyConsoleHost, ImportStamp } from '@/modules/simulation/api/chrome'
 import { NavHold } from '@/app/nav/NavHold'
 import { DlyNtc } from '@/app/shell/DailyNotice'
 import { NtfcTstCntn } from '@/shared/ui/NotificationToast'
@@ -18,6 +18,7 @@ export function GlobalHosts({ simulating }: { simulating: boolean }) {
   return (
     <>
       <EchoImportHost />
+      <ImportStamp />
       {simulating ? <EnemyConsoleHost /> : null}
       <NavHold />
       <DlyNtc />

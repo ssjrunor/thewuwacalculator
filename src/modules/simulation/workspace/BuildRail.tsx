@@ -4,7 +4,7 @@
                stat-family focus, sequence changes, and scenario member edits.
 */
 
-import { useCallback, useMemo, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { useCallback, useMemo, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import type { ResRuntime, ResSeed, WeaponState } from '@/domain/entities/runtime'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import type { GenWpn } from '@/domain/entities/weapon'
@@ -16,14 +16,12 @@ import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { useAppStore } from '@/application/state'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
-import { makeResProfile, makeScenarioMemberFromProfile } from '@/engine/runtime/defaults.ts'
-import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore.ts'
 import { setResRtSequence } from '@/engine/gameData/resonatorMax.ts'
 import { openTeamCnsl } from '@/modules/simulation/features/teams/lib/teamConsoleStore.ts'
 import { openWpnCnsl } from '@/modules/simulation/features/weapons/lib/weaponConsoleStore.ts'
-import { eligibleForSlot } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
-import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
+import { useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
+import { TeamPicker } from '@/modules/simulation/features/teams/TeamPicker.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { SpinePortrait, SpineSetupBackground } from '@/shared/spine/SpinePortrait.tsx'
@@ -32,6 +30,7 @@ import type { ShowcaseCardHidden, ShowcaseLayout } from '@/domain/entities/prefe
 import { StatGlyph, EvaluationSeqRail, statFamily, type EvaluationEchoSelection, type CssVars } from '@/modules/simulation/workspace/ui.tsx'
 import { ShowcaseBuild } from '@/modules/simulation/surfaces/showcase/Showcase.tsx'
 import { SealShowcase, rarityVars } from '@/modules/simulation/surfaces/showcase/SealShowcase.tsx'
+import { getRarityColor } from '@/modules/simulation/model/display.ts'
 import { useShowcaseImageContrast } from '@/modules/simulation/surfaces/showcase/showcaseImageContrast.ts'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
 
@@ -488,32 +487,15 @@ function TeamBlock({
     (scenarioId ? state.combat.scenariosById[scenarioId] : null)
     ?? selectedCombatScenario(state.combat)
   ))
-  const insertScenarioMember = useAppStore((state) => state.insertScenarioMember)
-  const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
-  const bumpPickerFreq = useAppStore((state) => state.bumpPickFr)
+  const { setTeam } = useTeamSlots({ scenarioId: scenario.id })
   const picker = useAppModal()
-  const [seat, setSeat] = useState<number | null>(null)
-  const { hide: hidePicker, show: showPicker } = picker
+  const { hide: closePicker, show: openPicker } = picker
 
-  const closePicker = useCallback(() => {
-    hidePicker(() => {
-      setSeat(null)
-    })
-  }, [hidePicker])
-
-  const openPicker = useCallback((slot: number) => {
-    setSeat(slot)
-    showPicker()
-  }, [showPicker])
-
-  // Scenario teams are dense rather than sparse slots. Only the first empty
-  // card is actionable, and it appends one canonical member to this scenario.
-  const nextSeat = scenario.team.members.length
-  const seatable = Boolean(editable && team && nextSeat < 3)
+  const seatable = Boolean(editable && team && scenario.team.members.length < 3)
 
   const seats = Array.from({ length: 2 }, (_, slotIndex) => {
     const mate = teamSupports[slotIndex]
-    const onPick = seatable && slotIndex + 1 === nextSeat ? () => openPicker(slotIndex + 1) : undefined
+    const onPick = seatable ? () => openPicker() : undefined
     if (variant === 'seal') {
       return mate
         ? <SealMate key={mate.id} mate={mate} editable={editable} scenarioId={scenario.id} />
@@ -533,37 +515,17 @@ function TeamBlock({
         </>
       )}
 
-      {picker.visible && seat !== null && team && ownerResId ? (
-        <ResPckr
+      {picker.visible && editable && team && ownerResId ? (
+        <TeamPicker
           visible={picker.visible}
           open={picker.open}
           closing={picker.closing}
           portalTarget={mainPortal()}
-          eyebrow="Team Slots"
-          title="Select Teammate"
-          resonators={eligibleForSlot(team, seat)}
-          selResId={team[seat] ?? null}
-          selLbl="Selected"
-          smmrPrmr={{ label: 'Slot', value: seat + 1 }}
-          emptyState={<p>No eligible resonators remain for this slot.</p>}
-          panelWidth="regular"
+          leadId={scenario.team.members[0].resonatorId}
+          team={scenario.team.members.map((member) => member.resonatorId)}
           onClose={closePicker}
-          onSelect={(resonatorId) => {
-            const seed = getResSeedBy(resonatorId)
-            if (!seed || seat !== scenario.team.members.length) {
-              closePicker()
-              return
-            }
-            insertScenarioMember(
-              scenario.id,
-              seat,
-              makeScenarioMemberFromProfile(makeResProfile(seed, { maxed: maxResOnInit })),
-            )
-            bumpPickerFreq({
-              bucket: 'teamResonator',
-              slot: seat === 1 ? 'teammate1' : 'teammate2',
-              ids: [resonatorId],
-            })
+          onCommit={(supports) => {
+            setTeam(supports)
             closePicker()
           }}
         />
@@ -575,26 +537,18 @@ function TeamBlock({
 function EmptyTeamMate({ onPick }: { onPick?: () => void }) {
   const body = (
     <>
-      <div className="workspace-mate-head">
-        <span className="workspace-mate-attr workspace-mate-attr--empty" aria-hidden="true" />
-        <strong className="workspace-mate-name">No resonator</strong>
-        <span className="workspace-mate-lv">-</span>
-        <span className="workspace-mate-seq" aria-hidden="true">
+      <span className="workspace-mate-edge" aria-hidden="true" />
+      <strong className="workspace-mate-name">No resonator</strong>
+      <span className="workspace-mate-meta" aria-hidden="true">
+        <span className="workspace-mate-seq">
           {Array.from({ length: 6 }, (_, pip) => (
             <i key={pip} />
           ))}
         </span>
-      </div>
-      <div className="workspace-mate-gear">
-        <span className="workspace-mate-chip">
-          <span className="workspace-mate-wpn workspace-mate-wpn--empty" />
-          <span className="workspace-mate-chip-text">No wpn</span>
-        </span>
-        <span className="workspace-mate-chip">
-          <span className="workspace-mate-set workspace-mate-set--empty" />
-          <span className="workspace-mate-chip-text">-pc</span>
-        </span>
-      </div>
+      </span>
+      <span className="workspace-mate-kit" aria-hidden="true">
+        <span className="workspace-mate-tile workspace-mate-tile--empty" />
+      </span>
     </>
   )
 
@@ -611,7 +565,6 @@ function EmptyTeamMate({ onPick }: { onPick?: () => void }) {
       ) : (
         <div className="workspace-mate-content">{body}</div>
       )}
-      <span className="workspace-mate-frame" aria-hidden="true" />
     </article>
   )
 }
@@ -625,64 +578,46 @@ function TeamMate({
   editable: boolean
   scenarioId?: CombatScenarioId | null
 }) {
-  const attrIcon = getAttributeIconSrc(mate.attribute)
   const body = (
     <>
-      <div className="workspace-mate-head">
-        {attrIcon ? (
-          <img src={attrIcon} alt="" className="workspace-mate-attr" loading="lazy" onError={withDefIconM} />
-        ) : null}
-        <strong className="workspace-mate-name">{mate.name}</strong>
-        <span className="workspace-mate-lv">Lv.{mate.level ?? 1}</span>
+      <span className="workspace-mate-edge" aria-hidden="true" />
+      <strong className="workspace-mate-name">{mate.name}</strong>
+      <span className="workspace-mate-meta">
         <span className="workspace-mate-seq" aria-label={`Sequence ${mate.sequence} of 6`}>
           {Array.from({ length: 6 }, (_, pip) => (
             <i key={pip} data-on={pip < mate.sequence ? 'true' : undefined} />
           ))}
         </span>
-      </div>
-      <div className="workspace-mate-gear">
-        <span className="workspace-mate-chip workspace-mate-chip--wpn" data-rarity={mate.weaponRarity ?? undefined}>
+        <span className="workspace-mate-lv">Lv.<b>{mate.level ?? 1}</b></span>
+      </span>
+      <span className="workspace-mate-kit">
+        <span
+          className="workspace-mate-tile" data-kind="weapon"
+          title={mate.weaponName ?? undefined}
+          style={rarityVars(mate.weaponRarity)}
+        >
           {mate.weaponIcon ? (
-            <img
-              src={mate.weaponIcon}
-              alt={mate.weaponName ?? 'Weapon'} className="workspace-mate-wpn"
-              loading="lazy"
-              onError={withDefIconM}
-            />
-          ) : (
-            <span className="workspace-mate-wpn workspace-mate-wpn--empty" />
-          )}
-          <span className="workspace-mate-chip-text">
-            {mate.weaponLevel != null ? `Lv.${mate.weaponLevel}` : 'No Wpn'}
-            {mate.weaponRank != null ? ` · R${mate.weaponRank}` : ''}
-          </span>
+            <img src={mate.weaponIcon} alt={mate.weaponName ?? 'Weapon'} loading="lazy" onError={withDefIconM} />
+          ) : null}
+          {mate.weaponRank != null ? <b>R{mate.weaponRank}</b> : null}
         </span>
-        {mate.sets.map((set) => (
-          <span key={set.id ?? set.setId} className="workspace-mate-chip" title={set.name}>
-            {set.icon ? <img src={set.icon} alt={set.name} className="workspace-mate-set" loading="lazy" onError={withDefIconM} /> : null}
-            <span className="workspace-mate-chip-text">{set.count ?? set.pieces}pc</span>
-          </span>
+        {mate.sets.slice(0, 2).map((set, index) => (
+          set.icon ? (
+            <span key={set.id ?? set.setId ?? index} className="workspace-mate-tile" data-kind="set" title={set.name}>
+              <img src={set.icon} alt={set.name} loading="lazy" onError={withDefIconM} />
+              <b>{set.count ?? set.pieces}</b>
+            </span>
+          ) : null
         ))}
-      </div>
+      </span>
     </>
   )
 
   return (
     <article className="workspace-mate"
       data-rarity={mate.rarity}
-      style={{ '--browser-accent': mate.accent } as CssVars}
+      style={{ '--browser-accent': mate.accent, '--mate-rar': getRarityColor(mate.rarity) } as CssVars}
     >
-      {editable ? (
-        <button
-          type="button" className="workspace-mate-content"
-          aria-label={`Configure ${mate.name}`}
-          onClick={() => openTeamCnsl(mate.id, 'loadout', scenarioId)}
-        >
-          {body}
-        </button>
-      ) : (
-        <div className="workspace-mate-content">{body}</div>
-      )}
       <span className="workspace-mate-frame" aria-hidden="true">
         <img
           src={mate.sprite}
@@ -693,6 +628,17 @@ function TeamMate({
           onError={withDefIconM}
         />
       </span>
+      {editable ? (
+        <button
+          type="button" className="workspace-mate-content"
+          aria-label={`Configure ${mate.name}, ${mate.rarity}-star`}
+          onClick={() => openTeamCnsl(mate.id, 'loadout', scenarioId)}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className="workspace-mate-content">{body}</div>
+      )}
     </article>
   )
 }

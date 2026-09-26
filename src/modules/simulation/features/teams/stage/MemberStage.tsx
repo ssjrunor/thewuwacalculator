@@ -70,8 +70,8 @@ import { getEchoMptyC, getEchoPaneC, getEchoSlotC } from '@/modules/simulation/f
 import { readBuildClpb, writeBuildClpb } from '@/modules/simulation/features/inventory/lib/buildClipboard.ts'
 import { useSel } from '@/modules/simulation/lib/sel.tsx'
 import { useAppModal, useAppModalValue } from '@/shared/ui/useAppModal.ts'
-import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
-import { eligibleForSlot, useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
+import { useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
+import { TeamPicker } from '@/modules/simulation/features/teams/TeamPicker.tsx'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
 import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
@@ -126,6 +126,7 @@ export interface MemberStageProps {
   onRackOpenChange?: (open: boolean) => void
   onSwitchMember: (resonatorId: string) => void
   onSetTeamMember?: (slotIndex: number, resonatorId: string | null) => void
+  onSetTeam?: (supportIds: readonly (string | null)[]) => void
   onChannelChange?: (channel: ChannelId) => void
   onSqncChng: (value: number) => void
   onRtPdt: RtUpdHnd
@@ -691,6 +692,7 @@ function ResonatorView({
   onRackOpenChange,
   onSwitchMember,
   onSetTeamMember,
+  onSetTeam,
   onChannelChange,
   onSqncChng,
   onRtPdt,
@@ -1232,24 +1234,30 @@ function ResonatorView({
 
   /* The scenario owns each seat directly. Only a support seat is re-cast here;
      the active resonator is switched from the roster, never from its own console. */
-  const { setMember: setLiveTeamMember } = useTeamSlots()
+  const { setMember: setLiveTeamMember, setTeam: setLiveTeam } = useTeamSlots()
   const setTeamMember = onSetTeamMember ?? setLiveTeamMember
+  const setTeam = onSetTeam ?? setLiveTeam
   const seatIndex = actRt.build.team.indexOf(member.id)
   const canManageSeat = !isActive && seatIndex > 0
 
-  const onSeatSelect = useCallback((resonatorId: string) => {
+  const onTeamSet = useCallback((supports: readonly (string | null)[]) => {
     if (!canManageSeat) return
-    setTeamMember(seatIndex, resonatorId)
+    setTeam(supports)
     seatPicker.hide()
-    // the console follows the seat, so it now reads the member just placed
-    onSwitchMember(resonatorId)
-  }, [canManageSeat, onSwitchMember, seatIndex, seatPicker, setTeamMember])
+    if (supports.includes(member.id)) return
+    // The staged console is seat-based; keep it attached to the member that now
+    // occupies the edited slot.
+    const next = supports[seatIndex - 1] ?? supports.find(Boolean) ?? actRt.id
+    onSwitchMember(next)
+  }, [actRt.id, canManageSeat, member.id, onSwitchMember, seatIndex, seatPicker, setTeam])
 
   const onSeatRemove = useCallback(() => {
     if (!canManageSeat) return
+    // Switch before clearing the viewed member so the modal always has a
+    // surviving runtime, wrapping to the context resonator at the end.
+    onSwitchMember(actRt.build.team[seatIndex + 1] ?? actRt.id)
     setTeamMember(seatIndex, null)
-    onClose?.()
-  }, [canManageSeat, onClose, seatIndex, setTeamMember])
+  }, [actRt.build.team, actRt.id, canManageSeat, onSwitchMember, seatIndex, setTeamMember])
 
   // the editor can re-cast its own slot, so it carries that slot's budget
   const editSlotCost = useMemo(() => {
@@ -2297,8 +2305,8 @@ function ResonatorView({
               <>
                 <button
                   type="button" className="mcc-seat-act"
-                  aria-label={`Swap ${member.name} out of this seat`}
-                  title="Swap this seat"
+                  aria-label="Change the team"
+                  title="Change the team"
                   onClick={() => seatPicker.show()}
                 >
                   <ArrowRightLeft size="0.72rem" />
@@ -2531,21 +2539,15 @@ function ResonatorView({
       />
     ) : null}
     {canManageSeat && seatPicker.visible ? (
-      <ResPckr
+      <TeamPicker
         visible={seatPicker.visible}
         open={seatPicker.open}
         closing={seatPicker.closing}
         portalTarget={dialogHost}
-        eyebrow="Team Slots"
-        title="Select Teammate"
-        resonators={eligibleForSlot(actRt.build.team, seatIndex)}
-        selResId={member.id}
-        selLbl="Selected"
-        smmrPrmr={{ label: 'Slot', value: seatIndex + 1 }}
-        emptyState={<p>No eligible resonators remain for this slot.</p>}
-        panelWidth="regular"
+        leadId={actRt.build.team[0] ?? actRt.id}
+        team={actRt.build.team}
         onClose={() => seatPicker.hide()}
-        onSelect={onSeatSelect}
+        onCommit={onTeamSet}
       />
     ) : null}
     {echoPickerModal.visible && pickerSlot != null ? (

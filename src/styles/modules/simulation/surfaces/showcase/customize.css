@@ -608,6 +608,7 @@ input[type='range']:is(.workspace-tune-range)::-moz-range-thumb {
   cursor: pointer;
 }
 
+
 .workspace-tune-color::-webkit-color-swatch-wrapper {
   padding: 0;
 }

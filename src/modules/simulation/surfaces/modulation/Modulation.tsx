@@ -5,12 +5,14 @@
 */
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, RefObject } from 'react'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { readRtPath } from '@/domain/gameData/runtimePath'
 import { mkCntrPath } from '@/domain/gameData/stateKeys.ts'
 import { Expandable } from '@/shared/ui/Expandable'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay.tsx'
+import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import { SourceStateCtrl } from '@/modules/simulation/features/controls/SourceStateControl.tsx'
 import { withDefIconM, withDefResMg } from '@/shared/lib/imageFallback'
 import { glyphVars, resNodeIcon } from '@/shared/lib/gameAssets'
@@ -366,51 +368,33 @@ function PanelSeat({
   )
 }
 
-function PendingReportAside({
-  open,
+function PendingReportContent({
   ready,
   loading,
   onClose,
 }: {
-  open: boolean
   ready: boolean
   loading: boolean
   onClose: () => void
 }) {
+  if (!ready) return null
+
   return (
     <>
-      <div
-        className={open ? 'rpt-scrim is-open' : 'rpt-scrim'}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        className={open
-          ? 'rpt rte-scope workspace-ink app-loader-host is-open'
-          : 'rpt rte-scope workspace-ink app-loader-host'}
-        aria-label="Build Details"
-        aria-hidden={open ? undefined : true}
-        aria-busy={!ready || loading}
-      >
-        {ready ? (
-          <>
-            <header className="rpt-head">
-              <span>
-                <span className="rpt-eyebrow">Build Details</span>
-                <b className="rpt-name">{loading ? 'Preparing report…' : 'Report unavailable'}</b>
-              </span>
-              <button type="button" className="rpt-x" aria-label="Close" onClick={onClose}>&times;</button>
-            </header>
-            {loading ? (
-              <AppLdrVrly mode="overlay" className="rpt-loader" text="Preparing report..." />
-            ) : (
-              <div className="rpt-body">
-                <p className="workspace-empty">No detailed evaluation report is available for this build.</p>
-              </div>
-            )}
-          </>
-        ) : null}
-      </aside>
+      <header className="rpt-head">
+        <span>
+          <span className="rpt-eyebrow">Build Details</span>
+          <b className="rpt-name">{loading ? 'Preparing report…' : 'Report unavailable'}</b>
+        </span>
+        <button type="button" className="rpt-x" aria-label="Close" onClick={onClose}>&times;</button>
+      </header>
+      {loading ? (
+        <AppLdrVrly mode="overlay" className="rpt-loader" text="Preparing report..." />
+      ) : (
+        <div className="rpt-body">
+          <p className="workspace-empty">No detailed evaluation report is available for this build.</p>
+        </div>
+      )}
     </>
   )
 }
@@ -438,6 +422,7 @@ export function ModulationView({
   onReportOpen,
   onReportClose,
 }: StatesProps) {
+  const reportHost = mainPortal()
   const bays = useMemo(
     () => view === 'states' ? makeModulationBays(runtime, actRt) : [],
     [actRt, runtime, view],
@@ -606,26 +591,37 @@ export function ModulationView({
         </div>
       </div>
 
-      {reportOpen ? (
-        detailReport ? (
-          <Suspense fallback={(
-            <PendingReportAside open={reportVisible} ready loading onClose={closeReport} />
-          )}>
-            <LazyEvaluationAside
-              open={reportVisible}
-              onClose={closeReport}
-              report={detailReport}
-              resonatorId={detailReport.rotation?.resonatorId ?? runtime.id}
-            />
-          </Suspense>
-        ) : (
-          <PendingReportAside
-            open={reportVisible}
-            ready={detailReportReady}
-            loading={detailReportLoading}
-            onClose={closeReport}
+      {reportOpen && reportHost ? createPortal(
+        <>
+          <div
+            className={reportVisible ? 'rpt-scrim is-open' : 'rpt-scrim'}
+            onClick={closeReport}
+            aria-hidden="true"
           />
-        )
+          <aside
+            className={reportVisible ? 'rpt rte-scope workspace-ink is-open' : 'rpt rte-scope workspace-ink'}
+            aria-label="Build Details"
+            aria-hidden={reportVisible ? undefined : true}
+            aria-busy={!detailReportReady || detailReportLoading}
+          >
+            {detailReport ? (
+              <Suspense fallback={<PendingReportContent ready loading onClose={closeReport} />}>
+                <LazyEvaluationAside
+                  onClose={closeReport}
+                  report={detailReport}
+                  resonatorId={detailReport.rotation?.resonatorId ?? runtime.id}
+                />
+              </Suspense>
+            ) : (
+              <PendingReportContent
+                ready={detailReportReady}
+                loading={detailReportLoading}
+                onClose={closeReport}
+              />
+            )}
+          </aside>
+        </>,
+        reportHost,
       ) : null}
 
       {view === 'stats' ? (

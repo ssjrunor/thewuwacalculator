@@ -9,6 +9,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import type { RouteObject } from 'react-router-dom'
 import { AppLayout } from '@/app/shell/AppLayout'
 import AppLdrVrly from '@/shared/ui/AppLoaderOverlay'
+import { RouteErrorPage } from '@/modules/system/pages/RouteErrorPage'
 import {
   changelogChunk,
   docsChunk,
@@ -85,32 +86,41 @@ export const rootRoutes: RouteObject[] = [
   {
     path: '/',
     element: <AppLayout />,
+    // AppLayout failures bypass the nested route boundary and require a root-level fallback.
+    errorElement: <RouteErrorPage bare />,
     children: [
-      { index: true, element: lazyRoute(<HomePage />) },
-      simulationRoute,
-      { path: LEGACY_HOME_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.home} /> },
-      { path: LEGACY_PROGRESSION_ALIAS, element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} /> },
       {
-        path: LEGACY_NESTED_SIMULATION_ROUTES.optimizer,
-        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.optimizer} />,
+        // Keep page failures below AppLayout so a later navigation remounts only
+        // the failed route branch.
+        errorElement: <RouteErrorPage />,
+        children: [
+          { index: true, element: lazyRoute(<HomePage />) },
+          simulationRoute,
+          { path: LEGACY_HOME_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.home} /> },
+          { path: LEGACY_PROGRESSION_ALIAS, element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} /> },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.optimizer,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.optimizer} />,
+          },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.benchmark,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} />,
+          },
+          {
+            path: LEGACY_NESTED_SIMULATION_ROUTES.rotation,
+            element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
+          },
+          { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
+          { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
+          { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
+          { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
+          { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },
+          { path: LEGACY_WHATS_NEW_ROUTE, element: <WhatsNewRedirect /> },
+          { path: APP_ROUTES.privacy, element: lazyRoute(<PrvcPlcyPage />) },
+          { path: APP_ROUTES.terms, element: lazyRoute(<TrmsOfSrvcPa />) },
+          { path: '*', element: lazyRoute(<NotFoundPage />) },
+        ],
       },
-      {
-        path: LEGACY_NESTED_SIMULATION_ROUTES.benchmark,
-        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.modulation} />,
-      },
-      {
-        path: LEGACY_NESTED_SIMULATION_ROUTES.rotation,
-        element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
-      },
-      { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
-      { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
-      { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
-      { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },
-      { path: APP_ROUTES.changelog, element: lazyRoute(<ChngPage />) },
-      { path: LEGACY_WHATS_NEW_ROUTE, element: <WhatsNewRedirect /> },
-      { path: APP_ROUTES.privacy, element: lazyRoute(<PrvcPlcyPage />) },
-      { path: APP_ROUTES.terms, element: lazyRoute(<TrmsOfSrvcPa />) },
-      { path: '*', element: lazyRoute(<NotFoundPage />) },
     ],
   },
 ]

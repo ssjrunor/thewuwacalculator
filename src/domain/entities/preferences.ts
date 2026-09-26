@@ -137,6 +137,11 @@ export interface UiPrefs {
   imgbbApiKey: string
   playerId: string
   playerUid: string
+  echoImportBands: {
+    resonator: boolean
+    weapon: boolean
+    echoes: boolean
+  }
 }
 
 export type UploadPersistMode = 'indexeddb' | 'imgbb'
@@ -155,4 +160,5 @@ export const DEF_UI_PREFS: UiPrefs = {
   imgbbApiKey: '',
   playerId: '',
   playerUid: '',
+  echoImportBands: { resonator: true, weapon: true, echoes: true },
 }

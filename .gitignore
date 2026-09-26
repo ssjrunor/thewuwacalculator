@@ -4,6 +4,7 @@ ideas
 
 .claude
 .idea
+/.idea-backup/
 .DS_Store
 .dev.vars
 .dev.vars.*

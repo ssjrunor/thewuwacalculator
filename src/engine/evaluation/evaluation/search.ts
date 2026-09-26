@@ -4,7 +4,7 @@
 */
 import type { EchoInstance } from '@/domain/entities/runtime';
 import { ECHO_MAIN_STATS, SUBSTAT_KEYS, getSbstStepP } from '@/data/gameData/catalog/echoStats';
-import { MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants';
+import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/optimizer/config/constants';
 import { mkSuggMainEc } from '@/engine/suggestions/shared';
 import type { SuggestContext } from '@/engine/suggestions/types';
 import { makeEvaluationCostPlans } from './costPlans';
@@ -85,7 +85,25 @@ const SUBSTAT_IMPACT_RATIO_FLOOR = 0.12
 // cheap and deterministic; lowering either cap is an intentional accuracy /
 // latency trade-off.
 const APPROXIMATE_FRAME_LIMIT = 128
+// Reference tier allocation dominates search time; the maximum pass keeps
+// the wider beam because its per-candidate fill is inexpensive.
+const REFERENCE_FRAME_LIMIT = 32
 const APPROXIMATE_MAIN_CANDIDATE_LIMIT = 256
+const REFERENCE_REFINEMENT_LIMIT = 8
+
+// A reference trial changes only row zero. Main-stat permutations with the
+// same first row and remaining-row totals have the same prepared score for
+// every legal substat allocation in this fixed frame. Retain their first
+// occurrence so equal-damage ties keep the original Echo layout.
+function referenceCandidateSignature(stats: Float32Array): string {
+  const parts = new Array<string>(ECHO_STAT_STRIDE)
+  for (let stat = 0; stat < ECHO_STAT_STRIDE; stat += 1) {
+    let fixed = 0
+    for (let row = 1; row < 5; row += 1) fixed += stats[row * ECHO_STAT_STRIDE + stat]
+    parts[stat] = `${stats[stat]}:${fixed}`
+  }
+  return parts.join('|')
+}
 
 function resolveEvaluationOptions(options: BuildEvaluationOptions = {}): Required<BuildEvaluationOptions> {
   return {
@@ -279,7 +297,25 @@ export function buildEvaluationAnchors(
       effectSig: setEffectSig(ctx, plan),
     }))
   const selectMainEchoChoices = prepareMainEchoChoices(mainEchoProfiles, requiredMainEcho?.id ?? null)
+  const frameDescriptors: Array<{
+    costPlan: number[]
+    setPlan: EvaluationEchoFrame['setPlan']
+    mainEcho: EchoInstance
+  }> = []
   const forEachEvaluationFrame = (visit: (frame: EvaluationEchoFrame, index: number) => void, stride = 1): number => {
+    // The first pass establishes legal frame identities. Later sparse passes
+    // reuse those identities instead of repeating set-plan feasibility and
+    // main-Echo choice enumeration; only sampled frames are materialized.
+    if (frameDescriptors.length > 0) {
+      for (let index = 0; index < frameDescriptors.length; index += stride) {
+        const descriptor = frameDescriptors[index]
+        const echoes = applySetPlan(descriptor.setPlan,
+          makeReferenceEvaluationEchoes(descriptor.costPlan, descriptor.mainEcho))
+          .filter((echo): echo is EchoInstance => echo != null)
+        visit(makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, echoes), descriptor.setPlan), index)
+      }
+      return frameDescriptors.length
+    }
     let frameIndex = 0
     for (const costPlan of costPlans) {
       if (requiredMainEchoCost != null && !costPlan.includes(requiredMainEchoCost)) continue
@@ -313,6 +349,7 @@ export function buildEvaluationAnchors(
 
           seenFrames.add(frameSig)
           const index = frameIndex++
+          frameDescriptors.push({ costPlan, setPlan, mainEcho: choice.echo })
           if (index % stride === 0) {
             visit(makeEvaluationEchoFrame(ctx, echoes, mkSuggMainEc(ctx, echoes), setPlan), index)
           }
@@ -608,29 +645,47 @@ export function buildEvaluationAnchors(
     return best
   }
 
+  const referenceFinalists: SubstatCandidate[] = []
+  const retainReference = (candidate: MainStatCandidate, allocation: ReturnType<typeof allocateSteps>): SubstatCandidate => {
+    if (!allocation) throw new Error('Cannot retain an empty reference allocation')
+    return {
+      damage: allocation.damage,
+      counts: Object.fromEntries(Object.entries(allocation.values).map(([key, values]) => [key, values.length])),
+      values: allocation.values,
+      stats: allocation.stats,
+      main: { ...candidate, stats: candidate.stats.slice(), primaryStats: candidate.primaryStats.map(stat => ({ ...stat })), mainCounts: { ...candidate.mainCounts } },
+    }
+  }
   const considerReference = (candidate: MainStatCandidate, best: SubstatCandidate | null): SubstatCandidate | null => {
+    // Reject impossible ER plans before preparing a scorer or trying the
+    // damage bound. The tier allocator can never place more than five ER lines.
+    const missingEr = Math.max(0, targetEr - candidateEnergyRegen(candidate))
+    if (missingEr > MAX_ROLLS_PER_KEY * maximumRolls[ENERGY_REGEN] + 1e-5) return best
+    const scoreCandidate = candidate.frame.prepareFirstLaneScore(candidate.stats)
     // A generous bound: all keys at five maximum values, ignoring slot and
     // upgrade budgets. Include ER because some kits convert it into damage.
     const optimistic = candidate.stats.slice()
     for (const key of SUBSTAT_KEYS) addStatTotal(optimistic, key, MAX_ROLLS_PER_KEY * maximumRolls[key])
-    if (best && candidate.frame.score(optimistic, candidate.frame.sets) <= best.damage) return best
-    const next = allocateSteps(candidate.stats, Math.max(0, targetEr - candidateEnergyRegen(candidate)),
-      stats => candidate.frame.score(stats, candidate.frame.sets), checkCancel)
-    if (!next || (best && next.damage <= best.damage)) return best
-    return {
-      damage: next.damage,
-      counts: Object.fromEntries(Object.entries(next.values).map(([key, values]) => [key, values.length])),
-      values: next.values,
-      stats: next.stats,
-      main: { ...candidate, stats: candidate.stats.slice(), primaryStats: candidate.primaryStats.map(stat => ({ ...stat })), mainCounts: { ...candidate.mainCounts } },
+    if (best && scoreCandidate(optimistic) <= best.damage) return best
+    const next = allocateSteps(candidate.stats, missingEr, scoreCandidate, checkCancel)
+    if (!next) return best
+    if (referenceFinalists.length < REFERENCE_REFINEMENT_LIMIT
+      || next.damage > referenceFinalists[referenceFinalists.length - 1].damage) {
+      const retained = retainReference(candidate, next)
+      const index = referenceFinalists.findIndex(entry => entry.damage < retained.damage)
+      if (index < 0) referenceFinalists.push(retained)
+      else referenceFinalists.splice(index, 0, retained)
+      if (referenceFinalists.length > REFERENCE_REFINEMENT_LIMIT) referenceFinalists.pop()
+      if (!best || next.damage > best.damage) return retained
     }
+    return best
   }
 
   // Both passes reuse the same bounded main-stat candidate pool. The reference
   // allocates physical slots and tier upgrades; the maximum retains its fill.
   let evaluation: SubstatCandidate | null = null
   let perfection: SubstatCandidate | null = null
-  for (const info of frameInfos) {
+  for (const [frameIndex, info] of frameInfos.entries()) {
     checkCancel?.()
     const frame = makeEvaluationEchoFrame(ctx, info.echoes,
       mkSuggMainEc(ctx, info.echoes), info.setPlan)
@@ -639,13 +694,30 @@ export function buildEvaluationAnchors(
     // enumerate this frame's main-stat candidates on demand; the array is
     // released once the frame is processed, so peak memory stays flat.
     const candidates = enumerateMainStatCandidates(frame, mainsOnly, mainUsefulStats)
+    const seenReferenceCandidates = frameIndex < REFERENCE_FRAME_LIMIT ? new Set<string>() : null
     let candidateCount = 0
     for (const candidate of candidates) {
       checkCancel?.()
       if (candidateCount >= APPROXIMATE_MAIN_CANDIDATE_LIMIT) break
       candidateCount += 1
-      evaluation = considerReference(candidate, evaluation)
+      if (seenReferenceCandidates) {
+        const signature = referenceCandidateSignature(candidate.stats)
+        if (!seenReferenceCandidates.has(signature)) {
+          seenReferenceCandidates.add(signature)
+          evaluation = considerReference(candidate, evaluation)
+        }
+      }
       perfection = consider(candidate, maximumParams, maximumRolls, perfection)
+    }
+  }
+  for (const finalist of referenceFinalists) {
+    checkCancel?.()
+    const candidate = finalist.main
+    const scoreCandidate = candidate.frame.prepareFirstLaneScore(candidate.stats)
+    const refined = allocateSteps(candidate.stats, Math.max(0, targetEr - candidateEnergyRegen(candidate)),
+      scoreCandidate, checkCancel, true)
+    if (refined && (!evaluation || refined.damage > evaluation.damage + 0.000001)) {
+      evaluation = retainReference(candidate, refined)
     }
   }
   if (!evaluation || !perfection) return null

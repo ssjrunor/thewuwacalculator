@@ -52,7 +52,7 @@ const scoringByContext = new WeakMap<SuggestContext, ReturnType<typeof prepareTa
 export function prepareEvaluationScorer(
     ctx: SuggestContext,
     build: Omit<EncodedEvaluationBuild, 'stats'>,
-): (stats: Float32Array) => number {
+): ReturnType<ReturnType<typeof prepareTargetScoring>> {
   let prepare = scoringByContext.get(ctx)
   if (!prepare) {
     const contexts = ctx.mode === 'target'

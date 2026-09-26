@@ -246,6 +246,8 @@ export function EnemyConsole({
   )
 
   const custom = isCustEnemyP(enemyProfile)
+  const enemyElement = selEnemy?.element ?? selEnemy?.elementArray[0] ?? null
+  const enemyColor = enemyElement != null ? ATTR_ID_COLORS[enemyElement] : 'var(--text)'
   const enemyClass = getRslvEnemy(enemyProfile)
   const tune = getEnemyTune(enemyProfile)
   const tuneMax = useMemo(() => (runtime ? getTuneStrainMaxForTeam(runtime) : 0), [runtime])
@@ -444,6 +446,10 @@ export function EnemyConsole({
       state={{ visible, open, closing }}
       variant="enemy-console"
       ariaLabel="Target"
+      style={{
+        '--modal-accent': enemyColor,
+        '--picker-modal-accent': enemyColor,
+      } as CssProps}
       onClose={onClose}
     >
       <div className="amdl enc">

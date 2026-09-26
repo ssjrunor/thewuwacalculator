@@ -5,6 +5,7 @@
 */
 
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
+import type { UiPrefs } from '@/domain/entities/preferences.ts'
 import type { ParsedBuildScreenshot } from '@/engine/echoParser/ocrParsing.ts'
 import { getWpnById } from '@/data/catalog/weaponCatalogService.ts'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
@@ -20,11 +21,7 @@ import type { CoreSkillLevels } from '@/engine/echoParser/buildMetadata.ts'
 
 type CardSkill = keyof CoreSkillLevels
 
-export interface ImportBands {
-  resonator: boolean
-  weapon: boolean
-  echoes: boolean
-}
+export type ImportBands = UiPrefs['echoImportBands']
 
 const CARD_SKILLS: CardSkill[] = [
   'normalAttack',

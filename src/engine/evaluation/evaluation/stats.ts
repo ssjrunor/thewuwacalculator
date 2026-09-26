@@ -84,6 +84,7 @@ export interface EvaluationEchoFrame {
   mainEchoBuffs: Float32Array
   mainIndex: number
   score: (buffer: Float32Array, setRows?: Uint8Array) => number
+  prepareFirstLaneScore: (fixedStats: Float32Array) => (stats: Float32Array) => number
 }
 
 export interface SubstatCandidate {

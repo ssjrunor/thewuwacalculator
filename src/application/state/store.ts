@@ -373,6 +373,7 @@ export interface AppStore extends Omit<PersistedState, 'simulation' | 'combat'> 
   setUploadPersist: (mode: UploadPersistMode | null) => void
   setImgbbApiKey: (key: string) => void
   setPlayerIdentity: (playerId: string, playerUid: string) => void
+  setEchoImportBands: (bands: UiState['preferences']['echoImportBands']) => void
   setSugView: (view: SuggsViewMod) => void
   setLeftView: (view: LeftPaneView) => void
   openLeftView: (view: LeftPaneView) => void
@@ -1397,6 +1398,16 @@ export const useAppStore = create<AppStore>((set, get) => {
           playerId: playerId.trim(),
           playerUid: playerUid.trim(),
         },
+      },
+    }), { recHist: false })
+  },
+
+  setEchoImportBands: (echoImportBands) => {
+    persistedSet(['ui.layout'], (state) => ({
+      ...state,
+      ui: {
+        ...state.ui,
+        preferences: { ...state.ui.preferences, echoImportBands },
       },
     }), { recHist: false })
   },

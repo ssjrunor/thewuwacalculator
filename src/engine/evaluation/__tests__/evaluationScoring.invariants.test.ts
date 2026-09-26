@@ -28,7 +28,7 @@ import { evaluationAnchorCacheKey } from '@/engine/evaluation/evaluation/report.
 import { makeEvaluationOverviewStats, sumEncodedEnergyRegen } from '@/engine/evaluation/evaluation/stats.ts'
 import { REFERENCE_STEP_MODEL, tierStepIncreases } from '@/engine/evaluation/evaluation/stepAllocation'
 import { resolveEvaluationStats, scoreStats } from '@/engine/evaluation/evaluation/scoring.ts'
-import { CTX_FLOATS, MAIN_BUFF_LEN, MV, SET_MASK, SKILL_ID } from '@/engine/optimizer/config/constants'
+import { CTX_FLOATS, ECHO_STAT_STRIDE, MAIN_BUFF_LEN, MV, SET_MASK, SKILL_ID } from '@/engine/optimizer/config/constants'
 import {
   rotationBuildEvaluationReport,
   type BuildEvaluation,
@@ -256,7 +256,7 @@ describe('evaluation scoring invariants', () => {
     expect(report).toBeTruthy()
     // Pin the real build's score under the 16-line reference budget; its
     // equipped damage is independent of the reference allocation.
-    expect(report.evaluation.percent * 100).toBeCloseTo(100.76, 2)
+    expect(report.evaluation.percent * 100).toBeCloseTo(98.13, 2)
     expect(report.evaluation.userDamage).toBeCloseTo(2128773.54, 0)
     const reference = report.evaluation.builds.referenceBuild
     const relevant = new Set(['atkPercent', 'atkFlat', 'critRate', 'critDmg', 'basicAtk', 'heavyAtk', 'energyRegen'])
@@ -405,6 +405,12 @@ describe('evaluation scoring invariants', () => {
             for (let index = 0; index < scratch.length; index += 1) scratch[index] = original[index] * factor
             expect(frame.score(scratch)).toBe(expected(scratch))
             expect(frame.score(original)).toBe(expected(original))
+          }
+          const firstLaneScore = frame.prepareFirstLaneScore(original)
+          for (const factor of [2.25, 0, 1, 0.375]) {
+            scratch.set(original)
+            for (let index = 0; index < ECHO_STAT_STRIDE; index += 1) scratch[index] *= factor
+            expect(firstLaneScore(scratch)).toBe(frame.score(scratch))
           }
           // Alternate set buffers are live inputs, not part of the fixed frame.
           const alternateSets = frame.sets.slice()

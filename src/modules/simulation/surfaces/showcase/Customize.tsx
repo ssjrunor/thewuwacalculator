@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 import { useAppStore } from '@/application/state'
 import { Expandable } from '@/shared/ui/Expandable'
 import { Clipboard, Download, Maximize2, RotateCcw, SlidersHorizontal, Upload } from 'lucide-react'
-import type { ShowcaseCardHidden, ShowcaseLayout, StatsColumnHighlight, TextSlot, TextSlotStyle } from '@/domain/entities/preferences'
+import type { ShowcaseCardHidden, ShowcaseCardStyle, ShowcaseLayout, StatsColumnHighlight, TextSlot, TextSlotStyle } from '@/domain/entities/preferences'
 import { EMPTY_TEXT_SLOT, familyFromStack } from './cardStyleVars.ts'
 import { isValidGoogleFont, loadGglFontStack } from '@/application/theme/typography.ts'
 import type { CardExportTarget } from './cardTransfer.ts'
@@ -109,9 +109,12 @@ function TuneFont({
   const [url, setUrl] = useState('')
   const [family, setFamily] = useState<string | null>(null)
   const [invalid, setInvalid] = useState(false)
+  const request = useRef(0)
+  useEffect(() => () => { request.current += 1 }, [])
   const display = family ?? currentFamily
 
   const handle = (raw: string) => {
+    const currentRequest = ++request.current
     setUrl(raw)
     const trimmed = raw.trim()
     if (!trimmed) {
@@ -126,7 +129,7 @@ function TuneFont({
     }
     setInvalid(false)
     void loadGglFontStack(trimmed, fallback).then((resolved) => {
-      if (!resolved) return
+      if (!resolved || request.current !== currentRequest) return
       setFamily(resolved.family)
       onApply(resolved.stack)
     })
@@ -518,6 +521,7 @@ export function ShowcaseCustomizePanel({
   hidden,
   onToggleHidden,
   onStyleChange,
+  onResetSection,
   onPickImage,
   onResetGroup,
   onReset,
@@ -565,7 +569,8 @@ export function ShowcaseCustomizePanel({
   onEdit: (group: 'portrait' | 'backdrop') => void
   hidden: ShowcaseCardHidden
   onToggleHidden: (key: keyof ShowcaseCardHidden) => void
-  onStyleChange: (patch: { accent?: string; surface?: string; text?: string; opacity?: number; displayFont?: string | null; monoFont?: string | null; portraitX?: number; portraitY?: number; portraitScale?: number; maskTop?: number; maskRight?: number; maskBottom?: number; maskLeft?: number; maskTopSharp?: number; maskRightSharp?: number; maskBottomSharp?: number; maskLeftSharp?: number; portraitImage?: string; backdropImage?: string; backdropX?: number; backdropY?: number; backdropScale?: number; backdropBlur?: number; backdropOpacity?: number; statsColumn?: StatsColumnHighlight; portraitCredit?: string | null; backdropCredit?: string | null; textSlots?: Partial<Record<TextSlot, TextSlotStyle>>; customCss?: string | null }) => void
+  onStyleChange: (patch: Partial<ShowcaseCardStyle>) => void
+  onResetSection: (section: 'show' | 'color' | 'type') => void
   onPickImage: (target: 'portrait' | 'backdrop') => void
   onResetGroup: (group: 'portrait' | 'backdrop') => void
   onReset: () => void
@@ -581,6 +586,7 @@ export function ShowcaseCustomizePanel({
   surfacePhase: 'idle' | 'out' | 'in'
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [baseTypeResetKey, setBaseTypeResetKey] = useState(0)
   const openImport = () => fileInputRef.current?.click()
   return (
     <aside className="workspace-card workspace-card--mod workspace-tune"
@@ -626,7 +632,12 @@ export function ShowcaseCustomizePanel({
       <div className="workspace-tune-body">
         <TuneGroup
           title="Show"
-          actions={<GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('show')} />}
+          actions={(
+            <>
+              <GroupActionBtn icon={<RotateCcw size="0.75rem" aria-hidden="true" />} label="Reset" onClick={() => onResetSection('show')} />
+              <GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('show')} />
+            </>
+          )}
         >
           {layout === 'classic' ? (
             <>
@@ -741,19 +752,32 @@ export function ShowcaseCustomizePanel({
 
         <TuneGroup
           title="Color"
-          actions={<GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('color')} />}
+          actions={(
+            <>
+              <GroupActionBtn icon={<RotateCcw size="0.75rem" aria-hidden="true" />} label="Reset" onClick={() => onResetSection('color')} />
+              <GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('color')} />
+            </>
+          )}
         >
           <TuneSwatch label="Accent" value={accent} onChange={(v) => onStyleChange({ accent: v })} />
-          <TuneSwatch label="Surface" value={surface} onChange={(v) => onStyleChange({ surface: v })} />
+          <TuneSwatch label="Surface" value={surface} onChange={(value) => onStyleChange({ surface: value })} />
           <TuneSlider label="Card opacity" value={cardOpacity} onChange={(v) => onStyleChange({ opacity: v })} />
         </TuneGroup>
 
         <TuneGroup
           title="Base type"
-          actions={<GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('type')} />}
+          actions={(
+            <>
+              <GroupActionBtn icon={<RotateCcw size="0.75rem" aria-hidden="true" />} label="Reset" onClick={() => {
+                onResetSection('type')
+                setBaseTypeResetKey((key) => key + 1)
+              }} />
+              <GroupActionBtn icon={<Download size="0.75rem" aria-hidden="true" />} label="Export" onClick={() => onExport('type')} />
+            </>
+          )}
         >
-          <TuneFont label="Display" fallback="sans-serif" onApply={(stack) => onStyleChange({ displayFont: stack })} />
-          <TuneFont label="Mono" fallback="monospace" onApply={(stack) => onStyleChange({ monoFont: stack })} />
+          <TuneFont key={`display-${baseTypeResetKey}`} label="Display" fallback="sans-serif" onApply={(stack) => onStyleChange({ displayFont: stack })} />
+          <TuneFont key={`mono-${baseTypeResetKey}`} label="Mono" fallback="monospace" onApply={(stack) => onStyleChange({ monoFont: stack })} />
           <TuneSwatch label="Text color" value={text} onChange={(v) => onStyleChange({ text: v })} />
           <span className="workspace-tune-note">Card-wide defaults. Use Per-text styles below to override a single type.</span>
         </TuneGroup>

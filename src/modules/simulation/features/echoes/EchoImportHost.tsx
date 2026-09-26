@@ -21,6 +21,7 @@ import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { makeResProfile } from '@/engine/runtime/defaults.ts'
 import { eligibleForSlot, useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
+import { useImportLanding } from '@/modules/simulation/features/echoes/lib/importLanding.ts'
 import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
 import { EchoImportTargetBar } from '@/modules/simulation/features/echoes/EchoImportTargetBar.tsx'
 import { useEchoImport } from '@/modules/simulation/features/echoes/lib/echoImportStore.ts'
@@ -213,12 +214,17 @@ export function EchoImportHost() {
 
   const updateDestination = useCallback((
     target: EchoImportDestination,
+    contextId: string,
     updater: (prev: ResRuntime) => ResRuntime,
     historyLabel: string,
   ) => {
     const state = useAppStore.getState()
     if (target.kind === 'team') {
-      state.updResRt(target.resonatorId, updater)
+      const scenarioId = scenarioIdForContextResonator(state.combat, contextId)
+      if (!scenarioId || !state.combat.scenariosById[scenarioId]?.team.members.some(
+        (member) => member.resonatorId === target.resonatorId,
+      )) return false
+      state.updScenarioResRt(scenarioId, target.resonatorId, updater)
       return true
     }
 
@@ -250,13 +256,18 @@ export function EchoImportHost() {
       ? { kind: 'context', resonatorId: read.resonator.id } satisfies EchoImportDestination
       : null)
     if (!target) return
+    // Team runtimes are scenario-scoped, so retain the active context that owns
+    // the imported teammate instead of resolving the member globally.
+    const contextId = target.kind === 'team'
+      ? selWorkDrvd(useAppStore.getState()).actRt?.id ?? null
+      : target.resonatorId
     void ensureResonatorData([target.resonatorId]).then(() => {
-      if (!updateDestination(target, updater, 'Imported Echo Build Card')) return
-      const name = getResSeedBy(target.resonatorId)?.name ?? 'resonator'
-      showToast({
-        content: `Imported ${name} ${target.kind === 'team' ? 'team' : 'context'} build.`,
-        variant: 'success',
-        duration: 2800,
+      if (!contextId) return
+      if (!updateDestination(target, contextId, updater, 'Imported Echo Build Card')) return
+      useImportLanding.getState().land({
+        resonatorId: target.resonatorId,
+        kind: target.kind,
+        contextId,
       })
     }).catch(() => showToast({ content: 'Could not load resonator data. Please try again.', variant: 'error' }))
   }, [destination, showToast, updateDestination])
@@ -295,7 +306,9 @@ export function EchoImportHost() {
           onDetectedResonator={detectResonator}
           onEquipEcho={(echoes) => {
             if (!destination) return
-            updateDestination(destination, (prev) => ({
+            const contextId = destination.kind === 'team' ? actRt?.id : destination.resonatorId
+            if (!contextId) return
+            updateDestination(destination, contextId, (prev) => ({
               ...prev,
               build: { ...prev.build, echoes },
             }), 'Equipped Imported Echo')

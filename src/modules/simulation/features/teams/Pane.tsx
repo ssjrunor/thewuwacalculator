@@ -4,15 +4,15 @@
                weapon edits, state controls, and teammate config entry points.
 */
 
-import { Fragment, type CSSProperties as CssProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, type CSSProperties as CssProps, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, Plus, RefreshCw, Wrench, X } from 'lucide-react'
 import { isNoWeaponId, type ResRuntime } from '@/domain/entities/runtime.ts'
 import { listStatesFor } from '@/data/catalog/gameDataService.ts'
 import { initWpnStts } from '@/engine/runtime/sourceStateInit.ts'
 import { useAppStore } from '@/application/state'
 import { selScenarioProfiles } from '@/application/state'
-import { ResPckr } from '@/modules/simulation/features/resonator/Picker.tsx'
-import { eligibleForSlot, useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
+import { useTeamSlots } from '@/modules/simulation/features/teams/lib/teamSlots.ts'
+import { TeamPicker } from '@/modules/simulation/features/teams/TeamPicker.tsx'
 import { useTeamCnsl } from '@/modules/simulation/features/teams/lib/teamConsoleStore.ts'
 import { IdentTagsTooltip } from '@/modules/simulation/features/resonator/IdentTagsTooltip.tsx'
 import { WeaponPicker } from '@/modules/simulation/features/weapons/Picker.tsx'
@@ -95,7 +95,6 @@ export function Teams({
   const profilesById = useAppStore(selScenarioProfiles)
   const setTargetRes = useAppStore((state) => state.setResTgt)
 
-  const [teamPickerSlot, setTeamPckrS] = useState<number | null>(null)
   const [wpnResId, setWpnResId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const lineRef = useRef<HTMLSpanElement>(null)
@@ -142,9 +141,7 @@ export function Teams({
   const mdlPrtlTgt = mainPortal()
 
   const clsTeamPckr = useCallback(() => {
-    hideTeamPckr(() => {
-      setTeamPckrS(null)
-    })
+    hideTeamPckr()
   }, [hideTeamPckr])
 
   const openTeamPckr = useCallback((slotIndex: number) => {
@@ -152,7 +149,6 @@ export function Teams({
       return
     }
 
-    setTeamPckrS(slotIndex)
     showTeamPckr()
   }, [showTeamPckr])
 
@@ -169,12 +165,7 @@ export function Teams({
     showWpnPckr()
   }, [showWpnPckr])
 
-  const { setMember: selTeamMem } = useTeamSlots()
-
-  const lgblTeamPckr = useMemo(
-    () => eligibleForSlot(runtime.build.team, teamPickerSlot),
-    [runtime.build.team, teamPickerSlot],
-  )
+  const { setMember: selTeamMem, setTeam } = useTeamSlots()
 
   interface MemberView {
     isLead: boolean
@@ -1132,29 +1123,16 @@ export function Teams({
       </div>
 
       {teamPckrVsbl ? (
-        <ResPckr
+        <TeamPicker
           visible={teamPckrVsbl}
           open={teamPckrOpen}
           closing={teamPckrClsn}
           portalTarget={mdlPrtlTgt}
-          eyebrow="Team Slots"
-          title="Select Teammate"
-          resonators={lgblTeamPckr}
-          selResId={teamPickerSlot === null ? null : runtime.build.team[teamPickerSlot] ?? null}
-          selLbl="Selected"
-          smmrPrmr={{
-            label: 'Slot',
-            value: (teamPickerSlot ?? 0) + 1
-          }}
-          emptyState={<p>No eligible resonators remain for this slot.</p>}
-          panelWidth="regular"
+          leadId={runtime.build.team[0] ?? runtime.id}
+          team={runtime.build.team}
           onClose={clsTeamPckr}
-          onSelect={(resonatorId) => {
-            if (teamPickerSlot === null) {
-              return
-            }
-
-            selTeamMem(teamPickerSlot, resonatorId)
+          onCommit={(supports) => {
+            setTeam(supports)
             clsTeamPckr()
           }}
         />

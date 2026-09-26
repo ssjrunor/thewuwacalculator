@@ -356,30 +356,69 @@ export function prepareTargetScoring(
   // Fixed frame inputs must not change for the lifetime of the returned scorer.
   return ({ sets, kinds, comboIds, mainEchoBuffs, mainIndex }: Pick<
     TargetEvaluationOptions, 'sets' | 'kinds' | 'comboIds' | 'mainEchoBuffs' | 'mainIndex'
-  >): (stats: Float32Array) => number => {
+  >) => {
     const setCounts = mkCmbSetCnts(sets, kinds, comboIds)
     const setBonuses = setGroups.map(({ skillMask, runtimeMask }) =>
       applySetF(setCounts, skillMask, setConstLut, runtimeMask),
     )
     const base = createBaseStats()
-    return (stats) => {
-      // Reuse JS-number totals rather than Float32 scratch to preserve the
-      // original summation precision, including conversion thresholds.
-      mkBaseStts(stats, comboIds, base)
+    const scoreBase = (totals: ReturnType<typeof createBaseStats>) => {
       if (!weights && prepared.length === 1) {
         return evaluatePreparedTarget(
-          prepared[0], base, setCounts, setBonuses[setGroupByContext[0]], mainEchoBuffs, mainIndex,
+          prepared[0], totals, setCounts, setBonuses[setGroupByContext[0]], mainEchoBuffs, mainIndex,
         ) ?? 0
       }
       let total = 0
       for (let index = 0; index < prepared.length; index += 1) {
         const damage = evaluatePreparedTarget(
-          prepared[index], base, setCounts, setBonuses[setGroupByContext[index]], mainEchoBuffs, mainIndex,
+          prepared[index], totals, setCounts, setBonuses[setGroupByContext[index]], mainEchoBuffs, mainIndex,
         ) ?? 0
         total += damage * (weights?.[index] ?? 1)
       }
       return total
     }
+    const scorer = (stats: Float32Array) => {
+      // Reuse JS-number totals rather than Float32 scratch to preserve the
+      // original summation precision, including conversion thresholds.
+      mkBaseStts(stats, comboIds, base)
+      return scoreBase(base)
+    }
+    // Reference-allocation trials change only the first Echo's substat lane.
+    // Bind the other four rows once for this main-stat candidate, so each
+    // trial reads one row instead of summing all five again.
+    scorer.prepareFirstLane = (fixedStats: Float32Array) => {
+      if (comboIds.length !== 5 || comboIds[0] !== 0 || comboIds[1] !== 1
+        || comboIds[2] !== 2 || comboIds[3] !== 3 || comboIds[4] !== 4) return scorer
+      const fixed = new Float64Array(ECHO_STAT_STRIDE)
+      for (let index = 1; index < comboIds.length; index += 1) {
+        const offset = comboIds[index] * ECHO_STAT_STRIDE
+        for (let stat = 0; stat < ECHO_STAT_STRIDE; stat += 1) fixed[stat] += fixedStats[offset + stat]
+      }
+      const candidateBase = createBaseStats()
+      return (stats: Float32Array) => {
+        candidateBase.atkP = stats[0] + fixed[0]
+        candidateBase.atkF = stats[1] + fixed[1]
+        candidateBase.hpP = stats[2] + fixed[2]
+        candidateBase.hpF = stats[3] + fixed[3]
+        candidateBase.defP = stats[4] + fixed[4]
+        candidateBase.defF = stats[5] + fixed[5]
+        candidateBase.critRate = stats[6] + fixed[6]
+        candidateBase.critDmg = stats[7] + fixed[7]
+        candidateBase.er = stats[8] + fixed[8]
+        candidateBase.basic = stats[10] + fixed[10]
+        candidateBase.heavy = stats[11] + fixed[11]
+        candidateBase.skill = stats[12] + fixed[12]
+        candidateBase.lib = stats[13] + fixed[13]
+        candidateBase.aero = stats[14] + fixed[14]
+        candidateBase.spectro = stats[15] + fixed[15]
+        candidateBase.fusion = stats[16] + fixed[16]
+        candidateBase.glacio = stats[17] + fixed[17]
+        candidateBase.havoc = stats[18] + fixed[18]
+        candidateBase.electro = stats[19] + fixed[19]
+        return scoreBase(candidateBase)
+      }
+    }
+    return scorer
   }
 }
 

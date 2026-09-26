@@ -601,5 +601,6 @@ export function makeEvaluationEchoFrame(
     mainEchoBuffs,
     mainIndex,
     score,
+    prepareFirstLaneScore: scorePrepared.prepareFirstLane,
   }
 }

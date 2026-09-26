@@ -17,7 +17,7 @@ import {
 } from '@/modules/simulation/features/resonator/lib/resonator.ts'
 import { toTitle } from '@/shared/lib/format.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { PickerModal as ShrdPckrMdl } from '@/modules/simulation/ui/PickerModal.tsx'
+import { PickerModal as ShrdPckrMdl, type PckrMdlItem } from '@/modules/simulation/ui/PickerModal.tsx'
 import { useResQStr } from '@/shared/util/resonatorQueueStore.ts'
 import {
   getRecs,
@@ -55,7 +55,7 @@ interface ResPckrPrps {
   onClose: () => void
 }
 
-function usePickerFilters() {
+export function usePickerFilters() {
   const [selWpnFltr, setSelWpnFlt] = useState<string | null>(null)
   const [selTtrbFltr, setSelTtrbFl] = useState<string | null>(null)
   const [selRoleFltr, setSelRoleFl] = useState<string>(ALL_ROLE_ID)
@@ -82,15 +82,59 @@ function ResPickerContent({
   closeLabel,
   panelWidth = 'regular',
   resonators,
-  selResId: selResId = null,
-  selLbl: slctLbl = 'Selected',
-  smmrPrmr: smmrPrmr,
+  selResId = null,
+  selLbl = 'Selected',
+  smmrPrmr,
   countLabel = 'Roster',
   emptyState,
   onSelect,
   onClose,
   filterState,
 }: ResPckrPrps & { filterState: ReturnType<typeof usePickerFilters> }) {
+  const view = useResPickerView({ resonators, selResId, selLbl, smmrPrmr, closing, onSelect, filterState })
+
+  return (
+    <ShrdPckrMdl
+      visible={visible}
+      open={open}
+      closing={closing}
+      portalTarget={portalTarget}
+      variant="resonator"
+      eyebrow={eyebrow}
+      title={title}
+      summary={view.summary}
+      filters={view.filters}
+      railFoot={`${view.shown} of ${resonators.length} ${countLabel.toLowerCase()}`}
+      items={view.items}
+      emptyState={emptyState}
+      closeLabel={closeLabel}
+      panelWidth={panelWidth}
+      onClose={onClose}
+    />
+  )
+}
+
+// Callers that commit immediately preload the selected resonator before invoking
+// onSelect. Staged callers defer that work until their aggregate commit.
+export function useResPickerView({
+  resonators,
+  selResId = null,
+  selLbl: slctLbl = 'Selected',
+  smmrPrmr,
+  closing = false,
+  preload = true,
+  onSelect,
+  filterState,
+}: {
+  resonators: ResMenuEnt[]
+  selResId?: string | null
+  selLbl?: string
+  smmrPrmr?: ResPckrPrps['smmrPrmr']
+  closing?: boolean
+  preload?: boolean
+  onSelect: (resonatorId: string) => void
+  filterState: ReturnType<typeof usePickerFilters>
+}) {
   const selectionRequest = useRef(0)
   const cancelSelection = useCallback(() => { selectionRequest.current++ }, [])
   useEffect(() => cancelSelection, [cancelSelection])
@@ -276,7 +320,7 @@ function ResPickerContent({
     ],
   )
 
-  const items = rdrdRsnt.map((entry) => {
+  const toItem = (entry: ResMenuEnt): PckrMdlItem => {
     const isSelected = entry.id === selResId
     const tags = entry.tags ?? []
     const rcmm = rcmmMenuTms
@@ -313,6 +357,10 @@ function ResPickerContent({
       rarity: entry.rarity,
       selected: isSelected,
       onSelect: () => {
+        if (!preload) {
+          onSelect(entry.id)
+          return
+        }
         const request = ++selectionRequest.current
         void ensureResonatorData([entry.id]).then(() => {
           if (selectionRequest.current === request) onSelect(entry.id)
@@ -371,25 +419,8 @@ function ResPickerContent({
         </>
       ),
     }
-  })
+  }
+  const items = rdrdRsnt.map(toItem)
 
-  return (
-    <ShrdPckrMdl
-      visible={visible}
-      open={open}
-      closing={closing}
-      portalTarget={portalTarget}
-      variant="resonator"
-      eyebrow={eyebrow}
-      title={title}
-      summary={summary}
-      filters={filters}
-      railFoot={`${fltrRsnt.length} of ${resonators.length} ${countLabel.toLowerCase()}`}
-      items={items}
-      emptyState={emptyState}
-      closeLabel={closeLabel}
-      panelWidth={panelWidth}
-      onClose={onClose}
-    />
-  )
+  return { summary, filters, items, toItem, shown: fltrRsnt.length, activeFilters: actFltrCnt }
 }

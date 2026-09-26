@@ -3,5 +3,7 @@
 @import './read/guides.css';
 @import './read/docs.css';
 @import './system/not-found.css';
+@import './system/boot-loading.css';
+@import './system/route-error.css';
 @import './calibration/calibration.css';
 @import './home/home.css';

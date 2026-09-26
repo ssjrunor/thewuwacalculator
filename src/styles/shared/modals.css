@@ -456,6 +456,7 @@
 }
 
 .picker-modal__body {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
@@ -488,6 +489,17 @@
 
 .picker-modal__grid > * {
   animation: picker-grid-enter 350ms ease both;
+}
+
+.picker-modal__frame.is-live .picker-modal__grid > * {
+  animation: none;
+}
+
+.picker-modal__leaving {
+  position: absolute;
+  z-index: 0;
+  margin: 0;
+  pointer-events: none;
 }
 
 .picker-modal__empty {

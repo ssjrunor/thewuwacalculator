@@ -7,10 +7,10 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
 import { getEchoById, listEchoes } from '@/data/catalog/echoCatalogService.ts'
-import { SUBSTAT_KEYS, getSbstStepP, snapToNrstSb } from '@/data/gameData/catalog/echoStats.ts'
+import { ECHO_MAIN_STATS, SUBSTAT_KEYS, getSbstStepP } from '@/data/gameData/catalog/echoStats.ts'
 import { ECHO_SET_DEFS } from '@/data/gameData/echoSets/effects.ts'
-import { getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
-import { fmtEchoStatL, fmtEchoStatV } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
+import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets.ts'
+import { fmtEchoStatV } from '@/modules/simulation/features/echoes/lib/echoPane.ts'
 import {
   QUICK_COSTS,
   QUICK_SLOT_COUNT,
@@ -27,48 +27,16 @@ import {
   type QuickSetupConfig,
 } from '@/modules/simulation/features/echoes/lib/quickSetup.ts'
 import { EchoPicker } from '@/modules/simulation/features/echoes/Picker.tsx'
+import { RollReel, StatField, carryTier } from '@/modules/simulation/features/echoes/Edit.tsx'
+import { StatGlyph } from '@/modules/simulation/workspace/ui.tsx'
 import { AppModal } from '@/shared/ui/AppModal.tsx'
-import { ModalHeader } from '@/shared/ui/AppModalShell.tsx'
 import { LiquidSelect, type SelectOption } from '@/application/ui/LiquidSelect.tsx'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback'
-import { Dices, Minus, Plus, RotateCcw, TriangleAlert, X } from 'lucide-react'
+import { Hammer, Minus, Plus, RotateCcw, TriangleAlert, X } from 'lucide-react'
 
 const MAX_COST = 12
-
-const STAT_ABBR: Record<string, string> = {
-  critRate: 'CR',
-  critDmg: 'CD',
-  atkPercent: 'ATK%',
-  atkFlat: 'ATK',
-  hpPercent: 'HP%',
-  hpFlat: 'HP',
-  defPercent: 'DEF%',
-  defFlat: 'DEF',
-  energyRegen: 'ER',
-  resonanceLiberation: 'Res. L.',
-  resonanceSkill: 'Res. S.',
-  basicAtk: 'Basic',
-  heavyAtk: 'Heavy',
-}
-
-function abbr(key: string): string {
-  return STAT_ABBR[key] ?? fmtEchoStatL(key)
-}
-
-function mainStatOptions(keys: string[]): SelectOption[] {
-  return [
-    { value: '', label: 'Any' },
-    ...keys.map((key) => ({ value: key, label: fmtEchoStatL(key) })),
-  ]
-}
-
-function multiOptions(max: number): SelectOption<number>[] {
-  return Array.from({ length: Math.max(0, max) }, (_, index) => {
-    const value = index + 1
-    return { value, label: `×${value}` }
-  })
-}
+const MAX_SUBSTATS = 5
 
 function setOptions(config: QuickSetupConfig): SelectOption[] {
   const remaining = config.echoCount - config.setPreferences.reduce((sum, pref) => sum + pref.count, 0)
@@ -82,6 +50,15 @@ function setOptions(config: QuickSetupConfig): SelectOption[] {
       label: set.name,
       icon: getSntSetIco(set.id) ?? undefined,
     }))
+}
+
+function stepOf(key: string, value: number): number {
+  const steps = getSbstStepP(key)
+  let best = 0
+  steps.forEach((step, index) => {
+    if (Math.abs(step - value) < Math.abs(steps[best] - value)) best = index
+  })
+  return best
 }
 
 interface QuickSetupProps {
@@ -104,6 +81,7 @@ export function QuickSetup({
   onGenerate,
 }: QuickSetupProps) {
   const [config, setConfig] = useState<QuickSetupConfig>(() => makeQuickConfig(currentEchoes))
+  const [tplPick, setTplPick] = useState(0)
   const echoPicker = useAppModal()
 
   useEffect(() => {
@@ -125,7 +103,6 @@ export function QuickSetup({
   )
   const activeSlots = config.slots.slice(0, config.echoCount)
   const totalCost = activeSlots.reduce((sum, slot) => sum + slot.cost, 0)
-  const costPct = Math.min(100, (totalCost / MAX_COST) * 100)
   const mainEchoInvalid = Boolean(
     config.mainEchoId &&
     !canMainEchoFitSetPlan(
@@ -250,90 +227,42 @@ export function QuickSetup({
   const setSubGroupCount = (groupIndex: number, count: number) =>
     setConfig((prev) => setSubCount(prev, groupIndex, count))
 
-  const addSubstat = (groupIndex: number) =>
-    setConfig((prev) => {
-      const group = prev.substatGroups[groupIndex]
-      const used = new Set(group?.substats.map((entry) => entry.key) ?? [])
-      const nextKey = SUBSTAT_KEYS.find((key) => !used.has(key))
-      if (!group || !nextKey) {
-        return prev
-      }
-
-      const steps = getSbstStepP(nextKey)
-      const substatGroups = prev.substatGroups.map((entry, index) => (
-        index === groupIndex
-          ? {
-              ...entry,
-              substats: [...entry.substats, { key: nextKey, value: steps[steps.length - 1] ?? 0 }],
-            }
-          : entry
-      ))
-      return fitQuickConfig({ ...prev, substatGroups })
-    })
-
-  const cycleSubKey = (groupIndex: number, subIndex: number) =>
-    setConfig((prev) => {
-      const group = prev.substatGroups[groupIndex]
-      if (!group) {
-        return prev
-      }
-
-      const used = new Set(group.substats.map((entry) => entry.key))
-      const current = group.substats[subIndex].key
-      const pool = SUBSTAT_KEYS.filter((key) => key === current || !used.has(key))
-      const nextKey = pool[(pool.indexOf(current) + 1) % pool.length]
-      const steps = getSbstStepP(nextKey)
-      const substatGroups = prev.substatGroups.map((entry, index) => {
-        if (index !== groupIndex) {
-          return entry
-        }
-
-        const substats = [...entry.substats]
-        substats[subIndex] = { key: nextKey, value: steps[steps.length - 1] ?? 0 }
-        return { ...entry, substats }
-      })
-      return fitQuickConfig({ ...prev, substatGroups })
-    })
-
-  const stepSubValue = (groupIndex: number, subIndex: number, dir: 1 | -1) =>
-    setConfig((prev) => {
-      const entry = prev.substatGroups[groupIndex]?.substats[subIndex]
-      if (!entry) {
-        return prev
-      }
-
-      const steps = getSbstStepP(entry.key)
-      if (steps.length === 0) {
-        return prev
-      }
-
-      let pos = steps.indexOf(snapToNrstSb(entry.key, entry.value))
-      if (pos < 0) {
-        pos = steps.length - 1
-      }
-
-      pos = Math.max(0, Math.min(steps.length - 1, pos + dir))
-      const substatGroups = prev.substatGroups.map((group, index) => {
-        if (index !== groupIndex) {
-          return group
-        }
-
-        const substats = [...group.substats]
-        substats[subIndex] = { ...entry, value: steps[pos] }
-        return { ...group, substats }
-      })
-      return fitQuickConfig({ ...prev, substatGroups })
-    })
-
-  const removeSubstat = (groupIndex: number, subIndex: number) =>
+  const editSubstats = (
+    groupIndex: number,
+    edit: (substats: QuickSetupConfig['substatGroups'][number]['substats']) => QuickSetupConfig['substatGroups'][number]['substats'],
+  ) =>
     setConfig((prev) => fitQuickConfig({
       ...prev,
       substatGroups: prev.substatGroups.map((group, index) => (
-        index === groupIndex
-          ? { ...group, substats: group.substats.filter((_, i) => i !== subIndex) }
-          : group
+        index === groupIndex ? { ...group, substats: edit(group.substats) } : group
       )),
     }))
+
+  const pickSubstat = (groupIndex: number, subIndex: number, key: string) =>
+    editSubstats(groupIndex, (substats) => {
+      if (substats.some((entry, index) => entry.key === key && index !== subIndex)) {
+        return substats
+      }
+
+      const steps = getSbstStepP(key)
+      if (subIndex >= substats.length) {
+        return substats.length >= MAX_SUBSTATS
+          ? substats
+          : [...substats, { key, value: steps[steps.length - 1] ?? 0 }]
+      }
+
+      return substats.map((entry, index) => (
+        index === subIndex ? { key, value: carryTier(entry.key, entry.value, key) } : entry
+      ))
+    })
+
+  const setSubValue = (groupIndex: number, subIndex: number, value: number) =>
+    editSubstats(groupIndex, (substats) => substats.map((entry, index) => (
+      index === subIndex ? { ...entry, value } : entry
+    )))
+
+  const removeSubstat = (groupIndex: number, subIndex: number) =>
+    editSubstats(groupIndex, (substats) => substats.filter((_, index) => index !== subIndex))
 
   const removeSubGroup = (groupIndex: number) =>
     setConfig((prev) => fitQuickConfig({
@@ -341,320 +270,355 @@ export function QuickSetup({
       substatGroups: prev.substatGroups.filter((_, index) => index !== groupIndex),
     }))
 
+  const cycleSet = (setId: number, current: number) => {
+    const counts = setCountOptions(setId, config.echoCount - totalSetPc + current)
+    if (counts.length < 2) {
+      return
+    }
+    setSetCount(setId, counts[(counts.indexOf(current) + 1) % counts.length])
+  }
+
   const generate = () => onGenerate(generateQuickBuild(config))
 
   if (!visible) {
     return null
   }
 
+  const groups = config.substatGroups
+  const tplIndex = Math.max(0, Math.min(tplPick, groups.length - 1))
+  const group = groups[tplIndex]
+  const usedKeys = new Set(group?.substats.map((entry) => entry.key) ?? [])
+  const tplMax = group ? maxSubCount(config, tplIndex) : 1
+  const critValue = group?.substats.reduce((total, entry) => {
+    if (entry.key === 'critRate') return total + entry.value * 2
+    if (entry.key === 'critDmg') return total + entry.value
+    return total
+  }, 0) ?? 0
+
   return (
     <AppModal
       state={{ visible, open, closing }}
       variant="echo-quick-setup"
-      ariaLabel="Quick setup build plan"
+      ariaLabel="Echo forge"
       onClose={onClose}
     >
-      <div className="amdl eqs bp-modal" style={{ '--bp-echo-count': config.echoCount } as CSSProperties}>
-        <ModalHeader over="Echo Forge" title={<h2>Quick Setup</h2>} onClose={onClose}>
-          <div className="amdl__gauge" aria-label="Build plan summary">
-            <div className="amdl__pill">
-              <span className="amdl__pill-label">Echoes</span>
-              <span className="amdl__pill-value">{config.echoCount}</span>
-            </div>
-            <div className={`amdl__pill${totalCost > MAX_COST ? ' eqs-pill--over' : ''}`}>
-              <span className="amdl__pill-label">Cost</span>
-              <span className="amdl__pill-value">{totalCost}/{MAX_COST}</span>
-            </div>
-            <div className="amdl__pill is-accent">
-              <span className="amdl__pill-label">Sonata</span>
-              <span className="amdl__pill-value">{totalSetPc}/5</span>
-            </div>
-          </div>
-        </ModalHeader>
+      <div className="amdl eqs">
+        <header className="amdl__head eqs-head">
+          <button
+            type="button"
+            className={`eqs-id${mainEchoInvalid ? ' is-invalid' : ''}`}
+            onClick={echoPicker.show}
+            aria-label={mainEchoInvalid
+              ? `Change lead echo. ${selMainEcho?.name ?? 'This echo'} cannot fit this Sonata plan.`
+              : `Change lead echo, currently ${selMainEcho?.name ?? 'any echo'}`}
+            aria-invalid={mainEchoInvalid || undefined}
+            title={mainEchoInvalid ? 'This echo cannot be generated with the selected Sonata plan.' : undefined}
+          >
+            <span className="eqs-lead">
+              {selMainEcho?.icon ? (
+                <img src={selMainEcho.icon} alt="" loading="lazy" onError={withDefEchoMg} />
+              ) : (
+                <Plus size="0.9rem" aria-hidden />
+              )}
+              <em>{selMainEcho ? 'Change' : 'Pick'}</em>
+              {mainEchoInvalid ? (
+                <span className="eqs-lead__warn" aria-hidden>
+                  <TriangleAlert size="0.62rem" strokeWidth={2.6} />
+                </span>
+              ) : null}
+            </span>
+            <span className="eqs-plate">
+              <span className="amdl__over">Echo Forge</span>
+              <strong className="eqs-name">{selMainEcho?.name ?? 'Any lead echo'}</strong>
+            </span>
+          </button>
 
-        <div className="eqs__body">
-          <section className="eqs-card eqs-build">
-            <div className="eqs-controls">
-              <div className="eqs-ctl eqs-ctl--lead">
-                <button
-                  type="button"
-                  className={`eqs-lead__pick${mainEchoInvalid ? ' is-invalid' : ''}`}
-                  onClick={echoPicker.show}
-                  aria-label={mainEchoInvalid ? 'Choose lead echo. Current echo cannot fit this Sonata plan.' : 'Choose lead echo'}
-                  aria-invalid={mainEchoInvalid || undefined}
-                  title={mainEchoInvalid ? 'This echo cannot be generated with the selected Sonata plan.' : undefined}
+          <span className="eqs-sets" role="group" aria-label="Sonata plan">
+            {config.setPreferences.map((pref) => {
+              const name = getSntSetNam(pref.setId)
+              return (
+                <span
+                  key={pref.setId}
+                  className="eqs-set"
+                  style={{ '--set-clr': getSntSetClr(pref.setId) ?? 'var(--amdl-accent)' } as CSSProperties}
                 >
-                  {selMainEcho?.icon ? (
-                    <img
-                      src={selMainEcho.icon}
-                      alt="" className="eqs-lead__img"
-                      loading="lazy"
-                      onError={withDefEchoMg}
+                  <button
+                    type="button"
+                    className="eqs-set__mark"
+                    title={name}
+                    aria-label={`${name}, ${pref.count} piece. Change piece count`}
+                    onClick={() => cycleSet(pref.setId, pref.count)}
+                  >
+                    <img src={getSntSetIco(pref.setId) ?? '/assets/game/default.webp'} alt="" loading="lazy" onError={withDefIconM} />
+                    <i>{pref.count}</i>
+                  </button>
+                  <button
+                    type="button" className="eqs-set__drop"
+                    aria-label={`Remove ${name}`}
+                    onClick={() => removeSet(pref.setId)}
+                  >
+                    <X size="0.5rem" strokeWidth={3} />
+                  </button>
+                </span>
+              )
+            })}
+            {canAddSet && vlblSets.length > 0 ? (
+              <LiquidSelect
+                value=""
+                options={vlblSets}
+                placeholder="Add sonata"
+                ariaLabel="Add sonata set"
+                className="eqs-addset"
+                triggerClass="eqs-addset__trigger"
+                renderTrigger={() => <Plus size="0.75rem" aria-hidden />}
+                onChange={addSet}
+              />
+            ) : null}
+          </span>
+
+          <span className="amdl__fill" />
+
+          <span className="eqs-count">
+            <span className="eqs-k">Echoes</span>
+            <span className="eqs-ul" role="group" aria-label="Number of echoes">
+              {Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-pressed={config.echoCount === index + 1}
+                  onClick={() => setEchoCount(index + 1)}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </span>
+          </span>
+
+          <span className={`amdl__pill${totalCost > MAX_COST ? ' eqs-pill--over' : totalCost === MAX_COST ? ' is-accent' : ''}`}>
+            <span className="amdl__pill-label">Cost</span>
+            <span className="amdl__pill-value">{totalCost}/{MAX_COST}</span>
+          </span>
+
+          <button type="button" className="amdl__close" aria-label="Close" onClick={onClose}>
+            <X size="0.95rem" />
+          </button>
+        </header>
+
+        <div className="eqs-band" role="group" aria-label="Main stats">
+          {config.slots.map((slot, index) => {
+            const active = index < config.echoCount
+            const keys = quickMainStatKeys(config, index)
+            const allowedCosts = quickCostOptions(config, index)
+            const mainValue = slot.mainStat ? ECHO_MAIN_STATS[slot.cost]?.[slot.mainStat] : undefined
+            return (
+              <div key={index} className={`eqs-slot${active ? '' : ' is-off'}`} aria-hidden={!active || undefined}>
+                <div className="eqs-slot__top">
+                  <span className={`eqs-pos${index === 0 ? ' is-lead' : ''}`}>{index === 0 ? 'Lead' : index + 1}</span>
+                  {mainValue != null && slot.mainStat ? (
+                    <b className="eqs-slot__val">{fmtEchoStatV(slot.mainStat, mainValue)}</b>
+                  ) : null}
+                  <span className="eqs-ul eqs-ul--cost" role="group" aria-label={`Echo ${index + 1} cost`}>
+                    {QUICK_COSTS.map((cost) => (
+                      <button
+                        key={cost}
+                        type="button"
+                        aria-pressed={slot.cost === cost}
+                        disabled={!active || !allowedCosts.includes(cost)}
+                        onClick={() => setSlotCost(index, cost)}
+                      >
+                        {cost}
+                      </button>
+                    ))}
+                  </span>
+                </div>
+                <div className="eqs-slot__main">
+                  {slot.mainStat ? <StatGlyph statKey={slot.mainStat} size={0.9} /> : null}
+                  {active ? (
+                    <StatField
+                      statKey={slot.mainStat ?? ''}
+                      options={keys}
+                      placeholder="Any"
+                      ariaLabel={`Echo ${index + 1} main stat`}
+                      onPick={(key) => setMainStat(index, key)}
                     />
                   ) : (
-                    <span className="eqs-lead__ph" aria-hidden><Plus size="1em" /></span>
+                    <span className="eqs-slot__idle">Unused</span>
                   )}
-                  {mainEchoInvalid ? (
-                    <span className="eqs-lead__invalid" aria-hidden>
-                      <TriangleAlert size="0.75rem" strokeWidth={2.6} />
-                    </span>
-                  ) : null}
-                </button>
-                <div className="eqs-lead__body">
-                  <span className="eqs-sublabel">Lead echo</span>
-                  <span className="eqs-lead__name">{selMainEcho?.name ?? 'Any echo'}</span>
-                  <div className="eqs-lead__actions">
-                    <button type="button" className="eqs-link" onClick={echoPicker.show}>
-                      {selMainEcho ? 'Change' : 'Choose'}
-                    </button>
-                    {config.mainEchoId ? (
-                      <button type="button" className="eqs-link eqs-link--danger" onClick={() => setMainEcho(null)}>
-                        Clear
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className="eqs-ctl">
-                <span className="eqs-sublabel">
-                  Echoes
-                  <span className="eqs-sublabel__meta">{config.echoCount}/{QUICK_SLOT_COUNT}</span>
-                </span>
-                <div className="eqs-seg eqs-seg--fill" role="group" aria-label="Number of echoes">
-                  {Array.from({ length: QUICK_SLOT_COUNT }, (_, index) => {
-                    const count = index + 1
-                    return (
+                  {active && slot.mainStat ? (
                     <button
-                      key={count}
-                      type="button"
-                      className={`eqs-seg__btn${config.echoCount === count ? ' is-active' : ''}`}
-                      onClick={() => setEchoCount(count)}
+                      type="button" className="eqs-slot__clear"
+                      aria-label={`Any main stat for echo ${index + 1}`}
+                      onClick={() => setMainStat(index, '')}
                     >
-                      {count}
+                      <X size="0.62rem" />
                     </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="eqs-ctl">
-                <span className="eqs-sublabel">
-                  Sonata
-                  <span className="eqs-sublabel__meta">{totalSetPc}/{config.echoCount}</span>
-                </span>
-                <div className="eqs-chips">
-                  {config.setPreferences.map((pref) => (
-                    <div key={pref.setId} className="eqs-set">
-                      <img
-                        src={getSntSetIco(pref.setId) ?? '/assets/game/default.webp'}
-                        alt="" className="eqs-set__icon"
-                        loading="lazy"
-                        onError={withDefIconM}
-                      />
-                      <span className="eqs-set__name">{getSntSetNam(pref.setId)}</span>
-                      <div className="eqs-set__counts">
-                        {setCountOptions(pref.setId, config.echoCount).map((count) => (
-                          <button
-                            key={count}
-                            type="button"
-                            className={`eqs-pc${pref.count === count ? ' is-active' : ''}`}
-                            onClick={() => setSetCount(pref.setId, count)}
-                          >
-                            {count}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        type="button" className="eqs-icon-btn eqs-icon-btn--danger"
-                        aria-label={`Remove ${getSntSetNam(pref.setId)}`}
-                        onClick={() => removeSet(pref.setId)}
-                      >
-                        <X size="0.75rem" />
-                      </button>
-                    </div>
-                  ))}
-                  {canAddSet && vlblSets.length > 0 ? (
-                    <LiquidSelect
-                      value=""
-                      options={vlblSets}
-                      placeholder="+ Set"
-                      ariaLabel="Add sonata set" className="eqs-addset"
-                      onChange={addSet}
-                    />
-                  ) : null}
-                  {config.setPreferences.length === 0 && !canAddSet ? (
-                    <span className="eqs-bar__hint">Any set</span>
                   ) : null}
                 </div>
               </div>
-            </div>
+            )
+          })}
+        </div>
 
-            <div className="eqs-slots__head">
-              <span className="eqs-sublabel">Main stats</span>
-              <span className={`eqs-meter${totalCost > MAX_COST ? ' is-over' : ''}`}>
-                <span className="eqs-meter__track" aria-hidden>
-                  <span className="eqs-meter__fill" style={{ width: `${costPct}%` }} />
-                </span>
-                <span className="eqs-meter__read">{totalCost}/{MAX_COST} cost</span>
+        <div className="eqs-tabs">
+          <span className="eqs-ul eqs-ul--tabs" role="tablist" aria-label="Substat templates">
+            {groups.map((entry, index) => (
+              <button
+                key={index}
+                type="button"
+                role="tab"
+                aria-selected={index === tplIndex}
+                aria-pressed={index === tplIndex}
+                onClick={() => setTplPick(index)}
+              >
+                Template {index + 1}<b>×{entry.count}</b>
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={groups.length >= config.echoCount}
+              onClick={() => {
+                addSubGroup()
+                setTplPick(groups.length)
+              }}
+            >
+              + New
+            </button>
+          </span>
+          {group ? (
+            <span className="eqs-apply">
+              <span className="eqs-k">Applies to</span>
+              <span className="eqs-mult">
+                <button
+                  type="button"
+                  aria-label="Fewer echoes"
+                  disabled={group.count <= 1}
+                  onClick={() => setSubGroupCount(tplIndex, group.count - 1)}
+                >
+                  <Minus size="0.6rem" strokeWidth={2.6} />
+                </button>
+                ×{group.count}
+                <button
+                  type="button"
+                  aria-label="More echoes"
+                  disabled={group.count >= tplMax}
+                  onClick={() => setSubGroupCount(tplIndex, group.count + 1)}
+                >
+                  <Plus size="0.6rem" strokeWidth={2.6} />
+                </button>
               </span>
-            </div>
+              <button
+                type="button" className="eqs-tpl-drop"
+                aria-label={`Remove template ${tplIndex + 1}`}
+                onClick={() => removeSubGroup(tplIndex)}
+              >
+                <X size="0.72rem" />
+              </button>
+            </span>
+          ) : null}
+        </div>
 
-            <div className="eqs-slots">
-              {activeSlots.map((slot, index) => {
-                  const value = slot.mainStat ?? ''
-                  const keys = quickMainStatKeys(config, index)
-                  const allowedCosts = quickCostOptions(config, index)
-                  return (
-                    <div key={index} className={`eqs-slot${index === 0 ? ' is-lead' : ''}`}>
-                      <div className="eqs-slot__top">
-                        <span className="eqs-slot__badge">{index === 0 ? 'Lead' : `Slot ${index + 1}`}</span>
-                        <div className="eqs-costseg" role="group" aria-label={`Slot ${index + 1} cost`}>
-                          {QUICK_COSTS.map((cost) => (
-                            <button
-                              key={cost}
-                              type="button"
-                              className={`eqs-costseg__btn${slot.cost === cost ? ' is-active' : ''}`}
-                              disabled={!allowedCosts.includes(cost)}
-                              onClick={() => setSlotCost(index, cost)}
-                            >
-                              {cost}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <LiquidSelect
-                        value={value}
-                        options={mainStatOptions(keys)}
-                        ariaLabel={`Slot ${index + 1} main stat`}
-                        onChange={(next) => setMainStat(index, String(next))}
-                      />
-                    </div>
-                  )
-              })}
-            </div>
-          </section>
+        {group ? (
+          <div className="eec-bank eqs-bank" role="group" aria-label={`Template ${tplIndex + 1} substats`}>
+            {Array.from({ length: MAX_SUBSTATS }, (_, subIndex) => {
+              const entry = group.substats[subIndex]
 
-          <section className="eqs-card eqs-subs">
-            <div className="eqs-card__head">
-              <span className="eqs-card__cap">Substat Templates</span>
-              <span className="eqs-card__meta">×{totalSubPc}/{config.echoCount} echoes</span>
-            </div>
-            <div className="eqs-subgrid">
-              {config.substatGroups.map((group, groupIndex) => {
-                const maxCount = maxSubCount(config, groupIndex)
+              if (!entry) {
+                const isNext = subIndex === group.substats.length
                 return (
-                  <div key={groupIndex} className="eqs-tmpl">
-                    <div className="eqs-tmpl__head">
-                      <span className="eqs-tmpl__name">Template {groupIndex + 1}</span>
-                      <LiquidSelect
-                        value={group.count}
-                        options={multiOptions(maxCount)}
-                        ariaLabel={`Template ${groupIndex + 1} echoes`} className="eqs-tmpl__multi"
-                        onChange={(next) => setSubGroupCount(groupIndex, Number(next))}
-                      />
-                      <button
-                        type="button" className="eqs-icon-btn eqs-icon-btn--danger"
-                        aria-label="Remove template"
-                        onClick={() => removeSubGroup(groupIndex)}
-                      >
-                        <X size="0.8125rem" />
-                      </button>
-                    </div>
-                    <div className="eqs-tmpl__body">
-                      {group.substats.map((entry, subIndex) => {
-                        const steps = getSbstStepP(entry.key)
-                        const atMin = entry.value <= (steps[0] ?? entry.value)
-                        const atMax = entry.value >= (steps[steps.length - 1] ?? entry.value)
-                        return (
-                          <div key={`${entry.key}-${subIndex}`} className="eqs-sub">
-                            <button
-                              type="button" className="eqs-sub__key"
-                              onClick={() => cycleSubKey(groupIndex, subIndex)}
-                              title="Cycle substat"
-                            >
-                              {abbr(entry.key)}
-                            </button>
-                            <div className="eqs-step">
-                              <button
-                                type="button" className="eqs-step__btn"
-                                disabled={atMin}
-                                aria-label="Lower value"
-                                onClick={() => stepSubValue(groupIndex, subIndex, -1)}
-                              >
-                                <Minus size="0.75rem" />
-                              </button>
-                              <span className="eqs-step__val">{fmtEchoStatV(entry.key, entry.value)}</span>
-                              <button
-                                type="button" className="eqs-step__btn"
-                                disabled={atMax}
-                                aria-label="Higher value"
-                                onClick={() => stepSubValue(groupIndex, subIndex, 1)}
-                              >
-                                <Plus size="0.75rem" />
-                              </button>
-                            </div>
-                            <button
-                              type="button" className="eqs-icon-btn eqs-icon-btn--danger"
-                              aria-label="Remove substat"
-                              onClick={() => removeSubstat(groupIndex, subIndex)}
-                            >
-                              <X size="0.75rem" />
-                            </button>
-                          </div>
-                        )
-                      })}
-                      {group.substats.length < 5 && group.substats.length < SUBSTAT_KEYS.length ? (
-                        <button
-                          type="button" className="eqs-subadd"
-                          onClick={() => addSubstat(groupIndex)}
-                        >
-                          <Plus size="0.8125rem" aria-hidden />
-                          Substat
-                        </button>
-                      ) : null}
+                  <div key={subIndex} className="eec-col is-open">
+                    <span className="eec-col-head"><span>{subIndex + 1}</span></span>
+                    <span className="eec-col-ghost" aria-hidden="true" />
+                    <div className="eec-col-name">
+                      {isNext ? (
+                        <StatField
+                          statKey=""
+                          options={SUBSTAT_KEYS}
+                          usedKeys={usedKeys}
+                          placeholder="Type a stat"
+                          ariaLabel="Add a substat"
+                          onPick={(key) => pickSubstat(tplIndex, subIndex, key)}
+                        />
+                      ) : (
+                        <span className="eec-col-idle">Open</span>
+                      )}
                     </div>
                   </div>
                 )
-              })}
-              {config.substatGroups.length < config.echoCount ? (
-                <button type="button" className="eqs-tmpl eqs-tmpl--add" onClick={addSubGroup}>
-                  <Plus size="1.125rem" aria-hidden />
-                  <span>New template</span>
-                </button>
-              ) : null}
-            </div>
-          </section>
-        </div>
+              }
 
-        <footer className="bp-footer">
-          <div className="bp-footer__summary">
-            <span className="bp-footer__count">{config.echoCount}</span>
-            <div className="bp-footer__copy">
-              <strong>{config.echoCount === 1 ? 'echo planned' : 'echoes planned'}</strong>
-              <span>{totalCost}/{MAX_COST} cost · ×{totalSubPc} substat rolls</span>
-            </div>
+              const steps = getSbstStepP(entry.key)
+              const roll = stepOf(entry.key, entry.value)
+              return (
+                <div key={subIndex} className="eec-col">
+                  <span className="eec-col-head">
+                    <span>{subIndex + 1}</span>
+                    <span className={`eec-tier${roll === steps.length - 1 ? ' is-top' : ''}`}>
+                      {roll + 1}/{steps.length}
+                    </span>
+                  </span>
+
+                  <button
+                    type="button" className="eec-col-drop"
+                    aria-label={`Remove substat ${subIndex + 1}`}
+                    onClick={() => removeSubstat(tplIndex, subIndex)}
+                  >
+                    <X size="0.72rem" />
+                  </button>
+
+                  <RollReel
+                    statKey={entry.key}
+                    value={entry.value}
+                    onChange={(next) => setSubValue(tplIndex, subIndex, next)}
+                  />
+
+                  <div className="eec-col-name">
+                    <StatGlyph statKey={entry.key} size={0.95} />
+                    <StatField
+                      statKey={entry.key}
+                      options={SUBSTAT_KEYS}
+                      usedKeys={usedKeys}
+                      ariaLabel={`Substat ${subIndex + 1}`}
+                      onPick={(key) => pickSubstat(tplIndex, subIndex, key)}
+                    />
+                  </div>
+                </div>
+              )
+            })}
           </div>
-          <div className="bp-footer__actions">
-            <button
-              type="button" className="bp-btn bp-btn--ghost"
-              onClick={() => setConfig(makeQuickConfig(currentEchoes))}
-            >
-              <RotateCcw size="1rem" aria-hidden="true" />
-              Reset
-            </button>
-            <button
-              type="button" className="bp-btn bp-btn--ghost"
-              onClick={() => setConfig(makeQuickConfig())}
-            >
-              <X size="1rem" aria-hidden="true" />
-              Clear All
-            </button>
-            <button type="button" className="bp-btn bp-btn--primary" onClick={generate}>
-              <Dices size="1rem" aria-hidden="true" />
-              Generate Build
+        ) : (
+          <div className="eqs-empty">
+            <span>No substat template. Forged echoes keep empty substats.</span>
+            <button type="button" className="amdl__act" onClick={addSubGroup} disabled={config.echoCount === 0}>
+              <Plus size="0.8rem" aria-hidden />
+              Add a template
             </button>
           </div>
+        )}
+
+        <footer className="amdl__foot">
+          <span className="eec-tally">
+            <span><b>{config.echoCount}</b> {config.echoCount === 1 ? 'echo' : 'echoes'}</span>
+            <span className={totalCost > MAX_COST ? 'is-over' : undefined}><b>{totalCost}/{MAX_COST}</b> cost</span>
+            <span><b>{totalSubPc}/{config.echoCount}</b> with substats</span>
+            {group ? <span>CV <b>{critValue.toFixed(1)}</b></span> : null}
+          </span>
+          <button
+            type="button" className="amdl__act"
+            onClick={() => setConfig(makeQuickConfig(currentEchoes))}
+          >
+            <RotateCcw size="0.8rem" aria-hidden="true" />
+            Reset
+          </button>
+          <button
+            type="button" className="amdl__act"
+            onClick={() => setConfig(makeQuickConfig())}
+          >
+            Clear all
+          </button>
+          <button type="button" className="amdl__act is-go" onClick={generate}>
+            <Hammer size="0.8rem" aria-hidden="true" />
+            Forge build
+          </button>
         </footer>
       </div>
 

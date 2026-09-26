@@ -286,7 +286,7 @@ const evaluationTopic: DocTopic = {
           type: 'prose',
           text: [
             'For each generated Echo/set/main-Echo frame, the search discovers which stats can actually move damage before it enumerates primary main stats and substat fills. It starts from the frame with main stats only, removes the frame\'s current primary main stats, adds one high probe value for every legal stat, scores that full probe, then removes one probed stat at a time. A stat is useful when removing it changes damage.',
-            'The report uses a deterministic beam of the most promising frame families and a bounded main-stat candidate budget. This is intentionally an estimate: it keeps the UI responsive and memory-bounded, but it can miss a theoretically stronger legal reference build.',
+            'The report ranks legal frame families by their mains-only damage. It evaluates 100% substats on the first 32 families, while the separate 200% search keeps the first 128. Each family enumerates at most 256 main-stat candidates. These deterministic limits keep the report responsive, but a stronger legal build could exist outside the retained candidates.',
             'Useful stats are used to keep main-stat enumeration and substat filling focused. Energy Regen is removed for resonators that intentionally ignore ER. When the equipped build has an ER target, Energy Regen is forced into the useful set so the reference build can satisfy the target even if ER does not increase direct damage.',
           ],
         },
@@ -483,8 +483,8 @@ const evaluationTopic: DocTopic = {
           type: 'prose',
           text: [
             'For the 100 reference, each candidate ER count gets its own allocation. After reserving ER and ranking the damage keys, the search first selects two relevant flat lines. It then chooses the remaining relevant lines by immediate damage gain at minimum value, up to 16 relevant lines total. Non-damage filler completes all 25 physical slots. Relevance uses every detected damage stat, including weak stats outside the maximum-search shortlist, so a weak useful stat cannot bypass the limit as filler.',
-            'The search first funds the minimum upgrades on every line of the lowest-ranked selected damage key. It then upgrades the selected damage lines one legal tier at a time, choosing the largest immediate damage gain while respecting the top-two caps, until it reaches 32 total steps or no allowed step helps. ER and the mandatory minimum upgrades consume the same budget. This is a bounded heuristic, not a proof of the globally best distribution. Each final line is assigned to an Echo, and scoring and report totals use those same values.',
-            'The 200 pass retains its separate greedy maximum-value fill. Both passes reuse the bounded main-stat and Echo-frame candidate pool. The no-Echo 0 anchor is unchanged.',
+            'The search first funds the minimum upgrades on every line of the lowest-ranked selected damage key. It then upgrades the selected damage lines one legal tier at a time, choosing the largest immediate damage gain while respecting the top-two caps, until it reaches 32 total steps or no allowed step helps. ER and the mandatory minimum upgrades consume the same budget. For the eight strongest initial candidates, a final pass tries same-tier line exchanges and one-for-one tier transfers, keeping the slot and step budgets, ER requirement, flat minimum, caps, and lowest-key floor. This remains a heuristic rather than proof of the globally best distribution. Each final line is assigned to an Echo, and scoring and report totals use those same values.',
+            'The 200 pass retains its separate greedy maximum-value fill across 128 frame families. The no-Echo 0 anchor is unchanged.',
           ],
         },
         {
@@ -504,6 +504,7 @@ const evaluationTopic: DocTopic = {
             'stepsRemaining = 32 - reservedERSteps - mandatoryLowestKeySteps',
             'choose the allowed adjacent increase with the largest damage gain',
             'apply it and subtract one step; repeat while a step helps',
+            'refine the eight strongest candidates with legal line and step exchanges',
             '',
             'distribute the 25 values over five Echoes without duplicate keys',
             'report counts and totals from those generated values',

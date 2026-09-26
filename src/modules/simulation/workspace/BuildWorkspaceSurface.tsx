@@ -63,6 +63,7 @@ import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { resolveImageRef } from '@/application/media/imageUpload.ts'
 import type { StoredImage } from '@/application/media/imageUpload.ts'
 import { useTstStr } from '@/shared/util/toastStore.ts'
+import { useImportLanding } from '@/modules/simulation/features/echoes/lib/importLanding.ts'
 import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { mainPortal } from '@/shared/lib/portalTarget'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal'
@@ -77,6 +78,7 @@ import {
   preloadEvaluationRailImages, scheduleEvaluationTargetWork,
 } from '@/modules/simulation/workspace/ui.tsx'
 import { buildTextSlotVars, collectCardFontFamilies, splitHoistedCss } from '@/modules/simulation/surfaces/showcase/cardStyleVars.ts'
+import { DEFAULT_PORTRAIT_SURFACE, getPortraitSource, readPortraitSurface } from '@/modules/simulation/surfaces/showcase/portraitSurface.ts'
 import type { CardExportTarget } from '@/modules/simulation/surfaces/showcase/cardTransfer.ts'
 
 import { ensureGoogleFamily } from '@/application/theme/typography.ts'
@@ -253,6 +255,48 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   const railRuntime = railProjection?.subjectRuntime ?? null
   const railPartRtsById = railProjection?.runtimesById ?? EMPTY_RUNTIME_MAP
   const railResId = railRuntime?.id ?? null
+  const buildCardRef = useRef<HTMLElement | null>(null)
+  const [sampledSurface, setSampledSurface] = useState<{
+    resonatorId: string
+    color: string
+  } | null>(null)
+  const derivedSurfaceColor = sampledSurface?.resonatorId === railResId
+    ? sampledSurface.color
+    : DEFAULT_PORTRAIT_SURFACE
+  useEffect(() => {
+    const card = buildCardRef.current
+    if (!isShowcase || !railResId || !card) return undefined
+
+    let active = true
+    let request = 0
+    let lastSource: string | null = null
+    const inspect = () => {
+      const source = getPortraitSource(card)
+      if (!source || source === lastSource) return
+      lastSource = source
+      const currentRequest = ++request
+      setSampledSurface({ resonatorId: railResId, color: DEFAULT_PORTRAIT_SURFACE })
+      void readPortraitSurface(source).then((color) => {
+        if (active && currentRequest === request) setSampledSurface({ resonatorId: railResId, color })
+      }).catch(() => {
+        if (active && currentRequest === request) setSampledSurface({ resonatorId: railResId, color: DEFAULT_PORTRAIT_SURFACE })
+      })
+    }
+
+    const frame = requestAnimationFrame(inspect)
+    const observer = new MutationObserver(inspect)
+    observer.observe(card, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] })
+    card.addEventListener('load', inspect, true)
+    card.addEventListener('error', inspect, true)
+    return () => {
+      active = false
+      request += 1
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      card.removeEventListener('load', inspect, true)
+      card.removeEventListener('error', inspect, true)
+    }
+  }, [isShowcase, railResId])
   const cardConfig = useAppStore((state) => (
     railResId ? state.ui.preferences.showcaseCards[railResId] ?? null : null
   ))
@@ -303,6 +347,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   const cardStyle = cardStyleDraft.resonatorId === railResId
     ? cardStyleDraft.style
     : persistedCardStyle
+  const surfaceColor = cardStyle.surface ?? derivedSurfaceColor
   const cardHidden = cardConfig?.hidden ?? DEF_SHOWCASE_HIDE
   const [tuneResetKey, setTuneResetKey] = useState(0)
   const [editMode, setEditMode] = useState<'portrait' | 'backdrop' | null>(null)
@@ -415,6 +460,18 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     setEditMode(null)
   }, [railResId, patchShowcaseCardHidden, updateShowcaseStyle])
 
+  const handleResetTuneSection = useCallback((section: 'show' | 'color' | 'type') => {
+    if (!railResId) return
+    if (section === 'show') {
+      updateShowcaseStyle({ statsColumn: null, portraitCredit: null, backdropCredit: null })
+      patchShowcaseCardHidden(railResId, DEF_SHOWCASE_HIDE)
+    } else if (section === 'color') {
+      updateShowcaseStyle({ accent: null, surface: null, opacity: null })
+    } else {
+      updateShowcaseStyle({ displayFont: null, monoFont: null, text: null })
+    }
+  }, [patchShowcaseCardHidden, railResId, updateShowcaseStyle])
+
   const handleExportTarget = useCallback(async (target: CardExportTarget) => {
     const { buildCardExport } = await import('@/modules/simulation/surfaces/showcase/cardTransfer.ts')
     const { raw, filename, mime } = buildCardExport(target, cardStyle, cardHidden)
@@ -449,7 +506,6 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     }
   }, [railResId, patchShowcaseCardHidden, showToast, updateShowcaseStyle])
   const railScenarioIdRef = useRef(selectedScenarioId)
-  const buildCardRef = useRef<HTMLElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const mainStackRef = useRef<HTMLDivElement | null>(null)
 
@@ -513,6 +569,23 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   useEffect(() => {
     setModulationMemberId(null)
   }, [railScenarioId])
+
+  // Resolve a pending member only after the requested scenario context becomes
+  // active. The same resonator may belong to multiple scenario teams.
+  const seatAsk = useImportLanding((state) => state.seatAsk)
+  useEffect(() => {
+    if (!isModulation || !seatAsk || railResId !== seatAsk.contextId) return
+    if (!modulationRoster.some((mate) => mate.id === seatAsk.memberId)) return
+    setModulationMemberId(seatAsk.memberId)
+    useImportLanding.getState().takeSeat()
+  }, [isModulation, modulationRoster, railResId, seatAsk])
+
+  useEffect(() => {
+    useImportLanding.getState().setSeat(isModulation && railResId && modulationMemberId
+      ? { contextId: railResId, memberId: modulationMemberId }
+      : null)
+  }, [isModulation, modulationMemberId, railResId])
+  useEffect(() => () => useImportLanding.getState().setSeat(null), [])
 
   const updateModulationRuntime = useCallback((updater: (prev: ResRuntime) => ResRuntime) => {
     if (!modulationMemberId) return
@@ -1065,9 +1138,9 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
   )
   const railStyle = useMemo<CssVars>(() => ({
     '--resonator-accent': isShowcase ? cardStyle.accent ?? railModel.accent : railModel.accent,
-    ...(isShowcase && cardStyle.surface ? { '--bg': cardStyle.surface } : {}),
+    ...(isShowcase ? { '--bg': surfaceColor } : {}),
     ...(isShowcase && cardStyle.text ? { '--text': cardStyle.text } : {}),
-    ...(isShowcase && (cardStyle.surface != null || cardStyle.opacity != null)
+    ...(isShowcase
       ? {
           '--rail-glass': `color-mix(in srgb, var(--bg) ${cardStyle.opacity ?? 82}%, transparent)`,
           '--rail-glass-2': `color-mix(in srgb, var(--bg) ${Math.round((cardStyle.opacity ?? 82) * 0.67)}%, transparent)`,
@@ -1082,11 +1155,11 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
     cardStyle.displayFont,
     cardStyle.monoFont,
     cardStyle.opacity,
-    cardStyle.surface,
     cardStyle.text,
     isShowcase,
     maskVars,
     railModel.accent,
+    surfaceColor,
     textSlotVars,
   ])
 
@@ -1190,7 +1263,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                     layout={showcaseLayout}
                     onLayoutChange={setShowcaseLayout}
                     accent={cardStyle.accent ?? railModel.accent}
-                    surface={cardStyle.surface ?? '#0c111a'}
+                    surface={surfaceColor}
                     text={cardStyle.text ?? '#eef2f7'}
                     cardOpacity={cardStyle.opacity ?? 82}
                     portraitX={cardStyle.portraitX ?? 50}
@@ -1225,6 +1298,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                     onStyleChange={(patch) => {
                       updateShowcaseStyle(patch)
                     }}
+                    onResetSection={handleResetTuneSection}
                     onPickImage={handlePickImage}
                     onResetGroup={handleResetGroup}
                     onReset={() => {
@@ -1285,7 +1359,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                 </Suspense>
               ) : null}
 
-              {!inventoryOpen && !isOptimizer && !isSuggestions && !isShowcase ? (
+              {!isOptimizer && !isSuggestions && !isShowcase ? (
                 <ModulationReport
                   phase={surfacePhase}
                   modulation={isModulation}
@@ -1327,6 +1401,7 @@ export function BuildWorkspaceSurface({ page }: { page: WorkspaceSurface }) {
                   onEchoOpen={openEchoSlot}
                   overviewStatsTree={overviewStatsTree}
                   echoRuntime={echoRuntime}
+                  echoScenarioId={railScenarioId}
                   echoResonatorName={echoSeed?.name}
                   echoEditable
                   canSaveEcho={canSaveEcho}

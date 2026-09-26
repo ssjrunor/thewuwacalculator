@@ -1,0 +1,18 @@
+.boot-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  gap: 0.7rem;
+  align-content: center;
+  background: var(--bg, #131922);
+  color: var(--text, #dddddd);
+  font: 500 0.9rem var(--cute-font);
+}
+
+.boot-loading::before {
+  content: "";
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  background: var(--loader-mascot) center / contain no-repeat;
+}

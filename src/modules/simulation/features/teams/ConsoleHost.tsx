@@ -96,12 +96,17 @@ function ConsoleView({
     })
   }, [closeRequest, hide, session])
 
-  // Close if the requested member leaves the current runtime graph.
+  // A removed teammate may still be the requested view for one render. Follow
+  // the surviving context resonator instead of treating that as a close.
   useEffect(() => {
-    if (visible && !closing && (!member || !memberRt || !actRt)) {
+    if (!visible || closing) return
+    if (!actRt) {
       closeConsole()
+    } else if (!member || !memberRt) {
+      if (resonatorId === actRt.id) closeConsole()
+      else switchMember(actRt.id)
     }
-  }, [actRt, closeConsole, closing, member, memberRt, visible])
+  }, [actRt, closeConsole, closing, member, memberRt, resonatorId, switchMember, visible])
 
   if (!member || !memberRt || !actRt || !visible) {
     return null
@@ -132,6 +137,7 @@ function ConsoleView({
         channel={channel}
         onSwitchMember={switchMember}
         onSetTeamMember={model.setTeamMember}
+        onSetTeam={model.setTeam}
         onChannelChange={setChannel}
         onSqncChng={model.onSqncChng}
         onRtPdt={model.onRtPdt}

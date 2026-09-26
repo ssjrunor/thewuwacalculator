@@ -8,7 +8,8 @@ import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { SlidersHorizontal as SldrHrzn } from 'lucide-react'
 import { useAppStore } from '@/application/state'
-import { ALL_THEMES, THEME_BY_MODE, THEME_PREVIEW } from '@/domain/entities/themes'
+import { THEME_BY_MODE, THEME_PREVIEW } from '@/domain/entities/themes'
+import { applyDocumentTheme } from '@/application/theme/documentTheme'
 import type { BgThemeVar, DarkThemeVar, LightThemeVar, ThemeVariant } from '@/domain/entities/themes'
 import type { ThemeMode } from '@/domain/entities/appState'
 import { AnchoredAppPopup, useAppPopupDismiss } from '@/shared/ui/AppPopup'
@@ -77,16 +78,13 @@ export function ThemeDrop({ open, onToggle, onClose }: ThemeDropProps) {
 
   useLayoutEffect(() => {
     if (!open) return
-    const root = document.documentElement
     const textMode = draftUi.theme === 'background'
       ? draftUi.backgroundTextMode
       : draftUi.theme === 'dark' ? 'dark' : 'light'
     const variant = draftUi.theme === 'background'
       ? draftUi.backgroundVariant
       : draftUi.theme === 'dark' ? draftUi.darkVariant : draftUi.lightVariant
-    root.classList.remove(...ALL_THEMES, 'blur-off', 'light-text', 'dark-text')
-    root.classList.add(variant, `${textMode}-text`)
-    if (draftUi.blurMode) root.classList.add('blur-off')
+    applyDocumentTheme(variant, textMode, draftUi.blurMode, draftUi.entranceAnimations)
   }, [draftUi, open])
 
   // A variant selection updates its mode as well as that mode's stored theme.

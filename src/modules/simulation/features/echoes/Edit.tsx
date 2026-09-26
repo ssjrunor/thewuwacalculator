@@ -74,7 +74,7 @@ function stepIndex(key: string, value: number): number {
 }
 
 // Preserve relative roll quality when stat families have different tier counts.
-function carryTier(fromKey: string, fromValue: number, toKey: string): number {
+export function carryTier(fromKey: string, fromValue: number, toKey: string): number {
   const to = getSbstStepP(toKey)
   if (!to.length) return 0
 
@@ -107,7 +107,7 @@ interface StatFieldP {
 }
 
 // Resolve typed labels and aliases to an available stat; Enter or Tab commits it.
-function StatField({ statKey, options, usedKeys, placeholder, ariaLabel, onPick }: StatFieldP) {
+export function StatField({ statKey, options, usedKeys, placeholder, ariaLabel, onPick }: StatFieldP) {
   const label = statKey ? fmtStatKey(statKey) : ''
   const [draft, setDraft] = useState<string | null>(null)
   const [typed, setTyped] = useState(false)
@@ -231,7 +231,7 @@ interface RollReelP {
 }
 
 // Wheel, drag, keyboard, and slider input all resolve to a legal roll index.
-function RollReel({ statKey, value, onChange, innerRef }: RollReelP) {
+export function RollReel({ statKey, value, onChange, innerRef }: RollReelP) {
   const steps = useMemo(() => getSbstStepP(statKey), [statKey])
   const index = stepIndex(statKey, value)
   const reelRef = useRef<HTMLDivElement | null>(null)

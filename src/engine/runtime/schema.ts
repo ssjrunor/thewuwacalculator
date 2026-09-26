@@ -1180,6 +1180,11 @@ const uiPersistSchema = z.strictObject({
     imgbbApiKey: z._default(z.string(), DEF_UI_PREFS.imgbbApiKey),
     playerId: z._default(z.string(), DEF_UI_PREFS.playerId),
     playerUid: z._default(z.string(), DEF_UI_PREFS.playerUid),
+    echoImportBands: z._default(z.object({
+      resonator: z._default(z.boolean(), DEF_UI_PREFS.echoImportBands.resonator),
+      weapon: z._default(z.boolean(), DEF_UI_PREFS.echoImportBands.weapon),
+      echoes: z._default(z.boolean(), DEF_UI_PREFS.echoImportBands.echoes),
+    }), DEF_UI_PREFS.echoImportBands),
   }), DEF_UI_PREFS)),
   leftPaneView: z.enum([
     'resonators',

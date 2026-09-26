@@ -163,26 +163,33 @@ body,
   overflow: hidden;
 }
 
-
-
-
 .ax .ax-head {
+  --ax-hover-delay: 280ms;
   display: flex;
   align-items: center;
   column-gap: clamp(0.7rem, 1.5vw, 1.45rem);
   padding: 0.72rem 2rem 0.78rem;
-  opacity: .3;
   transition: opacity 240ms ease, padding 450ms ease;
 }
 
-
 :root.ax-front .ax-head { padding: 1.5rem 4.5rem 1rem; opacity: 1 }
-.ax-head:hover { opacity: 1 }
 
-.ax .ax-head:not(:hover):not(:focus-within) :is(.ax-ctl, .ax-drop) { opacity: 0.36; }
-.ax .ax-head:not(:hover):not(:focus-within) .ax-w:not(.is-at) { opacity: 0.42; }
-.ax .ax-head:not(:hover):not(:focus-within) .ax-stamp { opacity: 0.55; }
-.ax .ax-head :is(.ax-ctl, .ax-drop, .ax-w, .ax-stamp) { transition: opacity 240ms ease, color 200ms ease; }
+.ax .ax-head:not(:hover):not(:focus-within) .ax-w:not(.is-at) { opacity: 0.2 }
+.ax .ax-head:not(:hover):not(:focus-within) :is(.ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder:not(:has(> .tooltip-trigger))) { opacity: 0.4; }
+
+.ax .ax-head :is(.ax-ctl, .ax-drop, .ax-w, .ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder) {
+  transition: opacity 240ms ease, color 200ms ease;
+}
+
+.ax .ax-head:hover:not(:focus-within) :is(.ax-w:not(.is-at), .ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder:not(:has(> .tooltip-trigger))) {
+  transition-delay: var(--ax-hover-delay), 0ms;
+}
+
+.ax.reduce-animation .ax-head { --ax-hover-delay: 0ms; }
+
+.ax.reduce-animation .ax-head :is(.ax-ctl, .ax-drop, .ax-w, .ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder) {
+  transition-duration: 1ms;
+}
 
 .ax .ax-mark { display: inline-flex; align-items: center; gap: 0.5rem; flex: none; align-self: center; }
 .ax .ax-mark-glyph { width: 1.3rem; height: auto; flex: none; color: var(--live); }

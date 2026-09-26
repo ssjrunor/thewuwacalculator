@@ -886,58 +886,59 @@ button.workspace-weapon:hover .workspace-weapon-frame {
 
 .workspace-mate {
   --browser-accent: var(--resonator-accent);
+  --mate-edge-top: 11.625rem;
+  --mate-edge-foot: 10.875rem;
+  --mate-spark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Cpath d='M15 0C16.36 9.5 20.45 13.5 30 15C20.45 16.5 16.36 20.5 15 30C13.64 20.5 9.55 16.5 0 15C9.55 13.5 13.64 9.5 15 0Z' fill='%23000'/%3E%3C/svg%3E");
   position: relative;
-  backdrop-filter: blur(17px);
-  webkit-backdrop-filter: blur(17px);
-  border-radius: 0.7rem;
-  background: color-mix(in srgb, var(--browser-accent) 10%, var(--rail-glass-2));
-  border: 0.5px solid var(--item-border);
-  overflow: hidden;
+  height: 4.55rem;
+  flex: none;
+  border-radius: 0.625rem;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--bg) 90%, transparent) 50%,
+    color-mix(in srgb, var(--browser-accent) 50%, color-mix(in srgb, var(--bg) 55%, transparent))
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mate-rar) 25%, transparent),
+    inset 0 -.5px 0 var(--mate-rar, transparent);
+  overflow: visible;
   isolation: isolate;
+  transition: scale 220ms ease;
 }
 
-.workspace-mate[data-rarity] {
-  border-color: color-mix(in srgb, var(--rar) 20%, var(--item-border));
+.workspace-mate:has(button.workspace-mate-content:hover) {
+  scale: 1.01;
 }
 
 .workspace-mate-frame {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
+  inset: 0;
   z-index: 0;
-  overflow: visible;
   pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
 }
 
 .workspace-mate-portrait {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.867;
-  object-position: var(--resonator-sprite-face-x, 40%) calc(var(--resonator-sprite-face-y, 23%) + 6.7%);
-  filter: saturate(0.92);
-  transform: translateX(28.67%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 55%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 55%);
+  left: calc(100% - 6rem);
+  width: auto;
+  height: 20.75rem;
+  max-width: none;
+  transform: translate(calc(-1 * var(--resonator-sprite-face-x, 45%)), calc(-1 * var(--resonator-sprite-face-y, 25%)));
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
+  mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
 }
 
 .workspace-mate-content {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 0;
-  padding: 0.6rem 0.7rem;
+  display: block;
+  padding: 0;
 }
 
 button.workspace-mate-content {
-  width: 100%;
   border: 0;
   background: none;
   font: inherit;
@@ -947,151 +948,163 @@ button.workspace-mate-content {
   cursor: pointer;
 }
 
-.workspace-mate {
-  transition: scale 220ms ease;
-}
-
-.workspace-mate:has(button.workspace-mate-content:hover) {
-  scale: 1.01;
-}
-
-.workspace-mate-head {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.workspace-mate-attr {
-  flex-shrink: 0;
-  width: 1.15rem;
-  height: 1.15rem;
-  object-fit: contain;
+.workspace-mate-edge {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, var(--mate-edge-top) 0, var(--mate-edge-foot) 100%, 0 100%);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--text) 5%, transparent), transparent 60%);
+  pointer-events: none;
 }
 
 .workspace-mate-name {
-  flex: 0 1 auto;
+  position: absolute;
+  left: 0.75rem;
+  top: 0.8rem;
+  max-width: 8.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--ss-names-font, var(--workspace-rail-font));
-  font-size: calc(0.84rem * var(--ss-names-scale, 1));
+  font-size: calc(1.25rem * var(--ss-names-scale, 1));
   font-weight: var(--ss-names-weight, 700);
+  line-height: 1.1;
   letter-spacing: var(--ss-names-ls, -0.01em);
   text-transform: var(--ss-names-tt, none);
   color: var(--ss-names-color, var(--text));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.workspace-mate-lv {
-  flex-shrink: 0;
-  padding: 0.1rem 0.4rem 0;
-  border-radius: 0.25rem;
-  font: 700 0.58rem/1.4 var(--workspace-rail-font);
-  font-family: var(--ss-muted-font, var(--workspace-rail-font));
-  font-size: calc(0.58rem * var(--ss-muted-scale, 1));
-  font-weight: var(--ss-muted-weight, 700);
-  letter-spacing: var(--ss-muted-ls, 0.04em);
-  text-transform: var(--ss-muted-tt, none);
-  background: color-mix(in srgb, var(--browser-accent) 16%, transparent);
-  color: var(--ss-muted-color, color-mix(in srgb, var(--browser-accent) 30%, var(--text)));
+.workspace-mate-meta {
+  position: absolute;
+  left: 0.75rem;
+  top: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .workspace-mate-seq {
   display: inline-flex;
-  gap: 0.22rem;
-  margin-left: auto;
-  flex-shrink: 0;
+  gap: 0.2rem;
 }
 
 .workspace-mate-seq i {
-  width: 0.28rem;
-  height: 0.28rem;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--text) 32%, transparent);
+  width: 0.5rem;
+  height: 0.5rem;
+  background: color-mix(in srgb, var(--text) 26%, transparent);
+  -webkit-mask: var(--mate-spark) center / contain no-repeat;
+  mask: var(--mate-spark) center / contain no-repeat;
 }
 
 .workspace-mate-seq i[data-on='true'] {
   background: var(--browser-accent);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--browser-accent) 70%, transparent));
 }
 
-.workspace-mate-gear {
+.workspace-mate-lv {
+  font-family: var(--ss-muted-font, var(--workspace-rail-font));
+  font-size: calc(0.625rem * var(--ss-muted-scale, 1));
+  font-weight: var(--ss-muted-weight, 700);
+  letter-spacing: var(--ss-muted-ls, 0.02em);
+  text-transform: var(--ss-muted-tt, none);
+  color: var(--ss-muted-color, color-mix(in srgb, var(--browser-accent) 45%, var(--text)));
+}
+
+.workspace-mate-lv b {
+  font-size: 1.2em;
+  color: var(--text);
+}
+
+.workspace-mate::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  height: 100%;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--mate-rar, transparent) 10%, transparent), transparent);
+  pointer-events: none;
+}
+
+.workspace-mate-kit {
+  position: absolute;
+  right: -.5rem;
+  align-self: center;
+  z-index: 10;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.32rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
-.workspace-mate-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.28rem;
-  padding: 0.16rem 0.4rem 0.16rem 0.18rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg) 35%, transparent);
-  border: 1px solid var(--workspace-line-soft);
+.workspace-mate-tile {
+  position: relative;
+  width: 1.875rem;
+  height: 2rem;
+  flex: none;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgb(40 48 62 / 0.94), rgb(16 21 30 / 0.96));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), 0 2px 6px rgb(0 0 0 / 0.35);
 }
 
-.workspace-mate-chip--wpn[data-rarity] {
-  border-color: color-mix(in srgb, var(--rar) 22%, var(--workspace-line-soft));
+.workspace-mate-tile::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgb(255 255 255 / 0.22);
 }
 
-.workspace-mate-wpn,
-.workspace-mate-set {
+.workspace-mate-tile[data-kind='weapon']::after {
+  background: var(--kit-rar, rgb(255 255 255 / 0.22));
+}
+
+.workspace-mate-tile img {
+  position: absolute;
+  left: 0.125rem;
+  top: 0.0625rem;
+  width: 1.625rem;
+  height: 1.625rem;
+  object-fit: contain;
+}
+
+.workspace-mate-tile[data-kind='set'] img {
+  left: 0.3125rem;
+  top: 0.25rem;
   width: 1.25rem;
   height: 1.25rem;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
-.workspace-mate-set {
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
+.workspace-mate-tile b {
+  position: absolute;
+  right: 0.125rem;
+  bottom: 0.25rem;
+  font: 700 0.5625rem/1 var(--workspace-rail-font);
+  color: #fff;
+  text-shadow: 0 1px 2px #000, 0 0 3px #000;
 }
 
-.workspace-mate-wpn--empty {
-  border-radius: 50%;
-  border: 1px dashed color-mix(in srgb, var(--text) 18%, transparent);
+.workspace-mate-tile--empty {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 18%, transparent);
 }
 
-.workspace-mate-chip-text {
-  font: 600 0.62rem/1 var(--workspace-rail-font);
-  position: relative;
-  top: 0.1rem;
-  font-family: var(--ss-muted-font, var(--workspace-rail-font));
-  font-size: calc(0.62rem * var(--ss-muted-scale, 1));
-  font-weight: var(--ss-muted-weight, 600);
-  letter-spacing: var(--ss-muted-ls, -0.01em);
-  text-transform: var(--ss-muted-tt, none);
-  color: var(--ss-muted-color, color-mix(in srgb, var(--text) 82%, var(--muted)));
-  white-space: nowrap;
+.workspace-mate-tile--empty::after {
+  display: none;
 }
 
 .workspace-mate--empty {
-  border-style: dashed;
   background: color-mix(in srgb, var(--text) 2%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 .workspace-mate--empty .workspace-mate-name {
   font-style: italic;
   font-weight: 600;
-  color: color-mix(in srgb, var(--muted) 50%, var(--text));
-}
-
-.workspace-mate--empty .workspace-mate-lv {
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  color: color-mix(in srgb, var(--muted) 50%, var(--text));
-}
-
-.workspace-mate-attr--empty {
-  display: block;
-  border-radius: 50%;
-  border: 1px dashed color-mix(in srgb, var(--text) 22%, transparent);
-}
-
-.workspace-mate-set--empty {
-  background: none;
-  border: 1px dashed color-mix(in srgb, var(--text) 18%, transparent);
-}
-
-.workspace-mate--empty .workspace-mate-chip-text {
+  font-size: 1rem;
+  top: 1rem;
   color: color-mix(in srgb, var(--muted) 50%, var(--text));
 }
 

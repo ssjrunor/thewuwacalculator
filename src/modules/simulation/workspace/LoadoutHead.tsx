@@ -6,6 +6,7 @@
 import { useCallback, useMemo } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
+import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import {
   cloneEchoLoadout,
   equalBuildSnapshots,
@@ -14,6 +15,8 @@ import {
 import { useAppStore } from '@/application/state'
 import { cmptTtlEchoC, MAX_ECHO_COST } from '@/modules/simulation/features/echoes/lib/echoes.ts'
 import { QuickSetup } from '@/modules/simulation/features/echoes/QuickSetup.tsx'
+import { openEchoImport } from '@/modules/simulation/features/echoes/lib/echoImportStore.ts'
+import { openTeamCnsl } from '@/modules/simulation/features/teams/lib/teamConsoleStore.ts'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
 import { useConfirm } from '@/shared/hooks/useConfirmation.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
@@ -33,6 +36,7 @@ interface HeadTool {
 export function LoadoutHead({
   title = 'Echo Loadout',
   runtime,
+  scenarioId,
   resonatorName,
   echoes,
   proposal = false,
@@ -47,6 +51,7 @@ export function LoadoutHead({
   /* surfaces that keep a disposable workspace name it themselves */
   title?: string
   runtime: ResRuntime | null
+  scenarioId?: CombatScenarioId | null
   resonatorName?: string | null
   /* the loadout on show: what is equipped, or what a surface is proposing */
   echoes: Array<EchoInstance | null>
@@ -131,6 +136,20 @@ export function LoadoutHead({
   }, [confirmation, onEchoes])
 
   const tools: HeadTool[] = [
+    {
+      key: 'import',
+      label: 'Import',
+      title: 'Import echoes from a build card screenshot',
+      disabled: !runtime,
+      onSelect: () => { if (runtime) openEchoImport(runtime.id) },
+    },
+    {
+      key: 'config',
+      label: 'Config',
+      title: 'Configure this resonator and team',
+      disabled: !runtime,
+      onSelect: () => { if (runtime) openTeamCnsl(runtime.id, 'loadout', scenarioId) },
+    },
     {
       key: 'forge',
       label: 'Forge',

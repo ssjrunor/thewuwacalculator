@@ -6,8 +6,8 @@
 
 import { useLayoutEffect, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { ALL_THEMES } from '@/domain/entities/themes'
 import { useAppStore, type AppStore } from '@/application/state'
+import { applyDocumentTheme } from '@/application/theme/documentTheme'
 
 export function selectShellTheme(state: AppStore) {
   return {
@@ -29,9 +29,10 @@ export function useShellTheme() {
     return shell.theme === 'dark' ? shell.darkVariant : shell.lightVariant
   }, [shell.backgroundVariant, shell.darkVariant, shell.lightVariant, shell.theme])
 
-  const textModeClass = shell.theme === 'background'
-    ? `${shell.backgroundTextMode}-text`
-    : shell.theme === 'dark' ? 'dark-text' : 'light-text'
+  const textMode = shell.theme === 'background'
+    ? shell.backgroundTextMode
+    : shell.theme === 'dark' ? 'dark' : 'light'
+  const textModeClass = `${textMode}-text`
 
   const shellClassName = [
     'app-shell',
@@ -43,23 +44,11 @@ export function useShellTheme() {
   ].filter(Boolean).join(' ')
 
   useLayoutEffect(() => {
+    applyDocumentTheme(activeVariant, textMode, shell.blurMode, shell.entranceAnimations)
     const root = document.documentElement
-    const themeClasses = [
-      ...ALL_THEMES,
-      'blur-off',
-      'no-entrance-anim',
-      'reduce-animation',
-      'light-text',
-      'dark-text',
-    ]
-
-    root.classList.remove(...themeClasses)
-    root.classList.add(activeVariant, textModeClass)
-    if (shell.blurMode) root.classList.add('blur-off')
-    if (!shell.entranceAnimations) root.classList.add('no-entrance-anim', 'reduce-animation')
     root.dataset.themeLocked = 'true'
     root.dataset.themeLoaded = 'true'
-  }, [activeVariant, shell.blurMode, shell.entranceAnimations, textModeClass])
+  }, [activeVariant, shell.blurMode, shell.entranceAnimations, textMode])
 
   return { updateToast: shell.updateToast, shellClassName }
 }

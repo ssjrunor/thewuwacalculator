@@ -4,7 +4,6 @@
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
 import type {
   EvaluationFeature,
@@ -20,7 +19,6 @@ import { formatTruncCompact } from '@/shared/lib/number.ts'
 import { getPrimarySkill, getSkillType } from '@/domain/gameData/skillTypes'
 import { RES_NODE_KEYS, glyphVars, resNodeIcon } from '@/shared/lib/gameAssets'
 import type { ResNodeKey } from '@/shared/lib/gameAssets'
-import { mainPortal } from '@/shared/lib/portalTarget.ts'
 import {
   DETAIL_BUILD_LABEL,
   DETAIL_BUILD_ORDER,
@@ -170,12 +168,10 @@ function pct(value: number): string {
 /* ---------- the aside ---------- */
 
 export function EvaluationAside({
-  open,
   onClose,
   report,
   resonatorId,
 }: {
-  open: boolean
   onClose: () => void
   report: BuildEvaluationReport
   resonatorId: string
@@ -185,7 +181,6 @@ export function EvaluationAside({
   const [pathAt, aimPath] = useDwell<number>()
 
   const build = report.evaluation.builds[buildKey] ?? report.evaluation.builds.active
-  const host = mainPortal()
 
   /*
     The features are grouped by node so the inner ring's arcs are contiguous,
@@ -291,10 +286,6 @@ export function EvaluationAside({
     }
   }, [here, paths])
 
-  if (!host) {
-    return null
-  }
-
   /* ---------- what the hole reads ---------- */
 
   const lead = wheel.segs[0]
@@ -362,281 +353,268 @@ export function EvaluationAside({
     onBlur: () => aimPath(null),
   })
 
-  return createPortal(
+  return (
     <>
-      <div
-        className={open ? 'rpt-scrim is-open' : 'rpt-scrim'}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        className={open ? 'rpt rte-scope workspace-ink is-open' : 'rpt rte-scope workspace-ink'}
-        aria-label="Build Details"
-        aria-hidden={open ? undefined : true}
+      <header className="rpt-head">
+        <span>
+          <span className="rpt-eyebrow">Build Details</span>
+          <b className="rpt-name">
+            {build.label}
+            <span className="rpt-mode">{build.substatMode}</span>
+          </b>
+        </span>
+        <button type="button" className="rpt-x" aria-label="Close" onClick={onClose}>&times;</button>
+      </header>
+
+      <div className="rpt-tabs"
+        role="group"
+        aria-label="Build detail view"
+        data-at={DETAIL_BUILD_ORDER.indexOf(buildKey)}
       >
-        <header className="rpt-head">
-          <span>
-            <span className="rpt-eyebrow">Build Details</span>
-            <b className="rpt-name">
-              {build.label}
-              <span className="rpt-mode">{build.substatMode}</span>
-            </b>
-          </span>
-          <button type="button" className="rpt-x" aria-label="Close" onClick={onClose}>&times;</button>
-        </header>
+        <span className="rpt-tabs-car" aria-hidden="true" />
+        {DETAIL_BUILD_ORDER.map((key) => (
+          <button
+            key={key}
+            type="button"
+            className={key === buildKey ? 'rpt-tab is-at' : 'rpt-tab'}
+            aria-pressed={key === buildKey}
+            onClick={() => setBuildKey(key)}
+          >
+            {DETAIL_BUILD_LABEL[key]}
+          </button>
+        ))}
+      </div>
 
-        <div className="rpt-tabs"
-          role="group"
-          aria-label="Build detail view"
-          data-at={DETAIL_BUILD_ORDER.indexOf(buildKey)}
-        >
-          <span className="rpt-tabs-car" aria-hidden="true" />
-          {DETAIL_BUILD_ORDER.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={key === buildKey ? 'rpt-tab is-at' : 'rpt-tab'}
-              aria-pressed={key === buildKey}
-              onClick={() => setBuildKey(key)}
-            >
-              {DETAIL_BUILD_LABEL[key]}
-            </button>
-          ))}
+      <div className="rpt-trip" style={{ '--t': getBuildEvaluationTone(build.score).color } as CssVars}>
+        <div className="is-hot">
+          <span>Score</span>
+          <b>{formatBuildEvaluationScore(build.score)}</b>
         </div>
-
-        <div className="rpt-trip" style={{ '--t': getBuildEvaluationTone(build.score).color } as CssVars}>
-          <div className="is-hot">
-            <span>Score</span>
-            <b>{formatBuildEvaluationScore(build.score)}</b>
-          </div>
-          <div>
-            <span>Damage</span>
-            <b>{formatCompactNum(build.damage)}</b>
-          </div>
+        <div>
+          <span>Damage</span>
+          <b>{formatCompactNum(build.damage)}</b>
         </div>
+      </div>
 
-        <div className="rpt-body">
-          <p className="rpt-band">Rotation Features</p>
+      <div className="rpt-body">
+        <p className="rpt-band">Rotation Features</p>
 
-          <div className="rpt-wheel">
-            <div className={pick ? 'rpt-dial is-lit' : 'rpt-dial'}>
-              <svg viewBox="0 0 200 200" role="presentation">
-                <g transform="rotate(-90 100 100)">
-                  {wheel.nodes.map((ring) => (
-                    <circle
-                      key={ring.key}
-                      className={litNode(ring.key) ? 'rpt-arc is-in is-at' : 'rpt-arc is-in'}
-                      cx={100}
-                      cy={100}
-                      r={R_IN}
-                      strokeDasharray={ring.arc.dash}
-                      strokeDashoffset={ring.arc.offset}
-                      style={{ '--c': ring.color } as CssVars}
-                      {...reach({ kind: 'node', id: ring.key })}
-                    >
-                      <title>{ring.label}</title>
-                    </circle>
-                  ))}
-                  {wheel.segs.map((seg) => (
-                    <circle
-                      key={seg.id}
-                      className={litSeg(seg) ? 'rpt-arc is-out is-at' : 'rpt-arc is-out'}
-                      cx={100}
-                      cy={100}
-                      r={R_OUT}
-                      strokeDasharray={seg.arc.dash}
-                      strokeDashoffset={seg.arc.offset}
-                      style={{ '--c': seg.color } as CssVars}
-                      {...reach({ kind: 'feature', id: seg.id })}
-                    >
-                      <title>{seg.row.label}</title>
-                    </circle>
-                  ))}
-                </g>
-              </svg>
-
-              {reading ? (
-                <span className="rpt-hole" style={{ '--h': reading.color } as CssVars}>
-                  <span className="rpt-hole-g" aria-hidden="true">
-                    {reading.glyphs.map((glyph, index) => (glyph ? (
-                      <i key={glyph} style={glyphVars(glyph, '--g')} />
-                    ) : (
-                      <em key={`dot:${index}`} />
-                    )))}
-                  </span>
-                  <span>Share</span>
-                  <b>{pct(reading.share)}</b>
-                  <u>{formatCompactNum(reading.damage)}</u>
-                </span>
-              ) : null}
-            </div>
-
-            <div className={pick ? 'rpt-keys is-lit' : 'rpt-keys'}>
-              <p className="rpt-band">By skill type</p>
-              {wheel.types.map((ring) => (
-                <button
-                  key={ring.key}
-                  type="button"
-                  className={litType(ring.key) ? 'rpt-key-row is-at' : 'rpt-key-row'}
-                  style={{ '--c': ring.color } as CssVars}
-                  {...reach({ kind: 'type', id: ring.key })}
-                >
-                  {ring.glyph ? <i style={glyphVars(ring.glyph, '--g')} /> : <em />}
-                  <span>{ring.label}</span>
-                  <b>{pct(ring.share)}</b>
-                </button>
-              ))}
-
-              <p className="rpt-band">By talent node</p>
-              {wheel.nodes.map((ring) => (
-                <button
-                  key={ring.key}
-                  type="button"
-                  className={litNode(ring.key) ? 'rpt-key-row is-at' : 'rpt-key-row'}
-                  style={{ '--c': ring.color } as CssVars}
-                  {...reach({ kind: 'node', id: ring.key })}
-                >
-                  {ring.glyph ? <i style={glyphVars(ring.glyph, '--g')} /> : <em />}
-                  <span>{ring.label}</span>
-                  <b>{pct(ring.share)}</b>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* the list carries the names the drawing has no room for */}
-          <div className="rpt-ghead rpt-key">
-            <span />
-            <span className="rpt-bkey">Feature</span>
-            <span className="rpt-bkey">Total Damage</span>
-            <span className="rpt-bkey">Share</span>
-          </div>
-          {wheel.segs.map((seg) => {
-            const node = wheel.nodes.find((entry) => entry.key === seg.nodeKey)
-            const top = wheel.segs[0]?.share || 1
-            return (
-              <div
-                key={seg.id}
-                className={litSeg(seg) ? 'rpt-row is-at' : 'rpt-row'}
-                style={{
-                  '--el': seg.color,
-                  '--i': seg.color,
-                  '--w': (0.5 + 0.5 * Math.min(1, seg.share / top)).toFixed(3),
-                } as CssVars}
-                {...reach({ kind: 'feature', id: seg.id })}
-              >
-                <span className="rpt-lb">
-                  {node?.glyph ? <i className="rpt-alt" style={glyphVars(node.glyph, '--g')} /> : null}
-                  {seg.row.label}
-                </span>
-                <span className="rpt-num">{formatCompactNum(seg.damage)}</span>
-                <span className="rpt-num rpt-pct">{pct(seg.share)}</span>
-              </div>
-            )
-          })}
-
-          <p className="rpt-band">
-            Upgrade Paths
-            <em>{report.alternatives.length} main stat &amp; Sonata paths</em>
-          </p>
-
-          {paths.length > 0 ? (
-            <>
-              <div className={path ? 'rpt-lad is-lit' : 'rpt-lad'}>
-                <div className="rpt-lad-flag">
-                  <b
-                    style={{
-                      '--pos': `${ladder.at(lands)}%`,
-                      '--grade': landed.color,
-                    } as CssVars}
+        <div className="rpt-wheel">
+          <div className={pick ? 'rpt-dial is-lit' : 'rpt-dial'}>
+            <svg viewBox="0 0 200 200" role="presentation">
+              <g transform="rotate(-90 100 100)">
+                {wheel.nodes.map((ring) => (
+                  <circle
+                    key={ring.key}
+                    className={litNode(ring.key) ? 'rpt-arc is-in is-at' : 'rpt-arc is-in'}
+                    cx={100}
+                    cy={100}
+                    r={R_IN}
+                    strokeDasharray={ring.arc.dash}
+                    strokeDashoffset={ring.arc.offset}
+                    style={{ '--c': ring.color } as CssVars}
+                    {...reach({ kind: 'node', id: ring.key })}
                   >
-                    {landed.label}
-                  </b>
-                </div>
+                    <title>{ring.label}</title>
+                  </circle>
+                ))}
+                {wheel.segs.map((seg) => (
+                  <circle
+                    key={seg.id}
+                    className={litSeg(seg) ? 'rpt-arc is-out is-at' : 'rpt-arc is-out'}
+                    cx={100}
+                    cy={100}
+                    r={R_OUT}
+                    strokeDasharray={seg.arc.dash}
+                    strokeDashoffset={seg.arc.offset}
+                    style={{ '--c': seg.color } as CssVars}
+                    {...reach({ kind: 'feature', id: seg.id })}
+                  >
+                    <title>{seg.row.label}</title>
+                  </circle>
+                ))}
+              </g>
+            </svg>
 
-                <div className="rpt-lad-track" style={{ '--scale': ladder.scale } as CssVars}>
-                  <span className="rpt-lad-scale" />
-                  <span className="rpt-lad-fill" style={{ '--pos': `${ladder.at(lands)}%` } as CssVars} />
-                  {LADDER.filter(([at]) => at > ladder.lo && at < ladder.hi).map(([at]) => (
-                    <span key={at} className="rpt-lad-notch" style={{ '--at': `${ladder.at(at)}%` } as CssVars} />
-                  ))}
-                  <span className="rpt-lad-span"
-                    style={{
-                      '--a': `${ladder.at(spanFrom)}%`,
-                      '--w': `${ladder.at(spanTo) - ladder.at(spanFrom)}%`,
-                      '--k': gain ? 'var(--ok)' : 'var(--danger)',
-                    } as CssVars}
-                  />
-                  <span className="rpt-lad-here" style={{ '--at': `${ladder.at(here)}%` } as CssVars} />
-                </div>
+            {reading ? (
+              <span className="rpt-hole" style={{ '--h': reading.color } as CssVars}>
+                <span className="rpt-hole-g" aria-hidden="true">
+                  {reading.glyphs.map((glyph, index) => (glyph ? (
+                    <i key={glyph} style={glyphVars(glyph, '--g')} />
+                  ) : (
+                    <em key={`dot:${index}`} />
+                  )))}
+                </span>
+                <span>Share</span>
+                <b>{pct(reading.share)}</b>
+                <u>{formatCompactNum(reading.damage)}</u>
+              </span>
+            ) : null}
+          </div>
 
-                <div className="rpt-lad-tiers">
-                  {ladder.tiers.map(([at, label], index) => {
-                    const edge = index === 0 ? ' is-lead'
-                      : index === ladder.tiers.length - 1 ? ' is-tail' : ''
-                    return (
-                      <div
-                        key={`${at}:${label}`}
-                        className={`rpt-lad-tier${at <= lands ? ' is-reached' : ''}${edge}`}
-                        style={{
-                          '--at': `${ladder.at(at)}%`,
-                          '--c': getBuildEvaluationTone(at).color,
-                        } as CssVars}
-                      >
-                        <i aria-hidden="true" />
-                        <b>{label}</b>
-                      </div>
-                    )
-                  })}
-                </div>
+          <div className={pick ? 'rpt-keys is-lit' : 'rpt-keys'}>
+            <p className="rpt-band">By skill type</p>
+            {wheel.types.map((ring) => (
+              <button
+                key={ring.key}
+                type="button"
+                className={litType(ring.key) ? 'rpt-key-row is-at' : 'rpt-key-row'}
+                style={{ '--c': ring.color } as CssVars}
+                {...reach({ kind: 'type', id: ring.key })}
+              >
+                {ring.glyph ? <i style={glyphVars(ring.glyph, '--g')} /> : <em />}
+                <span>{ring.label}</span>
+                <b>{pct(ring.share)}</b>
+              </button>
+            ))}
 
-                <div className="rpt-lad-marks" style={{ '--lanes': ladder.depth } as CssVars}>
-                  {paths.map((group, index) => (
-                    <button
-                      key={group.id}
-                      type="button"
-                      className={pathAt === index ? 'rpt-lad-mk is-at' : 'rpt-lad-mk'}
-                      style={{
-                        '--at': `${ladder.at(group.representative.score)}%`,
-                        '--lane': ladder.lanes[index],
-                        '--k': group.representative.scoreDelta > 0 ? 'var(--ok)' : 'var(--danger)',
-                      } as CssVars}
-                      {...reachPath(index)}
-                    >
-                      <em aria-hidden="true" />
-                      <s aria-hidden="true">
-                        {group.to.slice(0, 2).map((side, at) => (
-                          <SwapToken key={`${side.glyph ?? side.label}:${at}`} side={side} />
-                        ))}
-                      </s>
-                      <b>{formatBuildEvaluationScore(group.representative.score)}</b>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rpt-bhead rpt-key rpt-key--paths">
-                <span className="rpt-bkey">Change</span>
-                <span className="rpt-bkey">Cost</span>
-                <span className="rpt-bkey">Damage</span>
-                <span className="rpt-bkey">&Delta; Score%</span>
-              </div>
-              {paths.map((group, index) => (
-                <PathRow
-                  key={group.id}
-                  group={group}
-                  at={pathAt === index}
-                  reach={reachPath(index)}
-                />
-              ))}
-            </>
-          ) : (
-            <p className="workspace-empty">No valid main stat or Sonata upgrades are available.</p>
-          )}
+            <p className="rpt-band">By talent node</p>
+            {wheel.nodes.map((ring) => (
+              <button
+                key={ring.key}
+                type="button"
+                className={litNode(ring.key) ? 'rpt-key-row is-at' : 'rpt-key-row'}
+                style={{ '--c': ring.color } as CssVars}
+                {...reach({ kind: 'node', id: ring.key })}
+              >
+                {ring.glyph ? <i style={glyphVars(ring.glyph, '--g')} /> : <em />}
+                <span>{ring.label}</span>
+                <b>{pct(ring.share)}</b>
+              </button>
+            ))}
+          </div>
         </div>
-      </aside>
-    </>,
-    host,
+
+        <div className="rpt-ghead rpt-key">
+          <span />
+          <span className="rpt-bkey">Feature</span>
+          <span className="rpt-bkey">Total Damage</span>
+          <span className="rpt-bkey">Share</span>
+        </div>
+        {wheel.segs.map((seg) => {
+          const node = wheel.nodes.find((entry) => entry.key === seg.nodeKey)
+          const top = wheel.segs[0]?.share || 1
+          return (
+            <div
+              key={seg.id}
+              className={litSeg(seg) ? 'rpt-row is-at' : 'rpt-row'}
+              style={{
+                '--el': seg.color,
+                '--i': seg.color,
+                '--w': (0.5 + 0.5 * Math.min(1, seg.share / top)).toFixed(3),
+              } as CssVars}
+              {...reach({ kind: 'feature', id: seg.id })}
+            >
+              <span className="rpt-lb">
+                {node?.glyph ? <i className="rpt-alt" style={glyphVars(node.glyph, '--g')} /> : null}
+                {seg.row.label}
+              </span>
+              <span className="rpt-num">{formatCompactNum(seg.damage)}</span>
+              <span className="rpt-num rpt-pct">{pct(seg.share)}</span>
+            </div>
+          )
+        })}
+
+        <p className="rpt-band">
+          Upgrade Paths
+          <em>{report.alternatives.length} main stat &amp; Sonata paths</em>
+        </p>
+
+        {paths.length > 0 ? (
+          <>
+            <div className={path ? 'rpt-lad is-lit' : 'rpt-lad'}>
+              <div className="rpt-lad-flag">
+                <b
+                  style={{
+                    '--pos': `${ladder.at(lands)}%`,
+                    '--grade': landed.color,
+                  } as CssVars}
+                >
+                  {landed.label}
+                </b>
+              </div>
+
+              <div className="rpt-lad-track" style={{ '--scale': ladder.scale } as CssVars}>
+                <span className="rpt-lad-scale" />
+                <span className="rpt-lad-fill" style={{ '--pos': `${ladder.at(lands)}%` } as CssVars} />
+                {LADDER.filter(([at]) => at > ladder.lo && at < ladder.hi).map(([at]) => (
+                  <span key={at} className="rpt-lad-notch" style={{ '--at': `${ladder.at(at)}%` } as CssVars} />
+                ))}
+                <span className="rpt-lad-span"
+                  style={{
+                    '--a': `${ladder.at(spanFrom)}%`,
+                    '--w': `${ladder.at(spanTo) - ladder.at(spanFrom)}%`,
+                    '--k': gain ? 'var(--ok)' : 'var(--danger)',
+                  } as CssVars}
+                />
+                <span className="rpt-lad-here" style={{ '--at': `${ladder.at(here)}%` } as CssVars} />
+              </div>
+
+              <div className="rpt-lad-tiers">
+                {ladder.tiers.map(([at, label], index) => {
+                  const edge = index === 0 ? ' is-lead'
+                    : index === ladder.tiers.length - 1 ? ' is-tail' : ''
+                  return (
+                    <div
+                      key={`${at}:${label}`}
+                      className={`rpt-lad-tier${at <= lands ? ' is-reached' : ''}${edge}`}
+                      style={{
+                        '--at': `${ladder.at(at)}%`,
+                        '--c': getBuildEvaluationTone(at).color,
+                      } as CssVars}
+                    >
+                      <i aria-hidden="true" />
+                      <b>{label}</b>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="rpt-lad-marks" style={{ '--lanes': ladder.depth } as CssVars}>
+                {paths.map((group, index) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    className={pathAt === index ? 'rpt-lad-mk is-at' : 'rpt-lad-mk'}
+                    style={{
+                      '--at': `${ladder.at(group.representative.score)}%`,
+                      '--lane': ladder.lanes[index],
+                      '--k': group.representative.scoreDelta > 0 ? 'var(--ok)' : 'var(--danger)',
+                    } as CssVars}
+                    {...reachPath(index)}
+                  >
+                    <em aria-hidden="true" />
+                    <s aria-hidden="true">
+                      {group.to.slice(0, 2).map((side, at) => (
+                        <SwapToken key={`${side.glyph ?? side.label}:${at}`} side={side} />
+                      ))}
+                    </s>
+                    <b>{formatBuildEvaluationScore(group.representative.score)}</b>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rpt-bhead rpt-key rpt-key--paths">
+              <span className="rpt-bkey">Change</span>
+              <span className="rpt-bkey">Cost</span>
+              <span className="rpt-bkey">Damage</span>
+              <span className="rpt-bkey">&Delta; Score%</span>
+            </div>
+            {paths.map((group, index) => (
+              <PathRow
+                key={group.id}
+                group={group}
+                at={pathAt === index}
+                reach={reachPath(index)}
+              />
+            ))}
+          </>
+        ) : (
+          <p className="workspace-empty">No valid main stat or Sonata upgrades are available.</p>
+        )}
+      </div>
+    </>
   )
 }
 

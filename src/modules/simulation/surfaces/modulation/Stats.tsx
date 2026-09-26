@@ -211,12 +211,18 @@ function shareOf({ flat, pct }: Contrib): number {
 
 function StatTip({
   label,
+  statKey,
   tri,
+  overview,
+  displayBase,
   ready,
   showDamageShare,
 }: {
   label: string
+  statKey: string
   tri: TriContrib
+  overview: Record<keyof TriContrib, EvaluationOverviewStatRow | undefined>
+  displayBase: number
   ready: Record<keyof TriContrib, boolean>
   showDamageShare: boolean
 }) {
@@ -235,13 +241,23 @@ function StatTip({
   }
 
   const num = (value: number) => (value > 0 ? `+${Math.round(value).toLocaleString()}` : '\u2013')
+  // ER is additive. Reconcile each combat total against the same base printed
+  // in the sheet so Sonata, weapon, main-Echo, and active bonuses are not
+  // mistaken for Echo stat lines.
+  const erOtherGain = (column: keyof TriContrib) => {
+    const row = overview[column]
+    if (!row) return 0
+    const echoTotal = (tri[column].flat?.total ?? 0) + (tri[column].pct?.total ?? 0)
+    return row.total - displayBase - echoTotal
+  }
+  const showErOtherGain = statKey === 'energyRegen' && cols.some(([column]) => Math.abs(erOtherGain(column)) >= 0.05)
 
   return (
     <div className="pst-tip">
       <div className="app-popup__header">
         {label}
         <span className="app-popup__fill" />
-        <span>echo stats</span>
+        <span>{showErOtherGain ? 'stat sources' : 'echo stats'}</span>
       </div>
 
       <span className="pst-tip-grid"
@@ -260,7 +276,7 @@ function StatTip({
 
         {(['mainTotal', 'substatTotal', 'total'] as const).map((pick, index) => (
           <Fragment key={pick}>
-            <span className="pst-tip-key">{['Mains', 'Subs', 'Total'][index]}</span>
+            <span className="pst-tip-key">{['Mains', 'Subs', 'Echo total'][index]}</span>
             {cols.map(([key]) => (
               <TipCell
                 key={key}
@@ -272,6 +288,26 @@ function StatTip({
             ))}
           </Fragment>
         ))}
+
+        {showErOtherGain ? (
+          <>
+            <span className="pst-tip-key" title="Bonuses outside Echo stats">Other...</span>
+            {cols.map(([column]) => (
+              <span key={column} className={`is-${column}`} data-ready={ready[column] ? 'true' : 'false'}>
+                {Math.abs(erOtherGain(column)) < 0.05 ? '\u2013' : signedStatValue('energyRegen', erOtherGain(column))}
+              </span>
+            ))}
+            <span className="pst-tip-key">Combat gain</span>
+            {cols.map(([column]) => {
+              const stat = overview[column]
+              return (
+                <span key={column} className={`is-${column}`} data-ready={ready[column] ? 'true' : 'false'}>
+                  {stat ? signedStatValue('energyRegen', stat.total - displayBase) : '\u2013'}
+                </span>
+              )
+            })}
+          </>
+        ) : null}
 
         <span className="pst-tip-key">Rolls</span>
         {cols.map(([key]) => (
@@ -415,7 +451,10 @@ function StatRow({
               content={(
                 <StatTip
                   label={row.label}
+                  statKey={row.key}
                   tri={contrib}
+                  overview={{ cur: row, b1: b100, b2: b200 }}
+                  displayBase={displayBase}
                   ready={{ cur: true, b1: evaluationReady.b100, b2: evaluationReady.b200 }}
                   showDamageShare={evaluationReady.current}
                 />

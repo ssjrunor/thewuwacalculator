@@ -70,12 +70,17 @@ export function prepareStepAllocator(
   // Get the encoded lane from the canonical writer, without duplicating its
   // stat layout. Equal Float32 totals are identical scoring trials, even when
   // they came from different current tiers on separate lines of the same key.
-  const statOffsets = Object.fromEntries(damageKeys.map(key => {
+  const statOffsets = Object.fromEntries([...keys, ENERGY_REGEN].map(key => {
     const probe = new Float32Array(ECHO_STAT_STRIDE)
     addStatTotal(probe, key, 1)
     return [key, probe.findIndex(value => value !== 0)]
   }))
   const erPlans = makeErPlans(tiers[ENERGY_REGEN] ?? [], REFERENCE_STEP_MODEL.maxCopies)
+  const seenTotalsScratch = new Float32Array(REFERENCE_STEP_MODEL.maxCopies)
+  // Candidate trials are sequential. Keep the small line workspace and Echo
+  // buffer alive across calls; copy only a winning allocation.
+  const working = new Float32Array(ECHO_STAT_STRIDE * 5)
+  const values: Record<string, number[]> = Object.fromEntries([...keys, ENERGY_REGEN].map(key => [key, []]))
 
   const erChoices = (missing: number): ErPlan[] => {
     if (missing <= 1e-5) return erPlans[0]
@@ -99,30 +104,52 @@ export function prepareStepAllocator(
     missingEr: number,
     score: (stats: Float32Array) => number,
     checkCancel?: () => void,
+    refine = false,
   ): StepAllocation | null => {
     if (flatKeys.length === 0) return null
     let best: StepAllocation | null = null
-    const trial = base.slice()
+    // Rebuild a changed lane from its main-stat base and selected legal
+    // values. Repeated Float32 tier deltas accumulate error (five 15% CD
+    // lines became 74.99996), making report totals disagree with the lines.
+    const writeValues = (buffer: Float32Array, key: string, entries: readonly number[], delta = 0) => {
+      buffer[statOffsets[key]] = base[statOffsets[key]]
+      addStatTotal(buffer, key, entries.reduce((sum, value) => sum + value, 0) + delta)
+    }
     for (const er of erChoices(missingEr)) {
       checkCancel?.()
-      const values: Record<string, number[]> = Object.fromEntries(keys.map(key => [key, []]))
-      if (er.values.length) values[ENERGY_REGEN] = [...er.values]
+      for (const key of keys) values[key].length = 0
+      values[ENERGY_REGEN].length = 0
+      for (const value of er.values) values[ENERGY_REGEN].push(value)
       let relevantCount = er.values.length
-      const working = base.slice()
-      if (er.total) addStatTotal(working, ENERGY_REGEN, er.total)
+      working.set(base)
+      if (er.total) writeValues(working, ENERGY_REGEN, er.values)
       let damage = score(working)
+      // Only one encoded lane changes in a line or tier trial. Restore its
+      // exact Float32 value after scoring instead of copying all five Echo rows.
+      const scoreOneLane = (key: string, entries: readonly number[], delta = 0) => {
+        const offset = statOffsets[key]
+        const previous = working[offset]
+        writeValues(working, key, entries, delta)
+        const result = score(working)
+        working[offset] = previous
+        return result
+      }
 
       // Rank one minimum-value line against this candidate's mains and ER.
       // Keep that ranking fixed during allocation; ER is utility, not ranked.
       const ranking = damageKeys.map(key => {
-        trial.set(working)
-        addStatTotal(trial, key, tiers[key][0])
-        return { key, gain: score(trial) - damage }
+        const offset = statOffsets[key]
+        const previous = working[offset]
+        addStatTotal(working, key, tiers[key][0])
+        const gain = score(working) - damage
+        working[offset] = previous
+        return { key, gain }
       }).sort((a, b) => b.gain - a.gain || a.key.localeCompare(b.key))
       const cappedKeys = new Set(ranking.slice(0, REFERENCE_STEP_MODEL.cappedKeyCount).map(entry => entry.key))
-      const maxTier = (key: string) => cappedKeys.has(key)
+      const maxTiers = Object.fromEntries(damageKeys.map(key => [key, cappedKeys.has(key)
         ? Math.floor((tiers[key].length - 1) * REFERENCE_STEP_MODEL.topKeyUpgradeFraction)
-        : tiers[key].length - 1
+        : tiers[key].length - 1])) as Record<string, number>
+      const maxTier = (key: string) => maxTiers[key]
 
       const addBestLine = (eligible: readonly string[]): boolean => {
         checkCancel?.()
@@ -131,9 +158,7 @@ export function prepareStepAllocator(
         let selectedDamage = damage
         for (const key of eligible) {
           if (values[key].length >= REFERENCE_STEP_MODEL.maxCopies) continue
-          trial.set(working)
-          addStatTotal(trial, key, tiers[key][0])
-          const trialDamage = score(trial)
+          const trialDamage = scoreOneLane(key, values[key], tiers[key][0])!
           const gain = trialDamage - damage
           if (gain > bestGain) {
             selected = key
@@ -143,7 +168,7 @@ export function prepareStepAllocator(
         }
         if (!selected) return false
         values[selected].push(tiers[selected][0])
-        addStatTotal(working, selected, tiers[selected][0])
+        writeValues(working, selected, values[selected])
         damage = selectedDamage
         relevantCount += 1
         return true
@@ -168,7 +193,7 @@ export function prepareStepAllocator(
         ), undefined)
         if (!selected) break
         values[selected].push(tiers[selected][0])
-        addStatTotal(working, selected, tiers[selected][0])
+        writeValues(working, selected, values[selected])
         occupied += 1
       }
       if (occupied !== REFERENCE_STEP_MODEL.slots) continue
@@ -183,9 +208,9 @@ export function prepareStepAllocator(
         if (spent > stepBudget) continue
         for (let index = 0; index < values[lowestKey].length; index += 1) {
           const value = tiers[lowestKey][minTier]
-          addStatTotal(working, lowestKey, value - values[lowestKey][index])
           values[lowestKey][index] = value
         }
+        writeValues(working, lowestKey, values[lowestKey])
       }
       damage = score(working)
       while (spent < stepBudget) {
@@ -195,21 +220,29 @@ export function prepareStepAllocator(
         for (const key of damageKeys) {
           const steps = tiers[key]
           // Identical values of a stat produce identical trials; evaluate one.
-          const seen = new Set<number>()
-          const seenTotals = new Set<number>()
+          let seenTiers = 0
+          let seenTotalCount = 0
           for (let index = 0; index < values[key].length; index += 1) {
             const current = values[key][index]
-            if (seen.has(current)) continue
-            seen.add(current)
-            const nextTier = steps.indexOf(current) + 1
+            const currentTier = steps.indexOf(current)
+            const bit = 1 << currentTier
+            if (seenTiers & bit) continue
+            seenTiers |= bit
+            const nextTier = currentTier + 1
             if (nextTier > maxTier(key)) continue
             const next = steps[nextTier]
-            trial.set(working)
-            addStatTotal(trial, key, next - current)
-            const total = trial[statOffsets[key]]
-            if (seenTotals.has(total)) continue
-            seenTotals.add(total)
-            const trialDamage = score(trial)
+            const offset = statOffsets[key]
+            const previous = working[offset]
+            writeValues(working, key, values[key], next - current)
+            const total = working[offset]
+            let duplicate = false
+            for (let seenIndex = 0; seenIndex < seenTotalCount; seenIndex += 1) {
+              if (seenTotalsScratch[seenIndex] === total) { duplicate = true; break }
+            }
+            if (duplicate) { working[offset] = previous; continue }
+            seenTotalsScratch[seenTotalCount++] = total
+            const trialDamage = score(working)
+            working[offset] = previous
             const gain = trialDamage - damage
             if (gain > bestGain) {
               selected = { key, index, value: next, damage: trialDamage }
@@ -219,12 +252,112 @@ export function prepareStepAllocator(
         }
         if (!selected) break
         const { key, index, value } = selected
-        addStatTotal(working, key, value - values[key][index])
         values[key][index] = value
+        writeValues(working, key, values[key])
         spent += 1
         damage = selected.damage
       }
-      if (!best || damage > best.damage) best = { stats: working, damage, values, relevantCount, stepIncreases: spent }
+      if (refine) {
+        // Revisit the greedy result only for shortlisted final candidates. A
+        // same-tier line exchange or one-for-one tier transfer keeps both
+        // investment budgets fixed, while the rank-based caps and floor stay
+        // attached to the original minimum-line ranking for this ER plan.
+        for (let pass = 0; pass < stepBudget; pass += 1) {
+          checkCancel?.()
+          const currentLowest = ranking.filter(({ key }) => values[key].length > 0).at(-1)?.key
+          const currentFlatCount = flatKeys.reduce((sum, key) => sum + values[key].length, 0)
+          const floorTier = (key: string) => key === currentLowest
+            ? Math.ceil((tiers[key].length - 1) * REFERENCE_STEP_MODEL.lowestKeyUpgradeFraction)
+            : 0
+          const bestMove: { commit: (() => void) | null } = { commit: null }
+          let bestDamage = damage + Math.max(1e-7, Math.abs(damage) * 1e-10)
+          const trialMove = (changed: readonly string[], commit: () => void, revert: () => void) => {
+            const firstOffset = statOffsets[changed[0]]
+            const firstPrevious = working[firstOffset]
+            const secondOffset = changed.length > 1 ? statOffsets[changed[1]] : -1
+            const secondPrevious = secondOffset >= 0 ? working[secondOffset] : 0
+            for (const key of changed) writeValues(working, key, values[key])
+            const result = score(working)
+            working[firstOffset] = firstPrevious
+            if (secondOffset >= 0) working[secondOffset] = secondPrevious
+            revert()
+            if (result > bestDamage) {
+              bestDamage = result
+              bestMove.commit = commit
+            }
+          }
+
+          for (const fromKey of damageKeys) {
+            for (let fromIndex = 0; fromIndex < values[fromKey].length; fromIndex += 1) {
+              const fromValue = values[fromKey][fromIndex]
+              const fromTier = tiers[fromKey].indexOf(fromValue)
+              // Keep the two capped keys present, and preserve the mandatory
+              // flat count when moving one relevant line to another key.
+              if (!cappedKeys.has(fromKey) || values[fromKey].length > 1) {
+                for (const toKey of damageKeys) {
+                  if (toKey === fromKey || values[toKey].length >= REFERENCE_STEP_MODEL.maxCopies || fromTier > maxTier(toKey)) continue
+                  if (flatKeys.includes(fromKey) && !flatKeys.includes(toKey)
+                    && currentFlatCount <= REFERENCE_STEP_MODEL.minimumRelevantFlats) continue
+                  const toValue = tiers[toKey][fromTier]
+                  if (toValue == null) continue
+                  values[fromKey].splice(fromIndex, 1)
+                  values[toKey].push(toValue)
+                  const nextLowest = ranking.filter(({ key }) => values[key].length > 0).at(-1)?.key
+                  const legalFloor = !nextLowest || values[nextLowest].every(value =>
+                    tiers[nextLowest].indexOf(value) >= Math.ceil((tiers[nextLowest].length - 1) * REFERENCE_STEP_MODEL.lowestKeyUpgradeFraction))
+                  if (legalFloor) {
+                    trialMove([fromKey, toKey], () => {
+                      values[fromKey].splice(fromIndex, 1)
+                      values[toKey].push(toValue)
+                    }, () => {
+                      values[toKey].pop()
+                      values[fromKey].splice(fromIndex, 0, fromValue)
+                    })
+                  } else {
+                    values[toKey].pop()
+                    values[fromKey].splice(fromIndex, 0, fromValue)
+                  }
+                }
+              }
+              if (fromTier <= floorTier(fromKey)) continue
+              for (const toKey of [...damageKeys, ENERGY_REGEN]) {
+                for (let toIndex = 0; toIndex < (values[toKey]?.length ?? 0); toIndex += 1) {
+                  if (fromKey === toKey && fromIndex === toIndex) continue
+                  const toValue = values[toKey][toIndex]
+                  const toTier = tiers[toKey].indexOf(toValue)
+                  if (toTier >= (toKey === ENERGY_REGEN ? tiers[toKey].length - 1 : maxTier(toKey))) continue
+                  const downgraded = tiers[fromKey][fromTier - 1]
+                  const upgraded = tiers[toKey][toTier + 1]
+                  values[fromKey][fromIndex] = downgraded
+                  values[toKey][toIndex] = upgraded
+                  trialMove(fromKey === toKey ? [fromKey] : [fromKey, toKey], () => {
+                    values[fromKey][fromIndex] = downgraded
+                    values[toKey][toIndex] = upgraded
+                  }, () => {
+                    values[fromKey][fromIndex] = fromValue
+                    values[toKey][toIndex] = toValue
+                  })
+                }
+              }
+            }
+          }
+          if (!bestMove.commit) break
+          bestMove.commit()
+          for (const key of [...damageKeys, ENERGY_REGEN]) {
+            if (values[key]?.length) writeValues(working, key, values[key])
+          }
+          damage = score(working)
+        }
+      }
+      if (!best || damage > best.damage) best = {
+        stats: working.slice(),
+        damage,
+        values: Object.fromEntries(Object.entries(values)
+          .filter(([key, entries]) => key !== ENERGY_REGEN || entries.length > 0)
+          .map(([key, entries]) => [key, [...entries]])),
+        relevantCount,
+        stepIncreases: spent,
+      }
     }
     return best
   }

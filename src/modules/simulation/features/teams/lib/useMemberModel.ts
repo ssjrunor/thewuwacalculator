@@ -53,6 +53,7 @@ export interface MemberModel {
   onSqncChng: (value: number) => void
   onRtPdt: RtUpdHnd
   setTeamMember: (slotIndex: number, resonatorId: string | null) => void
+  setTeam: (supportIds: readonly (string | null)[]) => void
   getSelTgt: (ownerKey: string) => string | null
   setSelTgt: (ownerKey: string, tgtResId: string | null) => void
 }
@@ -65,7 +66,7 @@ export function useMemberModel(
     updateScenario: (updater: (scenario: CombatScenario) => CombatScenario) => void
   },
 ): MemberModel {
-  const { setMember: setTeamMember } = useTeamSlots({
+  const { setMember: setTeamMember, setTeam } = useTeamSlots({
     scenarioId,
     updateScenario: draft?.updateScenario,
   })
@@ -269,6 +270,7 @@ export function useMemberModel(
     onSqncChng,
     onRtPdt,
     setTeamMember,
+    setTeam,
     getSelTgt,
     setSelTgt,
   }

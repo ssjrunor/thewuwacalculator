@@ -1,8 +1,7 @@
 <!--
   Author      : Runor Ewhro
-  Description : Application shell and entry point. Runs a pre-render theme
-                initialization script to prevent flash of unstyled content
-                before React mounts.
+  Description : Application shell and entry point. Appearance starts separately
+                so an application import failure can still use the saved theme.
 -->
 <!doctype html>
 <html lang="en">
@@ -11,6 +10,37 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="/src/index.css" />
+    <style>
+      #boot-fallback[hidden] { display: none; }
+      #boot-fallback {
+        position: fixed; inset: 0; z-index: 9999; overflow: auto;
+        display: grid; place-items: center; padding: 2rem;
+        background: var(--bg, #131922); color: var(--text, #dddddd);
+        font-family: var(--body-font, sans-serif);
+      }
+      html.frosted-aurora #boot-fallback {
+        background-image: var(--background-wallpaper-image, none);
+        background-position: center; background-size: cover;
+      }
+      #boot-fallback > div {
+        width: min(100%, 48rem); padding: 2rem;
+        border-block: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+        background: color-mix(in srgb, var(--bg, #131922) 86%, transparent);
+      }
+      #boot-fallback h1 { margin: 0.5rem 0 1rem; font-size: clamp(1.6rem, 3vw, 2.4rem); }
+      #boot-fallback p { overflow-wrap: anywhere; }
+      #boot-fallback pre {
+        max-height: 16rem; overflow: auto; white-space: pre-wrap;
+        padding: 0.8rem; border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+        font: 0.75rem/1.6 monospace;
+      }
+      #boot-fallback button {
+        margin: 0.25rem 0.5rem 0 0; padding: 0.55rem 1rem;
+        border: 1px solid currentColor; border-radius: 999px;
+        background: transparent; color: inherit; font: inherit; cursor: pointer;
+      }
+    </style>
     <link rel="prefetch" as="image" href="/assets/app/loader/phoebe.webp" type="image/webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Plan builds, simulate rotations, tune resonators, create showcase cards, and optimize Echoes for Wuthering Waves." />
@@ -49,54 +79,59 @@
     </script>
   </head>
   <body>
+    <div id="root"></div>
+    <main id="boot-fallback" hidden role="alert">
+      <div>
+        <p>Stopped before the app could start</p>
+        <h1>The app could not start.</h1>
+        <p id="boot-fallback-message"></p>
+        <p>Reload to try again. If this keeps happening, copy the error report.</p>
+        <pre id="boot-fallback-stack"></pre>
+        <button id="boot-fallback-reload" type="button">Reload page</button>
+        <button id="boot-fallback-copy" type="button">Copy report</button>
+      </div>
+    </main>
     <script>
       ;(() => {
-        const STORAGE_KEY = 'wwcalc.app.v21'
-        const themeVariants = [
-          'light',
-          'pastel-pink',
-          'pastel-blue',
-          'vibrant-citrus',
-          'glassy-rainbow',
-          'sunlit-haze',
-          'dark',
-          'dark-alt',
-          'cosmic-rainbow',
-          'scarlet-nebula',
-          'emerald-forest',
-          'graphite-pop',
-          'frosted-aurora',
-        ]
+        const root = document.getElementById('root')
+        const fallback = document.getElementById('boot-fallback')
+        let earlyError = null
 
-        try {
-          const raw = window.localStorage.getItem(STORAGE_KEY)
-          if (!raw) return
+        function show(error) {
+          if (document.documentElement.dataset.appEntryStarted === 'true' || root?.childElementCount) return
+          const message = error instanceof Error ? error.message : String(error)
+          const stack = error instanceof Error ? error.stack || message : message
+          document.getElementById('boot-fallback-message').textContent = message
+          document.getElementById('boot-fallback-stack').textContent = stack
+          fallback.hidden = false
+          window.dispatchEvent(new Event('app:startup-notice'))
+        }
 
-          const parsed = JSON.parse(raw)
-          const ui = parsed?.ui
-          if (!ui) return
+        window.addEventListener('error', (event) => {
+          if (document.documentElement.dataset.appEntryStarted === 'true') return
+          if (event instanceof ErrorEvent) {
+            if (event.filename && new URL(event.filename, location.href).origin !== location.origin) return
+            earlyError = event.error || new Error(event.message)
+          } else if (event.target instanceof HTMLScriptElement && event.target.dataset.appEntry === 'true') {
+            earlyError = new Error('The app entry module could not be loaded.')
+          } else {
+            return
+          }
+          setTimeout(() => show(earlyError), 0)
+        }, true)
 
-          const isDark = ui.theme === 'dark'
-          const activeVariant =
-            ui.theme === 'background'
-              ? ui.backgroundVariant
-              : isDark
-                ? ui.darkVariant
-                : ui.lightVariant
-
-          if (!themeVariants.includes(activeVariant)) return
-
-          const body = document.body
-          body.classList.remove(...themeVariants, 'blur-off', 'dark-text', 'light-text')
-          body.classList.add(activeVariant, isDark ? 'dark-text' : 'light-text')
-
-          if (ui.blurMode) body.classList.add('blur-off')
-        } catch {}
+        setTimeout(() => show(earlyError || new Error('The app entry module did not start.')), 5000)
+        document.getElementById('boot-fallback-reload').addEventListener('click', () => location.reload())
+        document.getElementById('boot-fallback-copy').addEventListener('click', async () => {
+          const report = [document.getElementById('boot-fallback-message').textContent,
+            location.href, document.getElementById('boot-fallback-stack').textContent].join('\n')
+          try { await navigator.clipboard.writeText(report) } catch { /* The message stays selectable. */ }
+        })
       })()
     </script>
-    <div id="root"></div>
     <noscript data-seo-route="/"><main><h1>Wuthering Waves Calculator</h1><p>Plan builds, simulate rotations, tune resonators, create showcase cards, and optimize Echoes for Wuthering Waves.</p></main></noscript>
     <div id="tooltip-portal"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/appearanceEntry.ts"></script>
+    <script type="module" data-app-entry="true" src="/src/main.tsx"></script>
   </body>
 </html>

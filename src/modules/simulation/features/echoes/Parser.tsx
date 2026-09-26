@@ -18,7 +18,7 @@ import { ImportStrip } from '@/modules/simulation/features/echoes/ImportStrip.ts
 import { ImportReceipt } from '@/modules/simulation/features/echoes/ImportReceipt.tsx'
 import { Edit } from '@/modules/simulation/features/echoes/Edit.tsx'
 import { ConfirmModal } from '@/shared/ui/ConfirmationModal.tsx'
-import { applyImprtRd, type ImportBands } from '@/modules/simulation/features/echoes/lib/importApply.ts'
+import { applyImprtRd } from '@/modules/simulation/features/echoes/lib/importApply.ts'
 import {
   askForIdntty,
   idntyDffrs,
@@ -107,6 +107,8 @@ export function Parser({
   const savedPlayerId = useAppStore((s) => s.ui.preferences.playerId)
   const savedPlayerUid = useAppStore((s) => s.ui.preferences.playerUid)
   const setPlayerIdntty = useAppStore((s) => s.setPlayerIdentity)
+  const bands = useAppStore((s) => s.ui.preferences.echoImportBands)
+  const setBands = useAppStore((s) => s.setEchoImportBands)
   const identitySession = useConfigurationSession({
     source: { playerId: savedPlayerId, playerUid: savedPlayerUid },
     active: visible,
@@ -126,7 +128,6 @@ export function Parser({
   const [progress, setProgress] = useState<ReadProgress | null>(null)
   const [readSrc, setReadSrc] = useState<string | null>(null)
   const [read, setRead] = useState<ParsedBuildScreenshot | null>(null)
-  const [bands, setBands] = useState<ImportBands>({ resonator: true, weapon: true, echoes: true })
   const [gateOpen, setGateOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -202,7 +203,6 @@ export function Parser({
       dropReadSrc()
       setRead(result)
       if (result.resonator.id) onDetectedResonator?.(result.resonator.id)
-      setBands({ resonator: true, weapon: true, echoes: true })
       setGateOpen(idntyDffrs(savedIdentity, readIdentity(result.player)))
       trnsToPrvw(instances)
     } catch (err) {
@@ -452,7 +452,7 @@ export function Parser({
               <EchoRowsFoot echoes={parsedEchoes} />
             </div>
             )}
-            onToggleBand={(band) => setBands((prev) => ({ ...prev, [band]: !prev[band] }))}
+            onToggleBand={(band) => setBands({ ...bands, [band]: !bands[band] })}
             onApply={() => {
               if (read) onApplyRead(read, (prev) => applyImprtRd(prev, read, parsedEchoes, bands))
               closeSelf()

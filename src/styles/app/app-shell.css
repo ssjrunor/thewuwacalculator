@@ -332,6 +332,8 @@ body.split-resizing * {
 :is(.no-entrance-anim, .reduce-animation) .page-hero,
 :is(.no-entrance-anim, .reduce-animation) .page-bento > .page-tile,
 :is(.no-entrance-anim, .reduce-animation) .not-found-center,
+:is(.no-entrance-anim, .reduce-animation) .rer-band,
+:is(.no-entrance-anim, .reduce-animation) .rer-in,
 :is(.no-entrance-anim, .reduce-animation) .picker-modal__grid > *,
 :is(.no-entrance-anim, .reduce-animation) .app-status-card,
 :is(.no-entrance-anim, .reduce-animation) .app-status-changes,
@@ -366,7 +368,7 @@ body.split-resizing * {
   filter: none !important;
 }
 
-:is(.no-entrance-anim, .reduce-animation) .app-loader-mascot {
+:is(.no-entrance-anim, .reduce-animation) :is(.app-loader-mascot, .rer-sprite) {
   background-image: var(--loader-mascot-still);
 }
 

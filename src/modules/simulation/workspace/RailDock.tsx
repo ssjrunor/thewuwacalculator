@@ -457,6 +457,7 @@ function TargetKey({
   const res = yours != null ? enemy.res[yours] : null
   const lands = res != null ? 100 - res : null
   const match = res != null && attribute ? matchup(res, attribute) : null
+  const enemyColor = element != null ? ATTR_COLORS[ENEMY_ELEM_ATTR[element]] : 'var(--text)'
   const icon = getEnemyIcon(enemy.id) ?? '/assets/game/default.webp'
   const className = isEnemyClssI(enemy.class) ? ENEMY_CLASS_TXT[enemy.class] : null
   const elementIcon = element != null ? getAttributeIconSrc(ENEMY_ELEM_ATTR[element]) : null
@@ -475,7 +476,7 @@ function TargetKey({
       aria-keyshortcuts="T"
       style={{
         '--rdk-match': match?.ink ?? 'var(--text)',
-        '--rdk-enemy': element != null ? ATTR_COLORS[ENEMY_ELEM_ATTR[element]] : 'var(--text)',
+        '--rdk-enemy': enemyColor,
       } as CssVars}
       onClick={() => onActivate('target')}
     >
@@ -509,7 +510,7 @@ function TargetKey({
         </span>
         {match && lands != null && attribute ? (
           <span className="rdk-lands">
-            <span>{match.word}. {ATTR_LABEL[attribute]} damage that lands</span>
+            <span>{match.word}. {ATTR_LABEL[attribute]} damage multiplier</span>
             <b>{lands}%</b>
             <span className="rdk-cells">
               {Array.from({ length: 10 }, (_, index) => (

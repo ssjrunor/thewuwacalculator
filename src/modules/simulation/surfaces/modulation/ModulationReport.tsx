@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps, Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime'
+import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 import type { EvaluationBuildSnapshot, EvaluationEchoSlot, BuildEvaluationReport } from '@/engine/evaluation/buildEvaluation.ts'
 import type { StatTreeNode } from '@/modules/simulation/model/statsView.ts'
 import { ActiveStateSources } from '@/modules/simulation/features/controls/ActiveStateSources.tsx'
@@ -76,6 +77,7 @@ export function ModulationReport({
   onEchoOpen,
   overviewStatsTree,
   echoRuntime,
+  echoScenarioId,
   echoResonatorName,
   echoEditable,
   canSaveEcho,
@@ -122,6 +124,7 @@ export function ModulationReport({
   overviewStatsTree: StatTreeNode[]
   /** Runtime used by loadout mutations; null prevents writes to a stale report. */
   echoRuntime: ResRuntime | null
+  echoScenarioId: CombatScenarioId
   echoResonatorName?: string | null
   echoEditable: boolean
   canSaveEcho: (echo: EchoInstance) => boolean
@@ -189,6 +192,7 @@ export function ModulationReport({
       <LoadoutHead
         headRef={loadoutHead}
         runtime={echoRuntime}
+        scenarioId={echoScenarioId}
         resonatorName={echoResonatorName}
         echoes={sourceEchoes}
         editable={echoEditable}

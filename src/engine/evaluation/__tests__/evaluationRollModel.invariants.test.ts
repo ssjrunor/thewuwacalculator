@@ -8,11 +8,12 @@ import { getSbstStepP, SUBSTAT_KEYS } from '@/data/gameData/catalog/echoStats'
 import { listChsByCos } from '@/data/catalog/echoCatalogService'
 import type { EchoInstance } from '@/domain/entities/runtime'
 import { ECHO_STAT_STRIDE } from '@/engine/optimizer/config/constants'
-import { sumEncodedStats } from '@/engine/evaluation/evaluation/stats'
+import { addStatTotal, sumEncodedStats } from '@/engine/evaluation/evaluation/stats'
 import {
   distributeStepSubstats, prepareStepAllocator, REFERENCE_STEP_MODEL,
   stepSubstatPlan, tierStepIncreases,
 } from '@/engine/evaluation/evaluation/stepAllocation'
+import { auditFixedLineTiers } from '@/engine/evaluation/evaluation/stepAllocationAudit'
 
 const tiers = () => Object.fromEntries(SUBSTAT_KEYS.map(key => [key, getSbstStepP(key)]))
 const base = () => new Float32Array(ECHO_STAT_STRIDE * 5)
@@ -30,6 +31,24 @@ const relevantCount = (values: Record<string, number[]>, keys = relevantKeys) =>
 )
 
 describe('native evaluation slot and step budgets', () => {
+  it('audits a fixed line layout exactly with bounded offline work', () => {
+    const smallTiers = Object.fromEntries(Object.entries(tiers()).map(([key, steps]) => [key, steps.slice(0, 2)]))
+    const allocate = prepareStepAllocator(smallTiers, relevantKeys, 8)
+    const result = allocate(base(), 0, score)!
+    const audit = auditFixedLineTiers(base(), result, smallTiers, relevantKeys, score,
+      { stepBudget: 8, maxEvaluations: 1000 })
+    expect(audit.complete).toBe(true)
+    expect(audit.evaluations).toBeGreaterThan(1)
+    expect(audit.bestDamage).toBeGreaterThanOrEqual(result.damage)
+    const replay = base()
+    for (const [key, entries] of Object.entries(audit.bestValues)) {
+      addStatTotal(replay, key, entries.reduce((sum, value) => sum + value, 0))
+    }
+    expect(score(replay)).toBe(audit.bestDamage)
+    expect(auditFixedLineTiers(base(), result, smallTiers, relevantKeys, score,
+      { stepBudget: 8, maxEvaluations: 1 }).complete).toBe(false)
+  })
+
   it('counts adjacent legal tiers, including uneven and short tier lists', () => {
     expect(tierStepIncreases(getSbstStepP('critRate'), 6.3)).toBe(0)
     expect(tierStepIncreases(getSbstStepP('critRate'), 6.9)).toBe(1)
@@ -56,6 +75,32 @@ describe('native evaluation slot and step budgets', () => {
       expect(values.length).toBeLessThanOrEqual(5)
       if (key !== 'atkFlat') expect(values.every(value => value === catalog[key][0])).toBe(true)
     }
+  })
+
+  it('scores exactly the selected tier totals without accumulating Float32 upgrade drift', () => {
+    const mains = base()
+    addStatTotal(mains, 'critDmg', 44)
+    const original = mains.slice()
+    const allocate = prepareStepAllocator(tiers(), relevantKeys)
+    for (const missingEr of [0, 23.1]) {
+      const result = allocate(mains, missingEr, score)!
+      const expected = mains.slice()
+      for (const [key, values] of Object.entries(result.values)) {
+        addStatTotal(expected, key, values.reduce((sum, value) => sum + value, 0))
+      }
+      expect(result.stats).toEqual(expected)
+      expect(result.damage).toBe(score(expected))
+      expect(mains).toEqual(original)
+    }
+    const result = allocate(mains, 0, score)!
+    expect(result.values.critRate).toEqual([7.5, 7.5, 7.5, 7.5, 7.5])
+    expect(result.values.critDmg).toEqual([15, 15, 15, 15, 15])
+    expect(sumEncodedStats(result.stats, ids)).toMatchObject({ critRate: 37.5, critDmg: 119 })
+    const retainedStats = result.stats.slice()
+    const retainedValues = structuredClone(result.values)
+    allocate(mains, 23.1, score)
+    expect(result.stats).toEqual(retainedStats)
+    expect(result.values).toEqual(retainedValues)
   })
 
   it('charges ER against both limits and realizes five distinct stats on each Echo', () => {
@@ -95,6 +140,27 @@ describe('native evaluation slot and step budgets', () => {
         expect(echoes.reduce((sum, echo) => sum + (echo.substats[row.key] ?? 0), 0)).toBeCloseTo(row.total, 10)
       }
       expect(totals.find(row => row.key === 'energyRegen')?.total ?? 0).toBeGreaterThanOrEqual(missingEr)
+    }
+  })
+
+  it('keeps the ranked budget legal after the finalist refinement pass', () => {
+    const catalog = tiers()
+    const allocate = prepareStepAllocator(catalog, relevantKeys)
+    for (const missingEr of [0, 23.1]) {
+      const greedy = allocate(base(), missingEr, score)!
+      const refined = allocate(base(), missingEr, score, undefined, true)!
+      expect(refined.damage).toBeGreaterThanOrEqual(greedy.damage)
+      expect(refined.damage).toBe(score(refined.stats))
+      expect(relevantCount(refined.values)).toBe(16)
+      expect(Object.values(refined.values).flat()).toHaveLength(25)
+      expect(refined.values.atkFlat.length).toBeGreaterThanOrEqual(2)
+      expect(refined.values.atkFlat.every(value => value >= 50)).toBe(true)
+      expect(refined.values.energyRegen?.reduce((sum, value) => sum + value, 0) ?? 0).toBeGreaterThanOrEqual(missingEr)
+      expect(Object.entries(refined.values).reduce((sum, [key, values]) =>
+        sum + values.reduce((cost, value) => cost + tierStepIncreases(catalog[key], value), 0), 0)).toBe(32)
+      for (const key of ['critRate', 'critDmg']) {
+        expect(refined.values[key].every(value => tierStepIncreases(catalog[key], value) <= 2)).toBe(true)
+      }
     }
   })
 
