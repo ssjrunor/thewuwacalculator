@@ -4,7 +4,6 @@
 */
 
 import type { BrotliWasmType } from 'brotli-wasm'
-import { useAppStore } from '@/application/state'
 
 // "WWCB1" identifies a wwcalc compressed file; the version byte is in the tag.
 const WWCB_MAGIC = new Uint8Array([0x57, 0x57, 0x43, 0x42, 0x31])
@@ -71,6 +70,9 @@ export function dwnlAppFile(filename: string, content: Uint8Array | string): voi
 
 // read the current preference when exporting.
 async function rslvCmprPref(): Promise<boolean> {
+  // decoding also runs in a fresh import worker, before game data is loaded.
+  // only browser exports need the application store and its preferences.
+  const { useAppStore } = await import('@/application/state')
   return useAppStore.getState().ui.compressedExports
 }
 
