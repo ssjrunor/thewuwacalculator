@@ -40,7 +40,7 @@ import { loopBodyItems, stepCount, stepDamageAt, stepHasRun } from '@/modules/si
 import { ROT_LOOP_COLORS } from '@/modules/simulation/surfaces/rotation/shared/loopMeta.ts'
 import { ROT_BLOCK_COLORS } from '@/modules/simulation/surfaces/rotation/shared/containerMeta.ts'
 import { ROT_NOTE_COLORS } from '@/modules/simulation/surfaces/rotation/shared/noteMeta.ts'
-import { ROT_FORMULA_OWNER_KEY } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+import { ROT_FORMULA_OWNER_KEY } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 
 /** what a state write looked like on the run being read */
 interface ReadWrite {

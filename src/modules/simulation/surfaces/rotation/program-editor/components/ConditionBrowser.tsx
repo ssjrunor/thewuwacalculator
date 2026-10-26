@@ -8,7 +8,7 @@ import type { CondChoice } from '@/modules/simulation/surfaces/rotation/shared/a
 import {
   conditionChoiceLabel,
   isFormulaChoice,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 
 export type CondTarget = 'resonator' | 'enemy' | 'rotation'
 export type CondKind = 'toggle' | 'select' | 'stack' | 'number'

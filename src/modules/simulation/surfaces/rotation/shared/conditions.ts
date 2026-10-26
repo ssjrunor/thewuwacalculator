@@ -1,10 +1,9 @@
 /*
   Author: Runor Ewhro
-  description: defines the editable condition rows and choice builders used by
-               rotation condition nodes and when-rule editors.
+  description: defines the condition values, changes and choice builders used
+               by rotation condition nodes and when-rule editors.
 */
 
-import { Select } from '@/application/ui/Select'
 import { openingConditionValue } from '@/domain/gameData/rotationPreambleDefaults.ts'
 import {
   formatEffectConditionName,
@@ -28,7 +27,6 @@ export const ROT_FORMULA_OWNER_KEY = 'rotation:formula'
 export function isFormulaChoice(choice: CondChoice | null | undefined): boolean {
   return choice?.state.ownerKey === ROT_FORMULA_OWNER_KEY
 }
-import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.tsx'
 
 export function makeCondValue(definition: SourceState): RotationConditionValue {
   return openingConditionValue(definition)
@@ -90,65 +88,6 @@ export function cycleCondValue(
   const from = index < 0 ? 0 : index
   return options[(from - 1 + options.length) % options.length]?.id
     ?? makeCondValue(definition)
-}
-
-export function viewCondVlFl(
-  definition: SourceState,
-  value: RotationConditionValue,
-  onChange: (value: RotationConditionValue) => void,
-) {
-  if (definition.kind === 'toggle') {
-    const checked = value === true
-
-    return (
-      <div className="fcb" role="group" aria-label={`${definition.label} value`}>
-        <button
-          type="button"
-          className={`fcb__btn${checked ? ' is-active' : ''}`}
-          aria-pressed={checked}
-          onClick={() => onChange(true)}
-        >
-          True
-        </button>
-        <button
-          type="button"
-          className={`fcb__btn${!checked ? ' is-active' : ''}`}
-          aria-pressed={!checked}
-          onClick={() => onChange(false)}
-        >
-          False
-        </button>
-      </div>
-    )
-  }
-
-  if (definition.kind === 'select') {
-    return (
-      <Select
-        value={String(value)}
-        options={(definition.options ?? []).map((option) => ({
-          value: option.id,
-          label: option.label,
-        }))}
-        onChange={(nextValue) => onChange(nextValue)}
-        ariaLabel={`${definition.label} value`}
-      />
-    )
-  }
-
-  const min = definition.kind === 'stack' ? definition.min ?? 0 : definition.min
-
-  return (
-    <NumberInput
-      min={min}
-      max={definition.max}
-      step={definition.kind === 'stack' ? 1 : 0.1}
-      value={typeof value === 'number' ? value : Number(value) || 0}
-      onChange={(nextValue) => {
-        onChange(definition.kind === 'stack' ? Math.max(min ?? 0, Math.floor(nextValue)) : nextValue)
-      }}
-    />
-  )
 }
 
 export function formatStateValue(

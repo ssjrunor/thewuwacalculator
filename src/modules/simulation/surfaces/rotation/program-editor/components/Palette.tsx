@@ -43,7 +43,7 @@ import {
   groupCondChoices,
   type CondKind,
 } from '@/modules/simulation/surfaces/rotation/program-editor/components/ConditionBrowser.tsx'
-import { isFormulaChoice } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+import { isFormulaChoice } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import type { CondChoice, RotationMember } from '@/modules/simulation/surfaces/rotation/shared/authoringTypes.ts'
 import type { FeatDef } from '@/domain/gameData/contracts.ts'
 import type { AttributeKey, SkillAggType, SkillDef } from '@/domain/entities/stats.ts'

@@ -11,7 +11,7 @@ import { srcSttKey, srcSttMax } from '@/engine/runtime/sourceStateInit.ts'
 import {
   cycleCondValue,
   seedCondValue,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import type {
   CondChoice,
   RotationConditionValue,

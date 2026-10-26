@@ -25,7 +25,7 @@ import {
   getPrvsSkllI,
   listRotMemSt,
 } from '@/modules/simulation/surfaces/rotation/shared/nodeTools'
-import { buildConditionChoices } from '@/modules/simulation/surfaces/rotation/shared/conditions'
+import { buildConditionChoices } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData'
 import type {
   CondChoice,

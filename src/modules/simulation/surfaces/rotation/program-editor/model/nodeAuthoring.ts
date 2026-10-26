@@ -38,7 +38,7 @@ import {
   makeCondValue,
   makeRawCondition,
   normFeatCond,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import type {
   CondChoice,
   RotationMember,

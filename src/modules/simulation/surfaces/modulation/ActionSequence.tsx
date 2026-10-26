@@ -30,7 +30,7 @@ import { truncTo } from '@/shared/lib/number.ts'
 import {seedRsntById} from "@/modules/simulation/features/resonator/lib/seedData.ts";
 import {withDefResMg} from "@/shared/lib/imageFallback.ts";
 import { unscopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'
-import { formatStateValue } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+import { formatStateValue } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import {
   ACTIVE_RESONATOR_PATH,
   SELECTED_TARGET_PATH_PREFIX,

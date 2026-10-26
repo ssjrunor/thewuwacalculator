@@ -25,7 +25,7 @@ import {makeNodeId} from "@/domain/gameData/rotationNodeId.ts";
 import {listEquippedSourceStates} from "@/engine/services/runtimeSourceService.ts";
 import {negEffectsFor} from "@/engine/gameData/negativeEffects.ts";
 import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain.ts'
-import {buildConditionChoices} from "@/modules/simulation/surfaces/rotation/shared/conditions.tsx";
+import {buildConditionChoices} from "@/modules/simulation/surfaces/rotation/shared/conditions.ts";
 import type {SkillDef} from "@/domain/entities/stats.ts";
 import type {SimResult} from "@/engine/pipeline/types.ts";
 import { isDamageRotationEntry } from '@/engine/pipeline/rotationTotals.ts'

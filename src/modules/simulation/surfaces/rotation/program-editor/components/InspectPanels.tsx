@@ -93,8 +93,8 @@ import type {
   FeatureOccurrence,
   RotationNodeTarget,
 } from '@/modules/simulation/surfaces/rotation/program-editor/interaction/nodeNavigation.ts'
-import { condActionFromChange } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
-import { ROT_FORMULA_OWNER_KEY } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+import { condActionFromChange } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
+import { ROT_FORMULA_OWNER_KEY } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
 import { rarityVars } from '@/modules/simulation/model/display.ts'
 import {

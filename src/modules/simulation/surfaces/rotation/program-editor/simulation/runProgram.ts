@@ -63,7 +63,7 @@ import type { RotationMember } from '@/modules/simulation/surfaces/rotation/shar
 import {
   condActionFromChange,
   getCondChoice,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import { getEmbeddedEchoSource } from '@/modules/simulation/surfaces/rotation/shared/featureCatalog.ts'
 import { getNegFfctCm, getNegFfctEn } from '@/engine/gameData/negativeEffects.ts'
 import {

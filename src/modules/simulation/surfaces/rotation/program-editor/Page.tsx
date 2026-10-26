@@ -194,7 +194,7 @@ import {
   isFormulaChoice,
   makeCondChange,
   makeCondValue,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import { attachedConditionChanges } from '@/domain/gameData/rotationAttached.ts'
 import { ACTIVE_RESONATOR_PATH } from '@/domain/gameData/rotationPaths.ts'
 import { rotationBodiesEqual } from '@/domain/gameData/loopPasses.ts'
@@ -857,7 +857,10 @@ export function ProgramEditor() {
         if (!controller.signal.aborted) setSavedBatch({ key: savedBatchKey, runs })
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) showToast({
+        if (controller.signal.aborted) return
+        // settle the batch empty so the list leaves its loader for the toast.
+        setSavedBatch({ key: savedBatchKey, runs: EMPTY_SAVED_COMPARISONS })
+        showToast({
           content: error instanceof Error ? error.message : 'Could not load saved rotation data.',
           variant: 'error',
         })

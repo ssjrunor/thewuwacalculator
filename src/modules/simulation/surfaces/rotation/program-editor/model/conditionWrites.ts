@@ -8,7 +8,7 @@ import type { CondChoice } from '@/modules/simulation/surfaces/rotation/shared/a
 import {
   formatStateValue,
   getCondChoice,
-} from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+} from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 import type { StateWrite } from './program.ts'
 
 /** project authored state changes into the compact write labels shown by rows. */

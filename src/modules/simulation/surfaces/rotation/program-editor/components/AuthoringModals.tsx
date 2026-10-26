@@ -18,8 +18,9 @@ import {
   makeFeatCond,
   makeFeatureDraft,
   normFeatCond,
-  viewCondVlFl, serFeatCondD
-} from "@/modules/simulation/surfaces/rotation/shared/conditions.tsx";
+  serFeatCondD
+} from "@/modules/simulation/surfaces/rotation/shared/conditions.ts";
+import {viewCondVlFl} from "@/modules/simulation/surfaces/rotation/shared/ConditionValueField.tsx";
 import {makeNodeId} from "@/domain/gameData/rotationNodeId.ts";
 import {AppModal} from "@/shared/ui/AppModal.tsx";
 import { ModalHeader } from "@/shared/ui/AppModalShell";

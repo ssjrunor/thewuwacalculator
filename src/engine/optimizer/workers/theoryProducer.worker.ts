@@ -11,4 +11,12 @@
 // imports nothing, so the handler and its data stores live in ordinary chunks.
 const handler = import('./theoryProducerHandler')
 
-self.onmessage = async (event) => { await (await handler).handleMessage(event) }
+// a failed import only rejects in here, where the owner never hears of it.
+// rethrown from a task it reaches the owner's Worker as an error event, once
+// per message so a waiting request is always there to receive it.
+self.onmessage = (event) => {
+  void handler.then(
+    (module) => module.handleMessage(event),
+    (error: unknown) => { setTimeout(() => { throw error }) },
+  )
+}

@@ -18,7 +18,7 @@ import {seedRsntById} from "@/modules/simulation/features/resonator/lib/seedData
 import { ROT_LOOP_COLORS } from "@/modules/simulation/surfaces/rotation/shared/loopMeta.ts";
 import { normLoopRuns } from '@/domain/gameData/rotationLoops.ts'
 import type { CondChoice } from '@/modules/simulation/surfaces/rotation/shared/authoringTypes.ts'
-import { getCondChoice } from '@/modules/simulation/surfaces/rotation/shared/conditions.tsx'
+import { getCondChoice } from '@/modules/simulation/surfaces/rotation/shared/conditions.ts'
 
 function getRotNodeItems(node: RotationNode): RotationNode[] {
   return 'items' in node && Array.isArray(node.items) ? node.items : []

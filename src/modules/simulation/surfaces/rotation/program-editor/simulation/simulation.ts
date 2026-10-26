@@ -40,7 +40,7 @@ import {
 } from '@/engine/rotation/execute.ts'
 import { orderStoredRotationProgram } from '@/engine/rotation/programOrder.ts'
 import { collectResonatorIds } from '@/application/persistence/resonatorScope.ts'
-import { ensureResonatorData, holdResonatorData } from '@/data/gameData'
+import { ensureResonatorData, getGameDataMode, holdResonatorData } from '@/data/gameData'
 
 function editedRotationSections(
   runtime: ResRuntime | null | undefined,
@@ -387,7 +387,7 @@ function executeSavedRotationJob(
       savedWorkerFlushQueued = false
       const requests = savedWorkerQueue
       savedWorkerQueue = []
-      savedWorker?.postMessage({ requests })
+      savedWorker?.postMessage({ requests, gameDataMode: getGameDataMode() })
     })
   })
 }
