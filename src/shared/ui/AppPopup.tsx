@@ -10,6 +10,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react'
 import type {
   HTMLAttributes,
@@ -90,6 +91,34 @@ interface AnchoredAppPopupProps extends AppPopupSurfaceProps {
   flipBelowHeight?: number
 }
 
+interface PopupBox {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+const POPUP_RESIZE_MS = 240
+
+function readBox(surface: HTMLElement): PopupBox {
+  const style = window.getComputedStyle(surface)
+  return {
+    left: Number.parseFloat(style.left) || 0,
+    top: Number.parseFloat(style.top) || 0,
+    width: Number.parseFloat(style.width) || 0,
+    height: Number.parseFloat(style.height) || 0,
+  }
+}
+
+function sameBox(a: PopupBox, b: PopupBox) {
+  return Math.abs(a.left - b.left) < 0.5 && Math.abs(a.top - b.top) < 0.5
+    && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5
+}
+
+function boxFrame(box: PopupBox): Keyframe {
+  return { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` }
+}
+
 /** writes portal-relative placement before paint without storing transient geometry in react. */
 // shared popup and modal scaling must use the same screen-to-layout ratio.
 const PHONE_POPUP_SCALE = 1.3
@@ -111,12 +140,32 @@ export function AnchoredAppPopup({
   flipBelowHeight,
   className,
   placement: placementProp,
+  open,
+  closing,
   style,
   children,
   ...surfaceProps
 }: AnchoredAppPopupProps) {
+  // callers that drive the popup with a plain boolean get the exit from here:
+  // the surface stays mounted in its closing state until the out animation ends.
+  const ownsExit = closing === undefined
+  const [lingering, setLingering] = useState(false)
+  const [prevVisible, setPrevVisible] = useState(visible)
+  if (prevVisible !== visible) {
+    setPrevVisible(visible)
+    setLingering(ownsExit && !visible)
+  }
+
+  useEffect(() => {
+    if (!lingering) return
+    const timer = window.setTimeout(() => setLingering(false), APP_POPUP_EXIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [lingering])
+
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const scopeRef = useRef<HTMLDivElement | null>(null)
+  const boxRef = useRef<PopupBox | null>(null)
+  const resizeRef = useRef<{ animation: Animation; from: PopupBox } | null>(null)
   const target = portalTarget ?? bodyPortal()
 
   const setSurfaceNode = useCallback((node: HTMLDivElement | null) => {
@@ -132,6 +181,14 @@ export function AnchoredAppPopup({
 
     const previousScrollTop = surface.scrollTop
     const previousScrollLeft = surface.scrollLeft
+
+    // measure the natural box: lift any running resize first, keeping where it was.
+    const running = resizeRef.current
+    const inFlight = running ? readBox(surface) : null
+    const elapsed = running?.animation.currentTime ?? null
+    running?.animation.cancel()
+    resizeRef.current = null
+    delete surface.dataset.resizing
 
     // copy inherited custom properties across the portal boundary.
     syncAppPopupTokens(anchor, scope)
@@ -209,10 +266,39 @@ export function AnchoredAppPopup({
 
     surface.style.left = `${left}px`
     surface.style.top = `${top}px`
+    if (phone) {
+      surface.style.removeProperty('--app-popup-origin')
+    } else {
+      const originX = Math.min(Math.max(anchorRect.left + anchorRect.width / 2 - left, 0), surfaceRect.width)
+      surface.style.setProperty('--app-popup-origin', `${originX}px ${openUpward ? '100%' : '0'}`)
+    }
     surface.dataset.placement = placement
     surface.dataset.positioned = 'true'
     surface.scrollTop = previousScrollTop
     surface.scrollLeft = previousScrollLeft
+
+    const next = readBox(surface)
+    const settled = boxRef.current
+    boxRef.current = next
+    if (!settled || document.documentElement.classList.contains('reduce-animation')) return
+
+    // resume resize animation when placement dimensions stabilize.
+    const resume = running && sameBox(settled, next)
+    const from = resume ? running.from : inFlight ?? settled
+    if (sameBox(from, next)) return
+
+    const animation = surface.animate([boxFrame(from), boxFrame(next)], {
+      duration: POPUP_RESIZE_MS,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    })
+    if (resume && elapsed !== null) animation.currentTime = elapsed
+    surface.dataset.resizing = 'true'
+    resizeRef.current = { animation, from }
+    animation.onfinish = () => {
+      if (resizeRef.current?.animation !== animation) return
+      resizeRef.current = null
+      delete surface.dataset.resizing
+    }
   }, [
     align,
     anchorRef,
@@ -226,9 +312,11 @@ export function AnchoredAppPopup({
     viewportPadding,
   ])
 
+  // every commit: content swapped by a render is caught before it paints at the new size.
   useLayoutEffect(() => {
     if (visible) place()
-  }, [place, visible])
+    else boxRef.current = null
+  })
 
   useEffect(() => {
     if (!visible) return
@@ -245,7 +333,10 @@ export function AnchoredAppPopup({
     }
     const resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
-      : new ResizeObserver(schedulePlace)
+    // skip resize animation frames; render commits still update placement.
+      : new ResizeObserver(() => {
+        if (!resizeRef.current) schedulePlace()
+      })
     if (anchorRef.current) resizeObserver?.observe(anchorRef.current)
     if (surfaceRef.current) resizeObserver?.observe(surfaceRef.current)
     window.addEventListener('scroll', onScroll, true)
@@ -259,7 +350,7 @@ export function AnchoredAppPopup({
     }
   }, [anchorRef, place, visible])
 
-  if (!visible || !target) return null
+  if ((!visible && !lingering) || !target) return null
 
   return createPortal(
     <div
@@ -271,6 +362,8 @@ export function AnchoredAppPopup({
         ref={setSurfaceNode}
         className={['app-popup--anchored', className].filter(Boolean).join(' ')}
         placement={placementProp ?? (preferredPlacement === 'up' ? 'up' : 'down')}
+        open={lingering ? false : open}
+        closing={lingering || closing}
         style={style}
       >
         {children}

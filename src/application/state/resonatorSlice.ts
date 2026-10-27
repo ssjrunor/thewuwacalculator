@@ -110,7 +110,9 @@ export function createResonatorActions({ get, persistedSet, deferForData, scenar
     if (profiles.length === 0) {
       return
     }
-    if (deferForData(collectResonatorIds(profiles), () => psrtResPrflI(profiles, historyLabel))) return
+    const ids = collectResonatorIds(profiles)
+    const gender = get().ui.preferences.roverGender
+    if (deferForData([...new Set(ids.flatMap((id) => [id, roverIdForGender(id, gender)]))], () => psrtResPrflI(profiles, historyLabel))) return
 
     persistedSet(['combat.workspace', 'simulation.suggestions', 'ui.layout'], (state) => {
       let workspace: ScenarioWorkspace = state.combat

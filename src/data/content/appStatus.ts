@@ -32,8 +32,9 @@ export const STATUS_DATA = {
     { label: 'nanoka.cc', href: 'https://ww.nanoka.cc/' },
   ],
   notes: [
-    'hello my lovelies~! ٩(ˊᗜˋ*)و ♡',
-    'as promised, lily is here.',
+    'hello my pookie wookiesss~! (∩˃o˂∩)♡',
+    'you can import compatible Mornye Tools exports. (click the import button to see more about it).',
+    'made some minor fixes here and there... nothing too crazy yk?'
   ],
   // consumers join these status records with live catalog counts by key.
   coverage: [
@@ -43,7 +44,7 @@ export const STATUS_DATA = {
     { key: 'enemies',    title: 'Enemies',    status: 'ok', note: '' },
   ] as CoverageDomain[],
   recentChanges: [
-    'added lily.',
+    'added mornye tools game data import.',
   ],
 
   knownIssues: [] as string[]

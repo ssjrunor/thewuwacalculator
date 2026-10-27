@@ -48,20 +48,22 @@ export async function applyRotationImport(
   })
 }
 
+export async function detectRotationImport(parsed: unknown): Promise<NormalizedImportedRotation[] | null> {
+  const [{ normalizeImportedRotationEntries }, { collectResonatorIds }, { ensureResonatorData }] = await Promise.all([
+    import('@/application/imports/rotationPayload.ts'),
+    import('@/application/persistence/resonatorScope'),
+    import('@/data/gameData'),
+  ])
+  await ensureResonatorData(collectResonatorIds(parsed))
+  const entries = normalizeImportedRotationEntries(parsed)
+  return entries.length > 0 ? entries : null
+}
+
 export function useRotationImportHandler(): ImportHandler<NormalizedImportedRotation[]> {
 
   return useMemo<ImportHandler<NormalizedImportedRotation[]>>(() => ({
     kind: ROTATION_IMPORT_KIND,
-    detect: async (parsed) => {
-      const [{ normalizeImportedRotationEntries }, { collectResonatorIds }, { ensureResonatorData }] = await Promise.all([
-        import('@/application/imports/rotationPayload.ts'),
-        import('@/application/persistence/resonatorScope'),
-        import('@/data/gameData'),
-      ])
-      await ensureResonatorData(collectResonatorIds(parsed))
-      const entries = normalizeImportedRotationEntries(parsed)
-      return entries.length > 0 ? entries : null
-    },
+    detect: detectRotationImport,
     review: (entries) => {
       const single = entries.length === 1 ? entries[0] : null
       const lead = entries[0]

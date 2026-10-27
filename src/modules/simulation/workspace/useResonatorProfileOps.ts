@@ -7,6 +7,7 @@ import { useCallback, useMemo } from 'react'
 import { contextScenarioMember } from '@/domain/entities/combatScenario.ts'
 import { projectScenarioMemberProfile } from '@/engine/runtime/scenarioRuntime.ts'
 import { useAppStore } from '@/application/state'
+import { roverIdForGender } from '@/domain/entities/roverGender'
 import { RUNTIME_APP_HISTORY_ENABLED } from '@/application/state/history'
 import { nextResonatorSelection } from '@/modules/simulation/model/resonatorProfileActions.ts'
 import {
@@ -124,8 +125,7 @@ export function useResonatorProfileOps(
     })
   }, [confirmation, contextResId, deleteResonatorProfiles, roster, rosterById, showToast])
 
-  // the pull is its own confirmation, but only while the history can give the
-  // resonator back.
+  // drag removal proceeds directly when undo is available.
   const removeByDrag = useCallback((resonatorId: string) => {
     const entry = rosterById.get(resonatorId)
     if (!entry) return
@@ -159,7 +159,7 @@ export function useResonatorProfileOps(
     })
   }, [canUndoRemoval, contextResId, deleteResonatorProfiles, remove, roster, rosterById, showToast])
 
-  // one gesture, so the copy has to land before anything is taken away.
+  // copy before removing the selected resonators.
   const cut = useCallback(async (resonatorIds: string[]) => {
     const wrote = await copy(resonatorIds)
     if (!wrote) return
@@ -186,7 +186,8 @@ export function useResonatorProfileOps(
       return
     }
 
-    const overwrites = payload.profiles.filter((entry) => rosterById.has(entry.resonatorId))
+    const gender = useAppStore.getState().ui.preferences.roverGender
+    const overwrites = payload.profiles.filter((entry) => rosterById.has(roverIdForGender(entry.resonatorId, gender)))
     const addedCount = payload.profiles.length - overwrites.length
     const applyPaste = () => {
       upsertResonatorProfiles(

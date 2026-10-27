@@ -7,7 +7,7 @@
 */
 
 import { initGameData } from '@/data/gameData'
-import { runDataImportJob, type DataImportJob, type DataImportResult } from './dataImport'
+import { runDataImportJob, type AutoImportResult, type DataImportJob } from './dataImport'
 import type { GameDataMode } from '@/domain/entities/gameDataMode'
 
 export interface DataImportWorkerRequest {
@@ -17,7 +17,7 @@ export interface DataImportWorkerRequest {
 }
 
 export type DataImportWorkerResponse =
-  | { id: number; ok: true; result: DataImportResult }
+  | { id: number; ok: true; result: AutoImportResult }
   | { id: number; ok: false; error: string }
 
 self.onmessage = async (event: MessageEvent<DataImportWorkerRequest>) => {

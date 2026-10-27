@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: hosts the app-header echo import. standalone context builds and
-               active-team instances remain separate destinations even when
-               both happen to use the same resonator id.
+  description: routes header Echo imports to standalone builds or active team members.
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -13,6 +11,7 @@ import { useAppStore } from '@/application/state'
 import { selInitRtLkp, selScenarioProfiles, selWorkDrvd } from '@/application/state'
 import { runtimeFromSnapshot } from '@/engine/runtime/runtimeAdapters.ts'
 import { scenarioIdForContextResonator } from '@/domain/entities/scenarioLibrary.ts'
+import { roverIdForGender } from '@/domain/entities/roverGender'
 import { isSimulationRoute } from '@/shared/lib/appRoutes.ts'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
@@ -55,6 +54,7 @@ export function EchoImportHost() {
   const location = useLocation()
   const isOpen = useEchoImport((state) => state.isOpen)
   const initialResonatorId = useEchoImport((state) => state.initialResonatorId)
+  const initialFile = useEchoImport((state) => state.initialFile)
   const requestId = useEchoImport((state) => state.requestId)
   const closeRequest = useEchoImport((state) => state.close)
   const modal = useAppModal()
@@ -68,6 +68,7 @@ export function EchoImportHost() {
   const profiles = useAppStore((state) => importActive
     ? selScenarioProfiles(state) : EMPTY_PROFILES)
   const maxResOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
+  const roverGender = useAppStore((state) => state.ui.preferences.roverGender)
   const showToast = useTstStr((state) => state.show)
   const { setMember } = useTeamSlots()
   const picker = useAppModal()
@@ -82,21 +83,26 @@ export function EchoImportHost() {
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null)
 
   const working = isSimulationRoute(location.pathname)
-  const defaultDestination = initialResonatorId
+  const activeResonatorId = actRt?.id
+  const defaultDestination = useMemo(() => initialResonatorId
     ? { kind: 'context', resonatorId: initialResonatorId } satisfies EchoImportDestination
-    : working && actRt
-      ? { kind: 'context', resonatorId: actRt.id } satisfies EchoImportDestination
-      : null
-  const destination = selection.requestId === requestId
+    : working && activeResonatorId
+      ? { kind: 'context', resonatorId: activeResonatorId } satisfies EchoImportDestination
+      : null, [initialResonatorId, working, activeResonatorId])
+  const selectedDestination = selection.requestId === requestId
     ? selection.destination
     : defaultDestination
+  const destination = useMemo(() => selectedDestination ? {
+    ...selectedDestination,
+    resonatorId: roverIdForGender(selectedDestination.resonatorId, roverGender),
+  } : null, [selectedDestination, roverGender])
 
   const selectedContextOptions = contextOptions.requestId === requestId ? contextOptions.ids : []
   const contextIds = Array.from(new Set([
     ...selectedContextOptions,
     ...(defaultDestination?.kind === 'context' ? [defaultDestination.resonatorId] : []),
     ...(destination?.kind === 'context' ? [destination.resonatorId] : []),
-  ]))
+  ].map((id) => roverIdForGender(id, roverGender))))
   const contexts = contextIds.flatMap((id) => {
     const resonator = getResSeedBy(id)
     return resonator ? [resonator] : []
@@ -139,6 +145,7 @@ export function EchoImportHost() {
 
   const ensureContextProfile = useCallback((resonatorId: string) => {
     const state = useAppStore.getState()
+    resonatorId = roverIdForGender(resonatorId, state.ui.preferences.roverGender)
     if (selScenarioProfiles(state)[resonatorId]) return
     const seed = getResSeedBy(resonatorId)
     if (!seed) return
@@ -149,6 +156,7 @@ export function EchoImportHost() {
   }, [maxResOnInit])
 
   const selectContext = useCallback((resonatorId: string) => {
+    resonatorId = roverIdForGender(resonatorId, useAppStore.getState().ui.preferences.roverGender)
     const pending = ++pendingDestination.current
     void ensureResonatorData([resonatorId]).then(() => {
       if (pending !== pendingDestination.current) return
@@ -219,6 +227,8 @@ export function EchoImportHost() {
     historyLabel: string,
   ) => {
     const state = useAppStore.getState()
+    target = { ...target, resonatorId: roverIdForGender(target.resonatorId, state.ui.preferences.roverGender) }
+    contextId = roverIdForGender(contextId, state.ui.preferences.roverGender)
     if (target.kind === 'team') {
       const scenarioId = scenarioIdForContextResonator(state.combat, contextId)
       if (!scenarioId || !state.combat.scenariosById[scenarioId]?.team.members.some(
@@ -254,10 +264,11 @@ export function EchoImportHost() {
     read: ParsedBuildScreenshot,
     updater: (prev: ResRuntime) => ResRuntime,
   ) => {
-    const target = destination ?? (read.resonator.id
+    const selected = destination ?? (read.resonator.id
       ? { kind: 'context', resonatorId: read.resonator.id } satisfies EchoImportDestination
       : null)
-    if (!target) return
+    if (!selected) return
+    const target = { ...selected, resonatorId: roverIdForGender(selected.resonatorId, useAppStore.getState().ui.preferences.roverGender) }
     // team runtimes are scenario-scoped. retain the active context containing
     // the imported teammate.
     const contextId = target.kind === 'team'
@@ -267,9 +278,9 @@ export function EchoImportHost() {
       if (!contextId) return
       if (!updateDestination(target, contextId, updater, 'Imported Echo Build Card')) return
       useImportLanding.getState().land({
-        resonatorId: target.resonatorId,
+        resonatorId: roverIdForGender(target.resonatorId, useAppStore.getState().ui.preferences.roverGender),
         kind: target.kind,
-        contextId,
+        contextId: roverIdForGender(contextId, useAppStore.getState().ui.preferences.roverGender),
       })
     }).catch(() => showToast({ content: 'Could not load resonator data. Please try again.', variant: 'error' }))
   }, [destination, showToast, updateDestination])
@@ -316,6 +327,7 @@ export function EchoImportHost() {
             }), 'Equipped Imported Echo')
           }}
           allowDetectedDestination
+          initialFile={initialFile}
           headerExtra={(
             <EchoImportTargetBar
               contexts={contexts}

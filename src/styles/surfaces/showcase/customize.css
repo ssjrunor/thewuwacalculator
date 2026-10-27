@@ -824,7 +824,6 @@ input[type='range'].ctz-range:focus-visible::-webkit-slider-thumb {
   color: var(--muted);
 }
 
-/* framing window: a miniature of the card where the art itself is the handle */
 .ctz-pad {
   display: grid;
   grid-template-columns: 8rem minmax(0, 1fr);

@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useNavX } from '@/shared/navigation/useNavX'
 import { SHR_LINK_FRAG, SHR_REMOTE_PARAM } from '@/shared/lib/shareCodec.ts'
-import { useImportSurface } from './ImportSurface.tsx'
+import { useImportSurface } from './Surface.tsx'
 
 export function ShareLinkWatcher({ enabled }: { enabled: boolean }) {
   const { queryImport } = useImportSurface()

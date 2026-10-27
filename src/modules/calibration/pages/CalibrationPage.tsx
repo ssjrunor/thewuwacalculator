@@ -50,6 +50,8 @@ import {
 import { useGglDrvAut } from '@/application/hooks/useGoogleDriveAuth'
 import { DATAXPRTCTNS, mkDataXprtFi } from '@/modules/calibration/model/dataManagement'
 import { runDataImport } from '@/modules/calibration/model/dataImportClient'
+import { applyAppData, legacySummary, resolveImport, UNREAD_IMPORT } from '@/modules/calibration/model/resolveImport'
+import { openEchoImport } from '@/modules/simulation/api/chromeRequests'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { gameDataModeFromBeta, type GameDataMode } from '@/domain/entities/gameDataMode'
 import { CllpPageHeyf } from '@/shared/ui/CollapsiblePageHero'
@@ -408,9 +410,7 @@ function SettingRow({
 }
 
 
-// the plate previews the showcase card's signature as the user types. the echo
-// parser writes the same preference; drafts reconcile with the store during
-// render.
+// reconcile player identity drafts with store updates during render.
 function PlayerPlate() {
   const playerId = useAppStore((state) => state.ui.preferences.playerId)
   const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
@@ -425,7 +425,7 @@ function PlayerPlate() {
     }
   }
 
-  // the store trims; the draft keeps what was typed so a space can be typed mid-name
+  // preserve typed spaces in the draft while the store trims saved values.
   const commit = (next: { id: string; uid: string }) => {
     setDraft(next)
     setIdentity(next.id, next.uid)
@@ -538,6 +538,7 @@ function CalibrationContent() {
   const snapshotTextRef = useRef<HTMLTextAreaElement | null>(null)
   const [hasSnapshotText, setHasSnpsTxt] = useState(false)
   const snapshotFileRef = useRef<File | null>(null)
+  const snapshotDropRef = useRef<HTMLLabelElement | null>(null)
   const [snapshotFile, setSnpsFile] = useState<{ name: string; size: number } | null>(null)
   const [snpsMprtBusy, setSnpsMprtBu] = useState(false)
   const [snpsStts, setSnpsStts] = useState<string | null>(null)
@@ -867,8 +868,7 @@ function CalibrationContent() {
     setTheme('background')
     setBgMgKey(bgKey)
 
-    // apply the wallpaper first, then recompute text mode and accent color from
-    // the resolved image so the theme stays readable after each switch.
+    // recalculate text and accent colors after switching the background image.
     await switchBg(source, bgKey)
 
     const nextTextMode = await dtctBgTxtMod(bgKey)
@@ -961,7 +961,7 @@ function CalibrationContent() {
         throw new Error('Google Drive session expired. Sign in again to continue.')
       }
 
-      // yield one frame so the busy state commits before synchronous serialization.
+      // allow the busy state to render before synchronous serialization.
       await waitForNextP()
       const raw = mkCurSnapJso()
       const result = await pldSnapToDrv(accessToken, raw)
@@ -997,8 +997,7 @@ function CalibrationContent() {
         return
       }
 
-      // validate and persist the restored snapshot before reporting success so
-      // the drive restore message always reflects the actual live app state.
+      // report success after validating and persisting the restored snapshot.
       ensureFullLibrary()
       const resolved = await runDataImport(
         'snapshot',
@@ -1022,7 +1021,8 @@ function CalibrationContent() {
   }
 
   const runSnapMprt = async () => {
-    const source = snapshotFileRef.current ?? snapshotTextRef.current?.value ?? ''
+    const file = snapshotFileRef.current
+    const source = file ?? snapshotTextRef.current?.value ?? ''
     if (typeof source === 'string' && !/\S/.test(source)) return
 
     try {
@@ -1030,21 +1030,51 @@ function CalibrationContent() {
       setSnpsStts(null)
       setSnpsRrr(null)
       await waitForNextP()
-      ensureFullLibrary()
-      const resolved = await runDataImport(
-        'snapshot',
-        source,
-        selectPersisted(useAppStore.getState()),
-      )
-      hydrate(resolved.result.snapshot)
-      await waitForNextP()
-      saveAppState(resolved.result.snapshot)
+  // apply app data here; game data and build cards open selection reviews.
+      const read = await resolveImport(source)
+      let done: string
+      if (read.kind === 'snapshot') {
+        await applyAppData(read.snapshot)
+        done = `Imported ${read.label} into your app data.`
+      } else if (read.kind === 'legacy') {
+        await applyAppData(read.result.snapshot)
+        done = legacySummary(read.result)
+      } else if (read.kind === 'image') {
+        openEchoImport(null, read.file)
+        done = `Reading ${read.file.name} as a build card.`
+      } else if (read.kind === 'gameData') {
+        const [{ openYumeoGameDataImport }, { useGameImport }] = await Promise.all([
+          import('@/application/imports/yumeo/session'),
+          import('@/modules/simulation/api/imports'),
+        ])
+        const session = await openYumeoGameDataImport(read.raw)
+        useGameImport.getState().open(
+          session,
+          { name: file?.name ?? 'Pasted export', modified: file?.lastModified || null },
+          snapshotDropRef.current?.getBoundingClientRect() ?? null,
+        )
+        done = 'Opened the Mornye Tools export. Pick what to bring in.'
+      } else {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(read.raw)
+        } catch {
+          throw new Error(UNREAD_IMPORT)
+        }
+        const { applyRotationImport, detectRotationImport } = await import('@/modules/simulation/api/imports')
+        const entries = await detectRotationImport(parsed)
+        if (!entries) throw new Error(UNREAD_IMPORT)
+        await applyRotationImport(entries, 'secondary')
+        done = entries.length === 1
+          ? `Saved "${entries[0].name}" to your saved rotations.`
+          : `Saved ${entries.length} rotations to your saved rotations.`
+      }
       snapshotFileRef.current = null
       setSnpsFile(null)
       if (snapshotTextRef.current) snapshotTextRef.current.value = ''
       setHasSnpsTxt(false)
       setSnpsRrr(null)
-      setSnpsStts(`Imported ${resolved.result.label} into your app data.`)
+      setSnpsStts(done)
       scheduleMeasure()
     } catch (error) {
       setSnpsStts(null)
@@ -1060,7 +1090,9 @@ function CalibrationContent() {
 
     try {
       const header = new Uint8Array(await file.slice(0, 5).arrayBuffer())
-      const canShowInline = file.size <= MAX_INLINE_IMPORT_BYTES && !hasWwcbMgc(header)
+      const canShowInline = !file.type.startsWith('image/')
+        && file.size <= MAX_INLINE_IMPORT_BYTES
+        && !hasWwcbMgc(header)
 
       if (canShowInline) {
         const raw = await readAppFile(file)
@@ -1096,7 +1128,8 @@ function CalibrationContent() {
       setLgcyMprtS(null)
       setLgcyMprtR(null)
       await waitForNextP()
-      const resolved = await runDataImport('legacy', source)
+      ensureFullLibrary()
+      const resolved = await runDataImport('legacy', source, selectPersisted(useAppStore.getState()))
       const result = resolved.result
       const hasMprtData =
         result.report.importedProfileIds.length > 0
@@ -1595,14 +1628,14 @@ function CalibrationContent() {
 
                 <div className="cal-stack">
                   <div className="cal-blockh"><h3>Bring data in</h3></div>
-                  <label className="cal-drop">
+                  <label className="cal-drop" ref={snapshotDropRef}>
                     <input
                       type="file"
-                      accept=".json,.wwcalc,application/json"
+                      accept=".json,.wwcalc,application/json,image/*"
                       onChange={onSnapFileCh}
                     />
                     <b>Choose a file, or drop one here</b>
-                    <span>A full snapshot or any single slice</span>
+                    <span>A snapshot or slice, a rotation, a Mornye Tools export, or a build card</span>
                   </label>
                   {snapshotFile ? (
                     <p className="cal-note cal-note--ok">
@@ -1613,7 +1646,7 @@ function CalibrationContent() {
                   <textarea className="cal-paste"
                     ref={snapshotTextRef}
                     rows={5}
-                    placeholder="Paste the contents of a snapshot or slice"
+                    placeholder="Paste a snapshot, a slice, or a share code"
                     onChange={(event) => {
                       snapshotFileRef.current = null
                       setSnpsFile(null)

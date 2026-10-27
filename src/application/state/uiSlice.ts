@@ -11,7 +11,7 @@ import { DEF_SHOWCASE_CARD_STYLE, DEF_SHOWCASE_HIDE } from '@/domain/entities/pr
 import { trimHistEnts, type PrssHistStt } from './history'
 import { getSystTheme } from '@/shared/lib/systemTheme'
 import { useInventoryUiStore } from './inventoryUiStore'
-import { convertLibraryRoverGender, convertSimulationRoverGender, convertWorkspaceRoverGender } from './roverGenderConversion'
+import { convertLibraryRoverGender, convertSimulationRoverGender, convertUiRoverGender, convertWorkspaceRoverGender } from './roverGenderConversion'
 import { cancelOptimizerRequest } from './optimizerSlice'
 import { resetOptimizerRun } from './optimizerRunStore'
 
@@ -205,10 +205,10 @@ export function createUiActions({ get, persistedSet }: Pick<StoreSliceContext, '
         : convertLibraryRoverGender(state.library, roverGender)
       return {
         ...state,
-        ui: {
+        ui: convertUiRoverGender({
           ...state.ui,
           preferences: { ...state.ui.preferences, roverGender },
-        },
+        }, roverGender),
         combat: convertWorkspaceRoverGender(state.combat, roverGender),
         library,
         simulation: convertSimulationRoverGender(state.simulation, roverGender),

@@ -32,8 +32,5 @@ prod-app.json
 
 /legacy/
 
-/src/application/imports/gameCapture*.ts
-/src/application/imports/__tests__/gameCapture*.ts
-/src/application/imports/data/resonatorSkillNodeIds.*.json
 /example.json
 /sample-yumeo*.json

@@ -1,7 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: mounts app-wide singleton hosts outside the route lifecycle so
-               their state survives navigation.
+  description: mounts app-wide hosts outside route lifecycle.
 */
 
 import { lazy, Suspense, useState } from 'react'
@@ -11,15 +10,17 @@ import { NtfcTstCntn } from '@/shared/ui/NotificationToast'
 import { CookieBanner } from '@/app/shell/CookieBanner'
 import { BetaNoticeModal } from '@/app/shell/BetaNoticeModal'
 import { useCkBnnr } from '@/app/hooks/useCookieBanner.ts'
-import { useEchoImportRequested } from '@/modules/simulation/api/chromeRequests'
+import { useEchoImportRequested, useGameImportRequested } from '@/modules/simulation/api/chromeRequests'
 
 const EchoImportHost = lazy(async () => ({ default: (await import('@/modules/simulation/api/globalHosts')).EchoImportHost }))
 const ImportStamp = lazy(async () => ({ default: (await import('@/modules/simulation/api/globalHosts')).ImportStamp }))
+const GameImportHost = lazy(async () => ({ default: (await import('@/modules/simulation/api/globalHosts')).Host }))
 const EnemyConsoleHost = lazy(async () => ({ default: (await import('@/modules/simulation/api/globalHosts')).EnemyConsoleHost }))
 
 export function GlobalHosts({ simulating }: { simulating: boolean }) {
   const cookieBanner = useCkBnnr()
   const echoImportRequested = useEchoImportRequested()
+  const gameImportRequested = useGameImportRequested()
   const [simulationVisited, setSimulationVisited] = useState(simulating)
   const [echoImportVisited, setEchoImportVisited] = useState(echoImportRequested)
   if (simulating && !simulationVisited) setSimulationVisited(true)
@@ -29,6 +30,7 @@ export function GlobalHosts({ simulating }: { simulating: boolean }) {
     <>
       {simulationVisited || echoImportVisited ? <Suspense fallback={null}><EchoImportHost /><ImportStamp />
         {simulationVisited ? <EnemyConsoleHost /> : null}</Suspense> : null}
+      {gameImportRequested ? <Suspense fallback={null}><GameImportHost /></Suspense> : null}
       <NavHold />
       <DlyNtc />
       <NtfcTstCntn />

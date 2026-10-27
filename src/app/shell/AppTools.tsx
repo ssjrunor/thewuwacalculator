@@ -4,12 +4,12 @@
 */
 
 import { DisplayImage } from '@/shared/ui/DisplayImage'
-import { FileImage, LibraryBig } from 'lucide-react'
+import { LibraryBig } from 'lucide-react'
 import { useRtChrmMen } from '@/application/context-menu/routeMenuContext'
 import { useAppStore } from '@/application/state'
 import { selEnemyProf } from '@/application/state'
 import { getEnemyIcon } from '@/domain/entities/enemy'
-import { openEchoImport, openEnemyCnsl } from '@/modules/simulation/api/chromeRequests'
+import { Sheet, openEnemyCnsl } from '@/modules/simulation/api/chromeRequests'
 import { withDefIconM } from '@/shared/lib/imageFallback'
 import { Tooltip } from '@/shared/ui/Tooltip'
 
@@ -45,15 +45,7 @@ export function AppTools({ simulating = true }: { simulating?: boolean }) {
         </>
       ) : null}
 
-      <Tooltip content="Import echoes" placement="bottom">
-        <button
-          type="button" className="ax-g"
-          aria-label="Import echoes from a build card"
-          onClick={() => openEchoImport()}
-        >
-          <FileImage aria-hidden="true" />
-        </button>
-      </Tooltip>
+      <Sheet simulating={simulating} />
     </>
   )
 }

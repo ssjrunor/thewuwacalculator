@@ -14,6 +14,8 @@ import { parseCombatScenario, persistedSchema } from '@/engine/runtime/schema'
 import {
   convertScenarioRoverGender,
   convertWorkspaceRoverGender,
+  convertRotationNodesRoverGender,
+  convertManualBuffsRoverGender,
   serializedByteSize,
 } from '@/application/state/roverGenderConversion'
 import { useAppStore } from '@/application/state/store'
@@ -44,6 +46,72 @@ describe('Rover gender preference', () => {
       expect(roverIsVisible(pair.female, 'male')).toBe(false)
       expect(roverIsVisible(pair.female, 'both')).toBe(true)
     }
+  })
+
+it('converts nested imported values while preserving text and item IDs', () => {
+    const nodes = [{
+      id: 'repeat', type: 'repeat' as const,
+      times: { type: 'read' as const, path: 'state.controls.resonator:1502:stacks' },
+      items: [{
+        id: 'feature', type: 'feature' as const, resonatorId: '1502', featureId: '1502:feature:1',
+        attached: {
+          conditions: [{ id: 'switch', type: 'condition' as const, changes: [
+            { type: 'set' as const, path: 'runtime.rotation.activeResonatorId', value: '1502' },
+            { type: 'set' as const, path: 'runtime.state.controls.resonator:1502:mode', value: '1502', resonatorId: '1502' },
+            { type: 'set' as const, path: 'runtime.state.controls.weapon:21020046:passive:active', value: true, resonatorId: '1502' },
+          ] }],
+          features: [],
+        },
+      }],
+      setup: [{ id: 'note', type: 'note' as const, text: '1502 is the original Rover' }],
+    }]
+    const mapped = convertRotationNodesRoverGender(nodes, 'male')
+    expect(mapped[0]).toMatchObject({
+      times: { path: 'state.controls.resonator:1501:stacks' },
+      items: [{ resonatorId: '1501', featureId: '1501:feature:1', attached: { conditions: [{ changes: [
+        { path: 'runtime.rotation.activeResonatorId', value: '1501' },
+        { path: 'runtime.state.controls.resonator:1501:mode', value: '1502', resonatorId: '1501' },
+        { path: 'runtime.state.controls.weapon:21020046:passive:active', value: true, resonatorId: '1501' },
+      ] }] } }],
+      setup: [{ text: '1502 is the original Rover' }],
+    })
+    expect(convertRotationNodesRoverGender(nodes, 'both')).toBe(nodes)
+    expect(nodes[0].items[0].resonatorId).toBe('1502')
+  })
+
+  it('normalizes once even when opaque member IDs and notes retain the source Rover ID', () => {
+    const scenario = makeScenarioFromProfiles({ '1502': makeResProfile(seed('1502')) }, null, 0, '1502')
+    scenario.program.program = [{ id: 'note', type: 'note', text: 'Imported from 1502' }]
+    const converted = convertScenarioRoverGender(scenario, 'male')
+    expect(convertScenarioRoverGender(converted, 'male')).toBe(converted)
+  })
+
+  it('resolves imported skill-specific buffs in files and member environment effects', () => {
+    const buffs = makeCustomBuff()
+    buffs.modifiers = [{
+      id: 'imported', enabled: true, scope: 'skill', matchMode: 'skillId',
+      skillId: '1502:tune-break', effect: 'addMultiplier', value: 25, label: '1502 custom label',
+    }]
+    const scenario = makeScenarioFromProfiles({ '1502': makeResProfile(seed('1502')) }, null, 0, '1502')
+    scenario.environment.manualEffects = [makeMemberManualEffect(scenario.team.members[0].id, buffs)]
+    const converted = convertScenarioRoverGender(scenario, 'male')
+    for (const buff of [convertManualBuffsRoverGender(buffs, 'male'), converted.environment.manualEffects[0].buffs]) {
+      expect(buff.modifiers[0]).toMatchObject({ skillId: '1501:tune-break', value: 25, label: '1502 custom label' })
+    }
+    expect(convertManualBuffsRoverGender(buffs, 'both')).toBe(buffs)
+    expect(buffs.modifiers[0]).toMatchObject({ skillId: '1502:tune-break' })
+  })
+
+  it('normalizes directly hydrated profiles and saved equipment owners using the imported preference', () => {
+    const snapshot = makeAppState()
+    const scenario = makeScenarioFromProfiles({ '1502': makeResProfile(seed('1502')) }, null, 0, '1502')
+    snapshot.ui.preferences.roverGender = 'male'
+    snapshot.combat = { order: [scenario.id], selectedScenarioId: scenario.id, scenariosById: { [scenario.id]: scenario } }
+    snapshot.library.builds = [makeSavedBuild({ name: 'Imported build', resonatorId: '1502', resonatorName: 'Rover', build: scenario.team.members[0].loadout })]
+    useAppStore.getState().hydrate(snapshot)
+    expect(contextScenarioMember(selectedCombatScenario(useAppStore.getState().combat)).resonatorId).toBe('1501')
+    expect(useAppStore.getState().library.builds[0].resonatorId).toBe('1501')
+    expect(snapshot.library.builds[0].resonatorId).toBe('1502')
   })
 
   it('keeps the larger teammate state when both Rovers share a scenario', () => {
@@ -219,7 +287,7 @@ describe('Rover gender preference', () => {
     expect(parseCombatScenario(library.rotations[0].scenario).success).toBe(true)
   })
 
-  it('persists the chosen gender without an inactive mode snapshot', () => {
+it('persists the chosen gender with no inactive mode snapshot', () => {
     const values = new Map<string, string>()
     vi.stubGlobal('localStorage', {
       get length() { return values.size },

@@ -8,6 +8,7 @@ import {
   createElement,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -26,7 +27,8 @@ import {
   type ImportReview,
 } from '@/application/imports/types.ts'
 import { ImportReceived } from './ImportReceived.tsx'
-import { useRotationImportHandler } from './rotationImport.ts'
+import { useRotationImportHandler } from './rotation.ts'
+import { useImportRequest } from './request.ts'
 
 interface ImportSurfaceApi {
   // callers pass raw share text; the provider validates it and presents the review.
@@ -173,6 +175,16 @@ export function ImportSurfaceProvider({ children }: { children: ReactNode }) {
   }, [modal, phase, showToast])
 
   const api = useMemo<ImportSurfaceApi>(() => ({ queryImport, openImport }), [queryImport, openImport])
+
+  // the header import sheet asks for this review from any route.
+  const pending = useImportRequest((state) => state.pending)
+  useEffect(() => {
+    if (!pending) return
+    const taken = useImportRequest.getState().take()
+    if (!taken) return
+    if (taken.raw) void queryImport(taken.raw)
+    else openImport()
+  }, [pending, queryImport, openImport])
 
   const isReview = phase.mode === 'review'
   const review = isReview ? phase.resolved.review : null

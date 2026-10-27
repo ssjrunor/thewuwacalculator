@@ -84,6 +84,8 @@ interface EchoMgPrsrMd {
   onDetectedResonator?: (resonatorId: string) => void
   allowDetectedDestination?: boolean
   headerExtra?: ReactNode
+  // process the card supplied before the reader opened.
+  initialFile?: File | null
   onClose: () => void
 }
 
@@ -100,6 +102,7 @@ export function Parser({
   onDetectedResonator,
   allowDetectedDestination = false,
   headerExtra,
+  initialFile = null,
   onClose,
 }: EchoMgPrsrMd) {
   const addEchoToInv = useAppStore((s) => s.addInvEcho)
@@ -219,6 +222,13 @@ export function Parser({
       }
     }
   }
+
+  const readInitialRef = useRef<File | null>(null)
+  useEffect(() => {
+    if (!visible || !initialFile || readInitialRef.current === initialFile) return
+    readInitialRef.current = initialFile
+    queueMicrotask(() => void onMgFile(initialFile))
+  })
 
   // register paste handling only while this parser instance is mounted.
   useEffect(() => {

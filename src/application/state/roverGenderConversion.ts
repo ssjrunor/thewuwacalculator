@@ -6,8 +6,9 @@
 import type { CombatScenario, CombatScenarioId, DormantScenarioMember, ScenarioTeamMember, TeamMemberId } from '@/domain/entities/combatScenario'
 import { contextScenarioMember, makeScenarioTeam } from '@/domain/entities/combatScenario'
 import type { SavedArtifactLibrary } from '@/domain/entities/inventoryStorage'
-import type { SimulationState } from '@/domain/entities/appState'
-import type { RotationNode, RtChng } from '@/domain/gameData/contracts'
+import type { ManualBuffs } from '@/domain/entities/manualBuffs'
+import type { HydratedAppState, SimulationState, UiState } from '@/domain/entities/appState'
+import type { FormExpr, RotationNode, RotVl, RtChng } from '@/domain/gameData/contracts'
 import type { RoverGender } from '@/domain/entities/roverGender'
 import { ROVER_PAIRS, roverIdForGender } from '@/domain/entities/roverGender'
 import type { ScenarioWorkspace } from '@/domain/entities/scenarioLibrary'
@@ -26,9 +27,33 @@ function mapSourceKey(value: string, gender: RoverGender): string {
 }
 
 function mapChange(change: RtChng, gender: RoverGender): RtChng {
-  return change.resonatorId
-    ? { ...change, resonatorId: roverIdForGender(change.resonatorId, gender) }
-    : change
+  const mapped = {
+    ...change,
+    path: mapSourceKey(change.path, gender),
+    ...(change.resonatorId ? { resonatorId: roverIdForGender(change.resonatorId, gender) } : {}),
+  }
+  return mapped.type === 'set' && mapped.path.replace(/^runtime\./, '') === 'rotation.activeResonatorId' && typeof mapped.value === 'string'
+    ? { ...mapped, value: roverIdForGender(mapped.value, gender) } : mapped
+}
+
+export function convertRotationNodesRoverGender(nodes: RotationNode[], gender: RoverGender): RotationNode[] {
+  return gender === 'both' ? nodes : nodes.map((node) => mapNode(node, gender))
+}
+
+export function convertManualBuffsRoverGender(buffs: ManualBuffs, gender: RoverGender): ManualBuffs {
+  if (gender === 'both') return buffs
+  return {
+    ...buffs,
+    modifiers: buffs.modifiers.map((modifier) => modifier.scope === 'skill' && modifier.skillId
+      ? { ...modifier, skillId: mapSourceKey(modifier.skillId, gender) } : modifier),
+  }
+}
+
+function mapRotationValue(value: RotVl, gender: RoverGender): RotVl {
+  if (typeof value === 'number' || value.type === 'const') return value
+  if (value.type === 'read' || value.type === 'table') return { ...value, path: mapSourceKey(value.path, gender) }
+  if (value.type === 'clamp') return { ...value, value: mapRotationValue(value.value, gender) as FormExpr }
+  return { ...value, values: value.values.map((child) => mapRotationValue(child, gender) as FormExpr) }
 }
 
 function mapNode(node: RotationNode, gender: RoverGender): RotationNode {
@@ -54,6 +79,8 @@ function mapNode(node: RotationNode, gender: RoverGender): RotationNode {
   }
   if (base.type === 'repeat' || base.type === 'uptime') return {
     ...base,
+    ...(base.type === 'repeat' ? { times: mapRotationValue(base.times, gender) } : {}),
+    ...(base.ratio !== undefined ? { ratio: mapRotationValue(base.ratio, gender) } : {}),
     ...(base.setup ? { setup: base.setup.map((child) => mapNode(child, gender)) } : {}),
     items: base.items.map((child) => mapNode(child, gender)),
   }
@@ -92,7 +119,7 @@ function activeMemberDataSize(scenario: CombatScenario, member: ScenarioTeamMemb
 }
 
 export function convertMemberRoverGender(member: ScenarioTeamMember, gender: RoverGender): ScenarioTeamMember {
-  if (gender === 'both' || roverIdForGender(member.resonatorId, gender) === member.resonatorId) return member
+  if (gender === 'both') return member
   return {
     ...member,
     resonatorId: roverIdForGender(member.resonatorId, gender),
@@ -172,12 +199,18 @@ export function convertScenarioRoverGender(scenario: CombatScenario, gender: Rov
       ))
       .map(([id, entry]) => [
         roverIdForGender(id, gender),
-        { ...entry, member: convertMemberRoverGender(entry.member, gender) },
+        {
+          ...entry,
+          member: convertMemberRoverGender(entry.member, gender),
+          ...(entry.manualEffect ? { manualEffect: {
+            ...entry.manualEffect,
+            buffs: convertManualBuffsRoverGender(entry.manualEffect.buffs, gender),
+          } } : {}),
+        },
       ]))
     : undefined
-  return {
+  const converted: CombatScenario = {
     ...scenario,
-    revision: scenario.revision + 1,
     team: makeScenarioTeam(members),
     ...(dormant ? { dormantMembersByResonatorId: dormant } : {}),
     contextMemberId: mapMemberId(scenario.contextMemberId),
@@ -198,14 +231,16 @@ export function convertScenarioRoverGender(scenario: CombatScenario, gender: Rov
         })),
         ...[...restoredEffects].filter(([id]) => !scenario.environment.manualEffects.some((effect) => effect.id === id))
           .map(([, effect]) => effect),
-      ],
+      ].map((effect) => ({ ...effect, buffs: convertManualBuffsRoverGender(effect.buffs, gender) })),
     },
     program: {
       ...scenario.program,
-      sequence: scenario.program.sequence.map((node) => mapNode(node, gender)),
-      program: scenario.program.program.map((node) => mapNode(node, gender)),
+      sequence: convertRotationNodesRoverGender(scenario.program.sequence, gender),
+      program: convertRotationNodesRoverGender(scenario.program.program, gender),
     },
   }
+  return JSON.stringify(converted) === JSON.stringify(scenario)
+    ? scenario : { ...converted, revision: scenario.revision + 1 }
 }
 
 export function convertWorkspaceRoverGender(workspace: ScenarioWorkspace, gender: RoverGender): ScenarioWorkspace {
@@ -280,5 +315,31 @@ export function convertSimulationRoverGender(simulation: SimulationState, gender
     optimizerSettingsResonatorId: simulation.optimizerSettingsResonatorId
       ? roverIdForGender(simulation.optimizerSettingsResonatorId, gender) : null,
     suggestionsByResonatorId,
+  }
+}
+
+export function convertUiRoverGender(ui: UiState, gender: RoverGender): UiState {
+  if (gender === 'both') return ui
+  const cards = Object.entries(ui.preferences.showcaseCards)
+    .sort(([left], [right]) => Number(roverIdForGender(left, gender) === left) - Number(roverIdForGender(right, gender) === right))
+  return {
+    ...ui,
+    preferences: {
+      ...ui.preferences,
+      showcaseCards: Object.fromEntries(cards.map(([id, card]) => [roverIdForGender(id, gender), card])),
+    },
+  }
+}
+
+/** convert imported domains using the snapshot's Rover gender preference. */
+export function convertStateRoverGender<T extends HydratedAppState>(state: T): T {
+  const gender = state.ui.preferences.roverGender
+  if (gender === 'both') return state
+  return {
+    ...state,
+    ui: convertUiRoverGender(state.ui, gender),
+    combat: convertWorkspaceRoverGender(state.combat, gender),
+    library: convertLibraryRoverGender(state.library, gender),
+    simulation: convertSimulationRoverGender(state.simulation, gender),
   }
 }

@@ -132,7 +132,7 @@ function InventoryPager({
         <ChevronLeft size="0.9rem" aria-hidden="true" />
       </button>
       <span className="inv-page__read" aria-live="polite">
-        <b>{start + 1}–{end}</b> of {total}
+        <span><b>{start + 1}–{end}</b> of {total}</span>
         <i>Page {page + 1}/{pageCount}</i>
       </span>
       <button
@@ -149,7 +149,7 @@ function InventoryPager({
 }
 
 function getInvEchoDs(entry: SavedEcho) {
-  // saved echoes only store ids, so sort/search labels must tolerate catalog entries that no longer exist.
+    // tolerate missing catalog entries when sorting saved Echoes.
   return getEchoById(entry.echo.id)?.name ?? toTitle(entry.echo.id)
 }
 
@@ -295,7 +295,7 @@ function InvEchoEntCa({
   const wornSlot = slotFitStates.findIndex((fitState) => fitState.selected)
 
   const onTileKeyDow = (event: KeyboardEvent<HTMLElement>) => {
-    // keyboard activation only belongs to the tile shell; child buttons handle their own enter/space events.
+    // the tile handles keyboard activation; child buttons handle their events.
     if (selectMode || event.currentTarget !== event.target) {
       return
     }
@@ -781,9 +781,7 @@ export function InvMdl({
   }, [clrCmpcTglTm, compact, gridSwtc, setPrssCmpcI])
 
   const filteredBag = useMemo(() => {
-    // search includes ids and uids so imported echoes remain findable even when duplicate names or generated ids are
-    // the only clue the user has. equipped resonator names/ids are included so searching a resonator narrows to
-    // echoes currently equipped by that resonator.
+    // search Echo ids, UIDs, names, and equipped resonator identifiers.
     return sortEntsByNa(invChs, getInvEchoDs).filter((entry) => {
       const definition = getEchoById(entry.echo.id)
       if (!definition) {
@@ -828,8 +826,7 @@ export function InvMdl({
     [currentBuild.echoes],
   )
   const mkInvSlotFit = useCallback((echo: EchoInstance) => Array.from(
-    // fit state is computed per target slot against the live build cost, so the card can disable only the slots that
-    // would break the 12-cost cap.
+    // check each slot against the live build's 12-cost limit.
     { length: 5 },
     (_, index) => getInvSlotFi(
       currentBuild.echoes,
@@ -1706,22 +1703,24 @@ export function InvMdl({
                     </div>
 
                     {compact && previewEntry ? (
-                      <EchoBagRdt
-                        key={previewEntry.id}
-                        entry={previewEntry}
-                        usage={previewEntry.echo.uid ? echoSgByUid[previewEntry.echo.uid] ?? [] : []}
-                        slotFitStates={mkInvSlotFit(previewEntry.echo)}
-                        onEquip={(slotIndex) => onQpInvEcho(previewEntry, slotIndex)}
-                        onEdit={() => onEditInvEch(previewEntry)}
-                        onRemove={() => confirmation.confirm({
-                          title: 'You sure about that? ( · ❛ ֊ ❛)',
-                          message: `Remove "${getEchoById(previewEntry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
-                          confirmLabel: 'Remove',
-                          variant: 'danger',
-                          onConfirm: () => onRmvInvEcho(previewEntry.id),
-                        })}
-                      />
-                    ) : null}
+                      <div className="inv-rdt-wrapper">
+                        <EchoBagRdt
+                          key={previewEntry.id}
+                          entry={previewEntry}
+                          usage={previewEntry.echo.uid ? echoSgByUid[previewEntry.echo.uid] ?? [] : []}
+                          slotFitStates={mkInvSlotFit(previewEntry.echo)}
+                          onEquip={(slotIndex) => onQpInvEcho(previewEntry, slotIndex)}
+                          onEdit={() => onEditInvEch(previewEntry)}
+                          onRemove={() => confirmation.confirm({
+                            title: 'You sure about that? ( · ❛ ֊ ❛)',
+                            message: `Remove "${getEchoById(previewEntry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
+                            confirmLabel: 'Remove',
+                            variant: 'danger',
+                            onConfirm: () => onRmvInvEcho(previewEntry.id),
+                          })}
+                        />
+                      </div>
+                      ) : null}
                   </>
                 )
               ) : (

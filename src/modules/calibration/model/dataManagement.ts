@@ -21,6 +21,8 @@ import type { AppStore } from '@/application/state'
 import { selectPersisted } from '@/application/state/serialization'
 import { parsePersisted } from '@/application/persistence/appStorage'
 import { projectScenarioWorkspaceProfiles } from '@/engine/runtime/scenarioRuntime'
+import { convertScenarioRoverGender, convertStateRoverGender } from '@/application/state/roverGenderConversion'
+import { roverIdForGender } from '@/domain/entities/roverGender'
 
 export type DataXprtKind =
   | 'current-resonator'
@@ -122,8 +124,7 @@ function buildBundle<TKind extends DataXprtKind, TData>(
   kind: TKind,
   data: TData,
 ): DataXprtBndl<TKind, TData> {
-  // every partial export uses the same envelope so import can distinguish a
-  // bundle from a full persisted snapshot before merging into current state.
+  // mark partial exports with a common envelope for import detection.
   return {
     exportFormat: 'wwcalc-data',
     version: 1,
@@ -148,8 +149,7 @@ function resActResId(
   profiles: LegacyProfileMap,
   fallbackId: string | null,
 ): string | null {
-  // restored session ids can point at profiles that are not present in the
-  // imported subset, so choose the first surviving valid profile deterministically.
+  // select the first valid profile when a restored session id is missing.
   if (preferredId && profiles[preferredId]) {
     return preferredId
   }
@@ -181,11 +181,9 @@ function vldtPtchSnap(
   snapshot: PersistedState | HydratedAppState,
   label: string,
 ): HydratedAppState {
-  // bundle payloads are only structurally guarded on the way in, so the
-  // patched snapshot is revalidated through the same persisted-schema pipeline
-  // as full snapshots before it can reach the live store.
+  // validate merged bundles through the persisted schema before store hydration.
   try {
-    return parsePersisted(JSON.stringify(snapshot))
+    return convertStateRoverGender(parsePersisted(JSON.stringify(snapshot)))
   } catch {
     throw new Error(`The ${label} contains data the app does not recognize, so nothing was imported.`)
   }
@@ -199,6 +197,7 @@ function replaceImportedScenario(
   snapshot: HydratedAppState,
   scenario: ReturnType<typeof makeScenarioFromProfiles>,
 ): void {
+  scenario = convertScenarioRoverGender(scenario, snapshot.ui.preferences.roverGender)
   const contextResonatorId = contextScenarioMember(scenario).resonatorId
   const existingId = scenarioIdForContextResonator(snapshot.combat, contextResonatorId)
   let scenarioId = existingId ?? combatScenarioId(`scenario:${contextResonatorId}`)
@@ -315,7 +314,7 @@ export function resMprtData(raw: string, currentState: PersistedState): RslvMprt
     // directly to the persistence parser.
     return {
       label: 'full snapshot',
-      snapshot: parsePersisted(raw),
+      snapshot: convertStateRoverGender(parsePersisted(raw)),
     }
   } catch {
     const bundle = prsBndlJson(raw)
@@ -331,7 +330,8 @@ export function resMprtData(raw: string, currentState: PersistedState): RslvMprt
           throw new Error('Current resonator backup is missing a resonator profile.')
         }
 
-        snapshot.simulation.suggestionsByResonatorId[profile.resonatorId] = structuredClone(
+        const targetId = roverIdForGender(profile.resonatorId, snapshot.ui.preferences.roverGender)
+        snapshot.simulation.suggestionsByResonatorId[targetId] = structuredClone(
           bundle.data.suggestions ?? makeSuggest(),
         )
         replaceImportedScenario(snapshot, makeScenarioFromProfiles(

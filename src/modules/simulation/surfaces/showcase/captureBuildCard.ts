@@ -17,7 +17,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
-// inline reachable font assets so the exported image is self-contained.
+// embed font assets in the exported image.
 export function resolveFontAssetUrl(url: string, stylesheetHref: string | null, documentBase: string): string {
   return new URL(url, stylesheetHref || documentBase).href
 }
@@ -120,13 +120,26 @@ async function buildFontEmbedCss(usage: FontUsage, text: string, load: (url: str
   return blocks.join('\n')
 }
 
-const GLASS_BACKGROUND = ['image', 'color', 'size', 'position', 'repeat', 'origin', 'clip', 'attachment']
+// split a computed list value on commas outside parentheses.
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (char === '(') depth += 1
+    else if (char === ')') depth -= 1
+    else if (char === ',' && depth === 0) { parts.push(value.slice(start, index).trim()); start = index + 1 }
+  }
+  const last = value.slice(start).trim()
+  if (last && last !== 'none') parts.push(last)
+  return parts
+}
+
+const GLASS_BACKGROUND =['image', 'color', 'size', 'position', 'repeat', 'origin', 'clip', 'attachment']
   .map((part) => `background-${part}`)
 
-// chromium does not clip backdrop-filter to the border box inside an svg image:
-// the blur spills out by its filter radius and frosts over neighbouring cards.
-// paint each glass backdrop on a clipped layer below the content. overflowing
-// children such as echo avatars remain visible.
+// chromium svg capture requires a clipped layer for backdrop filters.
 function clipCaptureGlass(element: HTMLElement, filter: string) {
   const style = element.style
   const layer = document.createElement('div')
@@ -138,6 +151,14 @@ function clipCaptureGlass(element: HTMLElement, filter: string) {
   layer.style.setProperty('backdrop-filter', filter)
   layer.style.setProperty('-webkit-backdrop-filter', filter)
   for (const property of GLASS_BACKGROUND) layer.style.setProperty(property, style.getPropertyValue(property))
+  // move inset shadows onto the clipped layer and leave outer shadows on the element.
+  const shadows = splitTopLevel(style.getPropertyValue('box-shadow'))
+  const inset = shadows.filter((shadow) => /\binset\b/.test(shadow))
+  if (inset.length) {
+    layer.style.setProperty('box-shadow', inset.join(', '))
+    const outer = shadows.filter((shadow) => !inset.includes(shadow))
+    style.setProperty('box-shadow', outer.length ? outer.join(', ') : 'none')
+  }
   style.setProperty('backdrop-filter', 'none')
   style.setProperty('-webkit-backdrop-filter', 'none')
   style.setProperty('background-image', 'none')
@@ -147,6 +168,29 @@ function clipCaptureGlass(element: HTMLElement, filter: string) {
   element.insertBefore(layer, element.firstChild)
 }
 
+// allow small svg text width differences while preserving live flex lines.
+const WRAP_SLACK = 0.25
+const LOGICAL_ALIAS: Record<string, string> = {
+  'min-width': 'min-inline-size', 'margin-left': 'margin-inline-start', 'margin-right': 'margin-inline-end',
+}
+function holdWrappedLines(element: Element, computed: CSSStyleDeclaration, holds: [Element, string, string][]) {
+  if (!computed.display?.includes('flex') || computed.flexWrap === 'nowrap' || computed.flexDirection?.startsWith('column')) return
+  const lines: { bottom: number; widest: [Element, string, number] | null }[] = []
+  for (const child of Array.from(element.children)) {
+    const style = getComputedStyle(child)
+    if (style.display === 'none' || style.position === 'absolute' || style.position === 'fixed') continue
+    holds.push([child, 'min-width', '0px'])
+    const rect = child.getBoundingClientRect()
+    let line = lines[lines.length - 1]
+    if (!line || rect.top >= line.bottom) lines.push(line = { bottom: rect.bottom, widest: null })
+    for (const side of ['margin-left', 'margin-right']) {
+      const margin = parseFloat(style.getPropertyValue(side))
+      if (margin > WRAP_SLACK && margin > (line.widest?.[2] ?? 0)) line.widest = [child, side, margin]
+    }
+  }
+  for (const { widest } of lines) if (widest) holds.push([widest[0], widest[1], `${widest[2] - WRAP_SLACK}px`])
+}
+
 // freeze the live composition on a disposable clone. only the host is moved
 // offscreen: moving the card itself would put its contents outside the png.
 function createCaptureClone(source: HTMLElement): { card: HTMLElement; fonts: FontUsage; text: string; dispose: () => void } {
@@ -154,6 +198,7 @@ function createCaptureClone(source: HTMLElement): { card: HTMLElement; fonts: Fo
   let text = source.textContent || ''
   const pseudos: string[] = []
   const glass: [HTMLElement, string][] = []
+  const holds: [Element, string, string][] = []
   const card = source.cloneNode(true) as HTMLElement
   const originals = [source, ...source.querySelectorAll<HTMLElement | SVGElement>('*')]
   const copies = [card, ...card.querySelectorAll<HTMLElement | SVGElement>('*')]
@@ -179,6 +224,15 @@ function createCaptureClone(source: HTMLElement): { card: HTMLElement; fonts: Fo
       if (property.startsWith('--')) continue
       copy.style.setProperty(property, computed.getPropertyValue(property))
     }
+    holdWrappedLines(original, computed, holds)
+    // the frozen box hugs its text, which renders a hair wider in the svg and
+    // would trip the ellipsis. only text truncated live keeps it.
+    if (computed.textOverflow === 'ellipsis' && original.scrollWidth <= original.clientWidth) {
+      for (const logical of ['overflow-inline', 'overflow-block']) copy.style.removeProperty(logical)
+      copy.style.setProperty('overflow-x', 'visible')
+      copy.style.setProperty('overflow-y', 'visible')
+      copy.style.setProperty('text-overflow', 'clip')
+    }
     copy.style.setProperty('animation', 'none', 'important')
     const backdrop = computed.backdropFilter || computed.getPropertyValue?.('-webkit-backdrop-filter')
     if (backdrop && backdrop !== 'none' && copy instanceof HTMLElement) glass.push([copy, backdrop])
@@ -196,6 +250,12 @@ function createCaptureClone(source: HTMLElement): { card: HTMLElement; fonts: Fo
       image.style.cssText = copy.style.cssText
       copy.replaceWith(image)
     }
+  }
+  for (const [original, property, value] of holds) {
+    const copy = copies[originals.indexOf(original as HTMLElement)]
+    // remove logical longhands that would override copied physical values.
+    copy?.style?.removeProperty(LOGICAL_ALIAS[property])
+    copy?.style?.setProperty(property, value)
   }
   // the original custom stylesheet remains active. duplicating style elements
   // here would reapply their rules to the live card while preparing the export.

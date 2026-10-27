@@ -1,10 +1,11 @@
 /*
   Author: Runor Ewhro
-  description: routes teammate manual-buff edits through the shared modifier
-               operations so local teammate state matches simulation semantics.
+  description: edits teammate manual buffs through shared modifier operations.
 */
 
 import { readAppFile, xprtAppFile } from '@/application/persistence/fileCodec.ts'
+import { useAppStore } from '@/application/state'
+import { convertManualBuffsRoverGender } from '@/application/state/roverGenderConversion'
 import { type ChangeEvent, type CSSProperties as CssProps, type ReactNode, useMemo, useRef } from 'react'
 import { Bookmark, Copy, Plus, Trash2 } from 'lucide-react'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
@@ -209,7 +210,7 @@ export function TeammateManualBuffs({ runtime, onRtPdt }: { runtime: ResRuntime;
       if (!parsed.success) {
         throw new Error(parsed.error.issues[0]?.message ?? 'Invalid manual buffs JSON.')
       }
-      const sanitized = cleanBuffs(parsed.data)
+      const sanitized = convertManualBuffsRoverGender(cleanBuffs(parsed.data), useAppStore.getState().ui.preferences.roverGender)
       onRtPdt((prev) => ({ ...prev, state: { ...prev.state, manualBuffs: sanitized } }))
     } catch (error) {
       window.alert(`Import failed: ${error instanceof Error ? error.message : 'Invalid manual buffs JSON.'}`)

@@ -11,6 +11,8 @@ import { createUiActions } from './uiSlice'
 import { createInventoryActions } from './inventorySlice'
 import { createScenarioActions } from './scenarioSlice'
 import { createResonatorActions } from './resonatorSlice'
+import { convertStateRoverGender } from './roverGenderConversion'
+import { roverIdForGender } from '@/domain/entities/roverGender'
 import { cancelOptimizerRequest, createOptimizerActions } from './optimizerSlice'
 import { resetOptimizerRun } from './optimizerRunStore'
 import type {
@@ -217,8 +219,7 @@ export interface AppStore extends Omit<PersistedState, 'simulation' | 'combat'> 
     scenarioId: CombatScenarioId,
     modifiers: EnvironmentTargetModifiers,
   ) => void
-  // resonator actions own profile switching, runtime creation, and
-  // target/suggestion updates for the currently selected simulation context.
+  // resonator actions manage profiles, runtimes, and simulation targets.
   setEnemy: (enemy: EnemyProfile) => void
   setActRes: (resonatorId: ResonatorId) => void
   actRes: (seed: ResSeed) => void
@@ -556,10 +557,12 @@ export const useAppStore = create<AppStore>((set, get) => {
   history: mkMptyHistSt(),
 
   hydrate: (payload) => {
-    if (deferForData(collectResonatorIds(payload), () => get().hydrate(payload), 'hydrate')) return
+    const gender = payload.ui.preferences.roverGender
+    const ids = collectResonatorIds(payload)
+    if (deferForData([...new Set(ids.flatMap((id) => [id, roverIdForGender(id, gender)]))], () => get().hydrate(payload), 'hydrate')) return
     get().ensureFullLibrary()
     const curSnap = selectPersisted(get())
-    const nextSnapshot = initAppState(structuredClone(payload))
+    const nextSnapshot = convertStateRoverGender(initAppState(structuredClone(payload)))
     const { ui } = get()
 
     cancelOptimizerRequest()

@@ -22,6 +22,7 @@ import {
   useState,
 } from 'react'
 import { ChevronDown, ClipboardPaste, Copy, CopyPlus, FolderOpen, ListPlus, MessageSquarePlus, Pencil, Play, RotateCwSquare, Save, Scissors, Settings, Share2, SquareDashedMousePointer, Trash2 } from 'lucide-react'
+import { convertRotationNodesRoverGender } from '@/application/state/roverGenderConversion'
 import { ContextTrigger } from '@/application/context-menu/ContextTrigger'
 import {useTstStr} from '@/shared/util/toastStore.ts'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay.tsx'
@@ -284,7 +285,7 @@ import {
 } from '@/modules/simulation/surfaces/rotation/program-editor/state/editorSessionStore.ts'
 import { useRtChrmMen } from '@/application/context-menu/routeMenuContext'
 import { useExpandableCollection } from '@/shared/ui/Expandable.tsx'
-import { useImportSurface } from '@/modules/simulation/shell/imports/ImportSurface.tsx'
+import { useImportSurface } from '@/modules/simulation/shell/imports/Surface.tsx'
 import { useLoadRotation, type RotationLoadMode } from '@/modules/simulation/surfaces/rotation/program-editor/saved/useLoadRotation.ts'
 import { RotationShareModal } from '@/modules/simulation/surfaces/rotation/program-editor/components/ShareModal.tsx'
 import { SavedRotationEditModal } from '@/modules/simulation/surfaces/rotation/program-editor/components/SavedRotationEditModal.tsx'
@@ -858,7 +859,7 @@ export function ProgramEditor() {
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
-        // settle the batch empty so the list leaves its loader for the toast.
+        // clear batch state before reporting the error.
         setSavedBatch({ key: savedBatchKey, runs: EMPTY_SAVED_COMPARISONS })
         showToast({
           content: error instanceof Error ? error.message : 'Could not load saved rotation data.',
@@ -1024,11 +1025,7 @@ export function ProgramEditor() {
     && (!storedSelectedId || !activeSelectionModel.availableIds.includes(storedSelectedId))
     ? defaultSelectedId
     : storedSelectedId
-  /*
-    the editor cursor's active resonator is authored rotation state. do not
-    remember a separate focused member: doing so lets one context rotation
-    leak its last member into another, and disagrees with preceding handoffs.
-  */
+  /* derive the active resonator from authored cursor state and prior handoffs. */
   const activeResonatorChoice = condChoices.find(
     (choice) => choice.state.path === ACTIVE_RESONATOR_PATH,
   )
@@ -1535,7 +1532,6 @@ export function ProgramEditor() {
     })
   }, [members, nodeCmpMode, readBuffsFor, result, runsByLoopId, sections, selectedId, view])
 
-  // folding a resonator run also folds rows under its heading.
   const setEditorFold = useCallback((id: string, open: boolean) => {
     setEditorFoldOpen(id, open)
     if (!open && !id.includes(':')) {
@@ -1589,8 +1585,7 @@ export function ProgramEditor() {
   const noteRef = useRef<HTMLElement | null>(null)
   const leaderRef = useRef<HTMLDivElement | null>(null)
 
-  /* switch the persisted surface and own its dom transition at the action
-     boundary, where both the leaving and arriving surfaces are known. */
+  /* update the persisted surface and transition at the action boundary. */
   const showSavedRots = useCallback((next: RotationEditorPreferences['savedView']) => {
     const nextSaved = next !== 'off'
     setEditorPreferences({ savedView: next })
@@ -1668,7 +1663,7 @@ export function ProgramEditor() {
     return () => window.clearTimeout(id)
   }, [entering])
 
-  // keep cleanup separate from the effect that mutates its own transition dependency.
+  // separate cleanup from the effect that updates its transition dependency.
   useEffect(() => {
     if (leaving === null) {
       return
@@ -1975,11 +1970,7 @@ export function ProgramEditor() {
 
   const runArmed = simulationDirty
 
-  /* the archive preview is the last exact completed run, not the current
-     authored tree with an older result attached. it is built only while the
-     saved surface is visible or finishing its exit transition, so ordinary
-     editor changes do not clone a profile or project a rotation for a hidden
-     surface. sharing remains a separate projection of the current editor. */
+  /* build the archive preview from the last completed run while its surface is mounted. */
   const savedSurfaceMounted = showSavedRotationList || drawnSaved || leaving === true
   const liveRotationEntry = useMemo(() => {
     if (
@@ -2361,13 +2352,7 @@ export function ProgramEditor() {
       return
     }
 
-    /*
-      the simulation projection appends the source at the main-section tail so
-      its nodes receive the same display metadata as ordinary additions. move
-      those projected editor nodes into the authored tree through insertNode,
-      which gives append the same after-selection and setup/loop guardrails as
-      the palette.
-    */
+    /* insert projected source nodes through the editor's normal placement rules. */
     const projected = collectSubtrees(projectedSections, appendedIds).filter(canLiftNode)
     if (projected.length === 0) {
       return
@@ -2486,7 +2471,7 @@ export function ProgramEditor() {
     return node
   }, [condChoices, focusedId, rotMembers, seedCondValueAt, showToast, standingCondValueAt])
 
-  // advance the insertion anchor so consecutive additions retain their order.
+    // advance the insertion anchor after each addition.
   const addFeatureNode = useCallback((entry: PaletteFeature) => {
     const node = featureNodeFor(entry)
     bump(insertNode(sections, node, selectedId, 'main'), `Add ${entry.label}`)
@@ -2674,9 +2659,7 @@ export function ProgramEditor() {
   }, [actRt, members])
 
   const storeClipboard = useCallback((nodes: readonly EditorNode[]): number => {
-    // mint each occurrence before serialization. repeated loop rows point at
-    // one authored node, but a flattened copy is an unrolled list and every
-    // item in that list needs its own rotation identity.
+    // assign distinct identities to repeated nodes in flattened copies.
     const copiedNodes = nodes.map((node) => cloneNode(node))
     const items = editorNodesToRotation(copiedNodes, baselineRotationItems)
     if (nodes.length === 0 || items.length === 0) return 0
@@ -2720,14 +2703,10 @@ export function ProgramEditor() {
     })
   }, [bump, exitNodeSelectionMode, liftNodes, sections, showToast, storeClipboard])
 
-  // advance the anchor after each paste so copied row order is preserved.
+  // advance the anchor after each pasted node.
   const pasteNodes = useCallback(async (afterId: string | null) => {
-    /*
-      rich editor nodes contain source projection and inspection state. they
-      are safe for exact same-draft placement, but crossing to another
-      context-resonator rotation must rebuild them from the canonical shared
-      rotation node payload against that destination's runtime.
-    */
+    /* cross-context paste rebuilds editor nodes from canonical clipboard data
+       using the destination runtime. */
     if (!clipboard || clipboard.ownerId !== sessionOwnerId) {
       const payload = await readRotClip()
       if (!payload?.items.length) {
@@ -2739,7 +2718,7 @@ export function ProgramEditor() {
         return
       }
 
-      const appended = appendRotationCopies(payload.items)
+      const appended = appendRotationCopies(convertRotationNodesRoverGender(payload.items, useAppStore.getState().ui.preferences.roverGender))
       const appendedIds = new Set(appended.map((node) => node.id))
       const projectedSections = projectAppendedRotation({
         runtime: actRt,
@@ -3331,7 +3310,7 @@ export function ProgramEditor() {
     return blockAverageDamage(selectedBlock, selectedRun, blockRunTotals)
   }, [blockRunTotals, selectedBlock, selectedRun])
 
-  // notes mutate authored metadata only and cannot recursively own other notes.
+  // notes update authored metadata and cannot contain other notes.
   const noteHost = inspectorStep ?? inspectorCondition ?? inspectorHandoff ?? inspectorBlock ?? null
   const attachedNoteActions = (() => {
     if (!noteHost || noteHost.type === 'setup') {
@@ -4060,7 +4039,6 @@ export function ProgramEditor() {
       >
         <i className="rte-leader" ref={leaderRef} aria-hidden="true" />
 
-        {/* key by surface identity so transitions do not remount the leaving tree. */}
         {bankUp ? (
           <div className={`rte-surface ${leaving === true ? 'is-going' : 'is-coming'}`}>
           <Suspense fallback={<AppLoaderOverlay text="Loading saved rotations..." />}><SavedList

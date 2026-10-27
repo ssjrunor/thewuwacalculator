@@ -6,7 +6,7 @@
 import { getGameDataMode } from '@/data/gameData'
 import type { PersistedState } from '@/domain/entities/appState'
 import { WorkerChannel } from '@/shared/lib/WorkerChannel'
-import type { DataImportJob, DataImportResult, DataImportSource } from './dataImport'
+import type { AutoImportResult, DataImportJob, DataImportResult, DataImportSource } from './dataImport'
 import type { DataImportWorkerRequest, DataImportWorkerResponse } from './dataImport.worker'
 
 class DataImportClient {
@@ -16,7 +16,7 @@ class DataImportClient {
     errorMessage: 'Data import worker failed unexpectedly.',
   })
 
-  async run(job: DataImportJob, transfer: Transferable[]): Promise<DataImportResult> {
+  async run(job: DataImportJob, transfer: Transferable[]): Promise<AutoImportResult> {
     const response = await this.channel.request(
       (id) => ({ id, gameDataMode: getGameDataMode(), job }),
       { transfer },
@@ -42,19 +42,25 @@ export async function runDataImport(
 export async function runDataImport(
   kind: 'legacy',
   source: string | File,
+  currentState?: PersistedState,
 ): Promise<DataImportResult & { kind: 'legacy' }>
 export async function runDataImport(
-  kind: 'snapshot' | 'legacy',
+  kind: 'auto',
+  source: string | File,
+  currentState: PersistedState,
+): Promise<AutoImportResult>
+export async function runDataImport(
+  kind: 'snapshot' | 'legacy' | 'auto',
   source: string | File,
   currentState?: PersistedState,
-): Promise<DataImportResult> {
+): Promise<AutoImportResult> {
   const resolvedSource = await makeSource(source)
   let job: DataImportJob
-  if (kind === 'snapshot') {
+  if (kind === 'snapshot' || kind === 'auto') {
     if (!currentState) throw new Error('Current app state is required for snapshot imports.')
     job = { kind, source: resolvedSource, currentState }
   } else {
-    job = { kind, source: resolvedSource }
+    job = { kind, source: resolvedSource, currentState }
   }
 
   // non-browser callers use the same parser and migration path without a worker.

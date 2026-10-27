@@ -11,6 +11,10 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--picker-modal-text) 6%, var(--c-transparent));
 }
 
+.opi-tile[data-in='false']::after {
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--bg) 62%, var(--c-transparent)));
+}
+
 .opi-tile[data-in='false'] > img {
   filter: grayscale(1) contrast(1.06);
   opacity: 0.5;

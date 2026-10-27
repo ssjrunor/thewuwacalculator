@@ -147,7 +147,11 @@ body,
   align-items: center;
   column-gap: clamp(0.7rem, 1.5vw, 1.45rem);
   padding: 0.72rem 2rem 0.78rem;
-  transition: opacity 240ms ease, padding 450ms ease;
+  transition: opacity 240ms ease, padding 450ms ease, background-color 240ms ease;
+}
+
+.ax:has(.gdi-layer-root.is-in) .ax-head {
+  background-color: color-mix(in srgb, var(--bg) 92%, #000);
 }
 
 :root.ax-front .ax-head { padding: 1.5rem 4.5rem 1rem; opacity: 1 }

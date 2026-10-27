@@ -1,11 +1,10 @@
 /*
   Author: Runor Ewhro
-  description: provides scenario-first preparation and evaluation entrypoints.
-               the compatibility runtime projection is confined here while
-               the remaining engine is migrated from ResRuntime state.
+  description: prepares and evaluates scenarios with a compatibility runtime projection.
 */
 
 import type { CombatScenario, TeamMemberId } from '@/domain/entities/combatScenario'
+import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { findCombatPartByMemberId, makeCombatGraph } from '@/engine/runtime/combatGraph'
 import {
@@ -38,7 +37,7 @@ export interface PreparedCombatScenario {
   selectedTargets: Readonly<Record<string, string | null>>
   numericTeam: NumericTeamState | null
   numericLaneByMemberId: Readonly<Record<TeamMemberId, number>>
-  /** object-rich preparation retained for inspection and current ui projections. */
+  /** prepared runtime state for inspection and ui projections. */
   workspace: PrepWork
 }
 
@@ -56,6 +55,7 @@ export interface TeamSimulationResult {
 function prepareProjectedCombatScenario(
   scenario: CombatScenario,
   projection: ScenarioRuntimeProjection,
+  environmentBuffsByMemberId?: CombatGraph['environmentBuffsByMemberId'],
 ): PreparedCombatScenario {
   const subjectMember = scenario.team.members.find(
     (member) => member.id === projection.subjectMemberId,
@@ -79,12 +79,7 @@ function prepareProjectedCombatScenario(
     memberIdByResonatorId: Object.fromEntries(
       scenario.team.members.map((member) => [member.resonatorId, member.id]),
     ),
-    environmentBuffsByMemberId: Object.fromEntries(
-      scenario.team.members.map((member) => [
-        member.id,
-        resolveEnvironmentManualBuffs(scenario.environment, member),
-      ]),
-    ),
+    environmentBuffsByMemberId,
     environmentTargetModifiers: scenario.environment.targetModifiers,
   })
   const initialOnFieldMember = scenario.team.members.find(
@@ -132,7 +127,14 @@ function prepareProjectedCombatScenario(
 export function prepareCombatScenario(
   scenario: CombatScenario,
 ): PreparedCombatScenario {
-  return prepareProjectedCombatScenario(scenario, projectScenarioEngineRuntimes(scenario))
+  return prepareProjectedCombatScenario(
+    scenario,
+    projectScenarioEngineRuntimes(scenario),
+    Object.fromEntries(scenario.team.members.map((member) => [
+      member.id,
+      resolveEnvironmentManualBuffs(scenario.environment, member),
+    ])),
+  )
 }
 
 /**
@@ -142,6 +144,7 @@ export function prepareCombatScenario(
 export function prepareCombatScenarioForUi(
   scenario: CombatScenario,
 ): PreparedCombatScenario {
+  // ui runtimes include manual buffs for editing and skill resolution.
   return prepareProjectedCombatScenario(scenario, projectScenarioUiRuntimes(scenario))
 }
 

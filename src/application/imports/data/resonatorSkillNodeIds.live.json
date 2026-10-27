@@ -1,0 +1,450 @@
+{
+  "1102": {
+    "normalAttack": 1000501,
+    "resonanceSkill": 1000502,
+    "resonanceLiberation": 1000503,
+    "introSkill": 1000506,
+    "forteCircuit": 1000507
+  },
+  "1103": {
+    "normalAttack": 1000401,
+    "resonanceSkill": 1000402,
+    "resonanceLiberation": 1000403,
+    "introSkill": 1000406,
+    "forteCircuit": 1000407
+  },
+  "1104": {
+    "normalAttack": 1001801,
+    "resonanceSkill": 1001802,
+    "resonanceLiberation": 1001803,
+    "introSkill": 1001806,
+    "forteCircuit": 1001807
+  },
+  "1105": {
+    "normalAttack": 1002201,
+    "resonanceSkill": 1002202,
+    "resonanceLiberation": 1002203,
+    "introSkill": 1002206,
+    "forteCircuit": 1002207
+  },
+  "1106": {
+    "normalAttack": 1002401,
+    "resonanceSkill": 1002402,
+    "resonanceLiberation": 1002403,
+    "introSkill": 1002406,
+    "forteCircuit": 1002407
+  },
+  "1107": {
+    "normalAttack": 1002801,
+    "resonanceSkill": 1002802,
+    "resonanceLiberation": 1002803,
+    "introSkill": 1002806,
+    "forteCircuit": 1002807
+  },
+  "1108": {
+    "normalAttack": 1005201,
+    "resonanceSkill": 1005202,
+    "resonanceLiberation": 1005203,
+    "introSkill": 1005206,
+    "forteCircuit": 1005207
+  },
+  "1109": {
+    "normalAttack": 1005001,
+    "resonanceSkill": 1005002,
+    "resonanceLiberation": 1005003,
+    "introSkill": 1005006,
+    "forteCircuit": 1005007
+  },
+  "1110": {
+    "normalAttack": 1005701,
+    "resonanceSkill": 1005702,
+    "resonanceLiberation": 1005703,
+    "introSkill": 1005706,
+    "forteCircuit": 1005707
+  },
+  "1202": {
+    "normalAttack": 1000201,
+    "resonanceSkill": 1000202,
+    "resonanceLiberation": 1000203,
+    "introSkill": 1000206,
+    "forteCircuit": 1000207
+  },
+  "1203": {
+    "normalAttack": 1000701,
+    "resonanceSkill": 1000702,
+    "resonanceLiberation": 1000703,
+    "introSkill": 1000706,
+    "forteCircuit": 1000707
+  },
+  "1204": {
+    "normalAttack": 1001201,
+    "resonanceSkill": 1001202,
+    "resonanceLiberation": 1001203,
+    "introSkill": 1001206,
+    "forteCircuit": 1001207
+  },
+  "1205": {
+    "normalAttack": 1002101,
+    "resonanceSkill": 1002102,
+    "resonanceLiberation": 1002103,
+    "introSkill": 1002106,
+    "forteCircuit": 1002107
+  },
+  "1206": {
+    "normalAttack": 1002901,
+    "resonanceSkill": 1002902,
+    "resonanceLiberation": 1002903,
+    "introSkill": 1002906,
+    "forteCircuit": 1002907
+  },
+  "1207": {
+    "normalAttack": 1003601,
+    "resonanceSkill": 1003602,
+    "resonanceLiberation": 1003603,
+    "introSkill": 1003606,
+    "forteCircuit": 1003607
+  },
+  "1208": {
+    "normalAttack": 1004001,
+    "resonanceSkill": 1004002,
+    "resonanceLiberation": 1004003,
+    "introSkill": 1004006,
+    "forteCircuit": 1004007
+  },
+  "1209": {
+    "normalAttack": 1004401,
+    "resonanceSkill": 1004402,
+    "resonanceLiberation": 1004403,
+    "introSkill": 1004406,
+    "forteCircuit": 1004407
+  },
+  "1210": {
+    "normalAttack": 1004601,
+    "resonanceSkill": 1004602,
+    "resonanceLiberation": 1004603,
+    "introSkill": 1004606,
+    "forteCircuit": 1004607
+  },
+  "1211": {
+    "normalAttack": 1005301,
+    "resonanceSkill": 1005302,
+    "resonanceLiberation": 1005303,
+    "introSkill": 1005306,
+    "forteCircuit": 1005307
+  },
+  "1212": {
+    "normalAttack": 1005901,
+    "resonanceSkill": 1005902,
+    "resonanceLiberation": 1005903,
+    "introSkill": 1005906,
+    "forteCircuit": 1005907
+  },
+  "1301": {
+    "normalAttack": 1001401,
+    "resonanceSkill": 1001402,
+    "resonanceLiberation": 1001403,
+    "introSkill": 1001406,
+    "forteCircuit": 1001407
+  },
+  "1302": {
+    "normalAttack": 1001501,
+    "resonanceSkill": 1001502,
+    "resonanceLiberation": 1001503,
+    "introSkill": 1001506,
+    "forteCircuit": 1001507
+  },
+  "1303": {
+    "normalAttack": 1001601,
+    "resonanceSkill": 1001602,
+    "resonanceLiberation": 1001603,
+    "introSkill": 1001606,
+    "forteCircuit": 1001607
+  },
+  "1304": {
+    "normalAttack": 1002001,
+    "resonanceSkill": 1002002,
+    "resonanceLiberation": 1002003,
+    "introSkill": 1002006,
+    "forteCircuit": 1002007
+  },
+  "1305": {
+    "normalAttack": 1002301,
+    "resonanceSkill": 1002302,
+    "resonanceLiberation": 1002303,
+    "introSkill": 1002306,
+    "forteCircuit": 1002307
+  },
+  "1306": {
+    "normalAttack": 1003901,
+    "resonanceSkill": 1003902,
+    "resonanceLiberation": 1003903,
+    "introSkill": 1003906,
+    "forteCircuit": 1003907
+  },
+  "1307": {
+    "normalAttack": 1004301,
+    "resonanceSkill": 1004302,
+    "resonanceLiberation": 1004303,
+    "introSkill": 1004306,
+    "forteCircuit": 1004307
+  },
+  "1308": {
+    "normalAttack": 1004801,
+    "resonanceSkill": 1004802,
+    "resonanceLiberation": 1004803,
+    "introSkill": 1004806,
+    "forteCircuit": 1004807
+  },
+  "1309": {
+    "normalAttack": 1005501,
+    "resonanceSkill": 1005502,
+    "resonanceLiberation": 1005503,
+    "introSkill": 1005506,
+    "forteCircuit": 1005507
+  },
+  "1310": {
+    "normalAttack": 1005501,
+    "resonanceSkill": 1005502,
+    "resonanceLiberation": 1005503,
+    "introSkill": 1005506,
+    "forteCircuit": 1005507
+  },
+  "1311": {
+    "normalAttack": 1006101,
+    "resonanceSkill": 1006102,
+    "resonanceLiberation": 1006103,
+    "introSkill": 1006106,
+    "forteCircuit": 1006107
+  },
+  "1312": {
+    "normalAttack": 1006201,
+    "resonanceSkill": 1006202,
+    "resonanceLiberation": 1006203,
+    "introSkill": 1006206,
+    "forteCircuit": 1006207
+  },
+  "1402": {
+    "normalAttack": 1000101,
+    "resonanceSkill": 1000102,
+    "resonanceLiberation": 1000103,
+    "introSkill": 1000106,
+    "forteCircuit": 1000107
+  },
+  "1403": {
+    "normalAttack": 1001001,
+    "resonanceSkill": 1001002,
+    "resonanceLiberation": 1001003,
+    "introSkill": 1001006,
+    "forteCircuit": 1001007
+  },
+  "1404": {
+    "normalAttack": 1001101,
+    "resonanceSkill": 1001102,
+    "resonanceLiberation": 1001103,
+    "introSkill": 1001106,
+    "forteCircuit": 1001107
+  },
+  "1405": {
+    "normalAttack": 1001901,
+    "resonanceSkill": 1001902,
+    "resonanceLiberation": 1001903,
+    "introSkill": 1001906,
+    "forteCircuit": 1001907
+  },
+  "1406": {
+    "normalAttack": 1003201,
+    "resonanceSkill": 1003202,
+    "resonanceLiberation": 1003203,
+    "introSkill": 1003206,
+    "forteCircuit": 1003207
+  },
+  "1407": {
+    "normalAttack": 1003401,
+    "resonanceSkill": 1003402,
+    "resonanceLiberation": 1003403,
+    "introSkill": 1003406,
+    "forteCircuit": 1003407
+  },
+  "1408": {
+    "normalAttack": 1003201,
+    "resonanceSkill": 1003202,
+    "resonanceLiberation": 1003203,
+    "introSkill": 1003206,
+    "forteCircuit": 1003207
+  },
+  "1409": {
+    "normalAttack": 1003501,
+    "resonanceSkill": 1003502,
+    "resonanceLiberation": 1003503,
+    "introSkill": 1003506,
+    "forteCircuit": 1003507
+  },
+  "1410": {
+    "normalAttack": 1003801,
+    "resonanceSkill": 1003802,
+    "resonanceLiberation": 1003803,
+    "introSkill": 1003806,
+    "forteCircuit": 1003807
+  },
+  "1411": {
+    "normalAttack": 1004101,
+    "resonanceSkill": 1004102,
+    "resonanceLiberation": 1004103,
+    "introSkill": 1004106,
+    "forteCircuit": 1004107
+  },
+  "1412": {
+    "normalAttack": 1005101,
+    "resonanceSkill": 1005102,
+    "resonanceLiberation": 1005103,
+    "introSkill": 1005106,
+    "forteCircuit": 1005107
+  },
+  "1413": {
+    "normalAttack": 1005801,
+    "resonanceSkill": 1005802,
+    "resonanceLiberation": 1005803,
+    "introSkill": 1005806,
+    "forteCircuit": 1005807
+  },
+  "1501": {
+    "normalAttack": 1000601,
+    "resonanceSkill": 1000602,
+    "resonanceLiberation": 1000603,
+    "introSkill": 1000606,
+    "forteCircuit": 1000607
+  },
+  "1502": {
+    "normalAttack": 1000601,
+    "resonanceSkill": 1000602,
+    "resonanceLiberation": 1000603,
+    "introSkill": 1000606,
+    "forteCircuit": 1000607
+  },
+  "1503": {
+    "normalAttack": 1000301,
+    "resonanceSkill": 1000302,
+    "resonanceLiberation": 1000303,
+    "introSkill": 1000306,
+    "forteCircuit": 1000307
+  },
+  "1504": {
+    "normalAttack": 1002601,
+    "resonanceSkill": 1002602,
+    "resonanceLiberation": 1002603,
+    "introSkill": 1002606,
+    "forteCircuit": 1002607
+  },
+  "1505": {
+    "normalAttack": 1002501,
+    "resonanceSkill": 1002502,
+    "resonanceLiberation": 1002503,
+    "introSkill": 1002506,
+    "forteCircuit": 1002507
+  },
+  "1506": {
+    "normalAttack": 1003001,
+    "resonanceSkill": 1003002,
+    "resonanceLiberation": 1003003,
+    "introSkill": 1003006,
+    "forteCircuit": 1003007
+  },
+  "1507": {
+    "normalAttack": 1003301,
+    "resonanceSkill": 1003302,
+    "resonanceLiberation": 1003303,
+    "introSkill": 1003306,
+    "forteCircuit": 1003307
+  },
+  "1508": {
+    "normalAttack": 1004201,
+    "resonanceSkill": 1004202,
+    "resonanceLiberation": 1004203,
+    "introSkill": 1004206,
+    "forteCircuit": 1004207
+  },
+  "1509": {
+    "normalAttack": 1004501,
+    "resonanceSkill": 1004502,
+    "resonanceLiberation": 1004503,
+    "introSkill": 1004506,
+    "forteCircuit": 1004507
+  },
+  "1510": {
+    "normalAttack": 1004701,
+    "resonanceSkill": 1004702,
+    "resonanceLiberation": 1004703,
+    "introSkill": 1004706,
+    "forteCircuit": 1004707
+  },
+  "1511": {
+    "normalAttack": 1004901,
+    "resonanceSkill": 1004902,
+    "resonanceLiberation": 1004903,
+    "introSkill": 1004906,
+    "forteCircuit": 1004907
+  },
+  "1601": {
+    "normalAttack": 1000901,
+    "resonanceSkill": 1000902,
+    "resonanceLiberation": 1000903,
+    "introSkill": 1000906,
+    "forteCircuit": 1000907
+  },
+  "1602": {
+    "normalAttack": 1000801,
+    "resonanceSkill": 1000802,
+    "resonanceLiberation": 1000803,
+    "introSkill": 1000806,
+    "forteCircuit": 1000807
+  },
+  "1603": {
+    "normalAttack": 1001301,
+    "resonanceSkill": 1001302,
+    "resonanceLiberation": 1001303,
+    "introSkill": 1001306,
+    "forteCircuit": 1001307
+  },
+  "1604": {
+    "normalAttack": 1001701,
+    "resonanceSkill": 1001702,
+    "resonanceLiberation": 1001703,
+    "introSkill": 1001706,
+    "forteCircuit": 1001707
+  },
+  "1605": {
+    "normalAttack": 1001701,
+    "resonanceSkill": 1001702,
+    "resonanceLiberation": 1001703,
+    "introSkill": 1001706,
+    "forteCircuit": 1001707
+  },
+  "1606": {
+    "normalAttack": 1002701,
+    "resonanceSkill": 1002702,
+    "resonanceLiberation": 1002703,
+    "introSkill": 1002706,
+    "forteCircuit": 1002707
+  },
+  "1607": {
+    "normalAttack": 1003101,
+    "resonanceSkill": 1003102,
+    "resonanceLiberation": 1003103,
+    "introSkill": 1003106,
+    "forteCircuit": 1003107
+  },
+  "1608": {
+    "normalAttack": 1003701,
+    "resonanceSkill": 1003702,
+    "resonanceLiberation": 1003703,
+    "introSkill": 1003706,
+    "forteCircuit": 1003707
+  },
+  "1610": {
+    "normalAttack": 1005401,
+    "resonanceSkill": 1005402,
+    "resonanceLiberation": 1005403,
+    "introSkill": 1005406,
+    "forteCircuit": 1005407
+  }
+}

@@ -19,7 +19,7 @@ import {
   buildWorkspacePane,
   rotationPane,
 } from '@/modules/simulation/shell/surfaceChunks'
-import { ImportSurfaceProvider } from '@/modules/simulation/shell/imports/ImportSurface.tsx'
+import { ImportSurfaceProvider } from '@/modules/simulation/shell/imports/Surface.tsx'
 import { ShareLinkWatcher } from '@/modules/simulation/shell/imports/ShareLinkWatcher.tsx'
 import { useSimulationSurface } from '@/modules/simulation/shell/simulationSurface'
 import { SkllDataProv } from '@/modules/simulation/features/resonator/SkillDataHost'

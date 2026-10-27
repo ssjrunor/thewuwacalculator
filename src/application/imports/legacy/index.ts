@@ -12,6 +12,7 @@ import type { TeamMemRt, TeamSlots, TraceNodeBuffs, WeaponState } from '@/domain
 import type { AttributeKey, SkillTypeKey } from '@/domain/entities/stats'
 import { makeAppState, makeResProfile, makeSuggest, makeCustomBuff, makeEnemy, makeTeamMember, makeTraceNode, normProfTeam } from '@/engine/runtime/defaults'
 import { initAppState } from '@/engine/runtime/defaults'
+import { convertStateRoverGender } from '@/application/state/roverGenderConversion'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { cnvrLegEchoL } from './echoes'
@@ -128,8 +129,7 @@ function mapLegCustBf(raw: JsonRecord): ManualBuffs {
   manualBuffs.quick.energyRegen = coerceNumber(raw.energyRegen) ?? 0
   manualBuffs.quick.healingBonus = coerceNumber(raw.healingBonus) ?? 0
 
-  // skill and attribute bonuses become regular manual modifiers so imported
-  // buffs participate in the same resolver path as newly-authored buffs.
+  // convert skill and attribute bonuses to manual modifiers.
   const modifiers: MnlMod[] = []
 
   for (const [field, skillType] of Object.entries(OLD_SKILL_BUFF)) {
@@ -218,8 +218,7 @@ function mkLegEnemyPr(charInfo: JsonRecord) {
   const level = clampNumber(Math.round(coerceNumber(charInfo.enemyLevel) ?? enemy.level), 1, 150)
   const resistance = coerceNumber(charInfo.enemyRes)
 
-  // legacy enemy resistance was one scalar, so mirror it into every attribute
-  // slot expected by the current enemy profile contract.
+  // map legacy scalar resistance to every attribute slot.
   return {
     ...enemy,
     level,
@@ -301,8 +300,7 @@ function mkLegInvBlds(
       return []
     }
 
-    // rebuild the missing weapon defaults from the current catalog so old echo
-    // presets can omit fields that did not exist when the backup was created.
+    // fill missing legacy weapon fields from current catalog defaults.
     const baseProfile = makeResProfile(seed)
     const state = statesById[resonatorId]
     const weaponState = isRecord(state?.CombatState) ? state.CombatState : {}
@@ -434,8 +432,7 @@ export function mprtLegAppSt(
   const mprtProfIds: string[] = []
   const skppProfIds: string[] = []
 
-  // import profiles first so session, suggestions, and inventory builds can
-  // reference only ids that survived current-catalog validation.
+  // validate profiles before resolving session, suggestion, and build references.
   for (const [resonatorId, legacyState] of Object.entries(statesById)) {
     const converted = cnvrLegCharS(
       resonatorId,
@@ -460,9 +457,8 @@ export function mprtLegAppSt(
     ?? mprtProfIds[0]
     ?? selectedCombatScenario(baseState.combat).team.members[0]?.resonatorId
 
-  // initialize again after composing the snapshot so any missing new domains
-  // are filled from current defaults without preserving stale optimizer state.
-  const snapshot = initAppState({
+  // initialize missing domains from current defaults and discard stale optimizer state.
+  const snapshot = convertStateRoverGender(initAppState({
     ...baseState,
     // legacy backups define their encounter through imported profiles/session;
     // the default scenario must not override that migration input.
@@ -485,7 +481,7 @@ export function mprtLegAppSt(
       weaponSuggests: baseState.simulation.weaponSuggests,
       suggestionsByResonatorId: suggsByResId,
     },
-  })
+  }))
 
   const report: LegMprtRprt = {
     importedProfileIds: mprtProfIds,

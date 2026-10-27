@@ -51,7 +51,7 @@ export interface WnEntry {
 }
 
 export interface ChngRcrd {
-  /** Required for the latest notice; keep this ID when editing a published entry. */
+  /** stable id for the latest notice and published entries. */
   id?: string
   date: string
   shortDesc?: string
@@ -1222,6 +1222,43 @@ export const curChngEnts: ChngRcrd[] = [
       }
     ],
     shortDesc: `3.8.1 beta update (,; ⩌ ;,)`,
+  },
+  {
+    id: '2026-10-27-16-26',
+    date: '27/10/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          new <strong>Mornye Tools</strong> import. import your resonators, weapons, and Echoes from a <strong>Mornye Tools</strong> export; also, the app header’s wuwa bot card import button becomes a menu for game data, build-card screenshots, and shared rotations. app backup import area also accepts these formats.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          imported builds, rotations, screenshots, and backups now consistently resolve to your selected Rover gender, including related skills, buffs, and saved settings (they lowkey didn't before now haha..)
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          for the <strong>opimizer</strong>, results consistently use the weapon selected by the search. rotation constraints and displayed rows use the final set of stats. retained results receive more precise cpu rescoring, and a result deduplication bug during table growth is fixed
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          corrected manual buff calculations. they were being counted twice in some calculations, which could inflate displayed stats and damage.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          corrected Hecate sonata options. Hecate now supports all its seven valid Sonata sets.
+        `,
+      }
+    ],
+    shortDesc: `full(-ish) game data import`,
   },
 ]
 
