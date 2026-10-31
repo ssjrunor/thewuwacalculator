@@ -8,7 +8,10 @@
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { SkillDef } from '@/domain/entities/stats.ts'
 import type { CompTargetSkill } from '@/engine/search/context/compiled.ts'
-import { isLilyErCritSkill, lilyExcessEr } from '@/engine/search/score/lily'
+import {
+  isLilyErCritSkill, lilyExcessEr, lilySupportEr, lilyAromaStacks,
+  LILY_AROMA_SHIFT, LILY_SILVERED_BIT,
+} from '@/engine/search/score/lily'
 import { getNegBase } from '@/engine/formulas/negativeEffects.ts'
 import {
   MAX_ECHO_COST,
@@ -71,6 +74,12 @@ import {
 // encode a few resonator-specific runtime toggles into a bitmask
 function mkSpecTggl(runtime: ResRuntime, characterId: number): number {
   let toggles = 0
+
+  if (characterId === 1512) {
+    const stacks = Number(runtime.state.controls['resonator:1512:dream_aroma:stacks'] ?? 0)
+    toggles |= Math.max(0, Math.min(4, Math.trunc(stacks))) << LILY_AROMA_SHIFT
+    if (runtime.state.controls['resonator:1512:silvered_dream:active']) toggles |= LILY_SILVERED_BIT
+  }
 
   if (characterId === 1206 && runtime.state.controls['resonator:1206:my_moment:active']) {
     toggles |= 1
@@ -242,6 +251,15 @@ function normPckdCtx(options: {
     const excess = lilyExcessEr(compiled.statFinEr)
     critRate -= excess * 0.5
     critDmg -= excess
+  }
+
+  if (compiled.characterId === 1512) {
+    const supportEr = lilySupportEr(compiled.statFinEr)
+    finalAtk -= compiled.baseAtk * lilyAromaStacks(toggles) * supportEr * 0.001
+    if ((toggles & LILY_SILVERED_BIT) !== 0 && hasSkillType(skill, 'echoSkill')) {
+      critRate -= supportEr / 7
+      critDmg -= supportEr * 2 / 7
+    }
   }
 
   finalAtk -= calcErToAtk(compiled.characterId, compiled.statFinEr, toggle0)

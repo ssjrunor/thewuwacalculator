@@ -44,8 +44,8 @@ function evaluateContext(
   })
 }
 
-// resolve the same representative combat-stat snapshot used by optimizer
-// result rows. rotation damage still scores every weighted context below.
+// resolve a representative combat snapshot for evaluation stat columns.
+// rotation columns show sheet crit; damage still uses each attack's bonuses.
 export function resolveEvaluationStats(
     ctx: SuggestContext,
     build: EncodedEvaluationBuild,

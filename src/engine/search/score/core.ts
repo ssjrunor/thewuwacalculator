@@ -6,7 +6,7 @@
 */
 
 import { ECHO_STAT, MAIN_BUFF } from '@/engine/search/layout/echoLayout'
-import { lilyExcessEr } from '@/engine/search/score/lily'
+import { lilyExcessEr, lilySupportEr, lilyAromaStacks, LILY_SILVERED_BIT } from '@/engine/search/score/lily'
 import { psssCstrs } from '@/engine/search/score/statConstraints.ts'
 import {
   ARCH_AERO,
@@ -285,6 +285,9 @@ export function tgtMainDamage(
     + mainEchoBuffs[mainBase + MAIN_BUFF.atkFlat]
   atk += calcErToAtk(ctx.charId, finalER, ctx.toggle0)
   atk += calcJingranAtk(ctx.charId, ctx.sequence, hp, ctx.jingranEverflow)
+  if (ctx.charId === 1512) {
+    atk += ctx.baseAtk * lilyAromaStacks(ctx.togglesBits) * lilySupportEr(finalER) * 0.001
+  }
 
   // main-echo cr/cd (percent top stats, scaled to the 0..1 crit totals) and
   // the er-derived resonator bonuses
@@ -297,6 +300,11 @@ export function tgtMainDamage(
     const excess = lilyExcessEr(finalER)
     critRateBns += excess * 0.005
     critDmgBns += excess / 100
+  }
+  if (ctx.charId === 1512 && (ctx.togglesBits & LILY_SILVERED_BIT) !== 0 && ((skillMask >>> 6) & 1) !== 0) {
+    const supportEr = lilySupportEr(finalER)
+    critRateBns += supportEr / 700
+    critDmgBns += supportEr / 350
   }
   if (ctx.charId === 1209 && finalER > 0) {
     const erOver = Math.max(0, finalER - 100)

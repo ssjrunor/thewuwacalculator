@@ -18,7 +18,7 @@ export interface CoverageDomain {
 }
 
 export const STATUS_DATA = {
-  lastUpdated: '23/10/2026',
+  lastUpdated: '31/10/2026',
 
   wallpaper: {
     src: '/assets/app/phoebeW.webp',
@@ -33,8 +33,8 @@ export const STATUS_DATA = {
   ],
   notes: [
     'hello my pookie wookiesss~! (∩˃o˂∩)♡',
-    'you can import compatible Mornye Tools exports. (click the import button to see more about it).',
-    'made some minor fixes here and there... nothing too crazy yk?'
+    'updated lily\'s effects for 3.8.3 beta',
+    'happy halloween...',
   ],
   // consumers join these status records with live catalog counts by key.
   coverage: [
@@ -44,7 +44,7 @@ export const STATUS_DATA = {
     { key: 'enemies',    title: 'Enemies',    status: 'ok', note: '' },
   ] as CoverageDomain[],
   recentChanges: [
-    'added mornye tools game data import.',
+    '3.8.3 beta update.',
   ],
 
   knownIssues: [] as string[]

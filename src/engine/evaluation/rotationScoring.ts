@@ -27,12 +27,15 @@ const frames = new WeakMap<RotSuggCtx, Map<string, (stats: Float32Array) => Deta
 
 function invocationStats({ finalPlane: plane, finalOffset: offset, skill }: DamageInvocation): OptResultStats {
   const at = (cell: number) => plane[offset + cell] ?? 0
-  const layered = (field: 'critRate' | 'critDmg' | 'dmgBonus' | 'amplify') =>
+  const layered = (field: 'dmgBonus' | 'amplify') =>
     at(finalTopCell(field)) + at(finalAttributeCell('all', field)) + at(finalAttributeCell(skill.element, field))
     + at(finalSkillTypeCell('all', field)) + [...new Set(skill.skillType)].filter(type => type !== 'all')
       .reduce((total, type) => total + at(finalSkillTypeCell(type, field)), 0) + (skill.skillBuffs?.[field] ?? 0)
   return { atk: at(finalCoreCell('atk', 'final')), hp: at(finalCoreCell('hp', 'final')), def: at(finalCoreCell('def', 'final')),
-    cr: layered('critRate'), cd: layered('critDmg'), er: at(finalTopCell('energyRegen')), bonus: layered('dmgBonus'), amp: layered('amplify') }
+    // Anchor stat columns share the combat sheet's Crit Rate and Crit DMG.
+    // Element, skill-type, and individual attack bonuses belong to damage only.
+    cr: at(finalTopCell('critRate')), cd: at(finalTopCell('critDmg')),
+    er: at(finalTopCell('energyRegen')), bonus: layered('dmgBonus'), amp: layered('amplify') }
 }
 
 export function evaluationRotationDetails(ctx: RotSuggCtx, build: Omit<EncodedEvaluationBuild, 'stats' | 'echoes' | 'mainEchoBuffs'> & { echoes: readonly EchoInstance[] }, stats: Float32Array): Details {

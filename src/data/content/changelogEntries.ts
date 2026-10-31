@@ -1260,6 +1260,25 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `full(-ish) game data import`,
   },
+  {
+    id: '2026-10-31-19-37',
+    date: '31/10/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.8.3 beta data</strong> has been updated.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          happy halloween... hope you're having fun.
+        `,
+      }
+    ],
+    shortDesc: `3.8.3 beta update`,
+  },
 ]
 
 export const ltstCurChngE =

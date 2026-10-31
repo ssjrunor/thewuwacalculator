@@ -878,6 +878,11 @@ fn evalMainPos(
         finalAtk += extraAtk;
     }
 
+    if (isChar(pre.charId, 1512.0)) {
+        let aromaStacks = f32((bitcast<u32>(pre.toggles) >> 1u) & 7u);
+        finalAtk += pre.baseAtk * aromaStacks * clamp(finalER - 190.0, 0.0, 70.0) * 0.001;
+    }
+
     if (isChar(pre.charId, 1212.0)) {
         var extraAtk = min(max(pre.finalHpBase * 0.036, 0.0), 1800.0);
         if (decodeSequence(params) >= 3.0 && jingranEverflow(pre.toggles)) {
@@ -911,6 +916,12 @@ fn evalMainPos(
         let erOver = max(0.0, finalER - 100.0);
         critRateForDmg += min(erOver * 0.5, 80.0) * INV_100;
         critDmgForDmg += min(erOver, 160.0) * INV_100;
+    }
+
+    if (isChar(pre.charId, 1512.0) && toggleValue(pre.toggles, 4u) == 1.0 && ((mask >> 6u) & 1u) != 0u) {
+        let supportEr = clamp(finalER - 190.0, 0.0, 70.0);
+        critRateForDmg += supportEr / 700.0;
+        critDmgForDmg += supportEr / 350.0;
     }
 
     // 1209 er-based bonuses

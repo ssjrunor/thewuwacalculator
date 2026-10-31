@@ -477,6 +477,10 @@
   right: 0;
 }
 
+.hm-split--single .hm-half { clip-path: none; }
+
+.hm-split--single .hm-half .hm-half__art { width: 100%; }
+
 .hm-half__stage {
   position: absolute;
   top: 0;

@@ -10,7 +10,7 @@ const DB_VERSION = 1
 // persisted anchors encode scoring-engine and generated-data assumptions that
 // are not fully represented by a user's runtime. bump this whenever those
 // assumptions change so an older bundle cannot grade a current build.
-export const EVALUATION_ANCHOR_CACHE_REVISION = 9
+export const EVALUATION_ANCHOR_CACHE_REVISION = 10
 // anchor bundles contain compact scoring inputs. keep persistence bounded too;
 // the in-memory lru remains the hot path and a miss is preferable to retaining
 // an unbounded catalog of stale reports on disk.

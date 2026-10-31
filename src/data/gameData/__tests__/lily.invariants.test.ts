@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: protects Lily's conditional packet curves, recipient routing,
+  description: protects Lily's packet curves, recipient routing,
                and candidate-dependent Energy Regen crit calculations.
 */
 
@@ -8,10 +8,10 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { initGameData } from '@/data/gameData'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
 import { getResGameDa } from '@/data/catalog/resonatorCatalogService'
-import { getDefaultRotation } from '@/data/catalog/gameDataService'
+import { getDefaultRotation, listSkillsFor } from '@/data/catalog/gameDataService'
 import { makeEnemy, mkMaxResRt } from '@/engine/runtime/defaults'
 import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
-import { prepSkill } from '@/engine/pipeline/prepareRuntimeSkill'
+import { prepSkill, prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 import { calcSkillDamage } from '@/engine/formulas/damage'
 import { makeOptContext } from '@/engine/search/context/compiled'
@@ -23,6 +23,7 @@ import type { ResRuntime } from '@/domain/entities/runtime'
 import type { EffectScope, SrcPkg } from '@/domain/gameData/contracts'
 import { evalCond } from '@/engine/effects/evaluator'
 import { applySkllOp } from '@/engine/effects/dataEffects'
+import { forkNumericTeam, materializeNumericLane, writeNumericRuntime } from '@/engine/effects/numericTeam'
 import betaSourcesRaw from '../../../../public/data/beta/resonators/sources.json?raw'
 import betaWeaponsRaw from '../../../../public/data/beta/weapons/sources.json?raw'
 import liveCatalog from '../../../../public/data/live/resonators/catalog.json'
@@ -41,10 +42,15 @@ function runtimeFor(id = '1512', sequence = 0): ResRuntime {
 
 function prepare(runtime: ResRuntime, skillId: string, runtimes: Record<string, ResRuntime> = {}) {
   const prepared = prepSkill({
-    runtime, skillId, seed: getResSeedBy(runtime.id)!, enemy,
+    runtime, skillId: skillId.startsWith('echo:') ? '1512001' : skillId, seed: getResSeedBy(runtime.id)!, enemy,
     runtimesById: makeRuntimeMap(runtime, runtimes),
   })
   if (!prepared) throw new Error(`Missing skill ${skillId}`)
+  if (skillId.startsWith('echo:')) {
+    const skill = listSkillsFor('echo', '6000052').find((entry) => entry.id === skillId)
+    if (!skill) throw new Error(`Missing Echo skill ${skillId}`)
+    return { context: prepared.context, skill: prprRtSkll(runtime, skill, prepared.context) }
+  }
   return prepared
 }
 
@@ -63,7 +69,7 @@ describe('Lily beta contracts', () => {
 
   it('uses HP only for finishers and support rows, preserving ATK channel damage', () => {
     const skills = getResGameDa('1512')!.skills
-    for (const id of ['1512011', '1512012', '1512020', '1512015', '1512016', '1512023', '1512:flowers-for-you:shield']) {
+    for (const id of ['1512011', '1512012', '1512027', '1512028', '1512020', '1512015', '1512016', '1512023', '1512:flowers-for-you:shield', '1512:into-the-dream-cradle:shield']) {
       expect(skills.find((skill) => skill.id === id)?.scaling, id).toEqual({ atk: 0, hp: 1, def: 0, energyRegen: 0 })
     }
     for (const id of ['1512013', '1512014']) {
@@ -73,21 +79,21 @@ describe('Lily beta contracts', () => {
     }
   })
 
-  it('selects S5 packet replacements once and adds S6 damage only to the three finishers', () => {
+  it('keeps S5 free of damage increases and adds 400% S6 damage only to the three finishers', () => {
     for (const id of ['1512015', '1512016', '1512023']) {
       const base = prepare(runtimeFor('1512', 0), id).skill
       const s5 = prepare(runtimeFor('1512', 5), id).skill
       const s6 = prepare(runtimeFor('1512', 6), id).skill
-      expect(s5.multiplier).toBeCloseTo(base.multiplier * 1.4, 3)
+      expect(s5.multiplier).toBe(base.multiplier)
       expect(s6.multiplier).toBe(s5.multiplier)
-      expect(s6.skillBuffs?.dmgBonus).toBe((s5.skillBuffs?.dmgBonus ?? 0) + 500)
-      expect(s5.damageEntries?.filter((entry) => entry.replacesEntryId)).toHaveLength(1)
+      expect(s6.skillBuffs?.dmgBonus).toBe((s5.skillBuffs?.dmgBonus ?? 0) + 400)
+      expect(s5.damageEntries?.some((entry) => entry.replacesEntryId) ?? false).toBe(false)
     }
     expect(prepare(runtimeFor('1512', 6), '1512014').skill.skillBuffs?.dmgBonus ?? 0).toBe(0)
   })
 
   it('adds S3 and S4 healing without affecting the shield or unrelated skills', () => {
-    for (const [id, extra] of [['1512011', 80], ['1512012', 80], ['1512020', 30]] as const) {
+    for (const [id, extra] of [['1512011', 80], ['1512012', 80], ['1512027', 80], ['1512028', 80], ['1512020', 30]] as const) {
       const base = prepare(runtimeFor('1512', 0), id).skill
       const s4 = prepare(runtimeFor('1512', 4), id).skill
       expect(s4.skillHealingBonus).toBe((base.skillHealingBonus ?? 0) + extra)
@@ -95,8 +101,10 @@ describe('Lily beta contracts', () => {
     expect(prepare(runtimeFor('1512', 6), '1512:flowers-for-you:shield').skill.skillShieldBonus ?? 0).toBe(0)
   })
 
-  it('caps Dream Aroma and grants Silvered Dream ATK only to eligible Unison recipients', () => {
+  it.each([180, 190, 225, 260, 300])('uses Lily ER for team buffs and preserves Unison eligibility at %s ER', (totalEr) => {
     const lily = runtimeFor('1512', 2)
+    const initialEr = prepare(lily, '1512001').context.finalStats.energyRegen
+    lily.state.manualBuffs.quick.energyRegen = totalEr - initialEr
     lily.state.controls['resonator:1512:dream_aroma:stacks'] = 4
     lily.state.controls['resonator:1512:silvered_dream:active'] = true
     lily.state.controls['outroSkill:1512:outro:active'] = true
@@ -112,10 +120,51 @@ describe('Lily beta contracts', () => {
     const withBuffs = prepare(target, '1312001', { '1512': lily }).context.finalStats
     const off = { ...lily, state: { ...lily.state, controls: {} } }
     const without = prepare(target, '1312001', { '1512': off }).context.finalStats
-    expect(withBuffs.atk.final - without.atk.final).toBeCloseTo(without.atk.base * 0.56)
+    const supportEr = Math.min(Math.max(0, totalEr - 190), 70)
+    expect(withBuffs.atk.final - without.atk.final).toBeCloseTo(without.atk.base * supportEr * 0.008)
+    expect(withBuffs.skillType.echoSkill.critRate - without.skillType.echoSkill.critRate).toBeCloseTo(supportEr / 7)
+    expect(withBuffs.skillType.echoSkill.critDmg - without.skillType.echoSkill.critDmg).toBeCloseTo(supportEr * 2 / 7)
     expect(withBuffs.critRate - without.critRate).toBeCloseTo(8)
     expect(withBuffs.critDmg - without.critDmg).toBeCloseTo(24)
     expect(withBuffs.amplify - without.amplify).toBeCloseTo(25)
+    const highErTarget = { ...target, state: { ...target.state, manualBuffs: {
+      ...target.state.manualBuffs, quick: { ...target.state.manualBuffs.quick, energyRegen: 200 },
+    } } }
+    const recipientBuffs = prepare(highErTarget, '1312001', { '1512': lily }).context.finalStats
+    expect(recipientBuffs.atk.final).toBeCloseTo(withBuffs.atk.final)
+    expect(recipientBuffs.skillType.echoSkill.critRate).toBeCloseTo(withBuffs.skillType.echoSkill.critRate)
+  })
+
+  it('uses the new healing tables and distinct HP shields', () => {
+    const lily = runtimeFor()
+    const base = prepare(lily, '1512011').skill
+    const wish = prepare(lily, '1512027').skill
+    expect(base.multiplier).toBeCloseTo(0.007)
+    expect(base.flat).toBe(351)
+    expect(wish.multiplier).toBeCloseTo(0.0353)
+    expect(wish.flat).toBe(1758)
+    expect(prepare(lily, '1512:into-the-dream-cradle:shield').skill.multiplier).toBe(1)
+    expect(prepare(lily, '1512:flowers-for-you:shield').skill.multiplier).toBe(0.1)
+    expect(prepare(lily, '1512014').skill.hits).toMatchObject([{ count: 23, multiplier: 0.2161 }])
+  })
+
+  it('updates recipient buffs after Lily ER changes within an existing numeric team', () => {
+    const lily = runtimeFor()
+    const initialEr = prepare(lily, '1512001').context.finalStats.energyRegen
+    lily.state.manualBuffs.quick.energyRegen = 225 - initialEr
+    lily.state.controls['resonator:1512:dream_aroma:stacks'] = 4
+    lily.state.controls['resonator:1512:silvered_dream:active'] = true
+    lily.state.teamEffects = { unisonBoon: 4, unisonBoonMax: 4, unisonBoonPerStack: 3 }
+    const target = runtimeFor('1312')
+    target.build.team = [target.id, lily.id, null]
+    const context = prepare(target, '1312001', { [lily.id]: lily }).context
+    const numeric = forkNumericTeam(context.numericTeam!)
+    const before = materializeNumericLane(numeric, context.numericLane!).finalStats
+    writeNumericRuntime(numeric, lily.id, 'state.manualBuffs.quick.energyRegen', 260 - initialEr)
+    const after = materializeNumericLane(numeric, context.numericLane!).finalStats
+    expect(after.atk.final - before.atk.final).toBeCloseTo(before.atk.base * 0.28)
+    expect(after.skillType.echoSkill.critRate - before.skillType.echoSkill.critRate).toBeCloseTo(5)
+    expect(after.skillType.echoSkill.critDmg - before.skillType.echoSkill.critDmg).toBeCloseTo(10)
   })
 
   it('requires Soothed Soul for Lullaby ATK and routes its Echo bonus to the active recipient', () => {
@@ -140,9 +189,11 @@ describe('Lily beta contracts', () => {
     expect(weapon.effects?.map((effect) => effect.targetScope)).toEqual(['self', 'active', 'active'])
   })
 
-  it.each([0, 60, 180])('recomputes packed crit from candidate ER below and above the cap (+%s ER)', (extraEr) => {
+  it.each([0, 60, 180])('recomputes packed damage from candidate ER below and above the cap (+%s ER)', (extraEr) => {
     const baseRuntime = runtimeFor()
-    for (const id of ['1512015', '1512016', '1512023', '1512001', '1512014']) {
+    baseRuntime.state.controls['resonator:1512:dream_aroma:stacks'] = 4
+    baseRuntime.state.controls['resonator:1512:silvered_dream:active'] = true
+    for (const id of ['1512015', '1512016', '1512023', '1512001', '1512014', 'echo:6000052:skill:1']) {
       const prepared = prepare(baseRuntime, id)
       const compiled = makeOptContext({
         resonatorId: '1512', runtime: baseRuntime, skill: prepared.skill,

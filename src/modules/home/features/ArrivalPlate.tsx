@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: coordinates paired arrival data, artwork fallback, one-time
+  description: coordinates arrival data, artwork fallback, one-time
                activation, pointer-derived motion, shared active selection,
                and opening held arrivals on modulation.
 */
@@ -179,14 +179,14 @@ export function ArrivalPlate({ arrivals, reading, onLit, still }: ArrivalPlatePr
   }], [light, open, showToast])
   useMenuContributions('home.arrival', contributions)
 
-  if (pair.length < 2) return null
+  if (!left) return null
 
   return (
     <div
-      className={`hm-split${swept ? '' : ' is-shut'}`}
+      className={`hm-split${right ? '' : ' hm-split--single'}${swept ? '' : ' is-shut'}`}
       ref={plate}
       data-lit={lit ?? undefined}
-      style={{ '--el-l': left.colour, '--el-r': right.colour } as CSSProperties}
+      style={{ '--el-l': left.colour, '--el-r': right?.colour } as CSSProperties}
       onPointerMove={track}
       onPointerLeave={rest}
     >
@@ -220,7 +220,7 @@ export function ArrivalPlate({ arrivals, reading, onLit, still }: ArrivalPlatePr
         )
       })}
 
-      <span className="hm-seam" aria-hidden="true" />
+      {right ? <span className="hm-seam" aria-hidden="true" /> : null}
     </div>
   )
 }
