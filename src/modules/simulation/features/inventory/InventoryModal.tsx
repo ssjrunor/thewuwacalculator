@@ -7,7 +7,7 @@
 import { DisplayImage } from '@/shared/ui/DisplayImage'
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties as CssProps, HTMLAttributes as HtmlAttrs, KeyboardEvent as KeyboardEvent, MouseEvent as RctMsVnt, ReactNode } from 'react'
-import {ArrowBigDownDash as ArrowDownIcon, Check, ChevronLeft, ChevronRight, Clipboard, Copy, Maximize2, Minimize2, Pencil, Plus, Rows3, Scissors, Search, SlidersHorizontal, Gem, Trash2, X} from 'lucide-react'
+import {ArrowBigDownDash as ArrowDownIcon, Check, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Copy, Maximize2, Minimize2, Pencil, Plus, Rows3, Scissors, Search, SlidersHorizontal, Gem, Trash2, X} from 'lucide-react'
 import { useMobileUi } from '@/shared/responsive/mobileUi'
 import { MobilePages } from '@/shared/ui/mobile/MobilePages'
 import type { SavedEcho, SavedBuild } from '@/domain/entities/inventoryStorage'
@@ -148,8 +148,84 @@ function InventoryPager({
   )
 }
 
+const RUN_OVERSCAN = 3
+
+// mount a collapsed group's tiles near the viewport and render only its visible range.
+function InvRun({ count, render }: { count: number; render: (start: number, end: number) => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [near, setNear] = useState(false)
+  const [span, setSpan] = useState({ start: 0, end: 0, step: 0, gap: 0 })
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // the inventory body scrolls independently of the page viewport.
+    const observer = new IntersectionObserver(
+      ([hit]) => setNear(hit.isIntersecting),
+      { root: el.closest('.inv-body'), rootMargin: '240px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = ref.current
+    const track = trackRef.current
+    if (!el || !track) return
+    // one tile width plus column gap defines the virtual range and overscan.
+    const measure = () => {
+      const style = getComputedStyle(track)
+      const gap = parseFloat(style.columnGap) || 0
+      const step = (parseFloat(style.gridAutoColumns) || 0) + gap
+      if (!(step > 0)) return
+      const start = Math.max(0, Math.floor(el.scrollLeft / step) - RUN_OVERSCAN)
+      const end = Math.min(count, Math.ceil((el.scrollLeft + el.clientWidth) / step) + RUN_OVERSCAN)
+      setSpan((prev) => (
+        prev.start === start && prev.end === end && prev.step === step && prev.gap === gap
+          ? prev
+          : { start, end, step, gap }
+      ))
+    }
+    measure()
+    const resize = new ResizeObserver(measure)
+    resize.observe(el)
+    el.addEventListener('scroll', measure, { passive: true })
+    return () => {
+      resize.disconnect()
+      el.removeEventListener('scroll', measure)
+    }
+  }, [count])
+
+  const live = near && span.end > span.start
+  useEffect(() => {
+    // cache the first mounted row height for collapsed rows outside the viewport.
+    const el = ref.current
+    if (live && el?.offsetHeight) el.parentElement?.style.setProperty('--inv-run-h', `${el.offsetHeight}px`)
+  }, [live])
+
+  // inner-track padding represents unmounted tiles without changing grid column sizes.
+  const end = live ? span.end : span.start
+  const padEnd = live ? (count - end) * span.step : Math.max(0, (count - span.start) * span.step - span.gap)
+
+  return (
+    <div ref={ref} className={`inv-run${live ? ' is-live' : ''}`}>
+      <div
+        ref={trackRef}
+        className="inv-run__track"
+        style={{
+          paddingInlineStart: `calc(0.25rem + ${span.start * span.step}px)`,
+          paddingInlineEnd: `calc(0.25rem + ${padEnd}px)`,
+        }}
+      >
+        {live ? render(span.start, end) : null}
+      </div>
+    </div>
+  )
+}
+
 function getInvEchoDs(entry: SavedEcho) {
-    // tolerate missing catalog entries when sorting saved Echoes.
+  // saved echoes can outlive catalog entries; sort unknown ids by title.
   return getEchoById(entry.echo.id)?.name ?? toTitle(entry.echo.id)
 }
 
@@ -729,6 +805,13 @@ export function InvMdl({
   const [activeTab, setActiveTab] = useState<InventoryTab>('echoes')
   const [echoPage, setEchoPage] = useState(0)
   const [buildPage, setBuildPage] = useState(0)
+  // keep one group expanded and display the remaining groups as scrollable rows.
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  const [openPage, setOpenPage] = useState(0)
+  const toggleGroup = useCallback((key: string) => {
+    setOpenGroup((current) => (current === key ? null : key))
+    setOpenPage(0)
+  }, [])
   const railVisible = useMediaQuery(RESPONSIVE_MEDIA.wideRail)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [echoSearch, setEchoSrch] = useState(initEchoSrch)
@@ -1233,12 +1316,12 @@ export function InvMdl({
 
   const echoPageSize = compact ? COMPACT_ECHO_PAGE_SIZE : EXPANDED_ECHO_PAGE_SIZE
   const pagedEchoes = useMemo(
-    () => paginateInventoryGroups(echoGroups, echoPage, echoPageSize),
-    [echoGroups, echoPage, echoPageSize],
+    () => paginateInventoryGroups(echoGroups, echoPage, grouped ? Math.max(1, filteredBag.length) : echoPageSize),
+    [echoGroups, echoPage, echoPageSize, filteredBag.length, grouped],
   )
   const pagedBuilds = useMemo(
-    () => paginateInventoryGroups(buildGroups, buildPage, BUILD_PAGE_SIZE),
-    [buildGroups, buildPage],
+    () => paginateInventoryGroups(buildGroups, buildPage, grouped ? Math.max(1, fltrBlds.length) : BUILD_PAGE_SIZE),
+    [buildGroups, buildPage, fltrBlds.length, grouped],
   )
   const echoEntryIndexById = useMemo(
     () => new Map(fltrBagIds.map((id, index) => [id, index])),
@@ -1295,6 +1378,12 @@ export function InvMdl({
     setSelSet(null)
     setEchoSrch('')
     setPreviewId(savedId)
+    const target = invChs.find((entry) => entry.id === savedId)
+    if (grouped && target) {
+      setOpenGroup(`echo:${target.echo.set}`)
+      const inSet = sortEntsByNa(invChs.filter((entry) => entry.echo.set === target.echo.set), getInvEchoDs)
+      setOpenPage(Math.max(0, Math.floor(inSet.findIndex((entry) => entry.id === savedId) / echoPageSize)))
+    }
     const sorted = sortEntsByNa(invChs, getInvEchoDs)
     const displayIds = grouped
       ? [...sorted.reduce<Map<number, SavedEcho[]>>((groups, entry) => {
@@ -1550,16 +1639,6 @@ export function InvMdl({
           <ModalHeader over="Library" title={<h2 id={titleId}>Inventory</h2>} onClose={onClose}>
             <div className="amdl__gauge inv-head">
               {headTabs}
-              <div className="amdl__pill">
-                <span className="amdl__pill-label">{activeTab === 'echoes' ? 'Echoes' : 'Builds'}</span>
-                <span className="amdl__pill-value">{actCollCnt} of {ttlCollCnt}</span>
-              </div>
-              {actFltrCnt > 0 ? (
-                <div className="amdl__pill">
-                  <span className="amdl__pill-label">Filters</span>
-                  <span className="amdl__pill-value">{actFltrCnt}</span>
-                </div>
-              ) : null}
               {headTools}
               {activeTab === 'echoes' ? (
                 <button
@@ -1579,6 +1658,16 @@ export function InvMdl({
                 <ArrowDownIcon size="0.82rem" />
                 <span>Save equipped</span>
               </button>
+              <div className="amdl__pill">
+                <span className="amdl__pill-label">{activeTab === 'echoes' ? 'Echoes' : 'Builds'}</span>
+                <span className="amdl__pill-value">{actCollCnt} of {ttlCollCnt}</span>
+              </div>
+              {actFltrCnt > 0 ? (
+                <div className="amdl__pill">
+                  <span className="amdl__pill-label">Filters</span>
+                  <span className="amdl__pill-value">{actFltrCnt}</span>
+                </div>
+              ) : null}
             </div>
           </ModalHeader>
   )
@@ -1591,6 +1680,124 @@ export function InvMdl({
               </div>
             </nav>
   )
+
+  const renderEchoTile = (entry: SavedEcho) => {
+    const slotFitStates = mkInvSlotFit(entry.echo)
+    const selected = ffctSelEchoE.has(entry.id)
+    const entryIndex = echoEntryIndexById.get(entry.id) ?? 0
+
+    return (
+      <ContextTrigger
+        key={entry.id}
+        asChild
+        ariaLabel={`${getEchoById(entry.echo.id)?.name ?? 'Echo'} inventory actions`}
+        getItems={() => mkInvEchoCtx(entry, slotFitStates)}
+      >
+        <InvEchoEntCa
+          entry={entry}
+          compact={compact}
+          index={entryIndex}
+          columns={echoGridCols}
+          isPreview={compact && railVisible && entry.id === previewEntry?.id}
+          usage={entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []}
+          slotFitStates={slotFitStates}
+          selected={selected}
+          selMode={selMode}
+          onActivate={selMode ? undefined : (event) => {
+            setPreviewId(entry.id)
+            if (railVisible) {
+              // tile clicks update the preview while the inventory rail is active.
+              return
+            }
+            openTileMenu(entry, slotFitStates, event)
+          }}
+          isRbtlFcsd={fcsdTileId === entry.id}
+          onEquip={(slotIndex) => onQpInvEcho(entry, slotIndex)}
+          onEdit={() => onEditInvEch(entry)}
+          onRemove={() => confirmation.confirm({
+            title: 'You sure about that? ( · ❛ ֊ ❛)',
+            message: `Remove "${getEchoById(entry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
+            confirmLabel: 'Remove',
+            variant: 'danger',
+            onConfirm: () => onRmvInvEcho(entry.id),
+          })}
+          onCopyEcho={() => { void copyInvEcho(entry) }}
+          onCutEcho={() => { void cutInvEcho(entry) }}
+          onClickCapture={echoSel.buildClickCapture(entry.id)}
+        />
+      </ContextTrigger>
+    )
+  }
+
+  const renderBuildTile = (entry: SavedBuild, entryIndex: number) => (
+    <ContextTrigger
+      key={entry.id}
+      asChild
+      ariaLabel={`${entry.name} build actions`}
+      getItems={() => mkInvMkCtxMe(entry)}
+    >
+      <SvdMkCard
+        entry={entry}
+        style={{ animationDelay: `${Math.min(Math.floor(entryIndex / buildsGridCols), 6) * 45}ms` } as CssProps}
+        currentBuild={currentBuild}
+        usage={bldUsrsById[entry.id] ?? []}
+        editing={dtngBldId === entry.id}
+        editingName={dtngBldName}
+        onStrtRnm={() => startRnmMk(entry)}
+        onNameChange={setDtngBldNa}
+        onCmmtRnm={() => {
+          if (dtngBldId === entry.id) {
+            onPdtInvBldN(entry.id, dtngBldName)
+            setDtngBldId(null)
+          }
+        }}
+        onCnclRnm={() => {
+          setDtngBldId(null)
+          setDtngBldNa('')
+        }}
+        onEquip={() => onQpInvBld(entry)}
+        onRemove={() => cnfrRmMk(entry)}
+      />
+    </ContextTrigger>
+  )
+
+  // page expanded groups and virtualize collapsed rows.
+  const renderGroupRun = <T,>(
+    groupKey: string | null,
+    open: boolean,
+    entries: T[],
+    render: (entry: T, index: number) => ReactNode,
+    pageSize: number,
+    label: string,
+  ) => {
+    if (groupKey == null) {
+      return <div className="inv-run is-open">{entries.map(render)}</div>
+    }
+    if (!open) {
+      return (
+        <InvRun
+          key={groupKey}
+          count={entries.length}
+          render={(start, end) => entries.slice(start, end).map((entry, offset) => render(entry, start + offset))}
+        />
+      )
+    }
+    const page = paginateInventoryGroups([{ entries }], openPage, pageSize)
+    return (
+      <div className="inv-run is-open">
+        {page.groups.flatMap((visible) => visible.entries.map((entry, offset) => render(entry, page.start + offset)))}
+        <InventoryPager
+          label={label}
+          page={page.page}
+          pageCount={page.pageCount}
+          start={page.start}
+          end={page.end}
+          total={page.total}
+          onPage={setOpenPage}
+        />
+      </div>
+    )
+  }
 
   const mPane = (
             <ContextTrigger
@@ -1624,10 +1831,19 @@ export function InvMdl({
                       {...echoSel.scopeProps}
                       ref={mergeRefs(echoGridRef, echoSel.scopeProps.ref)}
                     >
-                      {pagedEchoes.groups.map((group) => (
+                      {pagedEchoes.groups.map((group) => {
+                        const groupKey = group.setId != null ? `echo:${group.setId}` : null
+                        const open = groupKey == null || openGroup === groupKey
+                        return (
                         <Fragment key={group.setId ?? '__all__'}>
-                          {group.setId != null ? (
-                            <div className="inv-band" style={{ '--inv-tone': sntTone(group.setId) } as CssProps}>
+                          {groupKey != null && group.setId != null ? (
+                            <button
+                              type="button"
+                              className={`inv-band${open ? ' is-open' : ''}`}
+                              style={{ '--inv-tone': sntTone(group.setId) } as CssProps}
+                              aria-expanded={open}
+                              onClick={() => toggleGroup(groupKey)}
+                            >
                               {getSntSetIco(group.setId) ? (
                                 <DisplayImage
                                   src={getSntSetIco(group.setId) ?? ''}
@@ -1639,58 +1855,14 @@ export function InvMdl({
                               <span className="inv-band__name">{getSntSetNam(group.setId)}</span>
                               <i className="inv-band__rule" aria-hidden="true" />
                               <span className="inv-band__n">{group.totalEntries}</span>
-                            </div>
+                              <ChevronDown size="0.8em" className="inv-band__fold" aria-hidden="true" />
+                            </button>
                           ) : null}
 
-                          {group.entries.map((entry) => {
-                            const slotFitStates = mkInvSlotFit(entry.echo)
-                            const selected = ffctSelEchoE.has(entry.id)
-                            const entryIndex = echoEntryIndexById.get(entry.id) ?? 0
-
-                            return (
-                              <ContextTrigger
-                                key={entry.id}
-                                asChild
-                                ariaLabel={`${getEchoById(entry.echo.id)?.name ?? 'Echo'} inventory actions`}
-                                getItems={() => mkInvEchoCtx(entry, slotFitStates)}
-                              >
-                                <InvEchoEntCa
-                                  entry={entry}
-                                  compact={compact}
-                                  index={entryIndex}
-                                  columns={echoGridCols}
-                                  isPreview={compact && railVisible && entry.id === previewEntry?.id}
-                                  usage={entry.echo.uid ? echoSgByUid[entry.echo.uid] ?? [] : []}
-                                  slotFitStates={slotFitStates}
-                                  selected={selected}
-                                  selMode={selMode}
-                                  onActivate={selMode ? undefined : (event) => {
-                                    setPreviewId(entry.id)
-                                    if (railVisible) {
-                                      // with the rail active, tile clicks select a preview without opening a menu.
-                                      return
-                                    }
-                                    openTileMenu(entry, slotFitStates, event)
-                                  }}
-                                  isRbtlFcsd={fcsdTileId === entry.id}
-                                  onEquip={(slotIndex) => onQpInvEcho(entry, slotIndex)}
-                                  onEdit={() => onEditInvEch(entry)}
-                                  onRemove={() => confirmation.confirm({
-                                    title: 'You sure about that? ( · ❛ ֊ ❛)',
-                                    message: `Remove "${getEchoById(entry.echo.id)?.name ?? 'this echo'}" from your inventory?`,
-                                    confirmLabel: 'Remove',
-                                    variant: 'danger',
-                                    onConfirm: () => onRmvInvEcho(entry.id),
-                                  })}
-                                  onCopyEcho={() => { void copyInvEcho(entry) }}
-                                  onCutEcho={() => { void cutInvEcho(entry) }}
-                                  onClickCapture={echoSel.buildClickCapture(entry.id)}
-                                />
-                              </ContextTrigger>
-                            )
-                          })}
+                          {renderGroupRun(groupKey, open, group.entries, renderEchoTile, echoPageSize, 'Echo group')}
                         </Fragment>
-                      ))}
+                        )
+                      })}
                       <InventoryPager
                         label="Echo inventory"
                         page={pagedEchoes.page}
@@ -1730,10 +1902,18 @@ export function InvMdl({
                   </div>
                 ) : (
                   <div ref={buildsGridRef} className="inv-grid inv-grid--builds">
-                    {pagedBuilds.groups.map((group) => (
+                    {pagedBuilds.groups.map((group) => {
+                      const groupKey = group.resonatorId === '__all__' ? null : `build:${group.resonatorId}`
+                      const open = groupKey == null || openGroup === groupKey
+                      return (
                       <Fragment key={group.resonatorId}>
-                        {group.resonatorId === '__all__' ? null : (
-                        <div className="inv-band">
+                        {groupKey == null ? null : (
+                        <button
+                          type="button"
+                          className={`inv-band${open ? ' is-open' : ''}`}
+                          aria-expanded={open}
+                          onClick={() => toggleGroup(groupKey)}
+                        >
                           {group.icon ? (
                             <DisplayImage
                               src={group.icon}
@@ -1745,42 +1925,14 @@ export function InvMdl({
                           <span className="inv-band__name">{group.resName}</span>
                           <i className="inv-band__rule" aria-hidden="true" />
                           <span className="inv-band__n">{group.totalEntries}</span>
-                        </div>
+                          <ChevronDown size="0.8em" className="inv-band__fold" aria-hidden="true" />
+                        </button>
                         )}
 
-                        {group.entries.map((entry, entryIndex) => (
-                          <ContextTrigger
-                            key={entry.id}
-                            asChild
-                            ariaLabel={`${entry.name} build actions`}
-                            getItems={() => mkInvMkCtxMe(entry)}
-                          >
-                            <SvdMkCard
-                              entry={entry}
-                              style={{ animationDelay: `${Math.min(Math.floor(entryIndex / buildsGridCols), 6) * 45}ms` } as CssProps}
-                              currentBuild={currentBuild}
-                              usage={bldUsrsById[entry.id] ?? []}
-                              editing={dtngBldId === entry.id}
-                              editingName={dtngBldName}
-                              onStrtRnm={() => startRnmMk(entry)}
-                              onNameChange={setDtngBldNa}
-                              onCmmtRnm={() => {
-                                if (dtngBldId === entry.id) {
-                                  onPdtInvBldN(entry.id, dtngBldName)
-                                  setDtngBldId(null)
-                                }
-                              }}
-                              onCnclRnm={() => {
-                                setDtngBldId(null)
-                                setDtngBldNa('')
-                              }}
-                              onEquip={() => onQpInvBld(entry)}
-                              onRemove={() => cnfrRmMk(entry)}
-                            />
-                          </ContextTrigger>
-                        ))}
+                        {renderGroupRun(groupKey, open, group.entries, renderBuildTile, BUILD_PAGE_SIZE, 'Build group')}
                       </Fragment>
-                    ))}
+                      )
+                    })}
                     <InventoryPager
                       label="Saved build inventory"
                       page={pagedBuilds.page}

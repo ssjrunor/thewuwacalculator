@@ -21,6 +21,8 @@ export type ParsedCoreSkillLevels = { [Key in keyof CoreSkillLevels]: number | n
 export interface RawBuildScreenshotReadings {
   playerIdText: string
   uidText: string
+  /** independent digits-only uid read used to verify the first read. */
+  uidCheckText?: string
   resonatorNameText: string
   resonatorLevelText: string
   weaponNameText: string
@@ -62,16 +64,21 @@ function parseLabeledValue(value: string, label: RegExp): string | null {
 
 const UID_LENGTH = 9
 
-// a uid is one nine-digit run; only a broken read falls back to every digit seen
+// accept only a contiguous nine-digit uid.
 function parseUid(value: string): string | null {
   const runs = value.match(/\d+/g) ?? []
-  const whole = runs.find((run) => run.length === UID_LENGTH)
-  if (whole) return whole
-  const joined = runs.join('')
-  return joined.length > 0 ? joined : null
+  return runs.find((run) => run.length === UID_LENGTH) ?? null
 }
 
-// the name's descenders read as a stray letter, which is never part of an id
+// reject conflicting valid reads; accept the valid read when the other is incomplete.
+function settleUid(first: string, check: string | undefined): string | null {
+  const read = parseUid(first)
+  const second = check === undefined ? null : parseUid(check)
+  if (read && second) return read === second ? read : null
+  return read ?? second
+}
+
+// remove isolated trailing letters produced by adjacent name glyphs.
 function trimStray(value: string | null): string | null {
   if (value === null) return null
   const parts = value.split(/\s+/)
@@ -88,7 +95,7 @@ function parseLevel(value: string): number | null {
   return Number.isFinite(level) ? level : null
 }
 
-// the name and its badge share a line, and the line always ends on the level
+// split the shared name and level line at its level badge.
 export function splitNameLvl(value: string): { name: string; level: number | null } {
   const badge = value.match(/\blv\b\.?\s*(\d{1,2})/i) ?? value.match(/lv\.?\s*(\d{1,2})/i)
   if (!badge) return { name: value.trim(), level: null }
@@ -98,7 +105,7 @@ export function splitNameLvl(value: string): { name: string; level: number | nul
   }
 }
 
-// a resonator never passes 90, so a wilder reading is the plate's hatching
+// levels above 90 come from badge hatching or other image noise.
 function resonatorLevel(value: number | null): number | null {
   if (value === null || !Number.isFinite(value)) return null
   return value >= 1 && value <= 90 ? value : null
@@ -127,7 +134,8 @@ function matchResonators(
     const baseName = normalizeName(resonator.name.split(':')[0])
     return {
       resonator,
-      score: Math.min(nameDistance(normalized, fullName), nameDistance(normalized, baseName)),
+      // prefer a named rover variant over the shared base name.
+      score: Math.min(nameDistance(normalized, fullName), nameDistance(normalized, baseName) + 0.5),
     }
   })
   const bestScore = Math.min(...scored.map((entry) => entry.score))
@@ -144,9 +152,9 @@ function matchResonators(
   return attributeMatches.length > 0 ? attributeMatches : nameMatches
 }
 
-// the card writes "&" as "&amp;", which the reader brings back as "amp" or "ampj"
+// remove ocr variants of the card's encoded ampersand.
 function dropEscapedAmp(value: string): string {
-  return value.replace(/&?\bamp[;j]?(?=\s|$)/gi, ' ')
+  return value.replace(/&?\bamp[;:j]?(?=\s|$)/gi, ' ')
 }
 
 function matchWeapon(rawName: string, weapons: GenWpn[]): GenWpn | null {
@@ -163,6 +171,48 @@ function matchWeapon(rawName: string, weapons: GenWpn[]): GenWpn | null {
 
   const matches = scored.filter((entry) => entry.score === bestScore)
   return matches.length === 1 ? matches[0].weapon : null
+}
+
+export interface ArtMatch {
+  id: string
+  score: number
+}
+
+// rover variants share art, so scores within this ratio count as the same image.
+const SAME_ART = 1.05
+
+// a full-catalog art match requires a wider margin than a name-filtered match.
+export const ART_MARGIN = { catalog: 1.3, named: 1.15 } as const
+
+// require a clear image lead or a unique attribute among shared-art variants.
+export function settleResonatorArt(
+    ranks: ArtMatch[],
+    margin: number,
+    attributeOf: (id: string) => AttributeKey | null,
+    attribute: AttributeKey | null,
+): string | null {
+  const [best] = ranks
+  if (!best) return null
+  const alike = ranks.filter((entry) => entry.score <= best.score * SAME_ART)
+  const next = ranks[alike.length]
+  if (next && next.score < best.score * margin) return null
+  if (alike.length === 1) return best.id
+  const matching = attribute ? alike.filter((entry) => attributeOf(entry.id) === attribute) : []
+  return matching.length === 1 ? matching[0].id : null
+}
+
+// a clear match to the catalog weapon icon overrides the ocr name match.
+export const WEAPON_ICON_MARGIN = 1.5
+
+export function settleWeapon(
+    read: ParsedBuildMetadata['weapon'],
+    icons: ArtMatch[],
+    weapons: GenWpn[],
+): ParsedBuildMetadata['weapon'] {
+  const [best, runnerUp] = icons
+  if (!best || (runnerUp && runnerUp.score < best.score * WEAPON_ICON_MARGIN)) return read
+  const weapon = weapons.find((entry) => entry.id === best.id)
+  return weapon ? { ...read, id: weapon.id, name: weapon.name } : read
 }
 
 function countSequence(activeSequences: boolean[]): number {
@@ -191,8 +241,9 @@ export function resolveBuildScreenshotMetadata(
 
   return {
     player: {
-      id: trimStray(parseLabeledValue(readings.playerIdText, /^\s*player\s*id\s*[:.]?\s*/i)),
-      uid: parseUid(readings.uidText),
+      // a soft read turns "ID" into "1D" or "I1D"
+      id: trimStray(parseLabeledValue(readings.playerIdText, /^\s*player\s*[il1|]{0,2}[dp0]\s*[:.;]?\s*/i)),
+      uid: settleUid(readings.uidText, readings.uidCheckText),
     },
     resonator: {
       id: resonatorMatches.length === 1 ? resonatorMatches[0].id : null,

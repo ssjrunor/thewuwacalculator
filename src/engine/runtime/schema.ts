@@ -26,6 +26,7 @@ import {
 import { mnlBffsSchm } from '@/engine/runtime/manualBuffsSchema'
 import { migrateLegacySavedRotationRecord } from '@/engine/runtime/savedRotationMigration.ts'
 import { migrateLegacyRotationItems } from '@/domain/gameData/loopPasses.ts'
+import { migrateLegacyEnemyProfile } from '@/domain/gameData/enemyStateMigration'
 import type { CondExpr, FormExpr, RotationNode } from '@/domain/gameData/contracts.ts'
 import {
   mkDefPckrFre,
@@ -766,7 +767,7 @@ const invRotSchm = z.lazy(() => z.pipe(z.transform((value) => {
   }
 }))))
 
-const enemyProfSchm = z.lazy(() => z.strictObject({
+const enemyProfSchm = z.lazy(() => z.pipe(z.transform(migrateLegacyEnemyProfile), z.strictObject({
     id: z.string(),
     level: z.number(),
     class: z.number(),
@@ -784,7 +785,7 @@ const enemyProfSchm = z.lazy(() => z.strictObject({
       5: z.number(),
       6: z.number(),
     }),
-  }))
+  })))
 
 // legacy active/target projection accepted only while importing old snapshots.
 const cmbtSssnSchm = z.lazy(() => z.strictObject({
@@ -1224,7 +1225,7 @@ const uiPersistSchema = z.strictObject({
   suggsViewMode: z._default(z.enum(['mainStats', 'setPlans', 'weapons', 'random', 'substats']), 'mainStats'),
   showSubHits: z.boolean(),
   compactInv: z._default(z.boolean(), false),
-  groupInv: z._default(z.boolean(), false),
+  groupInv: z._default(z.boolean(), true),
   seeEquipped: z._default(z.boolean(), true),
   haveHistory: z._default(z.boolean(), true),
   historyMax: histMaxSchm,

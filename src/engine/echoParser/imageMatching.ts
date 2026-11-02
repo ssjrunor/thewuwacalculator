@@ -1,13 +1,11 @@
 /*
   Author: Runor Ewhro
   description: provides image matching helpers for echo and set icon
-               recognition using canvas preprocessing, shape checks,
-               histograms, and pixel comparison.
+               recognition using canvas preprocessing, histograms, and
+               pixel comparison.
 */
 
-// image matching engine ported from parserworker.ts
-// uses color histograms and shape comparison for echo icons
-// uses color family, shape detection, and pixel comparison for set icons
+// compare echo icons using colour histograms and shape, and set icons using disc pixels.
 
 export interface ImageRegion {
   x: number
@@ -20,16 +18,6 @@ interface ClrHstg {
   r: number[]
   g: number[]
   b: number[]
-}
-
-interface ShapeResult {
-  hasShield: boolean
-  hasCross: boolean
-  hasPlus: boolean
-  hasFire: boolean
-  hasWildFire: boolean
-  hasArrow: boolean
-  hasStar: boolean
 }
 
 // canvas utilities
@@ -307,223 +295,10 @@ function cmprClrHstg(histA: ClrHstg, histB: ClrHstg): number {
   return diff
 }
 
-// set comparison
-
-function cmprSetCns(
-    ctxA: CanvasRenderingContext2D,
-    ctxB: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-): number {
-  const dA = ctxA.getImageData(0, 0, width, height).data
-  const dB = ctxB.getImageData(0, 0, width, height).data
-  let diff = 0
-  let validPixels = 0
-  const cX = width / 2
-  const cY = height / 2
-  const maxDist = Math.sqrt(cX * cX + cY * cY)
-  const histA = { r: new Array(256).fill(0), g: new Array(256).fill(0), b: new Array(256).fill(0) }
-  const histB = { r: new Array(256).fill(0), g: new Array(256).fill(0), b: new Array(256).fill(0) }
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const idx = (y * width + x) * 4
-      const bgA = dA[idx + 3] < 10 || (dA[idx] < 30 && dA[idx + 1] < 30 && dA[idx + 2] < 30)
-      const bgB = dB[idx + 3] < 10 || (dB[idx] < 30 && dB[idx + 1] < 30 && dB[idx + 2] < 30)
-
-      if (bgA && bgB) continue
-
-      if (bgA !== bgB) {
-        diff += 5000
-        validPixels += 1
-        continue
-      }
-
-      validPixels += 1
-      const dist = Math.sqrt((x - cX) ** 2 + (y - cY) ** 2)
-      const weight = 1.0 + 2.0 * (1.0 - dist / maxDist)
-      const rD = dA[idx] - dB[idx]
-      const gD = dA[idx + 1] - dB[idx + 1]
-      const bD = dA[idx + 2] - dB[idx + 2]
-      diff += (rD * rD + gD * gD + bD * bD) * weight
-      histA.r[dA[idx]] += 1
-      histA.g[dA[idx + 1]] += 1
-      histA.b[dA[idx + 2]] += 1
-      histB.r[dB[idx]] += 1
-      histB.g[dB[idx + 1]] += 1
-      histB.b[dB[idx + 2]] += 1
-    }
-  }
-
-  if (validPixels === 0) return Infinity
-
-  const nA = {
-    r: histA.r.map((v) => v / validPixels),
-    g: histA.g.map((v) => v / validPixels),
-    b: histA.b.map((v) => v / validPixels),
-  }
-  const nB = {
-    r: histB.r.map((v) => v / validPixels),
-    g: histB.g.map((v) => v / validPixels),
-    b: histB.b.map((v) => v / validPixels),
-  }
-
-  let histDiff = 0
-  for (let i = 0; i < 256; i += 1) {
-    for (const ch of ['r', 'g', 'b'] as const) {
-      const s = nA[ch][i] + nB[ch][i]
-      if (s > 0) {
-        const d = nA[ch][i] - nB[ch][i]
-        histDiff += (d * d) / s
-      }
-    }
-  }
-
-  return (diff / validPixels) * 0.6 + histDiff * 1000 * 0.4
-}
-
-function getDmnnClrs(ctx: CanvasRenderingContext2D, width: number, height: number, topN = 3) {
-  const d = ctx.getImageData(0, 0, width, height).data
-  const map = new Map<string, number>()
-
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i]
-    const g = d[i + 1]
-    const b = d[i + 2]
-    const a = d[i + 3]
-    if (a < 10 || (r < 30 && g < 30 && b < 30)) continue
-    if (r > 200 && g > 200 && b > 200) continue
-    if (r < 50 && g < 50 && b < 50) continue
-
-    const key = `${Math.round(r / 15) * 15},${Math.round(g / 15) * 15},${Math.round(b / 15) * 15}`
-    map.set(key, (map.get(key) ?? 0) + 1)
-  }
-
-  return Array.from(map.entries())
-      .map(([k, count]) => {
-        const [r, g, b] = k.split(',').map(Number)
-        return { r, g, b, count }
-      })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, topN)
-}
-
-function clssClrFmly(r: number, g: number, b: number): string | null {
-  if (g > r + 30 && g > b + 30 && g > 100) return 'green'
-  if (r > 150 && g > 150 && b < r - 50 && b < g - 50) return 'yellow'
-  if (b > r + 30 && b > g + 30 && b > 100) return 'blue'
-  if (r > g + 30 && r > b + 30 && r > 100) return 'red'
-  if (r > 120 && b > 120 && Math.abs(r - b) < 50 && g < Math.max(r, b) - 30) return 'purple'
-  if (r > 150 && g > 100 && b < r - 50 && b < 100) return 'orange'
-  return null
-}
-
-function detectShapes(ctx: CanvasRenderingContext2D, width: number, height: number): ShapeResult {
-  const d = ctx.getImageData(0, 0, width, height).data
-  const cX = width / 2
-  const cY = height / 2
-
-  const white: boolean[][] = Array.from({ length: height }, (_, y) =>
-      Array.from({ length: width }, (_, x) => {
-        const idx = (y * width + x) * 4
-        return d[idx + 3] > 200 && d[idx] > 200 && d[idx + 1] > 200 && d[idx + 2] > 200
-      }),
-  )
-
-  // shield detection
-  let shieldPixels = 0
-  let sTop = height
-  let sBot = 0
-  let sLeft = width
-  let sRight = 0
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      if (white[y][x]) {
-        shieldPixels += 1
-        sTop = Math.min(sTop, y)
-        sBot = Math.max(sBot, y)
-        sLeft = Math.min(sLeft, x)
-        sRight = Math.max(sRight, x)
-      }
-    }
-  }
-
-  let hasShield = false
-  if (shieldPixels > 50) {
-    const sW = sRight - sLeft
-    const sH = sBot - sTop
-    const ar = sW / sH
-    let topW = 0
-    let midW = 0
-    const midY = Math.floor(sTop + sH / 2)
-
-    for (let x = sLeft; x <= sRight; x += 1) {
-      if (sTop >= 0 && sTop < height && white[sTop][x]) topW += 1
-      if (midY >= 0 && midY < height && white[midY][x]) midW += 1
-    }
-
-    hasShield = ar > 0.7 && ar < 1.3 && topW < midW * 0.8
-  }
-
-  // plus and cross detection
-  let hLine = 0
-  let vLine = 0
-
-  for (let y = Math.floor(cY - 3); y <= Math.floor(cY + 3); y += 1) {
-    if (y < 0 || y >= height) continue
-    let cnt = 0
-    for (let x = 0; x < width; x += 1) if (white[y][x]) cnt += 1
-    if (cnt > width * 0.3) hLine += 1
-  }
-
-  for (let x = Math.floor(cX - 3); x <= Math.floor(cX + 3); x += 1) {
-    if (x < 0 || x >= width) continue
-    let cnt = 0
-    for (let y = 0; y < height; y += 1) if (white[y][x]) cnt += 1
-    if (cnt > height * 0.3) vLine += 1
-  }
-
-  const hasPlus = hLine > 2 && vLine > 2
-
-  // arrow detection
-  let diagUR = 0
-  let diagUL = 0
-  for (let y = 0; y < height - 1; y += 1) {
-    for (let x = 0; x < width - 1; x += 1) {
-      if (white[y][x] && white[y + 1][x + 1]) diagUR += 1
-      if (white[y][x + 1] && white[y + 1][x]) diagUL += 1
-    }
-  }
-  const hasArrow = diagUR > 20 || diagUL > 20
-
-  // fire detection
-  let upward = 0
-  for (let y = Math.floor(height / 2); y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      if (white[y][x] && !white[y + 1][x] && (white[y + 1][x - 1] || white[y + 1][x + 1])) {
-        upward += 1
-      }
-    }
-  }
-
-  return {
-    hasShield,
-    hasCross: hasPlus,
-    hasPlus,
-    hasFire: upward > 30,
-    hasWildFire: upward > 50,
-    hasArrow,
-    hasStar: false,
-  }
-}
-
 // preloading
 
 const ECHO_W = 192
 const ECHO_H = 182
-const SET_W = 32
-const SET_H = 32
 
 // run a small batch of tasks to overlap decoding with network work.
 async function runPooled<T>(items: T[], task: (item: T) => Promise<void>): Promise<void> {
@@ -577,10 +352,82 @@ export async function prldEchoMgs(
   })
 }
 
-// preload set images into canvas contexts
+// crop the card and reference to the set icon's disc before comparing pixels.
+const GLYPH = 32
+
+// include rows and columns above the disc brightness threshold.
+function discBounds(data: Uint8ClampedArray, width: number, height: number, byAlpha: boolean): ImageRegion | null {
+  const lit = (index: number) => byAlpha
+    ? data[index + 3] > 128
+    : Math.max(data[index], data[index + 1], data[index + 2]) > 70
+  const rows: number[] = []
+  const columns: number[] = []
+  for (let y = 0; y < height; y += 1) {
+    let count = 0
+    for (let x = 0; x < width; x += 1) if (lit((y * width + x) * 4)) count += 1
+    if (count >= 3) rows.push(y)
+  }
+  for (let x = 0; x < width; x += 1) {
+    let count = 0
+    for (let y = 0; y < height; y += 1) if (lit((y * width + x) * 4)) count += 1
+    if (count >= 3) columns.push(x)
+  }
+  if (rows.length < 8 || columns.length < 8) return null
+  const top = rows[0]
+  const left = columns[0]
+  return { x: left, y: top, width: columns[columns.length - 1] - left + 1, height: rows[rows.length - 1] - top + 1 }
+}
+
+function glyphOf(source: CanvasImageSource & { width: number; height: number }, byAlpha: boolean): Float32Array | null {
+  const ctx = makeCanvas(source.width, source.height)
+  ctx.drawImage(source, 0, 0)
+  const bounds = discBounds(ctx.getImageData(0, 0, source.width, source.height).data, source.width, source.height, byAlpha)
+  if (!bounds) return null
+  const out = makeCanvas(GLYPH, GLYPH)
+  out.fillStyle = '#000'
+  out.fillRect(0, 0, GLYPH, GLYPH)
+  out.imageSmoothingQuality = 'high'
+  out.drawImage(ctx.canvas, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, GLYPH, GLYPH)
+  const data = out.getImageData(0, 0, GLYPH, GLYPH).data
+  const glyph = new Float32Array(GLYPH * GLYPH * 3)
+  for (let i = 0; i < GLYPH * GLYPH; i += 1) {
+    glyph[i * 3] = data[i * 4]
+    glyph[i * 3 + 1] = data[i * 4 + 1]
+    glyph[i * 3 + 2] = data[i * 4 + 2]
+  }
+  return glyph
+}
+
+// use the minimum mean squared colour distance across one-pixel offsets.
+function cmprGlyphs(a: Float32Array, b: Float32Array): number {
+  const r = GLYPH / 2 - 1
+  let best = Infinity
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      let sum = 0
+      let count = 0
+      for (let y = 0; y < GLYPH; y += 1) {
+        for (let x = 0; x < GLYPH; x += 1) {
+          if ((x + 0.5 - GLYPH / 2) ** 2 + (y + 0.5 - GLYPH / 2) ** 2 > r * r) continue
+          const sx = x + dx
+          const sy = y + dy
+          if (sx < 0 || sy < 0 || sx >= GLYPH || sy >= GLYPH) continue
+          const ia = (y * GLYPH + x) * 3
+          const ib = (sy * GLYPH + sx) * 3
+          sum += (a[ia] - b[ib]) ** 2 + (a[ia + 1] - b[ib + 1]) ** 2 + (a[ia + 2] - b[ib + 2]) ** 2
+          count += 1
+        }
+      }
+      if (count > 0) best = Math.min(best, sum / count)
+    }
+  }
+  return best
+}
+
+// cache each sonata icon before matching panels.
 export async function prldSetMgs(
     setMap: Record<string, string>,
-    setCache: Record<string, CanvasRenderingContext2D>,
+    setCache: Record<string, Float32Array>,
     onEach?: (done: number, total: number) => void,
 ): Promise<void> {
   const entries = Object.entries(setMap).filter(([name]) => !setCache[name])
@@ -588,12 +435,8 @@ export async function prldSetMgs(
 
   await runPooled(entries, async ([name, url]) => {
     try {
-      const img = await loadImage(url)
-      const ctx = makeCanvas(SET_W, SET_H)
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(img, 0, 0, SET_W, SET_H)
-      setCache[name] = ctx
+      const glyph = glyphOf(await loadImage(url), true)
+      if (glyph) setCache[name] = glyph
     } catch {
       // skip failed image loads
     }
@@ -603,90 +446,25 @@ export async function prldSetMgs(
   })
 }
 
-// set matching
+export interface SetMatch {
+  name: string
+  score: number
+}
 
-// match a set icon from the source canvas using the first-pass set matcher
-export function mtchSetFrst(
+// rank all sonata icons by distance from the panel icon.
+export function rnkSets(
     srcCanvas: HTMLCanvasElement,
     setRegion: ImageRegion,
-    setCache: Record<string, CanvasRenderingContext2D>,
-): string | null {
-  // extract the larger source region and scale it down
-  const regionCtx = xtrcMgRgn(srcCanvas, setRegion)
-  const resizedCtx = makeCanvas(SET_W, SET_H)
-  resizedCtx.clearRect(0, 0, SET_W, SET_H)
-  resizedCtx.drawImage(regionCtx.canvas, 0, 0, SET_W, SET_H)
-
-  // aggressively mask black background
-  const imgData = resizedCtx.getImageData(0, 0, SET_W, SET_H)
-  const d = imgData.data
-  for (let i = 0; i < d.length; i += 4) {
-    const x = (i / 4) % SET_W
-    const y = Math.floor((i / 4) / SET_W)
-    const isEdge = x < 3 || x >= 29 || y < 3 || y >= 29
-    const r = d[i]
-    const g = d[i + 1]
-    const b = d[i + 2]
-
-    if (
-        (r < 50 && g < 50 && b < 50) ||
-        (isEdge && r < 70 && g < 70 && b < 70) ||
-        (!isEdge && r < 40 && g < 40 && b < 40)
-    ) {
-      d[i + 3] = 0
-    }
-  }
-  resizedCtx.putImageData(imgData, 0, 0)
-
-  const srcColors = getDmnnClrs(resizedCtx, SET_W, SET_H, 2)
-  const srcFamilies = new Set(
-      srcColors.map((c) => clssClrFmly(c.r, c.g, c.b)).filter(Boolean) as string[],
-  )
-  const srcShapes = detectShapes(resizedCtx, SET_W, SET_H)
-
-  let bestMatch: string | null = null
-  let lowestDiff = Infinity
-  const shapeKeys: (keyof ShapeResult)[] = [
-    'hasShield',
-    'hasCross',
-    'hasPlus',
-    'hasFire',
-    'hasWildFire',
-    'hasArrow',
-    'hasStar',
-  ]
-
-  for (const [setName, refCtx] of Object.entries(setCache)) {
-    const refColors = getDmnnClrs(refCtx, SET_W, SET_H, 2)
-    const refFamilies = new Set(
-        refColors.map((c) => clssClrFmly(c.r, c.g, c.b)).filter(Boolean) as string[],
-    )
-
-    const colorMatch =
-        srcFamilies.size > 0 &&
-        refFamilies.size > 0 &&
-        [...srcFamilies].some((family) => refFamilies.has(family))
-
-    const colorPenalty = !colorMatch && srcFamilies.size > 0 && refFamilies.size > 0 ? 100000 : 0
-
-    const refShapes = detectShapes(refCtx, SET_W, SET_H)
-    let shapeMatch = 0
-    for (const key of shapeKeys) {
-      if (srcShapes[key] && refShapes[key]) shapeMatch += 1
-      else if (srcShapes[key] !== refShapes[key]) shapeMatch -= 0.5
-    }
-
-    const shapeDiff = 1 - Math.max(0, (shapeMatch + 7) / 14)
-    const pixelDiff = cmprSetCns(resizedCtx, refCtx, SET_W, SET_H)
-    const combined = colorPenalty + shapeDiff * 5000 + pixelDiff * 0.1
-
-    if (combined < lowestDiff) {
-      lowestDiff = combined
-      bestMatch = setName
-    }
-  }
-
-  return bestMatch
+    setCache: Record<string, Float32Array>,
+): SetMatch[] {
+  const crop = makeCanvas(setRegion.width, setRegion.height)
+  crop.drawImage(srcCanvas, setRegion.x, setRegion.y, setRegion.width, setRegion.height, 0, 0, setRegion.width, setRegion.height)
+  const glyph = glyphOf(crop.canvas, false)
+  crop.canvas.width = 0
+  if (!glyph) return []
+  return Object.entries(setCache)
+      .map(([name, reference]) => ({ name, score: cmprGlyphs(glyph, reference) }))
+      .sort((left, right) => left.score - right.score)
 }
 
 // echo matching
@@ -720,4 +498,160 @@ export function rnkEchoFrom(
   }
 
   return scored.sort((left, right) => left.score - right.score)
+}
+
+// weapon matching
+
+export interface WeaponMatch {
+  id: string
+  score: number
+}
+
+// compare opaque weapon-icon pixels at the reference card position.
+export async function rnkWeapons(
+    srcCanvas: HTMLCanvasElement,
+    place: { x: number; y: number; size: number },
+    weapons: { id: string; icon: string }[],
+): Promise<WeaponMatch[]> {
+  const pad = 2
+  const span = place.size + pad * 2
+  const source = makeCanvas(span, span)
+  source.drawImage(srcCanvas, place.x - pad, place.y - pad, span, span, 0, 0, span, span)
+  const card = source.getImageData(0, 0, span, span).data
+  source.canvas.width = 0
+
+  const scored: WeaponMatch[] = []
+  await runPooled(weapons, async (weapon) => {
+    let image: HTMLImageElement
+    try {
+      image = await loadImage(weapon.icon)
+    } catch {
+      return
+    }
+    const ctx = makeCanvas(place.size, place.size)
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(image, 0, 0, place.size, place.size)
+    const icon = ctx.getImageData(0, 0, place.size, place.size).data
+    ctx.canvas.width = 0
+
+    let best = Infinity
+    for (let dy = -pad; dy <= pad; dy += 1) {
+      for (let dx = -pad; dx <= pad; dx += 1) {
+        let sum = 0
+        let count = 0
+        for (let y = 0; y < place.size; y += 2) {
+          for (let x = 0; x < place.size; x += 2) {
+            const i = (y * place.size + x) * 4
+            if (icon[i + 3] < 230) continue
+            const j = ((y + pad + dy) * span + x + pad + dx) * 4
+            sum += (icon[i] - card[j]) ** 2 + (icon[i + 1] - card[j + 1]) ** 2 + (icon[i + 2] - card[j + 2]) ** 2
+            count += 1
+          }
+        }
+        if (count >= 50) best = Math.min(best, sum / count)
+      }
+    }
+    if (Number.isFinite(best)) scored.push({ id: weapon.id, score: best })
+  })
+
+  return scored.sort((left, right) => left.score - right.score)
+}
+
+// how closely the panel art agrees with one reference, on scales that hold across cards
+// (the ranking above is relative, so it always names a winner, even for an echo it has never seen).
+// lum and edge are masked correlations of brightness and of edges; hue correlates hue histograms,
+// which separates same-silhouette recolours that brightness and edges cannot
+export interface ArtAgreement {
+  lum: number
+  edge: number
+  hue: number
+}
+
+// pixels darker than this, or transparent, are background in both crops
+function isArtPixel(d: Uint8ClampedArray, i: number): boolean {
+  return !(d[i + 3] < 10 || (d[i] < 30 && d[i + 1] < 30 && d[i + 2] < 30))
+}
+
+function luma(d: Uint8ClampedArray, i: number): number {
+  return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+}
+
+// pearson correlation; too few shared pixels reads as no agreement
+function correlate(a: ArrayLike<number>, b: ArrayLike<number>, minCount = 50): number {
+  const n = a.length
+  if (n < minCount) return 0
+  let sa = 0
+  let sb = 0
+  for (let k = 0; k < n; k += 1) {
+    sa += a[k]
+    sb += b[k]
+  }
+  const ma = sa / n
+  const mb = sb / n
+  let ab = 0
+  let aa = 0
+  let bb = 0
+  for (let k = 0; k < n; k += 1) {
+    ab += (a[k] - ma) * (b[k] - mb)
+    aa += (a[k] - ma) ** 2
+    bb += (b[k] - mb) ** 2
+  }
+  return aa > 0 && bb > 0 ? ab / Math.sqrt(aa * bb) : 0
+}
+
+// 36 hue bins over saturated, lit pixels
+function hueBins(d: Uint8ClampedArray): number[] {
+  const bins = new Array(36).fill(0)
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 10) continue
+    const r = d[i] / 255
+    const g = d[i + 1] / 255
+    const b = d[i + 2] / 255
+    const max = Math.max(r, g, b)
+    const chroma = max - Math.min(r, g, b)
+    if (max < 0.235 || chroma / max < 0.31) continue
+    let h = max === r ? ((g - b) / chroma) % 6 : max === g ? (b - r) / chroma + 2 : (r - g) / chroma + 4
+    if (h < 0) h += 6
+    bins[Math.min(35, Math.floor(h * 6))] += 1
+  }
+  return bins
+}
+
+export function cmprEchoArt(
+    srcCanvas: HTMLCanvasElement,
+    echoRegion: ImageRegion,
+    refCtx: CanvasRenderingContext2D,
+): ArtAgreement {
+  const srcCtx = xtrcMgRgn(srcCanvas, echoRegion)
+  normBrgh(srcCtx, ECHO_W, ECHO_H)
+  ncrsCntr(srcCtx, ECHO_W, ECHO_H, 2.5)
+  const a = srcCtx.getImageData(0, 0, ECHO_W, ECHO_H).data
+  const b = refCtx.getImageData(0, 0, ECHO_W, ECHO_H).data
+  srcCtx.canvas.width = 0
+
+  const row = ECHO_W * 4
+  const lumA: number[] = []
+  const lumB: number[] = []
+  const edgeA: number[] = []
+  const edgeB: number[] = []
+  for (let y = 1; y < ECHO_H - 1; y += 1) {
+    for (let x = 1; x < ECHO_W - 1; x += 1) {
+      const i = (y * ECHO_W + x) * 4
+      const inA = isArtPixel(a, i)
+      const inB = isArtPixel(b, i)
+      if (inA && inB) {
+        lumA.push(luma(a, i))
+        lumB.push(luma(b, i))
+      }
+      if (inA || inB) {
+        edgeA.push(Math.hypot(luma(a, i + 4) - luma(a, i - 4), luma(a, i + row) - luma(a, i - row)))
+        edgeB.push(Math.hypot(luma(b, i + 4) - luma(b, i - 4), luma(b, i + row) - luma(b, i - row)))
+      }
+    }
+  }
+  return {
+    lum: correlate(lumA, lumB),
+    edge: correlate(edgeA, edgeB),
+    hue: correlate(hueBins(a), hueBins(b), 2),
+  }
 }

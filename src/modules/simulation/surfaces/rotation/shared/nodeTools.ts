@@ -166,7 +166,7 @@ export function enemyChoices(
         'tuneStrain',
         'Tune Strain',
         'enemy.status.tuneStrain',
-        getTuneStrainMaxForTeam(runtime),
+        getTuneStrainMaxForTeam(runtime, enemyId ? { id: enemyId } : undefined),
         'Set the target enemy Tune Strain stacks for following rotation actions.',
     )
     const negFfct = negEffectsFor(runtime, runtimesById)

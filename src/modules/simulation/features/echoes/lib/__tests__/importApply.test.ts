@@ -38,6 +38,7 @@ function makeRead(weaponId: string | null): ParsedBuildScreenshot {
     },
     weapon: { id: weaponId, name: 'Frostburn', level: 90 },
     echoes: [],
+    source: { width: 1920, height: 1080, lowResolution: false, frameScore: 1, botFrame: true, unreadText: false },
   }
 }
 

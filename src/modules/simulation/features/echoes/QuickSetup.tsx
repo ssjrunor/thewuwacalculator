@@ -123,7 +123,7 @@ export function QuickSetup({
 
   const addSet = (value: string) => {
     const setId = Number(value)
-    const count = setCountOptions(setId, config.echoCount)[0]
+    const count = setCountOptions(setId, config.echoCount - totalSetPc).at(-1)
     if (!Number.isFinite(setId) || !count) {
       return
     }
@@ -170,14 +170,21 @@ export function QuickSetup({
   const setMainEcho = (echoId: string | null) =>
     setConfig((prev) => {
       const echo = echoId ? getEchoById(echoId) : null
+      const echoCount = echo ? Math.max(prev.echoCount, 1) : prev.echoCount
       const slots = [...prev.slots]
-      if (echo) {
-        slots[0] = { ...slots[0], cost: echo.cost }
+      if (echo && slots[0].cost !== echo.cost) {
+        const swapIndex = slots.findIndex((slot, index) => index > 0 && index < echoCount && slot.cost === echo.cost)
+        if (swapIndex > 0) {
+          slots[0] = prev.slots[swapIndex]
+          slots[swapIndex] = prev.slots[0]
+        } else {
+          slots[0] = { ...slots[0], cost: echo.cost }
+        }
       }
 
       return fitQuickConfig({
         ...prev,
-        echoCount: echo ? Math.max(prev.echoCount, 1) : prev.echoCount,
+        echoCount,
         mainEchoId: echoId,
         slots,
       })

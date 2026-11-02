@@ -454,6 +454,11 @@
 .pkm__grid > .pkm__card {
   content-visibility: auto;
   contain-intrinsic-size: auto 6.7rem auto 9.6rem;
+  overflow-clip-margin: 1.75rem;
+}
+
+@supports not (overflow-clip-margin: 1px) {
+  .pkm__grid > .pkm__card { content-visibility: visible; }
 }
 
 .pkm__card-art {

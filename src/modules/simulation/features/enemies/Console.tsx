@@ -1,9 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: states the target: what it resists, whatever rules it or the team
-               brings, and the level behind it. only the resistance reading is
-               always present; every other row exists because the data gave it
-               one, so an unauthored target renders a short panel.
+  description: renders enemy resistance, level, and authored enemy and team
+               effects from the current scenario.
 */
 
 import { DisplayImage } from '@/shared/ui/DisplayImage'
@@ -46,7 +44,7 @@ import { srcSttNumMax } from '@/engine/runtime/sourceStateInit.ts'
 import { sourceOptions } from '@/engine/services/sourceStateService.ts'
 import { useEnemyCat } from '@/application/hooks/useEnemyCatalog.ts'
 import { EnemyPicker } from '@/modules/simulation/features/enemies/Picker.tsx'
-import { readVulns, type VulnRow } from '@/modules/simulation/features/enemies/lib/enemyVulns.ts'
+import { readEffects, type EffectRow } from '@/modules/simulation/features/enemies/lib/effects.ts'
 import { topStatMath } from '@/modules/simulation/features/enemies/lib/effectMath.ts'
 import { resistMultiplier } from '@/modules/simulation/features/enemies/ResistanceGrid.tsx'
 import { NumberInput } from '@/modules/simulation/features/controls/NumberInput.tsx'
@@ -211,7 +209,7 @@ interface EnemyConsoleProps {
   runtime: ResRuntime | null
   runtimesById: Record<string, ResRuntime>
   enemyProfile: EnemyProfile
-  simulation: SimResult | null
+  simulation: Pick<SimResult, 'finalStats'> | null
   onRtPdt: (updater: (runtime: ResRuntime) => ResRuntime) => void
   onEnemyChange: (enemy: EnemyProfile) => void
   onClose: () => void
@@ -256,7 +254,10 @@ export function EnemyConsole({
   const enemyColor = enemyElement != null ? ATTR_ID_COLORS[enemyElement] : 'var(--text)'
   const enemyClass = getRslvEnemy(enemyProfile)
   const tune = getEnemyTune(enemyProfile)
-  const tuneMax = useMemo(() => (runtime ? getTuneStrainMaxForTeam(runtime) : 0), [runtime])
+  const tuneMax = useMemo(
+    () => (runtime ? getTuneStrainMaxForTeam(runtime, { id: enemyProfile.id }) : 0),
+    [runtime, enemyProfile.id],
+  )
 
   // include fixed-max negative effects even though they expose no control state.
   const loads = useMemo(
@@ -266,10 +267,10 @@ export function EnemyConsole({
 
   const vulns = useMemo(() => {
     if (!runtime) {
-      return { rows: [] as VulnRow[], dmgVuln: 0, finalDmg: 0, scoped: [] }
+      return { rows: [] as EffectRow[], dmgVuln: 0, finalDmg: 0, scoped: [] }
     }
 
-    return readVulns(
+    return readEffects(
       runtime,
       enemyProfile,
       simulation,
@@ -278,8 +279,6 @@ export function EnemyConsole({
         ?? getSrcSttNct(runtime, runtime, state, runtime),
     )
   }, [runtime, enemyProfile, simulation])
-
-  const enemyStates = useMemo(() => listStatesFor('enemy', enemyProfile.id), [enemyProfile.id])
 
   // combat-state responders modify tune strain and belong with negative-effect
   // sources.
@@ -301,10 +300,11 @@ export function EnemyConsole({
 
       if (!states.length) return []
 
-      const math = states.flatMap(
-        (state) => topStatMath(runtime, state, enemyProfile, simulation, 'finalDmg'),
-      )
-      const total = math.reduce((sum, term) => sum + term.value, 0)
+      const math = topStatMath(runtime, states, enemyProfile, simulation, 'finalDmg')
+      const keySet = new Set(states.map((state) => state.controlKey))
+      const total = vulns.rows.filter((row) => keySet.has(row.id))
+        .flatMap((row) => row.readings).filter((reading) => reading.stat === 'finalDmg')
+        .reduce((sum, reading) => sum + reading.value, 0)
 
       return [{
         id: entry.id ?? entry.title,
@@ -313,10 +313,10 @@ export function EnemyConsole({
         keywords: entry.keywords,
         states,
         total,
-        equation: math[0]?.equation ?? null,
+        equation: math.map((term) => term.equation).join(' + ') || null,
       }]
     })
-  }, [runtime, enemyProfile, simulation])
+  }, [runtime, enemyProfile, simulation, vulns.rows])
 
   const responderKeys = useMemo(
     () => new Set(responders.flatMap((entry) => entry.states.map((state) => state.controlKey))),
@@ -363,7 +363,7 @@ export function EnemyConsole({
 
   const readState = (state: SourceState): string | number | boolean => {
     if (state.source.type === 'enemy') {
-      return getEnemyState(enemyProfile, state.id) as string | number | boolean
+      return (getEnemyState(enemyProfile, state.id) ?? state.defaultValue ?? 0) as string | number | boolean
     }
     return (readRtPath(runtime, state.path)
       ?? getSrcSttNct(runtime, runtime, state, runtime)) as string | number | boolean
@@ -433,18 +433,31 @@ export function EnemyConsole({
     )
   }
 
-  const rowWorth = (row: VulnRow): ReactNode => {
-    if (!row.active) {
-      return row.state ? undefined : <span className="enc-rw__w is-idle">Off</span>
-    }
-    const tone = row.value > 0 ? 'is-up' : row.value < 0 ? 'is-down' : 'is-idle'
-    return <span className={`enc-rw__w ${tone}`}>{fmtPct(row.value)}</span>
+  const rowWorth = (row: EffectRow): ReactNode => {
+    if (!row.readings.length) return undefined
+    return (
+      <span className="enc-rw__values">
+        {row.readings.map((reading, index) => {
+          const favorable = reading.stat === 'resistance' ? -reading.value : reading.value
+          const tone = !reading.active ? 'is-idle' : reading.stat === 'immunity' ? 'is-down'
+            : favorable > 0 ? 'is-up' : favorable < 0 ? 'is-down' : 'is-idle'
+          const label = reading.scope ?? reading.label ?? (reading.stat === 'finalDmg' ? 'Final DMG' : 'DMG Vulnerability')
+          return (
+            <span key={index} className="enc-rw__value" title={label}>
+              <span className={`enc-rw__w ${tone}`}>
+                {reading.stat === 'immunity' ? reading.active ? 'Immune' : 'Off' : fmtPct(reading.value)}
+              </span>
+              {row.readings.length > 1 ? <small>{label}</small> : null}
+            </span>
+          )
+        })}
+      </span>
+    )
   }
 
-  const stateById = new Map(enemyStates.map((state) => [state.controlKey, state]))
-  const subLine = (row: VulnRow) => [
-    row.scope,
-    row.stat === 'finalDmg' ? 'Final DMG' : null,
+  const subLine = (row: EffectRow) => row.readings.length !== 1 ? '' : [
+    row.readings[0].scope,
+    row.readings[0].stat === 'finalDmg' ? 'Final DMG' : null,
   ].filter(Boolean).join(' · ')
 
   const header = (
@@ -577,14 +590,14 @@ export function EnemyConsole({
             <section className="enc-sec">
               <div className="enc-sec__hd"><span className="amdl__over">Combat Effects</span></div>
               {targetRows.map((row) => {
-                const state = row.state ? stateById.get(row.id) ?? row.state : null
+                const state = row.state
                 return (
                   <Row
                     key={row.id}
                     id={row.id}
                     name={row.label}
                     worth={rowWorth(row)}
-                    control={state ? stateControl(state, row.label) : <span className="enc-pin">Active</span>}
+                    control={state ? stateControl(state, row.label) : <span className="enc-pin">{row.active ? 'Active' : 'Inactive'}</span>}
                     scope={subLine(row) || null}
                     description={row.description}
                     params={row.params}
@@ -676,12 +689,6 @@ export function EnemyConsole({
             ))}
           </section>
 
-          {vulns.dmgVuln !== 0 ? (
-            <div className="enc-tot"><span>DMG Vulnerability</span><b>{fmtPct(vulns.dmgVuln)}</b></div>
-          ) : null}
-          {vulns.finalDmg !== 0 ? (
-            <div className="enc-tot"><span>Final DMG</span><b>{fmtPct(vulns.finalDmg)}</b></div>
-          ) : null}
           </>
   )
 

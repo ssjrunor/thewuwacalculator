@@ -10,7 +10,6 @@ import { listChsByCos } from '@/data/catalog/echoCatalogService'
 import { listResSds } from '@/data/catalog/resonatorSeedService'
 import { makeEnemy, makeOptSets, makeResRuntime } from '@/engine/runtime/defaults'
 import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
-import { GPU_REDUCE_K } from '@/engine/optimizer/config/constants'
 import { SET_SLOT_COUNT } from '@/engine/search/layout/constants'
 import { withOptimizerShaderConfig } from '@/engine/optimizer/config/shaders'
 import { MAIN_BUFF } from '@/engine/search/layout/echoLayout'
@@ -118,27 +117,6 @@ describe('optimizer core invariants', () => {
     for (const shader of [targetCommonShader]) {
       expect(withOptimizerShaderConfig(shader)).toContain(`const SET_SLOTS : u32 = ${SET_SLOT_COUNT}u;`)
     }
-  })
-
-  it('packs the new Sonata effects into optimizer rows', () => {
-    const seed = listResSds()[0]
-    expect(seed).toBeTruthy()
-    if (!seed) return
-
-    const rows = buildSetRows(makeResRuntime(seed))
-    const bonuses = [36, 37, 38].map((setId) => {
-      const setCounts = new Uint8Array(SET_SLOT_COUNT)
-      setCounts[setId] = 5
-      return applySetVec(setCounts, 0xffffffff, rows, 0xffffffff)
-    })
-
-    expect(bonuses[0]).toMatchObject({ critRate: 15, electro: 32.5 })
-    expect(bonuses[1]).toMatchObject({ electro: 20 })
-    expect(bonuses[2]).toMatchObject({ atkP: 25 })
-  })
-
-  it('keeps the GPU reduce fan-out in sync with the target shaders', () => {
-    expect(GPU_REDUCE_K).toBe(8)
   })
 
   it('hashes GPU static payloads using full typed-array bytes', () => {

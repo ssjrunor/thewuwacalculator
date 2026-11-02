@@ -10,9 +10,11 @@ import { buildDisplayAssets } from './buildDisplayAssets.mjs'
 import { normalizeEchoIcons } from './normalizeEchoIcons.mjs'
 import { buildSourceManifest } from './buildSourceManifest.mjs'
 import { buildWeaponCoreCatalog } from './buildWeaponCoreCatalog.mjs'
+import { stageOcrAssets } from './stageOcrAssets.mjs'
 import { buildChangelogNotice } from '../content/buildChangelogNotice.ts'
 
 await buildChangelogNotice()
+await stageOcrAssets()
 
 // worker calculations need control/trace semantics, not skill prose or tables.
 function runtimeDetails(detail) {

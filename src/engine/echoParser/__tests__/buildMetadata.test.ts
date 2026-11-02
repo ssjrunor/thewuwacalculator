@@ -8,7 +8,10 @@ import { describe, expect, it } from 'vitest'
 import type { ResSeed } from '@/domain/entities/runtime'
 import type { GenWpn } from '@/domain/entities/weapon'
 import {
+  ART_MARGIN,
   resolveBuildScreenshotMetadata,
+  settleResonatorArt,
+  settleWeapon,
   type RawBuildScreenshotReadings,
 } from '@/engine/echoParser/buildMetadata'
 
@@ -104,11 +107,84 @@ describe('build screenshot metadata', () => {
     })
   })
 
+  it('lets the read variant name outrank a misread Rover attribute', () => {
+    const parsed = resolveBuildScreenshotMetadata(makeReadings({
+      resonatorNameText: 'Rover: Electro',
+      attribute: 'havoc',
+    }), {
+      resonators: [
+        ...resonators,
+        { id: '1604', name: 'Rover: Havoc', attribute: 'havoc', weaponType: 2 },
+        { id: '1608', name: 'Rover: Electro', attribute: 'electro', weaponType: 2 },
+      ] as ResSeed[],
+      weapons,
+    })
+
+    expect(parsed.resonator).toMatchObject({ id: '1608', name: 'Rover: Electro' })
+  })
+
+  it('keeps a uid only when its two reads agree', () => {
+    const settle = (uidText: string, uidCheckText?: string) => resolveBuildScreenshotMetadata(
+      makeReadings({ uidText, uidCheckText }),
+      { resonators, weapons },
+    ).player.uid
+
+    expect(settle('UID:500395087', '500395087')).toBe('500395087')
+    expect(settle('UID:500395087', '500395081')).toBeNull()
+    expect(settle('UID:5003 95087', '500395087')).toBe('500395087')
+    expect(settle('UID:5003 95087', '5003')).toBeNull()
+  })
+
+  it('strips a misread player id label', () => {
+    for (const playerIdText of ['Player 1D:xuri', 'Player I1D:xuri', 'Player ID:xuri']) {
+      expect(resolveBuildScreenshotMetadata(
+        makeReadings({ playerIdText }),
+        { resonators, weapons },
+      ).player.id).toBe('xuri')
+    }
+  })
+
   it('does not count activated markers after the first inactive sequence', () => {
     const parsed = resolveBuildScreenshotMetadata(makeReadings({
       activeSequences: [true, true, false, true, true, true],
     }), { resonators, weapons })
 
     expect(parsed.resonator.sequence).toBe(2)
+  })
+})
+
+describe('art and icon matching', () => {
+  const attributes: Record<string, 'aero' | 'havoc' | 'fusion'> = { 1406: 'aero', 1604: 'havoc', 1210: 'fusion' }
+  const attributeOf = (id: string) => attributes[id] ?? null
+
+  it('names a resonator from its portrait only well clear of the rest', () => {
+    expect(settleResonatorArt([{ id: '1210', score: 20 }, { id: '1406', score: 60 }], ART_MARGIN.catalog, attributeOf, null)).toBe('1210')
+    expect(settleResonatorArt([{ id: '1210', score: 20 }, { id: '1406', score: 24 }], ART_MARGIN.catalog, attributeOf, null)).toBeNull()
+    expect(settleResonatorArt([], ART_MARGIN.catalog, attributeOf, null)).toBeNull()
+  })
+
+  it('splits shared rover art by the attribute icon, and only by it', () => {
+    const ranks = [{ id: '1406', score: 20 }, { id: '1604', score: 20.4 }, { id: '1210', score: 70 }]
+    expect(settleResonatorArt(ranks, ART_MARGIN.catalog, attributeOf, 'havoc')).toBe('1604')
+    expect(settleResonatorArt(ranks, ART_MARGIN.catalog, attributeOf, null)).toBeNull()
+  })
+
+  it('takes the weapon from a clear icon over the name line', () => {
+    const read = { id: null, name: 'Lux amp Umbra', level: 90 }
+    expect(settleWeapon(read, [{ id: '21020046', score: 500 }, { id: '21020076', score: 4000 }], weapons))
+      .toEqual({ id: '21020046', name: "Bloodpact's Pledge", level: 90 })
+  })
+
+  it('drops the escaped ampersand however it reads', () => {
+    const lux = [...weapons, { id: '21050036', name: 'Lux & Umbra', weaponType: 5 }] as GenWpn[]
+    for (const text of ['Lux amp: Umbra', 'Lux ampj Umbra', 'Lux &amp; Umbra']) {
+      expect(resolveBuildScreenshotMetadata(makeReadings({ weaponNameText: text }), { resonators, weapons: lux }).weapon.name)
+        .toBe('Lux & Umbra')
+    }
+  })
+
+  it('keeps the name line when the icon is not clear', () => {
+    const read = { id: '21020076', name: 'Everbright Polestar', level: 90 }
+    expect(settleWeapon(read, [{ id: '21020046', score: 500 }, { id: '21020076', score: 600 }], weapons)).toBe(read)
   })
 })

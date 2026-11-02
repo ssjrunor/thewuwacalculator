@@ -6,6 +6,7 @@
 import type { CombatGraph } from '@/domain/entities/combatGraph'
 import type { ResRuntime, EchoInstance } from '@/domain/entities/runtime'
 import type { EnemyProfile } from '@/domain/entities/appState'
+import { isNoEnemy } from '@/domain/entities/appState'
 import type { DataSrcRef, EffectDef, EffectOp, EvalScpRoot, SourceState } from '@/domain/gameData/contracts'
 import type { ManualBuffs } from '@/domain/entities/manualBuffs'
 import { getScopedTargetSelection } from '@/domain/gameData/targetRouting'
@@ -122,6 +123,9 @@ export class PortableTeam {
       const sets = lane === this.sourceLane ? [...new Set(candidates.map((echo) => echo.set))] : Object.keys(countEchoSets(runtime.build.echoes)).map(Number)
       for (const id of sets.sort((a, b) => a - b)) add({ type: 'echoSet', id: String(id) }, ir.operation(ScalarOp.lt, ir.zero, this.setCount(lane, id)))
       if (runtime.build.weapon.id) add({ type: 'weapon', id: runtime.build.weapon.id }, ir.one)
+      // enemy effects have no team owner: apply one self-scoped row per
+      // recipient, just as the numeric team executor does.
+      if (!isNoEnemy(enemy)) add({ type: 'enemy', id: enemy.id }, ir.one)
       const mainIds = lane === this.sourceLane ? [...new Set(candidates.map((echo) => echo.id))] : [runtime.build.echoes.find((echo) => echo?.mainEcho)?.id ?? runtime.build.echoes[0]?.id].filter((id): id is string => !!id)
       for (const id of mainIds) add({ type: 'echo', id }, lane === this.sourceLane ? ir.eq(ir.input(TEAM_INPUT.mainId), dsl.literal(id).data) : ir.one)
     }

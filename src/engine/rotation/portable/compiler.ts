@@ -408,7 +408,7 @@ class RotationLowering {
       let max = definition?.max === undefined ? undefined : ir.constant(definition.max)
       if (definition) for (const entry of [...definition.maxWhen ?? []].reverse()) max = ir.select(dsl.condition(entry.when, team.scope(lane, lane, definition.source), true), ir.constant(entry.max), max ?? ir.constant(Infinity))
       if (unison) max = this.runtimeComputation((runtimes) => ir.constant(unisonBoonMaxForRuntimes(runtimes)))
-      if (enemyPath === 'status.tuneStrain') max = ir.constant(getTuneStrainMaxForTeam(team.runtimes[team.sourceLane]))
+      if (enemyPath === 'status.tuneStrain') max = ir.constant(getTuneStrainMaxForTeam(team.runtimes[team.sourceLane], team.enemy))
       if (combatPath) {
         max = this.runtimeComputation((runtimes, evaluate) => {
           const runtime = runtimes[team.sourceLane]!

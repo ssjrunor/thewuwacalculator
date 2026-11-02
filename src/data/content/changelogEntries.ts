@@ -1279,6 +1279,54 @@ export const curChngEnts: ChngRcrd[] = [
     ],
     shortDesc: `3.8.3 beta update`,
   },
+  {
+    id: '2026-11-02-inventory-imports-enemies',
+    date: '02/11/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>reworked inventory browsing.</strong> echoes and saved builds can be browsed in collapsible groups. collapsed groups show horizontally scrollable rows; expanding a group opens its paginated grid. jumping to a saved echo opens the appropriate group and page. new inventories start grouped by default.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>two new dark themes:</strong> tidal slate and fuchsia noir. graphite pop also has darker surfaces.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>improved build-card recognition.</strong> better recognition of resonators, rover variants, weapons, echoes, sonata sets, levels, and substats. portrait and weapon-icon matching help resolve unclear text, while extra reading passes recover difficult stat values.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>updated enemy controls and readings.</strong> the enemy ui shows resistance changes, immunities, vulnerability, and damage bonuses more accurately, including effects with multiple readings.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>corrected enemy mechanics.</strong> added sabercat prowler's invisibility, granting 30% all-attribute res. nameless explorer, desolate apparition, and thousand-puppet pavilion gain their enemy-specific +2 tune strain stack limit. nameless explorer and desolate apparition now use the target tune srain counter for their 4% vulnerability per stack.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>special-damage and rotation calculation fixes.</strong> corrected crit. dmg defaults for tune rupture and negative-effect damage, addressing cases where critical damage became zero while average damage remained nonzero.
+        `,
+      },
+      {
+        type: 'paragraph',
+        content: `
+          <strong>echo quick setup improvements.</strong> adding a sonata set selects the largest valid piece count that fits the remaining slots. changing the main echo reuses a compatible cost slot when possible, preserving its existing configuration.
+        `,
+      }
+    ]
+  },
 ]
 
 export const ltstCurChngE =

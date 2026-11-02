@@ -110,9 +110,10 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.inv-grid > * { animation: inv-grid-enter 320ms ease both; }
+.inv-grid > *,
+.inv-run.is-open > * { animation: inv-grid-enter 320ms ease both; }
 
-:is(.no-entrance-anim, .reduce-animation) .inv-grid > * { animation: none; }
+:is(.no-entrance-anim, .reduce-animation) :is(.inv-grid, .inv-run.is-open) > * { animation: none; }
 
 .inv-empty {
   display: grid;
@@ -131,7 +132,52 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.55rem 0.1rem 0.05rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
+
+.inv-band:hover .inv-band__name { color: var(--picker-modal-text); }
+
+.inv-band__fold {
+  flex: none;
+  color: color-mix(in srgb, var(--picker-modal-text) 40%, var(--c-transparent));
+  transform: rotate(-90deg);
+  transition: transform 160ms ease;
+}
+
+.inv-band.is-open .inv-band__fold { transform: none; }
+
+.inv-run {
+  grid-column: 1 / -1;
+  min-width: 0;
+  gap: inherit;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-block: -0.25rem -1rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+}
+
+.inv-run__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 9.5rem;
+  gap: inherit;
+  width: max-content;
+  padding-block: 0.25rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.inv-run:not(.is-open, .is-live) { block-size: var(--inv-run-h, 8rem); }
+
+.inv-grid--wall > .inv-run > .inv-run__track { grid-auto-columns: 4.6rem; }
+.inv-grid--builds > .inv-run > .inv-run__track { grid-auto-columns: 11.55rem; }
+
+.inv-run.is-open { display: contents; }
 
 .inv-band:first-child { padding-top: 0; }
 
@@ -284,7 +330,6 @@
 }
 
 .inv-head__save {
-  height: 1.9rem;
   flex: none;
   white-space: nowrap;
 }
@@ -695,7 +740,8 @@
 
 .inv-tile.selection-mode:not(.focus-selected) { opacity: 0.72; }
 
-.inv-grid[data-orbital-focus-active="true"] > .inv-tile:not(.is-orbital) { opacity: 0.5; }
+.inv-grid[data-orbital-focus-active="true"] > .inv-run > .inv-tile:not(.is-orbital),
+.inv-grid[data-orbital-focus-active="true"] .inv-run__track > .inv-tile:not(.is-orbital) { opacity: 0.5; }
 
 .inv-tile.is-orbital {
   box-shadow:
@@ -848,8 +894,8 @@
   appearance: none;
   display: grid;
   place-items: center;
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
   border: 0;
   border-radius: 0.38rem;

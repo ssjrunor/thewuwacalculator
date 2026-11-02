@@ -228,6 +228,7 @@
 .amdl__act {
   background: none;
   cursor: pointer;
+  height: 1.9rem;
   appearance: none;
   display: inline-flex;
   gap: 0.35rem;

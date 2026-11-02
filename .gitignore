@@ -24,13 +24,10 @@ prod-app.json
 /ref
 
 /dev-app-state-test.json
-/eng.traineddata
-/text-sample.png
 /*.wwcalc
 
 /public/assets/display/
 
-/legacy/
+/public/assets/app/ocr/*.js
 
-/example.json
-/sample-yumeo*.json
+/legacy/

@@ -524,6 +524,8 @@ export interface RotDef {
 
 export interface SrcPkg {
   source: DataSrcRef
+  /** intrinsic enemy increase to the team's tune strain stack limit. */
+  tuneStrainMaxBonus?: number
   owners?: SrcOwnDef[]
   states?: SourceState[]
   conditions?: CondDef[]

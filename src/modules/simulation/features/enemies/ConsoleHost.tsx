@@ -10,8 +10,7 @@ import type { EnemyProfile } from '@/domain/entities/appState.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import { reviseCombatScenario } from '@/domain/entities/combatScenario.ts'
 import { applyRuntimeToSimulation, materializeScenarioRuntime } from '@/engine/runtime/runtimeAdapters.ts'
-import { seedRsntById } from '@/modules/simulation/features/resonator/lib/seedData.ts'
-import { selLiveRun } from '@/modules/simulation/model/selectors.ts'
+import { prepareEnemyConsoleDraft } from './lib/draftSimulation'
 import { useAppModal } from '@/shared/ui/useAppModal.ts'
 import { useConfigurationSession } from '@/shared/ui/useConfigurationSession.ts'
 import { EnemyConsole } from '@/modules/simulation/features/enemies/Console.tsx'
@@ -33,7 +32,7 @@ function EnemyConsoleSession({ closeRequest }: { closeRequest: () => void }) {
   const scenarioId = useAppStore((state) => state.combat.selectedScenarioId)
   const actResId = useAppStore(selActResId)
   const enemyProfile = useAppStore(selEnemyProf)
-  const { prepWork, actRt, partRtsById } = useAppStore(selWorkDrvd)
+  const { scenario, actRt, partRtsById } = useAppStore(selWorkDrvd)
   const commitScenarioConfig = useAppStore((state) => state.commitScenarioConfig)
   const modal = useAppModal()
 
@@ -64,10 +63,9 @@ function EnemyConsoleSession({ closeRequest }: { closeRequest: () => void }) {
     ? { ...partRtsById, [draftRuntime.id]: draftRuntime }
     : partRtsById
 
-  const activeSeed = actResId ? seedRsntById[actResId] ?? null : null
   const simulation = useMemo(
-    () => selLiveRun(activeSeed ? prepWork : null),
-    [activeSeed, prepWork],
+    () => prepareEnemyConsoleDraft(scenario, draftRuntime, session.draft.enemy),
+    [scenario, draftRuntime, session.draft.enemy],
   )
 
   // depend on the stable callback, not the modal object rebuilt by state changes.

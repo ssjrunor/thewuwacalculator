@@ -20,7 +20,6 @@ import type { RtChng } from '@/domain/gameData/contracts.ts'
 import {
   applyRotationCleanup,
   cleanupCounts,
-  describeRotationCleanup,
   planRotationCleanup,
 } from '@/modules/simulation/surfaces/rotation/program-editor/model/cleanup.ts'
 import { resolveEditorPassBody } from '@/modules/simulation/surfaces/rotation/program-editor/model/passCheckout.ts'
@@ -437,35 +436,5 @@ describe('applying a rotation sweep', () => {
     const sections = section([step('keep')])
 
     expect(applyRotationCleanup(sections, planRotationCleanup(sections))).toBe(sections)
-  })
-})
-
-describe('describing a rotation sweep', () => {
-  it('states each kind it found, and only those', () => {
-    const inertOnly = describeRotationCleanup({
-      targets: [{ id: 'inert', reason: 'inert' }],
-    })
-    const deadOnly = describeRotationCleanup({
-      targets: [
-        { id: 'dead-1', reason: 'dead' },
-        { id: 'dead-2', reason: 'dead' },
-        { id: 'dead-3', reason: 'dead' },
-        { id: 'dead-4', reason: 'dead' },
-      ],
-    })
-    const both = describeRotationCleanup({
-      targets: [
-        { id: 'inert-1', reason: 'inert' },
-        { id: 'inert-2', reason: 'inert' },
-        { id: 'dead', reason: 'dead' },
-      ],
-    })
-
-    expect(both).toBe("2 nodes that didn't actually change, and 1 node the last run never used.")
-    expect(inertOnly).toBe("1 node that didn't actually change.")
-    expect(deadOnly).toBe('4 nodes the last run never used.')
-    expect(describeRotationCleanup({
-      targets: [{ id: 'outro', reason: 'redundant', followingConditionIds: ['realm-off'] }],
-    })).toBe('1 skill with attached setters duplicated by adjacent persistent setters.')
   })
 })

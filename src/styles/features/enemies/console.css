@@ -303,6 +303,24 @@
   white-space: nowrap;
 }
 
+.enc-rw__values,
+.enc-rw__value {
+  display: grid;
+  justify-items: end;
+  gap: 0.15rem;
+}
+
+.enc-rw__values {
+  gap: 0.4rem;
+}
+
+.enc-rw__value small {
+  max-width: 12rem;
+  font-size: 0.65rem;
+  text-align: right;
+  color: var(--amdl-muted);
+}
+
 .enc-rw__w.is-up {
   color: var(--enc-gold);
 }
@@ -517,31 +535,6 @@
 
 .enc-rsp .enc-rw + .enc-rw {
   border-top: 0;
-}
-
-.enc-tot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 0.7rem;
-  padding: 0.5rem 0 0.1rem;
-  border-top: 1px solid var(--amdl-line);
-  font-size: 0.72rem;
-  color: var(--amdl-muted);
-}
-
-.enc-tot span {
-  min-width: 0;
-  line-height: 1.4;
-}
-
-.enc-tot b {
-  font-family: var(--amdl-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.86rem;
-  font-weight: 500;
-  color: var(--amdl-accent);
-  white-space: nowrap;
 }
 
 .enc-foot {

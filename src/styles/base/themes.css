@@ -762,7 +762,7 @@ body,
 
 .graphite-pop {
   --bg: #101010;
-  --surface: #2a2a2a;
+  --surface: #181818;
   --text: #e8e8e8;
   --accent: #f5a742;
 
@@ -819,6 +819,208 @@ body,
   --a-loader-border: 15%;
   --a-spin-track: 15%;
   --spin-accent: var(--accent);
+}
+
+.tidal-slate {
+  --bg: #10151C;
+  --surface: color-mix(in srgb, var(--surface-base) 72%, #10151C);
+  --text: #e6edf3;
+  --accent: #f6eba3;
+
+  --shell: color-mix(in srgb, #141b25 82%, var(--c-transparent));
+  --highlight: gold;
+  --warm: gold;
+  --cool: #63cfc1;
+  --decor: #9668d4;
+  --border-seed: #aac8dc;
+  --surface-base: #1b2531;
+  --hair-tint: #dbe7f0;
+  --toast-tint: #18212c;
+  --loader-tint: #151d27;
+  --ctrl-tint: #2c3a4a;
+  --chip-tint: #253241;
+  --pill: #eef2f5;
+  --pill-shade: #d3dce4;
+  --pill-ink: #18212c;
+
+  --avg-base: var(--warm);
+  --bg-alt: color-mix(in srgb, var(--bg) 84%, var(--accent));
+  --surface-2: color-mix(in srgb, var(--hair-tint) 4%, var(--c-transparent));
+  --border: color-mix(in srgb, var(--hair-tint) 10%, var(--c-transparent));
+  --muted: color-mix(in srgb, var(--text) 64%, var(--accent));
+  --a-border: 18%;
+  --a-hover: 6%;
+  --shell-bg-1: var(--shell);
+  --shell-bg-2: color-mix(in srgb, #1a2330 70%, var(--c-transparent));
+  --box-bg-1: color-mix(in srgb, var(--surface-base) 78%, var(--c-transparent));
+  --box-bg-2: color-mix(in srgb, #24313f 70%, var(--c-transparent));
+  --box-border: color-mix(in srgb, var(--hair-tint) 12%, var(--c-transparent));
+  --grid-border: color-mix(in srgb, var(--hair-tint) 8%, var(--c-transparent));
+  --row-even: color-mix(in srgb, var(--hair-tint) 2%, var(--c-transparent));
+  --row-odd: color-mix(in srgb, var(--hair-tint) 5%, var(--c-transparent));
+  --inner-bg: color-mix(in srgb, #121922 40%, var(--c-transparent));
+  --inner-border: color-mix(in srgb, var(--hair-tint) 9%, var(--c-transparent));
+  --item-bg: color-mix(in srgb, var(--surface-base) 60%, var(--c-transparent));
+  --item-border: color-mix(in srgb, var(--hair-tint) 11%, var(--c-transparent));
+  --input-bg: color-mix(in srgb, #121922 55%, var(--c-transparent));
+  --input-border: color-mix(in srgb, var(--hair-tint) 14%, var(--c-transparent));
+  --slider-empty: color-mix(in srgb, var(--hair-tint) 14%, var(--c-transparent));
+  --hdr-bg: color-mix(in srgb, #121922 45%, var(--c-transparent));
+  --hdr-border: color-mix(in srgb, var(--hair-tint) 10%, var(--c-transparent));
+  --toast-surface: var(--toast-tint);
+  --toast-border: color-mix(in srgb, var(--hair-tint) 14%, var(--c-transparent));
+  --loader-bg-1: color-mix(in srgb, var(--loader-tint) 88%, var(--c-transparent));
+  --loader-bg-2: var(--loader-bg-1);
+  --loader-border: color-mix(in srgb, var(--hair-tint) 16%, var(--c-transparent));
+  --loader-text: var(--text);
+  --spin-track: var(--hair-tint);
+  --spin-accent: var(--accent);
+  --ctrl-bg-1: color-mix(in srgb, var(--ctrl-tint) 70%, var(--c-transparent));
+  --ctrl-bg-2: color-mix(in srgb, var(--chip-tint) 70%, var(--c-transparent));
+  --ctrl-border: color-mix(in srgb, var(--hair-tint) 16%, var(--c-transparent));
+  --ctrl-color: color-mix(in srgb, var(--text) 86%, var(--accent));
+  --ctrl-on-bg-1: var(--pill);
+  --ctrl-on-bg-2: var(--pill-shade);
+  --ctrl-on-bg-3: var(--ctrl-on-bg-2);
+  --ctrl-on-border: color-mix(in srgb, var(--c-white) 60%, var(--c-transparent));
+  --ctrl-on-color: var(--pill-ink);
+  --ctrl-on-shadow-2: color-mix(in srgb, var(--accent) 14%, var(--c-transparent));
+  --chip-bg-1: color-mix(in srgb, var(--chip-tint) 72%, var(--c-transparent));
+  --chip-bg-2: var(--chip-bg-1);
+  --chip-border: color-mix(in srgb, var(--hair-tint) 12%, var(--c-transparent));
+  --cb-bg-1: color-mix(in srgb, #121922 55%, var(--c-transparent));
+  --cb-bg-2: var(--cb-bg-1);
+  --cb-border: color-mix(in srgb, var(--hair-tint) 22%, var(--c-transparent));
+  --cb-on-bg-1: var(--accent);
+  --cb-on-bg-2: color-mix(in srgb, var(--accent) 80%, var(--cool));
+  --cb-on-bg-3: var(--cb-on-bg-2);
+  --cb-on-border: color-mix(in srgb, var(--c-white) 30%, var(--c-transparent));
+  --cb-on-shadow-c: color-mix(in srgb, var(--accent) 30%, var(--c-transparent));
+  --hl-bg-1: var(--highlight);
+  --hl-bg-2: color-mix(in srgb, var(--highlight) 70%, var(--c-white));
+  --hl-bg-3: var(--hl-bg-2);
+  --hl-color: var(--c-transparent);
+  --hl-fill: var(--c-transparent);
+  --trace-bg-1: color-mix(in srgb, var(--accent) 12%, var(--surface-base));
+  --trace-bg-2: var(--trace-bg-1);
+  --trace-bg-3: var(--trace-bg-1);
+  --trace-shadow-c: color-mix(in srgb, var(--accent) 14%, var(--c-transparent));
+  --menu-bg: color-mix(in srgb, var(--surface-base) 94%, var(--c-transparent));
+  --menu-hover-1: color-mix(in srgb, var(--hair-tint) 7%, var(--c-transparent));
+  --menu-hover-2: color-mix(in srgb, var(--hair-tint) 4%, var(--c-transparent));
+  --modal-bg: color-mix(in srgb, #18212c 96%, var(--c-transparent));
+  --m-muted: 66%;
+  --a-toast-shadow: 40%;
+  --a-toast-shadow-2: 18%;
+  --a-spin-track: 18%;
+}
+
+html.tidal-slate body {
+  background:
+      radial-gradient(60% 50% at 70% 92%, rgb(170 200 220 / 0.16), transparent 70%),
+      linear-gradient(180deg, #10151C 0%, #151D26 42%, #1E2833 78%, #27323E 100%) fixed;
+}
+
+.fuchsia-noir {
+  --bg: #1b1022;
+  --surface: color-mix(in srgb, var(--surface-base) 92%, var(--bg));
+  --text: #f0eef4;
+  --accent: #f55cff;
+
+  --shell: #3d214e;
+  --highlight: #f5c84c;
+  --warm: #f5c84c;
+  --cool: #3291f2;
+  --decor: #64f757;
+  --border-seed: #8a4fa8;
+  --surface-base: #2a1838;
+  --well: #120a18;
+  --plum: #3d214e;
+  --plum-lift: #5c3070;
+  --hair-tint: #b98ad4;
+  --ink-dark: #1b1022;
+
+  --avg-base: var(--warm);
+  --bg-alt: color-mix(in srgb, var(--bg) 72%, var(--plum));
+  --surface-2: color-mix(in srgb, var(--hair-tint) 6%, var(--c-transparent));
+  --border: color-mix(in srgb, var(--hair-tint) 26%, var(--c-transparent));
+  --muted: color-mix(in srgb, var(--text) 72%, var(--hair-tint));
+  --a-border: 40%;
+  --a-hover: 8%;
+  --hover-color: var(--hair-tint);
+  --shell-bg-1: var(--plum);
+  --shell-bg-2: var(--shell-bg-1);
+  --box-bg-1: color-mix(in srgb, var(--surface-base) 94%, var(--c-transparent));
+  --box-bg-2: var(--box-bg-1);
+  --box-border: color-mix(in srgb, var(--hair-tint) 30%, var(--c-transparent));
+  --grid-border: color-mix(in srgb, var(--hair-tint) 16%, var(--c-transparent));
+  --row-even: color-mix(in srgb, var(--hair-tint) 3%, var(--c-transparent));
+  --row-odd: color-mix(in srgb, var(--hair-tint) 8%, var(--c-transparent));
+  --inner-bg: color-mix(in srgb, var(--well) 80%, var(--c-transparent));
+  --inner-border: color-mix(in srgb, var(--hair-tint) 20%, var(--c-transparent));
+  --item-bg: color-mix(in srgb, var(--surface-base) 90%, var(--c-transparent));
+  --item-border: color-mix(in srgb, var(--hair-tint) 24%, var(--c-transparent));
+  --input-bg: var(--well);
+  --input-border: color-mix(in srgb, var(--hair-tint) 32%, var(--c-transparent));
+  --slider-empty: color-mix(in srgb, var(--hair-tint) 22%, var(--c-transparent));
+  --hdr-bg: color-mix(in srgb, var(--plum) 70%, var(--c-transparent));
+  --hdr-border: color-mix(in srgb, var(--hair-tint) 24%, var(--c-transparent));
+  --toast-surface: var(--plum);
+  --toast-border: color-mix(in srgb, var(--hair-tint) 32%, var(--c-transparent));
+  --loader-bg-1: color-mix(in srgb, var(--surface-base) 94%, var(--c-transparent));
+  --loader-bg-2: var(--loader-bg-1);
+  --loader-border: color-mix(in srgb, var(--hair-tint) 30%, var(--c-transparent));
+  --loader-text: var(--text);
+  --spin-track: var(--hair-tint);
+  --spin-accent: var(--accent);
+  --ctrl-bg-1: var(--plum);
+  --ctrl-bg-2: var(--ctrl-bg-1);
+  --ctrl-border: color-mix(in srgb, var(--hair-tint) 34%, var(--c-transparent));
+  --ctrl-color: var(--text);
+  --ctrl-on-bg-1: var(--accent);
+  --ctrl-on-bg-2: var(--ctrl-on-bg-1);
+  --ctrl-on-bg-3: var(--ctrl-on-bg-1);
+  --ctrl-on-border: var(--accent);
+  --ctrl-on-color: var(--ink-dark);
+  --ctrl-on-fw: 700;
+  --ctrl-on-shadow-1: var(--c-transparent);
+  --ctrl-on-shadow-2: color-mix(in srgb, var(--accent) 28%, var(--c-transparent));
+  --chip-bg-1: var(--plum);
+  --chip-bg-2: var(--chip-bg-1);
+  --chip-border: color-mix(in srgb, var(--hair-tint) 30%, var(--c-transparent));
+  --chip-hv-border: var(--highlight);
+  --cb-bg-1: var(--well);
+  --cb-bg-2: var(--cb-bg-1);
+  --cb-border: color-mix(in srgb, var(--hair-tint) 45%, var(--c-transparent));
+  --cb-on-bg-1: var(--decor);
+  --cb-on-bg-2: var(--cb-on-bg-1);
+  --cb-on-bg-3: var(--cb-on-bg-1);
+  --cb-on-border: var(--decor);
+  --cb-on-shadow-c: color-mix(in srgb, var(--decor) 35%, var(--c-transparent));
+  --hl-bg-1: var(--highlight);
+  --hl-bg-2: var(--hl-bg-1);
+  --hl-bg-3: var(--hl-bg-1);
+  --hl-color: var(--c-transparent);
+  --hl-fill: var(--c-transparent);
+  --trace-bg-1: color-mix(in srgb, var(--accent) 10%, var(--surface-base));
+  --trace-bg-2: var(--trace-bg-1);
+  --trace-bg-3: var(--trace-bg-1);
+  --trace-shadow-c: color-mix(in srgb, var(--accent) 22%, var(--c-transparent));
+  --menu-bg: var(--plum);
+  --menu-hover-1: color-mix(in srgb, var(--plum-lift) 70%, var(--c-transparent));
+  --menu-hover-2: var(--menu-hover-1);
+  --menu-label-accent: color-mix(in srgb, var(--highlight) 40%, var(--c-transparent));
+  --modal-bg: color-mix(in srgb, var(--bg) 88%, var(--plum));
+  --m-muted: 76%;
+  --a-toast-shadow: 45%;
+  --a-toast-shadow-2: 20%;
+  --a-spin-track: 22%;
+}
+
+html.fuchsia-noir body {
+  background:
+      radial-gradient(90% 55% at 50% -10%, rgb(92 48 112 / 0.55), transparent 70%),
+      linear-gradient(180deg, #241530 0%, #1b1022 45%, #170d1d 100%) fixed;
 }
 
 .glassy-rainbow {

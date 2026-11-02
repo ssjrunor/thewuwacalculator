@@ -8,18 +8,17 @@ import Tesseract from 'tesseract.js'
 import { listEchoes } from '@/data/catalog/echoCatalogService'
 import { listResSds } from '@/data/catalog/resonatorSeedService'
 import { listWpnsByTy } from '@/data/catalog/weaponCatalogService'
-import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay'
 import {
   getEchoMgKeys,
   getEchoMgMap,
-  getEchoNamFrmKey,
-  isPhantomKey,
   getSetNameMg,
   getSetNameTo,
 } from '@/engine/echoParser/imageMap'
+import { artAgrees, pickEchoAndSet } from '@/engine/echoParser/echoPick'
 import {
   ATTRIBUTE_REGION,
   BUILD_REGIONS,
+  CARD_FRAME,
   CARD_HEIGHT,
   CARD_WIDTH,
   FILLED_PANEL_MIN_INK,
@@ -36,8 +35,10 @@ import {
   QR_PLATE,
   SEQUENCE_CENTERS,
   SEQUENCE_SAMPLE,
+  SHORT_LABEL,
   SLOT_AREA_COUNT,
   SLOT_SAMPLE_COUNT,
+  WEAPON_ICON,
   getEchoSlotRgns,
 } from '@/engine/echoParser/cardRegions'
 import {
@@ -45,7 +46,10 @@ import {
   type ReadOptions,
 } from '@/engine/echoParser/readProgress'
 import {
+  ART_MARGIN,
   resolveBuildScreenshotMetadata,
+  settleResonatorArt,
+  settleWeapon,
   type ParsedBuildMetadata,
   type RawBuildScreenshotReadings,
   type RawCoreSkillLevels,
@@ -53,18 +57,22 @@ import {
 import {
   prldEchoMgs,
   prldSetMgs,
-  mtchSetFrst,
+  rnkSets,
+  cmprEchoArt,
   rnkEchoFrom,
+  rnkWeapons,
   loadImage,
 } from '@/engine/echoParser/imageMatching'
-import type { EchoMatch, ImageRegion } from '@/engine/echoParser/imageMatching'
+import type { ImageRegion } from '@/engine/echoParser/imageMatching'
 import { costForMain } from '@/engine/echoParser/echoBuilder'
+import { namesMain, namesSubstat, readSubstat } from '@/engine/echoParser/statReading'
 import type { AttributeKey } from '@/domain/entities/stats'
-import type { EchoDef } from '@/domain/entities/catalog'
 
 export interface RawPrsdEcho {
   cost: string
   mainStatLbl: string
+  /** the main stat's printed value, read only when its label names no stat */
+  mainStatValue?: string
   substats: string[]
   /** each substat's number, read on its own with a digits-only whitelist */
   substatValues?: string[]
@@ -74,19 +82,31 @@ export interface RawPrsdEcho {
 
 export interface ParsedBuildScreenshot extends ParsedBuildMetadata {
   echoes: RawPrsdEcho[]
+  source: {
+    /** uploaded image dimensions before normalization to the 1920 x 1080 card. */
+    width: number
+    height: number
+    lowResolution: boolean
+    /** mean channel distance between fixed card elements and the reference image. */
+    frameScore: number
+    /** whether the fixed card elements match the reference image. */
+    botFrame: boolean
+    /** whether at least half the substat labels were unreadable. */
+    unreadText: boolean
+  }
 }
 
-// a short value ("21%") alone in its box sometimes reads as nothing; each pass
-// retries only the rows still empty, and the roll tables vet whatever comes back
+// retry values without an exact legal roll at several scales and segmentation
+// modes; retain exact reads across passes.
 const VALUE_PASSES = [
   { scale: 2, psm: '7' },
   { scale: 3, psm: '7' },
   { scale: 3, psm: '13' },
 ] as const
 
-// module-level caches so reference images are only loaded once
+// cache reference images across parses; the set glyphs total a few hundred kilobytes.
 const echoCache: Record<string, CanvasRenderingContext2D> = {}
-const setCache: Record<string, CanvasRenderingContext2D> = {}
+const setCache: Record<string, Float32Array> = {}
 
 function clrCnvsCch(cache: Record<string, CanvasRenderingContext2D>): void {
   for (const [key, context] of Object.entries(cache)) {
@@ -122,11 +142,17 @@ function otsuThreshold(gray: Uint8ClampedArray): number {
   return threshold
 }
 
-type TextCleanup = 'contrast' | 'threshold'
+// the worker, core and language data are served from our own origin
+// (staged by tools/data/stageOcrAssets.mjs); the worker runs from a blob, so the paths are absolute
+function ocrAssetPaths(): Pick<Tesseract.WorkerOptions, 'workerPath' | 'corePath' | 'langPath'> {
+  const base = new URL('/assets/app/ocr/', window.location.origin).href
+  return { workerPath: `${base}worker.min.js`, corePath: base, langPath: base.replace(/\/$/, '') }
+}
 
-// extract ocr text from an image region after grayscale cleanup: a contrast
-// stretch by default, or a hard ink/ground split framed in white for the few
-// dark-on-light marks (the level badge) that a stretch leaves soft
+type TextCleanup = 'contrast' | 'threshold' | 'plain'
+
+// read a cropped region using contrast, threshold, or plain grayscale cleanup.
+// threshold handles dark text on a light badge; plain grayscale handles dim cards.
 async function extractText(
     canvas: HTMLCanvasElement,
     worker: Tesseract.Worker,
@@ -164,7 +190,7 @@ async function extractText(
     const value = gray[i / 4]
     const v = cleanup === 'threshold'
       ? (value > threshold ? 255 : 0)
-      : Math.max(0, Math.min(255, (value - 128) * 1.5 + 128))
+      : cleanup === 'plain' ? value : Math.max(0, Math.min(255, (value - 128) * 1.5 + 128))
     d[i] = d[i + 1] = d[i + 2] = v
   }
 
@@ -202,6 +228,29 @@ async function safeExtractText(
   }
 }
 
+function hueOf(r: number, g: number, b: number): number {
+  const brightest = Math.max(r, g, b)
+  const span = brightest - Math.min(r, g, b)
+  if (span === 0) return 0
+  const sector = brightest === r
+    ? (g - b) / span
+    : brightest === g ? (b - r) / span + 2 : (r - g) / span + 4
+  return (sector * 60 + 360) % 360
+}
+
+// median icon hues measured on native and resized reference cards, within 2 degrees.
+const ATTRIBUTE_HUES: Array<[AttributeKey, number]> = [
+  ['spectro', 46],
+  ['aero', 158],
+  ['glacio', 200],
+  ['electro', 280],
+  ['havoc', 322],
+  ['fusion', 349],
+]
+
+// reject hues more than 12 degrees from every reference icon.
+const ATTRIBUTE_HUE_REACH = 12
+
 function detectAttribute(canvas: HTMLCanvasElement): AttributeKey | null {
   const context = canvas.getContext('2d', { willReadFrequently: true })!
   const pixels = context.getImageData(
@@ -210,45 +259,28 @@ function detectAttribute(canvas: HTMLCanvasElement): AttributeKey | null {
     ATTRIBUTE_REGION.width,
     ATTRIBUTE_REGION.height,
   ).data
-  let red = 0
-  let green = 0
-  let blue = 0
-  let count = 0
 
+  // sample saturated icon pixels; the header and antialiased edges shift the hue.
+  const hues: number[] = []
   for (let index = 0; index < pixels.length; index += 4) {
     const r = pixels[index]
     const g = pixels[index + 1]
     const b = pixels[index + 2]
     const brightest = Math.max(r, g, b)
-    const darkest = Math.min(r, g, b)
-    if (brightest <= 80 || brightest - darkest <= 30) continue
-    red += r
-    green += g
-    blue += b
-    count += 1
+    if (brightest < 77 || brightest - Math.min(r, g, b) < brightest * 0.3) continue
+    hues.push(hueOf(r, g, b))
   }
+  if (hues.length < 25) return null
 
-  if (count < 25) return null
-  const average = [red / count, green / count, blue / count]
-  const attributes = (Object.keys(ATTR_COLORS) as AttributeKey[])
-      .filter((attribute) => attribute !== 'physical')
-
-  return attributes.reduce<{ attribute: AttributeKey | null; distance: number }>(
-    (best, attribute) => {
-      const hex = ATTR_COLORS[attribute]
-      const target = [
-        Number.parseInt(hex.slice(1, 3), 16),
-        Number.parseInt(hex.slice(3, 5), 16),
-        Number.parseInt(hex.slice(5, 7), 16),
-      ]
-      const distance = average.reduce(
-        (sum, channel, channelIndex) => sum + (channel - target[channelIndex]) ** 2,
-        0,
-      )
-      return distance < best.distance ? { attribute, distance } : best
-    },
-    { attribute: null, distance: Infinity },
-  ).attribute
+  hues.sort((left, right) => left - right)
+  const median = hues[Math.floor(hues.length / 2)]
+  let best: { attribute: AttributeKey; distance: number } | null = null
+  for (const [attribute, hue] of ATTRIBUTE_HUES) {
+    const gap = Math.abs(median - hue)
+    const distance = Math.min(gap, 360 - gap)
+    if (!best || distance < best.distance) best = { attribute, distance }
+  }
+  return best && best.distance <= ATTRIBUTE_HUE_REACH ? best.attribute : null
 }
 
 // find the dark level text through its gold plate. search windows crossing the
@@ -346,64 +378,80 @@ function detectActiveSequences(canvas: HTMLCanvasElement): boolean[] {
   })
 }
 
-async function matchResonatorSprite(
+// compare the upper half of catalog portraits at a nominal width of 500 pixels;
+// search nearby offsets because card placement varies by resonator.
+const SPRITE_PLACE = { x: 140, y: 2, widths: [492, 497, 502, 507], reach: 6, step: 2 }
+const SPRITE_UPPER = 0.5
+const SPRITE_BOUNDS = { width: 760, height: 640 }
+
+// every candidate's catalog sprite scored against the card's portrait, closest first
+async function rankResonatorSprites(
     canvas: HTMLCanvasElement,
     candidateIds: string[],
-): Promise<string | null> {
-  if (candidateIds.length === 1) return candidateIds[0]
-  if (candidateIds.length < 2) return null
-
+): Promise<{ id: string; score: number }[]> {
   const source = canvas.getContext('2d', { willReadFrequently: true })!
-  const sourcePixels = source.getImageData(0, 0, canvas.width, canvas.height).data
+  const card = source.getImageData(0, 0, SPRITE_BOUNDS.width, SPRITE_BOUNDS.height).data
   const candidates = listResSds().filter(
     (resonator) => candidateIds.includes(resonator.id) && resonator.sprite,
   )
   const scored = await Promise.all(candidates.map(async (resonator) => {
+    let image: HTMLImageElement
     try {
-      const image = await loadImage(resonator.sprite!)
-      const referenceCanvas = document.createElement('canvas')
-      referenceCanvas.width = image.naturalWidth
-      referenceCanvas.height = image.naturalHeight
-      const reference = referenceCanvas.getContext('2d', { willReadFrequently: true })!
-      reference.drawImage(image, 0, 0)
-      const pixels = reference.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data
-      let difference = 0
-      let samples = 0
-
-      // the bot places the catalog sprite at this fixed transform. sparse opaque
-      // samples distinguish same-name rover variants without scanning every pixel.
-      for (let y = 0; y < Math.min(image.naturalHeight, 850); y += 12) {
-        for (let x = 0; x < image.naturalWidth; x += 12) {
-          const index = (y * image.naturalWidth + x) * 4
-          const alpha = pixels[index + 3]
-          const brightest = Math.max(pixels[index], pixels[index + 1], pixels[index + 2])
-          if (alpha <= 245 || brightest <= 70) continue
-
-          const sourceX = Math.round(140 + x * 0.72)
-          const sourceY = Math.round(y * 0.72)
-          if (sourceX >= 760 || sourceY >= 640) continue
-
-          const sourceIndex = (sourceY * canvas.width + sourceX) * 4
-          difference += Math.abs(sourcePixels[sourceIndex] - pixels[index])
-              + Math.abs(sourcePixels[sourceIndex + 1] - pixels[index + 1])
-              + Math.abs(sourcePixels[sourceIndex + 2] - pixels[index + 2])
-          samples += 1
-        }
-      }
-
-      referenceCanvas.width = 0
-      referenceCanvas.height = 0
-      return { id: resonator.id, score: samples >= 100 ? difference / samples : Infinity }
+      image = await loadImage(resonator.sprite!)
     } catch {
       return { id: resonator.id, score: Infinity }
     }
+    let best = Infinity
+    for (const width of SPRITE_PLACE.widths) {
+      const scale = width / image.naturalWidth
+      const height = Math.round(image.naturalHeight * scale * SPRITE_UPPER)
+      const reference = document.createElement('canvas')
+      reference.width = width
+      reference.height = height
+      const context = reference.getContext('2d', { willReadFrequently: true })!
+      context.drawImage(image, 0, 0, width, height / SPRITE_UPPER)
+      const pixels = context.getImageData(0, 0, width, height).data
+      reference.width = 0
+
+      // sparse opaque samples, kept once per scale
+      const samples: number[] = []
+      for (let y = 0; y < height; y += 6) {
+        for (let x = 0; x < width; x += 6) {
+          const index = (y * width + x) * 4
+          if (pixels[index + 3] > 245 && Math.max(pixels[index], pixels[index + 1], pixels[index + 2]) > 40) {
+            samples.push(x, y, pixels[index], pixels[index + 1], pixels[index + 2])
+          }
+        }
+      }
+
+      for (let dy = -SPRITE_PLACE.reach; dy <= SPRITE_PLACE.reach; dy += SPRITE_PLACE.step) {
+        for (let dx = -SPRITE_PLACE.reach; dx <= SPRITE_PLACE.reach; dx += SPRITE_PLACE.step) {
+          let difference = 0
+          let count = 0
+          for (let k = 0; k < samples.length; k += 5) {
+            const x = SPRITE_PLACE.x + dx + samples[k]
+            const y = SPRITE_PLACE.y + dy + samples[k + 1]
+            if (x < 0 || y < 0 || x >= SPRITE_BOUNDS.width || y >= SPRITE_BOUNDS.height) continue
+            const index = (y * SPRITE_BOUNDS.width + x) * 4
+            difference += Math.abs(card[index] - samples[k + 2])
+                + Math.abs(card[index + 1] - samples[k + 3])
+                + Math.abs(card[index + 2] - samples[k + 4])
+            count += 1
+          }
+          if (count >= 100) best = Math.min(best, difference / count)
+        }
+      }
+    }
+    return { id: resonator.id, score: best }
   }))
-  scored.sort((left, right) => left.score - right.score)
-  const [best, runnerUp] = scored
-  if (!best || !Number.isFinite(best.score)) return null
-  if (runnerUp && best.score > runnerUp.score * 0.85) return null
-  return best.id
+  return scored.filter((entry) => Number.isFinite(entry.score)).sort((left, right) => left.score - right.score)
 }
+
+const LEVEL_READS = [
+  [4, 'threshold'],
+  [6, 'threshold'],
+  [4, 'plain'],
+] as const
 
 async function extractBuildMetadata(
     canvas: HTMLCanvasElement,
@@ -450,14 +498,20 @@ async function extractBuildMetadata(
   readHead(HEAD_AREA.uid)
   const uidText = await safeExtractText(canvas, worker, BUILD_REGIONS.uid)
   thrwIfAbrtd(signal)
+  // verify the uid with a larger digits-only read before assigning a player.
+  await worker.setParameters({
+    tessedit_char_whitelist: '0123456789',
+    tessedit_pageseg_mode: '7' as Tesseract.PSM,
+  })
+  const uidCheckText = await safeExtractText(canvas, worker, BUILD_REGIONS.uid, 2)
+  thrwIfAbrtd(signal)
 
   await worker.setParameters({
     tessedit_char_whitelist: 'LVlv.0123456789/ ',
     tessedit_pageseg_mode: '7' as Tesseract.PSM,
   })
   readHead(HEAD_AREA.resonatorLevel)
-  // the digits alone, so neither the "LV." nor the hatching can be misread into them;
-  // the whole badge, then the name line, stand in when that read fails
+  // read badge digits first; fall back to the full badge and then the name line.
   let resonatorLevelText = resonatorNameText
   if (levelBadge) {
     const plateLeft = levelBadge.x + LEVEL_BADGE_PLATE.pad.x
@@ -465,18 +519,28 @@ async function extractBuildMetadata(
       tessedit_char_whitelist: '0123456789',
       tessedit_pageseg_mode: '7' as Tesseract.PSM,
     })
-    const digits = await extractText(canvas, worker, {
+    const digitsRegion = {
       ...levelBadge,
       x: plateLeft + LEVEL_BADGE_DIGITS.from,
       width: LEVEL_BADGE_DIGITS.width,
-    }, 4, 'threshold').catch(() => '')
+    }
+    // accept a level only when at least two cleanup passes agree uniquely.
+    const reads: string[] = []
+    for (const [scale, cleanup] of LEVEL_READS) {
+      const digits = await extractText(canvas, worker, digitsRegion, scale, cleanup).catch(() => '')
+      if (/^\d{1,2}$/.test(digits)) reads.push(digits)
+    }
     await worker.setParameters({
       tessedit_char_whitelist: 'LVlv.0123456789/ ',
       tessedit_pageseg_mode: '7' as Tesseract.PSM,
     })
-    resonatorLevelText = /^\d{1,2}$/.test(digits)
-      ? `LV.${digits}`
-      : await safeExtractText(canvas, worker, levelBadge)
+    const votes = [...new Set(reads)]
+        .map((digits) => ({ digits, count: reads.filter((read) => read === digits).length }))
+        .sort((left, right) => right.count - left.count)
+    const [lead, rival] = votes
+    if (lead && lead.count >= 2 && (!rival || lead.count > rival.count)) resonatorLevelText = `LV.${lead.digits}`
+    else if (reads.length === 0) resonatorLevelText = await safeExtractText(canvas, worker, levelBadge)
+    else resonatorLevelText = ''
   }
   thrwIfAbrtd(signal)
   readHead(HEAD_AREA.weaponLevel)
@@ -499,6 +563,7 @@ async function extractBuildMetadata(
   const readings: RawBuildScreenshotReadings = {
     playerIdText,
     uidText,
+    uidCheckText,
     resonatorNameText,
     resonatorLevelText,
     weaponNameText,
@@ -508,18 +573,35 @@ async function extractBuildMetadata(
     activeSequences,
   }
 
-  const metadata = resolveBuildScreenshotMetadata(readings, {
-    resonators: listResSds(),
-    weapons: [1, 2, 3, 4, 5].flatMap((weaponType) => listWpnsByTy(weaponType)),
-  })
-  onProgress?.({ stage: 'match', done: 0, total: 1 })
-  const resonatorId = metadata.resonator.id
-      ?? await matchResonatorSprite(canvas, metadata.resonator.candidateIds)
-  onProgress?.({ stage: 'match', done: 1, total: 1 })
+  const resonators = listResSds()
+  const weapons = [1, 2, 3, 4, 5].flatMap((weaponType) => listWpnsByTy(weaponType))
+  const metadata = resolveBuildScreenshotMetadata(readings, { resonators, weapons })
+  onProgress?.({ stage: 'match', done: 0, total: 2 })
 
-  return resonatorId
-    ? { ...metadata, resonator: { ...metadata.resonator, id: resonatorId } }
-    : metadata
+  // when the name has no catalog match, search every portrait with a wider margin.
+  const candidateIds = metadata.resonator.candidateIds
+  const resonatorId = metadata.resonator.id ?? settleResonatorArt(
+    await rankResonatorSprites(canvas, candidateIds.length > 0 ? candidateIds : resonators.map((entry) => entry.id)),
+    candidateIds.length > 0 ? ART_MARGIN.named : ART_MARGIN.catalog,
+    (id) => resonators.find((entry) => entry.id === id)?.attribute ?? null,
+    attribute,
+  )
+  const resonator = resonators.find((entry) => entry.id === resonatorId)
+  onProgress?.({ stage: 'match', done: 1, total: 2 })
+  thrwIfAbrtd(signal)
+
+  // restrict weapon icon matching to the resonator's weapon type.
+  const weaponPool = resonator ? weapons.filter((entry) => entry.weaponType === resonator.weaponType) : weapons
+  const weapon = settleWeapon(metadata.weapon, await rnkWeapons(canvas, WEAPON_ICON, weaponPool), weaponPool)
+  onProgress?.({ stage: 'match', done: 2, total: 2 })
+
+  return {
+    ...metadata,
+    resonator: resonator
+      ? { ...metadata.resonator, id: resonator.id, name: resonator.name }
+      : metadata.resonator,
+    weapon,
+  }
 }
 
 export interface CardDrift {
@@ -536,7 +618,6 @@ export function findDrift(canvas: HTMLCanvasElement): CardDrift {
     const index = (y * width + x) * 4
     return 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2] > 200
   }
-  // a run of white, so one stray light pixel is never taken for the plate
   const RUN = 6
   const runFrom = (x: number, y: number, stepX: number, stepY: number): boolean => {
     for (let step = 0; step < RUN; step += 1) {
@@ -570,7 +651,91 @@ export function findDrift(canvas: HTMLCanvasElement): CardDrift {
   return { dx: left - QR_PLATE.left, dy: top - QR_PLATE.top }
 }
 
-// an empty panel is bare background; reading it anyway makes up an echo from noise
+// classify unreadable HP, ATK, and DEF labels by first-line pixel width.
+function readShortLabel(canvas: HTMLCanvasElement, region: ImageRegion): 'HP' | 'ATK' | 'DEF' | null {
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const { width } = region
+  const height = SHORT_LABEL.band
+  const pixels = context.getImageData(region.x, region.y, width, height).data
+  const columnInk = Array.from({ length: width }, (_, x) => {
+    let ink = 0
+    for (let y = 0; y < height; y += 1) {
+      const index = (y * width + x) * 4
+      if (0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2] > 110) ink += 1
+    }
+    return ink
+  })
+  const first = columnInk.findIndex((ink) => ink >= SHORT_LABEL.minInk)
+  if (first < 0) return null
+  let last = first
+  columnInk.forEach((ink, x) => {
+    if (ink >= SHORT_LABEL.minInk) last = x
+  })
+  const inkWidth = last - first
+  if (inkWidth <= SHORT_LABEL.hpMaxWidth) return 'HP'
+  if (inkWidth < SHORT_LABEL.minWidth || inkWidth > SHORT_LABEL.maxWidth) return null
+  const stem = Math.max(...columnInk.slice(first, first + 3))
+  return stem >= SHORT_LABEL.defMinStem ? 'DEF' : 'ATK'
+}
+
+// the main value leads with a star a digit reader takes for a 4, so the digits start after the
+// leftmost ink run when that run is star wide (18-21 px; a digit spans 11-12)
+const MAIN_VALUE_STAR_MIN_WIDTH = 15
+
+function findMainValue(canvas: HTMLCanvasElement, band: ImageRegion): ImageRegion | null {
+  const context = canvas.getContext('2d', { willReadFrequently: true })!
+  const pixels = context.getImageData(band.x, band.y, band.width, band.height).data
+  const runs: Array<{ from: number; to: number }> = []
+  for (let x = 0; x < band.width; x += 1) {
+    let lit = false
+    for (let y = 0; y < band.height && !lit; y += 1) {
+      const index = (y * band.width + x) * 4
+      lit = 0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2] > 110
+    }
+    if (!lit) continue
+    const last = runs[runs.length - 1]
+    if (last && last.to === x - 1) last.to = x
+    else runs.push({ from: x, to: x })
+  }
+  const digits = runs[0] && runs[0].to - runs[0].from + 1 >= MAIN_VALUE_STAR_MIN_WIDTH ? runs.slice(1) : runs
+  if (digits.length === 0) return null
+  const from = Math.max(0, digits[0].from - 3)
+  const to = Math.min(band.width - 1, digits[digits.length - 1].to + 3)
+  return { x: band.x + from, y: band.y, width: to - from + 1, height: band.height }
+}
+
+// compare fixed card pixels at quarter size using the template's alpha mask.
+async function scoreFrame(canvas: HTMLCanvasElement): Promise<number> {
+  const { width, height } = CARD_FRAME
+  const draw = (source: CanvasImageSource) => {
+    const surface = document.createElement('canvas')
+    surface.width = width
+    surface.height = height
+    const context = surface.getContext('2d', { willReadFrequently: true })!
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(source, 0, 0, width, height)
+    const pixels = context.getImageData(0, 0, width, height).data
+    surface.width = 0
+    return pixels
+  }
+  const template = draw(await loadImage(CARD_FRAME.src))
+  const card = draw(canvas)
+  let difference = 0
+  let count = 0
+  for (let index = 0; index < template.length; index += 4) {
+    if (template[index + 3] < 128) continue
+    difference += Math.abs(card[index] - template[index])
+        + Math.abs(card[index + 1] - template[index + 1])
+        + Math.abs(card[index + 2] - template[index + 2])
+    count += 1
+  }
+  return count > 0 ? difference / count / 3 : Infinity
+}
+
+// mark text unreadable when more than half the substat labels have no match.
+const UNREAD_LABEL_SHARE = 0.5
+
+// use sid -stat brightness to distinguish filled panels from empty background.
 function slotHasEcho(canvas: HTMLCanvasElement, region: ImageRegion): boolean {
   const context = canvas.getContext('2d', { willReadFrequently: true })!
   const pixels = context.getImageData(region.x, region.y, region.width, region.height).data
@@ -580,42 +745,6 @@ function slotHasEcho(canvas: HTMLCanvasElement, region: ImageRegion): boolean {
     if (luminance > 110) ink += 1
   }
   return ink >= FILLED_PANEL_MIN_INK
-}
-
-// phantom echo art resembles other pale art. require a clear score margin over
-// plain art before assigning the phantom slot.
-const PHANTOM_MARGIN = 0.1
-
-function pickEchoKey(ranked: EchoMatch[]): string | null {
-  const best = ranked[0]
-  if (!best) return null
-  if (!isPhantomKey(best.key)) return best.key
-
-  const plain = ranked.find((match) => !isPhantomKey(match.key))
-  if (!plain || getEchoNamFrmKey(plain.key) === getEchoNamFrmKey(best.key)) return best.key
-  return best.score * (1 + PHANTOM_MARGIN) <= plain.score ? best.key : plain.key
-}
-
-// the sonata marks say which echoes a card can hold, so only those icons load
-function pickSetEchoMgs(
-    echoImages: Record<string, string>,
-    catalog: EchoDef[],
-    slotSets: Array<string | null>,
-): Record<string, string> {
-  if (slotSets.length === 0 || slotSets.some((setName) => setName === null)) return echoImages
-
-  const nameToId = getSetNameTo()
-  const setIds = new Set(slotSets.map((setName) => nameToId[setName!]))
-  const wanted: Record<string, string> = {}
-
-  for (const echo of catalog) {
-    if (!echo.sets.some((setId) => setIds.has(setId))) continue
-    for (const key of getEchoMgKeys(echo.name)) {
-      if (echoImages[key]) wanted[key] = echoImages[key]
-    }
-  }
-
-  return Object.keys(wanted).length > 0 ? wanted : echoImages
 }
 
 // parse the complete build card while leaving application decisions to callers
@@ -668,19 +797,15 @@ export async function prsBldFromMg(
       thrwIfAbrtd(signal)
     })
 
-    // match the sonata marks before loading any echo art; empty panels have none
+    // keep all set scores for filled panels; glyph errors can change the top match.
     const filled = coords.map((slot) => slotHasEcho(canvas, slot.sideStat))
     const slotSets = coords.map((slot, index) => (
-      filled[index] ? mtchSetFrst(canvas, slot.set, setCache) : null
+      filled[index] ? rnkSets(canvas, slot.set, setCache) : []
     ))
-    const wantedEchoMgs = pickSetEchoMgs(
-      echoImages,
-      echoCatalog,
-      slotSets.filter((_, index) => filled[index]),
-    )
-    const catalogTotal = setCount + Object.keys(wantedEchoMgs).length
+    const catalogTotal = setCount + Object.keys(echoImages).length
 
-    await prldEchoMgs(wantedEchoMgs, echoCache, (done) => {
+    // load all echo images before combining art and set scores.
+    await prldEchoMgs(echoImages, echoCache, (done) => {
       onProgress?.({
         stage: 'catalog',
         done: setCount + done,
@@ -694,6 +819,7 @@ export async function prsBldFromMg(
     let booting = true
     onProgress?.({ stage: 'worker', done: 0, total: 1 })
     const worker = await Tesseract.createWorker('eng', undefined, {
+      ...ocrAssetPaths(),
       logger: ({ status, progress }) => {
         if (!booting) return
         onProgress?.({
@@ -756,10 +882,34 @@ export async function prsBldFromMg(
         })
 
         readSlot(index, 1)
-        const mainStatLbl = await extractText(canvas, worker, slot.mainStatLabel, 2)
+        let mainStatLbl = await extractText(canvas, worker, slot.mainStatLabel, 2)
+        // retry an unnamed label on plain grayscale, then threshold, as the substat labels do
+        for (const cleanup of ['plain', 'threshold'] as const) {
+          if (namesMain(mainStatLbl)) break
+          const retry = await extractText(canvas, worker, slot.mainStatLabel, 2, cleanup)
+          if (namesMain(retry)) mainStatLbl = retry
+          thrwIfAbrtd(signal)
+        }
 
-        // a digit that did not read falls back on the main stat, which often names its cost
-        if (!['1', '3', '4'].includes(cost)) cost = String(costForMain(mainStatLbl) ?? 4)
+        // a label that still names nothing falls back to the printed value, kept only when
+        // two scales read the same number, since one confused digit (30 as 38) names another main
+        let mainStatValue: string | undefined
+        const valueDigits = namesMain(mainStatLbl) ? null : findMainValue(canvas, slot.mainStatValue)
+        if (valueDigits) {
+          await worker.setParameters({
+            tessedit_char_whitelist: '0123456789.%',
+            tessedit_pageseg_mode: '7' as Tesseract.PSM,
+          })
+          const reads = []
+          for (const scale of [3, 4]) {
+            reads.push((await extractText(canvas, worker, valueDigits, scale)).match(/\d+(?:\.\d+)?/)?.[0] ?? '')
+          }
+          if (reads[0] && reads[0] === reads[1]) mainStatValue = reads[0]
+          thrwIfAbrtd(signal)
+        }
+
+        // infer an unreadable cost from the main stat, then from the matched echo.
+        if (!['1', '3', '4'].includes(cost)) cost = String(costForMain(mainStatLbl) ?? '')
 
         // substat labels wrap onto a second line, so they are read as a block
         await worker.setParameters({
@@ -775,58 +925,70 @@ export async function prsBldFromMg(
           thrwIfAbrtd(signal)
         }
 
+        // retry unresolved labels on plain grayscale without replacing valid labels.
+        for (const cleanup of ['plain', 'threshold'] as const) {
+          const unnamed = substats.flatMap((label, row) => (namesSubstat(label) ? [] : [row]))
+          for (const row of unnamed) {
+            const raw = await extractText(canvas, worker, slot.substats[row], 3, cleanup)
+            const label = raw.replace(/\n/g, ' ').replace(/[^\w.%+ ]/g, '').trim()
+            if (namesSubstat(label)) substats[row] = label
+            thrwIfAbrtd(signal)
+          }
+        }
+        for (const [row, label] of substats.entries()) {
+          if (!namesSubstat(label)) substats[row] = readShortLabel(canvas, slot.substats[row]) ?? label
+        }
+
         // a blurred number read with letters allowed comes back as a word ("pURLL"),
         // so the numbers are read on their own
         const substatValues: string[] = slot.substatValues.map(() => '')
+        const settled = (row: number, value: string) => readSubstat(substats[row], value)
         for (const pass of VALUE_PASSES) {
-          const pending = substatValues.flatMap((value, row) => (/\d/.test(value) ? [] : [row]))
+          const pending = substatValues.flatMap((value, row) => (
+            settled(row, value)?.fix === 'exact' ? [] : [row]
+          ))
           if (pending.length === 0) break
           await worker.setParameters({
             tessedit_char_whitelist: '0123456789.%',
             tessedit_pageseg_mode: pass.psm as Tesseract.PSM,
           })
           for (const row of pending) {
-            const text = await extractText(canvas, worker, slot.substatValues[row], pass.scale)
-            substatValues[row] = text.replace(/\s+/g, '')
+            const text = (await extractText(canvas, worker, slot.substatValues[row], pass.scale))
+                .replace(/\s+/g, '')
+            // replace a value with an exact read or when the previous value is invalid.
+            const fresh = settled(row, text)
+            if (fresh && (fresh.fix === 'exact' || !settled(row, substatValues[row]))) {
+              substatValues[row] = text
+            } else if (!/\d/.test(substatValues[row])) {
+              substatValues[row] = text
+            }
             thrwIfAbrtd(signal)
           }
         }
 
-        // the sonata mark was matched before the icons loaded
+        // score each echo with a compatible sonata set at the read cost.
         readSlot(index, 7)
-        const setName = slotSets[index]
-
-        // filter echo candidates by set and cost; a candidate brings every form it
-        // has, so a phantom echo is matched against its own art
-        let fltrNms: string[] = []
-        if (setName !== null) {
-          const setId = getSetNameTo()[setName]
-          fltrNms = echoCatalog
-              .filter((echo) => echo.sets.includes(setId) && String(echo.cost) === cost)
-              .flatMap((echo) => getEchoMgKeys(echo.name))
-
-          // if cost filtering removes everything, fall back to set-only filtering
-          if (fltrNms.length === 0) {
-            fltrNms = echoCatalog
-                .filter((echo) => echo.sets.includes(setId))
-                .flatMap((echo) => getEchoMgKeys(echo.name))
-          }
-        }
-
-        // if set match failed, search across all echoes
-        if (fltrNms.length === 0) {
-          fltrNms = Object.keys(getEchoMgMap())
-        }
-
-        // match echo icon from remaining candidates
         readSlot(index, 8)
-        const echoName = getEchoNamFrmKey(
-          pickEchoKey(rnkEchoFrom(canvas, slot.echoImage, fltrNms, echoCache)),
+        const ranked = pickEchoAndSet(
+          rnkEchoFrom(canvas, slot.echoImage, Object.keys(echoImages), echoCache),
+          slotSets[index],
+          echoCatalog,
+          getSetNameTo(),
+          cost ? Number(cost) : null,
         )
+        // an echo the catalog lacks still ranks a nearest neighbour, so the winner has to
+        // agree with the art on its own; an unidentified slot is a gap the user sees
+        const pick = ranked && artAgrees(getEchoMgKeys(ranked.echoName)
+            .filter((key) => echoCache[key])
+            .map((key) => cmprEchoArt(canvas, slot.echoImage, echoCache[key]))) ? ranked : null
+        const echoName = pick?.echoName ?? null
+        const setName = pick?.setName ?? null
+        if (!cost && pick) cost = String(pick.cost)
 
         results.push({
           cost,
           mainStatLbl: mainStatLbl,
+          mainStatValue,
           substats,
           substatValues,
           echoName,
@@ -835,11 +997,24 @@ export async function prsBldFromMg(
       }
 
       const metadata = await extractBuildMetadata(canvas, worker, options)
-      return { ...metadata, echoes: results }
+      const frameScore = await scoreFrame(canvas).catch(() => Infinity)
+      const labels = results.flatMap((echo) => echo.substats)
+      const unnamed = labels.filter((label) => !namesSubstat(label)).length
+      return {
+        ...metadata,
+        echoes: results,
+        source: {
+          width: loadedImg.naturalWidth,
+          height: loadedImg.naturalHeight,
+          lowResolution: loadedImg.naturalWidth < CARD_WIDTH,
+          frameScore,
+          botFrame: frameScore <= CARD_FRAME.maxScore,
+          unreadText: labels.length > 0 && unnamed / labels.length > UNREAD_LABEL_SHARE,
+        },
+      }
     } finally {
       await worker.terminate()
       clrCnvsCch(echoCache)
-      clrCnvsCch(setCache)
       canvas.width = 0
       canvas.height = 0
     }

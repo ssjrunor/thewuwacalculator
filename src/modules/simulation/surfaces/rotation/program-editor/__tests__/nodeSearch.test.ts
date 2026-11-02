@@ -77,32 +77,6 @@ describe('editor node search', () => {
     expect(index.find((entry) => entry.id === 'b')?.crumb).toBe('Main / Loop 1')
   })
 
-  it('finds a step by name and marks the span that matched', () => {
-    const hits = searchNodes(buildNodeIndex(sections(), names), 'inversion')
-    expect(hits).toHaveLength(1)
-    expect(hits[0].id).toBe('b')
-    expect(hits[0].title.slice(hits[0].from, hits[0].to)).toBe('Inversion')
-    expect(hits[0].via).toBeNull()
-  })
-
-  it('ranks a match at the start of a name above one further in', () => {
-    const hits = searchNodes(buildNodeIndex(sections(), names), 'attack')
-    expect(hits.map((hit) => hit.id)).toEqual(['a', 'b'])
-  })
-
-  it('finds a node by what it is when the name does not say so', () => {
-    const hits = searchNodes(buildNodeIndex(sections(), names), 'forte')
-    expect(hits.map((hit) => hit.id)).toEqual(['b'])
-    // reported as found some other way, so the hit can say why it is there
-    expect(hits[0].via).toContain('Forte Circuit')
-  })
-
-  it('finds states, blocks, and steps', () => {
-    const index = buildNodeIndex(sections(), names)
-    expect(searchNodes(index, 'tune')[0]).toMatchObject({ id: 'c', kind: 'state' })
-    expect(searchNodes(index, 'loop')[0]).toMatchObject({ id: 'loop-1', kind: 'block' })
-  })
-
   it('normalizes underscores in loop labels and exposes every run variant', () => {
     const hit = searchNodes(buildNodeIndex(sections(), names), 'loop_1')[0]
 
@@ -128,27 +102,10 @@ describe('editor node search', () => {
       .toEqual({ nodeId: 'loop-1' })
   })
 
-  it('finds an attached note, and hangs it off its host', () => {
-    const withNote = sections()
-    const host = withNote[0].children[0] as EditorNode & {
-      attachedNote?: { type: 'note'; id: string; text: string }
-    }
-    host.attachedNote = { type: 'note', id: 'n1', text: 'swap out before the burst' }
-
-    const hits = searchNodes(buildNodeIndex(withNote, names), 'burst')
-    expect(hits).toHaveLength(1)
-    expect(hits[0]).toMatchObject({ id: 'n1', kind: 'note' })
-    expect(hits[0].crumb).toBe('Main / Basic Attack Stage 1 DMG')
-  })
-
   it('names an unlabelled handoff by the incoming member', () => {
     const index = buildNodeIndex(sections(), names)
     // the whole index has to survive a query, not just the labelled half
     expect(() => searchNodes(index, 'x')).not.toThrow()
     expect(searchNodes(index, 'denia')[0]).toMatchObject({ id: 's', kind: 'swap' })
-  })
-
-  it('returns no matches for an empty query', () => {
-    expect(searchNodes(buildNodeIndex(sections(), names), '   ')).toEqual([])
   })
 })

@@ -2342,7 +2342,7 @@ function enemyChangeBounds(
   if (primaryRuntime && enemyPath === 'status.tuneStrain') {
     return {
       min: 0,
-      max: getTuneStrainMaxForTeam(primaryRuntime),
+      max: getTuneStrainMaxForTeam(primaryRuntime, getActEnemy(state)),
     }
   }
 

@@ -20,6 +20,8 @@ export const DARK_THEMES = [
   'scarlet-nebula',
   'emerald-forest',
   'graphite-pop',
+  'tidal-slate',
+  'fuchsia-noir',
 ] as const
 
 export const BG_THEMES = ['frosted-aurora'] as const
@@ -61,6 +63,8 @@ export const THEME_PREVIEW: Record<ThemeVariant, string> = {
   'scarlet-nebula': 'linear-gradient(135deg, #16080c 0%, #48131c 55%, #8c1d2d 100%)',
   'emerald-forest': 'linear-gradient(135deg, #021a0e 0%, #0a2f1a 50%, #1a3a2a 100%)',
   'graphite-pop': 'linear-gradient(135deg, #1a1a1a 0%, #333333 50%, #444444 100%)',
+  'tidal-slate': 'linear-gradient(180deg, #1a2330 0%, #2a3a4b 48%, #546c80 100%)',
+  'fuchsia-noir': 'linear-gradient(135deg, #1b1022 0%, #3d214e 55%, #5c3070 100%)',
   'frosted-aurora':
       'linear-gradient(135deg, rgba(240, 255, 255, 0.55) 0%, rgba(170, 220, 255, 0.45) 100%)',
 }
@@ -78,6 +82,8 @@ export const THEME_LABELS: Record<ThemeVariant, string> = {
   'scarlet-nebula': 'Scarlet Nebula',
   'emerald-forest': 'Emerald Forest',
   'graphite-pop': 'Graphite Pop',
+  'tidal-slate': 'Tidal Slate',
+  'fuchsia-noir': 'Fuchsia Noir',
   'frosted-aurora': 'Frosted Aurora',
 }
 
@@ -103,5 +109,7 @@ export const THEME_INK: Record<ThemeVariant, ThemeInk> = {
   'scarlet-nebula': { bg: '#0f0000', surface: '#1a0708', text: '#ffeaea', accent: '#ff8f84' },
   'emerald-forest': { bg: '#020c08', surface: '#0a1a12', text: '#e0f0e8', accent: '#5eeaaa' },
   'graphite-pop': { bg: '#101010', surface: '#2a2a2a', text: '#e8e8e8', accent: '#f5a742' },
+  'tidal-slate': { bg: '#27323E', surface: 'color-mix(in srgb, #1b2531 72%, transparent);', text: '#e6edf3', accent: '#f6eba3' },
+  'fuchsia-noir': { bg: '#1b1022', surface: '#2a1838', text: '#f0eef4', accent: '#f55cff' },
   'frosted-aurora': { bg: '#dbe8f9', surface: 'rgba(255, 255, 255, 0.34)', text: '#001f37', accent: '#2f9fd6' },
 }

@@ -571,11 +571,8 @@ export function buildFacetSlice(args: {
   return out
 }
 
-// ── comprehensive column / predicate model ────────────────────────────────
-// every result column is addressable: numeric columns (damage, cost, and the
-// eight stats) take a comparison operator + number; categorical columns (main
-// echo, set, set plan) take an equality/contains value. predicates and together
-// and back both the filter (where, subsets) and find (jump-to) flows.
+// numeric columns use a comparison and value; categorical columns use a match
+// value. both filter and find apply these predicates.
 
 export type CmpOp = 'gte' | 'gt' | 'eq' | 'lte' | 'lt'
 export type NumCol =

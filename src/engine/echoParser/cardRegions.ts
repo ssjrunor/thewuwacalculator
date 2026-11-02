@@ -24,16 +24,26 @@ export const QR_PLATE = {
   columns: [1500, 1580, 1660],
 } as const
 
-// how far off its own coordinates a card may sit and still be pulled back
+// quarter-size median of fixed card elements; alpha marks unchanged pixels.
+// reference cards score 0.4-6.6, including 1120-wide jpeg copies; other game
+// screenshots score at least 42. scripts/analysis/cardFrameTemplate.cjs rebuilds it.
+export const CARD_FRAME = {
+  src: '/assets/app/import/card-frame.png',
+  width: 480,
+  height: 270,
+  maxScore: 15,
+} as const
+
+// maximum image offset accepted when aligning a card to its reference regions.
 export const MAX_DRIFT = 40
 
 // horizontal step between the five echo panels
 export const SLOT_SPACING = 374
 
 export const BUILD_REGIONS = {
-  // the name and the level badge share one line, so the band includes both
+  // the name region includes the level badge on the same line.
   resonatorName: { x: 68, y: 18, width: 700, height: 62 },
-  // clear of the name's descenders, which the reader used to take for a letter
+  // begin below the name glyphs to exclude adjacent letters.
   playerId: { x: 18, y: 88, width: 200, height: 25 },
   uid: { x: 18, y: 113, width: 200, height: 25 },
   weaponName: { x: 1600, y: 444, width: 284, height: 46 },
@@ -47,6 +57,9 @@ export const BUILD_REGIONS = {
   },
 } as const satisfies Record<string, ImageRegion | Record<string, ImageRegion>>
 
+// catalog weapon icon bounds measured from reference cards.
+export const WEAPON_ICON = { x: 1468, y: 454, size: 116 } as const
+
 export const SEQUENCE_CENTERS = [189, 268, 347, 426, 505, 585] as const
 export const SEQUENCE_SAMPLE = { y: 570, size: 11 } as const
 export const ATTRIBUTE_REGION = { x: 15, y: 25, width: 50, height: 47 } as const
@@ -54,15 +67,15 @@ export const ATTRIBUTE_REGION = { x: 15, y: 25, width: 50, height: 47 } as const
 // find the level badge by its gold plate within the name band.
 export const LEVEL_BADGE_BAND = { x: 120, y: 24, width: 648, height: 52 } as const
 
-// the badge is the one wide gold plate on the name line
+// locate the level badge using the wide gold region on the name line.
 export const LEVEL_BADGE_PLATE = {
   /** a column counts once this many of its pixels are plate gold */
   minRows: 8,
   /** the glyphs break the plate, so columns this far apart still join */
   maxGap: 16,
-  /** narrower than this is a stray, not a badge */
+  /** minimum badge width in pixels. */
   minWidth: 24,
-  /** rows this full of gold are the plate's own */
+  /** minimum share of gold pixels in a badge row. */
   rowFill: 0.35,
   /** crop padding */
   pad: { x: 2, y: 3 },
@@ -79,6 +92,8 @@ export interface EchoSlotRegions {
   sideStat: ImageRegion
   cost: ImageRegion
   mainStatLabel: ImageRegion
+  /** the band holding the main stat's printed value, star mark included */
+  mainStatValue: ImageRegion
   /** the label half of each substat row, wrapped second line included */
   substats: ImageRegion[]
   /** the number half of each substat row */
@@ -87,8 +102,8 @@ export interface EchoSlotRegions {
   set: ImageRegion
 }
 
-// a filled panel's secondary stat row lights 230+ pixels even through a 960px jpeg,
-// an empty one none; brightness, not gold, because compression washes the colour out
+// filled panels have at least 230 bright side-stat pixels in 960px jpeg copies;
+// brightness detects the row after compression changes its colour.
 export const FILLED_PANEL_MIN_INK = 80
 
 // substat rows sit on a fixed pitch, measured from their bullets
@@ -102,6 +117,18 @@ const SUBSTAT_ROW = { above: 6, height: 34 } as const
 const SUBSTAT_LABEL = { x: 64, width: 232 } as const
 const SUBSTAT_VALUE = { x: 296, width: 88, above: 12, height: 24 } as const
 
+// classify short labels by first-line ink width on native and 1120px jpeg cards:
+// HP spans 20-21 pixels, ATK and DEF span 24-31, and other labels span at least 70.
+// DEF begins with a 10-13 pixel stem; ATK begins with a 3-7 pixel stroke.
+export const SHORT_LABEL = {
+  band: 15,
+  minInk: 2,
+  hpMaxWidth: 21,
+  minWidth: 24,
+  maxWidth: 40,
+  defMinStem: 9,
+} as const
+
 export function getEchoSlotRgns(): EchoSlotRegions[] {
   return Array.from({ length: 5 }, (_, index) => {
     const o = index * SLOT_SPACING
@@ -110,6 +137,8 @@ export function getEchoSlotRgns(): EchoSlotRegions[] {
       cost: { x: 336 + o, y: 674, width: 18, height: 24 },
       // the value region begins below the label region.
       mainStatLabel: { x: 215 + o, y: 722, width: 173, height: 28 },
+      // the value's ink spans y 759-778 and x 268-369 (star from 268 or 291, digits from 295 or 317)
+      mainStatValue: { x: 250 + o, y: 755, width: 145, height: 28 },
       substats: SUBSTAT_ROW_CENTERS.map((center) => ({
         x: SUBSTAT_LABEL.x + o,
         y: center - SUBSTAT_ROW.above,

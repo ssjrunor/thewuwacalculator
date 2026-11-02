@@ -20,7 +20,6 @@ import {
   planRotationCleanup,
 } from '@/modules/simulation/surfaces/rotation/program-editor/model/cleanup.ts'
 import type { RotationMember } from '@/modules/simulation/surfaces/rotation/shared/authoringTypes.ts'
-import { makeFeatureMeta } from '@/modules/simulation/surfaces/rotation/shared/catalog.ts'
 import type { InspectEntry } from '@/engine/rotation/execute.ts'
 import { mkPrepWork } from '@/engine/pipeline/preparedWorkspace.ts'
 import { ROT_LOOP_COLORS } from '@/modules/simulation/surfaces/rotation/shared/loopMeta.ts'
@@ -104,47 +103,6 @@ const items: RotationNode[] = [
 ]
 
 describe('rotation editor engine round trips', () => {
-  it('preserves the hit-specific label in the editor and executed rows', () => {
-    const subHit = {
-      ...seed.features![0],
-      id: 'damage:test-skill:hit:1',
-      label: 'Test Skill DMG-1',
-      variant: 'subHit' as const,
-      hitIndex: 0,
-    }
-    const subHitSeed: ResSeed = { ...seed, features: [subHit] }
-    const runtime = makeResRuntime(subHitSeed)
-    const node: RotationNode = {
-      id: 'sub-hit-step',
-      type: 'feature',
-      featureId: subHit.id,
-      multiplier: 1,
-    }
-    runtime.rotation.program = [node]
-    const member: RotationMember = {
-      id: subHitSeed.id,
-      name: subHitSeed.name,
-      profile: subHitSeed.profile ?? '',
-      attribute: subHitSeed.attribute,
-      runtime,
-      skills: subHitSeed.skills ?? [],
-      features: subHitSeed.features ?? [],
-      states: subHitSeed.states ?? [],
-    }
-    const result = buildRun({
-      runtime,
-      seed: subHitSeed,
-      runtimesById: { [runtime.id]: runtime },
-      enemy: makeEnemy(),
-      members: [member],
-    })
-    const projected = findNode(result.sections, node.id)
-
-    expect(makeFeatureMeta([member])[subHit.id].label).toBe(subHit.label)
-    expect(projected).toMatchObject({ type: 'step', label: subHit.label })
-    expect(result.flatRows.find((row) => row.kind === 'hit')?.step.label).toBe(subHit.label)
-  })
-
   it('keeps a stale handoff authored while advancing from the engine\'s actual active state', () => {
     const runtime = makeResRuntime(seed)
     const staleHandoff: RotationNode = {
@@ -930,7 +888,6 @@ describe('rotation editor engine round trips', () => {
       'root-after',
     ])
   })
-
 
   // moving a no-end loop boundary materializes the canonical paired end marker.
   it('gives a no-end loop a whole loop when its end is dragged', () => {

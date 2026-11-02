@@ -6,8 +6,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   costForMain,
+  namesMain,
+  namesSubstat,
   readSubstat,
   readSubstats,
+  resolveMainByValue,
   resolveMainKey,
 } from '@/engine/echoParser/statReading'
 
@@ -37,10 +40,16 @@ describe('substat lines', () => {
     expect(readSubstat('Resonance Skill DMG 7.9%')).toMatchObject({ key: 'resonanceSkill', value: 7.9 })
   })
 
-  it('forgives a letter slip in the label', () => {
-    expect(readSubstat('AK 40')).toMatchObject({ key: 'atkFlat', value: 40 })
+  it('forgives a letter slip in a long label', () => {
     expect(readSubstat('Crit. MG 17.4%')).toMatchObject({ key: 'critDmg', value: 17.4 })
     expect(readSubstat('Enengy Regen 9.2%')).toMatchObject({ key: 'energyRegen', value: 9.2 })
+  })
+
+  it('leaves a short label read with a slip to the ink-shape reader', () => {
+    expect(readSubstat('AK 40')).toBeNull()
+    expect(readSubstat('DE 50')).toBeNull()
+    expect(namesSubstat('DE')).toBe(false)
+    expect(namesSubstat('DEF')).toBe(true)
   })
 
   it('never lets a short name drift into another short name', () => {
@@ -61,13 +70,28 @@ describe('substat lines', () => {
     expect(readSubstat('DEF 10')).toMatchObject({ key: 'defPercent', value: 10 })
   })
 
-  it('names an unreadable label only when one stat can roll the number', () => {
-    expect(readSubstat('## 430')).toMatchObject({ key: 'hpFlat', value: 430 })
+  it('never names an unreadable label from its number', () => {
+    expect(readSubstat('## 430')).toBeNull()
     expect(readSubstat('## 13.8%')).toBeNull()
   })
 
-  it('snaps an invalid roll and reports the correction', () => {
-    expect(readSubstat('Crit. Rate 8.4%')).toMatchObject({ key: 'critRate', fix: 'snapped' })
+  it('snaps only a read that sits beside one roll', () => {
+    expect(readSubstat('Crit. Rate 8.2%')).toMatchObject({ key: 'critRate', value: 8.1, fix: 'snapped' })
+    // the midpoint between legal rolls is not accepted.
+    expect(readSubstat('Crit. Rate 8.4%')).toBeNull()
+  })
+
+  it('reads a merged glyph as one slip', () => {
+    expect(readSubstat('Cnt. DMG', '18.6%')).toMatchObject({ key: 'critDmg', value: 18.6, fix: 'exact' })
+  })
+
+  it('takes a worn label only with an exact roll of its one stat', () => {
+    expect(readSubstat('Cnt. OMG', '12.6%')).toMatchObject({ key: 'critDmg', value: 12.6, looseLabel: true })
+    expect(readSubstat('Cnt. OMG', '12.9%')).toBeNull()
+  })
+
+  it('never snaps a flat stat', () => {
+    expect(readSubstat('ATK 45')).toBeNull()
   })
 
   it('ignores a line with no number', () => {
@@ -103,10 +127,52 @@ describe('main stat', () => {
     expect(resolveMainKey('blag', 1)).toBeNull()
   })
 
+  it('refuses a short label read with a slip, which noise also produces', () => {
+    expect(resolveMainKey('Cot hE', 4)).toBeNull()
+    expect(resolveMainKey('at', 3)).toBeNull()
+    expect(resolveMainKey('Crit DMC', 4)).toBe('critDmg')
+  })
+
   it('names the cost a main stat belongs to, when only one can carry it', () => {
     expect(costForMain('Electro DMG Bonus')).toBe(3)
     expect(costForMain('Crit. DMG')).toBe(4)
     expect(costForMain('ATK')).toBeNull()
+  })
+
+  it('knows a main stat label at any cost', () => {
+    expect(namesMain('Crit. DMG')).toBe(true)
+    expect(namesMain('Havoc DMG Bonus')).toBe(true)
+    expect(namesMain('Cot hE')).toBe(false)
+  })
+})
+
+describe('main stat by its printed value', () => {
+  it.each([
+    ['44', 4, 'critDmg'],
+    ['22%', 4, 'critRate'],
+    ['41.5', 4, 'defPercent'],
+    ['26.0%', 4, 'healingBonus'],
+    ['32', 3, 'energyRegen'],
+    ['38', 3, 'defPercent'],
+    ['22.8', 1, 'hpPercent'],
+  ])('settles %s on a %i-cost echo', (value, cost, key) => {
+    expect(resolveMainByValue('', value, cost)).toBe(key)
+  })
+
+  it('lets a loose label choose among mains that share the value', () => {
+    expect(resolveMainByValue('Havc DMG Bnus', '30', 3)).toBe('havoc')
+    expect(resolveMainByValue('AK', '18', 1)).toBe('atkPercent')
+    expect(resolveMainByValue('Cot hE', '33', 4)).toBe('hpPercent')
+  })
+
+  it('leaves a shared value unsettled without a label', () => {
+    expect(resolveMainByValue('', '30', 3)).toBeNull()
+    expect(resolveMainByValue('', '33', 4)).toBeNull()
+  })
+
+  it('refuses a value the cost cannot carry', () => {
+    expect(resolveMainByValue('', '44', 3)).toBeNull()
+    expect(resolveMainByValue('', '', 4)).toBeNull()
   })
 })
 

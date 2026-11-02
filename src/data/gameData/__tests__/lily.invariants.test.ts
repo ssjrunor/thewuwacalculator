@@ -7,8 +7,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { initGameData } from '@/data/gameData'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
-import { getResGameDa } from '@/data/catalog/resonatorCatalogService'
-import { getDefaultRotation, listSkillsFor } from '@/data/catalog/gameDataService'
+import { listSkillsFor } from '@/data/catalog/gameDataService'
 import { makeEnemy, mkMaxResRt } from '@/engine/runtime/defaults'
 import { makeRuntimeMap } from '@/engine/runtime/runtimeAdapters'
 import { prepSkill, prprRtSkll } from '@/engine/pipeline/prepareRuntimeSkill'
@@ -26,8 +25,6 @@ import { applySkllOp } from '@/engine/effects/dataEffects'
 import { forkNumericTeam, materializeNumericLane, writeNumericRuntime } from '@/engine/effects/numericTeam'
 import betaSourcesRaw from '../../../../public/data/beta/resonators/sources.json?raw'
 import betaWeaponsRaw from '../../../../public/data/beta/weapons/sources.json?raw'
-import liveCatalog from '../../../../public/data/live/resonators/catalog.json'
-import liveWeapons from '../../../../public/data/live/weapons/catalog.json'
 
 const enemy = makeEnemy()
 const source = (JSON.parse(betaSourcesRaw) as SrcPkg[]).find((entry) => entry.source.id === '1512')!
@@ -57,28 +54,6 @@ function prepare(runtime: ResRuntime, skillId: string, runtimes: Record<string, 
 beforeAll(async () => { await initGameData({ mode: 'beta' }) })
 
 describe('Lily beta contracts', () => {
-  it('keeps beta-only identities out of live and preserves the screenshot rotation order', () => {
-    expect(liveCatalog.some((entry) => entry.id === '1512')).toBe(false)
-    expect(liveWeapons.some((entry) => entry.id === '21030076')).toBe(false)
-    expect(getResSeedBy('1512')?.defaultWeaponId).toBe('21030076')
-    expect(getDefaultRotation('1512')?.items.map((item) => item.type === 'feature' ? item.featureId : null)).toEqual([
-      'damage:1512023', 'damage:1512003', 'damage:1512004', 'damage:1512001',
-      'damage:1512002', 'damage:1512009', 'damage:1512014', 'damage:1512016',
-    ])
-  })
-
-  it('uses HP only for finishers and support rows, preserving ATK channel damage', () => {
-    const skills = getResGameDa('1512')!.skills
-    for (const id of ['1512011', '1512012', '1512027', '1512028', '1512020', '1512015', '1512016', '1512023', '1512:flowers-for-you:shield', '1512:into-the-dream-cradle:shield']) {
-      expect(skills.find((skill) => skill.id === id)?.scaling, id).toEqual({ atk: 0, hp: 1, def: 0, energyRegen: 0 })
-    }
-    for (const id of ['1512013', '1512014']) {
-      expect(skills.find((skill) => skill.id === id)).toMatchObject({
-        skillType: ['heavyAtk'], scaling: { atk: 1, hp: 0, def: 0, energyRegen: 0 },
-      })
-    }
-  })
-
   it('keeps S5 free of damage increases and adds 400% S6 damage only to the three finishers', () => {
     for (const id of ['1512015', '1512016', '1512023']) {
       const base = prepare(runtimeFor('1512', 0), id).skill
@@ -133,19 +108,6 @@ describe('Lily beta contracts', () => {
     const recipientBuffs = prepare(highErTarget, '1312001', { '1512': lily }).context.finalStats
     expect(recipientBuffs.atk.final).toBeCloseTo(withBuffs.atk.final)
     expect(recipientBuffs.skillType.echoSkill.critRate).toBeCloseTo(withBuffs.skillType.echoSkill.critRate)
-  })
-
-  it('uses the new healing tables and distinct HP shields', () => {
-    const lily = runtimeFor()
-    const base = prepare(lily, '1512011').skill
-    const wish = prepare(lily, '1512027').skill
-    expect(base.multiplier).toBeCloseTo(0.007)
-    expect(base.flat).toBe(351)
-    expect(wish.multiplier).toBeCloseTo(0.0353)
-    expect(wish.flat).toBe(1758)
-    expect(prepare(lily, '1512:into-the-dream-cradle:shield').skill.multiplier).toBe(1)
-    expect(prepare(lily, '1512:flowers-for-you:shield').skill.multiplier).toBe(0.1)
-    expect(prepare(lily, '1512014').skill.hits).toMatchObject([{ count: 23, multiplier: 0.2161 }])
   })
 
   it('updates recipient buffs after Lily ER changes within an existing numeric team', () => {

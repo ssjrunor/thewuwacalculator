@@ -31,8 +31,45 @@ function getEnemySource(sources: SrcPkg[], enemyId: string): SrcPkg {
 }
 
 describe('enemy source invariants', () => {
+  it('adds Prowler invisibility as 30% All-Attribute RES', () => {
+    for (const sources of [liveSources, betaSources]) {
+      const source = getEnemySource(sources, '320000560')
+      expect(source.states).toContainEqual(expect.objectContaining({ id: 'invisibility', kind: 'toggle', defaultValue: false }))
+      expect(source.effects).toContainEqual(expect.objectContaining({
+        condition: { type: 'truthy', from: 'context', path: 'enemy.status.invisibility' },
+        operations: [{ type: 'add_attribute_mod', attribute: 'all', mod: 'resShred', value: { type: 'const', value: -30 } }],
+      }))
+    }
+  })
   it('keeps beta and live enemy mechanics identical', () => {
     expect(liveSources).toEqual(betaSources)
+  })
+
+  it('preserves Nameless Explorer and Thousand-Puppet Pavilion\'s two additional Tune Strain stacks', () => {
+    for (const sources of [liveSources, betaSources]) {
+      const registry = mkGameDataRe(sources)
+      for (const id of ['340000260', '340000261', '340000310']) {
+        expect(registry.sourcesByKey[`enemy:${id}`]?.tuneStrainMaxBonus).toBe(2)
+      }
+      expect(getEnemySource(sources, '340000250').tuneStrainMaxBonus).toBeUndefined()
+    }
+  })
+
+  it('reads Nameless Explorer vulnerability from shared Tune Strain without another control', () => {
+    for (const sources of [liveSources, betaSources]) {
+      for (const id of ['340000260', '340000261']) {
+        const source = getEnemySource(sources, id)
+        expect(source.states).toEqual([])
+        const operation = source.effects?.find((effect) => effect.id.endsWith(':interfered-vuln'))?.operations[0]
+        if (!operation || !('value' in operation)) throw new Error(`Missing vulnerability for ${id}`)
+        for (const stacks of [0, 3, 6]) {
+          expect(evalForm(operation.value, {
+            context: { enemy: { status: { tuneStrain: stacks } } },
+          } as unknown as EffectScope)).toBe(stacks * 4)
+        }
+        expect(JSON.stringify(source)).not.toContain('tuneStrainInterfered')
+      }
+    }
   })
 
   it('includes Sigillum additional vulnerability at five Off Course stacks', () => {

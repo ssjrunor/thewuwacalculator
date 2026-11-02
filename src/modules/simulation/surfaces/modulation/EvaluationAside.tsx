@@ -36,8 +36,6 @@ import {
   groupRotationFeatureRows,
 } from './evaluationFeatureDisplay.ts'
 
-/* ---------- the ladder the band is drawn from ---------- */
-
 const LADDER = [...GRADE_LADDER].sort((left, right) => left[0] - right[0])
 const TOP = 200
 
@@ -49,10 +47,7 @@ function gradeAt(score: number): { at: number; label: string; color: string } {
   return { at: hit[0], label: hit[1], color: getBuildEvaluationTone(hit[0]).color }
 }
 
-/*
-  the window spans whole grades touched by the paths and build. divide the
-  band at grade boundaries that match the score band.
-*/
+// include the nearest grade boundaries around the current and proposed scores.
 function ladderWindow(points: number[]): [number, number] {
   const low = Math.min(...points)
   const high = Math.max(...points)
@@ -99,13 +94,7 @@ function useDwell<T>(): [T | null, (next: T | null) => void] {
   return [at, aim]
 }
 
-/* ---------- the wheel's segments ---------- */
-
-/*
-  two rings on one dial. each arc is a dashed circle: one visible run the
-  length of its share, then a gap the length of everything else, wound back to
-  where the arcs before it left off.
-*/
+// each arc shows its share as a dash and offsets by the preceding shares.
 const R_OUT = 78
 const R_IN = 57
 const C_OUT = 2 * Math.PI * R_OUT
@@ -158,8 +147,6 @@ function isNodeKey(tab: string): tab is ResNodeKey {
 function pct(value: number): string {
   return `${formatTruncCompact(value, 1)}%`
 }
-
-/* ---------- the aside ---------- */
 
 export function EvaluationAside({
   onClose,
@@ -277,8 +264,6 @@ export function EvaluationAside({
     }
   }, [here, paths])
 
-  /* ---------- what the hole reads ---------- */
-
   const lead = wheel.segs[0]
   const reading = (() => {
     if (pick?.kind === 'type') {
@@ -327,8 +312,6 @@ export function EvaluationAside({
     onMouseLeave: () => aimPick(null),
     onBlur: () => aimPick(null),
   })
-
-  /* ---------- the ladder's reading ---------- */
 
   const path = pathAt == null ? null : paths[pathAt]
   const lands = path ? path.representative.score : here

@@ -1,5 +1,5 @@
 {
-  "id": "2026-10-31-19-37",
-  "date": "31/10/2026",
-  "shortDesc": "3.8.3 beta update"
+  "id": "2026-11-02-inventory-imports-enemies",
+  "date": "02/11/2026",
+  "shortDesc": "\n          <strong>reworked inventory browsing.</strong> echoes and saved builds can be browsed in collapsible groups. collapsed groups show horizontally scrollable rows; expanding a group opens its paginated grid. jumping to a saved echo opens the appropriate group and page. new inventories start grouped by default.\n        "
 }

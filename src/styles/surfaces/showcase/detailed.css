@@ -1272,10 +1272,11 @@ button.showcase-detail-mate-content:focus-visible {
   display: flex;
   align-items: baseline;
   color: var(--showcase-detail-tone);
+  font-family: var(--ss-numbers-font, inherit);
+
 }
 
 .showcase-detail-echo-score b {
-  font-family: var(--ss-numbers-font, var(--game-font));
   font-size: calc(1.625rem * var(--ss-numbers-scale, 1));
   font-weight: var(--ss-numbers-weight, 700);
   line-height: 1;
@@ -1285,7 +1286,6 @@ button.showcase-detail-mate-content:focus-visible {
 .showcase-detail-echo-score i {
   margin-left: 1px;
   font-style: normal;
-  font-family: var(--ss-numbers-font, var(--game-font));
   font-size: calc(0.8rem * var(--ss-numbers-scale, 1));
   font-weight: var(--ss-numbers-weight, 700);
 }

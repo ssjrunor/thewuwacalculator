@@ -44,7 +44,7 @@ export function lowerSkill(team: PortableTeam, lane: number, definition: SkillDe
     buffs: Object.fromEntries(Object.entries(definition.skillBuffs ?? {}).map(([key, value]) => [key, ir.constant(value!)])),
     scalars: Object.fromEntries(['fixedDmg', 'offTune', 'directOffTune', 'skillHealingBonus', 'skillShieldBonus', 'tuneRuptureCritRate', 'tuneRuptureCritDmg', 'negativeEffectCritRate', 'negativeEffectCritDmg', 'fixedMv'].map((key) => [key, ir.constant((definition as unknown as Record<string, number>)[key] ?? 0)])),
   }
-  let changed = ir.zero
+  const scalarWrites = new Map<string, Scalar>()
   const sumHits = () => ir.sum(skill.hits.map((hit) => ir.mul(hit.multiplier, ir.constant(hit.count))))
   for (const row of team.sources) for (const effect of row.effects) {
     if (effect.trigger !== 'skill' && !effect.operations.some(isSkillOperation)) continue
@@ -53,9 +53,11 @@ export function lowerSkill(team: PortableTeam, lane: number, definition: SkillDe
     for (const operation of effect.operations) {
       if (!isSkillOperation(operation) || !('value' in operation) || !matchesSkill(definition, 'match' in operation ? operation.match : undefined)) continue
       const value = team.effectAmount(row, effect, lane, operation)
-      if (operation.type !== 'scale_skill_multiplier') changed = ir.or(changed, ir.and(gate, ir.not(ir.eq(value, ir.zero))))
       if (operation.type === 'add_skill_mod') skill.buffs[operation.mod] = ir.select(gate, ir.add(skill.buffs[operation.mod] ?? ir.zero, value), skill.buffs[operation.mod] ?? ir.zero)
-      else if (operation.type === 'add_skill_scalar') skill.scalars[operation.field] = ir.select(gate, ir.add(skill.scalars[operation.field] ?? ir.zero, value), skill.scalars[operation.field] ?? ir.zero)
+      else if (operation.type === 'add_skill_scalar') {
+        skill.scalars[operation.field] = ir.select(gate, ir.add(skill.scalars[operation.field] ?? ir.zero, value), skill.scalars[operation.field] ?? ir.zero)
+        scalarWrites.set(operation.field, ir.or(scalarWrites.get(operation.field) ?? ir.zero, ir.and(gate, ir.not(ir.eq(value, ir.zero)))))
+      }
       else if (operation.type === 'add_skill_multiplier') {
         const applied = ir.and(gate, ir.operation(ScalarOp.lt, ir.zero, skill.multiplier))
         if (skill.hits.length === 0) skill.multiplier = ir.select(applied, ir.add(skill.multiplier, value), skill.multiplier)
@@ -72,14 +74,13 @@ export function lowerSkill(team: PortableTeam, lane: number, definition: SkillDe
         const scaleReader = team.scaleReader(row.lane, lane)
         const scale = ir.min(team.dsl.scale(effect.condition, read, scaleReader), team.dsl.formulaScale(operation.value, scaleReader))
         const raw = team.dsl.formula(operation.value, read)
-        changed = ir.or(changed, ir.and(gate, ir.not(ir.eq(ir.mul(ir.sub(raw, ir.one), scale), ir.zero))))
         const ratio = ir.select(gate, ir.add(ir.one, ir.mul(ir.sub(raw, ir.one), scale)), ir.one)
         if (skill.hits.length === 0) skill.multiplier = ir.mul(skill.multiplier, ratio)
         else { skill.hits = skill.hits.map((hit) => ({ ...hit, multiplier: ir.mul(hit.multiplier, ratio) })); skill.multiplier = sumHits() }
       }
     }
   }
-  for (const key of ['tuneRuptureCritDmg', 'negativeEffectCritDmg'] as const) if (definition[key] === undefined) skill.scalars[key] = ir.select(changed, skill.scalars[key]!, ir.one)
+  for (const key of ['tuneRuptureCritDmg', 'negativeEffectCritDmg'] as const) if (definition[key] === undefined) skill.scalars[key] = ir.select(scalarWrites.get(key) ?? ir.zero, skill.scalars[key]!, ir.one)
   if (feature.variant === 'subHit' && feature.hitIndex !== undefined) {
     const entry = feature.damageEntryId ? definition.damageEntries?.find((entry) => entry.id === feature.damageEntryId || entry.replacesEntryId === feature.damageEntryId) : undefined
     const hit = skill.hits[entry?.hitIndex ?? feature.hitIndex]

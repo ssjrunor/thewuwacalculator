@@ -1863,6 +1863,7 @@ export function prepareNumericSkill(state: NumericTeamState, lane: number, skill
   for (let index = 0; index < skillModFields.length; index += 1) buffs[index] = skill.skillBuffs?.[skillModFields[index]!] ?? 0
   const scalars = state.skillScalarScratch
   for (let index = 0; index < skillScalarFields.length; index += 1) scalars[index] = skill[skillScalarFields[index]!] ?? 0
+  let scalarWrites = 0
   const trace = state.traceContributions ? state.skillScalarTrace : null
   if (trace) trace.length = 0
   let changed = false
@@ -1881,6 +1882,7 @@ export function prepareNumericSkill(state: NumericTeamState, lane: number, skill
         buffs[operation.destination] = (buffs[operation.destination] ?? 0) + raw * scale
       } else if (operation.opcode === SKILL_SCALAR) {
         scalars[operation.destination] = (scalars[operation.destination] ?? 0) + raw * scale
+        scalarWrites |= 1 << operation.destination
         if (trace && raw * scale !== 0) {
           trace.push({
             field: skillScalarFields[operation.destination]!,
@@ -1916,12 +1918,15 @@ export function prepareNumericSkill(state: NumericTeamState, lane: number, skill
     }
   }
   if (!changed) return skill
-  const signature = JSON.stringify([multiplier, hits === skill.hits ? null : hits, Array.from(buffs), Array.from(scalars)])
+  const signature = JSON.stringify([multiplier, hits === skill.hits ? null : hits, Array.from(buffs), Array.from(scalars), scalarWrites])
   let bySignature = numericSkillCache.get(skill)
   const cached = bySignature?.get(signature)
   if (cached) return cached
   const skillBuffs = Object.fromEntries(skillModFields.map((field, index) => [field, buffs[index] ?? 0])) as unknown as ModBuff
-  const scalarPatch = Object.fromEntries(skillScalarFields.map((field, index) => [field, scalars[index] ?? 0]))
+  // preserve absent special-damage crit scalars as 1 and explicit zero as 0.
+  const scalarPatch = Object.fromEntries(skillScalarFields
+    .flatMap((field, index) => skill[field] !== undefined || (scalarWrites & (1 << index)) !== 0
+      ? [[field, scalars[index] ?? 0]] : []))
   const resolved = { ...skill, ...scalarPatch, multiplier, hits, skillBuffs }
   if (!bySignature) numericSkillCache.set(skill, bySignature = new Map())
   if (bySignature.size >= 64) bySignature.delete(bySignature.keys().next().value!)
