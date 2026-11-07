@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: 24
           cache: npm
           cache-dependency-path: services/leaderboard/package-lock.json
       # the backup needs only wrangler, which the service installs.
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: env.CF_ACCESS_CLIENT_ID != '' && env.LB_API_ORIGIN != ''
         with:
-          node-version-file: .nvmrc
+          node-version: 24
       # exits 3 when something needs looking at.
       - run: node services/leaderboard/tools/admin.mjs health
         if: env.CF_ACCESS_CLIENT_ID != '' && env.LB_API_ORIGIN != ''
