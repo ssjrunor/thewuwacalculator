@@ -257,7 +257,7 @@ export function resolveSkill(
   // immutable skill (and its lowered damage record) across those identities.
   const signature = JSON.stringify([
     resLvlNdx(runtime, rslvSkll), variantIndex, visible, skillTypeIndex,
-    damageEntrySignature, negative?.max, negative?.label,
+    damageEntrySignature, negative?.max, negative?.label, negative?.stackMode,
     manualSkillSignature(runtime.state.manualBuffs.modifiers),
   ])
   const cached = bySignature.get(signature)
@@ -289,7 +289,17 @@ function buildResolvedSkill(
     evaluateNegative?: NegativeSourceEvaluator,
 ): SkillDef {
   const levelIndex = resLvlNdx(runtime, rslvSkll)
-  const stackKey = rslvSkll.stackMode === 'fixedMax' ? getNegFfctCm(rslvSkll.archetype) : null
+  /*
+    a team-wide fixed-max rule, such as Hiyuki converting Glacio Chafe to
+    Glacio Bite, applies to every matching negative-effect skill. resolve its
+    final stack cap here so all calculation paths use the same fixed count.
+  */
+  const tabKey = rslvSkll.tab === 'negativeEffect' ? getNegFfctCm(rslvSkll.archetype) : null
+  const fixedByTeam = tabKey
+    ? getNegFfctEn(runtime, tabKey, runtimesById, evaluateNegative)?.stackMode === 'fixedMax'
+    : false
+  const stackMode = rslvSkll.stackMode === 'fixedMax' || fixedByTeam ? 'fixedMax' as const : rslvSkll.stackMode
+  const stackKey = stackMode === 'fixedMax' ? getNegFfctCm(rslvSkll.archetype) : null
   const stackMax = stackKey ? getNegFfctEn(runtime, stackKey, runtimesById, evaluateNegative)?.max : undefined
   const negFfctKey = rslvSkll.tab === 'negativeEffect' ? getNegFfctCm(rslvSkll.archetype) : null
   const label = negFfctKey
@@ -323,6 +333,7 @@ function buildResolvedSkill(
       flat,
       fixedDmg,
       stackMax,
+      ...(stackMode ? { stackMode } : {}),
     }, runtime.state.manualBuffs)
   }
 
@@ -351,5 +362,6 @@ function buildResolvedSkill(
     hits,
     ...(damageEntries ? { damageEntries } : {}),
     stackMax,
+    ...(stackMode ? { stackMode } : {}),
   }, runtime.state.manualBuffs)
 }

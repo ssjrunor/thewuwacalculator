@@ -77,7 +77,13 @@ export function rbldCmbtPart(graph: CombatGraph, slotId: SlotId): CombatPart | n
       ...participant.runtime.build,
       team: mkCmbtGrphTe(graph),
     },
-    state: cloneSlotLuo(participant.slot.local),
+    state: {
+      ...cloneSlotLuo(participant.slot.local),
+      // team effects are stored on the runtime projection and must survive reconstruction from slot-local state.
+      ...(participant.runtime.state.teamEffects
+        ? { teamEffects: { ...participant.runtime.state.teamEffects } }
+        : {}),
+    },
   }
 
   const nextPart: CombatPart = {

@@ -82,6 +82,8 @@ export function compOptTgtCt(input: TgtCtxNpt): PrepOptTgtCt {
     finalStats: combat.finalStats,
     enemy: input.enemy,
     combatState: input.runtime.state.combat,
+    selectedTargets: combat.graph.participants[combat.targetSlotId]?.slot.routing.selectedTargetsByOwnerKey,
+    activeResonatorId: combat.graph.participants[combat.graph.activeSlotId]?.resonatorId,
   })
 
   return {

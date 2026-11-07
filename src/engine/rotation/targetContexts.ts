@@ -116,6 +116,8 @@ export function packRotationTargetContexts<T extends RotationTargetContext>(opti
       finalStats: target.finalStats ?? ownerContext.finalStats,
       enemy,
       combatState: target.combat ?? ownerContext.runtime.state.combat,
+      selectedTargets: ownerContext.graph.participants[ownerContext.targetSlotId]?.slot.routing.selectedTargetsByOwnerKey,
+      activeResonatorId: ownerContext.graph.participants[ownerContext.graph.activeSlotId]?.resonatorId,
     })
     const packed = packTargetCtx({
       compiled,

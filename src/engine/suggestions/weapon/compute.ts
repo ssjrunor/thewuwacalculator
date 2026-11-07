@@ -250,6 +250,8 @@ function mkDrctCtx(
     finalStats: prep.combat.finalStats,
     enemy: prep.combat.enemy,
     combatState: prep.rt.state.combat,
+    selectedTargets: prep.combat.graph.participants[prep.combat.targetSlotId]?.slot.routing.selectedTargetsByOwnerKey,
+    activeResonatorId: prep.combat.graph.participants[prep.combat.graph.activeSlotId]?.resonatorId,
   })
   const combo = Math.max(1, input.qppdChs.filter((echo) => echo != null).length)
 

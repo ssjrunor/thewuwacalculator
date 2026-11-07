@@ -174,6 +174,7 @@ function canonicalDamageForMain(
     skillId: string,
     ordered: EchoInstance[],
     mainIndex: number,
+    selectedTargets?: Record<string, string | null>,
 ): { damage: number; atk: number } {
   const nextEchoes: Array<EchoInstance | null> = [null, null, null, null, null]
   for (let index = 0; index < Math.min(5, ordered.length); index += 1) {
@@ -193,6 +194,7 @@ function canonicalDamageForMain(
     seed,
     enemy,
     skillId,
+    selectedTargets,
     runtimesById: makeRuntimeMap(runtime),
   })
   if (!prepared) throw new Error(`skill ${skillId} unavailable on ${seed.id}`)
@@ -231,7 +233,7 @@ function makeShorekeeperRuntime() {
   }
 }
 
-function makeSuiSuiFeatherRuntime() {
+function makeSuiSuiFeatherRuntime(): { seed: ReturnType<typeof listResSds>[number]; runtime: ResRuntime; echoes: EchoInstance[] } {
   const seed = listResSds().find((entry) => entry.id === '1110')
   expect(seed).toBeTruthy()
   if (!seed) throw new Error('missing SuiSui seed')
@@ -483,8 +485,16 @@ describe('optimizer parity invariants', () => {
     expect(Math.abs(packed.damage - truth)).toBeLessThanOrEqual(Math.max(1, truth * 1e-4))
   })
 
-  it('applies Song of Feathered Trace ER-sourced ATK after candidate echo stats', () => {
+  it.each([
+    { extraER: 0, landscape: true, routedAway: false },
+    { extraER: 100, landscape: true, routedAway: false },
+    { extraER: 100, landscape: false, routedAway: false },
+    { extraER: 100, landscape: true, routedAway: true },
+  ])('applies Song of Feathered Trace and Reflecting Shadows after candidate echo stats (%j)', ({ extraER, landscape, routedAway }) => {
     const { seed, runtime, echoes } = makeSuiSuiFeatherRuntime()
+    runtime.state.manualBuffs.quick.energyRegen += extraER
+    runtime.state.controls['team:1110:ceaseless_landscape:active'] = landscape
+    const selectedTargets = routedAway ? { 'team:1110:reflecting_shadows': '1404' } : undefined
     const settings = makeOptSets()
     settings.enableGpu = false
     settings.targetSkillId = '1110101'
@@ -496,6 +506,7 @@ describe('optimizer parity invariants', () => {
       resonatorId: seed.id,
       resSeed: seed,
       runtime,
+      selectedTargets,
       settings,
       invChs: echoes,
       enemyProfile: enemy,
@@ -517,7 +528,7 @@ describe('optimizer parity invariants', () => {
       return
     }
 
-    const truth = canonicalDamageForMain(seed, runtime, settings.targetSkillId, echoes, 0)
+    const truth = canonicalDamageForMain(seed, runtime, settings.targetSkillId, echoes, 0, selectedTargets)
     expect(Math.abs(packed.damage - truth.damage)).toBeLessThanOrEqual(Math.max(1, truth.damage * 1e-4))
     expect(packed.stats.atk).toBeCloseTo(truth.atk, 3)
   })

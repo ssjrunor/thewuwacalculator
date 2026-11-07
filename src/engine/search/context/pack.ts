@@ -8,6 +8,7 @@
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import type { SkillDef } from '@/domain/entities/stats.ts'
 import type { CompTargetSkill } from '@/engine/search/context/compiled.ts'
+import { calcReflectingShadows } from '@/engine/search/score/specialMath'
 import {
   isLilyErCritSkill, lilyExcessEr, lilySupportEr, lilyAromaStacks,
   LILY_AROMA_SHIFT, LILY_SILVERED_BIT,
@@ -288,6 +289,8 @@ function normPckdCtx(options: {
 
   if (toggle0) {
     dmgBonus -= calcDmgBonus(compiled.characterId, compiled.statFinEr)
+    // remove the base-build ER conversion before candidate Echo ER is added; candidate scoring reapplies the conversion once.
+    dmgBonus -= calcReflectingShadows(compiled.characterId, compiled.statFinEr)
   }
 
   if (hasSkillType(skill, 'resonanceLiberation', 'ultimate')) {
@@ -399,7 +402,7 @@ export function packTargetCtx(options: {
   const ttlHitScl = compiled.hitScale > 0 ? compiled.hitScale : compiled.multiplier
   const ttlHitCnt = Math.max(1, compiled.hitCount || 1)
   const toggles = mkSpecTggl(runtime, compiled.characterId)
-    | (isLilyErCritSkill(compiled.characterId, skill.id) ? 1 : 0)
+    | (isLilyErCritSkill(compiled.characterId, skill.id) || compiled.reflectingShadows ? 1 : 0)
   const skillId = encSkllId({
     label: skill.label,
     skillType: skill.skillType,
@@ -440,8 +443,8 @@ export function packTargetCtx(options: {
       pckdFlatDmg = 0
       pckdDmgBns = 1 + (compiled.statDmgBonus / 100)
       pckdMplf = 1 + (compiled.statAmp / 100)
-      pckdCritRate = compiled.tuneRptrCrny
-      pckdCritDmg = compiled.tuneCritDmg
+      pckdCritRate = compiled.statCritRate / 100
+      pckdCritDmg = compiled.statCritDmg / 100
       packedAux0 =
         (1 + (compiled.statTuneBrcq / 100)) *
         (1 + (compiled.statFinalDmg / 100))

@@ -434,6 +434,7 @@
 .skm-hit__name {
   min-width: 0;
   overflow: hidden;
+  justify-self: flex-start;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

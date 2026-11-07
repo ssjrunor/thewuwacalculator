@@ -20,7 +20,8 @@ import type {
   FormExpr,
   RotationNode,
 } from '@/domain/gameData/contracts.ts'
-import { getScopedTargetSelection } from '@/domain/gameData/targetRouting.ts'
+import { getScopedTargetSelection, scopedTargetOwnerKey, splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting.ts'
+import { activeOtherTargetGroups, effectTargetOwnerKey } from './activeOtherTargets'
 import { listSrcRtFfc } from '@/data/gameData/registry.ts'
 import { readRtPath } from '@/domain/gameData/runtimePath.ts'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
@@ -193,6 +194,12 @@ interface NumericSkillProgram {
   operations: readonly NumericSkillOperation[]
 }
 
+interface OtherTargetActivation {
+  sourceLane: number
+  condition: NumericConditionProgram
+  routeIndexes: number[]
+}
+
 interface CompileState {
   canRebaseEchoStats: boolean
   graph: CombatGraph
@@ -234,6 +241,8 @@ export interface NumericTeamProgram {
   readonly routeProgramsByKey: Readonly<Record<string, readonly number[]>>
   readonly routeTargetLanes: Int8Array
   readonly routeDefaults: Int8Array
+  readonly otherTargetActivations: ReadonlyMap<number, readonly OtherTargetActivation[]>
+  readonly otherTargetRouteSources: ReadonlyMap<number, number>
   readonly maxFormulaStack: number
 }
 
@@ -241,6 +250,8 @@ export interface NumericTeamState {
   readonly program: NumericTeamProgram
   activeLane: number
   readonly initialActiveLane: number
+  /** rotation recipients ignore standing routes; the first active write establishes the opening. */
+  rotationTargetMode: 'scenario' | 'opening' | 'running'
   /*
     a write does not rebuild the buff graph; it records which lanes went stale.
     a rotation writes several states in a row before it reads anything, and
@@ -301,6 +312,7 @@ type NumericUndoEntry =
   | { kind: 'runtime'; index: number; valueKind: number; value: number; numeric: number; poolIndex: number; poolValue: number }
   | { kind: 'enemy'; index: number; valueKind: number; value: number; numeric: number }
   | { kind: 'active'; lane: number }
+  | { kind: 'rotationTargetMode'; value: NumericTeamState['rotationTargetMode'] }
   | { kind: 'route'; index: number; lane: number; overridden: number }
   | { kind: 'scale'; index: number; value: number }
 
@@ -436,6 +448,7 @@ function staticContextValue(context: EffectContext, path: string): unknown {
   return readObjectPath(context, path)
 }
 
+// resolve references to compiled runtime registers, numeric stat cells, or immutable context values.
 function compileRef(
     state: CompileState,
     context: EffectContext,
@@ -461,6 +474,7 @@ function compileRef(
   return { kind: REF_CONST, index: 0, lane: -1, constant: 0 }
 }
 
+// lower expression trees to stack instructions, retaining read dependencies and table-index defaults.
 function compileFormula(
     state: CompileState,
     context: EffectContext,
@@ -523,6 +537,7 @@ function conditionOpcode(type: CondExpr['type']): number {
   return COND_OR
 }
 
+// lower condition trees to exact-value comparisons and record the runtime registers that can invalidate them.
 function compileCondition(
     state: CompileState,
     context: EffectContext,
@@ -594,11 +609,12 @@ function targetScopeCode(effect: EffectDef): number {
 }
 
 function routedLane(state: CompileState, effect: EffectDef, context: EffectContext, sourceLane: number): number {
-  if (!effect.ownerKey) return -1
+  const ownerKey = effectTargetOwnerKey(effect)
+  if (!ownerKey) return -1
   const selection = getScopedTargetSelection(
     context.selectedTargetsByOwnerKey,
     context.sourceRuntime.id,
-    effect.ownerKey,
+    ownerKey,
   )
   if (!selection || typeof selection.value !== 'string') return -1
   const lane = state.laneById[selection.value]
@@ -642,6 +658,7 @@ function expandOperation(operation: EffectOp): Array<{ destination: number; valu
   return []
 }
 
+// expand a runtime effect into destination cells and formulas for one source-target lane pair.
 function compileRuntimeProgram(
     state: CompileState,
     effect: EffectDef,
@@ -675,7 +692,7 @@ function compileRuntimeProgram(
   return {
     sourceLane, targetLane, targetScope: targetScopeCode(effect),
     routedLane: routedLane(state, effect, context, sourceLane), routeIndex,
-    ownerKey: effect.ownerKey ?? '', stage, condition,
+    ownerKey: effectTargetOwnerKey(effect), stage, condition,
     opcodes: Uint8Array.from(opcodes), destinations: Int32Array.from(destinations), formulas,
     immunityMasks: Float64Array.from(immunityMasks),
     runtimeDependencies: refs.filter((ref) => ref.kind >= REF_SOURCE_RUNTIME && ref.kind <= REF_ACTIVE_RUNTIME),
@@ -693,6 +710,7 @@ const skillScalarFields = [
 
 export type SkillScalarField = (typeof skillScalarFields)[number]
 
+// compile skill-specific operations separately from the runtime pool so matching skills can apply them on demand.
 function compileSkillProgram(
     state: CompileState,
     effect: EffectDef,
@@ -729,7 +747,7 @@ function compileSkillProgram(
   return {
     sourceLane, targetLane, targetScope: targetScopeCode(effect),
     routedLane: routedLane(state, effect, context, sourceLane), routeIndex,
-    ownerKey: effect.ownerKey ?? '',
+    ownerKey: effectTargetOwnerKey(effect),
     condition: compileCondition(state, context, sourceLane, targetLane, effect.condition),
     operations,
   }
@@ -784,6 +802,7 @@ function readRefExact(state: NumericTeamState, ref: NumericRef): [number, number
   return [VALUE_NUMBER, readRefNumber(state, ref, true)]
 }
 
+// evaluate compiled arithmetic against source, target, and active-member registers using a reusable stack.
 function executeFormula(
     state: NumericTeamState,
     program: NumericFormulaProgram,
@@ -825,6 +844,7 @@ function executeFormula(
   return stack[size - 1] ?? 0
 }
 
+// evaluate the requested condition node with short-circuit logical branches and exact type-aware comparisons.
 function executeConditionNode(state: NumericTeamState, program: NumericConditionProgram, node: number): boolean {
   const opcode = program.opcodes[node]
   if (opcode === COND_CONST) return Boolean(program.expectedValues[node])
@@ -884,6 +904,7 @@ function conditionScale(state: NumericTeamState, program: NumericConditionProgra
   return refScale(state, program.refs[program.refIndexes[node] ?? 0]!)
 }
 
+// resolve static scopes, pinned Active Other routes, and explicit active-member overrides before applying an effect.
 function programTargetsActive(
     state: NumericTeamState,
     program: Pick<NumericRuntimeProgram, 'targetScope' | 'sourceLane' | 'targetLane' | 'routedLane' | 'routeIndex'>,
@@ -892,16 +913,17 @@ function programTargetsActive(
   if (program.targetScope === TARGET_TEAM) return true
   if (program.targetScope === TARGET_OTHER) return program.sourceLane !== program.targetLane
   const routed = state.routes[program.routeIndex] ?? program.routedLane
+  if (program.targetScope === TARGET_ACTIVE_OTHER) {
+    return routed === program.targetLane && routed !== program.sourceLane
+  }
   const useRotationActive = state.activeLane !== state.initialActiveLane
     && state.routeOverrides[program.routeIndex] !== 1
   if (routed === -2 && !useRotationActive) return false
   let target = state.activeLane
   if (!useRotationActive && routed >= 0) {
     target = routed
-  } else if (!useRotationActive && program.targetScope === TARGET_ACTIVE_OTHER && state.activeLane === program.sourceLane) {
-    target = program.sourceLane === 0 && state.program.laneIds.length > 1 ? 1 : 0
   }
-  return target === program.targetLane && (program.targetScope !== TARGET_ACTIVE_OTHER || target !== program.sourceLane)
+  return target === program.targetLane
 }
 
 function clearImmunities(state: NumericTeamState, lane: number): void {
@@ -953,6 +975,7 @@ function executePrograms(
   }
 }
 
+// derive source stats before dependent target effects read sourceFinalStats.
 function recomputeSourceLane(state: NumericTeamState, lane: number): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
   state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
@@ -972,6 +995,7 @@ function recomputeSourceLane(state: NumericTeamState, lane: number): void {
   )
 }
 
+// apply runtime, post-stat, and final-stat stages in order, rebuilding only the planes each stage changes.
 function recomputeTargetLane(state: NumericTeamState, lane: number): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
   state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
@@ -1029,6 +1053,7 @@ export function syncNumericTeam(state: NumericTeamState): void {
   recomputeMask(state, sourceMask, targetMask)
 }
 
+// expand dirty targets through source-stat dependencies before recomputing the affected lanes.
 function recomputeMask(state: NumericTeamState, sourceMask: number, targetMask: number): void {
   const laneCount = state.program.laneIds.length
   let expanded = targetMask
@@ -1075,6 +1100,7 @@ function writeEnemyRegister(state: NumericTeamState, pathIndex: number, value: u
   state.enemyKinds[pathIndex] = kind; state.enemyValues[pathIndex] = encoded; state.enemyNumbers[pathIndex] = numericValue(value)
 }
 
+// compile each source-target effect once and build path, route, and dependency indices for later state writes.
 function compileProgram(input: NumericTeamInput): NumericTeamProgram {
   const participants = Object.values(input.graph.participants).slice(0, MAX_LANES)
   const state: CompileState = {
@@ -1091,6 +1117,7 @@ function compileProgram(input: NumericTeamInput): NumericTeamProgram {
   const conditionsByTarget: Map<CondExpr, NumericConditionProgram>[] = participants.map(() => new Map())
   const flatPrograms: NumericRuntimeProgram[] = []
   const flatSkillPrograms: NumericSkillProgram[] = []
+  const otherGroups = new Map<string, { sourceLane: number; ownerKey: string; condition: NumericConditionProgram; paths: Set<string> }>()
   let routeCount = 0
   const sourceFinalTargetMasks = new Uint8Array(participants.length)
   const sourceFinalCellTargetMasks = new Uint8Array(participants.length * NUMERIC_FINAL_CELL_COUNT)
@@ -1101,6 +1128,13 @@ function compileProgram(input: NumericTeamInput): NumericTeamProgram {
       if (input.includeEffectSource && !input.includeEffectSource(row.baseContext.source)) continue
       const sourceLane = state.laneById[row.baseContext.sourceRuntime.id]
       if (sourceLane === undefined) continue
+      for (const group of activeOtherTargetGroups([
+        ...row.rtPreSttsExe, ...row.postStatEffects, ...row.finalStatEffects, ...row.skillEffects,
+      ])) {
+        const key = `${sourceLane}:${group.ownerKey}`
+        if (!otherGroups.has(key)) otherGroups.set(key, { sourceLane, ownerKey: group.ownerKey, paths: group.paths,
+          condition: compileCondition(state, row.baseContext, sourceLane, sourceLane, group.condition) })
+      }
       // source rows are expanded for every participant. self effects can
       // never run on another lane; other-only effects can never run on self.
       // eliminate them before compiling refs, routes and dependency masks.
@@ -1191,9 +1225,32 @@ function compileProgram(input: NumericTeamInput): NumericTeamProgram {
     'state.manualBuffs.quick.def.percent', 'state.manualBuffs.quick.def.flat',
     'state.manualBuffs.quick.critRate', 'state.manualBuffs.quick.critDmg',
     'state.manualBuffs.quick.energyRegen', 'state.manualBuffs.quick.healingBonus',
-    'state.combat.havocBane',
+    // enemy status writes mirror into each resonator's combat state. keep every
+    // status registered in the numeric plane so rotation writes are visible to
+    // negative-effect damage and kit formulas during the same program run.
+    'state.combat.spectroFrazzle', 'state.combat.aeroErosion',
+    'state.combat.fusionBurst', 'state.combat.havocBane',
+    'state.combat.glacioChafe', 'state.combat.electroFlare',
+    'state.combat.electroRage',
   ]) runtimePathIndex(state, path)
   const stride = state.paths.length
+  // index activation conditions by source register so a control write rechecks only the affected recipient groups.
+  const otherTargetActivations = new Map<number, OtherTargetActivation[]>()
+  const otherTargetRouteSources = new Map<number, number>()
+  const allPrograms = [...flatPrograms, ...flatSkillPrograms]
+  for (const group of otherGroups.values()) {
+    const activation = { sourceLane: group.sourceLane, condition: group.condition,
+      routeIndexes: allPrograms.filter(program => program.targetScope === TARGET_ACTIVE_OTHER
+        && program.sourceLane === group.sourceLane && program.ownerKey === group.ownerKey).map(program => program.routeIndex) }
+    for (const index of activation.routeIndexes) otherTargetRouteSources.set(index, group.sourceLane)
+    for (const path of group.paths) {
+      const pathIndex = state.pathIndexes.get(path)
+      if (pathIndex === undefined) continue
+      const register = group.sourceLane * stride + pathIndex
+      const entries = otherTargetActivations.get(register) ?? []
+      entries.push(activation); otherTargetActivations.set(register, entries)
+    }
+  }
   const combatPathIndexes = Int32Array.from(state.paths.flatMap((path, index) =>
     path.startsWith('state.combat.') ? [index] : []))
   const runtimeDependencyMasks = new Uint8Array(participants.length * stride)
@@ -1260,10 +1317,12 @@ function compileProgram(input: NumericTeamInput): NumericTeamProgram {
     routeProgramsByKey,
     routeTargetLanes: Int8Array.from(allTargetPrograms.map((entry) => entry.targetLane)),
     routeDefaults: Int8Array.from(allTargetPrograms.map((entry) => entry.routedLane)),
+    otherTargetActivations, otherTargetRouteSources,
     maxFormulaStack,
   }
 }
 
+// allocate independent numeric buffers for a compiled graph and seed their initial registers and routes.
 export function createNumericTeam(input: NumericTeamInput): NumericTeamState {
   const program = compileProgram(input)
   const laneCount = program.laneIds.length
@@ -1274,6 +1333,7 @@ export function createNumericTeam(input: NumericTeamInput): NumericTeamState {
     program,
     activeLane: initialActiveLane,
     initialActiveLane,
+    rotationTargetMode: 'scenario',
     baseStats: new Float64Array(laneCount * 8), weaponAttack: new Float64Array(laneCount),
     basePools: new Float64Array(poolCells), sourceFinals: new Float64Array(finalCells),
     pools: new Float64Array(poolCells), preFinals: new Float64Array(finalCells), finals: new Float64Array(finalCells),
@@ -1310,6 +1370,11 @@ export function createNumericTeam(input: NumericTeamInput): NumericTeamState {
     if (pool) packBuffPool(pool, state.basePools.subarray(lane * NUMERIC_POOL_CELL_COUNT, (lane + 1) * NUMERIC_POOL_CELL_COUNT))
   }
   initializeRegisters(state, input.graph, input.enemy)
+  for (const [index, sourceLane] of program.otherTargetRouteSources) {
+    if (state.routes[index] !== -1) continue
+    state.routes[index] = otherTargetFallback(state, sourceLane)
+    state.routeOverrides[index] = 2
+  }
   for (let lane = 0; lane < laneCount; lane += 1) {
     const scales = input.graph.effectScalesByRuntimePath?.[program.laneIds[lane] ?? '']
     if (!scales) continue
@@ -1467,7 +1532,7 @@ export function numericTeammateReplayKey(
   if (candidateLane === undefined || !program.canRebaseEchoStats
     || program.paths.some((path) => path.startsWith('build.echoes'))) return null
   const projectionKey = JSON.stringify([
-    candidateLane, state.activeLane, state.initialActiveLane, Array.from(state.routes), Array.from(state.routeOverrides),
+    candidateLane, state.activeLane, state.initialActiveLane, state.rotationTargetMode, Array.from(state.routes), Array.from(state.routeOverrides),
     program.paths.flatMap((path, index) => /^state\.controls\.(echoSet|echo):/.test(path) ? [[
       state.runtimeKinds[candidateLane * program.paths.length + index],
       state.runtimeValues[candidateLane * program.paths.length + index],
@@ -1612,7 +1677,7 @@ export function numericTeammateReplayKey(
   const project = ((input: NumericTeamState, candidate?: NumericReplayCandidate, internStructure?: (structure: string) => number) => {
     // an Echo-only candidate has the template's exact sources and controls.
     // its non-Echo runtime registers are fixed. retain that prefix once per
-    // initial state instead of rebuilding all nested reference values per row.
+    // initial state, reusing the nested reference values across rows.
     let fixed = candidate ? initialInputs.get(input) : undefined
     if (!fixed || fixed.revision !== input.revision) {
       const values = runtimeRefs.map((ref) => {
@@ -1626,7 +1691,7 @@ export function numericTeammateReplayKey(
       })
       fixed = {
         revision: input.revision,
-        structure: `${structure}|${stringify([input.activeLane, input.initialActiveLane, values])}`,
+        structure: `${structure}|${stringify([input.activeLane, input.initialActiveLane, input.rotationTargetMode, values])}`,
       }
       initialInputs.set(input, fixed)
     }
@@ -1667,6 +1732,8 @@ export function rollbackNumericTeam(checkpoint: NumericTeamCheckpoint): void {
       state.enemyNumbers[entry.index] = entry.numeric
     } else if (entry.kind === 'active') {
       state.activeLane = entry.lane
+    } else if (entry.kind === 'rotationTargetMode') {
+      state.rotationTargetMode = entry.value
     } else if (entry.kind === 'route') {
       state.routes[entry.index] = entry.lane
       state.routeOverrides[entry.index] = entry.overridden
@@ -1683,6 +1750,7 @@ export function rollbackNumericTeam(checkpoint: NumericTeamCheckpoint): void {
   markNumericDirty(state, all, all)
 }
 
+// log the old register during transactions, update pool mirrors, and invalidate dependent source and target lanes.
 export function writeNumericRuntime(state: NumericTeamState, resonatorId: string, path: string, value: unknown): number {
   const lane = state.program.laneById[resonatorId]
   const normalized = path.replace(/^runtime\./, '')
@@ -1696,6 +1764,9 @@ export function writeNumericRuntime(state: NumericTeamState, resonatorId: string
     state.runtimeKinds[register] === nextKind
     && Object.is(state.runtimeValues[register], nextEncoded)
   ) return 0
+  const activations = state.program.otherTargetActivations.get(register) ?? []
+  // read activation state before the register changes; only a false-to-true transition can recapture a recipient.
+  const wasActive = activations.map(activation => executeConditionNode(state, activation.condition, 0))
   const directCell = DIRECT_RUNTIME_POOL_CELL[normalized]
   let poolIndex = -1
   let poolValue = 0
@@ -1723,7 +1794,15 @@ export function writeNumericRuntime(state: NumericTeamState, resonatorId: string
   }
   writeRegister(state, lane, pathIndex, value)
   state.revision += 1
-  const targetMask = state.program.runtimeDependencyMasks[lane * state.program.paths.length + pathIndex] ?? 0
+  let targetMask = state.program.runtimeDependencyMasks[lane * state.program.paths.length + pathIndex] ?? 0
+  activations.forEach((activation, position) => {
+    if (wasActive[position] || !executeConditionNode(state, activation.condition, 0)) return
+    for (const index of activation.routeIndexes) {
+      if ((state.rotationTargetMode === 'scenario' && state.program.routeDefaults[index] !== -1)
+        || state.routeOverrides[index] === 1) continue
+      targetMask |= setNumericRouteIndex(state, index, otherTargetFallback(state, activation.sourceLane), 2)
+    }
+  })
   markNumericDirty(state, (1 << lane), targetMask | (1 << lane))
   return targetMask | (1 << lane)
 }
@@ -1773,6 +1852,7 @@ export function materializeNumericCombat(
   return target
 }
 
+// update the enemy register and mirror combat counters into every registered member lane.
 export function writeNumericEnemy(state: NumericTeamState, path: string, value: unknown): number {
   const index = state.program.enemyPathIndexByName.get(path.replace(/^enemy\./, '')) ?? -1
   if (index < 0) return 0
@@ -1793,14 +1873,45 @@ export function writeNumericEnemy(state: NumericTeamState, path: string, value: 
   return state.program.enemyDependencyMask
 }
 
+// update active-member dependencies and initialize opening rotation recipients on the first active-member write.
 export function setNumericActiveLane(state: NumericTeamState, resonatorId: string): number {
   const lane = state.program.laneById[resonatorId]
-  if (lane === undefined || lane === state.activeLane) return 0
-  if (state.transactionDepth > 0) state.transactionLog.push({ kind: 'active', lane: state.activeLane })
-  state.activeLane = lane
+  if (lane === undefined) return 0
+  let mask = 0
+  if (lane !== state.activeLane) {
+    if (state.transactionDepth > 0) state.transactionLog.push({ kind: 'active', lane: state.activeLane })
+    state.activeLane = lane
+    state.revision += 1
+    mask = state.program.activeDependencyMask
+  }
+  if (state.rotationTargetMode === 'opening') {
+    setRotationTargetMode(state, 'running')
+    mask |= resetRotationOtherTargets(state)
+  }
+  markNumericDirty(state, 0, mask)
+  return mask
+}
+
+function setRotationTargetMode(state: NumericTeamState, value: NumericTeamState['rotationTargetMode']): void {
+  if (state.rotationTargetMode === value) return
+  if (state.transactionDepth > 0) state.transactionLog.push({ kind: 'rotationTargetMode', value: state.rotationTargetMode })
+  state.rotationTargetMode = value
   state.revision += 1
-  markNumericDirty(state, 0, state.program.activeDependencyMask)
-  return state.program.activeDependencyMask
+}
+
+function resetRotationOtherTargets(state: NumericTeamState): number {
+  let mask = 0
+  for (const [index, source] of state.program.otherTargetRouteSources) {
+    if (state.routeOverrides[index] === 1) continue
+    mask |= setNumericRouteIndex(state, index, otherTargetFallback(state, source), 2)
+  }
+  return mask
+}
+
+/** standing calculator routes do not choose recipients for an authored rotation. */
+export function beginNumericRotationTargets(state: NumericTeamState): void {
+  setRotationTargetMode(state, 'opening')
+  markNumericDirty(state, 0, resetRotationOtherTargets(state))
 }
 
 /** read a runtime skill condition from its compiled numeric program. */
@@ -1817,28 +1928,72 @@ export function evaluateNumericCondition(
 /** compatibility name for callers preparing an individual skill. */
 export const evaluateNumericSkillCondition = evaluateNumericCondition
 
+function otherTargetFallback(state: NumericTeamState, sourceLane: number): number {
+  return state.activeLane !== sourceLane ? state.activeLane : state.program.laneIds.findIndex((_, lane) => lane !== sourceLane)
+}
+
+// route undo entries include explicit-versus-captured precedence, which nested uptime and repeat branches must restore.
+function setNumericRouteIndex(state: NumericTeamState, index: number, route: number, overridden: number): number {
+  if (state.routes[index] === route && state.routeOverrides[index] === overridden) return 0
+  if (state.transactionDepth > 0) state.transactionLog.push({ kind: 'route', index,
+    lane: state.routes[index] ?? -1, overridden: state.routeOverrides[index] ?? 0 })
+  state.routes[index] = route
+  state.routeOverrides[index] = overridden
+  state.revision += 1
+  return 1 << (state.program.routeTargetLanes[index] ?? 0)
+}
+
+/** inspector projections must retain the same recipients as the packed executor. */
+export function numericOtherTargets(state: NumericTeamState, sourceId: string): Record<string, string> {
+  const lane = state.program.laneById[sourceId], targets: Record<string, string> = {}
+  for (const [key, indexes] of Object.entries(state.program.routeProgramsByKey)) {
+    if (!key.startsWith(`${lane}:`)) continue
+    const index = indexes.find(index => state.program.otherTargetRouteSources.has(index))
+    const target = index === undefined ? undefined : state.program.laneIds[state.routes[index] ?? -1]
+    if (target) targets[scopedTargetOwnerKey(sourceId, key.slice(key.indexOf(':') + 1))] = target
+  }
+  return targets
+}
+
+export function snapshotNumericRoutes(state: NumericTeamState) {
+  return { routes: state.routes.slice(), routeOverrides: state.routeOverrides.slice(), rotationTargetMode: state.rotationTargetMode }
+}
+
+// a branch can change route precedence even when the target stays the same; include both values in its merge.
+export function diffNumericRoutes(setup: ReturnType<typeof snapshotNumericRoutes>, body: NumericTeamState) {
+  const changes: Array<{ index: number; route: number; overridden: number }> = []
+  for (let index = 0; index < body.routes.length; index++) {
+    if (setup.routes[index] !== body.routes[index] || setup.routeOverrides[index] !== body.routeOverrides[index]) {
+      changes.push({ index, route: body.routes[index]!, overridden: body.routeOverrides[index]! })
+    }
+  }
+  return { routes: changes, rotationTargetMode: setup.rotationTargetMode === body.rotationTargetMode ? null : body.rotationTargetMode }
+}
+
+// merge route changes after rolling back the branch checkpoint, then invalidate every affected target lane.
+export function mergeNumericRoutes(state: NumericTeamState, changes: ReturnType<typeof diffNumericRoutes>): boolean {
+  let mask = 0
+  if (changes.rotationTargetMode) setRotationTargetMode(state, changes.rotationTargetMode)
+  for (const { index, route, overridden } of changes.routes) mask |= setNumericRouteIndex(state, index, route, overridden)
+  markNumericDirty(state, 0, mask)
+  return mask !== 0
+}
+
+// resolve an optional source-qualified owner key and mark the selected route as an explicit override.
 export function writeNumericRoute(
     state: NumericTeamState,
     sourceId: string,
     ownerKey: string,
     targetId: string | null,
 ): number {
-  const sourceLane = state.program.laneById[sourceId]
+  const scoped = splitScopedTargetOwnerKey(ownerKey)
+  const sourceLane = state.program.laneById[scoped.sourceRuntimeId ?? sourceId]
   if (sourceLane === undefined) return 0
   const route = targetId === null ? -1 : (state.program.laneById[targetId] ?? -2)
   let mask = 0
-  for (const index of state.program.routeProgramsByKey[`${sourceLane}:${ownerKey}`] ?? []) {
-    if (state.routes[index] === route && state.routeOverrides[index] === 1) continue
-    if (state.transactionDepth > 0) {
-      state.transactionLog.push({
-        kind: 'route', index, lane: state.routes[index] ?? -1,
-        overridden: state.routeOverrides[index] ?? 0,
-      })
-    }
-    state.routes[index] = route
-    state.routeOverrides[index] = 1
-    state.revision += 1
-    mask |= 1 << (state.program.routeTargetLanes[index] ?? 0)
+  for (const index of state.program.routeProgramsByKey[`${sourceLane}:${scoped.ownerKey}`] ?? []) {
+    const target = route === -1 && state.program.otherTargetRouteSources.has(index) ? otherTargetFallback(state, sourceLane) : route
+    mask |= setNumericRouteIndex(state, index, target, 1)
   }
   markNumericDirty(state, 0, mask)
   return mask
@@ -1855,6 +2010,7 @@ function skillOperationMatches(skill: SkillDef, operation: NumericSkillOperation
 
 /** apply compiled skill effects without rebuilding an effect context or graph. */
 const numericSkillCache = new WeakMap<SkillDef, Map<string, SkillDef>>()
+// resolve skill-scoped effects and effective stats from synchronized numeric lanes without rebuilding the object graph.
 export function prepareNumericSkill(state: NumericTeamState, lane: number, skill: SkillDef): SkillDef {
   syncNumericTeam(state)
   let multiplier = skill.multiplier
@@ -1960,6 +2116,7 @@ function bitKeys<T extends string>(mask: number, keys: readonly T[]): T[] {
   return keys.filter((_, index) => Boolean(mask & (1 << index)))
 }
 
+// convert one synchronized numeric lane to the compatibility stat objects used by inspectors and UI results.
 export function materializeNumericLane(state: NumericTeamState, lane: number): { buffs: UnifiedBuffPool; finalStats: ReturnType<typeof unpackFinalStats> } {
   syncNumericTeam(state)
   const immunities: ImmunitySet = {

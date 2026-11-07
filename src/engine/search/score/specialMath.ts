@@ -17,6 +17,11 @@ export function calcErToAtk(charId: number, finalER: number, toggle0: number): n
   return toggle0 ? Math.min(erOver * 20, 2600) : Math.min(erOver * 12, 1560)
 }
 
+// Suisui gains 0.2 percentage points per ER point above 200, capped at 12 points at 260 ER.
+export function calcReflectingShadows(charId: number, finalER: number): number {
+  return charId === 1110 ? Math.min(Math.max(0, finalER - 200) * 0.2, 12) : 0
+}
+
 export function calcCritConvert(charId: number, sequence: number, critRateTotal: number): number {
   if (charId !== 1306 || sequence < 2) return 0
   let bonusCd = 0

@@ -118,6 +118,7 @@ import {
 } from '@/engine/rotation/compiler.ts'
 import {
   checkpointNumericTeam,
+  beginNumericRotationTargets,
   evaluateNumericCondition,
   forkNumericTeam,
   materializeNumericCombat,
@@ -126,6 +127,10 @@ import {
   writeNumericEffectScale,
   writeNumericEnemy,
   writeNumericRoute,
+  numericOtherTargets,
+  mergeNumericRoutes,
+  snapshotNumericRoutes,
+  diffNumericRoutes,
   writeNumericRuntime,
   syncNumericTeam,
   type NumericTeamState,
@@ -1052,6 +1057,7 @@ function mkRotStt(
     ? []
     : Object.values(environment.graph.participants).map((participant) => participant.resonatorId)
   const numericTeam = forkNumericTeam(environment.numericBase)
+  beginNumericRotationTargets(numericTeam)
   /* only a captured run has anywhere to put the attribution */
   numericTeam.traceContributions = captureEntries
   if (captureEntries) primeNumericTraces(numericTeam)
@@ -1530,10 +1536,12 @@ function mergeNestedOverlay<T extends RotVrlyVl>(
   return next
 }
 
+// merge body-only state changes after restoring setup state, including route recipients and override precedence.
 function mergePtmBodyOverlay(
   state: RotationExec,
   setupState: RotationExec,
   resultState: RotationExec,
+  routeChanges: ReturnType<typeof diffNumericRoutes>,
 ): RotationExec {
   const runtimeChanges = diffNestedOverlay(setupState.overlay.rtPthsByRejq, resultState.overlay.rtPthsByRejq)
   const routingChanges = diffNestedOverlay(setupState.overlay.routingPaths, resultState.overlay.routingPaths)
@@ -1553,6 +1561,7 @@ function mergePtmBodyOverlay(
   const offTuneChanged = !Object.is(setupState.offTune, resultState.offTune)
   const offTuneSealChanged = setupState.offTuneSeal !== resultState.offTuneSeal
   const hasChanges =
+    routeChanges.routes.length > 0 || routeChanges.rotationTargetMode !== null ||
     activeChanged ||
     offTuneChanged ||
     offTuneSealChanged ||
@@ -1606,6 +1615,7 @@ function mergePtmBodyOverlay(
       writeNumericEffectScale(numericTeam, resonatorId, path, value)
     }
   }
+  const routesChanged = mergeNumericRoutes(numericTeam, routeChanges)
 
   if (state.mutableOverlay) {
     for (const [resonatorId, changes] of Object.entries(runtimeChanges)) {
@@ -1631,7 +1641,7 @@ function mergePtmBodyOverlay(
     state.offTuneSeal = resultState.offTuneSeal
     state.overlay.version += 1
     state.overlay.runtimeVersion += hasRuntimeChanges ? 1 : 0
-    state.overlay.combatVersion += hasCombatChanges ? 1 : 0
+    state.overlay.combatVersion += hasCombatChanges || routesChanged ? 1 : 0
     if (activeChanged) state.overlay.activeResonatorId = resultState.overlay.activeResonatorId
     state.mtrlGrphVrsn = -1
     return state
@@ -1647,7 +1657,7 @@ function mergePtmBodyOverlay(
       ...state.overlay,
       version: state.overlay.version + 1,
       runtimeVersion: state.overlay.runtimeVersion + (hasRuntimeChanges ? 1 : 0),
-      combatVersion: state.overlay.combatVersion + (hasCombatChanges ? 1 : 0),
+      combatVersion: state.overlay.combatVersion + (hasCombatChanges || routesChanged ? 1 : 0),
       rtPthsByRejq: mergeNestedOverlay(state.overlay.rtPthsByRejq, runtimeChanges),
       routingPaths: mergeNestedOverlay(state.overlay.routingPaths, routingChanges),
       enemyPaths: {
@@ -1913,8 +1923,9 @@ function applyRtngVrl(
       value,
     ) as unknown as ReturnType<typeof cloneSlotRml>
   }
-
-  return nextRouting
+  return { ...nextRouting, selectedTargetsByOwnerKey: {
+    ...nextRouting.selectedTargetsByOwnerKey, ...numericOtherTargets(state.numericTeam, resonatorId),
+  } }
 }
 
 // materialize a full graph only for requested inspector snapshots. calculation
@@ -1943,10 +1954,13 @@ function getMatGrph(state: RotationExec): CombatGraph {
   }
 
   for (const baseParticipant of Object.values(baseGraph.participants)) {
+    const source = graphSource.participants[baseParticipant.slotId] ?? baseParticipant
+    const pinned = numericOtherTargets(state.numericTeam, baseParticipant.resonatorId)
+    const routeChanged = Object.entries(pinned).some(([key, target]) => source.slot.routing.selectedTargetsByOwnerKey[key] !== target)
     if (
-      previousGraph
+      !routeChanged && (previousGraph
         ? !state.dirtyGraphIds.has(baseParticipant.resonatorId)
-        : !hasVrlyForRe(state, baseParticipant.resonatorId)
+        : !hasVrlyForRe(state, baseParticipant.resonatorId))
     ) {
       continue
     }
@@ -2063,8 +2077,9 @@ function writeRotVrly(
       typeof value === 'string' && findCombatPart(getBaseGraph(state), value)
         ? value
         : state.environment.prmrResId
-    if (getActResId(state) === activeResonatorId) return state
+    const revision = state.numericTeam.revision
     setNumericActiveLane(state.numericTeam, activeResonatorId)
+    if (getActResId(state) === activeResonatorId && state.numericTeam.revision === revision) return state
 
     if (state.mutableOverlay) {
       state.overlay.version += 1
@@ -2365,6 +2380,7 @@ function enemyChangeBounds(
   )
 }
 
+// apply the state definition's boolean, integer, range, or select constraints to an authored write.
 function clampAuthoredStateValue(
   state: RotationExec,
   path: string,
@@ -2400,6 +2416,7 @@ function clampAuthoredStateValue(
   return bounds.max == null ? aboveMin : Math.min(aboveMin, bounds.max)
 }
 
+// resolve select values against the available named options before the condition changes runtime state.
 function normalizeAuthoredSelectWrite(
   state: RotationExec,
   path: string,
@@ -2456,6 +2473,7 @@ function applyRtChng(
   )
 }
 
+// normalize authored paths and values before updating the runtime overlay and its numeric mirrors.
 function applyRtWrite(
   state: RotationExec,
   type: RtChng['type'],
@@ -3633,6 +3651,8 @@ function runRptNode(
     const numericCheckpoint = checkpointNumericTeam(state.numericTeam)
     let branchState = cloneRotation(state, { shareNumericTeam: true })
     branchState = runStpTms(branchState, node.setup, scpResId, ratio)
+    // capture routes after setup; only body changes are merged back into the parent branch.
+    const setupRoutes = snapshotNumericRoutes(branchState.numericTeam)
     const setupState = branchState.mutableOverlay
       ? {
         ...branchState,
@@ -3655,8 +3675,9 @@ function runRptNode(
     appendAll(state.entries, branchState.entries)
     mergeNumericScore(state, branchState)
     if (state.nspcNtrs && branchState.nspcNtrs) appendAll(state.nspcNtrs, branchState.nspcNtrs)
+    const routeChanges = diffNumericRoutes(setupRoutes, branchState.numericTeam)
     rollbackNumericTeam(numericCheckpoint)
-    const nextState = mergePtmBodyOverlay(state, setupState, branchState)
+    const nextState = mergePtmBodyOverlay(state, setupState, branchState, routeChanges)
     return ppndNspcEnt(nextState, {
       nodeId: node.id,
       nodeType: node.type,
@@ -3850,6 +3871,7 @@ function runPtmNode(
   const numericCheckpoint = checkpointNumericTeam(state.numericTeam)
   let branchState = cloneRotation(state, { shareNumericTeam: true })
   branchState = runStpTms(branchState, node.setup, scpResId, ratio)
+  const setupRoutes = snapshotNumericRoutes(branchState.numericTeam)
   const setupState = branchState.mutableOverlay
     ? {
       ...branchState,
@@ -3877,8 +3899,9 @@ function runPtmNode(
     appendAll(state.nspcNtrs, result.nspcNtrs)
   }
 
+  const routeChanges = diffNumericRoutes(setupRoutes, result.numericTeam)
   rollbackNumericTeam(numericCheckpoint)
-  const nextState = mergePtmBodyOverlay(state, setupState, result)
+  const nextState = mergePtmBodyOverlay(state, setupState, result, routeChanges)
 
   return ppndNspcEnt(nextState, {
     nodeId: node.id,

@@ -272,7 +272,7 @@
   outline-offset: 2px;
 }
 
-@media (max-width: 74rem) {
+@media (max-width: 1600px) {
   .pst {
     --pst-cols: 1.4rem minmax(0, 1fr) 3.9rem 4.6rem 1.3rem;
     --pst-sub-cols: minmax(0, 1fr) 3.9rem 4.6rem 1.3rem;

@@ -13,6 +13,7 @@ import type {
   SkillDef,
   SkillTypeKey,
 } from '@/domain/entities/stats.ts'
+import { getScopedTargetSelection } from '@/domain/gameData/targetRouting'
 import type { ResRuntime } from '@/domain/entities/runtime.ts'
 import {
   ARCH_AERO,
@@ -38,6 +39,7 @@ import { getNegEffectDef } from '@/engine/gameData/negativeEffects.ts'
 // counters in the same order used by the packed float context.
 export interface CompTargetSkill {
   archetype: number
+  reflectingShadows?: boolean
   characterId: number
   sequence: number
   level: number
@@ -240,11 +242,11 @@ function makeLevelScale(options: {
     defMult,
     dmgVuln,
     dmgBonus: finalStats.skillType[kind].dmgBonus,
-    amplify: kind === 'tuneRupture' ? 0 : finalStats.amplify,
+    amplify: 0,
     finalDmg: finalStats.finalDmg,
     tuneBreakBoost: finalStats.tbb,
-    critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
-    critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
+    critRate: kind === 'tuneRupture' ? (skill.tuneRuptureCritRate ?? 0) * 100 : 0,
+    critDmg: kind === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) * 100 : 100,
   }
 }
 
@@ -328,6 +330,8 @@ export function makeOptContext(options: {
   skill: SkillDef
   finalStats: FinalStats
   enemy: EnemyProfile
+  selectedTargets?: Record<string, string | null>
+  activeResonatorId?: string
   combatState?: {
     spectroFrazzle?: number
     spctFrzz?: number
@@ -339,6 +343,12 @@ export function makeOptContext(options: {
   }
 }): CompTargetSkill {
   const { resonatorId, runtime, skill, finalStats, enemy, combatState } = options
+  // Suisui's ER conversion applies only when all source controls are enabled and this member is the resolved recipient.
+  const reflectingTarget = getScopedTargetSelection(options.selectedTargets, runtime.id, 'team:1110:reflecting_shadows')?.value
+  const reflectingShadows = resonatorId === '1110'
+    && (reflectingTarget ?? options.activeResonatorId ?? runtime.id) === runtime.id
+    && ['ceaseless_landscape', 'rippling_waters', 'reflecting_shadows']
+      .every(key => runtime.state.controls[`team:1110:${key}:active`])
 
   // start from the standard direct-damage context so common values are shared
   const direct = makeSkillDamage(
@@ -476,6 +486,7 @@ export function makeOptContext(options: {
     baseDef: direct.baseDef,
 
     statFinAtk: direct.finalAtk,
+    reflectingShadows,
     statFinHp: direct.finalHp,
     statFinDef: direct.finalDef,
     statFinEr: direct.finalER,

@@ -207,6 +207,7 @@ import {mainPortal} from '@/shared/lib/portalTarget.ts'
 import { ConfirmHost } from '@/shared/ui/ConfirmationModal.tsx'
 import type {MenuEntry} from '@/shared/ui/CtxMenu.tsx'
 import {makeAddToSelectionMenu, makeSelectedNodesMenu, makeSelectionMenu, makeRowMenu,} from '@/modules/simulation/surfaces/rotation/program-editor/interaction/contextMenus.tsx'
+import { scenarioOpeningValues } from '@/engine/rotation/openingChoices'
 import {
   applyConditionChanges,
   applyFeatureConditionChanges,
@@ -2410,6 +2411,9 @@ export function ProgramEditor() {
             existing: section.children,
             activeId: actRt?.id ?? startId,
             startId,
+            values: scenarioOpeningValues(
+              Object.fromEntries(rotMembers.map((member) => [member.id, member.runtime])),
+            ),
           }),
         }
         : section
@@ -2422,7 +2426,7 @@ export function ProgramEditor() {
       variant: 'success',
       duration: 2400,
     })
-  }, [actRt?.id, bump, condChoices, expandEditorFold, openingStateCount, preambleMdl, sections, showToast])
+  }, [actRt?.id, bump, condChoices, expandEditorFold, openingStateCount, preambleMdl, rotMembers, sections, showToast])
 
   const featureNodeFor = useCallback((entry: PaletteFeature): EditorStep => {
     return makeFeatureNode(entry, focusedId, rotMembers)

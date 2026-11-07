@@ -28,8 +28,25 @@ export function openingConditionChoices<T extends PreambleChoice>(choices: reado
   })
 }
 
-/** default value chosen when the editor adds an opening condition. */
-export function openingConditionValue(state: SourceState): string | number | boolean {
+export type OpeningValue = string | number | boolean
+
+/**
+ * a select that must hold one of its named options: a resonance mode, an
+ * enemy stance. numbered stacks and selects with a "none" option can be off.
+ */
+export function isRequiredChoice(state: SourceState): boolean {
+  const options = state.options ?? []
+  return state.kind === 'select' && options.length > 1 &&
+    options.every((option) => option.id !== 'none' && option.id !== '' && !/^\d+$/.test(option.id))
+}
+
+/**
+ * default value chosen when the editor adds an opening condition. a required
+ * choice keeps `current` (the value its member already holds) when that is
+ * one of its options.
+ */
+export function openingConditionValue(state: SourceState, current?: unknown): OpeningValue {
+  if (isRequiredChoice(state) && state.options?.some((option) => option.id === current)) return current as string
   if (state.defaultValue !== undefined) return state.defaultValue
   if (state.kind === 'toggle') return true
   if (state.kind === 'select') return state.options?.[0]?.id ?? ''

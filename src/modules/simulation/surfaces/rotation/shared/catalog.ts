@@ -7,7 +7,7 @@
 
 import type { ResRuntime } from '@/domain/entities/runtime'
 import { getRotFormulaPath, ROT_FORMULA_STAT_DEFS } from '@/domain/gameData/rotationFormulaStats'
-import { UNISON_BOON_TEAM_PATH, unisonBoonMaxForRuntimes, unisonBoonState } from '@/domain/gameData/unisonBoon'
+import { rotationTeamIds, rotationTeamStates } from '@/engine/rotation/openingChoices'
 import { makeSourceCat } from '@/engine/services/runtimeSourceService'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
 import { getNegFfctCm, getNegFfctEn } from '@/engine/gameData/negativeEffects'
@@ -38,9 +38,7 @@ import {
 } from '@/domain/gameData/rotationPaths.ts'
 
 export function currentTeamIds(runtime: ResRuntime): string[] {
-  return Array.from(
-    new Set([runtime.id, ...runtime.build.team.filter((member): member is string => Boolean(member))]),
-  )
+  return rotationTeamIds(runtime)
 }
 
 export function visibleRotMembers(
@@ -288,22 +286,16 @@ export function makeConditionChoices(
     ...activeChoice,
     ...formulaChoices,
     ...memChcs,
-    ...(visibleMember.some((member) => member.id === '1311' || member.id === '1312')
-      ? [{
-          id: 'teamEffect:unisonBoon',
-          resonatorId: 'team',
-          resName: 'Team',
-          sourceName: 'Team',
-          label: unisonBoonState.label,
-          description: unisonBoonState.description,
-          changeTarget: 'rotation' as const,
-          state: {
-            ...unisonBoonState,
-            path: UNISON_BOON_TEAM_PATH,
-            max: unisonBoonMaxForRuntimes(visibleMember.map((member) => member.runtime)),
-          },
-        }]
-      : []),
+    ...rotationTeamStates(visibleMember.map((member) => member.runtime)).map((state) => ({
+      id: 'teamEffect:unisonBoon',
+      resonatorId: 'team',
+      resName: 'Team',
+      sourceName: 'Team',
+      label: state.label,
+      description: state.description,
+      changeTarget: 'rotation' as const,
+      state,
+    })),
     ...enemyChoices(runtime, enemyId, runtimesById),
   ]
 }

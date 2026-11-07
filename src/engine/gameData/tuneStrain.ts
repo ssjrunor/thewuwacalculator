@@ -23,23 +23,27 @@ export function hasTuneStrainResponseTag(resonatorId: string | null | undefined)
   )
 }
 
+// one stack per distinct member with a tune strain response, plus the enemy's
+// intrinsic limit.
+export function getTuneStrainMaxForMembers(
+  memberIds: readonly string[],
+  enemy?: Pick<EnemyProfile, 'id'> | null,
+): number {
+  const enemyBonus = enemy ? getGameData().sourcesByKey[`enemy:${enemy.id}`]?.tuneStrainMaxBonus ?? 0 : 0
+  return BASE_TUNE_STRAIN_MAX + [...new Set(memberIds)].filter((memberId) => hasTuneStrainResponseTag(memberId)).length + enemyBonus
+}
+
 export function getTuneStrainMaxForTeam(
   runtime: Pick<ResRuntime, 'id' | 'build'> | null | undefined,
   enemy?: Pick<EnemyProfile, 'id'> | null,
 ): number {
-  const enemyBonus = enemy ? getGameData().sourcesByKey[`enemy:${enemy.id}`]?.tuneStrainMaxBonus ?? 0 : 0
   if (!runtime) {
-    return BASE_TUNE_STRAIN_MAX + enemyBonus
+    return getTuneStrainMaxForMembers([], enemy)
   }
 
-  // count each team member once, including the active runtime when it is also
-  // listed in the team slots; add the enemy's intrinsic limit separately.
-  const memberIds = Array.from(
-    new Set([
-      runtime.id,
-      ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
-    ]),
-  )
-
-  return BASE_TUNE_STRAIN_MAX + memberIds.filter((memberId) => hasTuneStrainResponseTag(memberId)).length + enemyBonus
+  // the active runtime counts once even when it is also listed in the team slots.
+  return getTuneStrainMaxForMembers([
+    runtime.id,
+    ...runtime.build.team.filter((memberId): memberId is string => Boolean(memberId)),
+  ], enemy)
 }

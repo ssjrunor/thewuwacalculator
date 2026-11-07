@@ -10,7 +10,7 @@ import { normalizeFeatureAttachments } from '@/domain/gameData/rotationAttached'
 import { getRotFormulaStatKey, type RotFormulaStatKey } from '@/domain/gameData/rotationFormulaStats'
 import { extractLoopExecutionBody, resolveLoopPassBody } from '@/domain/gameData/loopPasses'
 import { UNISON_BOON_TEAM_PATH, UNISON_BOON_RUNTIME_PATH, unisonBoonMaxForRuntimes } from '@/domain/gameData/unisonBoon'
-import { getScopedTargetSelection } from '@/domain/gameData/targetRouting'
+import { getScopedTargetSelection, splitScopedTargetOwnerKey } from '@/domain/gameData/targetRouting'
 import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain'
 import { getNegFfctCm, getNegFfctEn, NEG_EFFECT_KEYS, type NegativeSourceEvaluator } from '@/engine/gameData/negativeEffects'
 import { resolveSkill } from '@/engine/pipeline/resolveSkill'
@@ -67,6 +67,7 @@ class RuntimeBranch {
   constructor(key: string, value: PortableValue) { this.key = key; this.value = value }
 }
 
+// lower rotation nodes into scalar operations after capturing the standing sheet and initializing rotation recipients.
 export function compilePortableRotation(
   environment: PortableRotationEnvironment,
   items: readonly RotationNode[],
@@ -80,6 +81,7 @@ export function compilePortableRotation(
   const compiler = new RotationLowering(environment, candidates, featureKeys, damageEventKeys, staticInputs.dynamicStats, staticInputs.selfMainEchoEffects)
   compiler.team.initializeEchoControls(disabledSetParts, staticInputs.setControls)
   compiler.captureSheet()
+  compiler.team.beginRotationTargets()
   compiler.walk(items, compiler.team.sourceLane)
   return compiler.finish(candidates, constraints, staticInputs)
 }
@@ -264,6 +266,7 @@ class RotationLowering {
     child.team.routeOverrides.forEach((routes, lane) => { for (const [path, value] of routes) team.state.routeOverrides[lane]!.set(path, ir.select(gate, value, team.state.routeOverrides[lane]!.get(path) ?? ir.zero)) })
     for (const [path, value] of child.team.enemyWrites) team.state.enemyWrites.set(path, dsl.choose(gate, value, team.state.enemyWrites.get(path) ?? dsl.literal(readPath(team.enemy, path))))
     team.state.active = ir.select(gate, child.team.active, team.state.active)
+    team.state.activeSelected = ir.select(gate, child.team.activeSelected, team.state.activeSelected)
     for (const [key, value] of child.formula) this.formula.set(key, ir.select(gate, value, this.formula.get(key) ?? ir.zero))
     team.invalidate()
   }
@@ -286,10 +289,12 @@ class RotationLowering {
     } })
     body.team.routeOverrides.forEach((routes, lane) => { for (const [path, value] of routes) {
       const bodyValue = body.team.routes[lane]!.get(path) ?? dsl.literal(undefined), setupValue = setup.team.routes[lane]!.get(path) ?? dsl.literal(undefined)
-      team.state.routeOverrides[lane]!.set(path, ir.select(differs(bodyValue, setupValue), value, parent.team.routeOverrides[lane]!.get(path) ?? ir.zero))
+      const changed = ir.or(differs(bodyValue, setupValue), ir.not(ir.eq(value, setup.team.routeOverrides[lane]!.get(path) ?? ir.zero)))
+      team.state.routeOverrides[lane]!.set(path, ir.select(changed, value, parent.team.routeOverrides[lane]!.get(path) ?? ir.zero))
     } })
     for (const [path, value] of body.team.enemyWrites) team.state.enemyWrites.set(path, dsl.choose(differs(value, setup.team.enemyWrites.get(path) ?? dsl.literal(undefined)), value, parent.team.enemyWrites.get(path) ?? dsl.literal(readPath(team.enemy, path))))
     team.state.active = ir.select(ir.not(ir.eq(body.team.active, setup.team.active)), body.team.active, parent.team.active)
+    team.state.activeSelected = ir.select(ir.not(ir.eq(body.team.activeSelected, setup.team.activeSelected)), body.team.activeSelected, parent.team.activeSelected)
     for (const [key, value] of body.formula) this.formula.set(key, ir.select(ir.not(ir.eq(value, setup.formula.get(key) ?? ir.zero)), value, parent.formula.get(key) ?? ir.zero))
     team.invalidate()
   }
@@ -387,12 +392,17 @@ class RotationLowering {
     }
     if (change.type === 'add') value = { kind: ir.one, data: ir.add(ir.select(ir.operation(ScalarOp.finite, dsl.number(previous)), dsl.number(previous), ir.zero), dsl.number(value)) }
     if (formulaKey) { this.formula.set(formulaKey, ir.select(gate, ir.select(ir.operation(ScalarOp.finite, dsl.number(value)), dsl.number(value), ir.zero), previous.data)); return { change, lane } }
-    if (path === 'rotation.activeResonatorId') { team.state.active = ir.select(gate, ir.constant(this.lane(String(change.value), team.sourceLane)), team.state.active); team.invalidate(); return { change, lane } }
+    if (path === 'rotation.activeResonatorId') { team.setActive(this.lane(String(change.value), team.sourceLane), gate); return { change, lane } }
+    // source-qualified route keys can target a different source lane from the condition node's current member.
     if (path.startsWith('routing.selectedTargetsByOwnerKey.')) {
-      const key = path.slice('routing.selectedTargetsByOwnerKey.'.length)
-      const base = getScopedTargetSelection(team.participants[lane]!.slot.routing.selectedTargetsByOwnerKey, team.runtimes[lane]!.id, key)?.value
-      team.state.routes[lane]!.set(key, dsl.choose(gate, value, team.state.routes[lane]!.get(key) ?? dsl.literal(base)))
-      team.state.routeOverrides[lane]!.set(key, ir.select(gate, ir.one, team.state.routeOverrides[lane]!.get(key) ?? ir.zero))
+      const scoped = splitScopedTargetOwnerKey(path.slice('routing.selectedTargetsByOwnerKey.'.length))
+      const targetLane = scoped.sourceRuntimeId ? this.lane(scoped.sourceRuntimeId, lane) : lane
+      const key = scoped.ownerKey
+      const base = getScopedTargetSelection(team.participants[targetLane]!.slot.routing.selectedTargetsByOwnerKey, team.runtimes[targetLane]!.id, key)?.value
+      const pinned = team.sources.some(row => row.lane === targetLane && row.effects.some(effect => effect.ownerKey === key && effect.targetScope === 'activeOther'))
+      const routed = pinned ? dsl.choose(ir.eq(value.kind, ir.constant(3)), value, team.otherTargetFallback(targetLane)) : value
+      team.state.routes[targetLane]!.set(key, dsl.choose(gate, routed, team.state.routes[targetLane]!.get(key) ?? dsl.literal(base)))
+      team.state.routeOverrides[targetLane]!.set(key, ir.select(gate, ir.one, team.state.routeOverrides[targetLane]!.get(key) ?? ir.zero))
       team.invalidate(); return { change, lane }
     }
     const definition = enemyPath ? this.environment.enemyStateDefs[`enemy.${enemyPath}`] : this.environment.stateDefsByResonator[team.runtimes[lane]!.id]?.[`runtime.${path}`]

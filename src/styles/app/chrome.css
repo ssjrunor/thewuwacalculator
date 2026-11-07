@@ -58,6 +58,7 @@ body,
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
+  min-width: var(--app-layout-min-width);
   height: 100%;
   min-height: 0;
 }

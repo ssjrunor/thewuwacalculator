@@ -1078,6 +1078,32 @@ describe('rotation execution invariants', () => {
     expect(attached).toBeCloseTo(tenStacks)
   })
 
+  it('deals Glacio Bite at its resolved max whatever Glacio Chafe stacks the rotation writes', () => {
+    const hiyuki = getResSeedBy('1108')
+    expect(hiyuki).toBeTruthy()
+    if (!hiyuki) {
+      return
+    }
+    const bite = listResFeats(hiyuki.id).find((feature) => feature.skillId === '1108:negative-effect:fine:snow:glacio-bite')
+    expect(bite).toBeTruthy()
+    if (!bite) {
+      return
+    }
+    const damage = (node: Partial<RotationNode>, combatStacks: number) => {
+      const runtime = makeResRuntime(hiyuki)
+      runtime.base.level = 90
+      runtime.state.controls['inherent:1108:lvl50:stacks'] = 2
+      runtime.state.combat.glacioChafe = combatStacks
+      runtime.rotation.sequence = [{ id: 'bite', type: 'feature', featureId: bite.id, ...node } as RotationNode]
+      return runResSmlt(runtime, hiyuki, makeEnemy()).perSkill.find((entry) => entry.nodeId === 'bite')?.avg ?? 0
+    }
+    const atZero = damage({}, 0)
+    expect(atZero).toBeGreaterThan(0)
+    expect(damage({}, 3)).toBeCloseTo(atZero)
+    expect(damage({ negativeEffectStacks: 1 }, 0)).toBeCloseTo(atZero)
+    expect(damage({ negativeEffectStacks: 10 }, 7)).toBeCloseTo(atZero)
+  })
+
   it('keeps an attached child stack override when the parent write targets another resonator', () => {
     const parentSeed = getResSeedBy('1109')
     const childSeed = getResSeedBy('1105')

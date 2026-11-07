@@ -37,6 +37,9 @@ describe('generated Amplify scope invariants', () => {
     const sources = JSON.parse(rawSources) as SrcPkg[]
     const invalidEffects = sources.flatMap((source) =>
       (source.effects ?? [])
+        // Battlesong explicitly amplifies all attributes; this scoped channel
+        // excludes attribute-less damage such as Tune Break and Hack.
+        .filter((effect) => effect.id !== '1306:battlesong')
         .filter((effect) => effect.operations.some(isSyntheticUniversalAmplify))
         .map((effect) => `${source.source.type}:${source.source.id}:${effect.id}`),
     )

@@ -45,6 +45,7 @@ import {
   cloneWpnMkSt,
 } from '@/engine/runtime/runtimeCloning'
 import { projectScenarioTeamEffects, projectScenarioUiRuntimes } from '@/engine/runtime/scenarioRuntime'
+import { captureScenarioOtherTargets } from './scenarioEffectTargets'
 import {
   removeMemberEnvironmentState,
   replaceMemberManualEffect,
@@ -467,7 +468,7 @@ export function applyRuntimeToSimulation(
   const delta = previousRuntime
     ? applyMemberRuntimeDelta(scenario, resonatorId, previousRuntime, runtime)
     : null
-  if (delta) return { scenario: delta }
+  if (delta) return { scenario: captureScenarioOtherTargets(delta, scenario) }
   const memberIndex = scenario.team.members.findIndex(
     (member) => member.resonatorId === resonatorId,
   )
@@ -534,5 +535,5 @@ export function applyRuntimeToSimulation(
       ? scenario.initialOnFieldMemberId
       : team.members[0].id,
   })
-  return { scenario: nextScenario }
+  return { scenario: captureScenarioOtherTargets(nextScenario, scenario) }
 }

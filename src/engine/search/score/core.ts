@@ -56,6 +56,7 @@ import {
   calcConvert,
   calcCritConvert,
   calcErToAtk,
+  calcReflectingShadows,
   calcJingranAtk,
   calcJingranFusion,
   calcShoreCritDmg,
@@ -275,6 +276,7 @@ export function tgtMainDamage(
   bonus += mainEchoBuffs[mainBase + MAIN_BUFF.coord] * ((skillMask >>> 7) & 1)
   // generic dmgBonus from the main echo, regardless of skill type or element
   bonus += mainEchoBuffs[mainBase + MAIN_BUFF.dmgBonus]
+  if (ctx.toggle0) bonus += calcReflectingShadows(ctx.charId, finalER)
 
   const hp = terms.hp
   const dmgBonus = ctx.dmgBonus + (bonus / 100)

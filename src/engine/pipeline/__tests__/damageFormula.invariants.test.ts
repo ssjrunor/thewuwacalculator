@@ -506,6 +506,30 @@ describe('damage formula invariants', () => {
     expect(shield.avg).toBeGreaterThan(0)
   })
 
+  it('keeps Hack isolated from general amplification and Tune Rupture-specific buffs', () => {
+    const base = calcSkillDamage(makeFinalStats(), hackSkill, enemy, 90)
+    const unrelated = makeFinalStats({
+      amplify: 30,
+      attribute: { ...makeFinalStats().attribute, spectro: { ...makeBuff(), amplify: 50 } },
+      skillType: { ...makeFinalStats().skillType,
+        all: { ...makeBuff(), amplify: 20 },
+        tuneRupture: { ...makeBuff(), dmgBonus: 100, defIgnore: 50 },
+      },
+    })
+    const unchanged = calcSkillDamage(unrelated, hackSkill, enemy, 90)
+    expect(unchanged.avg).toBeCloseTo(base.avg, 10)
+    const own = makeFinalStats({ ...unrelated, skillType: { ...unrelated.skillType, hack: { ...makeBuff(), dmgBonus: 25 } } })
+    expect(calcSkillDamage(own, hackSkill, enemy, 90).avg).toBeCloseTo(base.avg * 1.25, 10)
+    const breakdown = formBrkd(makeFeatureResult(hackSkill, unchanged), unrelated, enemy, 90, makeCombatState())
+    expect(breakdown.sections.find(section => section.label === 'mods')?.lines)
+      .toContain('mod.amp = 0% = Hack ignores Amplify')
+    const ruptureCrit = { ...hackSkill, tuneRuptureCritRate: 1, tuneRuptureCritDmg: 3 }
+    const noBorrowedCrit = calcSkillDamage(unrelated, ruptureCrit, enemy, 90)
+    expect(noBorrowedCrit.avg).toBeCloseTo(base.avg, 10)
+    const critBreakdown = formBrkd(makeFeatureResult(ruptureCrit, noBorrowedCrit), unrelated, enemy, 90, makeCombatState())
+    expect(critBreakdown.summary).not.toContain('guaranteed crit')
+  })
+
   it('computes tune rupture and hack through their dedicated branches', () => {
     // tune rupture and hack both reuse damage output fields, but each takes its
     // multiplier from different stat channels and must stay separately testable

@@ -849,6 +849,10 @@ fn evalMainPos(
     bonus += mainType1.y * f32((mask >> 7u) & 1u);
     // generic top_stat dmgBonus from the main echo, unconditional
     bonus += mainDmgBns;
+    // match the CPU conversion after adding candidate and main-Echo ER to the base context.
+    if (isChar(pre.charId, 1110.0) && toggleValue(pre.toggles, 0u) == 1.0) {
+        bonus += clamp(finalER - 200.0, 0.0, 60.0) * 0.2;
+    }
 
     var dmgBonus = pre.dmgBonusBase + bonus * INV_100;
     if (isChar(pre.charId, 1212.0)) {

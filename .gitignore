@@ -31,3 +31,22 @@ prod-app.json
 /public/assets/app/ocr/*.js
 
 /legacy/
+/rotation-exports
+/services/leaderboard/rotation-exports
+
+# New local notes and audit outputs (existing tracked documentation stays tracked).
+/docs/riley-rotation-gap-fixes.md
+/src/engine/rotationGen/*.md
+/services/leaderboard/*.md
+/services/leaderboard/audits/
+
+# Local diagnostics and documentation generators; build/deploy tools stay included.
+/services/leaderboard/tools/audit-*.mjs
+/services/leaderboard/tools/export-rotations.mjs
+/services/leaderboard/tools/pull-cards.mjs
+/services/leaderboard/tools/read-card.mjs
+/services/leaderboard/tools/score-local.mjs
+/services/leaderboard/tools/scenarios-doc.mjs
+/services/leaderboard/tools/teammates-doc.mjs
+/services/leaderboard/tools/lib/cards.mjs
+/services/leaderboard/tools/lib/chromium.mjs

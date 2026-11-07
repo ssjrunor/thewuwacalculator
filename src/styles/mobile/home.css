@@ -9,6 +9,11 @@ html.mshell-on body {
   min-width: 0;
 }
 
+html.mshell-on #root {
+  width: 100%;
+  min-width: 0;
+}
+
 .mshell {
   position: fixed;
   inset: 0;

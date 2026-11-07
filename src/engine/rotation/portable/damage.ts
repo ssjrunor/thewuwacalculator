@@ -35,6 +35,7 @@ export function matchesSkill(skill: SkillDef, match: SkllMtchRule | undefined): 
     && (!match.labelIncludes?.length || match.labelIncludes.some((text) => skill.label.includes(text)))
 }
 
+// resolve skill variants, scaling, hit data, and scoped modifiers into scalar expressions for portable execution.
 export function lowerSkill(team: PortableTeam, lane: number, definition: SkillDef, feature: FeatDef): PortableSkill {
   team.sync()
   const { ir } = team
@@ -160,11 +161,12 @@ export function lowerDamage(
   } else if (definition.archetype === 'tuneRupture' || definition.archetype === 'hack') {
     const kind = definition.archetype, res = getEnemyRes(enemy, definition.element)
     if (res === 100) return ir.zero
+    // same damage rules, separate buff identities; general amplification is excluded.
     const perHit = ir.product([
       resistance(ir.sub(c(res), layer('resShred'))),
       defense(ir.add(types('defIgnore'), skill.buffs.defIgnore ?? ir.zero), ir.add(top('defShred'), layer('defShred')), false),
       percent(ir.add(top('dmgVuln'), layer('dmgVuln'))), c(getEnemyMaxOffTune(enemy.class)),
-      kind === 'tuneRupture' ? ir.one : percent(top('amplify')), percent(type(kind, 'dmgBonus')),
+      percent(type(kind, 'dmgBonus')),
       percent(top('tuneBreakBoost')), percent(top('finalDmg')),
     ])
     const tuneLevel = knownLevel === undefined ? ir.table(ir.clamp(ir.operation(ScalarOp.round, level), 1, 90), Array.from({ length: 91 }, (_, index) => getTuneLevel(index))) : c(getTuneLevel(knownLevel))

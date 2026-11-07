@@ -132,11 +132,12 @@ function calcDamageCtx(
   }
 }
 
-// build a zeroed result while preserving the skill hit structure
+// include sub-hit rows unless the caller explicitly disables them.
 function shldInclSubHits(options?: CalcSkillDamageOptions): boolean {
   return options?.includeSubHits !== false
 }
 
+// weight each hit multiplier by its count when calculating the aggregate hit scale.
 function summarizeHits(hits: SkillDef['hits']): HitSummary {
   let hitScale = 0
   let hitCount = 0
@@ -504,14 +505,10 @@ export function resolveNumericEffectiveStats(
   if (skill.archetype === 'tuneRupture' || skill.archetype === 'hack') {
     return {
       ...base,
-      ...(skill.archetype === 'tuneRupture'
-        ? {
-          critRate: (skill.tuneRuptureCritRate ?? 0) * 100,
-          critDmg: (skill.tuneRuptureCritDmg ?? 1) * 100,
-        }
-        : {}),
+      critRate: skill.archetype === 'tuneRupture' ? (skill.tuneRuptureCritRate ?? 0) * 100 : 0,
+      critDmg: skill.archetype === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) * 100 : 100,
       bonus: numericSkillType(lane, skill.archetype, 'dmgBonus'),
-      amplify: skill.archetype === 'tuneRupture' ? 0 : numericTop(lane, 'amplify'),
+      amplify: 0,
       defIgnore: type('defIgnore') + skillBuff('defIgnore'),
     }
   }
@@ -641,6 +638,7 @@ function runLoweredSkillDamage(
   writeScore(target, normalTotal, critTotal, avgTotal)
 }
 
+// evaluate direct, healing, shield, level-scaled, and negative-effect formulas against the same numeric stat lane.
 function runNumericDamageKernel(
     target: SkillDamageScoreTarget,
     lane: NumericDamageLane,
@@ -772,7 +770,6 @@ function runNumericDamageKernel(
       defenseMult *
       (1 + (numericTop(lane, 'dmgVuln') + numericLayer(lane, skill, 'dmgVuln')) / 100) *
       maxOffTune *
-      (kind === 'tuneRupture' ? 1 : 1 + numericTop(lane, 'amplify') / 100) *
       (1 + numericSkillType(lane, kind, 'dmgBonus') / 100) *
       (1 + numericTop(lane, 'tuneBreakBoost') / 100) *
       (1 + numericTop(lane, 'finalDmg') / 100)

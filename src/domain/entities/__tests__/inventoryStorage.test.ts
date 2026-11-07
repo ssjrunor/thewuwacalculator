@@ -6,7 +6,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import type { EchoInstance } from '@/domain/entities/runtime.ts'
-import { cloneRotationNodes, saveEchoSlots } from '@/domain/entities/inventoryStorage.ts'
+import { cloneEchoLoadout, cloneRotationNodes, saveEchoSlots } from '@/domain/entities/inventoryStorage.ts'
 
 function echo(uid: string, id: string): EchoInstance {
   return {
@@ -64,7 +64,7 @@ describe('cloneRotationNodes', () => {
     expect(feature.id).not.toBe('feature')
   })
 
-  it('gives attached feature children fresh ids inside fork bodies', () => {
+  it('assigns fresh ids to attached feature children inside fork bodies', () => {
     const items: RotationNode[] = [
       {
         id: 'loop-start',
@@ -100,7 +100,7 @@ describe('cloneRotationNodes', () => {
     expect(child?.featureId).toBe('feature-b')
   })
 
-  it('gives standalone and attached notes fresh identities in a copied document', () => {
+  it('assigns fresh identities to standalone and attached notes in a copied document', () => {
     const items: RotationNode[] = [
       { id: 'standalone-note', type: 'note', text: 'Standalone' },
       {
@@ -139,5 +139,13 @@ describe('saveEchoSlots', () => {
     expect(result.savedCount).toBe(2)
     expect(result.nextEchoes?.[0]?.uid).toBe('inventory-0')
     expect(result.nextEchoes?.[2]?.uid).toBe('inventory-1')
+  })
+
+  it('keeps the main echo flag in whichever slot it sits, defaulting to slot 0 only when none is flagged', () => {
+    const main = (id: string): EchoInstance => ({ ...echo(id, id), mainEcho: true })
+    const flagged = cloneEchoLoadout([echo('a', 'a'), main('b'), null])
+    expect(flagged.map((entry) => entry?.mainEcho ?? null)).toEqual([false, true, null])
+    const unflagged = cloneEchoLoadout([echo('a', 'a'), echo('b', 'b')])
+    expect(unflagged.map((entry) => entry?.mainEcho)).toEqual([true, false])
   })
 })
