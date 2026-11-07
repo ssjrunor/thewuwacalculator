@@ -6,6 +6,7 @@
 
 import type { EffectDef, EffectContext } from '@/domain/gameData/contracts'
 import { getScopedTargetSelection } from '@/domain/gameData/targetRouting.ts'
+import { effectTargetOwnerKey } from './activeOtherTargets'
 
 function uniqueIds(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)))
@@ -44,7 +45,7 @@ export function resFfctTgtId(
     return null
   }
 
-  const ownerKey = effect.ownerKey
+  const ownerKey = effectTargetOwnerKey(effect)
   if (ownerKey) {
     // a persisted route that points outside the eligible set should disable this
     // effect for the source, not silently fall back to the active resonator.

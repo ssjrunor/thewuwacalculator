@@ -10,6 +10,7 @@ import type {
   SourceState,
 } from '@/domain/gameData/contracts.ts'
 import { openingConditionChoices } from '@/domain/gameData/rotationPreambleDefaults.ts'
+import { openingWrites } from '@/engine/rotation/openingChoices.ts'
 import type { SkillAggType } from '@/domain/entities/stats.ts'
 import type { PaletteSpec } from './paletteSpec.ts'
 import { writesFromChanges } from './conditionWrites.ts'
@@ -207,7 +208,9 @@ export function countOpeningStates(condChoices: CondChoice[]): number {
 }
 
 /**
- * every opening state at its default value, then a handoff to whoever starts.
+ * every opening state at its opening value, then a handoff to whoever starts.
+ * `values` overrides a state's value (undefined keeps the default); the page
+ * passes the scenario's own values so a resonance mode opens as it is set.
  * paths the preamble already writes are skipped and a trailing handoff is
  * replaced, so running this twice does not double what it produced.
  */
@@ -216,11 +219,13 @@ export function buildPreambleEntries({
   existing,
   activeId,
   startId,
+  values,
 }: {
   condChoices: CondChoice[]
   existing: EditorNode[]
   activeId: string
   startId: string
+  values?: (choice: CondChoice) => RotationConditionValue | undefined
 }): EditorNode[] {
   const previousHandoff = lastActiveResonatorNode(existing)
   const kept = existing.filter((node) => !isActiveResonatorNode(node))
@@ -234,13 +239,13 @@ export function buildPreambleEntries({
   )
 
   const added: EditorCondition[] = []
-  for (const choice of openingConditionChoices(condChoices)) {
+  for (const { choice, value } of openingWrites(condChoices, values)) {
     const key = `${choice.resonatorId}:${choice.state.path}`
     if (written.has(key)) {
       continue
     }
     written.add(key)
-    const node = makeConditionNode(choice)
+    const node = makeConditionNode(choice, choice.resonatorId, value)
     if (node.type === 'condition') added.push(node)
   }
 

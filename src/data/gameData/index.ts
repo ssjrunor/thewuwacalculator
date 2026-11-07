@@ -20,9 +20,19 @@ import { DEF_GAME_DATA_MODE, type GameDataMode } from '@/domain/entities/gameDat
 import { getResCatByI, initResCat, initResDtls, initResKitSeeds } from '@/data/gameData/resonators/resonatorDataStore'
 import { initWpnData } from '@/data/gameData/weapons/weaponDataStore'
 import { decodeCoreWeaponCatalog, type CoreWeaponCatalog } from '@/data/gameData/weapons/coreCatalog'
-import { isSimulationRoute } from '@/shared/lib/appRoutes'
 
 const GAME_DATA_KEY = '__wuwaGameDataState__'
+
+/* whether the host still needs the full calculation data. the browser app
+   registers a route check at startup; workers, node and server runtimes keep
+   the default and never release. */
+// the host supplies route-dependent retention policy; non-browser hosts retain calculation data by default.
+let keepCalculationData: () => boolean = () => true
+
+/** let the host decide when the full calculation data may be released. */
+export function setCalculationDataPolicy(keep: () => boolean): void {
+  keepCalculationData = keep
+}
 
 /** manages registry subscriptions and delayed release around the hmr-safe data state. */
 export class GameDataSession {
@@ -98,11 +108,11 @@ export class GameDataSession {
   }
 
   scheduleRelease(state: GameDataGlbl): void {
-    if (typeof window === 'undefined' || isSimulationRoute(window.location.pathname)) return
+    if (keepCalculationData()) return
     this.cancelRelease()
     this.nonSimulationReleaseTimer = setTimeout(() => {
       this.nonSimulationReleaseTimer = null
-      if (this.getState() === state && !isSimulationRoute(window.location.pathname)) this.releaseCalculationData()
+      if (this.getState() === state && !keepCalculationData()) this.releaseCalculationData()
     }, 1_200)
   }
 
@@ -189,7 +199,7 @@ export class GameDataSession {
       let pending = state.pendingBundles.get(id)
       if (!pending) {
         pending = (async () => {
-          const response = await fetch(gameDataUrl(state.mode!, `resonators/worker-bundles/${encodeURIComponent(id)}.json`))
+          const response = await fetchGameData(gameDataUrl(state.mode!, `resonators/worker-bundles/${encodeURIComponent(id)}.json`))
           if (!response.ok) throw new Error(`Resonator data unavailable: ${id}`)
           const bundle = await response.json() as ResonatorWorkerBundle
           if (bundle.source.source.id !== id) throw new Error(`Unexpected resonator data: ${id}`)
@@ -250,27 +260,27 @@ export class GameDataSession {
       state.initializationPromise = (async () => {
         const featureIdsRequest = resonatorIds && !calculationOnly
           ? core ? Promise.resolve(core.featureIds)
-            : fetch(gameDataUrl(mode, 'resonators/feature-ids.json')).then((r) => r.json() as Promise<string[]>)
+            : fetchGameData(gameDataUrl(mode, 'resonators/feature-ids.json')).then((r) => r.json() as Promise<string[]>)
           : Promise.resolve<string[]>([])
         const runtimeBundles = calculationOnly ? Promise.all(resonatorIds!.map(async (id) => {
-          const response = await fetch(gameDataUrl(mode, `resonators/runtime-bundles/${encodeURIComponent(id)}.json`))
+          const response = await fetchGameData(gameDataUrl(mode, `resonators/runtime-bundles/${encodeURIComponent(id)}.json`))
           if (!response.ok) throw new Error(`Resonator runtime data unavailable: ${id}`)
           return response.json() as Promise<ResonatorWorkerBundle>
         })) : null
         const weaponBundles = calculationOnly ? Promise.all(weaponIds.map(async (id) => {
-          const response = await fetch(gameDataUrl(mode, `weapons/runtime-bundles/${encodeURIComponent(id)}.json`))
+          const response = await fetchGameData(gameDataUrl(mode, `weapons/runtime-bundles/${encodeURIComponent(id)}.json`))
           if (!response.ok) throw new Error(`Weapon runtime data unavailable: ${id}`)
           return response.json() as Promise<{ weapon: GenWpn; source: SrcPkg | null }>
         })) : null
         const resCatRequest = runtimeBundles
           ? runtimeBundles.then((bundles) => bundles.flatMap((bundle) => bundle.seed ? [bundle.seed] : []))
           : core && resonatorIds ? Promise.resolve(core.seeds)
-            : fetch(resonatorIds ? dataUrls.resonatorPickerCatalog : dataUrls.resonatorCatalog).then((r) => r.json() as Promise<ResSeed[]>)
+            : fetchGameData(resonatorIds ? dataUrls.resonatorPickerCatalog : dataUrls.resonatorCatalog).then((r) => r.json() as Promise<ResSeed[]>)
         const resonatorData = resonatorIds
           ? (runtimeBundles ?? resCatRequest.then((catalog) => Promise.all(resonatorIds.filter((id) => catalog.some((seed) => seed.id === id)).map(async (id): Promise<ResonatorWorkerBundle> => {
             const cached = core?.bundles.get(id)
             if (cached) return cached
-            const response = await fetch(`${dataUrls.resonatorSources.replace(/sources\.json$/, '')}worker-bundles/${encodeURIComponent(id)}.json`)
+            const response = await fetchGameData(`${dataUrls.resonatorSources.replace(/sources\.json$/, '')}worker-bundles/${encodeURIComponent(id)}.json`)
             if (!response.ok) throw new Error(`Resonator worker bundle unavailable: ${id}`)
             return response.json() as Promise<ResonatorWorkerBundle>
           })))).then((bundles) => ({
@@ -281,9 +291,9 @@ export class GameDataSession {
               : [])),
           }))
           : Promise.all([
-            fetch(dataUrls.resonatorSources).then((r) => r.json() as Promise<SrcPkg[]>),
-            fetch(dataUrls.resonatorDamageEntries).then((r) => r.json() as Promise<SkillDamageEntry[]>),
-            fetch(dataUrls.resonatorDetails).then((r) => r.json() as Promise<Record<string, ResDtls>>),
+            fetchGameData(dataUrls.resonatorSources).then((r) => r.json() as Promise<SrcPkg[]>),
+            fetchGameData(dataUrls.resonatorDamageEntries).then((r) => r.json() as Promise<SkillDamageEntry[]>),
+            fetchGameData(dataUrls.resonatorDetails).then((r) => r.json() as Promise<Record<string, ResDtls>>),
           ]).then(([sources, damageEntries, details]) => {
             const entriesById = new Map<string, SkillDamageEntry[]>()
             for (const entry of damageEntries) {
@@ -317,21 +327,21 @@ export class GameDataSession {
         ] =
           await Promise.all([
             resonatorData,
-            fetch(dataUrls.echoSources).then((r) => r.json() as Promise<SrcPkg[]>),
-            fetch(dataUrls.enemySources).then((r) => r.json() as Promise<SrcPkg[]>),
-            weaponBundles ? weaponBundles.then((bundles) => bundles.flatMap((bundle) => bundle.source ? [bundle.source] : [])) : fetch(dataUrls.weaponSources).then((r) => r.json() as Promise<SrcPkg[]>),
-            weaponBundles ? weaponBundles.then((bundles) => bundles.map((bundle) => bundle.weapon)) : fetch(dataUrls.weaponCatalog).then((r) => r.json() as Promise<GenWpn[]>),
+            fetchGameData(dataUrls.echoSources).then((r) => r.json() as Promise<SrcPkg[]>),
+            fetchGameData(dataUrls.enemySources).then((r) => r.json() as Promise<SrcPkg[]>),
+            weaponBundles ? weaponBundles.then((bundles) => bundles.flatMap((bundle) => bundle.source ? [bundle.source] : [])) : fetchGameData(dataUrls.weaponSources).then((r) => r.json() as Promise<SrcPkg[]>),
+            weaponBundles ? weaponBundles.then((bundles) => bundles.map((bundle) => bundle.weapon)) : fetchGameData(dataUrls.weaponCatalog).then((r) => r.json() as Promise<GenWpn[]>),
             calculationOnly ? Promise.resolve<GenWpn[]>([])
               : core ? Promise.resolve(core.weapons)
-                : fetch(dataUrls.weaponCoreCatalog).then((r) => r.json() as Promise<CoreWeaponCatalog>).then(decodeCoreWeaponCatalog),
+                : fetchGameData(dataUrls.weaponCoreCatalog).then((r) => r.json() as Promise<CoreWeaponCatalog>).then(decodeCoreWeaponCatalog),
             resCatRequest,
-            core ? Promise.resolve(core.echoes) : fetch(dataUrls.echoCatalog).then((r) => r.json() as Promise<EchoDef[]>),
-            core ? Promise.resolve(core.echoStats) : fetch(dataUrls.echoStats).then((r) => r.json() as Promise<EchoSttsCatD>),
-            core ? Promise.resolve(core.sonataSets) : fetch(dataUrls.sonataSets).then((r) => r.json() as Promise<SntSetDef[]>),
-            core ? Promise.resolve(core.echoSets) : fetch(dataUrls.sonataEffects).then((r) => r.json() as Promise<SetDef[]>),
+            core ? Promise.resolve(core.echoes) : fetchGameData(dataUrls.echoCatalog).then((r) => r.json() as Promise<EchoDef[]>),
+            core ? Promise.resolve(core.echoStats) : fetchGameData(dataUrls.echoStats).then((r) => r.json() as Promise<EchoSttsCatD>),
+            core ? Promise.resolve(core.sonataSets) : fetchGameData(dataUrls.sonataSets).then((r) => r.json() as Promise<SntSetDef[]>),
+            core ? Promise.resolve(core.echoSets) : fetchGameData(dataUrls.sonataEffects).then((r) => r.json() as Promise<SetDef[]>),
             featureIdsRequest,
             core ? Promise.resolve({ sources: core.sourceStubs.map((stub) => stub.source), featureIds: core.featureIds })
-              : fetch(dataUrls.sourceManifest).then((r) => r.json() as Promise<SourceManifest>),
+              : fetchGameData(dataUrls.sourceManifest).then((r) => r.json() as Promise<SourceManifest>),
           ])
 
         initResCat(resCat)
@@ -412,18 +422,18 @@ export class GameDataSession {
     const urls = makeDataUrls(mode)
     state.initializationPromise = (async () => {
       const [seeds, bundles, weapons, echoes, echoStats, sonataSets, echoSets, manifest] = await Promise.all([
-        fetch(urls.resonatorPickerCatalog).then((response) => response.json() as Promise<ResSeed[]>),
+        fetchGameData(urls.resonatorPickerCatalog).then((response) => response.json() as Promise<ResSeed[]>),
         Promise.all(ids.map(async (id) => {
-          const response = await fetch(gameDataUrl(mode, `resonators/worker-bundles/${encodeURIComponent(id)}.json`))
+          const response = await fetchGameData(gameDataUrl(mode, `resonators/worker-bundles/${encodeURIComponent(id)}.json`))
           if (!response.ok) throw new Error(`Resonator data unavailable: ${id}`)
           return response.json() as Promise<ResonatorWorkerBundle>
         })),
-        fetch(urls.weaponCoreCatalog).then((response) => response.json() as Promise<CoreWeaponCatalog>).then(decodeCoreWeaponCatalog),
-        fetch(urls.echoCatalog).then((response) => response.json() as Promise<EchoDef[]>),
-        fetch(urls.echoStats).then((response) => response.json() as Promise<EchoSttsCatD>),
-        fetch(urls.sonataSets).then((response) => response.json() as Promise<SntSetDef[]>),
-        fetch(urls.sonataEffects).then((response) => response.json() as Promise<SetDef[]>),
-        fetch(urls.sourceManifest).then((response) => response.json() as Promise<SourceManifest>),
+        fetchGameData(urls.weaponCoreCatalog).then((response) => response.json() as Promise<CoreWeaponCatalog>).then(decodeCoreWeaponCatalog),
+        fetchGameData(urls.echoCatalog).then((response) => response.json() as Promise<EchoDef[]>),
+        fetchGameData(urls.echoStats).then((response) => response.json() as Promise<EchoSttsCatD>),
+        fetchGameData(urls.sonataSets).then((response) => response.json() as Promise<SntSetDef[]>),
+        fetchGameData(urls.sonataEffects).then((response) => response.json() as Promise<SetDef[]>),
+        fetchGameData(urls.sourceManifest).then((response) => response.json() as Promise<SourceManifest>),
       ])
       const details = Object.fromEntries(bundles.flatMap((bundle) => bundle.details ? [[bundle.source.source.id, bundle.details]] : []))
       initResCat(seeds)
@@ -527,6 +537,24 @@ export function getGameDataMode(): GameDataMode {
 
 export function gameDataUrl(mode: GameDataMode, path: string): string {
   return `/data/${mode}/${path.replace(/^\/+/, '')}`
+}
+
+type GameDataReader = (url: string) => Promise<Response>
+
+const fetchFromOrigin: GameDataReader = (url) => fetch(url)
+// the default reader uses this origin; scoring hosts can supply a verified immutable snapshot reader.
+let readGameData: GameDataReader = fetchFromOrigin
+
+/** where game data files come from: the app's own /data/<mode>/ by default. a
+    host with no such origin (the leaderboard scorer reads a ruleset's
+    snapshot) supplies its own reader; null restores the default. */
+export function setGameDataReader(reader: GameDataReader | null): void {
+  readGameData = reader ?? fetchFromOrigin
+}
+
+/** fetch one game data file (a gameDataUrl) through the current reader. */
+export function fetchGameData(url: string): Promise<Response> {
+  return readGameData(url)
 }
 
 function normPblcSstP(path: string): string {

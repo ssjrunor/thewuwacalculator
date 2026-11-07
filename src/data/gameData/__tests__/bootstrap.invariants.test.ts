@@ -138,13 +138,14 @@ describe('game data bootstrap invariants', () => {
     vi.resetModules()
     clearGameDataState()
     const previousFetch = globalThis.fetch
-    vi.stubGlobal('window', { location: { pathname: '/' } })
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => ({
       ok: true,
       json: async () => JSON.parse(await readFile(`public${resolveRequestUrl(input)}`, 'utf8')),
     } as Response)) as typeof fetch
     try {
       const data = await import('@/data/gameData')
+      // the browser app registers this from the route; '/' is not a simulation route.
+      data.setCalculationDataPolicy(() => false)
       await data.initCoreGameData({ resonatorIds: ['1202'] })
       vi.useFakeTimers()
       const release = data.holdResonatorData(['1202'])

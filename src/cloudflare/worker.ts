@@ -2,6 +2,8 @@
   Author: Runor Ewhro
   description: cloudflare worker entrypoint that serves static assets and
                handles the google oauth api endpoints used by drive sync.
+               /api/lb/* is handed, untouched, to the leaderboard api worker
+               over the LEADERBOARD service binding.
 */
 
 import {
@@ -19,7 +21,13 @@ interface CldfEnv extends GglAuthEnv, ShareEnv {
   ASSETS: {
     fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
   }
+  /** the leaderboard api worker (services/leaderboard); absent where it is not bound. */
+  LEADERBOARD?: {
+    fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>
+  }
 }
+
+const LEADERBOARD_PREFIX = '/api/lb/'
 
 const CANONICAL_HOST = 'thewuwacalculator.com'
 
@@ -86,6 +94,13 @@ export default {
     const canonicalRedirect = getCanonicalRedirect(request)
     if (canonicalRedirect) {
       return canonicalRedirect
+    }
+
+    // forwarded before anything reads the body.
+    if (new URL(request.url).pathname.startsWith(LEADERBOARD_PREFIX)) {
+      return env.LEADERBOARD
+        ? env.LEADERBOARD.fetch(request)
+        : Response.json({ error: { code: 'not_found', message: 'the leaderboard is not available here' } }, { status: 404 })
     }
 
     const apiResponse = await onApiRqst(request, env)

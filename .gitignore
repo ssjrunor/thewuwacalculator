@@ -11,7 +11,6 @@ dist
 ingest
 node_modules
 /scripts/
-/wip/
 .env
 prod-app.json
 
@@ -31,3 +30,25 @@ prod-app.json
 /public/assets/app/ocr/*.js
 
 /legacy/
+/rotation-exports
+/services/leaderboard/rotation-exports
+
+/docs/riley-rotation-gap-fixes.md
+/src/engine/rotationGen/*.md
+/services/leaderboard/*.md
+/services/leaderboard/audits/
+
+/services/leaderboard/tools/audit-*.mjs
+/services/leaderboard/tools/export-rotations.mjs
+/services/leaderboard/tools/pull-cards.mjs
+/services/leaderboard/tools/read-card.mjs
+/services/leaderboard/tools/score-local.mjs
+/services/leaderboard/tools/scenarios-doc.mjs
+/services/leaderboard/tools/teammates-doc.mjs
+/services/leaderboard/tools/lib/cards.mjs
+/services/leaderboard/tools/lib/chromium.mjs
+/services/leaderboard/tools/refs.mjs
+/services/leaderboard/tools/publish.mjs
+/services/leaderboard/tools/activate.mjs
+/services/leaderboard/tools/build-ruleset.mjs
+/services/leaderboard/tests/ruleset.test.js

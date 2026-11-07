@@ -19,12 +19,8 @@ import type {
     RtChng,
     SourceState
 } from "@/domain/gameData/contracts.ts";
-import {isStateVisible} from "@/engine/services/sourceStateService.ts";
-import {listStatesFor} from "@/data/catalog/gameDataService.ts";
 import {makeNodeId} from "@/domain/gameData/rotationNodeId.ts";
-import {listEquippedSourceStates} from "@/engine/services/runtimeSourceService.ts";
-import {negEffectsFor} from "@/engine/gameData/negativeEffects.ts";
-import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain.ts'
+import { rotationEnemyStates, rotationMemberStates } from '@/engine/rotation/openingChoices.ts'
 import {buildConditionChoices} from "@/modules/simulation/surfaces/rotation/shared/conditions.ts";
 import type {SkillDef} from "@/domain/entities/stats.ts";
 import type {SimResult} from "@/engine/pipeline/types.ts";
@@ -103,93 +99,21 @@ export function listRotMemSt(
     memRt: ResRuntime,
     actRt: ResRuntime,
 ): SourceState[] {
-    const states: SourceState[] = []
-    const seenCntrKeys = new Set<string>()
-
-    const pushStates = (nextStates: SourceState[]) => {
-        // controls can be reachable through multiple sources; de-dupe by control key after visibility checks so the
-        // editor does not show duplicate rows for the same runtime state.
-        for (const state of nextStates) {
-            if (seenCntrKeys.has(state.controlKey)) {
-                continue
-            }
-
-            if (!isStateVisible(memRt, memRt, state, actRt)) {
-                continue
-            }
-
-            seenCntrKeys.add(state.controlKey)
-            states.push(state)
-        }
-    }
-
-    pushStates(listEquippedSourceStates(memRt))
-
-    return states
+    return rotationMemberStates(memRt, actRt)
 }
 
-function makeEnemyState(
-    id: string,
-    label: string,
-    path: string,
-    max: number,
-    description: string,
-): SourceState {
-    return {
-        id,
-        label,
-        source: { type: 'enemy', id: 'target' },
-        ownerKey: 'enemy:status',
-        controlKey: `enemy:${id}`,
-        path,
-        kind: 'stack',
-        min: 0,
-        max,
-        defaultValue: 0,
-        description,
-    }
-}
 
 export function enemyChoices(
     runtime: ResRuntime,
     enemyId?: string,
     runtimesById?: Record<string, ResRuntime>,
 ): CondChoice[] {
-    // enemy status choices are modeled as synthetic source states so rotation condition editors can treat enemy stacks
-    // the same way they treat resonator, weapon, echo, and set controls.
-    const enemyMember = {
-        id: runtime.id,
-        name: 'Enemy',
-        runtime,
-    }
-    const tuneStrain = makeEnemyState(
-        'tuneStrain',
-        'Tune Strain',
-        'enemy.status.tuneStrain',
-        getTuneStrainMaxForTeam(runtime, enemyId ? { id: enemyId } : undefined),
-        'Set the target enemy Tune Strain stacks for following rotation actions.',
-    )
-    const negFfct = negEffectsFor(runtime, runtimesById)
-        .filter((effect) => effect.sliderVisible)
-        .map((effect) => makeEnemyState(
-            effect.key,
-            effect.label,
-            `enemy.combat.${effect.key}`,
-            effect.max,
-            `Set the target enemy ${effect.label} stacks for following rotation actions.`,
-        ))
-
-    // per-enemy debuff states (toggles/stacks/selects authored in enemy source data); their
-    // `enemy.status.<field>` paths route to the enemy overlay just like tune strain.
-    const debuffStates = enemyId ? listStatesFor('enemy', enemyId) : []
-
-    return [tuneStrain, ...negFfct, ...debuffStates].map((state) => buildConditionChoices(
+    // enemy statuses are synthetic source states, so condition editors treat enemy stacks like any member control.
+    const enemyMember = { id: runtime.id, name: 'Enemy', runtime }
+    return rotationEnemyStates(runtime, enemyId, runtimesById).map((state) => buildConditionChoices(
         enemyMember,
         state,
-        {
-            id: `enemy:${state.id}`,
-            changeTarget: 'enemy',
-        },
+        { id: `enemy:${state.id}`, changeTarget: 'enemy' },
     ))
 }
 

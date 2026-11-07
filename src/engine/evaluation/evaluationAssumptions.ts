@@ -61,6 +61,7 @@ function maxSkillLevels(current: SkillLevels): SkillLevels {
   }
 }
 
+// normalize level, trace nodes, and skill levels while retaining the build's sequence and weapon rank.
 export function applyEvaluationAsm(runtime: ResRuntime): ResRuntime {
   const details = getResDtlsBy()[runtime.id]
   const traceNodes = details?.traceNodes ?? getResSeedBy(runtime.id)?.traceNodes ?? []

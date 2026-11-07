@@ -1,0 +1,26 @@
+{
+  "name": "@thewuwacalculator/leaderboard",
+  "private": true,
+  "type": "module",
+  "description": "Leaderboard service for card intake, reading, scoring and boards.",
+  "scripts": {
+    "dev": "wrangler dev -c wrangler.jsonc",
+    "dev:scorer": "wrangler dev -c wrangler.scorer.jsonc",
+    "deploy": "wrangler deploy -c wrangler.jsonc",
+    "deploy:scorer": "wrangler deploy -c wrangler.scorer.jsonc",
+    "migrate:local": "wrangler d1 migrations apply LB --local -c wrangler.jsonc",
+    "migrate": "wrangler d1 migrations apply LB --remote -c wrangler.jsonc",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "ruleset:build": "node tools/build-ruleset.mjs",
+    "ruleset:refs": "node tools/refs.mjs",
+    "ruleset:publish": "node tools/publish.mjs",
+    "ruleset:activate": "node tools/activate.mjs",
+    "admin": "node tools/admin.mjs",
+    "backup": "node tools/backup.mjs",
+    "test": "cd ../.. && vitest run services/leaderboard/tests"
+  },
+  "devDependencies": {
+    "@cloudflare/puppeteer": "1.4.0",
+    "@cloudflare/workers-types": "4.20251014.0"
+  }
+}

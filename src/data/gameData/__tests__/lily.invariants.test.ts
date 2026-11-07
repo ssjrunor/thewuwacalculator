@@ -19,10 +19,12 @@ import { evalTarget } from '@/engine/search/score/evaluate'
 import { buildSetRows } from '@/engine/search/encode/sets'
 import { ECHO_STAT, ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/search/layout/echoLayout'
 import type { ResRuntime } from '@/domain/entities/runtime'
-import type { EffectScope, SrcPkg } from '@/domain/gameData/contracts'
+import type { EffectScope, RotationNode, SrcPkg } from '@/domain/gameData/contracts'
 import { evalCond } from '@/engine/effects/evaluator'
 import { applySkllOp } from '@/engine/effects/dataEffects'
 import { forkNumericTeam, materializeNumericLane, writeNumericRuntime } from '@/engine/effects/numericTeam'
+import { prepareResSimulation } from '@/engine/pipeline'
+import { executeRotationProgram, prepareRotationProgram, prepareRunEnv } from '@/engine/rotation/execute'
 import betaSourcesRaw from '../../../../public/data/beta/resonators/sources.json?raw'
 import betaWeaponsRaw from '../../../../public/data/beta/weapons/sources.json?raw'
 
@@ -127,6 +129,45 @@ describe('Lily beta contracts', () => {
     expect(after.atk.final - before.atk.final).toBeCloseTo(before.atk.base * 0.28)
     expect(after.skillType.echoSkill.critRate - before.skillType.echoSkill.critRate).toBeCloseTo(5)
     expect(after.skillType.echoSkill.critDmg - before.skillType.echoSkill.critDmg).toBeCloseTo(10)
+  })
+
+  it('preserves shared Unison Boon in rotation inspector snapshots for Silvered Dream', () => {
+    const hsin = runtimeFor('1311')
+    const lily = runtimeFor()
+    const suoming = runtimeFor('1312')
+    const initialEr = prepare(lily, '1512001').context.finalStats.energyRegen
+    lily.state.manualBuffs.quick.energyRegen = 260 - initialEr
+    lily.state.controls['resonator:1512:silvered_dream:active'] = true
+    hsin.state.controls['resonator:1311:mode:value'] = 'unison'
+    for (const runtime of [hsin, lily, suoming]) {
+      runtime.build.team = [hsin.id, lily.id, suoming.id]
+      runtime.state.teamEffects = { unisonBoon: 0, unisonBoonMax: 3, unisonBoonPerStack: 4.5 }
+    }
+    const { context } = prepareResSimulation(hsin, getResSeedBy(hsin.id)!, enemy, { [lily.id]: lily, [suoming.id]: suoming })
+    const items: RotationNode[] = [2, 3, 0].flatMap((stacks) => [
+      { id: `boon:${stacks}`, type: 'condition', changes: [{ type: 'set', path: 'teamEffects.unisonBoon', value: stacks }] },
+      { id: `hit:${stacks}`, type: 'feature', resonatorId: hsin.id, featureId: 'damage:1311101' },
+    ])
+    const result = executeRotationProgram(prepareRunEnv(context, getResSeedBy(hsin.id)!), prepareRotationProgram(items), {
+      inspect: true, includeSnapshots: true,
+    })
+    const atk: number[] = []
+    for (const stacks of [2, 3, 0]) {
+      const entry = result.inspection.find(row => row.nodeId === `hit:${stacks}`)!
+      const snapshots = entry.runtimeById!
+      for (const snapshot of Object.values(snapshots)) {
+        expect(snapshot.state.teamEffects).toEqual({ unisonBoon: stacks, unisonBoonMax: 3, unisonBoonPerStack: 4.5 })
+      }
+      const replay = prepare(snapshots[hsin.id]!, '1311101', snapshots).context.finalStats
+      if (entry.value?.kind !== 'feature') throw new Error('Missing Hsin rotation result')
+      expect(replay.atk.final).toBeCloseTo(entry.value.effectiveStats!.atk!)
+      expect(replay.finalDmg).toBeCloseTo(entry.value.effectiveStats!.finalDmg!)
+      atk.push(replay.atk.final)
+    }
+    expect(atk[0]! - atk[2]!).toBeCloseTo(context.finalStats.atk.base * 0.14)
+    expect(atk[1]! - atk[2]!).toBeCloseTo(context.finalStats.atk.base * 0.21)
+    expect(hsin.state.teamEffects?.unisonBoon).toBe(0)
+    expect(lily.state.teamEffects?.unisonBoon).toBe(0)
   })
 
   it('requires Soothed Soul for Lullaby ATK and routes its Echo bonus to the active recipient', () => {

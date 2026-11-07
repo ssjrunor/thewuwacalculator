@@ -1,0 +1,998 @@
+{
+  "schema": 1,
+  "source": "resolved 2026-11-04",
+  "resonators": {
+    "1102": {
+      "builds": [
+        {
+          "weapon": "21020016",
+          "rank": 1,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t261:1", "t501:1", "t556:1", "t621:1" ] }
+          ]
+        }
+      ]
+    },
+    "1105": {
+      "builds": [
+        {
+          "weapon": "21050026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 13, 5 ] ], "mainEcho": "6000105", "mainSlot": 0, "teams": [ "t585:1" ] }
+          ]
+        }
+      ]
+    },
+    "1107": {
+      "builds": [
+        {
+          "weapon": "21030016",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 10, 5 ] ], "mainEcho": "6000083", "mainSlot": 0, "teams": [ "t584:2", "t585:2", "t599:2", "t600:2" ] }
+          ]
+        }
+      ]
+    },
+    "1108": {
+      "builds": [
+        {
+          "weapon": "21020086",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 30, 5 ] ], "mainEcho": "6000199", "mainSlot": 0, "teams": [ "t193:2", "t194:2", "t197:2", "t198:2", "t200:2", "t201:2", "t202:2", "t203:2", "t204:2", "t205:2" ] }
+          ]
+        }
+      ]
+    },
+    "1109": {
+      "builds": [
+        {
+          "weapon": "21050086",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "glacio", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 30, 5 ] ], "mainEcho": "6000195", "mainSlot": 1, "teams": [ "t197:1", "t202:1", "t586:1" ] },
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t248:1", "t250:1", "t254:1", "t350:1" ] }
+          ]
+        }
+      ]
+    },
+    "1110": {
+      "builds": [
+        {
+          "weapon": "21050096",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "hpPercent": 7.1, "critRate": 6.9, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "hpPercent": 7.1, "critRate": 6.9, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "hpPercent", 30 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "hpPercent": 7.1, "critRate": 6.9, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "hpPercent": 7.1, "critRate": 6.9, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "energyRegen": 7.6, "critDmg": 13.8, "hpPercent": 7.1, "critRate": 6.9, "basicAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 33, 5 ] ], "mainEcho": "6000216", "mainSlot": 1, "teams": [ "t30:0", "t65:0", "t78:0", "t79:0", "t157:0", "t158:0", "t159:0", "t160:0", "t161:0", "t193:0", "t194:0", "t197:0", "t198:0", "t200:0", "t201:0", "t450:1", "t452:1", "t495:0", "t507:0", "t518:0", "t579:0", "t599:0", "t600:0" ] }
+          ]
+        }
+      ]
+    },
+    "1204": {
+      "builds": [
+        {
+          "weapon": "21030015",
+          "rank": 5,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 13, 5 ] ], "mainEcho": "6000085", "mainSlot": 0, "teams": [ "t189:1" ] }
+          ]
+        }
+      ]
+    },
+    "1206": {
+      "builds": [
+        {
+          "weapon": "21020036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 14, 5 ] ], "mainEcho": "6000084", "mainSlot": 0, "teams": [ "t281:1", "t568:2", "t571:1" ] }
+          ]
+        }
+      ]
+    },
+    "1207": {
+      "builds": [
+        {
+          "weapon": "21010036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceLiberation": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 18, 5 ] ], "mainEcho": "6000114", "mainSlot": 0, "teams": [ "t99:0", "t270:1", "t281:0", "t379:1", "t568:1", "t571:0" ] }
+          ]
+        }
+      ]
+    },
+    "1208": {
+      "builds": [
+        {
+          "weapon": "21030036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 22, 3 ], [ 18, 2 ] ], "mainEcho": "6000120", "mainSlot": 1, "teams": [ "t349:2" ] }
+          ]
+        }
+      ]
+    },
+    "1209": {
+      "builds": [
+        {
+          "weapon": "21010066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "defPercent", 41.5 ], "substats": { "energyRegen": 8.4, "resonanceLiberation": 7.1, "critDmg": 13.8, "defPercent": 9, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 8.4, "resonanceLiberation": 7.1, "critDmg": 13.8, "defPercent": 9, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "energyRegen": 8.4, "resonanceLiberation": 7.1, "critDmg": 13.8, "defPercent": 9, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "defPercent", 18 ], "substats": { "energyRegen": 8.4, "resonanceLiberation": 7.1, "critDmg": 13.8, "defPercent": 9, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "defPercent", 18 ], "substats": { "energyRegen": 7.6, "resonanceLiberation": 7.1, "critDmg": 13.8, "defPercent": 9, "atkPercent": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 25, 5 ] ], "mainEcho": "6000190", "mainSlot": 0, "teams": [ "t8:0", "t9:0", "t80:0", "t90:0", "t106:0", "t111:0", "t122:0", "t123:0", "t124:0", "t125:0", "t126:0", "t127:0", "t129:0", "t181:0", "t182:0", "t215:0", "t232:0", "t242:0", "t258:0", "t265:0", "t269:0", "t270:0", "t379:0", "t391:0", "t403:0", "t419:0", "t424:0", "t583:0", "t602:0", "t603:0", "t624:0", "t631:0", "t635:0", "t664:0", "t670:0" ] }
+          ]
+        }
+      ]
+    },
+    "1210": {
+      "builds": [
+        {
+          "weapon": "21020076",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 27, 5 ] ], "mainEcho": "6000191", "mainSlot": 0, "teams": [ "t270:2", "t281:2", "t284:2", "t288:2", "t306:2" ] }
+          ]
+        }
+      ]
+    },
+    "1211": {
+      "builds": [
+        {
+          "weapon": "21050076",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 31, 5 ] ], "mainEcho": "6000198", "mainSlot": 1, "teams": [ "t123:1", "t258:1" ] }
+          ]
+        },
+        {
+          "weapon": "21050076",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "fusion", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 31, 5 ] ], "mainEcho": "6000198", "mainSlot": 1, "teams": [ "t130:1", "t260:1" ] },
+            { "sets": [ [ 28, 5 ] ], "mainEcho": "6000200", "mainSlot": 0, "teams": [ "t284:1", "t288:1" ] },
+            { "sets": [ [ 18, 5 ] ], "mainEcho": "6000114", "mainSlot": 0, "teams": [ "t306:0", "t556:0" ] },
+            { "sets": [ [ 27, 5 ] ], "mainEcho": "6000191", "mainSlot": 0, "teams": [ "t568:0" ] }
+          ]
+        }
+      ]
+    },
+    "1212": {
+      "builds": [
+        {
+          "weapon": "21010076",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "hpPercent", 33 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "heavyAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "heavyAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "heavyAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "heavyAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "heavyAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 35, 5 ] ], "mainEcho": "6000217", "mainSlot": 0, "teams": [ "t99:2", "t100:2", "t101:2", "t102:2", "t104:2", "t105:2", "t106:2", "t110:2", "t111:2" ] }
+          ]
+        }
+      ]
+    },
+    "1302": {
+      "builds": [
+        {
+          "weapon": "21050016",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 13, 5 ] ], "mainEcho": "6000089", "mainSlot": 0, "teams": [ "t625:1", "t631:1" ] }
+          ]
+        }
+      ]
+    },
+    "1304": {
+      "builds": [
+        {
+          "weapon": "21010026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 5, 5 ] ], "mainEcho": "6000059", "mainSlot": 0, "teams": [ "t30:2", "t39:2" ] }
+          ]
+        }
+      ]
+    },
+    "1306": {
+      "builds": [
+        {
+          "weapon": "21010046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 20, 3 ], [ 3, 2 ] ], "mainEcho": "6000121", "mainSlot": 0, "teams": [ "t409:2" ] }
+          ]
+        }
+      ]
+    },
+    "1308": {
+      "builds": [
+        {
+          "weapon": "21030066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t9:1", "t89:1", "t142:1", "t158:1", "t163:1", "t420:1" ] },
+            { "sets": [ [ 32, 1 ], [ 8, 2 ], [ 3, 2 ] ], "mainEcho": "6000201", "mainSlot": 0, "teams": [ "t665:1" ] }
+          ]
+        },
+        {
+          "weapon": "21030066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "basicAtk": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 32, 1 ], [ 36, 2 ], [ 3, 2 ] ], "mainEcho": "6000201", "mainSlot": 0, "teams": [ "t114:1", "t116:1", "t181:1", "t184:1", "t419:1", "t525:1", "t549:1", "t602:1", "t664:1" ] }
+          ]
+        }
+      ]
+    },
+    "1309": {
+      "builds": [
+        {
+          "weapon": "21020016",
+          "rank": 1,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t65:1", "t215:1" ] }
+          ]
+        },
+        {
+          "weapon": "21020016",
+          "rank": 1,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 36, 5 ] ], "mainEcho": "6000225", "mainSlot": 0, "teams": [ "t94:2" ] }
+          ]
+        }
+      ]
+    },
+    "1311": {
+      "builds": [
+        {
+          "weapon": "21050116",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 36, 5 ] ], "mainEcho": "6000225", "mainSlot": 0, "teams": [ "t16:2", "t17:2", "t18:2", "t19:2", "t20:2", "t21:2", "t59:2", "t60:2", "t65:2", "t67:2", "t79:2", "t89:2" ] }
+          ]
+        }
+      ]
+    },
+    "1312": {
+      "builds": [
+        {
+          "weapon": "21020107",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 36, 5 ] ], "mainEcho": "6000225", "mainSlot": 0, "teams": [ "t0:2", "t1:2", "t4:2", "t7:2", "t8:2", "t9:2", "t10:2", "t11:2", "t12:2", "t14:2" ] },
+            { "sets": [ [ 36, 5 ] ], "mainEcho": "6000224", "mainSlot": 1, "teams": [ "t17:1", "t18:1", "t19:1", "t20:1" ] }
+          ]
+        },
+        {
+          "weapon": "21020107",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "electro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t16:1", "t21:1" ] }
+          ]
+        }
+      ]
+    },
+    "1405": {
+      "builds": [
+        {
+          "weapon": "21040016",
+          "rank": 1,
+          "sequence": 2,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "energyRegen": 7.6, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceLiberation": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t630:1" ] }
+          ]
+        }
+      ]
+    },
+    "1406": {
+      "builds": [
+        {
+          "weapon": "21020046",
+          "rank": 1,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 17, 5 ] ], "mainEcho": "6000106", "mainSlot": 0, "teams": [ "t490:1", "t495:1" ] }
+          ]
+        }
+      ]
+    },
+    "1407": {
+      "builds": [
+        {
+          "weapon": "21030026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 16, 5 ] ], "mainEcho": "6000113", "mainSlot": 0, "teams": [ "t156:0", "t493:0", "t500:0", "t507:1", "t641:0" ] }
+          ]
+        },
+        {
+          "weapon": "21030026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t538:1" ] }
+          ]
+        }
+      ]
+    },
+    "1409": {
+      "builds": [
+        {
+          "weapon": "21020056",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "hpPercent": 7.1, "basicAtk": 7.1 } },
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "hpPercent": 7.1, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "hpPercent": 7.1, "basicAtk": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "hpPercent": 7.1, "basicAtk": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "hpPercent": 7.1, "basicAtk": 7.1, "resonanceLiberation": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 17, 5 ] ], "mainEcho": "6000106", "mainSlot": 0, "teams": [ "t489:2", "t490:2", "t493:2", "t500:2" ] }
+          ]
+        }
+      ]
+    },
+    "1410": {
+      "builds": [
+        {
+          "weapon": "21040046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 20, 3 ], [ 4, 2 ] ], "mainEcho": "6000160", "mainSlot": 0, "teams": [ "t100:1", "t102:1", "t104:1", "t110:1", "t409:1", "t413:1", "t641:1" ] }
+          ]
+        },
+        {
+          "weapon": "21040046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t106:1" ] }
+          ]
+        },
+        {
+          "weapon": "21040046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "resonanceLiberation": 7.1, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 20, 3 ], [ 4, 2 ] ], "mainEcho": "6000160", "mainSlot": 0, "teams": [ "t405:2" ] }
+          ]
+        }
+      ]
+    },
+    "1411": {
+      "builds": [
+        {
+          "weapon": "21020066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t226:1", "t229:1", "t235:1" ] },
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "390080005", "mainSlot": 0, "teams": [ "t232:1", "t349:1", "t359:1", "t444:2" ] },
+            { "sets": [ [ 21, 3 ], [ 8, 2 ] ], "mainEcho": "390080005", "mainSlot": 0, "teams": [ "t438:1" ] }
+          ]
+        }
+      ]
+    },
+    "1412": {
+      "builds": [
+        {
+          "weapon": "21040066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "energyRegen": 7.6, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "energyRegen": 7.6, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "energyRegen": 7.6, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "energyRegen": 7.6, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critDmg": 13.8, "critRate": 6.9, "energyRegen": 7.6, "atkPercent": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 29, 5 ] ], "mainEcho": "6000192", "mainSlot": 0, "teams": [ "t226:2", "t228:2", "t229:2", "t235:2", "t236:2", "t237:2", "t248:2", "t249:2", "t250:2", "t254:2", "t255:2" ] }
+          ]
+        }
+      ]
+    },
+    "1413": {
+      "builds": [
+        {
+          "weapon": "21020106",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 34, 5 ] ], "mainEcho": "6000221", "mainSlot": 0, "teams": [ "t123:2", "t124:2", "t125:2", "t126:2", "t127:2", "t129:2", "t156:2" ] }
+          ]
+        },
+        {
+          "weapon": "21020106",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "aero", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 34, 5 ] ], "mainEcho": "6000221", "mainSlot": 0, "teams": [ "t130:2", "t131:2", "t132:2", "t133:2" ] }
+          ]
+        }
+      ]
+    },
+    "1501": {
+      "builds": [
+        {
+          "weapon": "21020016",
+          "rank": 1,
+          "sequence": 6,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "resonanceSkill": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t523:0", "t525:0", "t547:0", "t549:0" ] }
+          ]
+        }
+      ]
+    },
+    "1503": {
+      "builds": [
+        {
+          "weapon": "21050024",
+          "rank": 5,
+          "sequence": 4,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t622:0" ] }
+          ]
+        }
+      ]
+    },
+    "1505": {
+      "builds": [
+        {
+          "weapon": "21050036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "energyRegen": 7.6, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t0:0", "t1:0", "t10:0", "t11:0", "t100:0", "t130:0", "t131:0", "t132:0", "t133:0", "t179:0", "t184:0", "t185:0", "t226:0", "t228:0", "t248:0", "t249:0", "t260:0", "t266:0", "t271:0", "t288:0", "t349:0", "t350:0", "t409:0", "t420:0", "t459:1", "t501:0", "t512:0", "t584:0", "t585:0", "t586:0", "t621:0", "t623:0", "t625:0", "t636:0", "t645:0", "t665:0" ] },
+            { "sets": [ [ 38, 5 ] ], "mainEcho": "6000223", "mainSlot": 1, "teams": [ "t16:0", "t60:0" ] }
+          ]
+        },
+        {
+          "weapon": "21050036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 8.4, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 7.6, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critDmg": 13.8, "resonanceLiberation": 7.1, "hpPercent": 7.1, "critRate": 6.9, "hpFlat": 360 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 25, 5 ] ], "mainEcho": "6000190", "mainSlot": 0, "teams": [ "t101:0", "t114:0" ] }
+          ]
+        }
+      ]
+    },
+    "1506": {
+      "builds": [
+        {
+          "weapon": "21050046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t512:1", "t518:1" ] }
+          ]
+        },
+        {
+          "weapon": "21050046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "heavyAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 11, 5 ] ], "mainEcho": "6000104", "mainSlot": 1, "teams": [ "t547:2", "t549:2" ] }
+          ]
+        }
+      ]
+    },
+    "1507": {
+      "builds": [
+        {
+          "weapon": "21040036",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "defFlat": 40 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 11, 5 ] ], "mainEcho": "6000104", "mainSlot": 1, "teams": [ "t512:2", "t518:2", "t523:2", "t525:2" ] }
+          ]
+        }
+      ]
+    },
+    "1508": {
+      "builds": [
+        {
+          "weapon": "21010056",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t67:0", "t162:0", "t163:0", "t165:0", "t202:0", "t203:0", "t204:0", "t205:0" ] },
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t161:1" ] }
+          ]
+        },
+        {
+          "weapon": "21010056",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceLiberation": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 23, 3 ], [ 6, 2 ] ], "mainEcho": "6000167", "mainSlot": 0, "teams": [ "t284:0", "t489:0", "t490:0", "t500:1", "t538:0" ] }
+          ]
+        }
+      ]
+    },
+    "1509": {
+      "builds": [
+        {
+          "weapon": "21030046",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "spectro", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 24, 5 ] ], "mainEcho": "6000189", "mainSlot": 0, "teams": [ "t8:1", "t10:1", "t12:1", "t14:1", "t78:1", "t80:1", "t90:1", "t94:1", "t122:1", "t124:1", "t131:1", "t182:1", "t185:1", "t198:1", "t203:1", "t242:1", "t266:1", "t269:1", "t271:1", "t391:1", "t403:1", "t405:1", "t424:1", "t437:1", "t523:1", "t547:1", "t583:1", "t603:1", "t624:1", "t635:1", "t636:1", "t670:1" ] },
+            { "sets": [ [ 31, 5 ] ], "mainEcho": "6000198", "mainSlot": 1, "teams": [ "t265:1" ] }
+          ]
+        }
+      ]
+    },
+    "1512": {
+      "builds": [
+        {
+          "weapon": "21030076",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "heavyAtk": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "heavyAtk": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 3, "main": [ "energyRegen", 32 ], "substats": { "energyRegen": 6.8, "critDmg": 13.8, "heavyAtk": 7.1, "hpPercent": 7.1, "critRate": 6.9 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critDmg": 13.8, "heavyAtk": 7.1, "hpPercent": 7.1, "critRate": 6.9, "hpFlat": 360 } },
+            { "cost": 1, "main": [ "hpPercent", 22.8 ], "substats": { "critDmg": 13.8, "heavyAtk": 7.1, "hpPercent": 7.1, "critRate": 6.9, "hpFlat": 360 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t4:0", "t39:0", "t105:0", "t116:0", "t142:0", "t169:0", "t189:0", "t235:0", "t236:0", "t237:0", "t254:0", "t255:0", "t261:0", "t359:0", "t413:0", "t630:0" ] },
+            { "sets": [ [ 38, 5 ] ], "mainEcho": "6000223", "mainSlot": 1, "teams": [ "t7:0", "t20:0", "t59:0" ] }
+          ]
+        }
+      ]
+    },
+    "1603": {
+      "builds": [
+        {
+          "weapon": "21020026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 8.4, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1 } },
+            { "cost": 3, "main": [ "atkPercent", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "basicAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 6, 5 ] ], "mainEcho": "6000090", "mainSlot": 0, "teams": [ "t622:2", "t623:2" ] }
+          ]
+        }
+      ]
+    },
+    "1606": {
+      "builds": [
+        {
+          "weapon": "21040026",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t622:1", "t623:1" ] }
+          ]
+        }
+      ]
+    },
+    "1607": {
+      "builds": [
+        {
+          "weapon": "21050056",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 7, 5 ] ], "mainEcho": "6000060", "mainSlot": 0, "teams": [ "t425:2", "t437:2", "t438:2" ] },
+            { "sets": [ [ 13, 5 ] ], "mainEcho": "6000085", "mainSlot": 0, "teams": [ "t432:2", "t434:2", "t439:2" ] },
+            { "sets": [ [ 8, 5 ] ], "mainEcho": "6000052", "mainSlot": 0, "teams": [ "t445:2" ] }
+          ]
+        },
+        {
+          "weapon": "21050056",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critRate", 22 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "energyRegen": 6.8, "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "atkFlat": 30, "basicAtk": 7.1 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 6, 5 ] ], "mainEcho": "6000090", "mainSlot": 0, "teams": [ "t579:2" ] }
+          ]
+        }
+      ]
+    },
+    "1608": {
+      "builds": [
+        {
+          "weapon": "21050066",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "resonanceSkill": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 19, 3 ], [ 6, 2 ] ], "mainEcho": "6000115", "mainSlot": 0, "teams": [ "t169:1", "t179:1", "t425:0", "t432:0", "t434:0", "t437:0", "t438:0", "t439:0", "t444:0", "t445:0", "t450:0", "t452:0", "t459:0", "t645:1" ] }
+          ]
+        }
+      ]
+    },
+    "1610": {
+      "builds": [
+        {
+          "weapon": "21020096",
+          "rank": 1,
+          "sequence": 0,
+          "echoes": [
+            { "cost": 4, "main": [ "critDmg", 44 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 3, "main": [ "havoc", 30 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } },
+            { "cost": 1, "main": [ "atkPercent", 18 ], "substats": { "critRate": 6.9, "critDmg": 13.8, "atkPercent": 7.1, "heavyAtk": 7.1, "atkFlat": 30 } }
+          ],
+          "outfits": [
+            { "sets": [ [ 33, 5 ] ], "mainEcho": "6000218", "mainSlot": 0, "teams": [ "t157:2", "t158:2", "t159:2", "t160:2", "t161:2", "t162:2", "t163:2", "t165:2" ] }
+          ]
+        }
+      ]
+    }
+  }
+}

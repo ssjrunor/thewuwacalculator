@@ -13,7 +13,7 @@ import type { SuggestContext } from '@/engine/suggestions/types';
 import type { SetPlanEntry } from '@/engine/search/combos/setPlans';
 import { ATTR_COLORS } from '@/domain/gameData/attributeDisplay.ts';
 import { getSkillType } from '@/domain/gameData/skillTypes.ts';
-import { truncTo } from '@/shared/lib/number.ts';
+import { truncTo } from '@/engine/formulas/truncTo.ts';
 import type { EvaluationOverviewStatRow, EvaluationOverviewStats, EvaluationStatTreeLeaf, EvaluationStatTreeNode, EvaluationSubstatEntry, BuildEvaluation } from './types.ts';
 import { resolveEvaluationStats } from './scoring.ts';
 import {

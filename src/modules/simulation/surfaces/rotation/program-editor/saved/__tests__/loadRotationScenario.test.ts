@@ -8,15 +8,62 @@ import { useAppStore } from '@/application/state/store.ts'
 import { consumePersist } from '@/application/persistence/storage.ts'
 import { ensureResonatorData } from '@/data/gameData'
 import { listResSds } from '@/data/catalog/resonatorSeedService.ts'
-import { contextScenarioMember } from '@/domain/entities/combatScenario.ts'
+import { contextScenarioMember, makeScenarioTeam, primaryScenarioMember } from '@/domain/entities/combatScenario.ts'
 import { selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 import type { RotationNode } from '@/domain/gameData/contracts.ts'
 import { loadRotationScenario } from '../useLoadRotation.ts'
+import { makeResProfile, makeScenarioMemberFromProfile } from '@/engine/runtime/defaults.ts'
+import { emptyRotationEditHistory } from '../../interaction/history.ts'
+import {
+  clearAllRotationEditorSessions,
+  ensureRotationEditorSession,
+  getRotationEditorSession,
+} from '../../state/editorSessionStore.ts'
+
+function seedEditorSession(ownerId: string) {
+  return ensureRotationEditorSession(ownerId, () => ({
+    result: null,
+    sections: [],
+    runsByLoopId: {},
+    lastRanAt: null,
+    editHistory: emptyRotationEditHistory(),
+    baselineItems: [],
+    runBaselineKey: 'previous-rotation',
+    runBaselineSigs: new Map(),
+    simulationKey: 'previous-rotation',
+    runInputIdentity: null,
+  }))
+}
 
 describe('saved rotation loading', () => {
   beforeEach(() => {
+    clearAllRotationEditorSessions()
     useAppStore.getState().resetState()
     consumePersist()
+  })
+
+  it.each(['build', 'rotation'] as const)('resets the displayed draft when loading %s into a reordered team', async (mode) => {
+    const current = selectedCombatScenario(useAppStore.getState().combat)
+    const contextId = contextScenarioMember(current).resonatorId
+    const otherSeed = listResSds().find((seed) => seed.id !== contextId)!
+    const teammate = makeScenarioMemberFromProfile(makeResProfile(otherSeed))
+    useAppStore.getState().insertScenarioMember(current.id, 0, teammate)
+    const saved = structuredClone(selectedCombatScenario(useAppStore.getState().combat))
+    expect(primaryScenarioMember(saved).resonatorId).toBe(otherSeed.id)
+    expect(contextScenarioMember(saved).resonatorId).toBe(contextId)
+
+    const displayedOwner = primaryScenarioMember(saved).resonatorId
+    // Rotation-only loads retain the destination team, even if the incoming
+    // snapshot has another member in its first seat.
+    if (mode === 'rotation') saved.team = makeScenarioTeam([...saved.team.members].reverse())
+    seedEditorSession(displayedOwner)
+    const unrelatedOwner = listResSds().find((seed) => ![contextId, displayedOwner].includes(seed.id))!.id
+    const unrelatedSession = seedEditorSession(unrelatedOwner)
+
+    await loadRotationScenario(saved, mode)
+
+    expect(getRotationEditorSession(displayedOwner)).toBeNull()
+    expect(getRotationEditorSession(unrelatedOwner)).toBe(unrelatedSession)
   })
 
   it('opens the saved resonator context and replaces only its steps', async () => {

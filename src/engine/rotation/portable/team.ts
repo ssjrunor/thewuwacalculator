@@ -10,6 +10,7 @@ import { isNoEnemy } from '@/domain/entities/appState'
 import type { DataSrcRef, EffectDef, EffectOp, EvalScpRoot, SourceState } from '@/domain/gameData/contracts'
 import type { ManualBuffs } from '@/domain/entities/manualBuffs'
 import { getScopedTargetSelection } from '@/domain/gameData/targetRouting'
+import { activeOtherTargetGroups, effectTargetOwnerKey, type ActiveOtherTargetGroup } from '@/engine/effects/activeOtherTargets'
 import { getGameData } from '@/data/gameData'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
 import { listEffects } from '@/data/gameData/registry'
@@ -43,6 +44,7 @@ export interface TeamSnapshot {
   routeOverrides: Map<string, Scalar>[]
   basePools: Scalar[][]
   active: Scalar
+  activeSelected: Scalar
   enemyWrites: Map<string, PortableValue>
 }
 
@@ -61,8 +63,10 @@ export class PortableTeam {
   immunities: Array<Array<{ gate: Scalar; scope: Extract<EffectOp, { type: 'add_immunity' }>['scope'] }>> = []
   private syncing = false
   private dirty = true
+  private rotationTargets = false
   private currentPool: Scalar[] | undefined
   private readonly selfMainEchoGate: Scalar
+  private readonly otherGroupsByPath = new Map<string, Array<ActiveOtherTargetGroup & { lane: number }>>()
   readonly graph: CombatGraph
   readonly enemy: EnemyProfile
   constructor(graph: CombatGraph, enemy: EnemyProfile, searchedId: string, candidates: readonly EchoInstance[], dynamicStats = false, selfMainEchoEffects: boolean | 'dynamic' = true) {
@@ -114,7 +118,7 @@ export class PortableTeam {
           cells[cell] = ir.add(cells[cell]!, ir.input(TEAM_INPUT.totals + stat))
         }
         return cells
-      }), active: this.initialActive, enemyWrites: new Map(),
+      }), active: this.initialActive, activeSelected: ir.zero, enemyWrites: new Map(),
     }
     for (let lane = 0; lane < this.runtimes.length; lane++) {
       const runtime = this.runtimes[lane]!
@@ -132,6 +136,18 @@ export class PortableTeam {
     for (let lane = 0; lane < this.runtimes.length; lane++) {
       const source: DataSrcRef = { type: 'teamEffect', id: 'unisonBoon' }
       this.sources.push({ lane, source, gate: ir.one, effects: listEffects(getGameData(), source), states: [] })
+    }
+    for (const row of this.sources) for (const group of activeOtherTargetGroups(row.effects)) {
+      const original = getScopedTargetSelection(this.participants[row.lane]!.slot.routing.selectedTargetsByOwnerKey,
+        this.runtimes[row.lane]!.id, group.ownerKey)?.value
+      if (typeof original !== 'string') {
+        this.state.routes[row.lane]!.set(group.ownerKey, this.otherTargetFallback(row.lane))
+        this.state.routeOverrides[row.lane]!.set(group.ownerKey, ir.constant(2))
+      }
+      for (const path of group.paths) {
+        const key = `${row.lane}:${path}`, entries = this.otherGroupsByPath.get(key) ?? []
+        entries.push({ ...group, lane: row.lane }); this.otherGroupsByPath.set(key, entries)
+      }
     }
     const symbols = [...new Set(candidates.map((echo) => ir.value(dsl.literal(echo.id).data)!))]
     const sets = [...new Set(candidates.map((echo) => echo.set))]
@@ -212,9 +228,22 @@ export class PortableTeam {
   }
   assign(lane: number, path: string, value: PortableValue, gate = this.ir.one) {
     path = path.replace(/^runtime\./, '')
+    const groups = this.otherGroupsByPath.get(`${lane}:${path}`) ?? []
+    const before = groups.map(group => this.dsl.condition(group.condition, this.scope(lane, lane)))
     const previous = this.runtime(lane, path)
     const next = this.dsl.choose(gate, value, previous)
     this.state.writes[lane]!.set(path, next)
+    groups.forEach((group, position) => {
+      const original = getScopedTargetSelection(this.participants[lane]!.slot.routing.selectedTargetsByOwnerKey,
+        this.runtimes[lane]!.id, group.ownerKey)?.value
+      if (!this.rotationTargets && typeof original === 'string') return
+      const override = this.state.routeOverrides[lane]!.get(group.ownerKey) ?? this.ir.zero
+      const activated = this.ir.and(gate, this.ir.and(this.ir.not(this.ir.eq(override, this.ir.one)),
+        this.ir.and(this.ir.not(before[position]!), this.dsl.condition(group.condition, this.scope(lane, lane)))))
+      this.state.routes[lane]!.set(group.ownerKey, this.dsl.choose(activated, this.otherTargetFallback(lane),
+        this.state.routes[lane]!.get(group.ownerKey) ?? this.otherTargetFallback(lane)))
+      this.state.routeOverrides[lane]!.set(group.ownerKey, this.ir.select(activated, this.ir.constant(2), override))
+    })
     const cell = DIRECT_RUNTIME_POOL_CELL[path] ?? (path === 'state.combat.havocBane' ? poolTopCell('defShred') : undefined)
     if (cell !== undefined) this.state.basePools[lane]![cell] = this.ir.add(this.state.basePools[lane]![cell]!, this.ir.mul(this.ir.sub(this.dsl.number(next), this.dsl.number(previous)), this.ir.constant(path === 'state.combat.havocBane' ? 2 : 1)))
     this.invalidate()
@@ -224,6 +253,41 @@ export class PortableTeam {
   }
   restore(snapshot: TeamSnapshot) { this.state = snapshot; this.dirty = true }
   invalidate() { this.dirty = true }
+  /** start rotation routing after capturing the standing calculator sheet. */
+  // standing scenario routes do not select authored-rotation recipients; initialize them from the rotation opening.
+  beginRotationTargets(): void {
+    this.rotationTargets = true
+    this.resetOtherTargets(this.ir.one)
+  }
+  setActive(lane: number, gate: Scalar): void {
+    const first = this.ir.and(gate, this.ir.not(this.state.activeSelected))
+    this.state.active = this.ir.select(gate, this.ir.constant(lane), this.state.active)
+    this.state.activeSelected = this.ir.or(this.state.activeSelected, gate)
+    // initially enabled buffs belong to the rotation's first authored active
+    // member. Later activations capture the active member independently.
+    this.resetOtherTargets(first)
+    this.invalidate()
+  }
+  private resetOtherTargets(gate: Scalar): void {
+    const { ir, dsl } = this
+    if (ir.value(gate) === 0) return
+    for (const row of this.sources) for (const group of activeOtherTargetGroups(row.effects)) {
+      const override = this.state.routeOverrides[row.lane]!.get(group.ownerKey) ?? ir.zero
+      const reset = ir.and(gate, ir.not(ir.eq(override, ir.one)))
+      const fallback = this.otherTargetFallback(row.lane)
+      this.state.routes[row.lane]!.set(group.ownerKey, dsl.choose(reset, fallback,
+        this.state.routes[row.lane]!.get(group.ownerKey) ?? fallback))
+      this.state.routeOverrides[row.lane]!.set(group.ownerKey, ir.select(reset, ir.constant(2), override))
+    }
+    this.invalidate()
+  }
+  otherTargetFallback(source: number): PortableValue {
+    let value = this.dsl.literal(this.runtimes.find((_, lane) => lane !== source)?.id)
+    for (let lane = 0; lane < this.runtimes.length; lane++) if (lane !== source) {
+      value = this.dsl.choose(this.ir.eq(this.state.active, this.ir.constant(lane)), this.dsl.literal(this.runtimes[lane]!.id), value)
+    }
+    return value
+  }
   setCount(lane: number, set: number): Scalar {
     return lane === this.sourceLane ? this.ir.input(TEAM_INPUT.setCounts + set) : this.ir.constant(countEchoSets(this.runtimes[lane]!.build.echoes)[set] ?? 0)
   }
@@ -289,7 +353,7 @@ export class PortableTeam {
     if (scope === 'teamWide') return row.gate
     if (scope === 'otherTeammates') return row.lane !== target ? row.gate : ir.zero
     if (scope === 'activeOther' && row.lane === target) return ir.zero
-    const owner = effect.ownerKey ?? ''
+    const owner = effectTargetOwnerKey(effect)
     const original = getScopedTargetSelection(this.participants[row.lane]!.slot.routing.selectedTargetsByOwnerKey, this.runtimes[row.lane]!.id, owner)?.value
     const explicit = this.state.routeOverrides[row.lane]!.get(owner) ?? ir.zero
     const routing = dsl.choose(explicit, this.state.routes[row.lane]!.get(owner) ?? dsl.literal(original), dsl.literal(original))
@@ -297,6 +361,7 @@ export class PortableTeam {
     let fallback = this.state.active
     if (scope === 'activeOther') fallback = ir.select(ir.eq(fallback, ir.constant(row.lane)), ir.constant(row.lane === 0 && this.runtimes.length > 1 ? 1 : 0), fallback)
     const routedTarget = ir.select(ir.eq(routing.kind, ir.constant(3)), ir.eq(routing.data, dsl.literal(this.runtimes[target]!.id).data), ir.eq(fallback, ir.constant(target)))
+    if (scope === 'activeOther') return ir.and(row.gate, routedTarget)
     return ir.and(row.gate, ir.select(rotationActive, ir.eq(this.state.active, ir.constant(target)), routedTarget))
   }
   effectAmount(row: PortableSource, effect: EffectDef, target: number, operation: Extract<EffectOp, { value: unknown }>, sourceReady = true, finalReady = true): Scalar {

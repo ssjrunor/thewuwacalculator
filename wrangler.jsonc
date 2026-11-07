@@ -23,6 +23,10 @@
       "id": "c924c643843143c9bf95b13111e25de4"
     }
   ],
+  // /api/lb/* goes to the leaderboard api worker (services/leaderboard/wrangler.jsonc).
+  "services": [
+    { "binding": "LEADERBOARD", "service": "twc-leaderboard-api" }
+  ],
   "env": {
     "beta": {
       "workers_dev": true,

@@ -1,0 +1,52 @@
+// api worker: /api/lb/v1, card intake, the read queue consumer, admin routes.
+// ACCESS_*: the access application on thewuwacalculator.com/api/lb/v1/admin (empty = admin routes refuse).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "twc-leaderboard-api",
+  "main": "src/api/worker.ts",
+  "compatibility_date": "2026-04-09",
+  // @cloudflare/puppeteer (Browser Rendering) imports node:buffer.
+  "compatibility_flags": ["nodejs_compat"],
+  // @/ resolves through tsconfig paths (../../src), for the app source the workers bundle.
+  "tsconfig": "./tsconfig.json",
+  "vars": {
+    "APP_ORIGIN": "https://thewuwacalculator.com",
+    "KURO_CARD_HOST": "wutheringwaves-dc.kurogames-global.com",
+    "KURO_CARD_PATH_PREFIX": "/back/",
+    "CARD_MAX_BYTES": "4194304",
+    "FRESH_CARD_MAX_AGE_S": "900",
+    "SESSION_TTL_S": "3600",
+    "READER_URL": "https://thewuwacalculator.com/reader.html",
+    "READ_MODE": "beta",
+    "REFUSED_IMAGE_KEEP_DAYS": "30",
+    "ACCESS_TEAM_DOMAIN": "bitter-darkness-c755.cloudflareaccess.com",
+    "ACCESS_AUD": "a3024aa3dbc145c6b7e8685db838baf5d3b57eca5131efc8faae1ec844ae63e9"
+  },
+  // secrets (wrangler secret put): LINK_HASH_KEY, SESSION_KEY, TURNSTILE_SECRET
+  "d1_databases": [
+    { "binding": "LB", "database_name": "twc-leaderboard", "database_id": "2e536476-d657-4110-a916-6626d6fb974d", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "CARDS", "bucket_name": "twc-lb-cards" },
+    { "binding": "LB_DATA", "bucket_name": "twc-lb-data" }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "READ_QUEUE", "queue": "lb-read" },
+      { "binding": "SCORE_QUEUE", "queue": "lb-score" }
+    ],
+    "consumers": [
+      { "queue": "lb-read", "max_batch_size": 1, "max_retries": 3, "dead_letter_queue": "lb-read-dlq" },
+      // cards that failed every read are refused as read_failed (maintenance.ts).
+      { "queue": "lb-read-dlq", "max_batch_size": 10, "max_retries": 3 }
+    ]
+  },
+  "browser": { "binding": "BROWSER" },
+  "ratelimits": [
+    { "name": "SUBMIT_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+    { "name": "REPORT_LIMIT", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }
+  ],
+  // hourly upkeep: expired sessions, refused-image retention, lost read messages.
+  "triggers": { "crons": ["23 * * * *"] },
+  "observability": { "enabled": true }
+}

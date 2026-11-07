@@ -7,7 +7,8 @@
 import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { configDefaults, defineConfig } from 'vitest/config'
-import { loadEnv, type Plugin } from 'vite'
+import { loadEnv, type Plugin as VitePlugin } from 'vite'
+import type { Root } from 'postcss'
 import react from '@vitejs/plugin-react'
 import svgr from 'vite-plugin-svgr'
 import responsivePolicy from './src/shared/responsive/policy.json'
@@ -93,7 +94,7 @@ function createGoogleAuthMiddleware(env: GglAuthEnv) {
   }
 }
 
-function googleAuthDevPlugin(env: GglAuthEnv): Plugin {
+function googleAuthDevPlugin(env: GglAuthEnv): VitePlugin {
   return {
     name: 'google-auth-dev-api',
     configureServer(server) {
@@ -105,7 +106,7 @@ function googleAuthDevPlugin(env: GglAuthEnv): Plugin {
   }
 }
 
-function responsivePolicyPlugin(): Plugin {
+function responsivePolicyPostcssPlugin() {
   const substitutions: Record<string, string> = {
     __APP_LAYOUT_MIN_WIDTH_PX__: String(responsivePolicy.layoutMinWidthPx),
     __APP_DENSE_LAYOUT_MAX_PX__: String(responsivePolicy.breakpointsPx.denseLayoutMax),
@@ -114,24 +115,32 @@ function responsivePolicyPlugin(): Plugin {
   }
 
   return {
-    name: 'responsive-policy',
-    enforce: 'pre',
-    transform(source, id) {
-      if (!id.split('?')[0]?.endsWith('.css')) return null
+    postcssPlugin: 'responsive-policy',
+    Once(root: Root) {
+      const replace = (source: string) => {
+        let transformed = source
+        for (const [placeholder, value] of Object.entries(substitutions)) {
+          transformed = transformed.replaceAll(placeholder, value)
+        }
+        return transformed
+      }
 
-      let transformed = source
-      for (const [placeholder, value] of Object.entries(substitutions)) {
-        transformed = transformed.replaceAll(placeholder, value)
-      }
+      root.walkDecls((declaration) => {
+        declaration.value = replace(declaration.value)
+      })
+      root.walkAtRules((rule) => {
+        rule.params = replace(rule.params)
+      })
+
+      const transformed = root.toString()
       if (transformed.includes('__APP_')) {
-        throw new Error(`Unknown responsive policy placeholder in ${id}`)
+        throw new Error('Unknown responsive policy placeholder in compiled CSS')
       }
-      return transformed === source ? null : { code: transformed, map: null }
     },
   }
 }
 
-function lucideMotionTreeShakingPlugin(): Plugin {
+function lucideMotionTreeShakingPlugin(): VitePlugin {
   return {
     name: 'lucide-motion-tree-shaking',
     transform(source, id) {
@@ -151,7 +160,12 @@ function lucideMotionTreeShakingPlugin(): Plugin {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [changelogNoticePlugin(), responsivePolicyPlugin(), lucideMotionTreeShakingPlugin(), react(), svgr(), googleAuthDevPlugin(buildGoogleAuthEnv(mode))],
+  plugins: [changelogNoticePlugin(), lucideMotionTreeShakingPlugin(), react(), svgr(), googleAuthDevPlugin(buildGoogleAuthEnv(mode))],
+  css: {
+    postcss: {
+      plugins: [responsivePolicyPostcssPlugin()],
+    },
+  },
   // brotli-wasm resolves its .wasm asset through import.meta.url, which dep
   // pre-bundling would break; excluding it lets vite serve the module as-is.
   optimizeDeps: {
@@ -170,6 +184,11 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rollupOptions: {
+      // reader.html is the leaderboard's card reader page (services/leaderboard)
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        reader: path.resolve(__dirname, 'reader.html'),
+      },
       output: {
         manualChunks(id) {
           if (id.endsWith('/src/shared/lib/displayAssets.generated.json')) {

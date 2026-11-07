@@ -34,7 +34,7 @@ import {
   applyEvaluationMapAsm,
   EVALUATION_ENEMY,
   makeEvaluationEnemy,
-} from '@/modules/simulation/model/evaluationAssumptions'
+} from '@/engine/evaluation/evaluationAssumptions'
 import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 import referenceCalibration from './fixtures/referenceCalibration.json?raw'

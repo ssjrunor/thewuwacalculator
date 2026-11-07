@@ -228,7 +228,9 @@ export function sameEchoUid(
 
 // clone an entire echo loadout
 export function cloneEchoLoadout(echoes: Array<EchoInstance | null>): Array<EchoInstance | null> {
-  return echoes.map((echo, index) => (echo ? cloneEchoNst(echo, index) : null))
+  // preserve an explicit main Echo in any slot; an unflagged loadout uses slot zero as its default.
+  const flagged = echoes.some((echo) => echo?.mainEcho)
+  return echoes.map((echo, index) => (echo ? cloneEchoNst(echo, flagged ? undefined : index) : null))
 }
 
 export interface SaveEchoResult {

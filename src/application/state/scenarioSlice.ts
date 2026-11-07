@@ -20,6 +20,7 @@ import {
 } from '@/engine/runtime/scenarioMembers'
 import { convertMemberRoverGender, convertScenarioRoverGender } from './roverGenderConversion'
 import { roverIdForGender } from '@/domain/entities/roverGender'
+import { captureScenarioOtherTargets } from '@/engine/runtime/scenarioEffectTargets'
 
 interface ScenarioSliceContext extends Pick<StoreSliceContext, 'get' | 'persistedSet'> {
   deferForData: (ids: string[], action: () => void, key?: string) => boolean
@@ -95,7 +96,7 @@ export function createScenarioActions({ get, persistedSet, deferForData, scenari
       } catch {
         return state
       }
-      return replaceScenarioInWorkspace(state, scenarioId, reviseCombatScenario(scenario, { team }))
+      return replaceScenarioInWorkspace(state, scenarioId, captureScenarioOtherTargets(reviseCombatScenario(scenario, { team }), scenario))
     }, { historyLabel: 'Updated Team Member' })
   },
 
@@ -214,7 +215,7 @@ export function createScenarioActions({ get, persistedSet, deferForData, scenari
       if (!scenario) return state
       if (!scenario.team.members.some((member) => member.id === memberId)
         || scenario.initialOnFieldMemberId === memberId) return state
-      return replaceScenarioInWorkspace(state, scenarioId, reviseCombatScenario(scenario, {
+      return replaceScenarioInWorkspace(state, scenarioId, reviseCombatScenario(captureScenarioOtherTargets(scenario), {
         initialOnFieldMemberId: memberId,
       }))
     }, { historyLabel: 'Changed Initial On-field Member' })

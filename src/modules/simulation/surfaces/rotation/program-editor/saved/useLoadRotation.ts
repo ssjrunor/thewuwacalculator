@@ -6,8 +6,8 @@
 
 import { useCallback } from 'react'
 import { cloneRotationNodes, type SavedRotation } from '@/domain/entities/inventoryStorage.ts'
-import { contextScenarioMember, type CombatScenario } from '@/domain/entities/combatScenario.ts'
-import { scenarioIdForContextResonator } from '@/domain/entities/scenarioLibrary.ts'
+import { contextScenarioMember, primaryScenarioMember, type CombatScenario } from '@/domain/entities/combatScenario.ts'
+import { scenarioIdForContextResonator, selectedCombatScenario } from '@/domain/entities/scenarioLibrary.ts'
 import { useAppStore } from '@/application/state'
 import { convertScenarioRoverGender } from '@/application/state/roverGenderConversion'
 import { collectResonatorIds } from '@/application/persistence/resonatorScope.ts'
@@ -16,6 +16,7 @@ import { clearRotationEditorSession } from '@/modules/simulation/surfaces/rotati
 
 export type RotationLoadMode = 'build' | 'rotation'
 
+// load or replace rotation steps under a data lease, then invalidate the selected primary member's editor session.
 export async function loadRotationScenario(scenario: CombatScenario, mode: RotationLoadMode): Promise<void> {
   scenario = convertScenarioRoverGender(scenario, useAppStore.getState().ui.preferences.roverGender)
   const contextId = contextScenarioMember(scenario).resonatorId
@@ -42,7 +43,10 @@ export async function loadRotationScenario(scenario: CombatScenario, mode: Rotat
         },
       }), 'Loaded Rotation Steps')
     }
-    clearRotationEditorSession(contextId)
+    // the editor session is keyed by member zero. a reordered scenario can have
+    // a different context member, so clear the selected scenario's primary session.
+    const loaded = selectedCombatScenario(useAppStore.getState().combat)
+    clearRotationEditorSession(primaryScenarioMember(loaded).resonatorId)
   } finally {
     release()
   }

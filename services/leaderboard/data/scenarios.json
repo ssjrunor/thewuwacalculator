@@ -1,0 +1,1266 @@
+{
+  "schema": 1,
+  "teams": {
+    "t0": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1304", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t1": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t4": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t7": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1304", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t8": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t9": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t10": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t11": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t12": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t14": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1312", "mode": null }
+    ],
+    "t16": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t17": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t18": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t19": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t20": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t21": [
+      { "resonatorId": "1307", "mode": null },
+      { "resonatorId": "1312", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t30": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1302", "mode": null },
+      { "resonatorId": "1304", "mode": null }
+    ],
+    "t39": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1302", "mode": null },
+      { "resonatorId": "1304", "mode": null }
+    ],
+    "t59": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1304", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t60": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1304", "mode": null },
+      { "resonatorId": "1311", "mode": "unison" }
+    ],
+    "t65": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1309", "mode": null },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t67": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1309", "mode": null },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t78": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t79": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t80": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t89": [
+      { "resonatorId": "1307", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1311", "mode": "electro_flare" }
+    ],
+    "t90": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1309", "mode": null }
+    ],
+    "t94": [
+      { "resonatorId": "1307", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1309", "mode": null }
+    ],
+    "t99": [
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1206", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t100": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t101": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t102": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t104": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t105": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t106": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t110": [
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t111": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t114": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t116": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t122": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1212", "mode": null }
+    ],
+    "t123": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1211", "mode": "tune_strain" },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t124": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_strain" },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t125": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t126": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t127": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t129": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t130": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1211", "mode": "tune_strain" },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t131": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_strain" },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t132": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t133": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t142": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t156": [
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1413", "mode": null }
+    ],
+    "t157": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t158": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t159": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t160": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t161": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t162": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t163": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t165": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t169": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t179": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1610", "mode": null }
+    ],
+    "t181": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1511", "mode": null }
+    ],
+    "t182": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1511", "mode": null }
+    ],
+    "t184": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1511", "mode": null }
+    ],
+    "t185": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1511", "mode": null }
+    ],
+    "t189": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1204", "mode": null },
+      { "resonatorId": "1511", "mode": null }
+    ],
+    "t193": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t194": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1107", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t197": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1109", "mode": "glacio_chafe" },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t198": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t200": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t201": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1309", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t202": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1109", "mode": "glacio_chafe" },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t203": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t204": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t205": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1309", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t215": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1309", "mode": null },
+      { "resonatorId": "1108", "mode": null }
+    ],
+    "t226": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t228": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1607", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t229": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t232": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t235": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t236": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t237": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1607", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t242": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t248": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1109", "mode": "echo" },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t249": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1406", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t250": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1109", "mode": "echo" },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t254": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1109", "mode": "echo" },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t255": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1406", "mode": null },
+      { "resonatorId": "1412", "mode": null }
+    ],
+    "t258": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1211", "mode": "tune_strain" },
+      { "resonatorId": "1510", "mode": null }
+    ],
+    "t260": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1211", "mode": "tune_strain" },
+      { "resonatorId": "1510", "mode": null }
+    ],
+    "t261": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1510", "mode": null }
+    ],
+    "t265": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_strain" },
+      { "resonatorId": "1510", "mode": null }
+    ],
+    "t266": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_strain" },
+      { "resonatorId": "1510", "mode": null }
+    ],
+    "t269": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1210", "mode": "tune_rupture" }
+    ],
+    "t270": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1210", "mode": "tune_rupture" }
+    ],
+    "t271": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1210", "mode": "tune_rupture" }
+    ],
+    "t281": [
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1206", "mode": null },
+      { "resonatorId": "1210", "mode": "tune_rupture" }
+    ],
+    "t284": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1211", "mode": "fusion_burst" },
+      { "resonatorId": "1210", "mode": "fusion_burst" }
+    ],
+    "t288": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1211", "mode": "fusion_burst" },
+      { "resonatorId": "1210", "mode": "fusion_burst" }
+    ],
+    "t306": [
+      { "resonatorId": "1211", "mode": "fusion_burst" },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1210", "mode": "fusion_burst" }
+    ],
+    "t349": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1208", "mode": null }
+    ],
+    "t350": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1109", "mode": "echo" },
+      { "resonatorId": "1208", "mode": null }
+    ],
+    "t359": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1208", "mode": null }
+    ],
+    "t379": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1208", "mode": null }
+    ],
+    "t391": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1208", "mode": null }
+    ],
+    "t403": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1410", "mode": null }
+    ],
+    "t405": [
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1410", "mode": null }
+    ],
+    "t409": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1306", "mode": null }
+    ],
+    "t413": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1306", "mode": null }
+    ],
+    "t419": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1306", "mode": null }
+    ],
+    "t420": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1306", "mode": null }
+    ],
+    "t424": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1306", "mode": null }
+    ],
+    "t425": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1304", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t432": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1109", "mode": "echo" },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t434": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1602", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t437": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t438": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1411", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t439": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1606", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t444": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1307", "mode": null },
+      { "resonatorId": "1411", "mode": null }
+    ],
+    "t445": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1307", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t450": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1411", "mode": null }
+    ],
+    "t452": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1606", "mode": null }
+    ],
+    "t459": [
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1602", "mode": null }
+    ],
+    "t489": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t490": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1406", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t493": [
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1406", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t495": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1406", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t500": [
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t501": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t507": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1409", "mode": null }
+    ],
+    "t512": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1506", "mode": "confession" },
+      { "resonatorId": "1507", "mode": null }
+    ],
+    "t518": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1506", "mode": "confession" },
+      { "resonatorId": "1507", "mode": null }
+    ],
+    "t523": [
+      { "resonatorId": "1501", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1507", "mode": null }
+    ],
+    "t525": [
+      { "resonatorId": "1501", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1507", "mode": null }
+    ],
+    "t538": [
+      { "resonatorId": "1508", "mode": null },
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1506", "mode": "absolution" }
+    ],
+    "t547": [
+      { "resonatorId": "1501", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1506", "mode": "absolution" }
+    ],
+    "t549": [
+      { "resonatorId": "1501", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1506", "mode": "absolution" }
+    ],
+    "t556": [
+      { "resonatorId": "1211", "mode": "fusion_burst" },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1206", "mode": null }
+    ],
+    "t568": [
+      { "resonatorId": "1211", "mode": "fusion_burst" },
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1206", "mode": null }
+    ],
+    "t571": [
+      { "resonatorId": "1207", "mode": null },
+      { "resonatorId": "1206", "mode": null },
+      { "resonatorId": "1205", "mode": null }
+    ],
+    "t579": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1606", "mode": null },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t583": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1607", "mode": null }
+    ],
+    "t584": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1206", "mode": null },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t585": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1105", "mode": null },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t586": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1109", "mode": "glacio_chafe" },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t599": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1206", "mode": null },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t600": [
+      { "resonatorId": "1110", "mode": null },
+      { "resonatorId": "1105", "mode": null },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t602": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t603": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1107", "mode": null }
+    ],
+    "t621": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1102", "mode": null },
+      { "resonatorId": "1603", "mode": null }
+    ],
+    "t622": [
+      { "resonatorId": "1503", "mode": null },
+      { "resonatorId": "1606", "mode": null },
+      { "resonatorId": "1603", "mode": null }
+    ],
+    "t623": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1606", "mode": null },
+      { "resonatorId": "1603", "mode": null }
+    ],
+    "t624": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1603", "mode": null }
+    ],
+    "t625": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1302", "mode": null },
+      { "resonatorId": "1305", "mode": null }
+    ],
+    "t630": [
+      { "resonatorId": "1512", "mode": null },
+      { "resonatorId": "1405", "mode": null },
+      { "resonatorId": "1305", "mode": null }
+    ],
+    "t631": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1302", "mode": null },
+      { "resonatorId": "1305", "mode": null }
+    ],
+    "t635": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1305", "mode": null }
+    ],
+    "t636": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1305", "mode": null }
+    ],
+    "t641": [
+      { "resonatorId": "1407", "mode": null },
+      { "resonatorId": "1410", "mode": null },
+      { "resonatorId": "1404", "mode": null }
+    ],
+    "t645": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1608", "mode": null },
+      { "resonatorId": "1404", "mode": null }
+    ],
+    "t664": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1404", "mode": null }
+    ],
+    "t665": [
+      { "resonatorId": "1505", "mode": null },
+      { "resonatorId": "1308", "mode": null },
+      { "resonatorId": "1404", "mode": null }
+    ],
+    "t670": [
+      { "resonatorId": "1209", "mode": null },
+      { "resonatorId": "1509", "mode": "tune_rupture" },
+      { "resonatorId": "1404", "mode": null }
+    ]
+  },
+  "resonators": {
+    "1102": {
+      "teams": ["t1", "t4", "t126", "t133", "t489"],
+      "weapons": [
+        { "id": "21020016", "rank": 1, "role": "primary" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020106", "rank": 1, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1105": {
+      "teams": ["t585", "t600"],
+      "weapons": [
+        { "id": "21050026", "rank": 1, "role": "signature" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050016", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1107": {
+      "teams": ["t194", "t603", "t602", "t585", "t586"],
+      "weapons": [
+        { "id": "21030016", "rank": 1, "role": "signature" },
+        { "id": "21030045", "rank": 5, "role": "alternative" },
+        { "id": "21030026", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1108": {
+      "teams": ["t197", "t198", "t202", "t203", "t215"],
+      "weapons": [
+        { "id": "21020086", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020104", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1109": {
+      "teams": ["t197", "t254", "t202", "t248", "t432"],
+      "weapons": [
+        { "id": "21050086", "rank": 1, "role": "signature" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050016", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1110": {
+      "teams": ["t19", "t197", "t161", "t198", "t158"],
+      "weapons": [
+        { "id": "21050096", "rank": 1, "role": "signature" },
+        { "id": "21050024", "rank": 5, "role": "alternative" }
+      ]
+    },
+    "1204": {
+      "teams": ["t157", "t162", "t101", "t127", "t105"],
+      "weapons": [
+        { "id": "21030016", "rank": 1, "role": "alternative" },
+        { "id": "21030026", "rank": 1, "role": "alternative" },
+        { "id": "21030036", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1205": {
+      "teams": ["t571"],
+      "weapons": [
+        { "id": "21020016", "rank": 1, "role": "signature" },
+        { "id": "21020066", "rank": 1, "role": "alternative" },
+        { "id": "21020017", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1206": {
+      "teams": ["t99", "t281", "t584", "t556", "t599"],
+      "weapons": [
+        { "id": "21020036", "rank": 1, "role": "signature" },
+        { "id": "21020045", "rank": 5, "role": "alternative" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1207": {
+      "teams": ["t110", "t111", "t270", "t281", "t568"],
+      "weapons": [
+        { "id": "21010036", "rank": 1, "role": "signature" },
+        { "id": "21010026", "rank": 1, "role": "alternative" },
+        { "id": "21010056", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1208": {
+      "teams": ["t359", "t350", "t349", "t391", "t379"],
+      "weapons": [
+        { "id": "21030036", "rank": 1, "role": "signature" },
+        { "id": "21030046", "rank": 1, "role": "alternative" },
+        { "id": "21030016", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1209": {
+      "teams": ["t18", "t123", "t124", "t8", "t106"],
+      "weapons": [
+        { "id": "21010066", "rank": 1, "role": "signature" },
+        { "id": "21010024", "rank": 5, "role": "alternative" },
+        { "id": "21010034", "rank": 5, "role": "alternative" }
+      ]
+    },
+    "1210": {
+      "teams": ["t269", "t284", "t270", "t271", "t288"],
+      "weapons": [
+        { "id": "21020076", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020104", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1211": {
+      "teams": ["t123", "t284", "t130", "t288", "t568"],
+      "weapons": [
+        { "id": "21050076", "rank": 1, "role": "signature" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1212": {
+      "teams": ["t100", "t106", "t122", "t114", "t116"],
+      "weapons": [
+        { "id": "21010076", "rank": 1, "role": "signature" },
+        { "id": "21010046", "rank": 1, "role": "alternative" },
+        { "id": "21010016", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1302": {
+      "teams": ["t30", "t39"],
+      "weapons": [
+        { "id": "21050016", "rank": 1, "role": "signature" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1304": {
+      "teams": ["t60", "t59", "t7", "t0", "t425"],
+      "weapons": [
+        { "id": "21010026", "rank": 1, "role": "signature" },
+        { "id": "21010056", "rank": 1, "role": "alternative" },
+        { "id": "21010036", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1305": {
+      "teams": ["t635", "t636", "t625", "t631", "t630"],
+      "weapons": [
+        { "id": "21040016", "rank": 1, "role": "signature" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040036", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1306": {
+      "teams": ["t409", "t424", "t420", "t419", "t413"],
+      "weapons": [
+        { "id": "21010046", "rank": 1, "role": "signature" },
+        { "id": "21010016", "rank": 1, "role": "alternative" },
+        { "id": "21010026", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1307": {
+      "teams": ["t21", "t89", "t445", "t444", "t94"],
+      "weapons": [
+        { "id": "21050016", "rank": 1, "role": "primary" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050026", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1308": {
+      "teams": ["t158", "t11", "t163", "t79", "t9"],
+      "weapons": [
+        { "id": "21030066", "rank": 1, "role": "signature" },
+        { "id": "21030046", "rank": 1, "role": "alternative" },
+        { "id": "21030045", "rank": 5, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1309": {
+      "teams": ["t65", "t67", "t201", "t205", "t90"],
+      "weapons": [
+        { "id": "21020016", "rank": 1, "role": "primary" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020104", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1311": {
+      "teams": ["t20", "t16", "t65", "t78", "t80"],
+      "weapons": [
+        { "id": "21050116", "rank": 1, "role": "signature" },
+        { "id": "21050016", "rank": 1, "role": "alternative" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1312": {
+      "teams": ["t20", "t16", "t8", "t10", "t9"],
+      "weapons": [
+        { "id": "21020107", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020106", "rank": 1, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1404": {
+      "teams": ["t641", "t664", "t665", "t670", "t645"],
+      "weapons": [
+        { "id": "21010016", "rank": 1, "role": "signature" },
+        { "id": "21010046", "rank": 1, "role": "alternative" },
+        { "id": "21010026", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1405": {
+      "teams": ["t200", "t306", "t204", "t156", "t129"],
+      "weapons": [
+        { "id": "21040016", "rank": 1, "role": "primary" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040036", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1406": {
+      "teams": ["t493", "t490", "t255", "t249"],
+      "weapons": [
+        { "id": "21020046", "rank": 1, "role": "signature" }
+      ]
+    },
+    "1407": {
+      "teams": ["t500", "t125", "t405", "t236", "t132"],
+      "weapons": [
+        { "id": "21030026", "rank": 1, "role": "signature" },
+        { "id": "21030045", "rank": 5, "role": "alternative" },
+        { "id": "21030046", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1409": {
+      "teams": ["t500", "t507", "t490", "t495", "t501"],
+      "weapons": [
+        { "id": "21020056", "rank": 1, "role": "signature" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1410": {
+      "teams": ["t100", "t106", "t159", "t409", "t403"],
+      "weapons": [
+        { "id": "21040046", "rank": 1, "role": "signature" },
+        { "id": "21040016", "rank": 1, "role": "alternative" },
+        { "id": "21040036", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1411": {
+      "teams": ["t235", "t226", "t438", "t450", "t349"],
+      "weapons": [
+        { "id": "21020066", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020104", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1412": {
+      "teams": ["t254", "t248", "t226", "t242", "t232"],
+      "weapons": [
+        { "id": "21040066", "rank": 1, "role": "signature" },
+        { "id": "21040045", "rank": 5, "role": "alternative" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1413": {
+      "teams": ["t123", "t124", "t131", "t130", "t142"],
+      "weapons": [
+        { "id": "21020106", "rank": 1, "role": "signature" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1501": {
+      "teams": ["t547", "t549", "t523", "t525"],
+      "weapons": [
+        { "id": "21020016", "rank": 1, "role": "primary" },
+        { "id": "21020064", "rank": 5, "role": "alternative" },
+        { "id": "21020084", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1503": {
+      "teams": ["t17", "t102", "t12", "t250", "t229"],
+      "weapons": [
+        { "id": "21050036", "rank": 1, "role": "primary" },
+        { "id": "21050024", "rank": 5, "role": "alternative" }
+      ]
+    },
+    "1505": {
+      "teams": ["t16", "t100", "t10", "t131", "t248"],
+      "weapons": [
+        { "id": "21050036", "rank": 1, "role": "signature" },
+        { "id": "21050024", "rank": 5, "role": "alternative" }
+      ]
+    },
+    "1506": {
+      "teams": ["t512", "t547", "t518", "t549", "t538"],
+      "weapons": [
+        { "id": "21050046", "rank": 1, "role": "signature" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1507": {
+      "teams": ["t512", "t518", "t523", "t525"],
+      "weapons": [
+        { "id": "21040036", "rank": 1, "role": "signature" },
+        { "id": "21040026", "rank": 1, "role": "alternative" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1508": {
+      "teams": ["t161", "t202", "t203", "t284", "t163"],
+      "weapons": [
+        { "id": "21010056", "rank": 1, "role": "signature" },
+        { "id": "21010036", "rank": 1, "role": "alternative" },
+        { "id": "21010026", "rank": 1, "role": "alternative" },
+        { "id": "21010015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1509": {
+      "teams": ["t198", "t124", "t8", "t10", "t131"],
+      "weapons": [
+        { "id": "21030046", "rank": 1, "role": "signature" },
+        { "id": "21030045", "rank": 5, "role": "alternative" },
+        { "id": "21030026", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1510": {
+      "teams": ["t258", "t265", "t260", "t266", "t261"],
+      "weapons": [
+        { "id": "21040056", "rank": 1, "role": "signature" },
+        { "id": "21040036", "rank": 1, "role": "alternative" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1511": {
+      "teams": ["t181", "t184", "t185", "t182", "t189"],
+      "weapons": [
+        { "id": "21030056", "rank": 1, "role": "signature" },
+        { "id": "21030066", "rank": 1, "role": "alternative" },
+        { "id": "21030046", "rank": 1, "role": "alternative" },
+        { "id": "21030015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1512": {
+      "teams": ["t20", "t254", "t235", "t14", "t104"],
+      "weapons": [
+        { "id": "21030076", "rank": 1, "role": "signature" },
+        { "id": "21030024", "rank": 5, "role": "alternative" }
+      ]
+    },
+    "1602": {
+      "teams": ["t434", "t459"],
+      "weapons": [
+        { "id": "21020016", "rank": 1, "role": "primary" },
+        { "id": "21020026", "rank": 1, "role": "alternative" },
+        { "id": "21020044", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1603": {
+      "teams": ["t624", "t621", "t623", "t622"],
+      "weapons": [
+        { "id": "21020026", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020104", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1606": {
+      "teams": ["t439", "t452", "t623", "t622", "t579"],
+      "weapons": [
+        { "id": "21040026", "rank": 1, "role": "signature" },
+        { "id": "21040066", "rank": 1, "role": "alternative" },
+        { "id": "21040046", "rank": 1, "role": "alternative" },
+        { "id": "21040015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1607": {
+      "teams": ["t437", "t438", "t237", "t228", "t583"],
+      "weapons": [
+        { "id": "21050056", "rank": 1, "role": "signature" },
+        { "id": "21050016", "rank": 1, "role": "alternative" },
+        { "id": "21050066", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1608": {
+      "teams": ["t160", "t193", "t165", "t437", "t438"],
+      "weapons": [
+        { "id": "21050066", "rank": 1, "role": "signature" },
+        { "id": "21050016", "rank": 1, "role": "alternative" },
+        { "id": "21050056", "rank": 1, "role": "alternative" },
+        { "id": "21050015", "rank": 5, "role": "standard" }
+      ]
+    },
+    "1610": {
+      "teams": ["t161", "t158", "t163", "t179", "t169"],
+      "weapons": [
+        { "id": "21020096", "rank": 1, "role": "signature" },
+        { "id": "21020016", "rank": 1, "role": "alternative" },
+        { "id": "21020074", "rank": 5, "role": "alternative" },
+        { "id": "21020015", "rank": 5, "role": "standard" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,50 @@
+# leaderboard upkeep that runs outside the workers: a nightly database backup
+# to twc-lb-backups, and a health check that fails the run (so github mails the
+# repository owner) when cards are stuck, letters are dead or jobs are stale.
+# secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID for the backup; for the
+# health check also CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET (an access
+# service token) and the repository variable LB_API_ORIGIN. without them the
+# health step is skipped.
+name: leaderboard-ops
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: leaderboard
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: services/leaderboard/package-lock.json
+      # the backup needs only wrangler, which the service installs.
+      - run: npm ci
+        working-directory: services/leaderboard
+      - run: node services/leaderboard/tools/backup.mjs
+
+  health:
+    runs-on: ubuntu-latest
+    environment: leaderboard
+    env:
+      LB_API_ORIGIN: ${{ vars.LB_API_ORIGIN }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CF_ACCESS_CLIENT_ID != '' && env.LB_API_ORIGIN != ''
+      - uses: actions/setup-node@v4
+        if: env.CF_ACCESS_CLIENT_ID != '' && env.LB_API_ORIGIN != ''
+        with:
+          node-version-file: .nvmrc
+      # exits 3 when something needs looking at.
+      - run: node services/leaderboard/tools/admin.mjs health
+        if: env.CF_ACCESS_CLIENT_ID != '' && env.LB_API_ORIGIN != ''

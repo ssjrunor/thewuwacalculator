@@ -1,0 +1,28 @@
+// scorer worker: consumes lb-score only. no access to card images (CARDS);
+// it reads snapshots from D1 and ruleset data from LB_DATA.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "twc-leaderboard-scorer",
+  "main": "src/scorer/worker.ts",
+  "compatibility_date": "2026-04-09",
+  // @/ resolves through tsconfig paths (../../src), for the app source the workers bundle.
+  "tsconfig": "./tsconfig.json",
+  "limits": { "cpu_ms": 300000 },
+  "d1_databases": [
+    { "binding": "LB", "database_name": "twc-leaderboard", "database_id": "2e536476-d657-4110-a916-6626d6fb974d", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [
+    { "binding": "LB_DATA", "bucket_name": "twc-lb-data" }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "SCORE_QUEUE", "queue": "lb-score" }
+    ],
+    "consumers": [
+      { "queue": "lb-score", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "lb-score-dlq" },
+      // scenarios that failed every attempt become error rows, so the job still completes.
+      { "queue": "lb-score-dlq", "max_batch_size": 10, "max_retries": 3 }
+    ]
+  },
+  "observability": { "enabled": true }
+}
