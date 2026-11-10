@@ -70,14 +70,15 @@ describe('Lily beta contracts', () => {
     expect(prepare(runtimeFor('1512', 6), '1512014').skill.skillBuffs?.dmgBonus ?? 0).toBe(0)
   })
 
-  it('adds 30% S4 healing to every Slumberland skill without affecting the shield', () => {
-    // S3 adds no healing; S4 increases Slumberland's healing by 30%
-    for (const id of ['1512011', '1512012', '1512020']) {
+  it('adds 30% S4 healing to Slumberland Healing only, without affecting the shield', () => {
+    // S3 adds no healing; S4 increases Slumberland's healing by 30%, and the
+    // Heavy Attack healing skills stay unchanged
+    for (const [id, extra] of [['1512020', 30], ['1512011', 0], ['1512012', 0]] as const) {
       const base = prepare(runtimeFor('1512', 0), id).skill
       const s3 = prepare(runtimeFor('1512', 3), id).skill
       const s4 = prepare(runtimeFor('1512', 4), id).skill
       expect(s3.skillHealingBonus ?? 0).toBe(base.skillHealingBonus ?? 0)
-      expect(s4.skillHealingBonus).toBe((base.skillHealingBonus ?? 0) + 30)
+      expect(s4.skillHealingBonus ?? 0).toBe((base.skillHealingBonus ?? 0) + extra)
     }
     expect(prepare(runtimeFor('1512', 6), '1512:flowers-for-you:shield').skill.skillShieldBonus ?? 0).toBe(0)
   })

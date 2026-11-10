@@ -626,6 +626,20 @@
       "resonanceSkill": 0.0804,
       "spectro": 1
     },
+    "1512": {
+      "atkFlat": 0.0774,
+      "atkPercent": 0.0628,
+      "basicAtk": 0.0238,
+      "critDmg": 0.2542,
+      "critRate": 0.2535,
+      "energyRegen": 1,
+      "healingBonus": 1,
+      "heavyAtk": 0.1261,
+      "hpFlat": 1,
+      "hpPercent": 0.1671,
+      "resonanceSkill": 0.0086,
+      "spectro": 1
+    },
     "1601": {
       "atkFlat": 0.6838,
       "atkPercent": 0.6445,

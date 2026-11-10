@@ -384,6 +384,13 @@
     "introSkill": 1004906,
     "forteCircuit": 1004907
   },
+  "1512": {
+    "normalAttack": 1006301,
+    "resonanceSkill": 1006302,
+    "resonanceLiberation": 1006303,
+    "introSkill": 1006306,
+    "forteCircuit": 1006307
+  },
   "1601": {
     "normalAttack": 1000901,
     "resonanceSkill": 1000902,
