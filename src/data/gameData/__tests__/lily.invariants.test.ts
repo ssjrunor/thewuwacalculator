@@ -56,24 +56,28 @@ function prepare(runtime: ResRuntime, skillId: string, runtimes: Record<string, 
 beforeAll(async () => { await initGameData({ mode: 'beta' }) })
 
 describe('Lily beta contracts', () => {
-  it('keeps S5 free of damage increases and adds 400% S6 damage only to the three finishers', () => {
-    for (const id of ['1512015', '1512016', '1512023']) {
+  it('keeps S5 free of damage increases and adds S6 damage to the Heavy Attack finishers and Intro', () => {
+    // S6: Fairytale's Finale and Phantasm's End gain 100%, Intro Skill - Eternal Bloom gains 700%
+    for (const [id, extra] of [['1512015', 100], ['1512016', 100], ['1512023', 700]] as const) {
       const base = prepare(runtimeFor('1512', 0), id).skill
       const s5 = prepare(runtimeFor('1512', 5), id).skill
       const s6 = prepare(runtimeFor('1512', 6), id).skill
       expect(s5.multiplier).toBe(base.multiplier)
       expect(s6.multiplier).toBe(s5.multiplier)
-      expect(s6.skillBuffs?.dmgBonus).toBe((s5.skillBuffs?.dmgBonus ?? 0) + 400)
+      expect(s6.skillBuffs?.dmgBonus).toBe((s5.skillBuffs?.dmgBonus ?? 0) + extra)
       expect(s5.damageEntries?.some((entry) => entry.replacesEntryId) ?? false).toBe(false)
     }
     expect(prepare(runtimeFor('1512', 6), '1512014').skill.skillBuffs?.dmgBonus ?? 0).toBe(0)
   })
 
-  it('adds S3 and S4 healing without affecting the shield or unrelated skills', () => {
-    for (const [id, extra] of [['1512011', 80], ['1512012', 80], ['1512027', 80], ['1512028', 80], ['1512020', 30]] as const) {
+  it('adds 30% S4 healing to every Slumberland skill without affecting the shield', () => {
+    // S3 adds no healing; S4 increases Slumberland's healing by 30%
+    for (const id of ['1512011', '1512012', '1512020']) {
       const base = prepare(runtimeFor('1512', 0), id).skill
+      const s3 = prepare(runtimeFor('1512', 3), id).skill
       const s4 = prepare(runtimeFor('1512', 4), id).skill
-      expect(s4.skillHealingBonus).toBe((base.skillHealingBonus ?? 0) + extra)
+      expect(s3.skillHealingBonus ?? 0).toBe(base.skillHealingBonus ?? 0)
+      expect(s4.skillHealingBonus).toBe((base.skillHealingBonus ?? 0) + 30)
     }
     expect(prepare(runtimeFor('1512', 6), '1512:flowers-for-you:shield').skill.skillShieldBonus ?? 0).toBe(0)
   })
