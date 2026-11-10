@@ -34,7 +34,7 @@ import {
 } from '@/engine/evaluation/echoDiscovery.ts'
 import type { EvaluationBuildSnapshot } from '@/engine/evaluation/types.ts'
 import { isUtilitySet } from '@/engine/gameData/sonataPlan'
-import { applyEvaluationAsm, EVALUATION_ENEMY } from '@/modules/simulation/model/evaluationAssumptions'
+import { applyEvaluationAsm, EVALUATION_ENEMY } from '@/engine/evaluation/evaluationAssumptions'
 import { combatScenarioId, teamMemberId } from '@/domain/entities/combatScenario'
 
 type Rng = () => number

@@ -323,6 +323,14 @@ export interface EditorCondition extends EditorNodeBase {
   }>
   /** no-op/dead evidence for individual passes of the nearest loop */
   gateByRun?: ByRun<NodeGate>
+  /**
+   * the raw value stored before this write. present only when the node writes
+   * one path and every execution read the same prior value. cleanup reads it
+   * to decide whether the write can move past rows that undo it locally.
+   */
+  prior?: { value: RuntimeValue }
+  /** the same prior value for each pass of the nearest loop */
+  priorByRun?: ByRun<{ value: RuntimeValue }>
 }
 
 export interface EditorHandoff {

@@ -28,4 +28,28 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    files: ['src/engine/**/*.{ts,tsx}', 'src/domain/**/*.{ts,tsx}', 'src/data/gameData/**/*.{ts,tsx}'],
+    ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [
+          { name: 'react', message: 'core modules cannot import React.' },
+          { name: 'react-dom', message: 'core modules cannot import react-dom.' },
+          { name: 'react-router-dom', message: 'core modules cannot import router APIs; pass route-dependent policy as an argument.' },
+        ],
+        patterns: [
+          {
+            group: ['@/app', '@/app/*', '@/modules', '@/modules/*', '@/application', '@/application/*', '@/infra', '@/infra/*'],
+            message: 'core and domain modules cannot import app or infrastructure modules.',
+          },
+          {
+            // WorkerChannel has no app-layer imports and is used by browser worker clients.
+            regex: '^@/shared/(?!lib/WorkerChannel(\\.ts)?$)',
+            message: 'import the helper from an engine or domain module.',
+          },
+        ],
+      }],
+    },
+  },
 ])

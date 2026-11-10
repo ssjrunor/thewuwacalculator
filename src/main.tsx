@@ -7,13 +7,15 @@
 import { StrictMode, Suspense, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@/appearanceEntry'
-import { initCoreGameData, initGameData } from '@/data/gameData/index'
+import { initCoreGameData, initGameData, setCalculationDataPolicy } from '@/data/gameData/index'
 import { readBootstrapResonatorIds } from '@/application/persistence/resonatorScope'
 import { readPersistedGameDataMode } from '@/application/persistence/gameDataMode'
 import { StartupErrorNotice } from '@/modules/system/pages/StartupErrorNotice'
 import { RootErrorBoundary } from '@/modules/system/pages/RootErrorBoundary'
 import { isSimulationRoute } from '@/shared/lib/appRoutes'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
+setCalculationDataPolicy(() => isSimulationRoute(window.location.pathname))
+
 const root = createRoot(document.getElementById('root')!)
 
 function BootLoading() {

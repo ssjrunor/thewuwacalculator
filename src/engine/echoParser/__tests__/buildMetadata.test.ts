@@ -54,7 +54,7 @@ describe('build screenshot metadata', () => {
     const parsed = resolveBuildScreenshotMetadata(makeReadings(), { resonators, weapons })
 
     expect(parsed).toEqual({
-      player: { id: 'xuri', uid: '500395087' },
+      player: { id: 'xuri', uid: '500395087', uidAgreed: false },
       resonator: {
         id: '1210',
         candidateIds: ['1210'],
@@ -76,6 +76,28 @@ describe('build screenshot metadata', () => {
         level: 90,
       },
     })
+  })
+
+  it('marks the uid agreed only when both complete reads match', () => {
+    const read = (uidCheckText?: string) => resolveBuildScreenshotMetadata(
+      makeReadings({ uidCheckText }), { resonators, weapons },
+    ).player
+    expect(read('500395087')).toEqual({ id: 'xuri', uid: '500395087', uidAgreed: true })
+    // an incomplete check keeps the app's lenient uid but is not agreement
+    expect(read('5003950')).toEqual({ id: 'xuri', uid: '500395087', uidAgreed: false })
+    expect(read('500395081')).toEqual({ id: 'xuri', uid: null, uidAgreed: false })
+  })
+
+  it('reads past the label digit the digits-only check picks up', () => {
+    const read = (uidText: string, uidCheckText: string) => resolveBuildScreenshotMetadata(
+      makeReadings({ uidText, uidCheckText }), { resonators, weapons },
+    ).player.uidAgreed
+    // measured on real cards: the label's I comes back as a leading 1
+    expect(read('UID:500395087', '1500395087')).toBe(true)
+    expect(read('U1ID:904457107', '1904457107')).toBe(true)
+    // the digits must still match the first read exactly
+    expect(read('UID:500395087', '1500395081')).toBe(false)
+    expect(read('UID:500395087', '15003950')).toBe(false)
   })
 
   it('uses the attribute to resolve Rover and preserves gender candidates', () => {

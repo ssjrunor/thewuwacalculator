@@ -159,6 +159,7 @@ import {
   describeRotationCleanup,
   planRotationCleanup,
 } from '@/modules/simulation/surfaces/rotation/program-editor/model/cleanup.ts'
+import { rotationCleanupSources } from '@/modules/simulation/surfaces/rotation/program-editor/model/cleanupSources.ts'
 import {
   checkinAllLoopPasses,
   checkoutAllLoopPasses,
@@ -294,7 +295,6 @@ import {
   cloneRotationNodes,
   type SavedRotation,
 } from '@/domain/entities/inventoryStorage.ts'
-import { makeSourceKey } from '@/data/gameData/registry.ts'
 import {
   isLiveRotEntId,
   makeLiveRotationEntry,
@@ -2248,25 +2248,7 @@ export function ProgramEditor() {
     () => {
       if (simulationDirty) return null
 
-      const availableSources = new Set<string>()
-      for (const member of rotMembers) {
-        availableSources.add(makeSourceKey({ type: 'resonator', id: member.id }))
-        const weaponId = member.runtime.build.weapon.id
-        if (weaponId && weaponId !== '0') {
-          availableSources.add(makeSourceKey({ type: 'weapon', id: weaponId }))
-        }
-        for (const echo of member.runtime.build.echoes) {
-          if (!echo) continue
-          availableSources.add(makeSourceKey({ type: 'echo', id: echo.id }))
-          availableSources.add(makeSourceKey({ type: 'echoSet', id: String(echo.set) }))
-        }
-      }
-      /* enemy condition states use the synthetic `target` source, while
-         authored enemy packages use the selected catalog/custom id. */
-      availableSources.add(makeSourceKey({ type: 'enemy', id: 'target' }))
-      availableSources.add(makeSourceKey({ type: 'enemy', id: enemyProfile.id }))
-
-      return planRotationCleanup(sections, { availableSources })
+      return planRotationCleanup(sections, rotationCleanupSources(rotMembers, enemyProfile.id))
     },
     [enemyProfile.id, rotMembers, sections, simulationDirty],
   )

@@ -1278,28 +1278,6 @@
             "targetScope": "activeOther"
           }
         ]
-      },
-      "neonlightLeapOffTune": {
-        "perStep": [
-          {
-            "value": 0.3,
-            "path": [
-              "atk",
-              "percent"
-            ],
-            "targetScope": "activeOther"
-          }
-        ],
-        "max": [
-          {
-            "value": 15,
-            "path": [
-              "atk",
-              "percent"
-            ],
-            "targetScope": "activeOther"
-          }
-        ]
       }
     },
     "parts": [
@@ -1318,8 +1296,48 @@
       {
         "key": "neonlightLeapOffTune",
         "label": "5pc Tune Break Scaling",
-        "trigger": "Scales with the source Resonator's Tune Break Boost.",
-        "description": "Each point of the source Resonator's Tune Break Boost additionally increases the next Resonator's ATK by 0.3%, up to an additional 15%."
+        "trigger": "Scales automatically with the receiving Resonator's current Tune Break Boost.",
+        "description": "Each point of the receiving Resonator's Tune Break Boost additionally increases their ATK by 0.3%, up to an additional 15%."
+      }
+    ],
+    "extraEffects": [
+      {
+        "id": "neonlightLeapOffTune",
+        "label": "Pact of Neonlight Leap 5pc",
+        "stage": "finalStats",
+        "targetScope": "activeOther",
+        "condition": {
+          "type": "truthy",
+          "from": "sourceRuntime",
+          "path": "state.controls.echoSet:24:bonus:neonlightLeap5"
+        },
+        "operations": [
+          {
+            "type": "add_base_stat",
+            "stat": "atk",
+            "field": "percent",
+            "value": {
+              "type": "clamp",
+              "min": 0,
+              "max": 15,
+              "value": {
+                "type": "mul",
+                "values": [
+                  {
+                    "type": "read",
+                    "from": "finalStats",
+                    "path": "tbb",
+                    "default": 0
+                  },
+                  {
+                    "type": "const",
+                    "value": 0.3
+                  }
+                ]
+              }
+            }
+          }
+        ]
       }
     ]
   },
@@ -1669,7 +1687,9 @@
         ]
       },
       "snowfallCrit": {
-        "resets": ["snowfallOutro"],
+        "resets": [
+          "snowfallOutro"
+        ],
         "max": [
           {
             "value": 25,
@@ -1680,7 +1700,9 @@
         ]
       },
       "snowfallOutro": {
-        "resets": ["snowfallCrit"],
+        "resets": [
+          "snowfallCrit"
+        ],
         "max": [
           {
             "value": 25,

@@ -80,7 +80,7 @@ export function rotationEnemyStates(
   // the opening counter can hide a linked negative effect even when later rotation writes can enable it.
   const resolved = negEffectsFor(runtime, runtimesById)
   // a linked status can become relevant after the rotation writes its parent.
-  // Do not hide its condition solely because the opening parent counter is zero.
+  // retain the condition when the opening parent counter is zero.
   for (const definition of Object.values(NEG_EFFECT_CATS)) {
     if (!definition.linkedTo || resolved.some(effect => effect.key === definition.key)) continue
     const parent = resolved.find(effect => effect.key === definition.linkedTo)
@@ -123,8 +123,8 @@ export function rotationStateChoices(
 
 /**
  * values the preamble opens with when nothing overrides them: a choice that
- * must be one of its options (a resonance mode has no "neither") keeps the
- * value its member already holds; everything else opens at its default.
+ * must be one of its options (a resonance mode has no "neither") uses the
+ * member's current value; other choices use their default.
  */
 export function scenarioOpeningValues(
   runtimesById: Record<string, ResRuntime>,

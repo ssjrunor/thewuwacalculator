@@ -1835,3 +1835,180 @@ describe('what the last run leaves a row carrying', () => {
     ])
   })
 })
+
+/*
+  reordering a persistent setter past skills that only attach a copy of the
+  state around it. a reorder is valid only when every skill reads the same
+  state as before, so each case reruns the swept program and compares every
+  skill's damage with the original run.
+*/
+describe('reordering setters to drop attached copies', () => {
+  const BUFF_PATH = 'runtime.state.manualBuffs.quick.atk.percent'
+
+  const setBuff = (id: string, value: number): RotationNode => ({
+    id, type: 'condition', changes: [{ type: 'set', path: BUFF_PATH, value }],
+  })
+  const skill = (id: string, attachedBuff?: number): RotationNode => ({
+    id,
+    type: 'feature',
+    featureId: 'damage:test-skill',
+    multiplier: 1,
+    ...(attachedBuff === undefined ? {} : {
+      attached: {
+        conditions: [{
+          id: `${id}:attached`,
+          type: 'condition',
+          changes: [{ type: 'set', path: BUFF_PATH, value: attachedBuff }],
+        }],
+        features: [],
+      },
+    }),
+  })
+
+  function context(program: RotationNode[]) {
+    const runtime = makeResRuntime(seed)
+    runtime.rotation.program = program
+    const members: RotationMember[] = [{
+      id: seed.id,
+      name: seed.name,
+      profile: seed.profile ?? '',
+      attribute: seed.attribute,
+      runtime,
+      skills: seed.skills ?? [],
+      features: seed.features ?? [],
+      states: seed.states ?? [],
+    }]
+    return { runtime, seed, runtimesById: { [runtime.id]: runtime }, enemy: makeEnemy(), members }
+  }
+
+  function damageBySkill(sections: readonly { children: readonly unknown[] }[]): Map<string, number> {
+    const out = new Map<string, number>()
+    const visit = (nodes: readonly unknown[]) => {
+      for (const node of nodes as Array<Record<string, unknown>>) {
+        if (node.type === 'step') {
+          const byRun = node.damageByRun as Record<number, number>
+          out.set(node.id as string, Object.values(byRun).reduce((sum, value) => sum + value, 0))
+        }
+        if (Array.isArray(node.children)) visit(node.children)
+      }
+    }
+    for (const entry of sections) visit(entry.children)
+    return out
+  }
+
+  function sweep(program: RotationNode[]) {
+    const ctx = context(program)
+    const before = buildRun(ctx)
+    const plan = planRotationCleanup(before.sections)
+    const swept = applyRotationCleanup(before.sections, plan)
+    const itemSections = editorSectionsToRotation(swept, program)
+    const after = buildRun({ ...ctx, itemSections })
+    return { before, plan, after, items: itemSections.flatMap((entry) => entry.items) }
+  }
+
+  function attachedIds(items: readonly RotationNode[]): string[] {
+    return items.flatMap((node) => (
+      node.type === 'feature' && node.attached?.conditions.length ? [node.id] : []
+    ))
+  }
+
+  function featureOrder(items: readonly RotationNode[]): string[] {
+    return items.flatMap((node) => (
+      node.type === 'feature' || node.type === 'condition' ? [node.id] : []
+    ))
+  }
+
+  it('moves a setter past the skills that attach the value it replaced', () => {
+    const { before, plan, after, items } = sweep([
+      setBuff('raise', 10),
+      setBuff('drop', 0),
+      skill('first', 10),
+      skill('second', 10),
+      skill('reads-drop'),
+    ])
+
+    expect(plan.targets).toEqual([{
+      id: 'drop',
+      reason: 'reordered',
+      moveAfterId: 'second',
+      detachFromIds: ['first', 'second'],
+    }])
+    expect(featureOrder(items)).toEqual(['raise', 'first', 'second', 'drop', 'reads-drop'])
+    expect(attachedIds(items)).toEqual([])
+    /* the buff changes these skills' damage; without it the damage comparison passes trivially */
+    expect(damageBySkill(before.sections).get('first'))
+      .not.toBeCloseTo(damageBySkill(before.sections).get('reads-drop')!)
+    expect(damageBySkill(after.sections)).toEqual(damageBySkill(before.sections))
+    expect(after.totals.avg).toBeCloseTo(before.totals.avg)
+  })
+
+  it('moves a setter in front of the skills that attach the value it writes', () => {
+    const { before, plan, after, items } = sweep([
+      skill('first', 10),
+      skill('second', 10),
+      setBuff('raise', 10),
+      skill('reads-raise'),
+    ])
+
+    expect(plan.targets).toEqual([{
+      id: 'raise',
+      reason: 'reordered',
+      moveBeforeId: 'first',
+      detachFromIds: ['second', 'first'],
+    }])
+    expect(featureOrder(items)).toEqual(['raise', 'first', 'second', 'reads-raise'])
+    expect(attachedIds(items)).toEqual([])
+    expect(damageBySkill(after.sections)).toEqual(damageBySkill(before.sections))
+  })
+
+  it('stops at a skill that reads the state without overriding it', () => {
+    const { plan, after, before, items } = sweep([
+      setBuff('raise', 10),
+      setBuff('drop', 0),
+      skill('first', 10),
+      skill('reads-drop'),
+      skill('third', 10),
+    ])
+
+    expect(plan.targets).toEqual([{
+      id: 'drop',
+      reason: 'reordered',
+      moveAfterId: 'first',
+      detachFromIds: ['first'],
+    }])
+    expect(attachedIds(items)).toEqual(['third'])
+    expect(damageBySkill(after.sections)).toEqual(damageBySkill(before.sections))
+  })
+
+  it('leaves a setter whose prior the skills do not restore', () => {
+    const { plan } = sweep([
+      setBuff('raise', 10),
+      setBuff('drop', 0),
+      skill('first', 5),
+    ])
+
+    expect(plan.targets).toEqual([])
+  })
+
+  it('reorders inside each loop pass from that pass\'s own evidence', () => {
+    const { before, plan, after } = sweep([
+      { id: 'loop-start', type: 'loop', kind: 'start', loopId: 'loop-a', runs: 2 },
+      setBuff('raise', 10),
+      setBuff('drop', 0),
+      skill('first', 10),
+      skill('reads-drop'),
+      { id: 'loop-end', type: 'loop', kind: 'end', loopId: 'loop-a' },
+    ])
+
+    expect(plan.targets).toEqual([1, 2].map((run) => ({
+      id: 'drop',
+      reason: 'reordered',
+      loopId: 'loop-a',
+      run,
+      moveAfterId: 'first',
+      detachFromIds: ['first'],
+    })))
+    expect(damageBySkill(after.sections)).toEqual(damageBySkill(before.sections))
+    expect(after.totals.avg).toBeCloseTo(before.totals.avg)
+  })
+})

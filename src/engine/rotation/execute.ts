@@ -2792,11 +2792,13 @@ function resolveRotationSkill(
     skill: SkillDef,
 ): SkillDef {
   const runtimesById = getRslvRtLkp(state)
-  const resolved = resolveSkill(participant.runtime, skill, (condition) => {
+  // read the member's runtime from the resolved lookup; the participant's own runtime is the fallback
+  const runtime = runtimesById[participant.seed.id] ?? participant.runtime
+  const resolved = resolveSkill(runtime, skill, (condition) => {
     const numeric = evaluateNumericCondition(state.numericTeam, participant.lane, condition)
     if (numeric !== undefined) return numeric
     state.metrics.legacyConditionEvaluations += 1
-    return evalCond(condition, buildScope(participant.runtime, {
+    return evalCond(condition, buildScope(runtime, {
         type: 'resonator',
         id: participant.seed.id,
       }))

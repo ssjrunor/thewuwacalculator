@@ -869,6 +869,28 @@
       ]
     }
   },
+  "1512": {
+    "slug": "lili",
+    "slugs": {
+      "portrait": "c_lili_1",
+      "luckdraw": "lili"
+    },
+    "portrait": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture-0.webp",
+        "texture-1.webp"
+      ]
+    },
+    "luckdraw": {
+      "skel": "skel.skel",
+      "atlas": "atlas.atlas",
+      "pages": [
+        "texture.webp"
+      ]
+    }
+  },
   "1601": {
     "slug": "taoqi",
     "slugs": {

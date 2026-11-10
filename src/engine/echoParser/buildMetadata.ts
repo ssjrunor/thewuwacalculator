@@ -36,6 +36,8 @@ export interface ParsedBuildMetadata {
   player: {
     id: string | null
     uid: string | null
+    /** both uid reads were complete and identical; the leaderboard requires this. */
+    uidAgreed?: boolean
   }
   resonator: {
     id: string | null
@@ -68,6 +70,22 @@ const UID_LENGTH = 9
 function parseUid(value: string): string | null {
   const runs = value.match(/\d+/g) ?? []
   return runs.find((run) => run.length === UID_LENGTH) ?? null
+}
+
+/* the check read is digits-only, so the "UID:" label's I or colon comes back
+   as a leading digit ("1500395087"). the label always precedes the number,
+   so the check's last nine digits are its uid. this cannot invent a uid:
+   agreement still needs the first read to be exactly the same nine digits. */
+function parseCheckUid(value: string): string | null {
+  const runs = value.match(/\d+/g) ?? []
+  const longest = runs.reduce((best, run) => (run.length > best.length ? run : best), '')
+  return longest.length >= UID_LENGTH ? longest.slice(-UID_LENGTH) : null
+}
+
+// true only when the independent check read exists and matches the first read.
+function uidReadsAgree(first: string, check: string | undefined): boolean {
+  const read = parseUid(first)
+  return read !== null && check !== undefined && parseCheckUid(check) === read
 }
 
 // reject conflicting valid reads; accept the valid read when the other is incomplete.
@@ -244,6 +262,7 @@ export function resolveBuildScreenshotMetadata(
       // a soft read turns "ID" into "1D" or "I1D"
       id: trimStray(parseLabeledValue(readings.playerIdText, /^\s*player\s*[il1|]{0,2}[dp0]\s*[:.;]?\s*/i)),
       uid: settleUid(readings.uidText, readings.uidCheckText),
+      uidAgreed: uidReadsAgree(readings.uidText, readings.uidCheckText),
     },
     resonator: {
       id: resonatorMatches.length === 1 ? resonatorMatches[0].id : null,

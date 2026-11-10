@@ -46,7 +46,7 @@ import {
   applyEvaluationAsm,
   applyEvaluationMapAsm,
   makeEvaluationEnemy,
-} from '@/modules/simulation/model/evaluationAssumptions.ts'
+} from '@/engine/evaluation/evaluationAssumptions.ts'
 import { getTuneStrainMaxForTeam } from '@/engine/gameData/tuneStrain.ts'
 import {
   getBuildEvaluationGrade,

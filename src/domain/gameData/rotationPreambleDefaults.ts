@@ -42,8 +42,7 @@ export function isRequiredChoice(state: SourceState): boolean {
 
 /**
  * default value chosen when the editor adds an opening condition. a required
- * choice keeps `current` (the value its member already holds) when that is
- * one of its options.
+ * choice uses `current` when the member's current value is one of its options.
  */
 export function openingConditionValue(state: SourceState, current?: unknown): OpeningValue {
   if (isRequiredChoice(state) && state.options?.some((option) => option.id === current)) return current as string

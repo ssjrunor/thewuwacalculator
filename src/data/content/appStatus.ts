@@ -33,8 +33,7 @@ export const STATUS_DATA = {
   ],
   notes: [
     'hello my pookie wookiesss~! (∩˃o˂∩)♡',
-    'updated lily\'s effects for 3.8.3 beta',
-    'happy halloween...',
+    'updated lily\'s effects for 3.8 release and added missing assets',
   ],
   // consumers join these status records with live catalog counts by key.
   coverage: [
@@ -44,7 +43,7 @@ export const STATUS_DATA = {
     { key: 'enemies',    title: 'Enemies',    status: 'ok', note: '' },
   ] as CoverageDomain[],
   recentChanges: [
-    '3.8.3 beta update.',
+    '3.8 release update + game assets..',
   ],
 
   knownIssues: [] as string[]

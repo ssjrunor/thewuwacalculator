@@ -260,7 +260,7 @@ export function runSavedRotationComparison({
   }
 }
 
-const SAVED_ROTATION_ENGINE_VERSION = 3
+const SAVED_ROTATION_ENGINE_VERSION = 4
 const savedSimulationKeyCache = new WeakMap<SavedRotation, string>()
 const savedEntryIdentity = new WeakMap<SavedRotation, number>()
 let nextSavedEntryIdentity = 0
@@ -467,7 +467,7 @@ export function pendingSavedRotationDetails(
   return entries.filter((entry) => wanted.has(entry.id) && !completed.has(entry.id))
 }
 
-/** build rich editor projections only for saved rotations currently being inspected. */
+/** build detailed editor projections for the saved rotations being inspected. */
 export function runSavedRotationDetailBatch(
   entries: readonly SavedRotation[],
   options: { signal?: AbortSignal } = {},

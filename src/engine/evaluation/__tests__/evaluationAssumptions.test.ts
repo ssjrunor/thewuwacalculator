@@ -8,10 +8,10 @@ import { describe, expect, it } from 'vitest'
 import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey.ts'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService.ts'
 import { makeResRuntime } from '@/engine/runtime/defaults.ts'
-import { applyEvaluationAsm, applyEvaluationMapAsm } from '@/modules/simulation/model/evaluationAssumptions.ts'
+import { applyEvaluationAsm, applyEvaluationMapAsm } from '@/engine/evaluation/evaluationAssumptions.ts'
 
 describe('evaluation assumptions', () => {
-  it('gives progression variants the same normalized input identity', () => {
+  it('normalizes progression variants to the same input identity', () => {
     const seed = getResSeedBy('1212')
     if (!seed) throw new Error('missing evaluation test seed')
 

@@ -1203,6 +1203,55 @@ function conditionGatesByRun(
   return Object.keys(gates).length > 0 ? gates : undefined
 }
 
+type Prior = NonNullable<EditorCondition['prior']>
+
+/**
+ * the raw prior a single-path write read on every execution, or nothing when
+ * any execution could not read it or two executions disagree.
+ */
+function consistentPrior(rows: readonly InspectEntry[]): Prior | undefined {
+  let prior: Prior | undefined
+  for (const row of rows) {
+    if (!row.executed || row.value?.kind !== 'condition') continue
+    const { before } = row.value
+    if (before === undefined) return undefined
+    if (prior && !Object.is(prior.value, before)) return undefined
+    prior ??= { value: before }
+  }
+  return prior
+}
+
+/*
+  prior values for a single-path condition. outside a loop only the overall
+  prior is set. inside a loop, rows are grouped by run and each run with a
+  consistent prior gets its own entry. multi-path writes get no prior.
+*/
+function conditionPriors(
+  rows: readonly InspectEntry[],
+  changes: readonly RtChng[],
+  loopId: string | null,
+): Pick<EditorCondition, 'prior' | 'priorByRun'> {
+  if (changes.length !== 1) return {}
+  const prior = consistentPrior(rows)
+  if (!loopId) return prior ? { prior } : {}
+  const rowsByRun = new Map<number, InspectEntry[]>()
+  for (const row of rows) {
+    const run = runOf(row, loopId)
+    const list = rowsByRun.get(run)
+    if (list) list.push(row)
+    else rowsByRun.set(run, [row])
+  }
+  const priorByRun: NonNullable<EditorCondition['priorByRun']> = {}
+  for (const [run, runRows] of rowsByRun) {
+    const runPrior = consistentPrior(runRows)
+    if (runPrior) priorByRun[run] = runPrior
+  }
+  return {
+    ...(prior ? { prior } : {}),
+    ...(Object.keys(priorByRun).length > 0 ? { priorByRun } : {}),
+  }
+}
+
 /**
  * a condition node writes one or more paths. the editor names the first and
  * folds the rest into a count, and a write to the active-resonator path is not
@@ -1360,6 +1409,7 @@ function buildCondition(
     byRun: runs.length > 1 ? byRun : undefined,
     gateByRun,
     gate,
+    ...conditionPriors(rows, changes, ctx.loopId),
   }
 }
 

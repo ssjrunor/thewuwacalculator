@@ -7,7 +7,7 @@
 import type { EnemyCatEnt, EnemyClassId, EnemyElemId } from '@/domain/entities/enemy'
 import { isEnemyClssI, normEnemyRes } from '@/domain/entities/enemy'
 import type { GameDataMode } from '@/domain/entities/gameDataMode'
-import { gameDataUrl, getGameDataMode } from '@/data/gameData'
+import { fetchGameData, gameDataUrl, getGameDataMode } from '@/data/gameData'
 
 const ENEMY_DATA_PATH = 'enemies/catalog.json'
 
@@ -53,7 +53,7 @@ export function loadEnemySummary(): Promise<EnemySummary> {
   const mode = getGameDataMode()
   const existing = enemySummaryByMode[mode]
   if (existing) return existing
-  const request = fetch(gameDataUrl(mode, 'enemies/summary.json'))
+  const request = fetchGameData(gameDataUrl(mode, 'enemies/summary.json'))
     .then(async (response) => {
       if (!response.ok) throw new Error(`Enemy summary request failed with ${response.status}`)
       return response.json() as Promise<EnemySummary>
@@ -145,7 +145,7 @@ export async function loadEnemyCat(): Promise<EnemyCatEnt[]> {
     return existing
   }
 
-  const enemyCatPrms = fetch(gameDataUrl(mode, ENEMY_DATA_PATH))
+  const enemyCatPrms = fetchGameData(gameDataUrl(mode, ENEMY_DATA_PATH))
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`Enemy catalog request failed with ${response.status}`)
