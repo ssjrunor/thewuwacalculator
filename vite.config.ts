@@ -177,7 +177,7 @@ export default defineConfig(({ mode }) => ({
     // so the full suite does not exhaust memory alongside lint and builds.
     maxWorkers: 4,
     // local-only archives are not part of the maintained test surface
-    exclude: [...configDefaults.exclude, 'legacy/**', 'scripts/**', 'wip/**'],
+    exclude: [...configDefaults.exclude, 'legacy/**', 'scripts/**'],
   },
   worker: {
     format: 'es',

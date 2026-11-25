@@ -11,7 +11,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'legacy/**', 'wip/**', 'scripts/ingest/reference/**', 'src/data/generated/**', 'src/data/resonators/generated.ts']),
+  globalIgnores(['dist', 'legacy/**', 'scripts/ingest/reference/**', 'src/data/generated/**', 'src/data/resonators/generated.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
