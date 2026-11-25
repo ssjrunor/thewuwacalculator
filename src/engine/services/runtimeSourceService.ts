@@ -18,6 +18,7 @@ import {
   listStatesFor,
 } from '@/data/catalog/gameDataService'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
+import { countEchoSets } from '@/domain/gameData/echoSetCounts'
 import {
   prmCompSkllE,
   prmCompSttEx,
@@ -73,7 +74,8 @@ function getRtSrcSig(runtime: ResRuntime): string {
       runtime.build.echoes[0]?.id ??
       runtime.build.echoes.find(isQppdEcho)?.id ??
       ''
-  return `${runtime.id}::${mainEchoId}`
+  const sets = Object.entries(countEchoSets(runtime.build.echoes)).sort(([a], [b]) => Number(a) - Number(b))
+  return `${runtime.id}::${mainEchoId}::${sets.map(([id, count]) => `${id}:${count}`).join(',')}`
 }
 
 // resolve the main echo source reference from the runtime
@@ -125,10 +127,15 @@ export function makeSourceCat(runtime: ResRuntime): RtSrcCat {
     return cached
   }
 
-  const sources = listRtSrcRef(runtime)
+  const baseSources = listRtSrcRef(runtime)
+  const setSources: DataSrcRef[] = Object.entries(countEchoSets(runtime.build.echoes)).flatMap(([id, count]) => {
+    const definition = getEchoSetDe(Number(id))
+    return definition?.skills?.length && count >= definition.setMax ? [{ type: 'echoSet' as const, id }] : []
+  })
+  const sources = [...baseSources, ...setSources]
   const skills = sources.flatMap((source) => listSkillsFor(source.type, source.id))
   const features = sources.flatMap((source) => listFeatsFor(source.type, source.id))
-  const states = sources.flatMap((source) => listStatesFor(source.type, source.id))
+  const states = baseSources.flatMap((source) => listStatesFor(source.type, source.id))
 
   const catalog = {
     sources,

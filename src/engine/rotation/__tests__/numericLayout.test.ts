@@ -10,6 +10,7 @@ import { mkRtBaseBuff } from '@/engine/pipeline/buildCombatContext.ts'
 import { calcFinalStats } from '@/engine/formulas/finalStats.ts'
 import {
   deriveFinalPlane,
+  finalAttributeCell,
   packBuffPool,
   packFinalStats,
 } from '@/engine/rotation/numericLayout.ts'
@@ -50,9 +51,18 @@ describe('rotation numeric stat layout', () => {
       mod: 'dmgBonus',
       value: 45,
     })
+    runtime.state.manualBuffs.modifiers.push(
+      { id: 'ignore', enabled: true, scope: 'attribute', attribute: 'fusion', mod: 'resIgnore', value: 6 },
+      { id: 'shred', enabled: true, scope: 'attribute', attribute: 'fusion', mod: 'resShred', value: 7 },
+    )
     const pool = mkRtBaseBuff(runtime)
     const objectFinal = calcFinalStats(seed.baseStats, pool, 0)
 
+    expect(objectFinal.attribute.fusion.resIgnore).toBe(6)
+    expect(objectFinal.attribute.fusion.resShred).toBe(7)
+    const packed = packFinalStats(objectFinal)
+    expect(packed[finalAttributeCell('fusion', 'resIgnore')]).toBe(6)
+    expect(packed[finalAttributeCell('fusion', 'resShred')]).toBe(7)
     expect([...deriveFinalPlane(seed.baseStats, 0, packBuffPool(pool))])
       .toEqual([...packFinalStats(objectFinal)])
   })

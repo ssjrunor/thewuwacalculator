@@ -206,7 +206,14 @@ function makeLevelScale(options: {
       skillTypeBuff.resShred +
       skillBuffs.resShred
 
+  const resIgnore = attributeAll.resIgnore + attrElement.resIgnore + skillTypeAll.resIgnore
+      + skillTypeBuff.resIgnore + skillBuffs.resIgnore
+
   const defIgnore =
+      finalStats.defIgnore +
+      attributeAll.defIgnore +
+      attrElement.defIgnore +
+      skillTypeAll.defIgnore +
       skillTypeBuff.defIgnore +
       skillBuffs.defIgnore
 
@@ -226,7 +233,7 @@ function makeLevelScale(options: {
       skillTypeBuff.dmgVuln +
       skillBuffs.dmgVuln
 
-  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
+  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred - resIgnore
   const resMult = (!ignoresEnemy && baseRes === 100)
       ? 0
       : (ignoresEnemy ? 1 : resistMult(enemyResVl))
@@ -240,7 +247,7 @@ function makeLevelScale(options: {
     defMult,
     dmgVuln,
     dmgBonus: finalStats.skillType[kind].dmgBonus,
-    amplify: kind === 'tuneRupture' ? 0 : finalStats.amplify,
+    amplify: 0,
     finalDmg: finalStats.finalDmg,
     tuneBreakBoost: finalStats.tbb,
     critRate: (skill.tuneRuptureCritRate ?? 0) * 100,

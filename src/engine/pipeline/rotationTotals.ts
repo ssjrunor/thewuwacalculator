@@ -133,7 +133,6 @@ export function sumRotTtlsByAgg(
   }, mkAggTtls())
 }
 
-/** both loop-normalized and full-run support totals from one entry list. */
 export function sumRotTtlsByAggPair(entries: readonly FeatureResult[]): {
   totalsByGroup: Record<SkillAggType, DamageTotals>
   fullTotalsByGroup: Record<SkillAggType, DamageTotals>

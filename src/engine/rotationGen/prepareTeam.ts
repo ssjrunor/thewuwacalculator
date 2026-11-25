@@ -4,6 +4,7 @@
 */
 
 import type { RuntimeValue } from './types'
+import { bindResonatorReferences } from '../../domain/entities/roverIdentityBinding'
 import { prepareEquipment } from './gear/index'
 import { initialCharacterState } from './initialState'
 import { unisonBoonMax } from '../../domain/gameData/unisonBoon'
@@ -11,7 +12,7 @@ import { buildupRateEffects, offTuneByAction } from './events/offTune'
 
 /** prepare trigger inputs, not an independently simulated build or resource budget. */
 export function prepareInterpreterState({ scenario, mode, weaponBundles, resonatorBundles,
-  echoCatalog, gearLibrary, rulesets, damageEntries = [], maxFrames = 7200 }: RuntimeValue): RuntimeValue {
+  echoCatalog, gearLibrary, rulesets, damageEntries = [], resolveIdentity = (id: string) => id, maxFrames = 7200 }: RuntimeValue): RuntimeValue {
   // member order is the authored replay order; scenario progression, controls, and equipment supply all trigger inputs.
   const members = scenario.team.members.map((source: RuntimeValue) => ({
     resonatorId: Number(source.resonatorId),
@@ -24,8 +25,8 @@ export function prepareInterpreterState({ scenario, mode, weaponBundles, resonat
     initialState: initialCharacterState(rulesets[source.resonatorId], source),
     initialControls: { ...Object.fromEntries((resonatorBundles?.[source.resonatorId]?.details.stateGraph?.nodes ?? [])
       .map((node: RuntimeValue) => [node.key, node.defaultValue])), ...structuredClone(source.local.controls) }, initialHpRatio: source.initialHpRatio ?? 1,
-    ...prepareEquipment({ loadout: source.loadout, weaponBundle: weaponBundles[source.loadout.weapon.id],
-      echoCatalog, gearLibrary }),
+    ...bindResonatorReferences(prepareEquipment({ loadout: source.loadout, weaponBundle: weaponBundles[source.loadout.weapon.id],
+      echoCatalog, gearLibrary }), resolveIdentity),
   }))
   // clone enemy state because replay writes counters and shifting flags without changing the supplied scenario.
   return { mode, framesPerSecond: 60, maxFrames, members,

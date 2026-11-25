@@ -41,6 +41,7 @@ function cloneBaseSta(buff: BaseStatBuff): BaseStatBuff {
 function cloneModBuff(buff: ModBuff): ModBuff {
   return {
     resShred: buff.resShred,
+    resIgnore: buff.resIgnore ?? 0,
     dmgBonus: buff.dmgBonus,
     amplify: buff.amplify,
     defIgnore: buff.defIgnore,

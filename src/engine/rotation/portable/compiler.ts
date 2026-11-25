@@ -25,9 +25,13 @@ import { lowerSkill, lowerDamage, type PortableSkill } from './damage'
 
 export interface PortableRotationProgram {
   scalar: ScalarProgram
-  /** outputs: total damage, the sheet's ATK/HP/DEF/CR/CD/ER/bonus/amp, then
-   * participant totals. the sheet is the searched build at rest, before any hit. */
+  /** outputs: total damage, the sheet's ATK/HP/DEF/CR/CD/ER/bonus/amp, then participant totals, then participant shown
+     * totals (from `shownOffset`); the sheet is the searched build at rest, before any hit. */
   displayScalar: ScalarProgram
+  /** start of displayScalar's shown totals: each participant's damage as a run's breakdown reports it
+     * (pipeline/rotationTotals.ts), excluding tune breaks and dividing each event by its enclosing loops' run counts;
+     * -1 when compiled without them (RotationCandidateOptions.shown). */
+  shownOffset: number
   /** catalog string symbols, indexed by encoded inventory/theory row. */
   echoSymbols: Uint32Array
   participantIds: string[]
@@ -52,6 +56,8 @@ export interface RotationCandidateOptions {
   dynamicStats?: boolean
   selfMainEchoEffects?: boolean | 'dynamic'
   setControls?: Readonly<Record<string, boolean | number | string | undefined>>
+  /** also lower each participant's shown damage (shownOffset); off, the program has only what searches need. */
+  shown?: boolean
 }
 interface Snapshot { team: TeamSnapshot; formula: Map<RotFormulaStatKey, Scalar> }
 interface AppliedWrite { change: RtChng; lane: number }
@@ -78,7 +84,7 @@ export function compilePortableRotation(
   damageEventKeys?: ReadonlySet<string>,
   staticInputs: RotationCandidateOptions = {},
 ): PortableRotationProgram {
-  const compiler = new RotationLowering(environment, candidates, featureKeys, damageEventKeys, staticInputs.dynamicStats, staticInputs.selfMainEchoEffects)
+  const compiler = new RotationLowering(environment, candidates, featureKeys, damageEventKeys, staticInputs.dynamicStats, staticInputs.selfMainEchoEffects, staticInputs.shown)
   compiler.team.initializeEchoControls(disabledSetParts, staticInputs.setControls)
   compiler.captureSheet()
   compiler.team.beginRotationTargets()
@@ -93,14 +99,22 @@ class RotationLowering {
   private formula = new Map<RotFormulaStatKey, Scalar>()
   private readonly ordinals = new Map<string, Scalar>()
   private readonly totals: Scalar[]
+  /** per participant: damage as a breakdown shows it (shownOffset). */
+  private readonly shown: Scalar[]
+  /** run counts of the loops being walked, by loop id, matching the detailed executor's actLoopRunqi. */
+  private readonly loopRuns = new Map<string, number>()
   private sheet: Scalar[] = []
   private readonly damageEventKeys: ReadonlySet<string> | undefined
   private readonly loopPlans = new WeakMap<readonly RotationNode[], CompiledRotationPlan>()
-  constructor(environment: PortableRotationEnvironment, candidates: readonly EchoInstance[], featureKeys: ReadonlySet<string>, damageEventKeys?: ReadonlySet<string>, dynamicStats = false, selfMainEchoEffects: boolean | 'dynamic' = true) {
+  /** whether shown totals are lowered (RotationCandidateOptions.shown). */
+  private readonly lowersShown: boolean
+  constructor(environment: PortableRotationEnvironment, candidates: readonly EchoInstance[], featureKeys: ReadonlySet<string>, damageEventKeys?: ReadonlySet<string>, dynamicStats = false, selfMainEchoEffects: boolean | 'dynamic' = true, shown = false) {
+    this.lowersShown = shown
     this.environment = environment; this.featureKeys = featureKeys
     this.damageEventKeys = damageEventKeys
     this.team = new PortableTeam(environment.graph, environment.enemy, environment.prmrResId, candidates, dynamicStats, selfMainEchoEffects)
     this.totals = this.team.runtimes.map(() => this.team.ir.zero)
+    this.shown = this.team.runtimes.map(() => this.team.ir.zero)
   }
   finish(candidates: readonly EchoInstance[], constraints?: Float32Array, staticInputs: RotationCandidateOptions = {}): PortableRotationProgram {
     const { team } = this, { ir, dsl } = team
@@ -125,7 +139,8 @@ class RotationLowering {
     }
     return {
       scalar: specializeScalarProgram(ir.finish([ir.sum(this.totals), ...sheet.slice(0, 7).map((value, index) => constraints && (constraints[index * 2] ?? 1) <= (constraints[index * 2 + 1] ?? 0) ? value : ir.zero)]), bindings),
-      displayScalar: specializeScalarProgram(ir.finish([ir.sum(this.totals), ...sheet, ...this.totals]), bindings),
+      displayScalar: specializeScalarProgram(ir.finish([ir.sum(this.totals), ...sheet, ...this.totals, ...this.lowersShown ? this.shown : []]), bindings),
+      shownOffset: this.lowersShown ? 1 + sheet.length + this.totals.length : -1,
       echoSymbols: Uint32Array.from(candidates, (echo) => ir.value(dsl.literal(echo.id).data)!),
       participantIds: team.runtimes.map((runtime) => runtime.id),
     }
@@ -161,10 +176,11 @@ class RotationLowering {
     const { ir } = this.team, known = ir.value(gate)
     if (known === 0) return
     if (known !== undefined) { run(); return }
-    const parent = this.snapshot(), totals = [...this.totals], ordinals = new Map(this.ordinals)
+    const parent = this.snapshot(), totals = [...this.totals], shown = [...this.shown], ordinals = new Map(this.ordinals)
     run()
     this.mergeConditional(parent, gate)
     for (let lane = 0; lane < totals.length; lane++) this.totals[lane] = ir.select(gate, this.totals[lane]!, totals[lane]!)
+    if (this.lowersShown) for (let lane = 0; lane < shown.length; lane++) this.shown[lane] = ir.select(gate, this.shown[lane]!, shown[lane]!)
     for (const [key, value] of this.ordinals) this.ordinals.set(key, ir.select(gate, value, ordinals.get(key) ?? ir.zero))
   }
   walk(items: readonly RotationNode[], fallback: number, setupScale?: Scalar) {
@@ -199,11 +215,12 @@ class RotationLowering {
     }
   }
   private walkSetup(items: readonly RotationNode[], lane: number, scale: Scalar) {
-    const totals = [...this.totals]
+    const totals = [...this.totals], shown = [...this.shown]
     this.walk(items, lane, scale)
     // setup features advance authored state and occurrence identities. their
     // damage is discarded before the block body, as in the detailed executor.
     for (let index = 0; index < totals.length; index++) this.totals[index] = totals[index]!
+    if (this.lowersShown) for (let index = 0; index < shown.length; index++) this.shown[index] = shown[index]!
   }
   /** the marker walker preserves overlapping and wrap-around loop calls. only
    * ordinary structured loops use pre-resolved pass bodies. */
@@ -214,12 +231,17 @@ class RotationLowering {
     if (!plan) { plan = compileRotationPlan(items as RotationNode[]); this.loopPlans.set(items, plan) }
     const lowered = plan.root.loopsByIndex[startIndex]
     if (lowered) {
+      this.loopRuns.set(start.loopId, lowered.passBlocks.length)
       for (const pass of lowered.passBlocks) this.walk(pass.items, fallback)
+      this.loopRuns.delete(start.loopId)
       return lowered.circular ? items.length - 1 : lowered.endIndex ?? startIndex
     }
     if (Object.keys(start.passForks ?? {}).length) {
       const { body, endIndex, circular } = extractLoopExecutionBody(items, startIndex)
-      for (let pass = 1; pass <= Math.max(1, Math.floor(start.runs ?? 1)); pass++) this.walk(resolveLoopPassBody(body, start.passForks, pass), fallback)
+      const runs = Math.max(1, Math.floor(start.runs ?? 1))
+      this.loopRuns.set(start.loopId, runs)
+      for (let pass = 1; pass <= runs; pass++) this.walk(resolveLoopPassBody(body, start.passForks, pass), fallback)
+      this.loopRuns.delete(start.loopId)
       return circular ? items.length - 1 : endIndex ?? startIndex
     }
     interface Frame { start: number; cursor: number; id: string; run: number; runs: number; finished: Set<string> }
@@ -233,8 +255,9 @@ class RotationLowering {
     const close = () => {
       const current = stack.at(-1)!
       if (current.run < current.runs) { current.run++; current.cursor = next(current.start); current.finished.clear() }
-      else { stack.pop(); stack.at(-1)?.finished.add(current.id) }
+      else { stack.pop(); this.loopRuns.delete(current.id); stack.at(-1)?.finished.add(current.id) }
     }
+    this.loopRuns.set(stack[0]!.id, stack[0]!.runs)
     while (stack.length) {
       const current = stack.at(-1)!
       if (current.cursor === current.start) { close(); continue }
@@ -253,7 +276,9 @@ class RotationLowering {
       }
       const end = items.findIndex((item) => item.type === 'loop' && item.kind === 'end' && item.loopId === node.loopId)
       current.cursor = next(end > nestedIndex ? end : nestedIndex)
-      stack.push(frame(nestedIndex))
+      const nested = frame(nestedIndex)
+      stack.push(nested)
+      this.loopRuns.set(nested.id, nested.runs)
     }
     return furthest
   }
@@ -461,6 +486,7 @@ class RotationLowering {
       const catalog = this.environment.catalogByResonator[this.team.runtimes[owner]!.id]
       const feature = catalog?.featuresById[node.featureId], skill = feature ? catalog.skillsById[feature.skillId] : undefined
       if (!feature || !skill) continue
+      if (feature.source.type === 'echoSet' && owner !== lane) continue
       this.resolveAndScore(owner, feature, skill, node, multiplier, writes, ordinal)
       break
     }
@@ -500,6 +526,16 @@ class RotationLowering {
       return resolved.visible === false ? ir.zero : damage
     })
     this.totals[lane] = ir.add(this.totals[lane]!, score)
+    if (!this.lowersShown) return
+    // a breakdown leaves tune breaks out and states each loop's events per run.
+    let divisor = 1
+    for (const runs of this.loopRuns.values()) divisor *= runs
+    const counted = raw.tab !== 'tuneBreak' && !raw.skillVariantWhen?.length ? ir.one : this.runtimeComputation((runtimes, evaluate) => {
+      const lookup = Object.fromEntries(runtimes.map((runtime) => [runtime.id, runtime]))
+      const resolved = resolveSkill(runtimes[lane]!, raw, (condition) => evaluate(condition, team.scope(lane)), lookup, this.negativeEvaluator(evaluate))
+      return resolved.tab === 'tuneBreak' ? ir.zero : ir.one
+    })
+    this.shown[lane] = ir.add(this.shown[lane]!, ir.div(ir.mul(score, counted), ir.constant(divisor)))
 
   }
   // the build at rest, before any node runs: the same final cells Modulation's
@@ -518,7 +554,7 @@ class RotationLowering {
     const add = (cell: number, value: Scalar) => { plane[cell] = ir.add(plane[cell]!, value) }
     for (const key of ['atk', 'hp', 'def'] as const) add(finalCoreCell(key, 'final'), ir.add(ir.mul(plane[finalCoreCell(key, 'base')]!, ir.div(f(`${key}Percent`), ir.constant(100))), f(`${key}Flat`)))
     for (const key of ['energyRegen', 'healingBonus', 'shieldBonus', 'dmgVuln', 'tuneBreakBoost', 'finalDmg', 'flatDmg'] as const) add(finalTopCell(key), f(key))
-    add(finalTopCell('amplify'), f('dmgAmp')); add(finalAttributeCell('all', 'resShred'), f('resIgnore'))
+    add(finalTopCell('amplify'), f('dmgAmp')); add(finalAttributeCell('all', 'resIgnore'), f('resIgnore'))
     const negative = getNegFfctCm(skill.definition.archetype)
     if (skill.definition.archetype === 'skillDamage') for (const key of ['critRate', 'critDmg', 'dmgBonus'] as const) add(finalTopCell(key), f(key))
     else if (skill.definition.archetype === 'tuneRupture' || skill.definition.archetype === 'hack') add(finalSkillTypeCell(skill.definition.archetype, 'dmgBonus'), f('dmgBonus'))

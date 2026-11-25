@@ -78,3 +78,37 @@ const ART_FLOOR = { lum: 0.28, edge: 0.07, hue: 0 } as const
 export function artAgrees(forms: ArtAgreement[]): boolean {
   return forms.some((form) => form.lum >= ART_FLOOR.lum && form.edge >= ART_FLOOR.edge && form.hue >= ART_FLOOR.hue)
 }
+
+// the glyph names its set once it leads the next mark this far; the bench's closest
+// true glyph leads by 1.94
+const CLEAR_GLYPH = 1.5
+
+// the set a panel's glyph clearly shows, or null when another mark comes close
+export function clearSet(setRanks: SetMatch[]): string | null {
+  const [best, next] = setRanks
+  // scores are distances: 0 is a perfect match, so only a missing or unusable score rules the glyph out
+  if (!best || !(best.score >= 0) || !Number.isFinite(best.score)) return null
+  // a tie (two perfect matches included) is not a clear glyph
+  return !next || (next.score > best.score && next.score >= best.score * CLEAR_GLYPH) ? best.name : null
+}
+
+// the fast ranking can bury an echo whose art matches exactly (a lit backdrop shifts its histogram), leaving its
+// winner under the art floor. this measures every echo the glyph and cost allow against a stricter floor: across the
+// reference cards a recolour sibling can match brightness and edges like the true echo (lum 0.81, edge 0.45), so hue
+// has to match too (a held-out twin nova's sibling reached 0.39, the true echoes 0.86 and up). exactly one echo has to
+// clear it with no other over the plain floor, otherwise the slot stays unidentified
+const RESCUE_FLOOR = { lum: 0.45, edge: 0.25, hue: 0.6 } as const
+
+function clearsRescue(forms: ArtAgreement[]): boolean {
+  return forms.some((form) => form.lum >= RESCUE_FLOOR.lum && form.edge >= RESCUE_FLOOR.edge && form.hue >= RESCUE_FLOOR.hue)
+}
+
+export function pickByAgreement(
+    pool: { echo: EchoDef; forms: ArtAgreement[] }[],
+    setName: string,
+): EchoPick | null {
+  const agreeing = pool.filter((entry) => artAgrees(entry.forms))
+  if (agreeing.length !== 1 || !clearsRescue(agreeing[0].forms)) return null
+  const [{ echo }] = agreeing
+  return { echoName: echo.name, setName, cost: echo.cost }
+}

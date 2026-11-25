@@ -5,7 +5,7 @@
 */
 
 import type { ComponentType as CompType } from 'react'
-import { FileText, Lightbulb, ListOrdered, Settings } from 'lucide-react'
+import { FileText, Lightbulb, ListOrdered, Settings, Trophy } from 'lucide-react'
 import { GiPokecog } from 'react-icons/gi'
 import { FaInfo, FaQuestion } from 'react-icons/fa'
 import { ImHistory } from 'react-icons/im'
@@ -26,6 +26,7 @@ export const rtNavLnks: RouteNavLink[] = [
   { to: APP_NAVIGATION.showcase.to, label: APP_NAVIGATION.showcase.name, Icon: FaInfo },
   { to: APP_NAVIGATION.suggestions.to, label: APP_NAVIGATION.suggestions.name, Icon: Lightbulb },
   { to: APP_NAVIGATION.optimizer.to, label: APP_NAVIGATION.optimizer.name, Icon: GiPokecog },
+  { to: APP_NAVIGATION.leaderboard.to, label: APP_NAVIGATION.leaderboard.name, Icon: Trophy },
   { to: APP_NAVIGATION.calibration.to, label: APP_NAVIGATION.calibration.name, Icon: Settings, iconClssName: 'settings-icon' },
   { to: APP_NAVIGATION.guides.to, label: APP_NAVIGATION.guides.name, Icon: FaQuestion, iconClssName: 'help-icon' },
   { to: APP_NAVIGATION.docs.to, label: APP_NAVIGATION.docs.name, Icon: FileText, iconClssName: 'docs-icon' },

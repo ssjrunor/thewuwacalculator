@@ -3,12 +3,13 @@
   description: loads verified ruleset files and exposes versioned calculation inputs.
 */
 
-import type { RulesetManifest, RulesetRefsFile, ScenarioDef, ScenarioRefs } from '@/domain/leaderboard/ruleset'
+import type { RulesetManifest, RulesetRefsFile, ScenarioAnchorsFile, ScenarioDef, ScenarioRefs } from '@/domain/leaderboard/ruleset'
 import type { ActionPlan } from '@/domain/rotationActions/types'
 import { assertActionPlan } from '@/domain/rotationActions/actionPlan'
 import { canonicalJson, sha256Hex } from '@/domain/leaderboard/canonical'
 import { indexTeammateBuilds, type ResolvedTeammate, type TeammateBuildsFile } from './teammateBuilds'
 import { LEADERBOARD_ENGINE_VER, ROTATION_GEN_VER } from './version'
+import { hasScoringData } from './coverage'
 
 /** reads one file of a ruleset by its path relative to the ruleset root; null when absent. */
 export interface RulesetFiles {
@@ -34,6 +35,12 @@ export interface OpenedRuleset {
   teammates: Map<string, ResolvedTeammate>
   /** null until the reference step has run. */
   refs: Map<string, ScenarioRefs> | null
+  /** a scenario's offline anchors, or null when the ruleset has none for it. */
+  anchorsFor(scenarioId: string): Promise<ScenarioAnchorsFile | null>
+  /** the package's unit hashes, or null without units. */
+  units(): Promise<ReadonlyMap<string, string> | null>
+  /** the rotation generator's code hash the package was made with (units.json), or null. */
+  generatorSha(): Promise<string | null>
   /** game data json by logical path (`weapons/catalog`). */
   gameData(path: string): Promise<unknown>
   /** rotation generator data json by logical path (`characters/index`). */
@@ -55,6 +62,80 @@ export function rulesetVersionIssues(manifest: Pick<RulesetManifest, 'engineVer'
 }
 
 const decoder = new TextDecoder()
+
+// a json value's end from its first character: strings (with escapes), objects and arrays (by depth), or a bare
+// literal; this finds boundaries only, and JSON.parse validates each piece
+function valueEnd(text: string, at: number): number {
+  const first = text[at]
+  if (first === '"') {
+    let index = at + 1
+    while (index < text.length && text[index] !== '"') index += text[index] === '\\' ? 2 : 1
+    if (index >= text.length) throw new SyntaxError('unterminated string')
+    return index + 1
+  }
+  if (first === '{' || first === '[') {
+    let depth = 0
+    for (let index = at; index < text.length; index += 1) {
+      const char = text[index]
+      if (char === '"') index = valueEnd(text, index) - 1
+      else if (char === '{' || char === '[') depth += 1
+      else if (char === '}' || char === ']') {
+        depth -= 1
+        if (depth === 0) return index + 1
+      }
+    }
+    throw new SyntaxError('unterminated object')
+  }
+  let index = at
+  while (index < text.length && !',}] \t\n\r'.includes(text[index]!)) index += 1
+  if (index === at) throw new SyntaxError(`unexpected ${first ?? 'end'}`)
+  return index
+}
+
+const skipSpace = (text: string, at: number) => {
+  while (at < text.length && ' \t\n\r'.includes(text[at]!)) at += 1
+  return at
+}
+
+/** an object's members as [key, start, end] of each value's text. */
+function members(text: string, at: number): Array<[string, number, number]> {
+  if (text[at] !== '{') throw new SyntaxError('expected an object')
+  const out: Array<[string, number, number]> = []
+  let index = skipSpace(text, at + 1)
+  if (text[index] === '}') return out
+  for (;;) {
+    const keyEnd = valueEnd(text, index)
+    const key = JSON.parse(text.slice(index, keyEnd)) as unknown
+    if (typeof key !== 'string') throw new SyntaxError('expected a key')
+    index = skipSpace(text, keyEnd)
+    if (text[index] !== ':') throw new SyntaxError('expected :')
+    const start = skipSpace(text, index + 1)
+    const end = valueEnd(text, start)
+    out.push([key, start, end])
+    index = skipSpace(text, end)
+    if (text[index] === ',') { index = skipSpace(text, index + 1); continue }
+    if (text[index] === '}') return out
+    throw new SyntaxError('expected , or }')
+  }
+}
+
+/**
+ * an actions file's plans, each as its own json text, found without parsing the whole file (most of a ruleset's
+ * bytes); files the scan cannot follow are parsed whole, which throws on invalid json.
+ */
+export function planTexts(text: string): Map<string, string> {
+  try {
+    const start = skipSpace(text, 0)
+    if (skipSpace(text, valueEnd(text, start)) !== text.length) throw new SyntaxError('trailing text')
+    // a repeated key is the last one, as JSON.parse reads it.
+    const plans = members(text, start).filter(([key]) => key === 'plans').at(-1)
+    if (!plans) throw new SyntaxError('no plans')
+    return new Map(members(text, plans[1]).map(([key, from, to]) => [key, text.slice(from, to)]))
+  } catch {
+    const parsed = JSON.parse(text) as { plans?: Record<string, unknown> }
+    return new Map(Object.entries(parsed.plans ?? {}).map(([key, plan]) => [key, JSON.stringify(plan)]))
+  }
+}
 
 // verify the published manifest and expose hash-checked JSON readers with retryable promise caches.
 export async function openRuleset(files: RulesetFiles, options: {
@@ -102,13 +183,24 @@ export async function openRuleset(files: RulesetFiles, options: {
     return entry
   }
 
-  const [actions, teammatesFile, refsFile] = await Promise.all([
-    json(manifest.files.recipes) as Promise<{ schema: 1; plans: Record<string, unknown> }>,
+  const [actionsText, teammatesFile, refsFile] = await Promise.all([
+    readVerified(manifest.files.recipes).then((bytes) => decoder.decode(bytes)),
     json(manifest.files.teammates) as Promise<TeammateBuildsFile>,
     manifest.files.refs ? json(manifest.files.refs) as Promise<RulesetRefsFile> : Promise.resolve(null),
   ])
-  const plans = Object.fromEntries(Object.entries(actions.plans).map(([teamId, plan]) => [teamId, assertActionPlan(plan)]))
+  if (refsFile && refsFile.schema !== 2) throw new RulesetError('manifest', 'references must use total damage (schema 2)')
+  // parsed plans for every team would be most of a session's memory and a scenario reads one, so each plan is
+  // validated here, stored as its own json text, and parsed into a fresh copy per scenario request
+  const plans: Record<string, ActionPlan> = {}
+  for (const [teamId, text] of planTexts(actionsText)) {
+    assertActionPlan(JSON.parse(text))
+    Object.defineProperty(plans, teamId, { enumerable: true, configurable: true, get: () => assertActionPlan(JSON.parse(text)) })
+  }
   const refs = refsFile ? new Map(refsFile.refs.map((entry) => [refsKey(entry.scenarioId, entry.sequence), entry])) : null
+
+  const unitsFile = () => manifest.files.units
+    ? json(manifest.files.units) as Promise<{ generator?: string; units: Record<string, string> }>
+    : Promise.resolve(null)
 
   const dataRoot = manifest.files.gameData.replace(/\/?$/, '/')
   const interpreterRoot = manifest.files.interpreter.replace(/\/?$/, '/')
@@ -124,6 +216,17 @@ export async function openRuleset(files: RulesetFiles, options: {
     plans,
     teammates: indexTeammateBuilds(teammatesFile),
     refs,
+    async anchorsFor(scenarioId) {
+      const path = anchorsPath(manifest, scenarioId)
+      return path && manifest.hashes[path] ? json(path) as Promise<ScenarioAnchorsFile> : null
+    },
+    async units() {
+      const file = await unitsFile()
+      return file ? new Map(Object.entries(file.units)) : null
+    },
+    async generatorSha() {
+      return (await unitsFile())?.generator ?? null
+    },
     gameData: (path) => json(`${dataRoot}${path}.json`),
     interpretationData: (path) => json(`${interpreterRoot}${path}.json`),
     async gameDataReader(url) {
@@ -135,4 +238,20 @@ export async function openRuleset(files: RulesetFiles, options: {
     },
     gameDataFingerprint: await sha256Hex(canonicalJson({ mode: manifest.dataMode, files: gameDataHashes })),
   }
+}
+
+/** where a scenario's offline anchors are in a package (anchors/<resonator>/<team>-<weapon>.json); null without an
+    anchors folder. */
+export function anchorsPath(manifest: Pick<RulesetManifest, 'files'>, scenarioId: string): string | null {
+  const folder = manifest.files.anchors
+  if (!folder) return null
+  const [resonatorId, teamId, weaponId] = scenarioId.slice(scenarioId.indexOf(':') + 1).split(':')
+  return `${folder.replace(/\/?$/, '/')}${resonatorId}/${teamId}-${weaponId}.json`
+}
+
+/** verified scenarios (hasScoringData) of a package without an offline anchors file; every build on them searches
+    its own anchors, about a minute per cell. */
+export function scenariosWithoutAnchors(manifest: Pick<RulesetManifest, 'files' | 'hashes' | 'scenarios'>): string[] {
+  return manifest.scenarios.filter((def) => hasScoringData(def)).map((def) => def.id)
+    .filter((id) => { const path = anchorsPath(manifest, id); return !path || !manifest.hashes[path] })
 }

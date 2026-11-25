@@ -11,7 +11,7 @@ const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 export async function requireTurnstile(token: unknown, secret: string, ip: string,
   fetchImpl: typeof fetch = fetch): Promise<void> {
   if (typeof token !== 'string' || token.length === 0 || token.length > 2048) {
-    throw new HttpError('turnstile_failed', 'missing turnstile token')
+    throw new HttpError('turnstile_failed', "hold on... let the bot check finish before sending this :P")
   }
   const body = new FormData()
   body.set('secret', secret)
@@ -20,5 +20,5 @@ export async function requireTurnstile(token: unknown, secret: string, ip: strin
   // an unsuccessful verification response rejects the request before submission, login, or report writes.
   const response = await fetchImpl(SITEVERIFY, { method: 'POST', body })
   const outcome = response.ok ? await response.json() as { success?: boolean } : { success: false }
-  if (!outcome.success) throw new HttpError('turnstile_failed', 'turnstile check failed')
+  if (!outcome.success) throw new HttpError('turnstile_failed', "uh oh... the bot check did not go through. complete it and try again; refresh the page if it stays stuck :P")
 }

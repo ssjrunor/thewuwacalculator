@@ -386,6 +386,7 @@ export function mkRotSuggCtx(
     seed,
     enemy: input.enemy,
     items: input.runtime.rotation.sequence,
+    preserveEchoStateChanges: input.preserveEchoStateChanges,
     runtimesById: makeRuntimeMap(input.runtime, input.runtimesById),
     selectedTargets: input.selectedTargets ?? {},
     combatSetup: input.combatSetup,
@@ -409,6 +410,7 @@ export function mkRotSuggCtx(
 
   return {
     mode: 'rotation',
+    preserveEchoStateChanges: input.preserveEchoStateChanges,
     candidatePlan: prepareRotationCandidatePlan(captured, {
       candidates,
       setControls: Object.fromEntries((setRows.dynamicStateParts ?? []).map(({ setId, partKey }) => {

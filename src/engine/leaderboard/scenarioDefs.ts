@@ -6,8 +6,9 @@
 import type { ScenarioDef, ScenarioMember, WeaponRole } from '@/domain/leaderboard/ruleset'
 import { canonicalResonatorId } from './scenarioInput'
 import { teamSlotKey } from './teammateBuilds'
+import { assertScenarioSelectionLimits } from '@/domain/leaderboard/scenarioLimits'
 
-/** services/leaderboard/data/scenarios.json */
+/** scripts/leaderboard/data/scenarios.json */
 export interface ScenariosFile {
   schema: 1
   /** team id -> its seats in rotation order. */
@@ -27,6 +28,7 @@ export interface ScenarioDefsInput {
 }
 
 export function scenarioDefs({ rulesetId, scenarios, recipeHashes }: ScenarioDefsInput): ScenarioDef[] {
+  assertScenarioSelectionLimits(scenarios.resonators)
   const defs: ScenarioDef[] = []
   for (const [resonatorId, entry] of Object.entries(scenarios.resonators)) {
     const scored = canonicalResonatorId(resonatorId)

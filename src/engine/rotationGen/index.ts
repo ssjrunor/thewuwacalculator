@@ -4,6 +4,6 @@
 */
 
 export { createInterpreterEnvironment } from './environment.ts'
-export { interpretTeamActions } from './interpret.ts'
-export type { InterpreterEnvironment, InterpreterLoaders, InterpretationResult, JsonLoader } from './types'
+export { interpretTeamActions, interpretedProgram, rebaseInterpretation, type InterpretedProgram } from './interpret.ts'
+export type { InterpreterEnvironment, InterpreterLoaders, InterpretationOptions, InterpretationResult, JsonLoader } from './types'
 export type { ActionPlan } from '../../domain/rotationActions/types'

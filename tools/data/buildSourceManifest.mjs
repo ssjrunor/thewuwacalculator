@@ -18,7 +18,7 @@ export async function buildSourceManifest(mode) {
     ...packages.map((entry) => entry.source),
     ...sets.map((entry) => ({ type: 'echoSet', id: String(entry.id) })),
   ].sort((left, right) => `${left.type}:${left.id}`.localeCompare(`${right.type}:${right.id}`))
-  const featureIds = [...new Set(packages.flatMap((entry) =>
+  const featureIds = [...new Set([...packages, ...sets].flatMap((entry) =>
     (entry.features ?? []).map((feature) => feature.id)))].sort()
   await writeFile(join(root, 'source-manifest.json'), JSON.stringify({ sources, featureIds }))
 }

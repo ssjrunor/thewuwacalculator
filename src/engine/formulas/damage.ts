@@ -30,6 +30,7 @@ import {
   FIELD_DMG_BONUS,
   FIELD_DMG_VULN,
   FIELD_RES_SHRED,
+  FIELD_RES_IGNORE,
   type SkillRecord,
 } from '@/engine/formulas/skillRecord.ts'
 import {
@@ -475,7 +476,7 @@ export function resolveNumericEffectiveStats(
   const noEnemy = isNoEnemy(enemy)
   const resistance = noEnemy
     ? null
-    : getEnemyRes(enemy, skill.element) - layered('resShred')
+    : getEnemyRes(enemy, skill.element) - layered('resShred') - layered('resIgnore')
   const base: NumericEffectiveStats = {
     atk: numericFinal(lane, finalCoreCell('atk', 'final')),
     hp: numericFinal(lane, finalCoreCell('hp', 'final')),
@@ -509,7 +510,7 @@ export function resolveNumericEffectiveStats(
       critDmg: skill.archetype === 'tuneRupture' ? (skill.tuneRuptureCritDmg ?? 1) * 100 : 100,
       bonus: numericSkillType(lane, skill.archetype, 'dmgBonus'),
       amplify: 0,
-      defIgnore: type('defIgnore') + skillBuff('defIgnore'),
+      defIgnore: numericTop(lane, 'defIgnore') + layered('defIgnore'),
     }
   }
   if (NUMERIC_NEGATIVE_EFFECTS.includes(skill.archetype as NegEffectKey)) {
@@ -606,7 +607,7 @@ function runLoweredSkillDamage(
     : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
 
   const totalMultiplier =
-    (noEnemy ? 1 : resistMult(baseRes - field(FIELD_RES_SHRED))) *
+    (noEnemy ? 1 : resistMult(baseRes - field(FIELD_RES_SHRED) - field(FIELD_RES_IGNORE))) *
     defenseMult *
     (1 + field(FIELD_DMG_VULN) / 100) *
     (1 + field(FIELD_DMG_BONUS) / 100) *
@@ -731,7 +732,7 @@ function runNumericDamageKernel(
       ? 1
       : (800 + 8 * level) / (800 + 8 * level + Math.max(0, enemyDefense))
     const totalMultiplier =
-      (noEnemy ? 1 : resistMult(baseRes - numericLayer(lane, skill, 'resShred'))) *
+      (noEnemy ? 1 : resistMult(baseRes - numericLayer(lane, skill, 'resShred') - numericLayer(lane, skill, 'resIgnore'))) *
       defenseMult *
       (1 + (numericTop(lane, 'dmgVuln') + numericLayer(lane, skill, 'dmgVuln')) / 100) *
       (1 + (numericTop(lane, 'dmgBonus') + numericLayer(lane, skill, 'dmgBonus')) / 100) *
@@ -758,15 +759,14 @@ function runNumericDamageKernel(
       return
     }
     const kind = skill.archetype
-    const defIgnore = numericSkillTypes(lane, skill.skillType, 'defIgnore')
-      + (skill.skillBuffs?.defIgnore ?? 0)
+    const defIgnore = numericTop(lane, 'defIgnore') + numericLayer(lane, skill, 'defIgnore')
     const defShred = numericTop(lane, 'defShred') + numericLayer(lane, skill, 'defShred')
     const enemyDefense = ((8 * enemy.level) + 792) * defenseReduction(defIgnore, defShred)
     const defenseMult = (800 + 8 * level) /
       (800 + 8 * level + Math.max(0, enemyDefense))
     const maxOffTune = getEnemyMaxOffTune(enemy.class)
     const perHit =
-      resistMult(baseRes - numericLayer(lane, skill, 'resShred')) *
+      resistMult(baseRes - numericLayer(lane, skill, 'resShred') - numericLayer(lane, skill, 'resIgnore')) *
       defenseMult *
       (1 + (numericTop(lane, 'dmgVuln') + numericLayer(lane, skill, 'dmgVuln')) / 100) *
       maxOffTune *
@@ -796,7 +796,7 @@ function runNumericDamageKernel(
   const stackCount = skill.stackMode === 'fixedMax'
     ? skill.stackMax ?? getNegEffectDef(archetype)
     : stacks
-  const additional = archetype === 'electroFlare' && stacks > getNegEffectDef('electroFlare')
+  const additional = archetype === 'electroFlare'
     ? (combatState?.electroRage ?? 0)
     : 0
   if (stackCount <= 0 && additional <= 0) {

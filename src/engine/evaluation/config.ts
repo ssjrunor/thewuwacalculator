@@ -11,3 +11,6 @@ export const EVALUATION_SEARCH = {
 } as const
 
 export const EVALUATION_REPLAY_FRAMES = 16
+
+// stat vectors remembered per replay frame (exact repeats skip the program).
+export const EVALUATION_REPLAY_MEMO = 16384

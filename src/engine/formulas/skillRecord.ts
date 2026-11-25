@@ -20,12 +20,13 @@ import type { NegEffectKey } from '@/domain/entities/stats.ts'
 
 /** the layered modifiers a direct damage skill resolves, in kernel order. */
 export const SKILL_FIELDS = [
-  'resShred', 'defIgnore', 'defShred', 'dmgVuln', 'dmgBonus', 'amplify', 'critRate', 'critDmg',
+  'resShred', 'defIgnore', 'defShred', 'dmgVuln', 'dmgBonus', 'amplify', 'critRate', 'critDmg', 'resIgnore',
 ] as const
 
 export type SkillField = typeof SKILL_FIELDS[number]
 
 export const FIELD_RES_SHRED = 0
+export const FIELD_RES_IGNORE = 8
 export const FIELD_DEF_IGNORE = 1
 export const FIELD_DEF_SHRED = 2
 export const FIELD_DMG_VULN = 3
@@ -34,8 +35,8 @@ export const FIELD_AMPLIFY = 5
 export const FIELD_CRIT_RATE = 6
 export const FIELD_CRIT_DMG = 7
 
-/** `resShred` is the one layered field the sheet does not also carry. */
-const FIELD_HAS_TOP: readonly boolean[] = [false, true, true, true, true, true, true, true]
+/** resistance shred and ignore are layered fields without a top-level sheet stat. */
+const FIELD_HAS_TOP: readonly boolean[] = [false, true, true, true, true, true, true, true, false]
 
 export interface SkillRecord {
   /** only direct damage is lowered; anything else falls back to the object path. */

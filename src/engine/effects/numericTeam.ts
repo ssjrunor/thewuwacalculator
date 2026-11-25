@@ -701,7 +701,7 @@ function compileRuntimeProgram(
 }
 
 const skillModFields: readonly (keyof ModBuff)[] = [
-  'resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg',
+  'resShred', 'resIgnore', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg',
 ]
 const skillScalarFields = [
   'fixedDmg', 'offTune', 'directOffTune', 'skillHealingBonus', 'skillShieldBonus', 'tuneRuptureCritRate',
@@ -976,27 +976,14 @@ function executePrograms(
 }
 
 // derive source stats before dependent target effects read sourceFinalStats.
-function recomputeSourceLane(state: NumericTeamState, lane: number): void {
-  const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
-  state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
-  if (state.traceContributions) state.buildupRateTrace[lane]!.length = 0
-  clearImmunities(state, lane)
-  executePrograms(state, lane, 0, false)
-  deriveFinalPlane(
-    {
-      atk: state.baseStats[lane * 8] ?? 0, hp: state.baseStats[lane * 8 + 1] ?? 0,
-      def: state.baseStats[lane * 8 + 2] ?? 0, critRate: state.baseStats[lane * 8 + 3] ?? 0,
-      critDmg: state.baseStats[lane * 8 + 4] ?? 0, energyRegen: state.baseStats[lane * 8 + 5] ?? 0,
-      healingBonus: state.baseStats[lane * 8 + 6] ?? 0, tuneBreakBoost: state.baseStats[lane * 8 + 7] ?? 0,
-    },
-    state.weaponAttack[lane] ?? 0,
-    state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
-    state.sourceFinals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT),
-  )
+function recomputeSourceLane(state: NumericTeamState, lane: number, sourcesReady = false): void {
+  recomputeTargetLane(state, lane, sourcesReady)
+  const offset = lane * NUMERIC_FINAL_CELL_COUNT
+  state.sourceFinals.set(state.finals.subarray(offset, offset + NUMERIC_FINAL_CELL_COUNT), offset)
 }
 
 // apply runtime, post-stat, and final-stat stages in order, rebuilding only the planes each stage changes.
-function recomputeTargetLane(state: NumericTeamState, lane: number): void {
+function recomputeTargetLane(state: NumericTeamState, lane: number, sourcesReady = true): void {
   const poolOffset = lane * NUMERIC_POOL_CELL_COUNT
   state.pools.set(state.basePools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT), poolOffset)
   /*
@@ -1005,7 +992,7 @@ function recomputeTargetLane(state: NumericTeamState, lane: number): void {
   */
   if (state.traceContributions) state.buildupRateTrace[lane]!.length = 0
   clearImmunities(state, lane)
-  executePrograms(state, lane, 0, true)
+  executePrograms(state, lane, 0, sourcesReady)
   const base = {
     atk: state.baseStats[lane * 8] ?? 0, hp: state.baseStats[lane * 8 + 1] ?? 0,
     def: state.baseStats[lane * 8 + 2] ?? 0, critRate: state.baseStats[lane * 8 + 3] ?? 0,
@@ -1016,13 +1003,13 @@ function recomputeTargetLane(state: NumericTeamState, lane: number): void {
     state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
     state.preFinals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
   if (state.program.programsByStage[lane]?.[1]?.length) {
-    executePrograms(state, lane, 1, true)
+    executePrograms(state, lane, 1, sourcesReady)
     deriveFinalPlane(base, state.weaponAttack[lane] ?? 0,
       state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
       state.preFinals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
   }
   if (state.program.programsByStage[lane]?.[2]?.length) {
-    executePrograms(state, lane, 2, true)
+    executePrograms(state, lane, 2, sourcesReady)
     deriveFinalPlane(base, state.weaponAttack[lane] ?? 0,
       state.pools.subarray(poolOffset, poolOffset + NUMERIC_POOL_CELL_COUNT),
       state.finals.subarray(lane * NUMERIC_FINAL_CELL_COUNT, (lane + 1) * NUMERIC_FINAL_CELL_COUNT))
@@ -1057,21 +1044,30 @@ export function syncNumericTeam(state: NumericTeamState): void {
 function recomputeMask(state: NumericTeamState, sourceMask: number, targetMask: number): void {
   const laneCount = state.program.laneIds.length
   let expanded = targetMask
-  for (let lane = 0; lane < laneCount; lane += 1) {
-    if (!(sourceMask & (1 << lane))) continue
-    // skip source-final calculation when no target reads this lane.
-    const consumers = state.program.sourceFinalTargetMasks[lane] ?? 0
-    if (consumers === 0) continue
-    const offset = lane * NUMERIC_FINAL_CELL_COUNT
-    // source-final reads are sparse, such as Energy Regen; a
-    // changed HP or ATK value must not invalidate every recipient of ER.
-    const cells = state.program.sourceFinalCellsByLane[lane]!
-    const previous = Float64Array.from(cells, (cell) => state.sourceFinals[offset + cell]!)
-    recomputeSourceLane(state, lane)
-    for (let index = 0; index < cells.length; index += 1) {
-      const cell = cells[index]!
-      const mask = state.program.sourceFinalCellTargetMasks[offset + cell] ?? 0
-      if (!Object.is(previous[index], state.sourceFinals[offset + cell])) expanded |= mask
+  if (sourceMask) {
+    const previous = state.sourceFinals.slice()
+    // resolve dependent source stats too (e.g. Shorekeeper ER -> Qiuyuan CR -> team CD), since a source-only pass drops
+    // the intermediate recipient buff and loses the chain
+    const lanes = Array.from({ length: laneCount }, (_, lane) => lane)
+      .filter(lane => state.program.sourceFinalTargetMasks[lane])
+    for (const lane of lanes) recomputeSourceLane(state, lane)
+    let stable = false
+    for (let pass = 0; pass < laneCount * NUMERIC_FINAL_CELL_COUNT; pass++) {
+      const before = state.sourceFinals.slice()
+      for (const lane of lanes) recomputeSourceLane(state, lane, true)
+      stable = lanes.every(lane => state.program.sourceFinalCellsByLane[lane]!.every(cell => {
+        const index = lane * NUMERIC_FINAL_CELL_COUNT + cell
+        return Object.is(state.sourceFinals[index], before[index])
+      }))
+      if (stable) break
+    }
+    if (!stable) throw new Error('Source stat effects contain a non-convergent dependency cycle')
+    for (const lane of lanes) {
+      const offset = lane * NUMERIC_FINAL_CELL_COUNT
+      for (const cell of state.program.sourceFinalCellsByLane[lane]!) {
+        if (!Object.is(previous[offset + cell], state.sourceFinals[offset + cell]))
+          expanded |= state.program.sourceFinalCellTargetMasks[offset + cell] ?? 0
+      }
     }
   }
   for (let lane = 0; lane < laneCount; lane += 1) if (expanded & (1 << lane)) recomputeTargetLane(state, lane)

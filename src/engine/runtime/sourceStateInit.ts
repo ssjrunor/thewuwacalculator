@@ -367,6 +367,32 @@ export function maxEchoStts(runtime: ResRuntime): ResRuntime {
   }
 }
 
+// condition fields a maxed echo or echo-set state is resolved through.
+const ECHO_STATE_CONDITION_FIELDS = ['visibleWhen', 'enabledWhen', 'maxWhen', 'optionsWhen'] as const
+const ECHO_ID_PATH = /^build\.echoes\.\d+\.(id|set)$/
+
+function readsOnlyEchoIdentity(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(readsOnlyEchoIdentity)
+  if (!value || typeof value !== 'object') return true
+  const record = value as Record<string, unknown>
+  if ('path' in record && !(typeof record.path === 'string' && ECHO_ID_PATH.test(record.path))) return false
+  return Object.values(record).every(readsOnlyEchoIdentity)
+}
+
+/**
+ * true when maxEchoStts for these echoes depends only on their ids, sets, main flag and the runtime's controls, i.e.
+ * every main-echo and set state condition reads only echo ids or sets, which makes substat values irrelevant.
+ */
+export function echoStatesIgnoreSubstats(runtime: ResRuntime): boolean {
+  const mainEcho = getMainEchoS(runtime)
+  const states = [
+    ...(mainEcho ? listStatesFor(mainEcho.type, mainEcho.id) : []),
+    ...Object.keys(countEchoSets(runtime.build.echoes)).flatMap((setId) => listStatesFor('echoSet', setId)),
+  ]
+  return states.every((state) => ECHO_STATE_CONDITION_FIELDS.every((field) =>
+    readsOnlyEchoIdentity((state as unknown as Record<string, unknown>)[field])))
+}
+
 export function maxEchoIfChg(
   runtime: ResRuntime,
   previousEchoes?: ResRuntime['build']['echoes'],

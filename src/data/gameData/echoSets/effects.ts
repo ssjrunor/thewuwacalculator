@@ -9,6 +9,7 @@ import type {
   DataSrcRef,
   SrcOwnDef,
   SourceState,
+  FeatDef,
   EffectDef,
   EffectOp,
   FormExpr,
@@ -17,7 +18,7 @@ import type {
   BaseStatFld,
   TopBuffStatK,
 } from '@/domain/gameData/contracts.ts'
-import type { AttributeKey, SkillTypeKey } from '@/domain/entities/stats.ts'
+import type { AttributeKey, SkillTypeKey, SkillDef } from '@/domain/entities/stats.ts'
 
 type Buff = {
   value: number
@@ -57,6 +58,8 @@ export interface SetDef {
   fivePiece: Buff[] | null
   states: Record<string, StateEntry>
   parts: SetPart[]
+  skills?: SkillDef[]
+  features?: FeatDef[]
   extraEffects?: Array<{
     id: string
     label: string
@@ -591,6 +594,9 @@ function mkSetPkg(def: SetDef): SrcPkg {
       visibleWhen: setGte(def.id, pieceReq),
     })),
     effects,
+    skills: (def.skills ?? []).map(skill => ({ ...skill,
+      visibleWhen: skill.visibleWhen ? andCond(setGte(def.id, pieceReq), skill.visibleWhen) : setGte(def.id, pieceReq) })),
+    features: def.features ?? [],
   }
 }
 

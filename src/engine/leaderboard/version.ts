@@ -7,5 +7,5 @@
                rule data. a scorer refuses a ruleset built for other versions.
 */
 
-export const LEADERBOARD_ENGINE_VER = 'lb-engine-14'
-export const ROTATION_GEN_VER = 'rotation-gen-18'
+export const LEADERBOARD_ENGINE_VER = 'lb-engine-beta-9'
+export const ROTATION_GEN_VER = 'rotation-gen-beta-7'

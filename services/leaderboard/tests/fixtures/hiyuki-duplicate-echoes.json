@@ -1,0 +1,139 @@
+{
+  "v": 1,
+  "gameVer": "3.8/beta",
+  "uid": "700000001",
+  "name": null,
+  "resonator": {
+    "id": "1108",
+    "level": 90,
+    "sequence": 6,
+    "skillLevels": {
+      "normalAttack": 10,
+      "resonanceLiberation": 10,
+      "forteCircuit": 10,
+      "introSkill": 10,
+      "resonanceSkill": 10
+    }
+  },
+  "weapon": {
+    "id": "21020086",
+    "level": 90
+  },
+  "echoes": [
+    {
+      "slot": 0,
+      "id": "6000199",
+      "set": 30,
+      "mainEcho": true,
+      "main": {
+        "primary": {
+          "key": "critDmg",
+          "value": 44
+        },
+        "secondary": {
+          "key": "atkFlat",
+          "value": 150
+        }
+      },
+      "substats": {
+        "critRate": 6.9,
+        "atkPercent": 10.9,
+        "resonanceLiberation": 11.6,
+        "critDmg": 13.8,
+        "heavyAtk": 10.1
+      }
+    },
+    {
+      "slot": 1,
+      "id": "6000188",
+      "set": 30,
+      "mainEcho": false,
+      "main": {
+        "primary": {
+          "key": "glacio",
+          "value": 30
+        },
+        "secondary": {
+          "key": "atkFlat",
+          "value": 100
+        }
+      },
+      "substats": {
+        "resonanceSkill": 10.1,
+        "energyRegen": 9.2,
+        "atkPercent": 6.4,
+        "critRate": 6.9,
+        "critDmg": 15
+      }
+    },
+    {
+      "slot": 2,
+      "id": "6000187",
+      "set": 30,
+      "mainEcho": false,
+      "main": {
+        "primary": {
+          "key": "glacio",
+          "value": 30
+        },
+        "secondary": {
+          "key": "atkFlat",
+          "value": 100
+        }
+      },
+      "substats": {
+        "atkPercent": 8.6,
+        "defPercent": 13.8,
+        "critDmg": 15,
+        "critRate": 9.9,
+        "resonanceLiberation": 7.9
+      }
+    },
+    {
+      "slot": 3,
+      "id": "6000174",
+      "set": 30,
+      "mainEcho": false,
+      "main": {
+        "primary": {
+          "key": "atkPercent",
+          "value": 18
+        },
+        "secondary": {
+          "key": "hpFlat",
+          "value": 2280
+        }
+      },
+      "substats": {
+        "critDmg": 16.2,
+        "atkPercent": 7.9,
+        "hpPercent": 10.1,
+        "critRate": 6.9,
+        "heavyAtk": 8.6
+      }
+    },
+    {
+      "slot": 4,
+      "id": "6000174",
+      "set": 30,
+      "mainEcho": false,
+      "main": {
+        "primary": {
+          "key": "atkPercent",
+          "value": 18
+        },
+        "secondary": {
+          "key": "hpFlat",
+          "value": 2280
+        }
+      },
+      "substats": {
+        "critRate": 7.5,
+        "atkPercent": 6.4,
+        "resonanceLiberation": 9.4,
+        "critDmg": 13.8,
+        "defPercent": 10.9
+      }
+    }
+  ]
+}

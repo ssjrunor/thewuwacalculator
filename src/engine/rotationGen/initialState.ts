@@ -5,6 +5,8 @@
 
 import type { ScenarioTeamMember } from '../../domain/entities/combatScenario'
 import type { RuntimeRecord } from './types'
+import { bindResonatorReferences, mapResonatorNamespaces, roverIdentityResolver } from '../../domain/entities/roverIdentityBinding'
+import { canonicalResonatorId } from '../../domain/rotationActions/identities'
 
 export type InitialStateValue = boolean | number | string
 export interface InitialStateBinding {
@@ -14,26 +16,13 @@ export interface InitialStateBinding {
 }
 
 /** keep opaque action/packet ids stable; remap only qualified resonator namespaces. */
-export function rebindRuleIdentity(source: RuntimeRecord, requested: string): RuntimeRecord {
+export function rebindRuleIdentity(source: RuntimeRecord, requested: string, teamIds: readonly string[] = [requested]): RuntimeRecord {
   const from = String(source.resonatorId)
-  const mapString = (value: string) => value.replace(/(^|[:.@/-])(\d{4})(?=$|[:.@/-])/g,
-    (match, prefix: string, id: string) => id === from ? `${prefix}${requested}` : match)
-  // numeric replacement is limited to identity fields; unrelated action, packet, and effect numbers stay stable.
-  const ownerFields = new Set(['source', 'owner', 'ownerId', 'resonatorId', 'ownerOnly', 'ownerExcept', 'targetOwner'])
-  const visit = (value: unknown, field = ''): unknown => {
-    if (typeof value === 'string') return mapString(value)
-    if (typeof value === 'number' && value === Number(from) && ownerFields.has(field)) return Number(requested)
-    if (Array.isArray(value)) return value.map(item => visit(item, field))
-    if (value && typeof value === 'object') {
-      const record = value as RuntimeRecord
-      const identityCondition = ['event.actor', 'ownerId', 'team.activeResonatorId'].includes(record.path ?? record.left?.path)
-      return Object.fromEntries(Object.entries(value).map(([key, item]) => [mapString(key),
-        key === 'value' && identityCondition && item === Number(from) ? Number(requested) : visit(item, key)]))
-    }
-    return value
-  }
-  // retain the source form for later control-path rebinding after the requested form replaces the rule identity.
-  const result = visit(source) as RuntimeRecord
+  // library callers may request both forms independently: the current member selects its own form, and other elements
+  // use their team-wide binding
+  const resolveTeam = roverIdentityResolver([...teamIds.filter(id =>
+    canonicalResonatorId(id) !== canonicalResonatorId(requested)), requested])
+  const result = bindResonatorReferences(source, id => id === from ? requested : resolveTeam(id))
   result.resonatorId = Number(requested)
   result.sourceResonatorId = Number(from)
   return result
@@ -53,7 +42,5 @@ export function initialCharacterState(rules: RuntimeRecord, member: ScenarioTeam
 }
 
 export function rebindControlPath(path: string, rules: RuntimeRecord): string {
-  const from = String(rules.sourceResonatorId ?? rules.resonatorId)
-  return path.replace(/(^|[:.@/-])(\d{4})(?=$|[:.@/-])/g,
-    (match, prefix: string, id: string) => id === from ? `${prefix}${rules.resonatorId}` : match)
+  return mapResonatorNamespaces(path, roverIdentityResolver([rules.resonatorId]))
 }

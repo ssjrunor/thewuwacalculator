@@ -87,7 +87,7 @@ const mnlModSchm = z.lazy(() => z.union([
     label: z.optional(z.string()),
     scope: z.literal('attribute'),
     attribute: z.enum(['all', 'aero', 'glacio', 'spectro', 'fusion', 'electro', 'havoc', 'physical']),
-    mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
+    mod: z.enum(['resShred', 'resIgnore', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
   }),
   z.strictObject({
@@ -96,7 +96,7 @@ const mnlModSchm = z.lazy(() => z.union([
     label: z.optional(z.string()),
     scope: z.literal('skillType'),
     skillType: skillTypeSchema,
-    mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
+    mod: z.enum(['resShred', 'resIgnore', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
   }),
   z.strictObject({
@@ -119,7 +119,7 @@ const mnlModSchm = z.lazy(() => z.union([
     skillType: z.optional(skillTypeSchema),
     archetype: z.optional(z.string()),
     effect: z.literal('mod'),
-    mod: z.enum(['resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
+    mod: z.enum(['resShred', 'resIgnore', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln', 'critRate', 'critDmg']),
     value: z.number(),
   }),
   z.strictObject({

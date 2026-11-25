@@ -349,6 +349,7 @@ export function makeEvaluationOverviewStats({
 
 const INVARIANT_MOD_LABELS: Record<keyof ModBuff, string> = {
   resShred: 'RES Shred',
+  resIgnore: 'RES Ignore',
   dmgBonus: 'DMG Bonus',
   amplify: 'Amplify',
   defIgnore: 'DEF Ignore',

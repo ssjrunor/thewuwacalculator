@@ -43,7 +43,8 @@ export const SLOT_SPACING = 374
 export const BUILD_REGIONS = {
   // the name region includes the level badge on the same line.
   resonatorName: { x: 68, y: 18, width: 700, height: 62 },
-  // begin below the name glyphs to exclude adjacent letters.
+  // start below the name glyphs to exclude adjacent letters; this is the shortest read, and a longer name
+  // ("TheRealFrank" runs to x 228) widens it to its own last letter (PLAYER_NAME)
   playerId: { x: 18, y: 88, width: 200, height: 25 },
   uid: { x: 18, y: 113, width: 200, height: 25 },
   weaponName: { x: 1600, y: 444, width: 284, height: 46 },
@@ -59,6 +60,21 @@ export const BUILD_REGIONS = {
 
 // catalog weapon icon bounds measured from reference cards.
 export const WEAPON_ICON = { x: 1468, y: 454, size: 116 } as const
+
+// the name starts where the fixed "Player ID:" label ends and runs to the first wide gap in its gold ink; bright
+// non-gold pixels inside that span are portrait art behind the letters (rebecca's gun): 12.3% of the span on that
+// card, at most 2.1% on every other bench card at full size and 4.8% through a 1120 wide jpeg
+export const PLAYER_NAME = {
+  x: 106,
+  maxX: 348,
+  y: 88,
+  height: 25,
+  endGap: 14,
+  // room past the last ink column for the letter's soft edge
+  tail: 6,
+  artMinBright: 140,
+  maxArtShare: 0.07,
+} as const
 
 export const SEQUENCE_CENTERS = [189, 268, 347, 426, 505, 585] as const
 export const SEQUENCE_SAMPLE = { y: 570, size: 11 } as const

@@ -26,6 +26,8 @@ const EVALUATION_SPINE_PLACEMENTS: Record<string, SpinePlacement> = {
   '1207': { x: defaults.x, y: defaults.y + 148, scale: defaults.scale },
   '1510': { x: 2017.173, y: defaults.y + 150, scale: defaults.scale },
   '1312': { x: defaults.x, y: defaults.y - 250, scale: defaults.scale },
+  '1308': { x: defaults.x, y: defaults.y + 350, scale: defaults.scale },
+  '1512': { x: defaults.x + 250, y: defaults.y + 50, scale: defaults.scale },
 }
 
 export function getEvaluationSpinePlacement(resId: string | null): SpinePlacement {

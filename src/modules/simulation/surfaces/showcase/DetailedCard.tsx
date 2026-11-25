@@ -97,6 +97,7 @@ export const DetailedCard = memo(function DetailedCard({
   onEchoOpen,
   echoSelection,
   blank,
+  holder,
 }: {
   model: BuildRailModel
   build: ShowcaseBuildModel
@@ -116,12 +117,16 @@ export const DetailedCard = memo(function DetailedCard({
   onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
+  /** another player's name and UID, replacing the viewer's own. */
+  holder?: { name: string | null; uid: string | null }
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef<HTMLDivElement>(null)
   const ribbonRef = useRef<HTMLSpanElement>(null)
-  const playerId = useAppStore((state) => state.ui.preferences.playerId)
-  const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
+  const ownId = useAppStore((state) => state.ui.preferences.playerId)
+  const ownUid = useAppStore((state) => state.ui.preferences.playerUid)
+  const playerId = holder ? holder.name : ownId
+  const playerUid = holder ? holder.uid : ownUid
   const relStats = useMemo(() => makeRelStats(build.charId), [build.charId])
   const showRel = !hidden.relStats
   const slots = useMemo(() => Array.from({ length: 5 }, (_, slot) => build.echoes[slot] ?? null), [build.echoes])

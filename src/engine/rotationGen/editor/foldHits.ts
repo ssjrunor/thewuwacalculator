@@ -125,6 +125,8 @@ export function foldRepeats(items: RuntimeValue[]): { items: RuntimeValue[], fol
     const previous = out.at(-1)
     if (!counted[index] && foldable(node) && foldable(previous) && !node.offTuneResume &&
       previous.featureId === node.featureId && String(previous.resonatorId) === String(node.resonatorId) &&
+      // ticks at different negative-effect stack counts deal different damage
+      previous.negativeEffectStacks === node.negativeEffectStacks &&
       attachmentKey(previous) === attachmentKey(node) &&
       (previous.enabled !== false) === (node.enabled !== false)) {
       out[out.length - 1] = { ...previous, multiplier: (previous.multiplier ?? 1) + (node.multiplier ?? 1) }

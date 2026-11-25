@@ -5,7 +5,7 @@
                it into the envelope, so no handler builds error bodies itself.
 */
 
-import type { ApiError } from '@/domain/leaderboard/api'
+import type { ApiError } from '@lb/contract/api'
 
 export type ErrorCode = ApiError['error']['code']
 
@@ -13,7 +13,7 @@ const STATUS: Record<ErrorCode, number> = {
   bad_link: 400, not_kuro: 400, fetch_failed: 502, too_large: 413, bad_image: 422,
   not_fresh: 403, uid_unreadable: 422, unreadable: 422, incomplete_build: 422, read_failed: 503, opted_out: 403, blocked: 403,
   duplicate: 409, rate_limited: 429, unauthorized: 401, forbidden: 403, not_found: 404,
-  bad_request: 400, turnstile_failed: 403, internal: 500,
+  bad_request: 400, turnstile_failed: 403, internal: 500, suspended: 403, muted: 403,
 }
 
 export class HttpError extends Error {
@@ -66,7 +66,7 @@ export function preflight(request: Request, appOrigin: string): Response {
   if (request.headers.get('origin') === appOrigin) {
     headers.set('access-control-allow-origin', appOrigin)
     headers.set('access-control-allow-credentials', 'true')
-    headers.set('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+    headers.set('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
     headers.set('access-control-allow-headers', 'content-type')
   }
   return new Response(null, { status: 204, headers })
@@ -76,13 +76,13 @@ export function preflight(request: Request, appOrigin: string): Response {
 export async function readJsonBody<T>(request: Request, maxBytes = 16_384): Promise<T> {
   // the existing limit counts decoded string characters; accepted JSON must be a non-null object, excluding arrays.
   const text = await request.text()
-  if (text.length > maxBytes) throw new HttpError('bad_request', 'request body too large', 413)
+  if (text.length > maxBytes) throw new HttpError('bad_request', "woah... those details are too long to save. shorten them and try again :P", 413)
   try {
     const value = JSON.parse(text)
     if (value == null || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object')
     return value as T
   } catch {
-    throw new HttpError('bad_request', 'request body is not a json object')
+    throw new HttpError('bad_request', "oopsies... the request wasn't sent in a format we can read. refresh the page and try again.")
   }
 }
 

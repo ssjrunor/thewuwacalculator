@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
 import { LINKS, SIMULATION_PAGES } from '@/application/navigation/appIndex'
-import type { SimulationPageId } from '@/application/navigation/appIndex'
+import { APP_NAVIGATION } from '@/shared/lib/appRoutes'
 import { AppGoRun } from '@/app/shell/AppGoRun'
 import type { GoStop } from '@/app/shell/AppGoRun'
 import { AppStamp } from '@/app/shell/AppStamp'
@@ -16,18 +16,19 @@ import { AxLink } from '@/shared/navigation/useNavX'
 import { LinkGlyph } from '@/app/shell/linkGlyphs'
 import { AppDrawer } from '@/app/shell/AppDrawer'
 import { Tooltip } from '@/shared/ui/Tooltip'
+import { LbHeadTools } from '@/modules/leaderboard/chrome/HeadTools'
 
-const SIMULATION_STOPS: GoStop[] = SIMULATION_PAGES.map((page) => ({
-  key: page.id,
-  name: page.name,
-  to: page.to,
-}))
+// header stops: the simulation surfaces, then the leaderboard as its own stop
+const HEAD_STOPS: GoStop[] = [
+  ...SIMULATION_PAGES.map((page) => ({ key: page.id, name: page.name, to: page.to })),
+  { key: 'leaderboard', name: APP_NAVIGATION.leaderboard.name, to: APP_NAVIGATION.leaderboard.to },
+]
 
 // a single discriminator makes drawer and theme popups mutually exclusive.
 type HeadPop = 'drawer' | 'theme' | null
 
 interface ChromeHeaderProps {
-  at: SimulationPageId | null
+  at: string | null
   stamp?: () => void
   tools?: ReactNode
   onPort: (node: HTMLElement | null) => void
@@ -45,12 +46,13 @@ export function ChromeHeader({ at, stamp, tools, onPort }: ChromeHeaderProps) {
 
       <span className="ax-sep" aria-hidden="true" />
 
-      <AppGoRun stops={SIMULATION_STOPS} at={at} />
+      <AppGoRun stops={HEAD_STOPS} at={at} />
 
       <div className="ax-tail">
         <div className="ax-port" ref={onPort} />
 
         <div className="ax-ctl">
+          <LbHeadTools />
           {tools}
 
           <ThemeDrop

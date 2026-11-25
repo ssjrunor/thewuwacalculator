@@ -57,6 +57,7 @@ export interface BaseStatBuff {
 
 export interface ModBuff {
   resShred: number
+  resIgnore: number
   dmgBonus: number
   amplify: number
   defIgnore: number

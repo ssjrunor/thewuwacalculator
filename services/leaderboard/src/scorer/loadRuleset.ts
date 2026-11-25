@@ -3,7 +3,7 @@
   description: loads and caches verified ruleset scoring sessions per Worker isolate.
 */
 
-import { openRuleset, openScoringSession, type RulesetFiles, type ScoringSession } from '@/engine/leaderboard'
+import { openRuleset, openScoringSession, type RulesetFiles, type ScoringSession } from '@lb/scoring'
 import { getRuleset, rulesetKey } from '../db/rulesets.ts'
 import type { ScorerEnv } from '../env.ts'
 

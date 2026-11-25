@@ -11,8 +11,46 @@ import { prepareResSimulation } from '@/engine/pipeline'
 import { executeRotationProgram, executeRotationScore, prepareRotationProgram, prepareRunEnv } from '@/engine/rotation/execute'
 import { compilePortableRotation } from '@/engine/rotation/portable/compiler'
 import { executeScalarProgram } from '@/engine/rotation/portable/ir'
+import { makeOptContext } from '@/engine/search/context/compiled'
 
 describe('Hack formula execution parity', () => {
+  it.each([['1308', 'damage:1411098', 'hack'], ['1511', 'damage:1511038', 'hack'],
+    ['1509', 'damage:1509032', 'tuneRupture']] as const)(
+    'applies general and matching DEF Ignore to %s through detailed, rowless and portable execution', (id, featureId, kind) => {
+      const score = (enabled: boolean) => {
+        const seed = getResSeedBy(id)!, runtime = makeResRuntime(seed)
+        runtime.base.level = 90
+        runtime.build.echoes = [null, null, null, null, null]
+        runtime.state.manualBuffs.modifiers.push({ id: 'unrelated-amp', enabled: true,
+          scope: 'topStat', stat: 'amplify', value: 25 })
+        if (enabled) runtime.state.manualBuffs.modifiers.push(
+          { id: 'global-ignore', enabled: true, scope: 'topStat', stat: 'defIgnore', value: 15 },
+          { id: 'typed-ignore', enabled: true, scope: 'skillType', skillType: kind, mod: 'defIgnore', value: 10 },
+          { id: 'all-ignore', enabled: true, scope: 'skillType', skillType: 'all', mod: 'defIgnore', value: 5 },
+        )
+        const enemy = makeEnemy()
+        const { context } = prepareResSimulation(runtime, seed, enemy)
+        const env = prepareRunEnv(context, seed)
+        const items: RotationNode[] = [{ id: 'hit', type: 'feature', featureId }]
+        const program = prepareRotationProgram(items)
+        const detailed = executeRotationProgram(env, program)
+        const exact = detailed.entries.reduce((sum, entry) => sum + entry.avg, 0)
+        expect(exact).toBeGreaterThan(0)
+        expect(detailed.entries[0]!.effectiveStats?.defIgnore).toBe(enabled ? 30 : 0)
+        const compiled = makeOptContext({ resonatorId: id, runtime, skill: detailed.entries[0]!.skill,
+          finalStats: context.finalStats, enemy, combatState: runtime.state.combat })
+        expect(compiled.statAmp).toBe(0)
+        const defense = (8 * enemy.level + 792) * (1 - (enabled ? 30 : 0) / 100)
+        expect(compiled.defMult).toBeCloseTo(1520 / (1520 + defense), 10)
+        expect(executeRotationScore(env, program).total.avg).toBeCloseTo(exact, 7)
+        const portable = compilePortableRotation(env, items, [], new Set(['hit|0']), {}, undefined, undefined, { echoCount: 0 })
+        expect(executeScalarProgram(portable.scalar, new Float64Array(portable.scalar.inputCount))[0]).toBeCloseTo(exact, 7)
+        return exact
+      }
+      expect(score(true)).toBeGreaterThan(score(false))
+    },
+  )
+
   it.each([['1308', 'damage:1411098'], ['1511', 'damage:1511038']])(
     'keeps %s Hack separate from amplification and Tune Rupture buffs in every executor', (id, featureId) => {
       const score = (amplify: number, ownBonus = 0, ruptureBonus = 0) => {

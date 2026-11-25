@@ -20,14 +20,17 @@ export type ActionStep = { id: string; type: 'swap'; fromSlot: number; toSlot: n
  *  - `section`: index
  *  - `swap`: the seat that takes the field
  *  - `cast`: seat, action name (`#echo` the equipped Echo, `#tuneBreak` the break), hits that landed
- *    (-1: all) and, when only some did, the share of the cast's multiplier they carry
+ *    (-1: all) and, when only some did, the share of the cast's multiplier they cover;
+ *    optional landed event indices and their hit offsets on the reference fight clock
  *  - `state`: owner seat, kit effect name, stacks (0 ends it), target seat (-1 team, -2 enemy)
  *  - `status`: seat, negative status key, stacks
- *  - `tick`: seat, negative status key
+ *  - `tick`: seat, negative status key, optional hit-local stack count
  *  - `heal`/`shield`: the seat that heals or shields
  *  - `control`: calculator path, value
  *  - `hitControl`: actor seat, cast name, damage-event ordinal, control owner
  *    seat, editor control path, JSON value; scoped to that hit's features
+ *  - `hitInfliction`: actor seat, cast name, damage-event ordinal, inflictor seat,
+ *    status key and stacks; a conversion observed after its input bank was cleared
  */
 export type TimelineEvent =
   | [number, 'section', number]
@@ -35,13 +38,17 @@ export type TimelineEvent =
   | [number, 'cast', number, string, number]
   | [number, 'cast', number, string, number, number | null]
   | [number, 'cast', number, string, number, number | null, number[]]
+  | [number, 'cast', number, string, number, number | null, number[], number[]]
+  | [number, 'cast', number, string, number, number | null, number[], number[], number]
   | [number, 'state', number, string, number, number]
   | [number, 'status', number, string, number]
   | [number, 'tick', number, string]
+  | [number, 'tick', number, string, number]
   | [number, 'heal' | 'shield', number]
   | [number, 'control', string, number]
   | [number, 'consume', number, string, number, string]
   | [number, 'hitControl', number, string, number, number, string, string]
+  | [number, 'hitInfliction', number, string, number, number, string, number]
 
 export interface ActionTimeline {
   seconds: number

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { EchoDef } from '@/domain/entities/catalog'
-import { artAgrees, pickEchoAndSet } from '@/engine/echoParser/echoPick'
+import { artAgrees, clearSet, pickByAgreement, pickEchoAndSet } from '@/engine/echoParser/echoPick'
 
 const catalog = [
   { name: 'Mining Drone', cost: 1, sets: [25, 26] },
@@ -94,5 +94,39 @@ describe('art agreement', () => {
   it('keeps a pick when any form agrees, and drops one with no form', () => {
     expect(artAgrees([{ lum: 0.1, edge: 0, hue: 0 }, { lum: 0.6, edge: 0.3, hue: 0.5 }])).toBe(true)
     expect(artAgrees([])).toBe(false)
+  })
+})
+
+describe('art rescue', () => {
+  const fae = { name: 'Fae Ignis', cost: 1, sets: [30] } as EchoDef
+  const chop = { name: 'Chop Chop: Headless', cost: 1, sets: [30] } as EchoDef
+  const blade = { name: 'Twin Nova: Collapsar Blade', cost: 3, sets: [26] } as EchoDef
+
+  it('takes the glyph set only when it leads the next mark clearly', () => {
+    expect(clearSet([{ name: 'Eternal Radiance', score: 941 }, { name: 'Gusts of Welkin', score: 26558 }])).toBe('Eternal Radiance')
+    expect(clearSet([{ name: 'Eternal Radiance', score: 941 }, { name: 'Gusts of Welkin', score: 1200 }])).toBeNull()
+    expect(clearSet([])).toBeNull()
+    // scores are distances: a perfect match (0) is the clearest glyph, and two perfect matches tie
+    expect(clearSet([{ name: 'Eternal Radiance', score: 0 }, { name: 'Gusts of Welkin', score: 1200 }])).toBe('Eternal Radiance')
+    expect(clearSet([{ name: 'Eternal Radiance', score: 0 }, { name: 'Gusts of Welkin', score: 0 }])).toBeNull()
+  })
+
+  it('names the one echo whose art agrees outright', () => {
+    const pick = pickByAgreement([
+      { echo: chop, forms: [{ lum: 0.05, edge: -0.01, hue: 0.56 }] },
+      { echo: fae, forms: [{ lum: 0.61, edge: 0.42, hue: 0.98 }] },
+    ], 'Eternal Radiance')
+    expect(pick).toEqual({ echoName: 'Fae Ignis', setName: 'Eternal Radiance', cost: 1 })
+  })
+
+  it('never takes a recolour sibling that only clears the plain floor', () => {
+    expect(pickByAgreement([{ echo: blade, forms: [{ lum: 0.32, edge: 0.15, hue: 0.39 }] }], 'Rite')).toBeNull()
+  })
+
+  it('leaves the slot when a second echo also agrees', () => {
+    expect(pickByAgreement([
+      { echo: fae, forms: [{ lum: 0.61, edge: 0.42, hue: 0.98 }] },
+      { echo: chop, forms: [{ lum: 0.4, edge: 0.12, hue: 0.2 }] },
+    ], 'Eternal Radiance')).toBeNull()
   })
 })

@@ -26,7 +26,7 @@ const base64UrlJson = (value: string): Record<string, unknown> =>
 async function teamKeys(team: string, fetchImpl: typeof fetch): Promise<Map<string, CryptoKey>> {
   if (keyCache && keyCache.team === team && Date.now() - keyCache.at < KEY_TTL_MS) return keyCache.keys
   const response = await fetchImpl(`https://${team}/cdn-cgi/access/certs`)
-  if (!response.ok) throw new HttpError('internal', 'access keys unavailable')
+  if (!response.ok) throw new HttpError('internal', "oopsies... staff sign-in could not be verified right now. try again in a little while.")
   const { keys } = await response.json() as { keys: Jwk[] }
   const imported = new Map<string, CryptoKey>()
   for (const jwk of keys) {

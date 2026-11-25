@@ -38,7 +38,7 @@ export function createCharacterRuleLibrary(
         const id = ruleId(requested)
         if (!this.has(id)) throw new Error(`Missing character translation ${requested}`)
         const ruleset = validateCharacterRules(await readCharacter(id) as RuntimeRecord)
-        return [String(requested), { ...rebindRuleIdentity(ruleset, String(requested)), mode, codes }]
+        return [String(requested), { ...rebindRuleIdentity(ruleset, String(requested), ids), mode, codes }]
       })))
     },
   }

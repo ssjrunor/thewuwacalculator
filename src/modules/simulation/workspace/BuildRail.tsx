@@ -144,6 +144,7 @@ export const BuildRail = memo(function BuildRail({
   onEchoOpen,
   echoSelection,
   blank,
+  holder,
   autoImageContrast,
   layout = 'classic',
 }: {
@@ -178,6 +179,7 @@ export const BuildRail = memo(function BuildRail({
   onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
+  holder?: { name: string | null; uid: string | null }
   autoImageContrast: boolean
   layout?: ShowcaseLayout
 }) {
@@ -448,6 +450,7 @@ export const BuildRail = memo(function BuildRail({
             onEchoOpen={editable && railResId && railModel.runtime ? onEchoOpen : undefined}
             echoSelection={echoSelection}
             blank={blank}
+            holder={holder}
           />
         ) : null}
         {isShowcase && showcaseBuild && !detailed ? (

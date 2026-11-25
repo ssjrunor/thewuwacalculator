@@ -9,21 +9,24 @@ import { listChsByCos } from '@/data/catalog/echoCatalogService'
 import { getResSeedBy, listResSds } from '@/data/catalog/resonatorSeedService'
 import { makeEnemy, makeResRuntime, makeTeamMember } from '@/engine/runtime/defaults'
 import { makeRuntimeMap, runtimeFromSnapshot } from '@/engine/runtime/runtimeAdapters'
-import { initWpnStts } from '@/engine/runtime/sourceStateInit'
+import { initWpnStts, maxEchoStts } from '@/engine/runtime/sourceStateInit'
 import { catWpnAtk } from '@/engine/runtime/weaponState'
 import { maxResRt } from '@/engine/gameData/resonatorMax'
 import { getResDtlsBy } from '@/data/gameData/resonators/resonatorDataStore'
+import { listResFeats, listResRttn } from '@/data/catalog/gameDataService'
+import type { RotationNode } from '@/domain/gameData/contracts'
 import type { ResProf } from '@/domain/entities/profile'
 import type { EchoInstance } from '@/domain/entities/runtime'
-import { runResSmlt } from '@/engine/pipeline'
+import { runDetailedResRotation, runResSmlt } from '@/engine/pipeline'
+import { sumRotTtls } from '@/engine/pipeline/rotationTotals'
 import { sumOptRotDmg } from '@/engine/search/score/eligibility'
 import { mkSuggMainEc, mkSuggVltnCt } from '@/engine/suggestions/shared'
 import type { SuggestContext } from '@/engine/suggestions/types'
 import { ECHO_MAIN_STATS, ECHO_SIDE_STATS, getSbstStepP } from '@/data/gameData/catalog/echoStats'
 import { assembleEvaluation, buildEvaluation, buildEvaluationAnchors, evaluationErTarget } from '@/engine/evaluation/search.ts'
 import { findUsefulStatImpacts, makeEvaluationEchoFrame, preservedMainEchoFor } from '@/engine/evaluation/echoDiscovery.ts'
-import { prepareRotationBuildScore, rotationBuildEvaluationScore, evaluationAnchorCacheKey } from '@/engine/evaluation/report.ts'
-import { makeEvaluationOverviewStats, sumEncodedEnergyRegen } from '@/engine/evaluation/stats.ts'
+import { evaluateProgramBuild, prepareRotationBuildScore, rotationBuildEvaluationScore, evaluationAnchorCacheKey } from '@/engine/evaluation/report.ts'
+import { addStatTotal, makeEvaluationOverviewStats, sumEncodedEnergyRegen } from '@/engine/evaluation/stats.ts'
 import { REFERENCE_STEP_MODEL, tierStepIncreases } from '@/engine/evaluation/stepAllocation'
 import { resolveEvaluationStats, scoreStats } from '@/engine/evaluation/scoring.ts'
 import { CTX_FLOATS, ECHO_STAT_STRIDE, MAIN_BUFF_LEN, MV, SET_MASK, SKILL_ID } from '@/engine/search/layout/constants'
@@ -42,6 +45,7 @@ import { computeShowcaseAnalysis, type ShowcaseAnalysisProgress } from '../showc
 import { computeShowcaseStats } from '../showcaseStats'
 import { makeEchoMainStatProfileKey } from '../echoMainStatProfile'
 import * as evaluationReport from '../report'
+import * as evaluationSearch from '../search'
 
 function buildInvariantEchoes(subKey: string): Array<EchoInstance | null> {
   // keep cost and main-stat structure stable while swapping one rolled substat
@@ -347,6 +351,81 @@ describe('evaluation scoring invariants', () => {
       referenceDamage: complete.evaluation.referenceDamage,
       maximumDamage: complete.evaluation.maximumDamage,
     } : null)
+    const rotation = seed.rotations?.[0] ?? listResRttn(runtime.id)[0]
+    const fromProgram = evaluateProgramBuild(input, { items: rotation.items })
+    expect(fromProgram).toEqual(complete ? {
+      damage: complete.evaluation.userDamage, score: complete.evaluation.percent * 100,
+      anchors: { baselineDamage: complete.evaluation.baselineDamage,
+        benchDamage: complete.evaluation.referenceDamage, perfectDamage: complete.evaluation.maximumDamage },
+    } : null)
+  }, 60_000)
+
+  it('replays saved-program Snowfall activation and expiry for equipped and reference builds', () => {
+    const seed = getResSeedBy('1108')!
+    let runtime = applyEvaluationAsm(makeResRuntime(seed))
+    const used = new Set<string>()
+    runtime.build.echoes = [4, 3, 3, 1, 1].map((cost, slot) => {
+      const echo = listChsByCos(cost).find(entry => entry.sets.includes(30) && !used.has(entry.id))!
+      used.add(echo.id)
+      return echoSlot(echo.id, 30, slot === 0,
+        { key: cost === 4 ? 'critDmg' : 'atkPercent', value: cost === 4 ? 44 : cost === 3 ? 30 : 18 },
+        { ...ECHO_SIDE_STATS[cost] }, { critRate: 6.3, critDmg: 13.8, ...(slot === 0 ? { energyRegen: 9.2 } : {}) })
+    })
+    runtime = maxEchoStts(runtime)
+    for (const key of ['snowfall', 'snowfallCrit', 'snowfallOutro']) runtime.state.controls[`echoSet:30:bonus:${key}`] = false
+    const feature = listResFeats(seed.id).find(entry => entry.skillId === '1108023')!
+    const items: RotationNode[] = [
+      { id: 'before-snowfall', type: 'feature', resonatorId: seed.id, featureId: feature.id },
+      { id: 'activate-snowfall', type: 'condition', changes: [
+        { type: 'set', path: 'runtime.state.controls.echoSet:30:bonus:snowfallCrit', value: true },
+      ] },
+      { id: 'during-snowfall', type: 'feature', resonatorId: seed.id, featureId: feature.id, multiplier: 20 },
+      { id: 'expire-snowfall', type: 'condition', changes: [
+        { type: 'set', path: 'runtime.state.controls.echoSet:30:bonus:snowfallCrit', value: false },
+      ] },
+      { id: 'after-snowfall', type: 'feature', resonatorId: seed.id, featureId: feature.id },
+    ]
+    const runtimesById = makeRuntimeMap(runtime)
+    const direct = runDetailedResRotation(runtime, seed, EVALUATION_ENEMY, runtimesById, {}, { items })
+    expect(direct.entries).toHaveLength(3)
+    expect(direct.entries[1].effectiveStats!.critRate! - direct.entries[0].effectiveStats!.critRate!).toBeCloseTo(25)
+    expect(direct.entries[2].avg).toBeCloseTo(direct.entries[0].avg, 6)
+    const search = vi.spyOn(evaluationSearch, 'buildEvaluationAnchors')
+    try {
+      const evaluation = evaluateProgramBuild({
+        scenarioId: combatScenarioId('evaluation:timed-snowfall'), memberId: teamMemberId(seed.id),
+        runtime, enemy: EVALUATION_ENEMY, runtimesById,
+      }, { items })
+      expect(evaluation).not.toBeNull()
+      expect(evaluation!.damage / sumRotTtls(direct.entries, { normalizeLoops: false }).avg).toBeCloseTo(1, 7)
+      const [context] = search.mock.calls.at(-1)!
+      const anchors: ReturnType<typeof buildEvaluationAnchors> = search.mock.results.at(-1)!.value
+      if (!anchors) throw new Error('Missing saved-program reference anchors')
+      for (const key of ['referenceBuild', 'maximumBuild'] as const) {
+        const build = anchors.builds[key]
+        const main = build.primaryStats.find(stat => stat.key === 'critRate' || stat.key === 'critDmg')!
+        const frame = makeEvaluationEchoFrame(context, build.echoes, mkSuggMainEc(context, build.echoes))
+        const alternative = build.stats.slice()
+        addStatTotal(alternative, main.key, -main.value)
+        addStatTotal(alternative, main.key === 'critRate' ? 'critDmg' : 'critRate', main.key === 'critRate' ? 44 : 22)
+        // a retained reference beats its other Crit main after the same program activates Snowfall, which packed-only
+        // ranking misses
+        expect(frame.score(build.stats)).toBeGreaterThanOrEqual(frame.score(alternative) - 0.01)
+        if (key === 'maximumBuild') {
+          for (const source of build.substats.filter(stat => stat.key !== 'energyRegen' && stat.count > 0)) {
+            for (const target of ['critRate', 'critDmg', 'atkPercent', 'atkFlat', 'resonanceLiberation']) {
+              if (source.key === target || (build.substats.find(stat => stat.key === target)?.count ?? 0) >= 5) continue
+              const exchanged = build.stats.slice()
+              addStatTotal(exchanged, source.key, -source.rollValue)
+              addStatTotal(exchanged, target, getSbstStepP(target).at(-1)!)
+              expect(frame.score(build.stats), `${source.key} -> ${target}`).toBeGreaterThanOrEqual(frame.score(exchanged) - 0.01)
+            }
+          }
+        }
+      }
+    } finally {
+      search.mockRestore()
+    }
   }, 60_000)
 
   it('matches Showcase summary stats and score while keeping live Echo context separate', async () => {

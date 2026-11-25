@@ -1,11 +1,13 @@
-// scorer worker: consumes lb-score only. no access to card images (CARDS);
-// it reads snapshots from D1 and ruleset data from LB_DATA.
+// scorer worker: consumes lb-score and lb-score-bulk, without access to card images (CARDS). each message includes its
+// build's snapshot; ruleset data comes from LB_DATA, and results go to the build's board (BOARDS, the api worker's)
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "twc-leaderboard-scorer",
-  "main": "src/scorer/worker.ts",
+  "main": "src/scorer/entry.ts",
   "compatibility_date": "2026-04-09",
-  // @/ resolves through tsconfig paths (../../src), for the app source the workers bundle.
+  // no workers.dev url: the scorer runs only as a queue consumer
+  "workers_dev": false,
+  // @lb/* and @/ resolve through tsconfig paths into ../../src for the bundled app source
   "tsconfig": "./tsconfig.json",
   "limits": { "cpu_ms": 300000 },
   "d1_databases": [
@@ -14,13 +16,22 @@
   "r2_buckets": [
     { "binding": "LB_DATA", "bucket_name": "twc-lb-data" }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "BOARDS", "class_name": "BoardDO", "script_name": "twc-leaderboard-api" }]
+  },
   "queues": {
     "producers": [
-      { "binding": "SCORE_QUEUE", "queue": "lb-score" }
+      { "binding": "SCORE_QUEUE", "queue": "lb-score" },
+      { "binding": "SCORE_BULK_QUEUE", "queue": "lb-score-bulk" }
     ],
     "consumers": [
       { "queue": "lb-score", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "lb-score-dlq" },
-      // scenarios that failed every attempt become error rows, so the job still completes.
+      // rescores on their own backlog, which keeps lb-score (new player builds) ahead of them. a bulk message is a group
+      // (one cell of up to 200 builds sharing a program), so a batch of 2 is a few hundred scores; 200 consumers leave room
+      // under the account limit for the interactive lane. boards pace their sends (board/store.ts OPEN_BULK_JOBS), which
+      // keeps the backlog inside the 30 minute stall window
+      { "queue": "lb-score-bulk", "max_batch_size": 2, "max_retries": 3, "max_concurrency": 200, "dead_letter_queue": "lb-score-dlq" },
+      // scenarios that failed every attempt become error rows, which lets the job complete
       { "queue": "lb-score-dlq", "max_batch_size": 10, "max_retries": 3 }
     ]
   },

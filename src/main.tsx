@@ -14,6 +14,7 @@ import { StartupErrorNotice } from '@/modules/system/pages/StartupErrorNotice'
 import { RootErrorBoundary } from '@/modules/system/pages/RootErrorBoundary'
 import { isSimulationRoute } from '@/shared/lib/appRoutes'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
+import { markPage } from '@/shared/lib/timingLog'
 setCalculationDataPolicy(() => isSimulationRoute(window.location.pathname))
 
 const root = createRoot(document.getElementById('root')!)
@@ -35,12 +36,15 @@ async function startApp() {
   root.render(
     <BootLoading />,
   )
+  markPage('app code running')
   try {
     const gameDataMode = readPersistedGameDataMode()
     const options = { mode: gameDataMode, resonatorIds: readBootstrapResonatorIds() }
     if (isSimulationRoute(window.location.pathname)) await initGameData(options)
     else await initCoreGameData(options)
+    markPage('game data loaded')
     const { AppRoot } = await import('@/app/AppRoot')
+    markPage('app shell code loaded')
 
     root.render(
       <StrictMode>

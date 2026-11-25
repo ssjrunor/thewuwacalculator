@@ -43,10 +43,10 @@ export const SNAPSHOT_ECHOES = 5
 export function snapshotIssues(snapshot: BuildSnapshot): ScenarioInputIssue[] {
   const issues: ScenarioInputIssue[] = []
   if (snapshot.v !== 1) return ['snapshot_version']
-  if (snapshot.echoes.length !== SNAPSHOT_ECHOES) issues.push('echo_count')
-  if (snapshot.echoes.filter((echo) => echo.mainEcho).length !== 1) issues.push('main_echo')
+  if (snapshot.echoes.length > SNAPSHOT_ECHOES) issues.push('echo_count')
+  if (snapshot.echoes.filter((echo) => echo.mainEcho).length > 1) issues.push('main_echo')
   const slots = new Set(snapshot.echoes.map((echo) => echo.slot))
-  if (slots.size !== snapshot.echoes.length || [...slots].some((slot) => slot < 0 || slot >= SNAPSHOT_ECHOES)) {
+  if (slots.size !== snapshot.echoes.length || [...slots].some((slot) => !Number.isInteger(slot) || slot < 0 || slot >= SNAPSHOT_ECHOES)) {
     issues.push('echo_slots')
   }
   const sequence = snapshot.resonator.sequence
@@ -54,9 +54,10 @@ export function snapshotIssues(snapshot: BuildSnapshot): ScenarioInputIssue[] {
   return issues
 }
 
-/** the card's echoes as runtime echoes, in card order. */
-export function snapshotEchoes(snapshot: BuildSnapshot): EchoInstance[] {
-  return [...snapshot.echoes].sort((a, b) => a.slot - b.slot).map((echo) => ({
+/** the card's Echoes in their original slots, including empty slots. */
+export function snapshotEchoes(snapshot: BuildSnapshot): Array<EchoInstance | null> {
+  const echoes: Array<EchoInstance | null> = Array(SNAPSHOT_ECHOES).fill(null)
+  for (const echo of snapshot.echoes) echoes[echo.slot] = {
     uid: `card:${echo.slot}`,
     id: echo.id,
     set: echo.set,
@@ -66,7 +67,8 @@ export function snapshotEchoes(snapshot: BuildSnapshot): EchoInstance[] {
       secondary: { ...echo.main.secondary },
     },
     substats: { ...echo.substats },
-  }))
+  }
+  return echoes
 }
 
 /** a teammate's echoes as runtime echoes. the build fixes stats, the main echo

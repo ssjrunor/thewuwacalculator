@@ -83,6 +83,8 @@
 @import './pages/system/boot.css';
 @import './pages/system/route-error.css';
 @import './pages/calibration.css';
+@import './pages/leaderboard-scope.css';
+@import './pages/leaderboard-chrome.css';
 @import './pages/home.css';
 @import './mobile/home.css';
 @import './base/responsive.css';

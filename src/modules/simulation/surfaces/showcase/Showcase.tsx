@@ -14,7 +14,7 @@ import { getEchoById } from '@/data/catalog/echoCatalogService'
 import { getSbstStepP } from '@/data/gameData/catalog/echoStats.ts'
 import { getSntSetIco } from '@/data/gameData/catalog/sonataSets'
 import { getWeightObj } from '@/data/scoring/charStatWeights'
-import { cmptEchoCrit, cmptEchoCritAll, getCvToneColor, getScrTone } from '@/modules/simulation/features/echoes/lib/metric.ts'
+import { cmptEchoCrit, cmptEchoCritAll, cmptBldCritGr, getCvToneColor, getScrTone } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { useEchoScores } from '@/application/hooks/useEchoScoringRevision.ts'
 import {
   formatCompactNum,
@@ -338,8 +338,7 @@ export function ShowcaseEchoSubs({
 // grade aggregate crit value against the canonical two-main-stat ceiling.
 export function loadoutCv(slots: Array<EchoInstance | null>, blank?: boolean): { total: number; tone: string | undefined } {
   const total = slots.reduce((sum, echo) => sum + (echo ? cmptEchoCritAll(echo) : 0), 0)
-  const fourCost = Math.min(slots.filter((echo) => getEchoById(echo?.id ?? '')?.cost === 4).length, 2)
-  return { total, tone: !blank && total > 0 ? getCvToneColor((total - (44 * fourCost)) / 5) : undefined }
+  return { total, tone: !blank && total > 0 ? getCvToneColor(cmptBldCritGr(slots)) : undefined }
 }
 
 export const ShowcaseBuild = memo(function ShowcaseBuild({

@@ -14,7 +14,7 @@ import {
   getSetNameMg,
   getSetNameTo,
 } from '@/engine/echoParser/imageMap'
-import { artAgrees, pickEchoAndSet } from '@/engine/echoParser/echoPick'
+import { artAgrees, clearSet, pickByAgreement, pickEchoAndSet } from '@/engine/echoParser/echoPick'
 import {
   ATTRIBUTE_REGION,
   BUILD_REGIONS,
@@ -33,6 +33,7 @@ import {
   MIN_CARD_WIDTH,
   NAME_BADGE_GAP,
   QR_PLATE,
+  PLAYER_NAME,
   SEQUENCE_CENTERS,
   SEQUENCE_SAMPLE,
   SHORT_LABEL,
@@ -149,10 +150,59 @@ function ocrAssetPaths(): Pick<Tesseract.WorkerOptions, 'workerPath' | 'corePath
   return { workerPath: `${base}worker.min.js`, corePath: base, langPath: base.replace(/\/$/, '') }
 }
 
-type TextCleanup = 'contrast' | 'threshold' | 'plain'
+type TextCleanup = 'contrast' | 'threshold' | 'plain' | 'gold'
 
-// read a cropped region using contrast, threshold, or plain grayscale cleanup.
-// threshold handles dark text on a light badge; plain grayscale handles dim cards.
+// the player lines use one gold; over the bench cards' "UID:" labels its lit pixels fall at hue 11-55 and
+// saturation 0.10-0.47, a range portrait art behind the lines (rebecca's gun: cyan, blue, pink, white) almost never reaches
+const GOLD_INK = { minHue: 8, maxHue: 75, minSat: 0.08, minValue: 0.45 } as const
+
+function isGoldInk(r: number, g: number, b: number): boolean {
+  const max = Math.max(r, g, b) / 255
+  if (max < GOLD_INK.minValue) return false
+  const chroma = max - Math.min(r, g, b) / 255
+  if (chroma / max < GOLD_INK.minSat) return false
+  const hue = hueOf(r, g, b)
+  return hue >= GOLD_INK.minHue && hue <= GOLD_INK.maxHue
+}
+
+// where the player name's gold ink ends, and whether portrait art is behind its letters; no cleanup separates a
+// letter from art of nearly the same colour, so such a name is left unread
+function nameSpan(canvas: HTMLCanvasElement): { right: number; obscured: boolean } {
+  const { x, maxX, y, height } = PLAYER_NAME
+  const width = maxX - x
+  const pixels = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(x, y, width, height).data
+  const at = (col: number, row: number) => (row * width + col) * 4
+  let end = 0
+  let gap = 0
+  for (let col = 0; col < width; col += 1) {
+    let ink = 0
+    for (let row = 0; row < height; row += 1) {
+      const i = at(col, row)
+      if (isGoldInk(pixels[i], pixels[i + 1], pixels[i + 2])) ink += 1
+    }
+    if (ink >= 2) {
+      end = col
+      gap = 0
+    } else if ((gap += 1) >= PLAYER_NAME.endGap) {
+      break
+    }
+  }
+  let art = 0
+  for (let col = 0; col <= end; col += 1) {
+    for (let row = 0; row < height; row += 1) {
+      const i = at(col, row)
+      const r = pixels[i]
+      const g = pixels[i + 1]
+      const b = pixels[i + 2]
+      if (Math.max(r, g, b) > PLAYER_NAME.artMinBright && !isGoldInk(r, g, b)) art += 1
+    }
+  }
+  return { right: x + end, obscured: art / ((end + 1) * height) > PLAYER_NAME.maxArtShare }
+}
+
+// read a cropped region with contrast, threshold, plain grayscale or gold-ink cleanup: threshold for dark text on a
+// light badge, plain grayscale for dim cards, and gold for only the player lines' ink, which reads art behind the
+// uid as blank paper
 async function extractText(
     canvas: HTMLCanvasElement,
     worker: Tesseract.Worker,
@@ -164,7 +214,7 @@ async function extractText(
   tmp.width = region.width * scale
   tmp.height = region.height * scale
   const ctx = tmp.getContext('2d', { willReadFrequently: true })!
-  if (cleanup === 'threshold') ctx.imageSmoothingQuality = 'high'
+  if (cleanup === 'threshold' || cleanup === 'gold') ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(
     canvas,
     region.x,
@@ -188,7 +238,9 @@ async function extractText(
   const threshold = cleanup === 'threshold' ? otsuThreshold(gray) : 0
   for (let i = 0; i < d.length; i += 4) {
     const value = gray[i / 4]
-    const v = cleanup === 'threshold'
+    const v = cleanup === 'gold'
+      ? (isGoldInk(d[i], d[i + 1], d[i + 2]) ? 0 : 255)
+      : cleanup === 'threshold'
       ? (value > threshold ? 255 : 0)
       : cleanup === 'plain' ? value : Math.max(0, Math.min(255, (value - 128) * 1.5 + 128))
     d[i] = d[i + 1] = d[i + 2] = v
@@ -197,7 +249,7 @@ async function extractText(
   ctx.putImageData(imgData, 0, 0)
 
   let image = tmp
-  if (cleanup === 'threshold') {
+  if (cleanup === 'threshold' || cleanup === 'gold') {
     const margin = 12
     image = document.createElement('canvas')
     image.width = tmp.width + margin * 2
@@ -489,7 +541,16 @@ async function extractBuildMetadata(
   const resonatorNameText = await safeExtractText(canvas, worker, nameRegion)
   thrwIfAbrtd(signal)
   readHead(HEAD_AREA.playerId)
-  const playerIdText = await safeExtractText(canvas, worker, BUILD_REGIONS.playerId)
+  // stop the read just past the name's last letter, which reads a long name whole and excludes the portrait beyond a
+  // short one; a name with art behind it reads as empty, and the leaderboard uses its stored name
+  const name = nameSpan(canvas)
+  const idRegion = BUILD_REGIONS.playerId
+  const playerIdText = name.obscured
+    ? ''
+    : await safeExtractText(canvas, worker, {
+        ...idRegion,
+        width: Math.max(idRegion.width, Math.min(PLAYER_NAME.maxX, name.right + PLAYER_NAME.tail) - idRegion.x),
+      })
   thrwIfAbrtd(signal)
   readHead(HEAD_AREA.weaponName)
   const weaponNameText = await safeExtractText(canvas, worker, BUILD_REGIONS.weaponName)
@@ -503,7 +564,8 @@ async function extractBuildMetadata(
     tessedit_char_whitelist: '0123456789',
     tessedit_pageseg_mode: '7' as Tesseract.PSM,
   })
-  const uidCheckText = await safeExtractText(canvas, worker, BUILD_REGIONS.uid, 2)
+  // gold ink only, which keeps a portrait behind the line from reading as digits in both reads
+  const uidCheckText = await extractText(canvas, worker, BUILD_REGIONS.uid, 2, 'gold').catch(() => '')
   thrwIfAbrtd(signal)
 
   await worker.setParameters({
@@ -978,9 +1040,24 @@ export async function prsBldFromMg(
         )
         // an echo the catalog lacks still ranks a nearest neighbour, so the winner has to
         // agree with the art on its own; an unidentified slot is a gap the user sees
-        const pick = ranked && artAgrees(getEchoMgKeys(ranked.echoName)
+        const agreement = (name: string) => getEchoMgKeys(name)
             .filter((key) => echoCache[key])
-            .map((key) => cmprEchoArt(canvas, slot.echoImage, echoCache[key]))) ? ranked : null
+            .map((key) => cmprEchoArt(canvas, slot.echoImage, echoCache[key]))
+        const glyphSet = clearSet(slotSets[index])
+        const glyphSetId = glyphSet ? getSetNameTo()[glyphSet] : undefined
+        // the ranking caps how much a wrong set costs, so strong art for an echo that cannot
+        // wear the glyph's clear set (a held-out fleurdelys reads as leviathan) still wins it
+        let pick = ranked && artAgrees(agreement(ranked.echoName)) && (!glyphSet || ranked.setName === glyphSet)
+          ? ranked
+          : null
+        if (!pick && glyphSet && glyphSetId !== undefined) {
+          pick = pickByAgreement(
+            echoCatalog
+                .filter((echo) => echo.sets.includes(glyphSetId) && (!cost || echo.cost === Number(cost)))
+                .map((echo) => ({ echo, forms: agreement(echo.name) })),
+            glyphSet,
+          )
+        }
         const echoName = pick?.echoName ?? null
         const setName = pick?.setName ?? null
         if (!cost && pick) cost = String(pick.cost)

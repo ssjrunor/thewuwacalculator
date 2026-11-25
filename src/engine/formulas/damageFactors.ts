@@ -115,6 +115,7 @@ export interface DamageFactors extends DamagePools {
   ignoresEnemy: boolean
   baseRes: number
   resShred: number
+  resIgnore: number
   enemyResVl: number
   resMult: number
   totalDefIgnore: number
@@ -151,10 +152,10 @@ export function resolveDamageFactors(
   const baseRes = ignoresEnemy ? 0 : getEnemyRes(enemy, skill.element)
   const zeroed = !ignoresEnemy && baseRes === 100
 
-  // shred can come from general, element-specific, skill-type, and skill-local buffs; sum it before applying the
-  // resistance curve so one effective enemy resistance can be stated.
+  // keep reduction and ignore separate until applying the shared resistance curve
   const resShred = layerModifier(pools, (pool) => pool.resShred)
-  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
+  const resIgnore = layerModifier(pools, (pool) => pool.resIgnore ?? 0)
+  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred - resIgnore
   const resMult = zeroed ? 0 : (ignoresEnemy ? 1 : resistMult(enemyResVl))
 
   const totalDefIgnore = finalStats.defIgnore + layerModifier(pools, (pool) => pool.defIgnore)
@@ -183,6 +184,7 @@ export function resolveDamageFactors(
     ignoresEnemy,
     baseRes,
     resShred,
+    resIgnore,
     enemyResVl,
     resMult,
     totalDefIgnore,

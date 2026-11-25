@@ -1389,6 +1389,7 @@ describe('rotation execution invariants', () => {
     const makeMornyeRuntime = (ratio: number | null) => {
       const runtime = makeResRuntime(mornye)
       runtime.state.manualBuffs.quick.energyRegen = 160
+      runtime.state.controls['resonator:1209:interfered_marker:tune_rupture'] = true
       runtime.rotation.sequence = ratio == null
         ? [
           {

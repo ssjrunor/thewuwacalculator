@@ -21,6 +21,14 @@ const timeline: ActionTimeline = { seconds: 12.5, events: [
 ] }
 
 describe('stored timelines', () => {
+  it('preserves captured hit offsets alongside the exact landed event selection', () => {
+    const names: string[] = []
+    const source: ActionTimeline = { seconds: 4, events: [
+      [5, 'cast', 1, 'Skill - Split', 2, null, [0, 2], [0, 186]],
+    ] }
+    expect(unpackTimeline(packTimeline(source, names, new Map()), names)).toEqual(source)
+  })
+
   it('pack to frame gaps and one string table, and read back unchanged', () => {
     const names: string[] = [], index = new Map<string, number>()
     const packed = packTimeline(timeline, names, index)
@@ -47,9 +55,19 @@ describe('stored timelines', () => {
     expect(unpackTimeline(packTimeline(source, names, new Map()), names)).toEqual(source)
   })
 
+  it('preserves hit-local stack counts independently of persistent status updates', () => {
+    const names: string[] = []
+    const source: ActionTimeline = { seconds: 1, events: [
+      [0, 'status', 0, 'spectroFrazzle', 0],
+      [5, 'tick', 0, 'spectroFrazzle', 2], [5, 'tick', 0, 'spectroFrazzle', 1],
+    ] }
+    expect(unpackTimeline(packTimeline(source, names, new Map()), names)).toEqual(source)
+  })
+
   it('preserves per-hit control owners, exact event ordinals and typed values', () => {
     const names: string[] = []
     const source: ActionTimeline = { seconds: 1, events: [
+      [5, 'hitInfliction', 1, 'Skill - Split', 0, 1, 'aeroErosion', 4],
       [5, 'hitControl', 1, 'Skill - Split', 2, 0, 'runtime.state.controls.team:1110:active', 'true'],
       [5, 'hitControl', 1, 'Skill - Split', 4, 1, 'runtime.state.controls.resonator:1410:wan_light:stacks', '0'],
       [5, 'cast', 1, 'Skill - Split', 2, null, [2, 4]],

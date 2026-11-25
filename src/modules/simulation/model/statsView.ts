@@ -136,7 +136,7 @@ export function formatStatKeyLabel(key: string, mode: StatKeyLabelMode = 'defaul
 // stat keys rendered as percentages.
 const PRCNSTATKEYS = new Set([
   'critRate', 'critDmg', 'energyRegen', 'healingBonus', 'dmgBonus', 'amplify',
-  'defIgnore', 'defShred', 'resShred', 'dmgVuln', 'shieldBonus', 'finalDmg',
+  'defIgnore', 'defShred', 'resIgnore', 'resShred', 'dmgVuln', 'shieldBonus', 'finalDmg',
   'aero', 'glacio', 'spectro', 'fusion', 'electro', 'havoc',
   'basicAtk', 'heavyAtk', 'resonanceSkill', 'resonanceLiberation',
 ])
@@ -332,6 +332,7 @@ export type StatTreeNode = StatTreeLeaf | StatTreeBranch
 // user-facing labels for modifier keys inside mod buff buckets
 const MOD_LABELS: Record<keyof ModBuff, string> = {
   resShred: 'RES Shred',
+  resIgnore: 'RES Ignore',
   dmgBonus: 'DMG Bonus',
   amplify: 'Amplify',
   defIgnore: 'DEF Ignore',

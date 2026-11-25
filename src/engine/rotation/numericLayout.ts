@@ -38,7 +38,7 @@ export const NUMERIC_NEGATIVE_EFFECTS: readonly NegEffectKey[] = [
 ]
 
 export const NUMERIC_MOD_FIELDS: readonly (keyof ModBuff)[] = [
-  'resShred', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln',
+  'resShred', 'resIgnore', 'dmgBonus', 'amplify', 'defIgnore', 'defShred', 'dmgVuln',
   'critRate', 'critDmg',
 ]
 

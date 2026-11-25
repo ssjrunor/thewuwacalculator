@@ -1327,6 +1327,19 @@ export const curChngEnts: ChngRcrd[] = [
       }
     ]
   },
+  {
+    id: '2026-11-10-10-18',
+    date: '10/11/2026',
+    entries: [
+      {
+        type: 'paragraph',
+        content: `
+          <strong>3.8 release data</strong> update.
+        `,
+      }
+    ],
+    shortDesc: `3.8 release update`,
+  },
 ]
 
 export const ltstCurChngE =

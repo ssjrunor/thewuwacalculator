@@ -1,17 +1,15 @@
 /*
   Author: Runor Ewhro
-  description: the reference step: for every scenario and sequence, the dps of
-               three reference builds (baseline 0%, benchmark 100%, perfect
-               200%) that every build on that board is measured against. the
-               search itself is injected; it needs the rotation executed, so
-               until execution is connected the pending search marks every
-               entry unsupported, and those scenarios score nothing.
+  description: exports optional anchor diagnostics for authored template builds,
+               run only for documented verified cases. submitted cards use their
+               own ER and utility gear through the app evaluator.
 */
 
 import type { ScenarioDef, ScenarioRefs } from '@/domain/leaderboard/ruleset'
 import type { ActionPlan } from '@/domain/rotationActions/types'
 import type { OpenedRuleset } from './rulesetReader'
 import { validAnchors } from './scoreFormula'
+import { hasScoringData } from './coverage'
 
 export interface ReferenceRequest {
   def: ScenarioDef
@@ -20,10 +18,10 @@ export interface ReferenceRequest {
 }
 
 export type ReferenceResult =
-  | { status: 'ok'; baselineDps: number; benchDps: number; perfectDps: number; programs: ScenarioRefs['programs'] }
+  | { status: 'ok'; baselineDamage: number; benchDamage: number; perfectDamage: number; programs: ScenarioRefs['programs'] }
   | { status: 'unsupported'; reason: string }
 
-/** finds the three reference builds of one scenario at one sequence and the dps of each. */
+/** finds the three reference builds and their total rotation damage. */
 export type ReferenceSearch = (request: ReferenceRequest) => Promise<ReferenceResult>
 
 export const pendingReferenceSearch: ReferenceSearch = async () => ({ status: 'unsupported', reason: 'rotation_execution_pending' })
@@ -49,14 +47,16 @@ export async function computeReferences(ruleset: OpenedRuleset, search: Referenc
   const total = defs.length * sequences.length
   for (const def of defs) {
     for (const sequence of sequences) {
-      const result = await search({ def, sequence, plan: ruleset.plans[def.teamId] })
+      const result = hasScoringData(def)
+        ? await search({ def, sequence, plan: ruleset.plans[def.teamId] })
+        : { status: 'unsupported' as const, reason: 'insufficient_data' }
       if (result.status === 'ok' && validAnchors(result)) {
-        refs.push({ scenarioId: def.id, sequence, status: 'ok', baselineDps: result.baselineDps, benchDps: result.benchDps,
-          perfectDps: result.perfectDps, programs: result.programs })
+        refs.push({ scenarioId: def.id, sequence, status: 'ok', baselineDamage: result.baselineDamage, benchDamage: result.benchDamage,
+          perfectDamage: result.perfectDamage, programs: result.programs })
       } else {
         const reason = result.status === 'ok' ? 'anchors_not_increasing' : result.reason
         reasons[reason] = (reasons[reason] ?? 0) + 1
-        refs.push({ scenarioId: def.id, sequence, status: 'unsupported', baselineDps: 0, benchDps: 0, perfectDps: 0,
+        refs.push({ scenarioId: def.id, sequence, status: 'unsupported', baselineDamage: 0, benchDamage: 0, perfectDamage: 0,
           programs: { baseline: '', bench: '', perfect: '' } })
       }
       options.onProgress?.(refs.length, total)

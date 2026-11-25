@@ -129,6 +129,8 @@ function getVarClss(
       return { contentClass: 'app-modal-panel amdl-panel amdl-panel--auto saved-rotation-editor-modal' }
     case 'rotation-share':
       return { contentClass: 'app-modal-panel amdl-panel amdl-panel--auto rot-share-modal' }
+    case 'leaderboard':
+      return { contentClass: 'app-modal-panel amdl-panel amdl-panel--auto lbm-panel' }
     case 'import-received':
       return { contentClass: 'app-modal-panel irc-band' }
     case 'rotation-action-list':

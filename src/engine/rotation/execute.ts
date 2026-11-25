@@ -122,6 +122,7 @@ import {
   evaluateNumericCondition,
   forkNumericTeam,
   materializeNumericCombat,
+  materializeNumericLane,
   readNumericRuntime,
   setNumericActiveLane,
   writeNumericEffectScale,
@@ -358,6 +359,7 @@ interface RotationExec {
   onDamageInvocation?: (invocation: DamageInvocation) => void
   onDamageScore?: ProgramOpts['onDamageScore']
   onFeatureUse?: ProgramOpts['onFeatureUse']
+  onConditionUse?: ProgramOpts['onConditionUse']
   allowedFeatureKeys?: ProgramOpts['allowedFeatureKeys']
   featureRunOrdinals: Map<string, number>
 
@@ -1278,6 +1280,7 @@ export function executeRotationProgram(
   executionState.onDamageInvocation = options.onDamageInvocation
   executionState.onDamageScore = options.onDamageScore
   executionState.onFeatureUse = options.onFeatureUse
+  executionState.onConditionUse = options.onConditionUse
   executionState.allowedFeatureKeys = options.allowedFeatureKeys
   const result = runRotTimes(
     executionState,
@@ -1696,7 +1699,12 @@ function getRotFormula(state: RotationExec, key: RotFormulaStatKey): number {
 }
 
 function hasRotFormulaStats(state: RotationExec): boolean {
-  return state.formulaRegisters.some((value) => Number.isFinite(value) && value !== 0)
+  const registers = state.formulaRegisters
+  for (let index = 0; index < registers.length; index += 1) {
+    const value = registers[index]!
+    if (Number.isFinite(value) && value !== 0) return true
+  }
+  return false
 }
 
 function materializeFormulaStats(state: RotationExec): RotFormulaStats {
@@ -1736,7 +1744,7 @@ function applyFormulaToFinalPlane(
   output[finalTopCell('tuneBreakBoost')]! += formula.tuneBreakBoost ?? 0
   output[finalTopCell('finalDmg')]! += formula.finalDmg ?? 0
   output[finalTopCell('flatDmg')]! += formula.flatDmg ?? 0
-  output[finalAttributeCell('all', 'resShred')]! += formula.resIgnore ?? 0
+  output[finalAttributeCell('all', 'resIgnore')]! += formula.resIgnore ?? 0
 
   if (skill.archetype === 'skillDamage') {
     output[finalTopCell('critRate')]! += formula.critRate ?? 0
@@ -1787,15 +1795,23 @@ function readObjectPath(root: unknown, path: string): unknown {
   return cursor
 }
 
+// whether a plain overlay record has any path, checked without building its entries
+function hasOverlayPaths(record: Record<string, unknown>): boolean {
+  for (const path in record) {
+    if (Object.hasOwn(record, path)) return true
+  }
+  return false
+}
+
 // compute the currently active enemy by layering enemy overlay writes over the base enemy
 function getActEnemy(state: RotationExec): EnemyProfile {
-  const entries = Object.entries(state.overlay.enemyPaths)
-  if (entries.length === 0) {
+  if (!hasOverlayPaths(state.overlay.enemyPaths)) {
     return state.environment.enemy
   }
   if (state.activeEnemyCache.version === state.overlay.combatVersion) {
     return state.activeEnemyCache.value
   }
+  const entries = Object.entries(state.overlay.enemyPaths)
 
   let nextEnemy = state.environment.enemy
   for (const [path, value] of entries) {
@@ -1835,6 +1851,21 @@ function hasVrlyForRe(state: RotationExec, resonatorId: string): boolean {
 // get the current runtime for one participant after applying overlay writes
 // results are cached per overlay version
 const teammateRuntimeOverlays = new WeakMap<ResRuntime, Map<string, ResRuntime>>()
+// each base runtime's latest projection, with the ordered paths it was built from.
+const lastRuntimeProjection = new WeakMap<ResRuntime, { paths: string[]; values: unknown[]; runtime: ResRuntime }>()
+// same keys in the same order with Object.is-equal primitive values, which gives the same projection and json key
+function sameOverlayPaths(
+  runtimePaths: Record<string, unknown>,
+  last: { paths: string[]; values: unknown[] },
+): boolean {
+  let index = 0
+  for (const path in runtimePaths) {
+    if (!Object.hasOwn(runtimePaths, path)) continue
+    if (last.paths[index] !== path || !Object.is(last.values[index], runtimePaths[path])) return false
+    index += 1
+  }
+  return index === last.paths.length
+}
 function getRslvPartR(state: RotationExec, resonatorId: string): ResRuntime | null {
   const slotId = findCombatPart(getBaseGraph(state), resonatorId)
   if (!slotId) {
@@ -1860,16 +1891,23 @@ function getRslvPartR(state: RotationExec, resonatorId: string): ResRuntime | nu
   // fixed teammates revisit the same authored states for every candidate.
   // their immutable projections are independent of the searched Echo stats.
   const fixedTeammate = resonatorId !== state.environment.prmrResId
-  const signature = fixedTeammate ? JSON.stringify(runtimePaths) : ''
-  let byOverlay = fixedTeammate ? teammateRuntimeOverlays.get(baseRuntime) : undefined
-  let nextRuntime = byOverlay?.get(signature)
+  // the version changes on any member's write; when this member's paths match its last projection, the projection (and
+  // the teammate cache key built from them) is unchanged
+  const last = lastRuntimeProjection.get(baseRuntime)
+  let nextRuntime = last && sameOverlayPaths(runtimePaths, last) ? last.runtime : undefined
   if (!nextRuntime) {
-    nextRuntime = writeRtPaths(baseRuntime, runtimePaths)
-    if (fixedTeammate) {
-      if (!byOverlay) teammateRuntimeOverlays.set(baseRuntime, byOverlay = new Map())
-      if (byOverlay.size >= 512) byOverlay.delete(byOverlay.keys().next().value!)
-      byOverlay.set(signature, nextRuntime)
+    const signature = fixedTeammate ? JSON.stringify(runtimePaths) : ''
+    let byOverlay = fixedTeammate ? teammateRuntimeOverlays.get(baseRuntime) : undefined
+    nextRuntime = byOverlay?.get(signature)
+    if (!nextRuntime) {
+      nextRuntime = writeRtPaths(baseRuntime, runtimePaths)
+      if (fixedTeammate) {
+        if (!byOverlay) teammateRuntimeOverlays.set(baseRuntime, byOverlay = new Map())
+        if (byOverlay.size >= 512) byOverlay.delete(byOverlay.keys().next().value!)
+        byOverlay.set(signature, nextRuntime)
+      }
     }
+    lastRuntimeProjection.set(baseRuntime, { paths: Object.keys(runtimePaths), values: Object.values(runtimePaths), runtime: nextRuntime })
   }
 
   state.rslvRtCch[resonatorId] = {
@@ -1999,6 +2037,23 @@ function getMatGrph(state: RotationExec): CombatGraph {
   return nextGraph
 }
 
+// overlay path objects only gain keys (in place or by copy), so a true result is valid for the object's lifetime and
+// a false one while its key count is unchanged
+const projectionByWrites = new WeakMap<object, { count: number; value: boolean }>()
+function writesNeedProjection(runtimeWrites: Record<string, unknown>): boolean {
+  const cached = projectionByWrites.get(runtimeWrites)
+  if (cached?.value) return true
+  const paths = Object.keys(runtimeWrites)
+  if (cached && cached.count === paths.length) return false
+  const value = paths.some((path) => (
+    path.startsWith('runtime.base.')
+    || path.startsWith('runtime.build.')
+    || path.startsWith('runtime.state.manualBuffs.skill')
+  ))
+  projectionByWrites.set(runtimeWrites, { count: paths.length, value })
+  return value
+}
+
 function getPart(state: RotationExec, resonatorId: string): RotPartStt | null {
   const slotId = findCombatPart(getBaseGraph(state), resonatorId)
   if (!slotId) {
@@ -2013,11 +2068,7 @@ function getPart(state: RotationExec, resonatorId: string): RotPartStt | null {
   }
 
   const runtimeWrites = state.overlay.rtPthsByRejq[resonatorId]
-  const needsProjection = runtimeWrites && Object.keys(runtimeWrites).some((path) => (
-    path.startsWith('runtime.base.')
-    || path.startsWith('runtime.build.')
-    || path.startsWith('runtime.state.manualBuffs.skill')
-  ))
+  const needsProjection = runtimeWrites && writesNeedProjection(runtimeWrites)
 
   return {
     seed,
@@ -2792,11 +2843,13 @@ function resolveRotationSkill(
     skill: SkillDef,
 ): SkillDef {
   const runtimesById = getRslvRtLkp(state)
-  const resolved = resolveSkill(participant.runtime, skill, (condition) => {
+  // read the member's runtime from the resolved lookup, with the participant's own runtime as the fallback
+  const runtime = runtimesById[participant.seed.id] ?? participant.runtime
+  const resolved = resolveSkill(runtime, skill, (condition) => {
     const numeric = evaluateNumericCondition(state.numericTeam, participant.lane, condition)
     if (numeric !== undefined) return numeric
     state.metrics.legacyConditionEvaluations += 1
-    return evalCond(condition, buildScope(participant.runtime, {
+    return evalCond(condition, buildScope(runtime, {
         type: 'resonator',
         id: participant.seed.id,
       }))
@@ -2825,6 +2878,9 @@ function findFeatOwn(
 
   for (const resonatorId of Object.keys(state.environment.catalogByResonator)) {
     const feature = state.environment.catalogByResonator[resonatorId]?.featuresById[featureId]
+    // a Sonata attack belongs to its wearer, so losing the set skips the authored attack without rerouting it to another
+    // teammate wearing the same set
+    if (feature?.source.type === 'echoSet' && resonatorId !== prfrResId) continue
     const participant = feature ? getPart(state, resonatorId) : null
     if (feature && participant) {
       return { participant, feature }
@@ -2832,6 +2888,15 @@ function findFeatOwn(
   }
 
   return null
+}
+
+// authored nodes are immutable during a run: normalize each once, privately, so the compiled-block lookups get the
+// same fresh arrays as before
+const normalizedFeatures = new WeakMap<Extract<RotationNode, { type: 'feature' }>, Extract<RotationNode, { type: 'feature' }>>()
+function normalizedFeature(node: Extract<RotationNode, { type: 'feature' }>): Extract<RotationNode, { type: 'feature' }> {
+  let normalized = normalizedFeatures.get(node)
+  if (!normalized) normalizedFeatures.set(node, normalized = normalizeFeatureAttachments(node))
+  return normalized
 }
 
 // resolve final enabled + multiplier state for one feature node
@@ -2904,7 +2969,7 @@ function runFeatNode(
 
   const normalized = asAttachment
     ? stripFeatureAttachments(node)
-    : normalizeFeatureAttachments(node)
+    : normalizedFeature(node)
   const ownResId = resNodeResId(state, normalized, fallbackResId)
 
   const attachedConditions = asAttachment ? [] : (normalized.attached?.conditions ?? [])
@@ -3497,6 +3562,10 @@ function runCondNode(
   compiledBlock?: CompiledRotationBlock,
   nodeIndex = -1,
 ): RotationExec {
+  if (state.onConditionUse) state.onConditionUse(node, resonatorId => {
+    const lane = state.numericTeam.program.laneById[resonatorId]
+    return lane === undefined ? undefined : materializeNumericLane(state.numericTeam, lane).finalStats
+  })
   const scpResId = resNodeResId(state, node, fallbackResId)
   if (state.numericTeam.program.laneById[scpResId] === undefined) {
     return ppndNspcEnt(state, {

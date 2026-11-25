@@ -21,9 +21,10 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "../../src/*"
-      ]
+      "@lb/contract/*": ["../../src/domain/leaderboard/*"],
+      "@lb/scoring": ["../../src/engine/leaderboard/index.ts"],
+      "@lb/parser-version": ["../../src/engine/echoParser/version.ts"],
+      "@/*": ["../../src/*"]
     }
   },
   "include": [

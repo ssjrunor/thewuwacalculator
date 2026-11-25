@@ -12,6 +12,7 @@ import { createInterpreterEnvironment, interpretTeamActions } from '../index'
 import { stableId } from '../stableId'
 import type { ActionPlan } from '@/domain/rotationActions/types'
 import type { CombatScenario } from '@/domain/entities/combatScenario'
+import type { RotationNode } from '@/domain/gameData/contracts'
 import { initialCharacterState } from '../initialState'
 import { buildTeamPreamble } from '../editor/preamble'
 import { prepareEditorSources } from '../editor/catalog'
@@ -26,6 +27,26 @@ const gameData = (path: string) => json(join(process.cwd(), 'public/data/beta', 
 const interpretationData = (path: string) => json(join(process.cwd(), 'src/data/rotationGen', `${path}.json`))
 
 describe('portable action interpreter', () => {
+  it('discovers the owning teammate controls that change negative-effect caps from authored source conditions', async () => {
+    const { scenario } = await json(join(__dirname, 'fixtures/team.json')) as { scenario: CombatScenario }
+    scenario.team.members[0]!.resonatorId = '1508'
+    const env = await createInterpreterEnvironment({ mode: 'beta', gameData, interpretationData })
+    const editor = prepareEditorSources({ scenario,
+      resonators: { 1508: await gameData('resonators/runtime-bundles/1508') },
+      echoes: env.echoSources, sonataDefinitions: env.sonataDefinitions })
+    const path = 'runtime.state.controls.team:1508:unraveling_law_zero:active'
+    expect([...editor.negativeCapControls]).toEqual([`1508|${path}`])
+    expect(editor.negativeCapControls.has(`1509|${path}`)).toBe(false)
+  })
+
+  it('does not replace an uncaptured context or sequence with a reconstructed rotation', async () => {
+    const fixture = await json(join(__dirname, 'fixtures/team.json')) as { plan: ActionPlan; scenario: CombatScenario }
+    fixture.plan.timelines = { owns: {}, names: [], runs: {} }
+    const environment = await createInterpreterEnvironment({ mode: 'beta', gameData, interpretationData })
+    const result = await interpretTeamActions(environment, fixture.plan, fixture.scenario)
+    expect(result.status).toBe('unsupported')
+    expect(result.diagnostics.code).toBe('missing-context-timeline')
+  })
   it('preserves the existing SHA-256 numeric identities across padding and Unicode boundaries', () => {
     for (let length = 0; length < 200; length++) {
       const kind = `kind-${length}`, value = 'Jué 🐉'.repeat(length)
@@ -47,7 +68,9 @@ describe('portable action interpreter', () => {
     const fixture = await json(join(__dirname, 'fixtures/team.json')) as { plan: ActionPlan; scenario: CombatScenario }
     const before = JSON.stringify(fixture)
     const environment = await createInterpreterEnvironment({ mode: 'beta', gameData, interpretationData })
-    const result = await interpretTeamActions(environment, fixture.plan, fixture.scenario)
+    let uncleaned: readonly RotationNode[] | undefined
+    const result = await interpretTeamActions(environment, fixture.plan, fixture.scenario,
+      { onBeforeCleanup: program => { uncleaned = structuredClone(program) } })
     expect(result.status, JSON.stringify(result.diagnostics)).toBe('interpreted')
     if (result.status !== 'interpreted') return
     expect(result.scenario.team.members[0].id).toBe(fixture.scenario.contextMemberId)
@@ -56,6 +79,7 @@ describe('portable action interpreter', () => {
     expect(result.scenario.target).toEqual(fixture.scenario.target)
     expect(result.scenario.contextMemberId).toBe(fixture.scenario.contextMemberId)
     expect(result.scenario.program.program.length).toBeGreaterThan(0)
+    expect(uncleaned?.find(node => node.type === 'loop' && node.kind === 'start')).toMatchObject({ runs: 4 })
     expect(result).not.toHaveProperty('dps')
     expect(JSON.stringify(fixture)).toBe(before)
 

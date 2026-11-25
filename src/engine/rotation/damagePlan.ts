@@ -553,13 +553,16 @@ export function captureRotationDamagePlan(input: {
   selectedTargets: Record<string, string | null>
   combatSetup?: RotationCombatSetup
   setConds?: SntSetConds
+  preserveEchoStateChanges?: boolean
 }) {
   // keep the candidate-control catalogue on the packed runtime so the set
   // encoder can build rows for search sets that are not currently equipped.
   // the clean simulation itself uses a copy with all Echo controls cleared.
   const runtime = stripEchoes(input.runtime)
   const cleanRuntime = stripEchoState(input.runtime)
-  const items = normalizeRotationForCleanContext(input.items, runtime.id)
+  const items = input.preserveEchoStateChanges
+    ? input.items
+    : normalizeRotationForCleanContext(input.items, runtime.id)
   const participants = { ...input.runtimesById, [runtime.id]: cleanRuntime }
   const prepared = prepareResSimulation(
     cleanRuntime,

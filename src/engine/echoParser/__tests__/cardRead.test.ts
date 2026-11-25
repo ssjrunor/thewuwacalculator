@@ -1,8 +1,7 @@
 /*
   Author: Runor Ewhro
   description: protects the leaderboard's strict reading rules: only a card
-               with a verified uid, a resolved resonator and weapon, five
-               identified echoes and exact substats yields a snapshot.
+               with a verified uid, a resolved resonator and weapon, identified equipped echoes and exact substats yields a snapshot.
 */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -113,11 +112,21 @@ describe('leaderboard card read', () => {
     expect(read.confidence.issues).toEqual(expect.arrayContaining(['not_bot_card', 'uid_unverified']))
   })
 
-  it('rejects corrected and snapped substats', () => {
+  it('accepts a corrected substat and lists it for review', () => {
     setExact(3, 'corrected')
-    expect(makeCardRead(parsedCard(), 'v', 0).confidence.issues).toEqual(['substat_not_exact'])
+    const read = makeCardRead(parsedCard(), 'v', 0)
+    expect(read.outcome).toBe('ok')
+    expect(read.snapshot).not.toBeNull()
+    expect(read.confidence.issues).toEqual([])
+    expect(read.confidence.review?.length).toBeGreaterThan(0)
+    expect(read.confidence.review?.every((entry) => entry.slot === 3)).toBe(true)
+  })
+
+  it('rejects a snapped substat', () => {
     setExact(3, 'snapped')
-    expect(makeCardRead(parsedCard(), 'v', 0).outcome).toBe('unreadable')
+    const read = makeCardRead(parsedCard(), 'v', 0)
+    expect(read.confidence.issues).toEqual(['substat_not_exact'])
+    expect(read.outcome).toBe('unreadable')
   })
 
   it('rejects a printed row that produced no reading', () => {
@@ -127,14 +136,24 @@ describe('leaderboard card read', () => {
     expect(read.confidence.echoes[2].unreadRows).toBe(1)
   })
 
-  it('rejects an unidentified echo and an empty panel', () => {
+  it('rejects an unidentified equipped Echo but accepts empty panels', () => {
     built[1] = null
     expect(makeCardRead(parsedCard(), 'v', 0).confidence.issues).toEqual(['echo_unresolved'])
 
     built[1] = instance(1)
     const echoes = [0, 1, 2, 3].map(rawEcho)
     echoes.push({ cost: '', mainStatLbl: '', substats: [], substatValues: [], echoName: null, setName: null })
-    expect(makeCardRead(parsedCard({ echoes }), 'v', 0).confidence.issues).toEqual(['echo_missing'])
+    const read = makeCardRead(parsedCard({ echoes }), 'v', 0)
+    expect(read.outcome).toBe('ok')
+    expect(read.confidence.issues).toEqual([])
+    expect(read.snapshot!.echoes.map(echo => echo.slot)).toEqual([0, 1, 2, 3])
+  })
+
+  it('accepts a card with all Echo slots empty', () => {
+    const echoes = Array.from({ length: 5 }, () => ({ cost: '', mainStatLbl: '', substats: [], substatValues: [], echoName: null, setName: null }))
+    const read = makeCardRead(parsedCard({ echoes }), 'v', 0)
+    expect(read.outcome).toBe('ok')
+    expect(read.snapshot!.echoes).toEqual([])
   })
 
   it('requires a resolved weapon and resonator', () => {

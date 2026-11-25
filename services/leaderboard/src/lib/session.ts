@@ -8,12 +8,18 @@ import { randomToken } from './ids.ts'
 
 export const SESSION_COOKIE = 'lb_session'
 
+/** a live session: a signed-in account's, or a claim session's (no account, only uids claimed with fresh cards);
+    both act for every uid they have (db/identity.ts sessionUids). */
 export interface SessionActor {
   tokenHash: string
-  uid: string | null
   accountId: string | null
   expiresAt: number
+  /** a sanction stops the account: the session may only read its sanctions and appeal them. */
+  stopped?: boolean
 }
+
+/** cookie max age, longer than any session, with expiry checked on the server; browsers cap cookies at 400 days. */
+export const SESSION_COOKIE_MAX_AGE_S = 400 * 86_400
 
 export function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get('cookie')

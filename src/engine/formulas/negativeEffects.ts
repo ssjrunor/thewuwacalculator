@@ -162,9 +162,12 @@ export function getNegBase(
     return options.fixedMv * getLvlVl(level) / 10000
   }
 
-  // spectro frazzle uses a simple linear stack formula
+  // above the ordinary ten-stack cap, each extra stack adds one third of the ten-stack base, matching the enhanced
+  // 11-13 tier and its extensions
   if (archetype === 'spectroFrazzle') {
-    return 209.9 + 895.8 * stacks
+    return stacks <= 10
+      ? 209.9 + 895.8 * stacks
+      : (209.9 + 895.8 * 10) * (1 + (stacks - 10) / 3)
   }
 
   // aero erosion has a special case for one stack and a separate

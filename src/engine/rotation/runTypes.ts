@@ -12,6 +12,7 @@ import type {
 } from '@/domain/gameData/contracts.ts'
 import type {
   DamageResult,
+  FinalStats,
   SkillAggType,
   SkillDef,
 } from '@/domain/entities/stats.ts'
@@ -103,6 +104,9 @@ export interface ProgramOpts {
   /** score of one executed damage event, keyed by authored node and loop run. */
   onDamageScore?: (eventKey: string, resonatorId: string, avg: number) => void
   onFeatureUse?: (occurrenceKey: string) => void
+  /** observes a condition before its writes; source stats are resolved only on request. */
+  onConditionUse?: (node: Extract<RotationNode, { type: 'condition' }>,
+    readSourceStats: (resonatorId: string) => FinalStats | undefined) => void
   allowedFeatureKeys?: ReadonlySet<string>
 }
 

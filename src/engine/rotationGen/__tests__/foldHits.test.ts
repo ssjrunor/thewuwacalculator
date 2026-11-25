@@ -59,6 +59,13 @@ describe('foldHitRuns', () => {
 })
 
 describe('foldRepeats', () => {
+  it('keeps different negative-effect stack inputs separate, including a missing override', () => {
+    const items = [3, 2, 1, undefined, 1, 1].map(negativeEffectStacks => hit('frazzle', { negativeEffectStacks }))
+    const result = foldRepeats(items)
+    expect(result.items.map(node => [node.negativeEffectStacks, node.multiplier]))
+      .toEqual([[3, 1], [2, 1], [1, 1], [undefined, 1], [1, 2]])
+  })
+
   it('combines repeated hits only when their local setter semantics match', () => {
     const result = foldRepeats([hit('a', { attached: attached('first') }), hit('a', { attached: attached('second') }),
       hit('a', { attached: attached('off', false) })])

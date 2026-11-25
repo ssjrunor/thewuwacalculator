@@ -5,7 +5,7 @@
 
 import type { RuntimeValue } from '../types'
 
-/** numerical snapshot needed by Neonlight Leap's source-value control. damage stays in the catalog. */
+/** source-stat snapshots for trigger inputs that scale with the source's stats. */
 export function sourceTuneBreakBoost(fight: RuntimeValue, member: RuntimeValue): number {
   let value = member.source.baseTuneBreakBoost ?? 0
   if (member.source.weapon.secondary?.stat === 'tuneBreakBoost') value += member.source.weapon.secondary.value

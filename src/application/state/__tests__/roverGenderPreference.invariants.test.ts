@@ -79,6 +79,20 @@ it('converts nested imported values while preserving text and item IDs', () => {
     expect(nodes[0].items[0].resonatorId).toBe('1502')
   })
 
+  it('converts numeric active-member identities while retaining ordinary numeric control values', () => {
+    for (const pair of ROVER_PAIRS) {
+      const nodes = [{ id: 'active', type: 'condition' as const, changes: [
+        { type: 'set' as const, path: 'runtime.rotation.activeResonatorId', value: Number(pair.male) },
+        { type: 'set' as const, path: `runtime.state.controls.resonator:${pair.male}:count`, value: Number(pair.male) },
+      ] }]
+      const mapped = convertRotationNodesRoverGender(nodes, 'female')
+      expect(mapped[0]).toMatchObject({ changes: [
+        { path: 'runtime.rotation.activeResonatorId', value: Number(pair.female) },
+        { path: `runtime.state.controls.resonator:${pair.female}:count`, value: Number(pair.male) },
+      ] })
+    }
+  })
+
   it('normalizes once even when opaque member IDs and notes retain the source Rover ID', () => {
     const scenario = makeScenarioFromProfiles({ '1502': makeResProfile(seed('1502')) }, null, 0, '1502')
     scenario.program.program = [{ id: 'note', type: 'note', text: 'Imported from 1502' }]

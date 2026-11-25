@@ -102,26 +102,7 @@ export function applyEchoStt(pool: UnifiedBuffPool, echoes: Array<EchoInstance |
   }
 }
 
-// counts equipped pieces per sonata. within one sonata a repeated echo id counts
-// once; the same echo id assigned to two sonatas counts toward each. e.g.
-// hyvatia+glamoth on set a plus hyvatia+glamoth on set b yields 2pc + 2pc.
-export function countEchoSets(echoes: Array<EchoInstance | null>): Record<string, number> {
-  const counts: Record<string, number> = {}
-  const seenIdsBySet: Record<string, Set<string>> = {}
-
-  for (const echo of echoes) {
-    if (!echo) continue
-
-    const key = String(echo.set)
-    const seenIds = seenIdsBySet[key] ?? (seenIdsBySet[key] = new Set<string>())
-    if (seenIds.has(echo.id)) continue
-
-    seenIds.add(echo.id)
-    counts[key] = (counts[key] ?? 0) + 1
-  }
-
-  return counts
-}
+export { countEchoSets } from '@/domain/gameData/echoSetCounts'
 
 // build the runtime buff pool before echo stats are applied
 // this includes trace nodes, combat-state derived effects, weapon secondary stats,

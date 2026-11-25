@@ -1,13 +1,15 @@
-// api worker: /api/lb/v1, card intake, the read queue consumer, admin routes.
-// ACCESS_*: the access application on thewuwacalculator.com/api/lb/v1/admin (empty = admin routes refuse).
+// api worker: /api/lb, card intake, the read queue consumer and admin routes
+// ACCESS_*: the access application on thewuwacalculator.com/api/lb/admin (empty disables admin routes)
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "twc-leaderboard-api",
-  "main": "src/api/worker.ts",
+  "main": "src/api/entry.ts",
   "compatibility_date": "2026-04-09",
-  // @cloudflare/puppeteer (Browser Rendering) imports node:buffer.
+  // no workers.dev url: requests arrive only through the app worker's LEADERBOARD binding, behind turnstile and access
+  "workers_dev": false,
+  // @cloudflare/puppeteer (Browser Rendering) imports node:buffer
   "compatibility_flags": ["nodejs_compat"],
-  // @/ resolves through tsconfig paths (../../src), for the app source the workers bundle.
+  // @lb/* and @/ resolve through tsconfig paths into ../../src for the bundled app source
   "tsconfig": "./tsconfig.json",
   "vars": {
     "APP_ORIGIN": "https://thewuwacalculator.com",
@@ -15,14 +17,16 @@
     "KURO_CARD_PATH_PREFIX": "/back/",
     "CARD_MAX_BYTES": "4194304",
     "FRESH_CARD_MAX_AGE_S": "900",
-    "SESSION_TTL_S": "3600",
-    "READER_URL": "https://thewuwacalculator.com/reader.html",
+    "SESSION_TTL_S": "2592000",
+    "ACCOUNT_SESSION_TTL_S": "15552000",
+    "READER_URL": "https://thewuwacalculator.com/reader",
     "READ_MODE": "beta",
     "REFUSED_IMAGE_KEEP_DAYS": "30",
     "ACCESS_TEAM_DOMAIN": "bitter-darkness-c755.cloudflareaccess.com",
     "ACCESS_AUD": "a3024aa3dbc145c6b7e8685db838baf5d3b57eca5131efc8faae1ec844ae63e9"
   },
   // secrets (wrangler secret put): LINK_HASH_KEY, SESSION_KEY, TURNSTILE_SECRET
+  // optional oauth secrets: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
   "d1_databases": [
     { "binding": "LB", "database_name": "twc-leaderboard", "database_id": "2e536476-d657-4110-a916-6626d6fb974d", "migrations_dir": "migrations" }
   ],
@@ -33,20 +37,32 @@
   "queues": {
     "producers": [
       { "binding": "READ_QUEUE", "queue": "lb-read" },
-      { "binding": "SCORE_QUEUE", "queue": "lb-score" }
+      { "binding": "SCORE_QUEUE", "queue": "lb-score" },
+      // rescores and rollouts (moderation/rollouts.ts), on a separate queue from new builds
+      { "binding": "SCORE_BULK_QUEUE", "queue": "lb-score-bulk" }
     ],
     "consumers": [
       { "queue": "lb-read", "max_batch_size": 1, "max_retries": 3, "dead_letter_queue": "lb-read-dlq" },
-      // cards that failed every read are refused as read_failed (maintenance.ts).
+      // cards that failed every read are refused as read_failed (maintenance.ts)
       { "queue": "lb-read-dlq", "max_batch_size": 10, "max_retries": 3 }
     ]
   },
+  // one board per resonator (builds, scores, ranks) and sixteen card registry shards (src/board/, src/cards/)
+  // the scorer's fill (POST /fill): breakdowns omitted by lean bulk scores, computed when a board page or build requests them
+  "services": [{ "binding": "SCORER", "service": "twc-leaderboard-scorer" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "BOARDS", "class_name": "BoardDO" },
+      { "name": "CARD_REGISTRY", "class_name": "CardRegistryDO" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BoardDO", "CardRegistryDO"] }],
   "browser": { "binding": "BROWSER" },
   "ratelimits": [
     { "name": "SUBMIT_LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
     { "name": "REPORT_LIMIT", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }
   ],
-  // hourly upkeep: expired sessions, refused-image retention, lost read messages.
+  // hourly upkeep: expired sessions, refused-image retention, lost read messages and every board's sweep
   "triggers": { "crons": ["23 * * * *"] },
   "observability": { "enabled": true }
 }

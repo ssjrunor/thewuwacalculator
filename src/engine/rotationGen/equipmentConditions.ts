@@ -6,7 +6,8 @@
 import type { RuntimeValue } from './types'
 import { rebindControlPath } from './initialState'
 
-export function bindEquipmentConditions(editor: RuntimeValue, combat: RuntimeValue, rulesets: RuntimeValue): void {
+export function bindEquipmentConditions(editor: RuntimeValue, combat: RuntimeValue, rulesets: RuntimeValue,
+  timelineKits: RuntimeValue = null): void {
   // effect ids remain source data identifiers; each member receives its own rebound editor-control bindings.
   editor.memberEffectControls = {}
   for (const member of combat.members) {
@@ -14,7 +15,11 @@ export function bindEquipmentConditions(editor: RuntimeValue, combat: RuntimeVal
     const bindings: RuntimeValue = {}
     for (const definition of [rules, member.weapon, member.echoes.main, member.sonata]) {
       for (const [id, specs] of Object.entries(definition.effectControls ?? {}) as [string, [string, unknown][]][]) {
-        bindings[id] = specs.map(([path, value]) => [rebindControlPath(path, rules), value])
+        bindings[id] = specs.map(([path, value]: [string, RuntimeValue]) => [rebindControlPath(path, rules),
+          // timeline-governed kit effects write the source's displayed stack count, and other counters write their
+          // contributor bit values
+          definition === rules && timelineKits?.[member.resonatorId]?.governed.has(Number(id)) &&
+            value?.displayedCount ? 'stacks' : value])
       }
     }
     // a replay-only enemy status (Lynae's Shifting) has no editor state and the
@@ -40,6 +45,7 @@ export function bindEquipmentConditions(editor: RuntimeValue, combat: RuntimeVal
         if (expected === 'stacks') { stacks = Number(value); return stacks > 0 }
         if (expected?.bitCount) { stacks = (1 << Math.min(expected.bitCount, Number(value))) - 1; return stacks > 0 }
         if (expected?.per) { stacks = Number(value) * expected.per; return stacks > 0 }
+        if (Number.isFinite(expected?.offset)) { stacks = Number(value) - expected.offset; return stacks > 0 }
         return expected === 'conditionalSourceValue' || value === expected
       })
       if (enabled) member.initialEffectGrants.push({ effect: Number(id), stacks })

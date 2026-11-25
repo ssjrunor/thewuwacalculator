@@ -5,4 +5,4 @@
                so stored cards can be re-read and their diffs reviewed.
 */
 
-export const CARD_PARSER_VER = '2026-11-03.2'
+export const CARD_PARSER_VER = '2026-11-18.1'

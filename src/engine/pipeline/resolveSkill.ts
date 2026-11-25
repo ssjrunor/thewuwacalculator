@@ -265,12 +265,16 @@ export function resolveSkill(
     return cached
   }
 
+  const skillType = skllTypeAt(rslvSkll, skillTypeIndex)
+  // a conditional reclassification applies to the whole action, including packet-backed hit rows; without one, authored
+  // mixed packet types are preserved
+  const resolvedEntries = skillTypeIndex < 0 ? damageEntries : damageEntries?.map(entry => ({ ...entry, skillType }))
   const resolved = buildResolvedSkill(
     runtime,
     rslvSkll,
     visible,
-    skllTypeAt(rslvSkll, skillTypeIndex),
-    damageEntries,
+    skillType,
+    resolvedEntries,
     runtimesById,
     evaluateNegative,
   )

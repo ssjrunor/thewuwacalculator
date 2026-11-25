@@ -11,8 +11,8 @@ export type CardFetchErrorCode = 'fetch_failed' | 'too_large' | 'bad_image'
 export class CardFetchError extends Error {
   readonly code: CardFetchErrorCode
 
-  constructor(code: CardFetchErrorCode, message: string) {
-    super(message)
+  constructor(code: CardFetchErrorCode, message: string, options?: ErrorOptions) {
+    super(message, options)
     this.name = 'CardFetchError'
     this.code = code
   }
@@ -48,9 +48,9 @@ export function sniffImageType(bytes: Uint8Array): CardContentType | null {
 async function readCapped(response: Response, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maxBytes) {
-    throw new CardFetchError('too_large', `card is ${declared} bytes, over ${maxBytes}`)
+    throw new CardFetchError('too_large', `woah... this card is too large to download. it needs to be no larger than ${maxBytes} bytes :P`)
   }
-  if (!response.body) throw new CardFetchError('fetch_failed', 'empty response body')
+  if (!response.body) throw new CardFetchError('fetch_failed', "uh oh... Kuro sent an empty card image. try generating a new card and send its link :(")
 
   // the streamed byte count enforces the cap even when Content-Length is missing or understates the body.
   const reader = response.body.getReader()
@@ -62,7 +62,7 @@ async function readCapped(response: Response, maxBytes: number): Promise<Uint8Ar
     total += value.byteLength
     if (total > maxBytes) {
       await reader.cancel()
-      throw new CardFetchError('too_large', `card exceeds ${maxBytes} bytes`)
+      throw new CardFetchError('too_large', `woah... this card is too large to download. it needs to be no larger than ${maxBytes} bytes :P`)
     }
     chunks.push(value)
   }
@@ -87,24 +87,24 @@ export async function fetchCard(url: string, options: CardFetchOptions): Promise
       signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (error) {
-    throw new CardFetchError('fetch_failed', `request failed: ${error instanceof Error ? error.message : String(error)}`)
+    throw new CardFetchError('fetch_failed', "uh oh... we couldn't download this card from Kuro. check the link and try again in a little while :(", { cause: error })
   }
 
   if (response.status !== 200) {
     await response.body?.cancel()
-    throw new CardFetchError('fetch_failed', `kuro answered ${response.status}`)
+    throw new CardFetchError('fetch_failed', "uh oh... Kuro couldn't send this card. check its link or generate a new card and try again :(", { cause: new Error(`Kuro returned HTTP ${response.status}`) })
   }
 
   const lastModified = Date.parse(response.headers.get('last-modified') ?? '')
   if (!Number.isFinite(lastModified)) {
     await response.body?.cancel()
-    throw new CardFetchError('fetch_failed', 'kuro sent no usable last-modified date')
+    throw new CardFetchError('fetch_failed', "hmm... Kuro didn't tell us when this card was generated, so we can't check its age. try generating a new card and send its link :(")
   }
 
   const bytes = await readCapped(response, maxBytes)
   // identify the image from its signature bytes; response Content-Type does not establish an accepted card format.
   const contentType = sniffImageType(bytes)
-  if (!contentType) throw new CardFetchError('bad_image', 'the card is not a jpeg or png')
+  if (!contentType) throw new CardFetchError('bad_image', "hmm... this link didn't return a JPEG or PNG card image. try the original Kuro card link :P")
 
   return { bytes, contentType, byteSize: bytes.byteLength, lastModified }
 }

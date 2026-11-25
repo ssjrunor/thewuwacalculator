@@ -1,12 +1,13 @@
 /*
   Author: Runor Ewhro
-  description: where each page was left. a push arrives at the top of the new
-               page, and a step back arrives exactly where it was read from, so
-               the transition never animates a page into a scroll position it
-               did not have.
+  description: restores each page's scroll position. a push lands at the top of
+               the new page and a back step at the exact previous position, so
+               the transition never animates a page into a scroll position it did
+               not have; a replace on the same path (a query param such as an open
+               row) keeps the position.
 */
 
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
 
@@ -27,15 +28,23 @@ function remember(key: string, top: number) {
 export function useMainScroll(ref: RefObject<HTMLElement | null>): void {
   const location = useLocation()
   const navigationType = useNavigationType()
-  const { key } = location
+  const { key, pathname } = location
+  const lastPath = useRef<string | null>(null)
 
   useLayoutEffect(() => {
     const surface = ref.current
+    const samePage = lastPath.current === pathname
+    lastPath.current = pathname
     if (!surface) return
 
+    // same page with new params: keep the scroll position
+    if (navigationType === 'REPLACE' && samePage) {
+      remember(key, surface.scrollTop)
+      return
+    }
     const stored = left.get(key)
     surface.scrollTop = navigationType === 'POP' && stored !== undefined ? stored : 0
-  }, [key, navigationType, ref])
+  }, [key, pathname, navigationType, ref])
 
   useEffect(() => {
     const surface = ref.current

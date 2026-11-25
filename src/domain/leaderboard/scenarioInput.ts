@@ -19,7 +19,11 @@ export interface ScenarioInputMember {
   sequence: number
   /** level 90. */
   weapon: { id: string; rank: number }
-  echoes: EchoInstance[]
+  /** five positional slots; null means unequipped, including the main slot. */
+  echoes: Array<EchoInstance | null>
+  /** each condition at its highest value in the scored rotation, stored by scoring for the card's combat stats; runs
+        are unaffected because the preamble writes every state before the first hit. */
+  controls?: Record<string, string | number | boolean>
 }
 
 export interface ScenarioInputV1 {

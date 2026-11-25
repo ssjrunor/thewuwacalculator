@@ -74,7 +74,7 @@ describe('Sonata main search across build costs', () => {
     const scalar = ir.finish([damage, ir.eq(main, ir.constant(2))])
     candidateScorer.adoptRotationCandidateCompilation(plan, {
       program: {
-        scalar, displayScalar: scalar, echoSymbols: Uint32Array.from([1, 2, 3]),
+        scalar, displayScalar: scalar, shownOffset: -1, echoSymbols: Uint32Array.from([1, 2, 3]),
         participantIds: [input.runtime.id],
       },
       symbols: [['conditional', 1], ['display-only', 2], ['inert', 3]],

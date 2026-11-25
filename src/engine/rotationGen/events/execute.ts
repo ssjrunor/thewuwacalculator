@@ -26,7 +26,7 @@ function matchesRule(condition?: RuntimeValue, context?: RuntimeValue): RuntimeV
   if (condition.all) return condition.all.every((part?: RuntimeValue): RuntimeValue => matchesRule(part, context))
   if (condition.any) return condition.any.some((part?: RuntimeValue): RuntimeValue => matchesRule(part, context))
   const a: RuntimeValue = Object.hasOwn(condition, 'left') ? resolveValue(condition.left, context)
-    : readPath(context, condition.path) ?? (condition.path?.startsWith('effects.') ? 0 : undefined)
+    : readPath(context, condition.path) ?? (/^(effects|actorEffects)\./.test(condition.path ?? '') ? 0 : undefined)
   const b: RuntimeValue = resolveValue(condition.value, context)
   if (condition.path === 'event.cast' && Array.isArray(context.event.casts)) {
     if (condition.operator === 'eq') return context.event.casts.includes(b)
@@ -141,11 +141,11 @@ export function createEffectState(rulesets?: RuntimeValue, combat?: RuntimeValue
     offTune: { value: 0, max: maxOffTune(combat.target), blockedUntil: 0 },
     memberEffectControls: combat.memberEffectControls ?? {},
     pending: [], nextFrazzleTickAt: null, frazzleOwner: null, frazzleCause: null,
-    effects: [], trace: [], handoffActions: [], statusOwners: {},
+    effects: [], trace: [], handoffActions: [], introQteEffects: [], statusOwners: {},
     statusConversions: Object.assign({}, ...combat.members.map((source: RuntimeValue) => rulesets[source.resonatorId].statusConversions ?? {})),
     unisonBoon: { stacks: combat.unisonBoon?.stacks ?? 0, max: combat.unisonBoon?.max ?? 4,
       until: Infinity, granters: new Set() },
-    castInstance: 0, responseInstance: 0,
+    castInstance: 0, responseInstance: 0, counterBeforeCast: {},
     order: 0, triggerReadyAt: {}, handoffEffects: [], capGrants: {}, actionConsumptions: {},
     effectCaps: Object.fromEntries(Object.entries(effects).map(([id, definition]: RuntimeValue) => [id, definition.maxStacks ?? 1])),
     castListeners: (Object.values(members) as RuntimeValue[]).filter((member?: RuntimeValue): RuntimeValue =>
@@ -173,10 +173,7 @@ export function createEffectState(rulesets?: RuntimeValue, combat?: RuntimeValue
       progression: member.progression }, 'effects', { enumerable: true, get: () => projectedEffects(fight, member) })
   })
   const initial = members[combat.initialOnFieldResonatorId]
-  if (initial.source.weapon.onFieldEntryEffect) grant(fight, initial,
-    { effect: initial.source.weapon.onFieldEntryEffect,
-      stacks: initial.source.weapon.onFieldEntryStacks })
-  for (const effect of initial.source.sonata.onFieldEntryEffects ?? []) grant(fight, initial, { effect })
+  enterField(fight, initial)
   for (const member of Object.values(members) as RuntimeValue[]) {
     for (const operation of member.source.initialEffectGrants ?? []) {
       const definition = effects[operation.effect]
@@ -197,9 +194,12 @@ export function createEffectState(rulesets?: RuntimeValue, combat?: RuntimeValue
 
 function enterField(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue {
   member.onFieldSince = fight.frame
-  if (member.source.weapon.onFieldEntryEffect) grant(fight, member,
-    { effect: member.source.weapon.onFieldEntryEffect,
-      stacks: member.source.weapon.onFieldEntryStacks })
+  const weapon = member.source.weapon
+  const key = `${member.ruleset.resonatorId}:weapon-field-entry`
+  if (weapon.onFieldEntryEffect && fight.frame >= (fight.triggerReadyAt[key] ?? 0)) {
+    grant(fight, member, { effect: weapon.onFieldEntryEffect, stacks: weapon.onFieldEntryStacks })
+    fight.triggerReadyAt[key] = fight.frame + (weapon.onFieldEntryCooldownFrames ?? 0)
+  }
   for (const effect of member.source.sonata.onFieldEntryEffects ?? []) grant(fight, member, { effect })
 }
 
@@ -230,8 +230,27 @@ function ruleContext(fight?: RuntimeValue, member?: RuntimeValue, event: Runtime
     effects: projectedEffects(fight, member),
     actorEffects: fight.members[event.actor] ? projectedEffects(fight, fight.members[event.actor]) : {}, event }
 }
-// only unexpired effects applicable to this member are visible to its rule expressions.
+// each member's last projection, with the effect list, frame and lifetimes it was read at
+const projections = new WeakMap<object, { effects: RuntimeValue[]; entries: RuntimeValue[]; until: number[]; frame: number; result: RuntimeValue }>()
+// only unexpired effects applicable to this member are visible to its rule expressions. every rule context reads
+// this, often several at one frame between effect changes, so the last projection is reused while the list, each
+// entry, each lifetime and the frame are unchanged (the same result by construction). projections are shared and
+// read-only, and grant copies before writing
 function projectedEffects(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue {
+  const effects: RuntimeValue[] = fight.effects
+  const last = projections.get(member)
+  if (last && last.effects === effects && last.frame === fight.frame && last.entries.length === effects.length) {
+    let same = true
+    for (let index = 0; index < effects.length; index += 1) {
+      if (effects[index] !== last.entries[index] || effects[index].until !== last.until[index]) { same = false; break }
+    }
+    if (same) return last.result
+  }
+  const result = projectFrom(fight, member)
+  projections.set(member, { effects, entries: effects.slice(), until: effects.map((effect: RuntimeValue) => effect.until), frame: fight.frame, result })
+  return result
+}
+function projectFrom(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue {
   const result: RuntimeValue = {}
   for (const effect of fight.effects) {
     if (effect.until <= fight.frame) continue
@@ -254,8 +273,9 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
     recipient === 'actorMember' ? sourceEvent.actor : recipient === 'incomingMember' ? next : member.ruleset.resonatorId
   const maxStacks = context.effectCaps[operation.effect]
   const grantedStacks = resolveValue(operation.stacks ?? 1, context)
-  context.effects[operation.effect] = { ...context.effects[operation.effect],
-    stacks: Math.min(maxStacks, (context.effects[operation.effect]?.stacks ?? 0) + grantedStacks) }
+  // projections are shared (projectedEffects), so this context writes the granted stacks to its own copy
+  context.effects = { ...context.effects, [operation.effect]: { ...context.effects[operation.effect],
+    stacks: Math.min(maxStacks, (context.effects[operation.effect]?.stacks ?? 0) + grantedStacks) } }
   const duration = operation.durationFrames ?? resolveValue(definition.duration, context)
   const parent = definition.expiresWith == null ? null : fight.effects.find((effect?: RuntimeValue): RuntimeValue =>
     effect.id === definition.expiresWith && effect.owner === member.ruleset.resonatorId &&
@@ -287,8 +307,11 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
   }
   if (operation.distinctByAction) {
     if (sourceEvent.actionId == null) throw new Error(`Effect ${operation.effect} needs an action source`)
-    if (active.sources?.includes(sourceEvent.actionId)) return
-    active.sources = [...active.sources ?? [], sourceEvent.actionId]
+    if (active.sources?.includes(sourceEvent.actionId)) {
+      // a repeated source earns no extra stack; at the cap, effects permitting refresh still renew their shared timer
+      // (Law of Harmony)
+      if (active.stacks < definition.maxStacks || definition.refreshOnGrant === false) return
+    } else active.sources = [...active.sources ?? [], sourceEvent.actionId]
   }
   // refreshing a capped stack list replaces the earliest expiry; shared-duration effects follow their own refresh rule.
   if (definition.stackDurationIndividually) {
@@ -332,9 +355,11 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
     // trace too; a new target would survive when the real holder is cleared.
     target: active.target, effectId: operation.effect, recipient: active.recipient, effect: definition.name,
     stacks: active.stacks, until: active.until,
+    ...(sourceEvent.actionId == null ? {} : { sourceOwner: sourceEvent.sourceOwner ?? sourceEvent.actor ?? member.ruleset.resonatorId }),
     ...(sourceEvent.actionId == null ? {} : { sourceActionId: sourceEvent.actionId }),
     ...(sourceEvent.instance == null ? {} : { sourceInstance: sourceEvent.instance }),
     ...(sourceEvent.eventId == null ? {} : { sourceEventId: sourceEvent.eventId }),
+    ...(sourceEvent.heals ? { sourceSupport: 'heal' } : sourceEvent.shields ? { sourceSupport: 'shield' } : {}),
     ...(sourceEvent.responseId == null ? {} : { responseId: sourceEvent.responseId }),
     ...(active.conditionalSourceValue == null ? {} : {
       conditionalSourceValue: active.conditionalSourceValue }) })
@@ -376,7 +401,7 @@ function recordStatus(fight: RuntimeValue, owner: number, status: string, stacks
   fight.enemy[status] = stacks
   fight.trace.push({ type: 'status', frame: fight.frame, owner, status, stacks })
 }
-function statusHit(fight: RuntimeValue, member: RuntimeValue, status: string, responseId?: number): void {
+function statusHit(fight: RuntimeValue, member: RuntimeValue, status: string, responseId?: number, stacks?: number, additionalStacks?: number): void {
   const response = responseId ?? emitResponse(fight, { kind: 'tick', owner: member.ruleset.resonatorId,
     cause: { type: 'status', owner: member.ruleset.resonatorId, status }, status }).id
   const element = ({ spectroFrazzle: 320, aeroErosion: 64, fusionBurst: 192, glacioChafe: 256, electroFlare: 128 } as Record<string, number>)[status]
@@ -385,7 +410,8 @@ function statusHit(fight: RuntimeValue, member: RuntimeValue, status: string, re
   dispatch(fight, member, event.kind, null, event, 'afterDebuffs', { ...before.event, sharedDetail: before.event })
   dispatch(fight, member, event.kind, null, event, 'beforeDamage', { ...before.event, sharedDetail: before.event })
   fight.trace.push({ type: 'hit', frame: fight.frame, owner: member.ruleset.resonatorId, hitKind: status,
-    negativeEffectStacks: fight.enemy[status] ?? 0, responseId: response })
+    negativeEffectStacks: stacks ?? fight.enemy[status] ?? 0,
+    ...(additionalStacks == null ? {} : { negativeEffectAdditionalStacks: additionalStacks }), responseId: response })
   dispatch(fight, member, event.kind, null, event, 'afterHit', { ...before.event, responseId: response })
   dispatch(fight, member, 'afterAction', null, null, 'cast', { ...before.event, responseId: response })
 }
@@ -415,7 +441,7 @@ function removeEffect(fight: RuntimeValue, member: RuntimeValue, id: number, tar
   fight.effects = fight.effects.filter((effect: RuntimeValue) => effect.until > fight.frame)
 }
 // convert event offsets to fight frames and preserve insertion order when multiple events share a frame.
-function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: RuntimeValue, at?: RuntimeValue, instance: RuntimeValue = fight.castInstance, responseId: RuntimeValue = null, keep?: (event: RuntimeValue) => boolean): RuntimeValue {
+function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: RuntimeValue, at?: RuntimeValue, instance: RuntimeValue = fight.castInstance, responseId: RuntimeValue = null, keep?: (event: RuntimeValue) => boolean, hitOffsets?: Map<number, number>): RuntimeValue {
   const action = member.ruleset.actions[actionId] ??
     echoAction(member.source.echoes.main, actionId)
   if (!action) throw new Error(`Unknown action ${actionId}`)
@@ -423,7 +449,7 @@ function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: Runtim
     if (event.kind === member.ruleset.codes.event.cast) continue
     if (!eventAppliesToOwner(event, member.ruleset.resonatorId)) continue
     if (keep && !keep(event)) continue
-    fight.pending.push({ frame: at + worldFrame(event.at, action.timing.timeStop),
+    fight.pending.push({ frame: at + (hitOffsets?.get(event.id) ?? worldFrame(event.at, action.timing.timeStop)),
       order: fight.order++, owner: member.ruleset.resonatorId, actionId,
       instance, event, stepId: fight.currentStepId, ...(responseId == null ? {} : { responseId }) })
   }
@@ -439,6 +465,8 @@ function triggerAction(fight?: RuntimeValue, member?: RuntimeValue, actionId?: R
   if (!action) throw new Error(`Unknown triggered action ${actionId}`)
   assertActionCoverage(member, actionId, fight.currentStepId)
   const instance = ++fight.castInstance
+  fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
+    .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
   fight.trace.push({ frame: fight.frame, type: 'cast', owner: member.ruleset.resonatorId,
     action: action.name, actionId, instance, cut: 'triggered',
     responseId: response.id, stepId: fight.currentStepId })
@@ -460,6 +488,13 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
     return
   }
   switch (operation.op) {
+    // callback spending is an equipment trigger fact, and cast-declared spending is already on this event; record
+    // both
+    case 'recordConcertoSpend': {
+      const spent = Math.max(0, -Number(resolveValue(operation.value, context)))
+      local.event.concertoSpent = (local.event.concertoSpent ?? 0) + spent
+      break
+    }
     case 'sendOthersOff': {
       const others = (Object.values(fight.members) as RuntimeValue[]).filter(other => other !== member)
       for (const other of others) dispatch(fight, other, 'sentOff', null, null, 'cast', { responseId: local.event.responseId })
@@ -555,7 +590,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
     // Suisui's Undulating Mist); the effect stays the queuing member's own.
     case 'queueHandoffEffect': fight.handoffEffects.push({ owner: member.ruleset.resonatorId,
       from: operation.from == null ? member.ruleset.resonatorId : Number(resolveValue(operation.from, context)),
-      effect: operation.effect, until: fight.frame + operation.frameLimit }); break
+      effect: operation.effect, introQte: operation.introQte === true, until: fight.frame + operation.frameLimit }); break
     case 'removeEffect': {
       removeEffect(fight, member, operation.effect, operation.targetOwner == null ? undefined : resolveValue(operation.targetOwner, context))
       break
@@ -576,6 +611,8 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
     }
     // signal a replayed application; the timeline supplies the stack count.
     case 'signalStatus': {
+      if (!operation.observed && local.event.observedInflictions?.some((row: RuntimeValue) =>
+        row.owner === member.ruleset.resonatorId && row.status === operation.status)) break
       if (operation.negative !== false) {
         local.event.negativeInflicted = true
         local.event.negativeInflictedByOwner ??= {}
@@ -660,6 +697,10 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       break
     }
     case 'emitHit': {
+      if (operation.afterHandoff) {
+        fight.handoffActions.push({ member, operation: { ...operation, afterHandoff: false }, event: { ...local.event } })
+        break
+      }
       const response: RuntimeValue = emitResponse(fight, { kind: 'action', owner: member.ruleset.resonatorId,
         cause: local.event.responseId == null ? eventCause(local.event) :
           { type: 'response', responseId: local.event.responseId },
@@ -667,6 +708,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       const action: RuntimeValue = { name: operation.name }
       emitHit(fight, member,
       { action: action.name, actionId: operation.eventId, eventId: operation.eventId,
+        ...(operation.featureId ? { featureId: operation.featureId } : {}),
         responseId: response.id })
       break
     }
@@ -735,7 +777,8 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       const key = operation.path.replace(/^runtime\.state\.controls\./, '')
       const value = resolveValue(operation.value, context)
       member.source.initialControls[key] = value
-      fight.trace.push({ type: 'control', frame: fight.frame, owner: member.ruleset.resonatorId, path: operation.path, value })
+      fight.trace.push({ type: 'control', frame: fight.frame, owner: member.ruleset.resonatorId,
+        path: operation.path, value, sourceWhen: local.when })
       break
     }
     default: throw new Error(`Unsupported operation ${operation.op}`)
@@ -751,7 +794,8 @@ function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeVal
     cast: action?.cast, node: action?.node, nativeCast: action?.cast == null ? null : [1, 2, 3, 4, 5, 6, 7, 0, 8, 9, 10][action.cast],
     casts: [action?.cast, ...action?.additionalCasts ?? []], element: event?.element ?? member.source.element,
     positiveHitCounters: action?.positiveHitCounters ?? {}, hitCounterTotals: action?.hitCounterTotals ?? {},
-    triggered: extra.responseId != null, counterChanges: event?.counterChanges ?? action?.counterChanges ?? {},
+    triggered: extra.responseId != null, counterChanges: event?.counterChanges ?? action?.counterChanges ?? {}, castCounterChanges: action?.counterChanges ?? {},
+    counterBeforeCast: fight.counterBeforeCast[extra.instance] ?? {},
     hasField: Boolean(action?.hasField), hasDamage: Boolean(event?.damage), coordinated: Boolean(event?.coordinated), status: event?.status,
     isHit: event?.index != null,
     elapsed: action?.timing.duration ?? 0, hitCount: action?.events.filter((event: RuntimeValue) => event.damage).length ?? 0,
@@ -762,7 +806,7 @@ function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeVal
     }),
     concertoSpent: event?.concertoSpent ?? 0,
     ...(when === 'afterAction' ? fight.actionConsumptions[extra.instance] : {}), ...extra }
-  const local: RuntimeValue = { event: detail, locals: {} }
+  const local: RuntimeValue = { event: detail, locals: {}, when }
   for (const rule of [...member.ruleset.rules, ...member.source.weapon.rules,
     ...(member.source.echoes.main.rules ?? []), ...member.source.sonata.rules]) {
     if (rule.when !== when || (rule.phase ?? 'cast') !== phase) continue
@@ -770,7 +814,7 @@ function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeVal
     if (Boolean(rule.late) !== Boolean(extra.latePass)) continue
     if (extra.sourceOwner != null &&
       extra.sourceOwner !== member.ruleset.resonatorId && !rule.listenTeam) continue
-    const cooldownKey = `${member.ruleset.resonatorId}:${rule.cooldownGroup ?? rule.id}`
+    const cooldownKey = `${member.ruleset.resonatorId}:${rule.cooldownGroup ?? rule.id}${rule.cooldownByAction ? `:${actionId}` : ''}`
     if (rule.cooldownFrames && fight.frame <
       (fight.triggerReadyAt[cooldownKey] ?? 0)) continue
     if (rule.actions && !rule.actions.includes(actionId)) continue
@@ -822,6 +866,10 @@ function emitHit(fight?: RuntimeValue, member?: RuntimeValue, data?: RuntimeValu
 // resolve debuffs and pre-damage rules before tracing the hit, then apply post-hit transitions.
 function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
   const member = fight.members[item.owner]
+  if (item.introQteEffect) {
+    if (fight.active === item.target) grant(fight, member, { effect: item.introQteEffect, recipient: 'incomingMember' }, item.target)
+    return
+  }
   const action = member.ruleset.actions[item.actionId] ??
     echoAction(member.source.echoes.main, item.actionId)
   const event = item.event
@@ -839,11 +887,19 @@ function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
     return
   }
   const targetStateBeforeHit: RuntimeValue = { ...fight.enemy }
-  const hitContext: RuntimeValue = { targetStateBeforeHit, instance: item.instance,
+  const observedInflictions = fight.observedInflictions?.[item.instance]?.[event.id]
+  const hitContext: RuntimeValue = { targetStateBeforeHit, instance: item.instance, observedInflictions,
     ...(item.responseId == null ? {} : { responseId: item.responseId }) }
   if (event.damage) buildOffTune(fight, member, item.actionId, event.id)
   // one event record retains debuff applications and consumptions across all pre-damage phases.
   const beforeHit = dispatch(fight, member, event.kind, item.actionId, event, 'beforeHit', hitContext)
+  for (const row of observedInflictions ?? []) {
+    const source = fight.members[row.owner]
+    const effect = Object.entries(source.ruleset.sourceEffects ?? source.ruleset.effects)
+      .find(([, definition]: [string, RuntimeValue]) => definition.status?.key === row.status)?.[0]
+    runOperation(fight, source, { op: 'signalStatus', status: row.status, stacks: row.stacks,
+      ...(effect == null ? {} : { effect: Number(effect) }), observed: true }, { event: beforeHit.event, locals: {} })
+  }
   dispatch(fight, member, event.kind, item.actionId, event, 'afterDebuffs', { ...beforeHit.event, sharedDetail: beforeHit.event })
   dispatch(fight, member, event.kind, item.actionId, event, 'beforeDamage', { ...beforeHit.event, sharedDetail: beforeHit.event })
   if (event.damage) {
@@ -933,6 +989,8 @@ function pulsePeriodicStatus(fight?: RuntimeValue, member?: RuntimeValue, clock?
   const variant = clock.variants[mode]
   if (!variant) throw new Error(`Missing periodic status variant ${mode}`)
   const instance = ++fight.castInstance
+  fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
+    .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
   const response: RuntimeValue = emitResponse(fight, { kind: 'status', owner: member.ruleset.resonatorId,
     cause: member.clockSources[clock.nextAt] ?? { type: 'clock', owner: member.ruleset.resonatorId,
       actionId: clock.sourceAction, eventId: clock.sourceEvent },
@@ -966,7 +1024,7 @@ function applyClockRules(fight?: RuntimeValue, member?: RuntimeValue, rules?: Ru
   }
 }
 // advance monotonically through bounded frames; clock ticks precede expiry cleanup and queued hits at the same frame.
-export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeValue): RuntimeValue {
+export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeValue, deferTargetHits = false): RuntimeValue {
   if (!Number.isInteger(targetFrame) || targetFrame < fight.frame ||
     targetFrame > fight.frameLimit) throw new Error(`Invalid target frame ${targetFrame} (current ${fight.frame}, limit ${fight.frameLimit})`)
   while (fight.frame <= targetFrame) {
@@ -1063,7 +1121,7 @@ export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeVa
     }
     if (fight.nextFrazzleTickAt === fight.frame) tickFrazzle(fight)
     // queued events temporarily restore their originating step id; finally restores the outer step even when an event fails.
-    while (fight.pending[0]?.frame === fight.frame) {
+    while (fight.pending[0]?.frame === fight.frame && !(deferTargetHits && fight.frame === targetFrame)) {
       const item = fight.pending.shift(), stepId = fight.currentStepId
       fight.currentStepId = item.stepId ?? stepId
       try { processHit(fight, item) } finally { fight.currentStepId = stepId }
@@ -1098,6 +1156,23 @@ function recordInputTime(member: RuntimeValue, action: RuntimeValue, frame: numb
   if (action.input === 'skill') member.lastSkillAt = frame
 }
 
+function adoptIntroQteEffects(fight: RuntimeValue, owner: number, action: RuntimeValue): void {
+  if (action.cast !== fight.members[owner].ruleset.codes.cast.intro) return
+  const pending = fight.introQteEffects.filter((entry: RuntimeValue) => entry.target === owner)
+  fight.introQteEffects = fight.introQteEffects.filter((entry: RuntimeValue) => entry.target !== owner)
+  const delay = worldFrame(action.timing.introQteFrames ?? 0, action.timing.timeStop)
+  for (const entry of pending) {
+    if (!delay) grant(fight, fight.members[entry.owner], { effect: entry.effect, recipient: 'incomingMember' }, owner)
+    else fight.pending.push({ frame: fight.frame + delay, order: fight.order++, owner: entry.owner,
+      target: owner, introQteEffect: entry.effect })
+  }
+}
+
+function handoffEffect(fight: RuntimeValue, pending: RuntimeValue, target: number): void {
+  if (pending.introQte) fight.introQteEffects.push({ ...pending, target })
+  else grant(fight, fight.members[pending.owner], { effect: pending.effect, recipient: 'incomingMember' }, target)
+}
+
 // validate one prescribed input, dispatch its cast phases, and schedule its delayed events under a new cast instance.
 export function resolveAction(fight: RuntimeValue, owner: number, reference: string | number, options: RuntimeValue = {}): RuntimeValue {
   const member = fight.members[owner]
@@ -1121,9 +1196,12 @@ export function resolveAction(fight: RuntimeValue, owner: number, reference: str
   assertActionCoverage(member, id, fight.currentStepId)
   if (fight.active !== owner && !options.triggered) throw new Error(`Action actor disagrees with the plan: ${owner}`)
   const instance = ++fight.castInstance
+  fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
+    .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
   fight.trace.push({ frame: fight.frame, type: 'cast', owner, action: action.name, actionId: id, instance, stepId: fight.currentStepId,
     ...(options.next == null ? {} : { next: options.next }) })
   recordInputTime(member, action, fight.frame)
+  adoptIntroQteEffects(fight, owner, action)
   if (id === member.ruleset.tuneBreakAction) {
     // the break takes the whole bar and starts the Tune Break Cooldown
     fight.offTune.value = 0
@@ -1219,7 +1297,7 @@ export function resolveSwap(fight: RuntimeValue, to: number, response?: { outro:
     resolveAction(fight, from, response.outro, { next: to })
     advanceEffectState(fight, Math.max(fight.frame, fight.readyAt))
     for (const pending of fight.handoffEffects) if (pending.from === from && pending.until >= fight.frame) {
-      grant(fight, fight.members[pending.owner], { effect: pending.effect, recipient: 'incomingMember' }, to)
+      handoffEffect(fight, pending, to)
     }
     fight.handoffEffects = fight.handoffEffects.filter((pending: RuntimeValue) => pending.from !== from)
   }
@@ -1247,19 +1325,22 @@ function expireSwapEffects(fight: RuntimeValue, recipient: number): void {
 
 /** a timeline cast resolves its landed hit count or a matched sparse set of event ordinals. */
 export function playCast(fight: RuntimeValue, owner: number, actionId: number, landed: number, share?: number,
-  timelineEvent?: number, landedIndices?: number[], incomingOwner?: number): void {
+  timelineEvent?: number, landedIndices?: number[], incomingOwner?: number, hitFrames?: number[], inflictions?: RuntimeValue[]): void {
   const member = fight.members[owner]
   const action = member.ruleset.actions[actionId] ?? echoAction(member.source.echoes.main, actionId)
   if (!action) throw new Error(`Unknown timeline action ${owner}:${actionId}`)
   const instance = ++fight.castInstance
+  fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
+    .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
   fight.trace.push({ frame: fight.frame, type: 'cast', owner, action: action.name, actionId, instance, stepId: fight.currentStepId,
     ...(share == null ? {} : { share }), ...(timelineEvent == null ? {} : { timelineEvent }),
-    ...(landedIndices == null ? {} : { landedIndices }) })
+    ...(landedIndices == null ? {} : { landedIndices }), ...(hitFrames == null ? {} : { hitFrames }) })
   // what the timeline inflicts next, it inflicts with this cast
-  const span = Math.max(0, ...action.events.filter((event: RuntimeValue) => event.damage).map((event: RuntimeValue) => event.at ?? 0))
+  const span = Math.max(0, ...(hitFrames ?? action.events.filter((event: RuntimeValue) => event.damage).map((event: RuntimeValue) => event.at ?? 0)))
   member.timelineCast = { owner, actionId, instance, frame: fight.frame, span }
   fight.timelineCast = member.timelineCast
   recordInputTime(member, action, fight.frame)
+  adoptIntroQteEffects(fight, owner, action)
   const cast = action.events.find((event: RuntimeValue) => event.kind === member.ruleset.codes.event.cast)
   // a recorded Outro can precede or follow its same-frame swap. Equipment
   // needs the actual recipient so swap-off expiry follows that teammate.
@@ -1272,7 +1353,17 @@ export function playCast(fight: RuntimeValue, owner: number, actionId: number, l
   const hits = new Set(landedIndices
     ? damageHits.filter((_: RuntimeValue, index: number) => landedIndices.includes(index))
     : damageHits.slice(0, landed))
-  schedule(fight, member, actionId, fight.frame, instance, null, (event) => !event.damage || hits.has(event))
+  if (inflictions?.length) {
+    fight.observedInflictions ??= {}
+    fight.observedInflictions[instance] = Object.fromEntries(damageHits.map((event: RuntimeValue, index: number) =>
+      [event.id, inflictions.filter(row => row.hit === index)]))
+  }
+  // captured hit frames replace authored event offsets, one frame per landed hit
+  if (hitFrames && (hitFrames.length !== hits.size || hitFrames.some(at => !Number.isFinite(at) || at < 0))) {
+    throw new Error(`Invalid captured hit timing for ${owner}:${actionId}`)
+  }
+  const hitOffsets = hitFrames && new Map([...hits].map((event: RuntimeValue, index) => [event.id, hitFrames[index]]))
+  schedule(fight, member, actionId, fight.frame, instance, null, (event) => !event.damage || hits.has(event), hitOffsets)
 }
 
 /** the field changes hands; equipment's swap and field-entry effects follow. */
@@ -1281,7 +1372,7 @@ export function playSwap(fight: RuntimeValue, to: number): void {
   if (to === from) return
   expireSwapEffects(fight, from)
   for (const pending of fight.handoffEffects) if (pending.from === from && pending.until >= fight.frame) {
-    grant(fight, fight.members[pending.owner], { effect: pending.effect, recipient: 'incomingMember' }, to)
+    handoffEffect(fight, pending, to)
   }
   fight.handoffEffects = fight.handoffEffects.filter((pending: RuntimeValue) => pending.from !== from)
   fight.effects = fight.effects.filter((effect: RuntimeValue) => effect.until > fight.frame)
@@ -1345,7 +1436,10 @@ export function holdEffect(fight: RuntimeValue, owner: number, effectId: number,
 /** a negative status at the timeline's stacks; a rise is an infliction equipment can answer. */
 export function holdStatus(fight: RuntimeValue, owner: number, status: string, stacks: number, traced: boolean, applies = true): void {
   const before = fight.enemy[status] ?? 0
-  if (before === stacks) return
+  if (before === stacks) {
+    if (traced) recordStatus(fight, owner, status, stacks)
+    return
+  }
   fight.statusOwners[status] = owner
   if (traced) recordStatus(fight, owner, status, stacks)
   else fight.enemy[status] = stacks
@@ -1359,8 +1453,8 @@ export function holdStatus(fight: RuntimeValue, owner: number, status: string, s
 }
 
 /** a negative status dealing its damage. */
-export function playTick(fight: RuntimeValue, owner: number, status: string): void {
-  statusHit(fight, fight.members[owner], status)
+export function playTick(fight: RuntimeValue, owner: number, status: string, stacks?: number, additionalStacks?: number): void {
+  statusHit(fight, fight.members[owner], status, undefined, stacks, additionalStacks)
 }
 
 /** a heal or a shield the timeline's kit gave. */

@@ -18,7 +18,7 @@ import type { ChromeIndexCtx } from '@/application/navigation/chromeIndex'
 import { useTstStr } from '@/shared/util/toastStore.ts'
 import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
 import { useMenuContributions } from '@/application/context-menu/AppContextMenu'
-import { SIMULATION_SURFACES, isSimulationRoute, isSimulationSurfaceRoute } from '@/shared/lib/appRoutes'
+import { APP_ROUTES, SIMULATION_SURFACES, isSimulationRoute, isSimulationSurfaceRoute } from '@/shared/lib/appRoutes'
 import { CURRENT_CHANGE_NOTICE, CURRENT_CHANGE_NOTICE_KEY } from '@/data/content/currentChangelogNotice'
 import { RtMenuProv } from '@/app/shell/context-menu/RouteMenuProvider'
 import { useRtChrmMen } from '@/application/context-menu/routeMenuContext'
@@ -200,7 +200,7 @@ function AppLayoutContent() {
           <ChromeToolsProv port={toolsPort}>
             <div className="ax-chrome">
               <ChromeHeader
-                at={atSimulation}
+                at={atSimulation ?? (location.pathname.startsWith(APP_ROUTES.leaderboard) ? 'leaderboard' : null)}
                 stamp={stamp?.run}
                 tools={<AppTools simulating={simulating} />}
                 onPort={setToolsPort}

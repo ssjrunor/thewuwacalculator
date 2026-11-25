@@ -16,10 +16,6 @@
   filter: grayscale(1);
 }
 
-.rte-page * {
-  min-width: 0;
-}
-
 :where(.rte-page) :where(button),
 :where(.rtcfg) :where(button) {
   font: inherit;
@@ -3690,10 +3686,6 @@ button.rte-bnd:focus-visible .rte-bnd__nm,
   --select-accent: var(--rte-res);
   --select-text: var(--text);
   --select-line: var(--rte-line-strong);
-}
-
-.rte-cselect .app-select__trigger {
-  min-width: 0;
 }
 
 .rte-cwrite {

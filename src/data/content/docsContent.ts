@@ -1617,7 +1617,11 @@ const negativeEffectsTopic: DocTopic = {
           caption: 'EQ.3',
           title: 'Resistance multiplier',
           lines: [
-            'res = enemyRes - resShred',
+            'Tune Rupture and Hack:',
+            '    res = enemyRes - resShred - resIgnore',
+            '',
+            'Negative effects (RES Ignore does not apply):',
+            '    res = enemyRes - resShred',
             '',
             'res < 0:',
             '    resistanceMult = 1 - res / 200',
@@ -1637,10 +1641,10 @@ const negativeEffectsTopic: DocTopic = {
           caption: 'EQ.4',
           title: 'Defense multiplier',
           lines: [
-            'Tune Break:',
+            'Tune Rupture and Hack:',
             '    enemyDefense = (8 * enemyLevel + 792)',
             '                 * (1 - defShred / 100)',
-            '                 * (1 - targetedDefIgnore / 100)',
+            '                 * (1 - totalMatchingDefIgnore / 100)',
             '',
             'Negative effects:',
             '    enemyDefense = (8 * enemyLevel + 792)',
@@ -1662,6 +1666,7 @@ const negativeEffectsTopic: DocTopic = {
           text: [
             'Tune Break ignores Amplify and reads the dedicated tune damage-bonus bucket plus Tune Break Boost. Negative effects read only their own skill Amplify and explicitly matching effect-type Amplify. They also read the effect-type damage-bonus bucket, the effect-specific multiplier bucket, vulnerability, and Final DMG. Ordinary skills sum all matching Amplify sources before applying one multiplier.',
             'For both branches, element RES shred, defense shred, and vulnerability are still element-aware. The effect element is Spectro for Frazzle, Aero for Erosion, Fusion for Burst, Glacio for Chafe, and Electro for Flare.',
+            'Tune Rupture and Hack include general DEF Ignore and matching element, skill-type, and skill-specific DEF Ignore. Negative effects retain their explicitly targeted DEF Ignore rules.',
           ],
         },
         {

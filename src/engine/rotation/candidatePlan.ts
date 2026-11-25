@@ -15,6 +15,8 @@ export interface RotationCandidatePlan {
   setControls?: RotationCandidateOptions['setControls']
   /** candidate echoes for searches with fixed catalog identities and Sonata sets. */
   candidates?: readonly EchoInstance[]
+  /** also lower each participant's shown damage (PortableRotationProgram.shownOffset); the leaderboard's DPR reads it. */
+  shown?: boolean
 }
 
 export function prepareRotationCandidatePlan(
@@ -40,5 +42,5 @@ export function compileRotationCandidates(
 ) {
   return compilePortableRotation(plan.environment, plan.items, candidates, plan.featureKeys,
     plan.disabledSetParts, constraints, plan.damageEventKeys,
-    { ...options, setControls: plan.setControls })
+    { ...options, setControls: plan.setControls, ...(plan.shown ? { shown: true } : {}) })
 }

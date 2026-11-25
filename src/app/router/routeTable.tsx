@@ -19,6 +19,7 @@ import {
   notFoundChunk,
   privacyChunk,
   calibrationChunk,
+  leaderboardChunk,
   simulationChunk,
   termsChunk,
 } from '@/app/nav/routeChunks'
@@ -36,10 +37,12 @@ import {
   whatsNewHref,
 } from '@/shared/lib/appRoutes'
 import type { SimulationSurfaceHandle } from '@/modules/simulation/api/route'
+import { prefetchLb } from '@/modules/leaderboard/api/queries'
 import { useMobileUi } from '@/shared/responsive/mobileUi'
 
 const SimulationPage = simulationChunk.Mount
 const CalibrationPage = calibrationChunk.Mount
+const LeaderboardPage = leaderboardChunk.Mount
 const GuidesPage = guidesChunk.Mount
 const DocsPage = docsChunk.Mount
 const ChngPage = changelogChunk.Mount
@@ -120,6 +123,7 @@ export const rootRoutes: RouteObject[] = [
             element: <PreserveLocationRedirect to={SIMULATION_ROUTES.rotation} />,
           },
           { path: APP_ROUTES.calibration, element: lazyRoute(<CalibrationPage />) },
+          { path: `${APP_ROUTES.leaderboard}/*`, loader: prefetchLb, element: lazyRoute(<LeaderboardPage />) },
           { path: LEGACY_SETTINGS_ROUTE, element: <PreserveLocationRedirect to={APP_ROUTES.calibration} /> },
           { path: APP_ROUTES.guides, element: lazyRoute(<GuidesPage />) },
           { path: APP_ROUTES.docs, element: lazyRoute(<DocsPage />) },

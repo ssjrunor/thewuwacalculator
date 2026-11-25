@@ -16,7 +16,7 @@ import {
 
 // families used by shared chrome stay together; customization-only families
 // are requested when showcase actually needs its typography controls.
-const APP_FONT_URL = 'https://fonts.googleapis.com/css2?family=Sen:wght@400..800&family=Montserrat:ital,wght@0,100..900;1,100..900&family=DM+Mono:wght@400;500&family=Rubik+Glitch&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Indie+Flower&display=swap'
+const APP_FONT_URL = 'https://fonts.googleapis.com/css2?family=Sen:wght@400..800&family=Montserrat:ital,wght@0,100..900;1,100..900&family=DM+Mono:wght@400;500&family=Oxygen+Mono&family=Rubik+Glitch&family=Indie+Flower&display=swap'
 const SHOWCASE_FONT_URL = 'https://fonts.googleapis.com/css2?family=Keania+One&display=swap'
 const GAME_FONT_URL = 'https://hw-media-cdn-mingchao.kurogame.com/font/LaguSansBold.otf'
 

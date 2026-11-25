@@ -9,6 +9,7 @@
                first (ensureResonatorData(scenarioResonatorIds(input))).
 */
 
+import { cloneEchoLoadout } from '@/domain/entities/inventoryStorage'
 import type { CombatScenario, ScenarioTeamMember } from '@/domain/entities/combatScenario'
 import { combatScenarioId, makeScenarioTeam, teamMemberId } from '@/domain/entities/combatScenario'
 import type { ScenarioInput, ScenarioInputMember } from '@/domain/leaderboard/scenarioInput'
@@ -43,16 +44,13 @@ function seatMember(member: ScenarioInputMember): ScenarioTeamMember {
         rank: member.weapon.rank,
         baseAtk: wpnAtkAt(member.weapon.id, MAX_WPN_LVL),
       },
-      echoes: member.echoes.map((echo) => ({
-        ...echo,
-        mainStats: { primary: { ...echo.mainStats.primary }, secondary: { ...echo.mainStats.secondary } },
-        substats: { ...echo.substats },
-      })),
+      echoes: cloneEchoLoadout(member.echoes),
     },
-    // every other state starts unset; the rotation decides what is active.
+    // every other state starts unset or at a scored rotation's stored peak, and the preamble writes each state before
+    // the first hit, so the rotation sets what is active; the seat's mode stays authored
     local: {
       ...base.local,
-      controls: member.mode ? { [modeControlKey(member.resonatorId)]: member.mode } : {},
+      controls: { ...member.controls, ...(member.mode ? { [modeControlKey(member.resonatorId)]: member.mode } : {}) },
     },
   }
 }

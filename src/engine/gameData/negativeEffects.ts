@@ -140,13 +140,6 @@ function resBhvrEnt(
   }
 }
 
-function getFfctLctrF(runtime: ResRuntime, lctrFlrMax: number): number {
-  return Math.min(
-    Math.max(0, Math.floor(runtime.state.combat.electroFlare ?? 0)),
-    lctrFlrMax,
-  )
-}
-
 function getNegFfctSr(resonatorId: string): ResNegFfcthn[] {
   return getResDtlsBy()[resonatorId]?.negativeEffectSources ?? []
 }
@@ -366,19 +359,14 @@ function resolveNegEffectsFor(
 
   const lctrFlrEnt = resolved.get('electroFlare')
   if (lctrFlrEnt) {
-    const ffctLctrFlrS = getFfctLctrF(runtime, lctrFlrEnt.max)
-    if (ffctLctrFlrS > getNegEffectDef('electroFlare')) {
-      const electroRageCat = NEG_EFFECT_CATS.electroRage
-      const current = resolved.get('electroRage')
-      resolved.set('electroRage', {
-        ...electroRageCat,
-        max: Math.max(current?.max ?? electroRageCat.defaultMax, lctrFlrEnt.max),
-        stackMode: current?.stackMode ?? 'manual',
-        sliderVisible: current?.sliderVisible ?? true,
-      })
-    } else {
-      resolved.delete('electroRage')
-    }
+    const electroRageCat = NEG_EFFECT_CATS.electroRage
+    const current = resolved.get('electroRage')
+    resolved.set('electroRage', {
+      ...electroRageCat,
+      max: Math.max(current?.max ?? electroRageCat.defaultMax, lctrFlrEnt.max),
+      stackMode: current?.stackMode ?? 'manual',
+      sliderVisible: current?.sliderVisible ?? true,
+    })
   }
 
   for (const [key, behavior] of behaviors.entries()) {

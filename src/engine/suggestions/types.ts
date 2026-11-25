@@ -71,6 +71,8 @@ export interface SuggestInput {
   runtimesById: Record<string, ResRuntime>
   selectedTargets: Record<string, string | null>
   combatSetup?: import('@/engine/pipeline/index.ts').RotationCombatSetup
+  /** set when saved programs supply their own equipment activation and expiry writes. */
+  preserveEchoStateChanges?: boolean
   setConds?: SntSetConds
   setStateMode?: 'max' | 'resolved'
   tgtFeatId: string | null
@@ -110,6 +112,7 @@ export interface DrctSuggCtx {
 
 export interface RotSuggCtx {
   mode: 'rotation'
+  preserveEchoStateChanges?: boolean
   candidatePlan?: import('@/engine/rotation/candidatePlan').RotationCandidatePlan
   fixedTeamDamage: number
   teamDamagePlan?: import('@/engine/rotation/damagePlan.ts').RotationTeamDamagePlan

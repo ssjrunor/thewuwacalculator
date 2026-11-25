@@ -26,6 +26,7 @@ export const APP_ROUTES = {
   root: '/',
   home: '/',
   calibration: '/calibration',
+  leaderboard: '/leaderboard',
   ...READ_ROUTES,
 } as const
 
@@ -60,6 +61,7 @@ export const APP_NAVIGATION = {
   optimizer: { name: 'Optimizer', to: SIMULATION_ROUTES.optimizer },
   suggestions: { name: 'Suggestions', to: SIMULATION_ROUTES.suggestions },
   calibration: { name: 'Calibration', to: APP_ROUTES.calibration },
+  leaderboard: { name: 'Leaderboard', to: APP_ROUTES.leaderboard },
   guides: { name: 'Guides', to: APP_ROUTES.guides },
   docs: { name: 'Docs', to: APP_ROUTES.docs },
   changelog: { name: 'Changelog', to: APP_ROUTES.changelog },

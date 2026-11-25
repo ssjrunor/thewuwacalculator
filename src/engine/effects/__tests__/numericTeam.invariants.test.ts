@@ -87,6 +87,28 @@ function legacyContext(graph: CombatGraph, targetSlotId: SlotId, enemy: ReturnTy
 }
 
 describe('numeric team effect kernel', () => {
+  it('resolves a post-stat support buff before another source reads its threshold, including invalidation and off-field owners', () => {
+    const qiuyuan = getResSeedBy('1411')!, shorekeeper = getResSeedBy('1505')!
+    const q = makeResRuntime(qiuyuan), sk = makeResRuntime(shorekeeper)
+    for (const runtime of [q, sk]) { runtime.base.level = 90; runtime.build.team = [q.id, sk.id, null] }
+    q.state.manualBuffs.quick.critRate = 39.6
+    sk.state.manualBuffs.quick.energyRegen = 150
+    q.state.controls['resonator:1411:sundering_strike:active'] = true
+    const graph = makeCombatGraph({ actRt: q, activeSeed: qiuyuan, partRts: { [sk.id]: sk } })
+    const packed = forkNumericTeam(makeCombatEnv({ graph, targetSlotId: 'active', enemy: makeEnemy() }).numericTeam!)
+    const read = (slot: SlotId) => materializeNumericContext(packed, graph, slot, makeEnemy())
+    const before = read('active').finalStats
+    expect(before.critRate).toBeCloseTo(50)
+    writeNumericRuntime(packed, sk.id, 'state.controls.resonator:1505:inner_stellarealm:active', true)
+    const after = read('active').finalStats
+    expect(after.critRate - before.critRate).toBeCloseTo(12.5)
+    expect(after.critDmg - before.critDmg).toBeCloseTo(25)
+    setNumericActiveLane(packed, sk.id)
+    const shared = read('team1').finalStats.critDmg
+    writeNumericRuntime(packed, sk.id, 'state.controls.resonator:1505:inner_stellarealm:active', false)
+    expect(shared - read('team1').finalStats.critDmg).toBeCloseTo(25)
+  })
+
   it('writes Unison Boon as a capped team rotation condition in both executors', () => {
     const hsin = getResSeedBy('1311')
     const suoming = getResSeedBy('1312')
@@ -247,13 +269,13 @@ describe('numeric team effect kernel', () => {
     const fusionLiberation = fusion.skills.find((skill) => skill.id === '1210601')
     const fusionBasic = fusion.skills.find((skill) => skill.id === '1210001')
     if (!fusionLiberation || !fusionBasic) throw new Error('Missing Aemeath test skills')
-    expect(prepareNumericSkill(fusion.numeric, fusion.lane, fusionLiberation).skillBuffs?.resShred).toBe(10)
-    expect(prepareNumericSkill(fusion.numeric, fusion.lane, fusionBasic).skillBuffs?.resShred).toBeUndefined()
+    expect(prepareNumericSkill(fusion.numeric, fusion.lane, fusionLiberation).skillBuffs?.resIgnore).toBe(10)
+    expect(prepareNumericSkill(fusion.numeric, fusion.lane, fusionBasic).skillBuffs?.resIgnore).toBeUndefined()
 
     const glacio = prepare('1102')
     const glacioLiberation = glacio.skills.find((skill) => skill.id === '3300014')
     if (!glacioLiberation) throw new Error('Missing Sanhua test skill')
-    expect(prepareNumericSkill(glacio.numeric, glacio.lane, glacioLiberation).skillBuffs?.resShred).toBeUndefined()
+    expect(prepareNumericSkill(glacio.numeric, glacio.lane, glacioLiberation).skillBuffs?.resIgnore).toBeUndefined()
   })
 
   it('matches the object executor for the advanced-rotation baseline team', () => {

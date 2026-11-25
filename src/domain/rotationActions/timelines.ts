@@ -7,7 +7,7 @@ import type { ActionTimeline, ActionTimelines, PackedTimeline, TimelineEvent } f
 
 /** where each kind keeps its strings, after the frame and kind. */
 const STRING_FIELDS: Record<string, number[]> = { cast: [3], state: [3], status: [3], tick: [3], control: [2], consume: [3, 5],
-  hitControl: [3, 6, 7] }
+  hitControl: [3, 6, 7], hitInfliction: [3, 6] }
 
 /** a timeline in the stored form: frames as gaps, strings as indices into one shared table. */
 export function packTimeline(timeline: ActionTimeline, names: string[], index: Map<string, number>): PackedTimeline {

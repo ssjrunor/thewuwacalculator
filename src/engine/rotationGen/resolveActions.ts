@@ -70,6 +70,7 @@ export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue
       if (state.active !== owner) throw new Error(`Unplanned active actor at ${step.id}`)
       const member = state.members[owner]
       const source = plan.actions[step.actionId]
+      if (source.kind === 'equippedEcho' && member.source.echoes.main.id == null) continue
       const matches = source.kind === 'equippedEcho' ? [member.source.echoes.main.action.id]
         : prescribedActionIds(source.sourceName, member)
       if (matches.length !== 1) throw new PlanTranslationError({ code: 'missing-action-binding',

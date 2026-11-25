@@ -4,6 +4,12 @@
 */
 
 import type { CombatScenario } from '../../domain/entities/combatScenario'
+import type { RotationNode } from '../../domain/gameData/contracts'
+
+export interface InterpretationOptions {
+  /** called by offline validation to capture the complete program before either cleanup stage. */
+  onBeforeCleanup?: (program: readonly RotationNode[]) => void
+}
 
 // rule operations address heterogeneous JSON values through authored property paths.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +51,8 @@ export interface InterpreterEnvironment {
 export interface InterpretationDiagnostics extends RuntimeRecord {
   code?: string
   message?: string
+  /** set when the program includes values read from the build's stats (editor/statControls.ts), which limits it to that build. */
+  readsBuildStats?: boolean
 }
 
 export type InterpretationResult = {

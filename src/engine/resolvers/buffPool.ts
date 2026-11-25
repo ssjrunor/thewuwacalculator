@@ -70,6 +70,7 @@ export function mkBaseStatBu(): BaseStatBuff {
 export function makeModBuff(): ModBuff {
   return {
     resShred: 0,
+    resIgnore: 0,
     dmgBonus: 0,
     amplify: 0,
     defIgnore: 0,
@@ -177,6 +178,7 @@ export function mrgBaseStatB(target: BaseStatBuff, source: Partial<BaseStatBuff>
 // merge a partial modifier buff into a target modifier buff in place
 export function mergeModBuff(target: ModBuff, source: Partial<ModBuff>): void {
   target.resShred += source.resShred ?? 0
+  target.resIgnore += source.resIgnore ?? 0
   target.dmgBonus += source.dmgBonus ?? 0
   target.amplify += source.amplify ?? 0
   target.defIgnore += source.defIgnore ?? 0

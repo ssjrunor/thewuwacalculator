@@ -597,6 +597,20 @@ export function buildEvaluationAnchors(
     }
   }
 
+  const replayFinalists = ctx.mode === 'rotation' && ctx.preserveEchoStateChanges
+  const maximumFinalists: SubstatCandidate[] = []
+  const retainCandidate = (candidate: SubstatCandidate): SubstatCandidate => ({
+    ...candidate,
+    counts: { ...candidate.counts },
+    stats: candidate.stats.slice(),
+    main: {
+      ...candidate.main,
+      stats: candidate.main.stats.slice(),
+      primaryStats: candidate.main.primaryStats.map(entry => ({ ...entry })),
+      mainCounts: { ...candidate.main.mainCounts },
+    },
+  })
+
   // compare one main-stat candidate with the current best; prune only when its
   // upper bound cannot win. remaining fill uses the bounded candidate pool.
   const consider = (
@@ -611,10 +625,19 @@ export function buildEvaluationAnchors(
       return best
     }
     const upperBound = optimisticSubstatDamage(candidate, caps, er, rolls)
-    if (best && upperBound <= best.damage + 0.000001) {
+    const threshold = replayFinalists
+      ? maximumFinalists.length === REFERENCE_REFINEMENT_LIMIT ? maximumFinalists.at(-1)!.damage : -Infinity
+      : best?.damage
+    if (threshold != null && upperBound <= threshold + 0.000001) {
       return best
     }
     const next = buildSubs(candidate, params, caps, er, rolls)
+    if (replayFinalists && next && (maximumFinalists.length < REFERENCE_REFINEMENT_LIMIT
+      || next.damage > maximumFinalists.at(-1)!.damage)) {
+      maximumFinalists.push(retainCandidate(next))
+      maximumFinalists.sort((a, b) => b.damage - a.damage)
+      if (maximumFinalists.length > REFERENCE_REFINEMENT_LIMIT) maximumFinalists.pop()
+    }
     if (next && (!best || next.damage > best.damage)) {
       // `next.stats` and `next.main.{stats,primaryStats,mainCounts}` alias live
       // scratch / generator buffers that the next iteration overwrites, so
@@ -699,14 +722,33 @@ export function buildEvaluationAnchors(
       perfection = consider(candidate, maximumParams, maximumRolls, perfection)
     }
   }
+  // packed proposals cannot represent every timed equipment state, so replay the retained programs while allocating
+  // and comparing both reference anchors
+  if (replayFinalists) { evaluation = null; perfection = null }
   for (const finalist of referenceFinalists) {
     checkCancel?.()
-    const candidate = finalist.main
+    const candidate = replayFinalists ? {
+      ...finalist.main,
+      frame: makeEvaluationEchoFrame(ctx, finalist.main.frame.echoes,
+        mkSuggMainEc(ctx, finalist.main.frame.echoes), finalist.main.frame.setPlan),
+    } : finalist.main
     const scoreCandidate = candidate.frame.prepareFirstLaneScore(candidate.stats)
     const refined = allocateSteps(candidate.stats, Math.max(0, targetEr - candidateEnergyRegen(candidate)),
       scoreCandidate, checkCancel, true)
     if (refined && (!evaluation || refined.damage > evaluation.damage + 0.000001)) {
       evaluation = retainReference(candidate, refined)
+    }
+  }
+  if (replayFinalists) {
+    for (const finalist of maximumFinalists) {
+      checkCancel?.()
+      const candidate = { ...finalist.main, frame: makeEvaluationEchoFrame(ctx, finalist.main.frame.echoes,
+        mkSuggMainEc(ctx, finalist.main.frame.echoes), finalist.main.frame.setPlan) }
+      const caps = makeCaps(maximumParams)
+      const er = requiredErSubstats(candidate, maximumParams, caps, maximumRolls)
+      if (!er) continue
+      const next = buildSubs(candidate, maximumParams, caps, er, maximumRolls)
+      if (next && (!perfection || next.damage > perfection.damage + 0.000001)) perfection = retainCandidate(next)
     }
   }
   if (!evaluation || !perfection) return null
@@ -759,6 +801,13 @@ export function evaluateEquippedDamage(ctx: SuggestContext, equipped: Array<Echo
   const echoes = equipped.filter((echo): echo is EchoInstance => echo != null)
   const frame = makeEvaluationEchoFrame(ctx, echoes, echoes.length ? mkSuggMainEc(ctx, equipped) : new Float32Array(MAIN_BUFF_LEN))
   return frame.score(frame.stats, frame.sets)
+}
+
+// the equipped build's damage and its per-feature split, with no anchor search.
+export function equippedFeatureBreakdown(ctx: SuggestContext, equipped: Array<EchoInstance | null>) {
+  const echoes = equipped.filter((echo): echo is EchoInstance => echo != null)
+  const frame = makeEvaluationEchoFrame(ctx, echoes, echoes.length ? mkSuggMainEc(ctx, equipped) : new Float32Array(MAIN_BUFF_LEN))
+  return { damage: frame.score(frame.stats, frame.sets), features: evaluationFeatures(ctx, frame, frame.stats, frame.sets) }
 }
 
 // re-score the live build against precomputed anchors. this is the cheap path:

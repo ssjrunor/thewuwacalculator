@@ -51,7 +51,13 @@ function calculate(op: ScalarOpcode, a: number, b: number, c: number): number {
  * constant folding while the compiler walks ordered mutable rotation state. */
 export class ScalarBuilder {
   private readonly nodes: Node[] = []
-  private readonly identities = new Map<string, Scalar>()
+  // value identities: constants (Map keys are SameValueZero, which separates -0), inputs by index, and operations in an
+  // open-addressed table of node ids compared on (op, a, b, c); numbering matches keying each node by text
+  private readonly constantIds = new Map<number, Scalar>()
+  private negativeZero: Scalar | undefined
+  private readonly inputIds = new Map<number, Scalar>()
+  private operationIds = new Int32Array(1 << 12).fill(-1)
+  private operationCount = 0
   private inputs = 0
   private readonly inputRanges = new Map<number, readonly [number, number]>()
   private readonly inputDomains = new Map<number, readonly number[]>()
@@ -61,12 +67,20 @@ export class ScalarBuilder {
   readonly one: Scalar
   constructor() { this.zero = this.constant(0); this.one = this.constant(1) }
   constant(value: number): Scalar {
-    const key = `c:${Object.is(value, -0) ? '-0' : String(value)}`
-    return this.intern(key, { op: ScalarOp.constant, a: -1, b: -1, c: -1, value })
+    if (Object.is(value, -0)) return this.negativeZero ??= this.append({ op: ScalarOp.constant, a: -1, b: -1, c: -1, value })
+    const found = this.constantIds.get(value)
+    if (found !== undefined) return found
+    const id = this.append({ op: ScalarOp.constant, a: -1, b: -1, c: -1, value })
+    this.constantIds.set(value, id)
+    return id
   }
   input(index: number): Scalar {
     this.inputs = Math.max(this.inputs, index + 1)
-    return this.intern(`i:${index}`, { op: ScalarOp.input, a: index, b: -1, c: -1, value: 0 })
+    const found = this.inputIds.get(index)
+    if (found !== undefined) return found
+    const id = this.append({ op: ScalarOp.input, a: index, b: -1, c: -1, value: 0 })
+    this.inputIds.set(index, id)
+    return id
   }
   value(id: Scalar): number | undefined { return this.nodes[id]?.op === ScalarOp.constant ? this.nodes[id]!.value : undefined }
   inputRange(index: number, min: number, max: number) { this.inputRanges.set(index, [min, max]) }
@@ -136,7 +150,7 @@ export class ScalarBuilder {
       if (av !== undefined) return av !== 0 ? b : c
       if (b === c) return b
     }
-    return this.intern(`${op}:${a}:${b}:${c}`, { op, a, b, c, value: 0 })
+    return this.internOperation(op, a, b, c)
   }
   add(a: Scalar, b: Scalar) { return this.operation(ScalarOp.add, a, b) }
   sub(a: Scalar, b: Scalar) { return this.operation(ScalarOp.sub, a, b) }
@@ -158,11 +172,42 @@ export class ScalarBuilder {
     for (let i = values.length - 1; i >= 0; i--) value = this.select(this.eq(integer, this.constant(i)), this.constant(values[i]!), value)
     return value
   }
-  private intern(key: string, node: Node): Scalar {
-    const found = this.identities.get(key)
-    if (found !== undefined) return found
+  private append(node: Node): Scalar {
     const id = this.nodes.length
-    this.nodes.push(node); this.identities.set(key, id)
+    this.nodes.push(node)
+    return id
+  }
+  private slotOf(table: Int32Array, op: number, a: number, b: number, c: number): number {
+    let hash = Math.imul(op + 0x9e3779b9, 0x85ebca6b)
+    hash = Math.imul(hash ^ a, 0xc2b2ae35)
+    hash = Math.imul(hash ^ b, 0x27d4eb2f)
+    hash = Math.imul(hash ^ c, 0x165667b1)
+    hash ^= hash >>> 15
+    const mask = table.length - 1
+    let slot = hash & mask
+    for (;;) {
+      const id = table[slot]!
+      if (id < 0) return slot
+      const node = this.nodes[id]!
+      if (node.op === op && node.a === a && node.b === b && node.c === c) return slot
+      slot = (slot + 1) & mask
+    }
+  }
+  private internOperation(op: ScalarOpcode, a: Scalar, b: Scalar, c: Scalar): Scalar {
+    const slot = this.slotOf(this.operationIds, op, a, b, c)
+    const found = this.operationIds[slot]!
+    if (found >= 0) return found
+    const id = this.append({ op, a, b, c, value: 0 })
+    this.operationIds[slot] = id
+    if (++this.operationCount * 2 > this.operationIds.length) {
+      const grown = new Int32Array(this.operationIds.length * 2).fill(-1)
+      for (const entry of this.operationIds) {
+        if (entry < 0) continue
+        const node = this.nodes[entry]!
+        grown[this.slotOf(grown, node.op, node.a, node.b, node.c)] = entry
+      }
+      this.operationIds = grown
+    }
     return id
   }
   finish(outputs: readonly Scalar[]): ScalarProgram {

@@ -17,6 +17,7 @@ import { formBrkd, fmtBreakdown } from '@/modules/simulation/features/results/li
 function makeBuff() {
   return {
     resShred: 0,
+    resIgnore: 0,
     dmgBonus: 0,
     amplify: 0,
     defIgnore: 0,
@@ -251,6 +252,46 @@ function makeFeatureResult(
 }
 
 describe('damage formula invariants', () => {
+  it('keeps resistance reduction and ignore distinct across direct, Tune, Hack and Negative Status damage', () => {
+    const base = makeFinalStats(), ignored = makeFinalStats(), shredded = makeFinalStats()
+    ignored.attribute.all.resIgnore = 15
+    shredded.attribute.all.resShred = 15
+    const burst: SkillDef = { ...negativeEffectSkill, id: 'fusion-burst', label: 'Fusion Burst',
+      archetype: 'fusionBurst', element: 'fusion', skillType: ['fusionBurst'] }
+    const combat = { ...makeCombatState(), fusionBurst: 10 }
+    for (const attack of [skill, tuneRuptureSkill, hackSkill, burst]) {
+      const plain = calcSkillDamage(base, attack, enemy, 90, combat)
+      const reduced = calcSkillDamage(shredded, attack, enemy, 90, combat)
+      const bypassed = calcSkillDamage(ignored, attack, enemy, 90, combat)
+      expect(reduced.avg).toBeGreaterThan(plain.avg)
+      expect(bypassed.avg).toBeCloseTo(attack.archetype === 'fusionBurst' ? plain.avg : reduced.avg, 8)
+      const values = new Float64Array(3)
+      calcSkillDamageScoreInto({ values }, ignored, attack, enemy, 90, combat)
+      expect([...values]).toEqual([bypassed.normal, bypassed.crit, bypassed.avg])
+      const breakdown = formBrkd(makeFeatureResult(attack, bypassed), ignored, enemy, 90, combat)
+      if (attack.archetype === 'skillDamage') expect(fmtBreakdown(breakdown)).toContain('Ignore 15%')
+    }
+  })
+
+  it('adds overflow Rage at and below the ordinary Flare cap in damage and the displayed formula', () => {
+    const stats = makeFinalStats()
+    const flare: SkillDef = { ...negativeEffectSkill, id: 'electro-flare', label: 'Electro Flare',
+      element: 'electro', archetype: 'electroFlare', skillType: ['electroFlare'] }
+    for (const stacks of [0, 5, 10, 13]) {
+      const combat = { ...makeCombatState(), electroFlare: stacks, electroRage: 5 }
+      const result = calcSkillDamage(stats, flare, enemy, 90, combat)
+      const base = calcSkillDamage(stats, flare, enemy, 90, { electroFlare: stacks })
+      const rage = calcSkillDamage(stats, flare, enemy, 90, { electroFlare: 5 })
+      expect(result.avg).toBeCloseTo(base.avg + rage.avg, 8)
+      const values = new Float64Array(3)
+      calcSkillDamageScoreInto({ values }, stats, flare, enemy, 90, combat)
+      expect([...values]).toEqual([result.normal, result.crit, result.avg])
+      const breakdown = formBrkd(makeFeatureResult(flare, result), stats, enemy, 90, combat)
+      expect(fmtBreakdown(breakdown)).toContain(`core.stacks = ${stacks} + 5`)
+      expect(breakdown.equation).not.toContain('no stacks')
+    }
+  })
+
   it('keeps the allocation-free scalar kernel exact across every formula family', () => {
     const cases: Array<{ skill: SkillDef; combat?: Parameters<typeof calcSkillDamage>[4] }> = [
       { skill },
@@ -576,7 +617,25 @@ describe('damage formula invariants', () => {
     }
   })
 
-  it('applies defense ignore to special damage only when the special branch is targeted', () => {
+  it.each([hackSkill, tuneRuptureSkill])('applies global and matching DEF Ignore to $archetype and its breakdown', skill => {
+    const base = calcSkillDamage(makeFinalStats(), skill, enemy, 90)
+    const stats = makeFinalStats({ defIgnore: 15 })
+    stats.attribute.all.defIgnore = 5
+    stats.attribute[skill.element].defIgnore = 7
+    stats.skillType.all.defIgnore = 3
+    stats.skillType[skill.archetype as 'hack' | 'tuneRupture'].defIgnore = 11
+    const scoped = { ...skill, skillBuffs: { defIgnore: 13 } }
+    const result = calcSkillDamage(stats, scoped, enemy, 90)
+    const expectedRatio = expectedDefenseMult(90, enemy.level, 54, 0) / expectedDefenseMult(90, enemy.level, 0, 0)
+    expect(result.avg).toBeCloseTo(base.avg * expectedRatio, 8)
+    const score = new Float64Array(3)
+    calcSkillDamageScoreInto({ values: score }, stats, scoped, enemy, 90)
+    expect(score[2]).toBeCloseTo(result.avg, 8)
+    const breakdown = formBrkd(makeFeatureResult(scoped, result), stats, enemy, 90, makeCombatState())
+    expect(fmtBreakdown(breakdown)).toContain('54%')
+  })
+
+  it('retains the targeted DEF Ignore rule for negative status damage', () => {
     const baseHack = calcSkillDamage(makeFinalStats(), hackSkill, enemy, 90)
     const globalIgnoreHack = calcSkillDamage(makeFinalStats({ defIgnore: 20 }), hackSkill, enemy, 90)
     const targetedHack = calcSkillDamage(
@@ -618,7 +677,7 @@ describe('damage formula invariants', () => {
       { spectroFrazzle: 1 },
     )
 
-    expect(globalIgnoreHack.avg).toBeCloseTo(baseHack.avg, 10)
+    expect(globalIgnoreHack.avg).toBeCloseTo(targetedHack.avg, 10)
     expect(targetedHack.avg).toBeGreaterThan(baseHack.avg)
     expect(globalIgnore.normal).toBeCloseTo(onlyShred.normal, 10)
     expect(targetedIgnore.normal).toBeGreaterThan(onlyShred.normal)

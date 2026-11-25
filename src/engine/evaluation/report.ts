@@ -22,10 +22,13 @@ import type { SntSetConds } from '@/domain/entities/sonataSetConditionals';
 import type { EvaluationAlternative, EvaluationReportOpts, EvaluationReportSections, EvaluationRotationSummary, EvaluationSetSummary, BuildEvaluation, BuildEvaluationReport, DefRotEvaluationIn } from './types.ts';
 import { ENERGY_REGEN, scorePercent, scorePercentX100 } from './stats.ts';
 import { cloneEchoSlot, makeSetSummary, preservedMainEchoFor, retainsUtilityPlan, utilityPlanFor } from './echoDiscovery.ts';
-import { assembleEvaluation, evaluateEquippedDamage, evaluationErTarget, buildEvaluation, buildEvaluationAnchors, type EvaluationCancelCheck, type EvaluationAnchors, type BuildEvaluationOptions } from './search.ts';
+import { assembleEvaluation, equippedFeatureBreakdown, evaluateEquippedDamage, evaluationErTarget, buildEvaluation, buildEvaluationAnchors, type EvaluationCancelCheck, type EvaluationAnchors, type BuildEvaluationOptions } from './search.ts';
+import { repairEnergyRegen } from './erRepair.ts';
 import { makeEvaluationKey } from '@/engine/evaluation/buildEvaluationKey';
 import { getGameDataMode } from '@/data/gameData';
 import { EVALUATION_ANCHOR_CACHE_REVISION, loadPersistedAnchors, persistAnchor } from './anchorStore.ts';
+import type { RotationNode } from '@/domain/gameData/contracts'
+import type { RotationCombatSetup } from '@/engine/pipeline'
 
 
 
@@ -556,14 +559,17 @@ export function buildEvaluationReport(
   }
 }
 
-function prepareRotationEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>) {
+function prepareRotationEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>, program?: {
+  items: RotationNode[]; combatSetup?: RotationCombatSetup
+}) {
   const { runtime, enemy, runtimesById } = input
   const seed = getResSeedBy(runtime.id)
   if (!seed) {
     return null
   }
 
-  const defaultRotation = seed.rotations?.[0] ?? listResRttn(runtime.id)[0] ?? null
+  const defaultRotation = program ? { id: 'program', label: 'Program', items: program.items }
+    : seed.rotations?.[0] ?? listResRttn(runtime.id)[0] ?? null
   if (!defaultRotation?.items.length) {
     return null
   }
@@ -589,6 +595,8 @@ function prepareRotationEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>
     enemy,
     runtimesById: { ...runtimesById, [runtime.id]: runtime },
     selectedTargets: {},
+    combatSetup: program?.combatSetup,
+    preserveEchoStateChanges: Boolean(program),
     setConds,
     tgtFeatId: null,
     rotationMode: true,
@@ -600,6 +608,109 @@ function prepareRotationEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>
 
   const evaluationContext = withUtilitySetRows(context, evaluationRuntime, setConds, utilityPlan)
   return { evaluationContext, evaluationRuntime, defaultRotation }
+}
+
+// saved programs use the app's normal ER, utility-gear, anchor search and
+// team-damage evaluator; only the selected rotation changes.
+export function evaluateProgramBuild(input: Omit<DefRotEvaluationIn, 'simulation'>,
+  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }) {
+  const prepared = prepareRotationEvaluation(input, program)
+  if (!prepared) return null
+  const { evaluationContext, evaluationRuntime } = prepared
+  const damage = evaluateEquippedDamage(evaluationContext, input.runtime.build.echoes)
+  const anchors = cachedEvaluationAnchors(evaluationContext, evaluationRuntime, input.enemy)
+  if (!anchors) return null
+  return { damage, score: 100 * scorePercent(damage, anchors.baselineDamage, anchors.referenceDamage, anchors.maximumDamage),
+    anchors: { baselineDamage: anchors.baselineDamage, benchDamage: anchors.referenceDamage, perfectDamage: anchors.maximumDamage } }
+}
+
+// the equipped build's damage and final energy regen on a program without the anchor search, for scoring against
+// anchors made elsewhere (the offline anchor generator)
+// with `erRequirement`, a build under `below` final energy regen is first repaired up to `target` (erRepair.ts), and
+// damage and energy regen are the repaired build's, with `repair` listing the changes
+export function evaluateProgramDamage(input: Omit<DefRotEvaluationIn, 'simulation'>,
+  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup },
+  erRequirement?: { target: number; below: number } | null) {
+  const prepared = prepareProgramEvaluation(input, program)
+  return prepared ? measureProgramDamage(prepared, input.runtime.build.echoes, erRequirement) : null
+}
+
+/** an evaluation context for one program, as evaluateProgramDamage builds it, for measuring any number of builds. */
+export type ProgramEvaluation = NonNullable<ReturnType<typeof prepareRotationEvaluation>>
+
+/** the program's evaluation context for `input`; evaluateProgramDamage's first half. */
+export function prepareProgramEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>,
+  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }): ProgramEvaluation | null {
+  return prepareRotationEvaluation(input, program)
+}
+
+/**
+ * hash of prepareProgramEvaluation's inputs: everything except the subject's echoes, of which it reads only the
+ * utility set plan (prepareRotationEvaluation), and the subject's rotation, which the program replaces; builds with
+ * equal keys can share one context.
+ */
+export function programEvaluationKey(input: Omit<DefRotEvaluationIn, 'simulation'>,
+  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }): string {
+  const { runtime, runtimesById } = input
+  // every teammate's runtime includes a compact copy of the team with the subject's echoes, used only for members
+  // missing from runtimesById (runtimeAdapters.ts), which never includes the subject, so it is excluded. a teammate's
+  // rotation is the scenario program with its own default sequence (scenarioRuntime.ts projectedRotation), arrays
+  // shared by every build of a scenario, so each is keyed once by identity (itemsKey)
+  const withoutSubject = (other: ResRuntime): ResRuntime => ({ ...other, rotation: rotationKey(other.rotation),
+    teamRuntimes: other.teamRuntimes.map((member) =>
+      member?.id === runtime.id ? { ...member, build: { ...member.build, echoes: [] } } : member) as ResRuntime['teamRuntimes'] })
+  return makeEvaluationKey({ ...input,
+    runtimesById: Object.fromEntries(Object.entries(runtimesById).map(([id, other]) => [id, other.id === runtime.id ? null : withoutSubject(other)])),
+    runtime: { ...runtime, rotation: null,
+      build: { ...runtime.build, echoes: null, utilityPlan: utilityPlanFor(runtime.build.echoes) } }, program: programKey(program) })
+}
+
+/** the key of a program's items: builds sharing one program (read-only, rebaseInterpretation) walk it once. */
+const itemKeys = new WeakMap<RotationNode[], string>()
+
+function itemsKey(items: RotationNode[]): string {
+  let key = itemKeys.get(items)
+  if (key == null) itemKeys.set(items, key = makeEvaluationKey(items))
+  return key
+}
+
+function programKey(program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }) {
+  return { items: itemsKey(program.items), combatSetup: program.combatSetup }
+}
+
+/** a rotation with each of its node lists as its key: the same content keys alike, and a shared list is walked once. */
+function rotationKey(rotation: ResRuntime['rotation']): ResRuntime['rotation'] {
+  if (!rotation) return rotation
+  const keyed: Record<string, unknown> = {}
+  for (const [field, value] of Object.entries(rotation)) {
+    keyed[field] = Array.isArray(value) ? { nodes: itemsKey(value as RotationNode[]) } : value
+  }
+  return keyed as unknown as ResRuntime['rotation']
+}
+
+/** a build's damage and final energy regen on a prepared program; a compiled measure also reports the subject's own
+    damage as a run's breakdown does (`dpr`: tune breaks excluded, loops per run), which the replay leaves to the run. */
+export interface ProgramMeasurement { damage: number; energyRegen: number; dpr?: number }
+/** how a prepared program measures a build: replayed (replayMeasure) or compiled (compiledMeasure.ts). */
+export type ProgramMeasure = (echoes: Array<EchoInstance | null>) => ProgramMeasurement
+
+/** the program replayed for the build: the exact measure every other is checked against. */
+export function replayMeasure(prepared: ProgramEvaluation): ProgramMeasure {
+  const ctx = prepared.evaluationContext
+  return (candidate) => ({ damage: evaluateEquippedDamage(ctx, candidate), energyRegen: evaluationErTarget(ctx, candidate) })
+}
+
+/** a build's damage and final energy regen on a prepared program, repaired to `erRequirement` when short; `measure`
+    takes every measurement, including the repair's candidates, and defaults to the replay. */
+export function measureProgramDamage(prepared: ProgramEvaluation, echoes: Array<EchoInstance | null>,
+  erRequirement?: { target: number; below: number } | null, measure: ProgramMeasure = replayMeasure(prepared)) {
+  const ctx = prepared.evaluationContext
+  const own = measure(echoes)
+  const repaired = erRequirement && own.energyRegen < erRequirement.below
+    ? repairEnergyRegen(ctx, echoes, own.energyRegen, erRequirement.target, measure)
+    : null
+  if (!repaired || repaired.repair.short) return { ...own, repair: repaired }
+  return { ...measure(repaired.echoes), repair: repaired }
 }
 
 // calculate the equipped build first. only the returned grading operation needs
@@ -626,6 +737,15 @@ export function prepareRotationBuildScore(input: Omit<DefRotEvaluationIn, 'simul
       return anchors ? scorePercent(userDamage, anchors.baselineDamage, anchors.referenceDamage, anchors.maximumDamage) : null
     },
   }
+}
+
+/** the build's damage on its resonator's default rotation, split by feature, without anchors, cheap enough for a page
+    that only reads a build. */
+export function rotationFeatureBreakdown(input: Omit<DefRotEvaluationIn, 'simulation'>) {
+  const prepared = prepareRotationEvaluation(input)
+  if (!prepared) return null
+  const { damage, features } = equippedFeatureBreakdown(prepared.evaluationContext, input.runtime.build.echoes)
+  return { damage, features, rotation: { id: prepared.defaultRotation.id, label: prepared.defaultRotation.label } }
 }
 
 export function rotationBuildEvaluationScore(input: DefRotEvaluationIn, checkCancel?: EvaluationCancelCheck) {

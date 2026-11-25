@@ -1,18 +1,24 @@
 /*
   Author: Runor Ewhro
-  description: a small method + path router for /api/lb/v1. a route's `:name`
-               segments arrive as params; the handler gets the request, the
-               env, the execution context and one `now` per request.
+  description: a small method and path router for /api/lb. `:name` segments
+               become params, and handlers receive the request, the env, the
+               execution context and one `now` per request.
 */
 
 import type { ApiEnv } from '../env.ts'
 import { HttpError } from '../lib/http.ts'
+import type { LoginProvider } from '@lb/contract/api'
 import type { CardReader } from './read/dispatch.ts'
+import type { OAuthProvider } from './auth/oauth.ts'
+
+export const API_PREFIX = '/api/lb'
 
 /** what a handler reaches beyond the bindings; tests and local runs substitute these. */
 export interface ApiServices {
   /** reads a card image; browser rendering on READER_URL by default. */
   reader?: CardReader
+  /** sign-in providers; the configured ones (auth/oauth.ts) by default. */
+  oauth?: Partial<Record<LoginProvider, OAuthProvider>>
 }
 
 export interface RouteContext {

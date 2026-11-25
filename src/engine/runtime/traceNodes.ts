@@ -16,6 +16,7 @@ function makeBaseBuff() {
 function makeModBuff() {
   return {
     resShred: 0,
+    resIgnore: 0,
     dmgBonus: 0,
     amplify: 0,
     defIgnore: 0,

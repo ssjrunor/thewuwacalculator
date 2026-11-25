@@ -9,6 +9,7 @@ import type {
   RtChng,
 } from '@/domain/gameData/contracts.ts'
 import { migrateLegacyEnemyStatePaths } from '@/domain/gameData/enemyStateMigration'
+import { removeRetiredSonataSetters } from '@/domain/gameData/retiredSonataControls'
 import {
   scopeLegacyRotationRulesToLoops,
   readLegacyRotWhen,
@@ -1079,5 +1080,6 @@ export function migrateLegacyRotationItems(items: RotationNode[]): RotationNode[
   const copied = structuredClone(items) as RotationNode[]
   const scoped = scopeLegacyRotationRulesToLoops(copied)
   const bounded = normalizeLoopPassBodies(scoped)
-  return migrateLegacyEnemyStatePaths(stripLegacyWhenItems(normalizeCircularLoopPasses(bounded)))
+  // drop retired sonata setters last, after legacy paths are migrated
+  return removeRetiredSonataSetters(migrateLegacyEnemyStatePaths(stripLegacyWhenItems(normalizeCircularLoopPasses(bounded))))
 }

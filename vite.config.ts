@@ -173,11 +173,13 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     setupFiles: ['vitest.setup.ts'],
+    // the leaderboard service's Durable Objects run in-process under test (services/leaderboard/tests/durableObjects.ts).
+    alias: { 'cloudflare:workers': path.resolve(__dirname, 'services/leaderboard/tests/cloudflareWorkers.ts') },
     // calculation suites hydrate large registries; bound concurrent workers
     // so the full suite does not exhaust memory alongside lint and builds.
     maxWorkers: 4,
     // local-only archives are not part of the maintained test surface
-    exclude: [...configDefaults.exclude, 'legacy/**', 'scripts/**', 'wip/**'],
+    exclude: [...configDefaults.exclude, 'legacy/**', 'scripts/**', '**/.wrangler/**'],
   },
   worker: {
     format: 'es',
@@ -243,10 +245,18 @@ export default defineConfig(({ mode }) => ({
     host: '0.0.0.0',
     port: 5174,
     headers: crossOriginIsolationHeaders,
+    // the leaderboard service runs on its own worker, locally `wrangler dev` in services/leaderboard (port 8787 unless
+    // LB_DEV_ORIGIN is set)
+    proxy: {
+      '/api/lb': { target: process.env.LB_DEV_ORIGIN ?? 'http://localhost:8787', changeOrigin: true },
+    },
     watch: {
-      usePolling: true,
-      interval: 100,
-      ignored: ['**/.git/**', '**/node_modules/**', '**/dist/**', '**/.idea/**'],
+      // limit the watch set to files the app serves; services/ has 100k+ constantly changing cache and wrangler state files
+      ignored: [
+        '**/.git/**', '**/node_modules/**', '**/dist/**', '**/.idea/**',
+        '**/.wrangler/**', '**/.cache/**',
+        '**/services/**', '**/scripts/**', '**/ingest/**', '**/rotation-exports/**', '**/legacy/**',
+      ],
     },
   },
   preview: {
@@ -255,6 +265,10 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      // the leaderboard service's only entries into the app (services/leaderboard/tsconfig.json maps the same three)
+      '@lb/contract': path.resolve(__dirname, 'src/domain/leaderboard'),
+      '@lb/scoring': path.resolve(__dirname, 'src/engine/leaderboard/index.ts'),
+      '@lb/parser-version': path.resolve(__dirname, 'src/engine/echoParser/version.ts'),
     },
   },
 }))

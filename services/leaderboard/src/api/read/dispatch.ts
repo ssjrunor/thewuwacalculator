@@ -8,7 +8,7 @@
 */
 
 import puppeteer, { type BrowserWorker } from '@cloudflare/puppeteer'
-import type { CardReadResult } from '@/domain/leaderboard/read'
+import type { CardReadResult } from '@lb/contract/read'
 
 export type CardReader = (bytes: Uint8Array<ArrayBuffer>, contentType: string) => Promise<CardReadResult>
 

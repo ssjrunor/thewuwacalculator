@@ -10,6 +10,8 @@
 */
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/shared/lib/queryClient'
 import { useAppStore } from '@/application/state'
 import {
   sbscToDrtyPr,
@@ -239,10 +241,12 @@ export function AppProviders({ children }: AppPrvdPrps) {
   }, [bgTextMode, setBgTextMod, theme])
 
   return (
+    <QueryClientProvider client={queryClient}>
       <AppTltpProv>
         <AppCtxMenuPr>
           <FltnSelCtnsP>{children}</FltnSelCtnsP>
         </AppCtxMenuPr>
       </AppTltpProv>
+    </QueryClientProvider>
   )
 }

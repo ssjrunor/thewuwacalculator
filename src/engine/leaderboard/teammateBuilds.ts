@@ -1,10 +1,11 @@
 /*
   Author: Runor Ewhro
-  description: reads the fixed teammate builds (services/leaderboard/data/teammate-builds.json).
-               each resonator lists its stat layouts once; an outfit (sets, main
-               echo) on a layout names the team slots (`<team>:<seat>`)
-               that wear it. a scenario looks up its two teammates here; only the
-               scored seat comes from the card.
+  description: reads the fixed teammate builds
+               (scripts/leaderboard/data/teammate-builds.json). each resonator
+               lists its stat layouts once, and an outfit (sets, main echo) on a
+               layout names the team slots (`<team>:<seat>`) using it. a scenario
+               looks up its two teammates here, and only the scored seat comes
+               from the card.
 */
 
 export type StatKey = string

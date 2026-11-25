@@ -11,7 +11,7 @@ import { negEffectsFor } from '../../gameData/negativeEffects.ts'
 import { rotationStateChoices, scenarioOpeningValues } from '../../rotation/openingChoices.ts'
 import { listEffectsFor } from '../../../data/catalog/gameDataService.ts'
 import { activeOtherTargetGroups } from '../../effects/activeOtherTargets.ts'
-import { listRtSrcRef } from '../../services/runtimeSourceService.ts'
+import { listRtSrcRef, makeSourceCat } from '../../services/runtimeSourceService.ts'
 
 /**
  * the states the rotation editor offers for this scenario, and the values its
@@ -37,7 +37,26 @@ export function prepareEditorSources({ scenario, resonators, echoes, sonataDefin
   // a control behind an Active Other buff: the app pins the buff to whoever is active when it turns on
   // activation paths are source-qualified because separate members can expose the same equipment control.
   const activeOtherControls = new Set<string>()
+  const negativeCapControls = new Set<string>()
+  const capDependencies = (condition: RuntimeValue, sourceId: string): void => {
+    if (!condition || typeof condition !== 'object') return
+    if (typeof condition.path === 'string') {
+      const path = condition.path.replace(/^(sourceRuntime|runtime)\./, '')
+      if (path.startsWith('state.')) {
+        const owners = condition.from === 'sourceRuntime' || condition.path.startsWith('sourceRuntime.')
+          ? [sourceId] : Object.keys(runtimesById)
+        for (const owner of owners) negativeCapControls.add(`${owner}|runtime.${path}`)
+      }
+    }
+    for (const value of Object.values(condition)) {
+      if (Array.isArray(value)) value.forEach(part => capDependencies(part, sourceId))
+      else if (value && typeof value === 'object') capDependencies(value, sourceId)
+    }
+  }
   for (const runtime of Object.values(runtimesById) as RuntimeValue[]) {
+    for (const source of resonators[runtime.id]?.details?.negativeEffectSources ?? []) {
+      capDependencies(source.enabledWhen, runtime.id)
+    }
     const sources = [...listRtSrcRef(runtime), ...(runtime.build.weapon.id ? [{ type: 'weapon' as const, id: runtime.build.weapon.id }] : []),
       ...[...new Set((runtime.build.echoes as RuntimeValue[]).flatMap((echo) => echo ? [echo.set] : []))]
         .map((set) => ({ type: 'echoSet' as const, id: String(set) }))]
@@ -45,6 +64,8 @@ export function prepareEditorSources({ scenario, resonators, echoes, sonataDefin
       for (const path of group.paths) if (path.startsWith('state.controls.')) activeOtherControls.add(`${runtime.id}|runtime.${path}`)
     }
   }
-  return { resonators, echoes, preambleChoices, preambleValues: scenarioOpeningValues(runtimesById),
-    fixedStatuses, activeOtherControls, effectControls: {}, castControls: {} }
+  const equipmentFeatures = Object.fromEntries(Object.values(runtimesById).map(runtime => [runtime.id,
+    makeSourceCat(runtime).features.filter(feature => feature.source.type === 'echoSet')]))
+  return { resonators, echoes, equipmentFeatures, preambleChoices, preambleValues: scenarioOpeningValues(runtimesById),
+    fixedStatuses, activeOtherControls, negativeCapControls, effectControls: {}, castControls: {} }
 }

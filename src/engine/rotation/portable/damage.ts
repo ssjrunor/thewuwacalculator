@@ -148,7 +148,7 @@ export function lowerDamage(
   if (definition.archetype === 'skillDamage') {
     const res = getEnemyRes(enemy, definition.element)
     const total = ir.product([
-      isNoEnemy(enemy) ? ir.one : resistance(ir.sub(c(res), layer('resShred'))),
+      isNoEnemy(enemy) ? ir.one : resistance(ir.sub(ir.sub(c(res), layer('resShred')), layer('resIgnore'))),
       defense(ir.add(top('defIgnore'), layer('defIgnore')), ir.add(top('defShred'), layer('defShred'))),
       percent(ir.add(top('dmgVuln'), layer('dmgVuln'))), percent(ir.add(top('dmgBonus'), layer('dmgBonus'))),
       percent(ir.add(top('amplify'), layer('amplify'))), percent(top('finalDmg')),
@@ -163,8 +163,8 @@ export function lowerDamage(
     if (res === 100) return ir.zero
     // same damage rules, separate buff identities; general amplification is excluded.
     const perHit = ir.product([
-      resistance(ir.sub(c(res), layer('resShred'))),
-      defense(ir.add(types('defIgnore'), skill.buffs.defIgnore ?? ir.zero), ir.add(top('defShred'), layer('defShred')), false),
+      resistance(ir.sub(ir.sub(c(res), layer('resShred')), layer('resIgnore'))),
+      defense(ir.add(top('defIgnore'), layer('defIgnore')), ir.add(top('defShred'), layer('defShred')), false),
       percent(ir.add(top('dmgVuln'), layer('dmgVuln'))), c(getEnemyMaxOffTune(enemy.class)),
       percent(type(kind, 'dmgBonus')),
       percent(top('tuneBreakBoost')), percent(top('finalDmg')),
@@ -177,7 +177,7 @@ export function lowerDamage(
     if (!element) throw new Error(`Unknown portable damage archetype ${definition.archetype}`)
     const manualStacks = combat[kind] ?? ir.zero
     const stacks = definition.stackMode === 'fixedMax' ? c(definition.stackMax ?? getNegEffectDef(kind)) : manualStacks
-    const additional = kind === 'electroFlare' ? ir.select(ir.operation(ScalarOp.lt, c(getNegEffectDef(kind)), manualStacks), combat.electroRage ?? ir.zero, ir.zero) : ir.zero
+    const additional = kind === 'electroFlare' ? combat.electroRage ?? ir.zero : ir.zero
     let levelUnit = knownLevel === undefined ? ir.zero : c(getNegBase(kind, knownLevel, 1, { fixedMv: 1 }))
     if (knownLevel === undefined) {
       const anchors = [1, 20, 40, 50, 60, 70, 80, 90]
@@ -192,7 +192,9 @@ export function lowerDamage(
     }
     const negativeBase = (value: Scalar) => {
       const ordinary = kind === 'spectroFrazzle'
-        ? ir.add(c(209.9), ir.mul(c(895.8), value))
+        ? ir.select(ir.operation(ScalarOp.le, value, c(10)),
+          ir.add(c(209.9), ir.mul(c(895.8), value)),
+          ir.mul(c(getNegBase(kind, 90, 10)), ir.add(ir.one, ir.div(ir.sub(value, c(10)), c(3)))))
         : kind === 'aeroErosion'
           ? ir.select(ir.eq(value, ir.one), c(1655.1), ir.sub(ir.mul(c(4133.45), value), c(4132.37)))
           : knownLevel === undefined

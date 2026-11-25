@@ -11,6 +11,7 @@ import type { HydratedAppState, SimulationState, UiState } from '@/domain/entiti
 import type { FormExpr, RotationNode, RotVl, RtChng } from '@/domain/gameData/contracts'
 import type { RoverGender } from '@/domain/entities/roverGender'
 import { ROVER_PAIRS, roverIdForGender } from '@/domain/entities/roverGender'
+import { mapResonatorIdentityValue, mapResonatorNamespaces } from '@/domain/entities/roverIdentityBinding'
 import type { ScenarioWorkspace } from '@/domain/entities/scenarioLibrary'
 import { summarizeScenario } from '@/domain/entities/scenarioLibrary'
 import { makeMemberManualEffect, memberManualEffectId } from '@/engine/runtime/scenarioEnvironment'
@@ -21,9 +22,7 @@ export function serializedByteSize(value: unknown): number {
 }
 
 function mapSourceKey(value: string, gender: RoverGender): string {
-  return value.replace(/(^|[:.@/-])(\d{4})(?=$|[:.@/-])/g, (_, separator: string, id: string) => (
-    `${separator}${roverIdForGender(id, gender)}`
-  ))
+  return mapResonatorNamespaces(value, id => roverIdForGender(id, gender))
 }
 
 function mapChange(change: RtChng, gender: RoverGender): RtChng {
@@ -32,8 +31,8 @@ function mapChange(change: RtChng, gender: RoverGender): RtChng {
     path: mapSourceKey(change.path, gender),
     ...(change.resonatorId ? { resonatorId: roverIdForGender(change.resonatorId, gender) } : {}),
   }
-  return mapped.type === 'set' && mapped.path.replace(/^runtime\./, '') === 'rotation.activeResonatorId' && typeof mapped.value === 'string'
-    ? { ...mapped, value: roverIdForGender(mapped.value, gender) } : mapped
+  return mapped.type === 'set' && mapped.path.replace(/^runtime\./, '') === 'rotation.activeResonatorId' && (typeof mapped.value === 'string' || typeof mapped.value === 'number')
+    ? { ...mapped, value: mapResonatorIdentityValue(mapped.value, id => roverIdForGender(id, gender)) } : mapped
 }
 
 export function convertRotationNodesRoverGender(nodes: RotationNode[], gender: RoverGender): RotationNode[] {

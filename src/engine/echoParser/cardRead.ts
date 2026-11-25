@@ -1,10 +1,11 @@
 /*
   Author: Runor Ewhro
-  description: turns the card parser's output into a leaderboard read. stricter
-               than the app's import: any value the parser had to guess (a
-               corrected digit, a snapped roll, a single uid read, an
-               unidentified echo) becomes an issue, and a read with any issue
-               produces no snapshot.
+  description: converts the card parser's output into a leaderboard read, with
+               stricter rules than the app's import: every guessed value (a
+               snapped roll, a single uid read, an unidentified echo) becomes an
+               issue, and a read with any issue produces no snapshot. a corrected
+               digit (exactly one legal value fits) is accepted and listed for
+               review.
 */
 
 import type { BuildSnapshot, SnapshotEcho } from '@/domain/leaderboard/snapshot'
@@ -13,6 +14,7 @@ import type {
   CardReadIssue,
   CardReadOutcome,
   CardReadResult,
+  CardReadReview,
   EchoReadConfidence,
 } from '@/domain/leaderboard/read'
 import { getResSeedBy } from '@/data/catalog/resonatorSeedService'
@@ -96,11 +98,10 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
   const built = mkEchoNstnFr(parsed.echoes)
   const echoes: SnapshotEcho[] = []
   const echoConfidence: EchoReadConfidence[] = []
-  if (parsed.echoes.length < CARD_ECHO_SLOTS) issues.add('echo_missing')
+  const review: CardReadReview[] = []
 
   parsed.echoes.slice(0, CARD_ECHO_SLOTS).forEach((raw, slot) => {
     if (isEmptyPanel(raw)) {
-      issues.add('echo_missing')
       echoConfidence.push({ slot, resolved: false, substats: {}, unreadRows: 0 })
       return
     }
@@ -111,7 +112,10 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
       issues.add('echo_unresolved')
       return
     }
-    if (Object.values(confidence.substats).some((fix) => fix !== 'exact')) issues.add('substat_not_exact')
+    for (const [key, fix] of Object.entries(confidence.substats)) {
+      if (fix === 'snapped') issues.add('substat_not_exact')
+      else if (fix === 'corrected') review.push({ slot, key })
+    }
     if (confidence.unreadRows > 0) issues.add('substat_unread')
     echoes.push({
       slot,
@@ -135,6 +139,7 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
     resonatorCandidates: parsed.resonator.id ? [] : [...parsed.resonator.candidateIds],
     echoes: echoConfidence,
     issues: issueList,
+    ...(review.length ? { review } : {}),
   }
 
   // preserve recognized details in confidence output, but create a scoring snapshot only when every required read is exact.

@@ -148,7 +148,7 @@ body,
   align-items: center;
   column-gap: clamp(0.7rem, 1.5vw, 1.45rem);
   padding: 0.72rem 2rem 0.78rem;
-  transition: opacity 240ms ease, padding 450ms ease, background-color 240ms ease;
+  transition: opacity 240ms ease, padding 450ms ease, background 240ms ease;
 }
 
 .ax:has(.gdi-layer-root.is-in) .ax-head {
@@ -159,6 +159,10 @@ body,
 
 .ax:not(:has(.hm)) .ax-head:not(:hover, :focus-within) .ax-w:not(.is-at) { opacity: 0.2 }
 .ax:not(:has(.hm)) .ax-head:not(:hover, :focus-within) :is(.ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder:not(:has(> .tooltip-trigger))) { opacity: 0.4; }
+.ax-chrome:has(.lbs) .ax-head {
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+}
+
 
 .ax .ax-head :is(.ax-ctl, .ax-drop, .ax-w, .ax-sep, .ax-mark, .ax-stamp, .ax-drop-holder) {
   transition: opacity 240ms ease, color 200ms ease;

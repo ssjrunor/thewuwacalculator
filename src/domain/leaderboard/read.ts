@@ -16,8 +16,8 @@ export type CardReadIssue =
   | 'resonator_unresolved'  // no single resonator matched
   | 'weapon_unresolved'
   | 'echo_unresolved'       // an echo, its set or its main stat could not be identified
-  | 'echo_missing'          // fewer than five echoes on the card
-  | 'substat_not_exact'     // a value needed a digit correction or a roll snap
+  | 'echo_missing'          // legacy readers rejected empty slots; current reads accept them
+  | 'substat_not_exact'     // a value had to be snapped to the nearest roll
   | 'substat_unread'        // a printed substat row produced no reading
 
 export interface EchoReadConfidence {
@@ -37,6 +37,15 @@ export interface CardReadConfidence {
   resonatorCandidates: string[]
   echoes: EchoReadConfidence[]
   issues: CardReadIssue[]
+  /** values read one character off where exactly one legal value fits; the read is accepted and each value is listed
+        for optional moderator review. */
+  review?: CardReadReview[]
+}
+
+export interface CardReadReview {
+  slot: number
+  /** the substat key, e.g. 'defPercent'. */
+  key: string
 }
 
 export interface CardReadResult {

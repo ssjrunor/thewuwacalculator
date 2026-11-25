@@ -89,6 +89,14 @@ export function memoryR2(): R2Bucket & { objects: Map<string, Uint8Array> } {
       return { key }
     },
     async delete(keys: string | string[]) { for (const key of [keys].flat()) objects.delete(key) },
+    async list({ prefix = '', limit = 1000, cursor }: { prefix?: string; limit?: number; cursor?: string } = {}) {
+      const keys = [...objects.keys()].filter((key) => key.startsWith(prefix)).sort()
+      const start = cursor ? Number(cursor) : 0
+      const page = keys.slice(start, start + limit)
+      const truncated = start + limit < keys.length
+      return { objects: page.map((key) => ({ key, size: objects.get(key)!.byteLength })), truncated,
+        ...(truncated ? { cursor: String(start + limit) } : {}), delimitedPrefixes: [] }
+    },
   }
   return bucket as unknown as R2Bucket & { objects: Map<string, Uint8Array> }
 }

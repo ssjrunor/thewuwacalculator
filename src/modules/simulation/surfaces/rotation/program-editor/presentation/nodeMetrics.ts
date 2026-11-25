@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: aggregates node damage, execution counts, shares, and loop-normalized totals.
+  description: aggregates node damage, execution counts, shares, and avg totals.
 */
 
 /* read-only calculations over the editor tree and its selected loop passes. */

@@ -22,6 +22,13 @@ export const simulationChunk = createRouteChunk(async () => {
 export const calibrationChunk = createRouteChunk(async () => (
   (await import('@/modules/calibration/pages/CalibrationPage')).CalibrationPage
 ))
+export const leaderboardChunk = createRouteChunk(async () => {
+  // the page's code is fetched while the game data loads; nothing in it reads game data before it renders.
+  const page = import('@/modules/leaderboard/views/ScopePage')
+  const { initGameData, getGameDataMode } = await import('@/data/gameData')
+  await initGameData({ mode: getGameDataMode(), resonatorIds: [] })
+  return (await page).ScopePage
+})
 export const guidesChunk = createRouteChunk(async () => (
   (await import('@/modules/read/pages/GuidesPage')).GuidesPage
 ))
@@ -55,6 +62,7 @@ interface Warmable {
 // every surface mounts the simulation page, then its own pane
 const PAGE_CHUNKS: Array<[string, Warmable[]]> = [
   [APP_ROUTES.calibration, [calibrationChunk]],
+  [APP_ROUTES.leaderboard, [leaderboardChunk]],
   [APP_ROUTES.guides, [guidesChunk]],
   [APP_ROUTES.docs, [docsChunk]],
   [APP_ROUTES.changelog, [changelogChunk]],

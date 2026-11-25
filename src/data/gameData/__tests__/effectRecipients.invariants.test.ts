@@ -58,6 +58,101 @@ function execute(ids: [string, string, string], configure: (source: ResRuntime) 
 }
 
 describe('effect recipient contracts', () => {
+  it.each(['beta', 'live'])('%s preserves Electro Rover alternate Thrum rows and S6 coverage', mode => {
+    for (const id of ['1309', '1310']) {
+      const read = (file: string) => JSON.parse(readFileSync(new URL(
+        `../../../../public/data/${mode}/resonators/${file}`, import.meta.url), 'utf8'))
+      for (const source of [read('sources.json').find((source: SrcPkg) => source.source.id === id),
+        read(`runtime-bundles/${id}.json`).source, read(`worker-bundles/${id}.json`).source] as SrcPkg[]) {
+        const alternate = source.skills!.find(skill => skill.id === '1309039')!
+        expect(alternate.element).toBe('aero')
+        expect(alternate.skillType).toEqual(['resonanceSkill'])
+        const effect = source.effects!.find(effect => effect.id === `${id}:s6:thrum`)!
+        expect(effect.operations).toContainEqual(expect.objectContaining({ type: 'scale_skill_multiplier',
+          match: { skillIds: expect.arrayContaining(['1309026', '1309036', '1309039']) },
+          value: { type: 'const', value: 1.2 } }))
+      }
+    }
+  })
+
+  it('applies S6 to both Thunder Bane and alternate Silencing Blade without changing their hit counts', () => {
+    const seed = getResSeedBy('1309')!
+    const items: RotationNode[] = ['1309036', '1309039'].map((id, i) => ({ id: `hit:${i}`,
+      type: 'feature', resonatorId: '1309', featureId: `damage:${id}` }))
+    const run = (sequence: number) => {
+      const runtime = makeResRuntime(seed)
+      runtime.base.level = 90; runtime.base.sequence = sequence
+      runtime.build.team = ['1309', null, null]; runtime.build.echoes = [null, null, null, null, null]
+      runtime.state.controls['sequence:1309:s5_apex:active'] = false
+      const { context } = prepareResSimulation(runtime, seed, makeEnemy(), { '1309': runtime })
+      const env = prepareRunEnv(context, seed), program = prepareRotationProgram(items)
+      const result = executeRotationProgram(env, program)
+      const total = result.entries.reduce((sum, entry) => sum + entry.avg, 0)
+      expect(executeRotationScore(env, program).total.avg).toBeCloseTo(total, 6)
+      const portable = compilePortableRotation(env, items, [], new Set(['hit:0|0', 'hit:1|0']),
+        {}, undefined, undefined, { echoCount: 0 })
+      expect(executeScalarProgram(portable.scalar, new Float64Array(portable.scalar.inputCount))[0]).toBeCloseTo(total, 6)
+      return result.entries
+    }
+    const before = run(5), after = run(6)
+    expect(after.map(entry => entry.skill.hits.map(hit => hit.count))).toEqual(before.map(entry => entry.skill.hits.map(hit => hit.count)))
+    after.forEach((entry, i) => expect(entry.avg).toBeCloseTo(before[i]!.avg * 1.2, 6))
+    const kit = JSON.parse(readFileSync(new URL('../../../data/rotationGen/characters/1309.json', import.meta.url), 'utf8'))
+    const apex = Object.keys(kit.effects).find(id => kit.effects[id].name === 'Electro Rover: Apex Resonance')!
+    expect(kit.effectControls[apex]).toEqual([['runtime.state.controls.sequence:1309:s5_apex:active', true]])
+  })
+
+  it.each(['beta', 'live'])('%s preserves resistance modifier identities through generated source and worker data', mode => {
+    const read = (kind: string, file: string) => JSON.parse(readFileSync(
+      new URL(`../../../../public/data/${mode}/${kind}/${file}`, import.meta.url), 'utf8'))
+    const ignore = [
+      ['resonators', '1207', '1207:lvl70:base'], ['resonators', '1207', '1207:lvl70:bonus'],
+      ['resonators', '1207', '1207:lvl70:s3'], ['resonators', '1211', '1211:s2:degenerate-voidmatter'],
+      ['resonators', '1110', '1110:ceaseless-landscape:havoc-bane'], ['resonators', '1508', '1508:s2:res-shred'],
+      ['weapons', '21020076', 'weapon:21020076:defignore'], ['weapons', '21050056', 'weapon:21050056:shred'],
+      ['weapons', '21050116', 'weapon:21050116:skill'],
+    ] as const
+    for (const [kind, id, effectId] of ignore) {
+      const sources = read(kind, 'sources.json') as SrcPkg[]
+      const bundles = [sources.find(source => source.source.id === id), read(kind, `runtime-bundles/${id}.json`).source]
+      if (kind === 'resonators') bundles.push(read(kind, `worker-bundles/${id}.json`).source)
+      for (const source of bundles as SrcPkg[]) {
+        const effect = source.effects?.find(effect => effect.id === effectId)
+        expect(effect, effectId).toBeDefined()
+        expect(effect!.operations.some(op => (op.type === 'add_attribute_mod' || op.type === 'add_skill_mod') && op.mod === 'resIgnore'), effectId).toBe(true)
+        expect(effect!.operations.some(op => 'mod' in op && op.mod === 'resShred'), effectId).toBe(false)
+      }
+    }
+    for (const [id, effectId] of [['1501', '1501:s6:res-shred'], ['1506', '1506:attentive-heart']]) {
+      const source = (read('resonators', 'sources.json') as SrcPkg[]).find(source => source.source.id === id)!
+      expect(source.effects!.find(effect => effect.id === effectId)!.operations.some(op => 'mod' in op && op.mod === 'resShred')).toBe(true)
+    }
+  })
+
+  it.each(['beta', 'live'])('%s keeps Yinlin Judgment Strike classification across source and compiled surfaces', mode => {
+    const read = (file: string) => JSON.parse(readFileSync(new URL(`../../../../public/data/${mode}/resonators/${file}`, import.meta.url), 'utf8'))
+    const sources = read('sources.json') as SrcPkg[]
+    for (const source of [sources.find(source => source.source.id === '1302'),
+      read('runtime-bundles/1302.json').source, read('worker-bundles/1302.json').source] as SrcPkg[]) {
+      expect(source.skills?.find(skill => skill.id === '1302020')?.skillType).toEqual(['resonanceSkill', 'coord'])
+    }
+    for (const entry of read('damage-entries.json').filter((entry: { resonatorId: string; skillId: string }) =>
+      entry.resonatorId === '1302' && entry.skillId === '1302020')) {
+      expect(entry.skillType).toEqual(['resonanceSkill', 'coord'])
+    }
+  })
+
+  it('scopes Jianxin Outro by Liberation damage type across Forte and Liberation tabs', () => {
+    const ids = ['damage:1305018', 'damage:1305028', 'damage:1305029']
+    const items: RotationNode[] = [active('1305'), ...ids.map((featureId, index): RotationNode =>
+      ({ id: `type-scope:${index}`, type: 'feature', resonatorId: '1305', featureId }))]
+    const run = (enabled: boolean) => execute(['1405', '1305', '1503'], source => {
+      source.state.controls['team:1405:transcendence:active'] = enabled
+    }, items, { '1405@team:1405:transcendence': '1305' })
+    const on = run(true), off = run(false)
+    expect(on.map((stats, index) => stats.amplify! - off[index]!.amplify!)).toEqual([0, 38, 38])
+  })
+
   it.each(['beta', 'live'])('%s keeps Augusta Battlesong in the amplification channel on every surface', (mode) => {
     const read = (file: string) => JSON.parse(readFileSync(new URL(`../../../../public/data/${mode}/resonators/${file}`, import.meta.url), 'utf8'))
     const sources = read('sources.json') as SrcPkg[]

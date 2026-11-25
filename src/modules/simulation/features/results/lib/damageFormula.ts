@@ -292,6 +292,7 @@ function mkShrdDmgCtx(
     return {
       ...factors,
       resShred: 0,
+      resIgnore: 0,
       enemyResVl: factors.baseRes,
       totalDefIgnore: 0,
       totalDefShred: 0,
@@ -410,11 +411,11 @@ function enemyExpr(level: number, shared: ShrdDmgCtx): { def: string; res: strin
 
   let resFormula: string
   if (shared.enemyResVl < 0) {
-    resFormula = `1 - ((${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)}) / 200)`
+    resFormula = `1 - ((${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)} - ${fmtPct(shared.resIgnore)}) / 200)`
   } else if (shared.enemyResVl < 75) {
-    resFormula = `1 - (${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)})`
+    resFormula = `1 - (${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)} - ${fmtPct(shared.resIgnore)})`
   } else {
-    resFormula = `1 / (1 + 5 x ((${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)}) / 100))`
+    resFormula = `1 / (1 + 5 x ((${fmtPct(shared.baseRes)} - ${fmtPct(shared.resShred)} - ${fmtPct(shared.resIgnore)}) / 100))`
   }
 
   return {
@@ -436,7 +437,7 @@ function enemyLines(level: number, shared: ShrdDmgCtx): string[] {
   return [
     `enemy.def = ${pctMul(shared.defMult, 10)} = ${expr.def}`,
     `enemy.res = ${pctMul(shared.resMult, 10)} = ${expr.res}`,
-    `enemy.res.effective = ${fmtPct(shared.enemyResVl)} = Base ${fmtPct(shared.baseRes)} - Shred ${fmtPct(shared.resShred)}`,
+    `enemy.res.effective = ${fmtPct(shared.enemyResVl)} = Base ${fmtPct(shared.baseRes)} - Shred ${fmtPct(shared.resShred)} - Ignore ${fmtPct(shared.resIgnore)}`,
   ]
 }
 
@@ -724,7 +725,13 @@ function tuneBrkd(
     skillTypeAll.resShred +
     skillTypeBuff.resShred +
     skillBuffs.resShred
+  const resIgnore = attributeAll.resIgnore + attrElement.resIgnore + skillTypeAll.resIgnore
+    + skillTypeBuff.resIgnore + skillBuffs.resIgnore
   const defIgnore =
+    finalStats.defIgnore +
+    attributeAll.defIgnore +
+    attrElement.defIgnore +
+    skillTypeAll.defIgnore +
     skillTypeBuff.defIgnore +
     skillBuffs.defIgnore
   const defShred =
@@ -741,7 +748,7 @@ function tuneBrkd(
     skillTypeAll.dmgVuln +
     skillTypeBuff.dmgVuln +
     skillBuffs.dmgVuln
-  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred
+  const enemyResVl = ignoresEnemy ? 0 : baseRes - resShred - resIgnore
   const resMult = ignoresEnemy ? 1 : resistMult(enemyResVl)
   const enemyDfnsBas = ignoresEnemy ? 0 : (8 * enemy.level) + 792
   const enemyDefense = ignoresEnemy ? 0 : enemyDfnsBas * defenseReduction(defIgnore, defShred)
@@ -772,7 +779,7 @@ function tuneBrkd(
       : `enemy.def = ${pctMul(defenseMult, 10)} = (${fmtNum(800 + 8 * level, 2)}) / (${fmtNum(800 + 8 * level, 2)} + ${fmtNum(enemyDfnsBas, 2)} x (1 - ${fmtPct(defShred)}) x (1 - ${fmtPct(defIgnore)}))`,
     ignoresEnemy
       ? `enemy.res = ${pctMul(resMult, 10)} = no enemy`
-      : `enemy.res = ${pctMul(resMult, 10)} = RES after shred ${fmtPct(enemyResVl)}`,
+      : `enemy.res = ${pctMul(resMult, 10)} = RES after shred ${fmtPct(resShred)} and ignore ${fmtPct(resIgnore)}: ${fmtPct(enemyResVl)}`,
   )
   addSection(
     sections,
@@ -818,7 +825,7 @@ function tuneBrkd(
           label: 'Target RES',
           factor: resMult,
           value: pctMul(resMult, 4),
-          expr: ignoresEnemy ? 'no enemy' : `RES after shred ${fmtPct(enemyResVl)}`,
+          expr: ignoresEnemy ? 'no enemy' : `RES after shred ${fmtPct(resShred)} and ignore ${fmtPct(resIgnore)}: ${fmtPct(enemyResVl)}`,
         },
         {
           key: 'mod.vuln',
@@ -921,7 +928,6 @@ function negBreakdown(
     ? skill.stackMax ?? getNegEffectDef(effectArch)
     : rawStacks
   const extraStacks = effectArch === 'electroFlare'
-    && combatState.electroFlare > getNegEffectDef('electroFlare')
     ? combatState.electroRage
     : 0
   const element = effectArch === 'spectroFrazzle'

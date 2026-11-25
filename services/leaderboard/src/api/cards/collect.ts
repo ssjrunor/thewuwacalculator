@@ -61,7 +61,7 @@ export async function identifyCard(input: string, options: Pick<CollectOptions, 
     return {
       ok: false,
       code: parsed.code,
-      message: parsed.code === 'not_kuro' ? 'not a kuro build card link' : 'not a card link or card file name',
+      message: parsed.code === 'not_kuro' ? "oopsies... that link is not from Kuro. paste the original card link or its file name :P" : "hmm... that does not look like a card link. try the Kuro share link or the card file name :P",
     }
   }
   return { ok: true, url: parsed.url, via: parsed.via, linkHash: await linkHash(options.linkHashKey, parsed.url) }

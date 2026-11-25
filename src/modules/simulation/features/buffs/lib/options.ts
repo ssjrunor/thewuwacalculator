@@ -121,6 +121,7 @@ export const MOD_VL_PTNS: Array<BuffOption<MnlModVlKey>> = [
   { value: 'dmgBonus', label: 'DMG Bonus' },
   { value: 'amplify', label: 'Amplify' },
   { value: 'resShred', label: 'RES Shred' },
+  { value: 'resIgnore', label: 'RES Ignore' },
   { value: 'defIgnore', label: 'DEF Ignore' },
   { value: 'defShred', label: 'DEF Shred' },
   { value: 'dmgVuln', label: 'DMG Vulnerability' },

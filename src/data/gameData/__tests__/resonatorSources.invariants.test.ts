@@ -82,6 +82,14 @@ function makeJinhsiScope(incandescence: number, forteSkillLevel: number): Effect
 }
 
 describe('resonator source invariants', () => {
+  it('retains Lynae Outro total while exposing its reference hit schedule for timed conditions', () => {
+    const source = (JSON.parse(resonatorSourcesRaw) as SrcPkg[]).find(source => source.source.id === '1509')!
+    const skill = source.skills!.find(skill => skill.id === '1509:outro')!
+    expect(skill.hits.map(hit => [hit.count, hit.multiplier])).toEqual([[21, .0455], [1, .0445]])
+    expect(skill.hits.reduce((sum, hit) => sum + hit.count * hit.multiplier, 0)).toBeCloseTo(1, 12)
+    expect(source.features!.filter(feature => feature.skillId === skill.id && feature.variant === 'subHit')
+      .map(feature => feature.id)).toEqual(['damage:1509:outro:hit:1', 'damage:1509:outro:hit:2'])
+  })
   it('preserves every fully linked base skill coefficient at level 1 and 10', () => {
     const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
     const allEntries = JSON.parse(resonatorDamageEntriesRaw) as SkillDamageEntry[]
