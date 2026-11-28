@@ -1,38 +1,30 @@
 /*
   Author: Runor Ewhro
-  description: kit hovers on a build row's teammates, weapon and set. the
-               hovered icon grows in place into a medallion whose ring shows the
-               figure (a teammate's share of team damage, the weapon's rank, the
-               set's pieces) and overlaps the top corner of a card growing out of
-               it. a teammate card splits the team's damage and lists each of
-               their buffs that reached the scored resonator with the share of
-               its damage they covered; a weapon card shows its level 90 stats
-               and its passive at the board's rank; a set card shows its tiers,
-               ticked when met. icons opt in with data-kh, and one layer per page
-               listens for them. moving to a nearby icon slides the open
-               medallion and its card to it without closing. the card flips above
-               near the screen bottom and hides on scroll, Escape or a click.
+  description: hover cards for the teammates, weapon and set icons of a build row.
 */
 
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { CellDetailResponse, TeamBuff } from '@/domain/leaderboard/api'
+import type { EchoInstance } from '@/domain/entities/runtime'
 import { canonicalResonatorId } from '@/domain/rotationActions/identities'
 import { getEchoById } from '@/data/catalog/echoCatalogService'
 import { getSntSetClr, getSntSetIco, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
+import { loadWpnPssvs, peekWpnPssv } from '@/data/gameData/weapons/passives'
 import { leaderboardWeaponRank } from '@/engine/leaderboard/weaponRank'
 import { fmtWpnStatDs, resPssvPrms, weaponStatsAt, WPNSTATLBLS } from '@/modules/simulation/features/weapons/lib/weapon'
 import { getRarityColor } from '@/modules/simulation/model/display'
 import { RichDscr } from '@/modules/simulation/ui/RichDescription'
 import { cmp, grp, resColor, resFace, resName, wpnOf } from '../../model/format'
 import { loadCellDetail } from '../../api/queries'
+import { truncTo } from '@/shared/lib/number'
 
 type Kind = 'mate' | 'wpn' | 'set'
 interface Subject {
   kind: Kind
   id: string
-  /** the scored resonator, then its teammates in seat order. */
+  // the scored resonator, then its teammates in seat order
   team: string[]
   build: string
   scenario: string
@@ -40,11 +32,11 @@ interface Subject {
   res: string
 }
 
-/** hover attributes for a kit icon, spread onto the img. */
+// hover attributes for a kit icon, spread onto the img
 export const khMate = (id: string) => ({ 'data-kh': 'mate', 'data-kh-id': id })
 export const khWeapon = (id: string) => ({ 'data-kh': 'wpn', 'data-kh-id': id })
 export const khSet = (id: number, pieces: number) => ({ 'data-kh': 'set', 'data-kh-id': String(id), 'data-kh-pc': String(pieces) })
-/** attributes of the kit's cell: the build and scenario its teammates are read from. */
+// attributes of the kit's cell: the build and scenario its teammates are read from
 export const khCell = (buildId: string, scenarioId: string, scored: string, members: string[]) => ({
   'data-kh-build': buildId, 'data-kh-scn': scenarioId,
   'data-kh-team': [scored, ...members.filter((id) => id !== scored)].join(','),
@@ -61,12 +53,11 @@ function subjectOf(img: HTMLElement): Subject | null {
     pieces: Number(d.khPc ?? 0), res: res || resColor(cell?.khTeam?.split(',')[0] ?? '') }
 }
 
-// settled cells, which paint previously seen teammates at once
+// settled cells, which render previously seen teammates at once
 const settled = new Map<string, CellDetailResponse>()
 const failed = new Set<string>()
 const same = (a: string, b: string) => canonicalResonatorId(a) === canonicalResonatorId(b)
 
-/* the ring: a box 4.6rem wide in tenths of a rem, every arc from twelve o'clock, drawn in when the layer turns on. */
 const BOX = 46, R = 20.5, SW = 1.9
 const C = 2 * Math.PI * R
 const OFF = 'color-mix(in srgb, var(--text) 16%, transparent)'
@@ -85,12 +76,10 @@ function Ring({ arcs, className }: { arcs: Arc[]; className?: string }) {
   )
 }
 
-/** pips around the ring, lit up to n in the subject's colour (a set's own, a weapon's rarity) and mixed toward the
-    text ink like the other figures, which keeps white sets and gold legible on light themes; pips and gaps are
-    equal, with a gap centred on twelve o'clock. GAP is the clear space between round caps, which places the caps
-    inside each pip's share. */
+// pips around the ring, lit up to n in the subject's colour (a set's own, a weapon's rarity) mixed toward the text
+// ink for legible white sets and gold on light themes; GAP is the clear space between round caps
 const GAP = 2.6
-// white sets (Moonlit Clouds and similar) would mix to the unlit grey on light themes, so they draw in text ink
+// white sets (Moonlit Clouds and similar) mix to the unlit grey on light themes, so they use text ink
 const paper = (hex: string) => /^#[0-9a-f]{6}$/i.test(hex) && [1, 3, 5].every((at) => parseInt(hex.slice(at, at + 2), 16) > 0xe0)
 function pips(count: number, lit: number, colour: string | null | undefined): Arc[] {
   const on = colour && !paper(colour) ? `color-mix(in srgb, ${colour} var(--figmix), var(--text))` : 'var(--text)'
@@ -103,8 +92,8 @@ function pips(count: number, lit: number, colour: string | null | undefined): Ar
 
 type Split = Array<{ id: string; damage: number; share: number; ink: string }>
 
-/* each member in their attribute colour; a second member of the same attribute gets a lighter shade and a third a
-   darker one, which keeps the split readable when two share an attribute. */
+// each member in their attribute colour; a second member of the same attribute gets a lighter shade and a third a
+// darker one
 const SHADE = ['', 'color-mix(in srgb, {c} 55%, white)', 'color-mix(in srgb, {c} 60%, black)']
 function inksOf(team: readonly string[]): string[] {
   const seen = new Map<string, number>()
@@ -123,8 +112,21 @@ function splitOf(s: Subject, cell: CellDetailResponse | null): Split | null {
   return total > 0 ? rows.map((row) => ({ ...row, share: row.damage / total })) : null
 }
 
-const pct = (share: number) => `${Math.round(share * 100)}%`
-const role = (s: Subject, id: string) => same(id, s.team[0]) ? 'res' : same(id, s.id) ? 'on' : ''
+const pct = (share: number) => `${truncTo(share * 100)}%`
+
+// a member's weapon and rank, their most-worn set and its pieces, and their main echo, from the cell's stored input
+function gearOf(cell: CellDetailResponse, id: string) {
+  const m = cell.input?.members.find((x) => same(x.resonatorId, id))
+  if (!m) return null
+  const echoes = m.echoes.filter((e): e is EchoInstance => Boolean(e))
+  const counts = new Map<number, number>()
+  for (const e of echoes) counts.set(e.set, (counts.get(e.set) ?? 0) + 1)
+  const top = [...counts].sort((a, b) => b[1] - a[1])[0]
+  const main = echoes.find((e) => e.mainEcho)
+  const setIcon = top ? getSntSetIco(top[0]) : null
+  return { weapon: wpnOf(m.weapon.id), rank: m.weapon.rank,
+    set: top && setIcon ? { icon: setIcon, n: top[1] } : null, main: main ? getEchoById(main.id)?.icon ?? null : null }
+}
 
 function mateArcs(split: Split | null): Arc[] {
   if (!split) return []
@@ -160,9 +162,19 @@ function MateBody({ s, cell, failed }: { s: Subject; cell: CellDetailResponse | 
         <div className="kh-sp">{split.map((m, at) => (
           <i key={m.id} style={{ width: `${(m.share * 100).toFixed(1)}%`, background: m.ink, animationDelay: `${.12 + at * .06}s` }} />
         ))}</div>
-        <div className="kh-sk">{split.map((m) => (
-          <span key={m.id} className={role(s, m.id)} style={{ '--c': m.ink } as CSSProperties}><i />{resName(m.id)} <b>{pct(m.share)}</b> {cmp(m.damage)}</span>
-        ))}</div>
+        <ul className="kh-ro">{split.map((m) => {
+          const g = gearOf(cell, m.id)
+          return (
+            <li key={m.id} className={same(m.id, s.id) ? 'on' : ''} style={{ '--c': m.ink } as CSSProperties}>
+              <i /><span className="kh-ro-n">{resName(m.id)}</span><b>{pct(m.share)}</b><small>{cmp(m.damage)}</small>
+              <span className="kh-ro-k">
+                {g?.weapon ? <img className="w" src={g.weapon.icon} alt="" /> : <span />}<u>{g?.weapon ? `R${g.rank}` : ''}</u>
+                {g?.set ? <img className="s" src={g.set.icon} alt="" /> : <span />}<u>{g?.set?.n ?? ''}</u>
+                {g?.main ? <img className="e" src={g.main} alt="" /> : <span />}
+              </span>
+            </li>
+          )
+        })}</ul>
       </section>
       <section className="kh-s">
         <h4>Buffs on {resName(s.team[0])} <em>applies...</em></h4>
@@ -175,7 +187,7 @@ function MateBody({ s, cell, failed }: { s: Subject; cell: CellDetailResponse | 
                 <span className="kh-nm">{buffName(b)}<small>{KIND[b.source.type] ?? b.kind}</small></span>
                 <span className="kh-fx">
                   {b.effects.map((e, at) => <span key={at}>{e.text} <b>{e.value}</b></span>)}
-                  <span className="kh-cov" style={{ '--c': `${b.covers}%` } as CSSProperties}><i />{Math.round(b.covers)}%</span>
+                  <span className="kh-cov" style={{ '--c': `${b.covers}%` } as CSSProperties}><i />{truncTo(b.covers)}%</span>
                 </span>
               </li>
             )
@@ -191,19 +203,21 @@ function WeaponBody({ id }: { id: string }) {
   if (!weapon) return null
   const rank = leaderboardWeaponRank(weapon.id, weapon.rarity)
   const stats = weaponStatsAt(weapon, 90)
+  // the core catalog names the passive without its text, which loads on the first weapon hover
+  const passive = weapon.passive?.desc ? weapon.passive : peekWpnPssv(weapon.id)
   return (
     <>
       <section className="kh-s">
         <div className="kh-st">
           <span>Lv.<b>90</b></span>
-          <span>ATK<b>{Math.floor(stats.atk)}</b></span>
+          <span>ATK<b>{truncTo(stats.atk)}</b></span>
           {weapon.statKey ? <span>{WPNSTATLBLS[weapon.statKey] ?? weapon.statKey}<b>{fmtWpnStatDs(weapon.statKey, stats.scndStatVl)}</b></span> : null}
         </div>
       </section>
-      {weapon.passive?.desc ? (
+      {passive?.desc ? (
         <section className="kh-s">
-          {weapon.passive.name ? <p className="kh-pn">{weapon.passive.name}</p> : null}
-          <RichDscr className="kh-ds" description={weapon.passive.desc} params={resPssvPrms(weapon.passive.params, rank)} />
+          {passive.name ? <p className="kh-pn">{passive.name}</p> : null}
+          <RichDscr className="kh-ds" description={passive.desc} params={resPssvPrms(passive.params, rank)} />
         </section>
       ) : null}
     </>
@@ -254,7 +268,7 @@ function faceOf(s: Subject): Face {
   return { src: getSntSetIco(id), sq: true, name: getSntSetNam(id), arcs: pips(max, s.pieces, getSntSetClr(id)), seq: null,
     cap: <><b>{s.pieces}</b> of {max} {max === 1 ? 'piece' : 'pieces'}</>, body: <SetBody id={id} pieces={s.pieces} /> }
 }
-// two rings that would draw the same figure (two teammates of one row share a split) are one ring.
+// two rings with the same figure (two teammates of one row share a split) render as one ring
 const ringKey = (arcs: Arc[]) => arcs.map((a) => `${a.from.toFixed(4)}:${a.f.toFixed(4)}:${a.ink}`).join('|')
 
 function CardText({ f }: { f: Face }) {
@@ -270,13 +284,13 @@ function CardText({ f }: { f: Face }) {
 }
 
 type Entry = { s: Subject; n: number }
-/** layer state: `open` counts fresh opens (each remounts the medallion), and a slide keeps it while `prev` fades out. */
+// layer state: `open` counts fresh opens (each remounts the medallion), and a slide retains it while `prev` fades out
 type View = { open: number; cur: Entry; prev: Entry | null }
 type Pt = { x: number; y: number; cl: number }
 
-/* slide thresholds: icons this near (a row's kit, the rows above and below) pass the medallion over without closing.
-   a fresh open waits for the pointer to settle, and leaving an icon keeps the medallion briefly for the next one.
-   the spring keeps its velocity when the target moves, which curves the path of a second hop. */
+// slide thresholds: icons this near (a row's kit, the rows above and below) pass the medallion over without closing.
+// a fresh open waits for the pointer to settle, and leaving an icon leaves the medallion open briefly for the next
+// one. the spring retains its velocity when the target moves
 const NEAR = 7, SETTLE = 70, GRACE = 200, SWAP = 320
 const SPRING = { k: 300, d: 30 }
 const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
@@ -287,7 +301,7 @@ export function KitHoverLayer() {
   // cells are stored in settled and failed; a finished request bumps this to reread them
   const [, landed] = useState(0)
   const live = useRef({
-    /** the icon under the medallion (hidden while covered), and the icon a slide is leaving (shown once cleared). */
+    // the icon under the medallion (hidden while covered), and the icon a slide is leaving (shown once cleared)
     icon: null as HTMLElement | null, left: null as HTMLElement | null, leftAt: { x: 0, y: 0, w: 0 },
     hovered: null as HTMLElement | null,
     x: 0, y: 0, w: 0, n: 0, open: 0, mode: '' as '' | 'open' | 'glide', h0: 0, swapping: false,
@@ -308,8 +322,9 @@ export function KitHoverLayer() {
     card.style.setProperty('--kh-in', `${P.x - P.cl}px`)
   }
 
-  // place the card with the medallion's centre 2.5rem in from its edge, on screen, and above the icon near the bottom;
-  // an open card above the icon stays above while it fits (`keep`), so a slide or a teammate's data loading does not flip it
+  // place the card with the medallion's centre 2.5rem in from its edge, on screen, and above the icon near the
+  // bottom; an open card above the icon stays above while it fits (`keep`), so a slide or a teammate's data loading
+  // never flips it
   const aim = (h?: number, keep = false) => {
     const el = ref.current, card = el?.querySelector<HTMLElement>('.kh-c')
     if (!el || !card) return
@@ -327,7 +342,7 @@ export function KitHoverLayer() {
     if (l.icon && Math.hypot(l.P.x - l.x, l.P.y - l.y) < l.w / 2) l.icon.style.opacity = '0'
   }
 
-  // effect events: called only from the effects below and the listeners they attach, reading refs as they are then.
+  // effect events: called only from the effects below and the listeners they attach, reading refs at call time
   const glideTo = useEffectEvent(() => {
     const l = live.current
     if (still()) { l.P = { ...l.T }; l.V = { x: 0, y: 0, cl: 0 }; paint(); track(); return }
@@ -368,8 +383,8 @@ export function KitHoverLayer() {
   })
 
   // a fresh open lays out at the icon's size in its place, then grows out of it, hiding the icon in the medallion's
-  // first painted frame once its image is ready; a slide springs the open medallion and card to the new icon while the
-  // card height eases to the new text
+  // first painted frame once its image is ready; a slide springs the open medallion and card to the new icon while
+  // the card height eases to the new text
   useLayoutEffect(() => {
     const el = ref.current
     const l = live.current
@@ -407,9 +422,15 @@ export function KitHoverLayer() {
     }, SWAP)
   }, [view])
 
-  // a teammate reads their cell; a card that grows when it lands is placed again.
+  // a teammate reads their cell and a weapon its passive; a card that grows when either loads is placed again
   const cur = view?.cur.s
   useEffect(() => {
+    if (cur?.kind === 'wpn') {
+      if (wpnOf(cur.id)?.passive?.desc || peekWpnPssv(cur.id)) return
+      let on = true
+      loadWpnPssvs().then(() => { if (on) landed((n) => n + 1) }, () => {})
+      return () => { on = false }
+    }
     if (cur?.kind !== 'mate') return
     const key = `${cur.build}|${cur.scenario}`
     if (settled.has(key)) return
@@ -486,6 +507,8 @@ export function KitHoverLayer() {
     const over = (e: PointerEvent) => {
       const icon = iconOf(e)
       if (!icon || e.pointerType === 'touch') return
+      // passives start loading while the pointer settles
+      if (icon.dataset.kh === 'wpn') loadWpnPssvs().catch(() => {})
       l.hovered = icon
       show(icon)
     }
@@ -513,14 +536,14 @@ export function KitHoverLayer() {
     }
   }, [])
 
-  // a move to another page closes it.
+  // navigating to another page closes it
   useEffect(() => { hide() }, [location.pathname, location.search])
 
   const now = view ? faceOf(view.cur.s) : null
   const was = view?.prev ? faceOf(view.prev.s) : null
   const pics = now ? [...(was?.src && was.src !== now.src ? [{ ...was, out: true }] : []), { ...now, out: false }] : []
   const ring = now ? ringKey(now.arcs) : '', ringWas = was ? ringKey(was.arcs) : ring
-  // the new picture fades in over the old only when it is a different picture (the same weapon a row down is one img).
+  // the new picture fades in over the old only when it differs (the same weapon a row down is one img)
   const fresh = Boolean(was), newPic = fresh && was!.src !== now?.src
   return (
     <div ref={ref} className="kh" aria-hidden="true" style={view ? { '--res': view.cur.s.res } as CSSProperties : undefined}>

@@ -56,14 +56,14 @@ import { ModalHeader } from '@/shared/ui/AppModalShell.tsx'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { RichDscr } from '@/modules/simulation/ui/RichDescription.tsx'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
-import { clampNumber, formatTruncCompact } from '@/shared/lib/number.ts'
+import { clampNumber, formatTrunc, formatTruncCompact } from '@/shared/lib/number.ts'
 import { mainPortal } from '@/shared/lib/portalTarget.ts'
 
 const CLASSES: EnemyClassId[] = [1, 2, 3, 4]
 const ELEMENTS: EnemyElemId[] = [0, 4, 3, 2, 1, 5, 6]
 
 const fmtX = (value: number) => `×${formatTruncCompact(value, 2)}`
-const fmtPct = (value: number) => `${value > 0 ? '+' : ''}${formatTruncCompact(Math.round(value * 10) / 10, 1)}%`
+const fmtPct = (value: number) => `${value > 0 ? '+' : ''}${formatTruncCompact(value, 1)}%`
 const fmtRes = (value: number) => `${value > 0 ? '+' : ''}${value}%`
 
 interface DragNumProps {
@@ -74,8 +74,8 @@ interface DragNumProps {
   onChange: (value: number) => void
 }
 
-// pointer movement maps every six pixels to one integer step. a click without
-// movement advances once and wraps at the authored bounds.
+// pointer movement maps every six pixels to one integer step; a click without movement advances once and wraps at
+// the authored bounds
 function DragNum({ value, min, max, label, onChange }: DragNumProps) {
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -234,7 +234,7 @@ export function EnemyConsole({
   const [byElem, setByElem] = useState<EnemyElemId | null>(null)
   const [byClass, setByClass] = useState<EnemyClassId | null>(null)
   const [focus, setFocus] = useState<EnemyElemId>(2)
-  // store only expanded ids; all other descriptions remain collapsed.
+  // store only expanded ids; all other descriptions stay collapsed
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
   const isOpen = (id: string) => opened.has(id)
   const toggleOpen = (id: string) => setOpened((current) => {
@@ -259,7 +259,7 @@ export function EnemyConsole({
     [runtime, enemyProfile.id],
   )
 
-  // include fixed-max negative effects even though they expose no control state.
+  // include fixed-max negative effects even though they expose no control state
   const loads = useMemo(
     () => (runtime ? negEffectsFor(runtime, runtimesById) : []),
     [runtime, runtimesById],
@@ -280,8 +280,7 @@ export function EnemyConsole({
     )
   }, [runtime, enemyProfile, simulation])
 
-  // combat-state responders modify tune strain and belong with negative-effect
-  // sources.
+  // combat-state responders modify tune strain and are grouped with negative-effect sources
   const responders = useMemo(() => {
     if (!runtime) return []
     const details = getResDtlsBy()[runtime.id]
@@ -527,7 +526,7 @@ export function EnemyConsole({
                   label="Target level"
                   onChange={(next) => onEnemyChange(setEnemyLvl(enemyProfile, next))}
                 />
-                <span className="enc-lvl__def">Defense<b>{defense.toLocaleString()}</b></span>
+                <span className="enc-lvl__def">Defense<b>{formatTrunc(defense)}</b></span>
               </span>
             </div>
 

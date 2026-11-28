@@ -1,10 +1,12 @@
--- the leaderboard's global database. each resonator's builds, scores, jobs and ranks are stored in its own Durable
--- Object (src/board/), and cards in sixteen registry shards (src/cards/). this database stores the small per-player
--- and per-account data: identity, accounts, social, moderation, documents, the ruleset catalog, and projections the
--- boards write through their outbox (src/api/projections.ts).
--- conventions: text ids (uuidv7) for rows created here; builds are referenced by public id '<resonator>-<local base36>'
--- and cards by '<shard hex>-<no base36>'; a uid is its nine digits as text (seeded uids start with 0). times are integer
--- epoch milliseconds, enums are text with CHECK, json is stored as text.
+-- Author: Runor Ewhro
+-- description: the leaderboard's global database. each resonator's builds, scores, jobs and ranks are stored in its
+--              own Durable Object (src/board/), and cards in sixteen registry shards (src/cards/). this database
+--              stores the small per-player and per-account data: identity, accounts, social, moderation, documents,
+--              the ruleset catalog, and projections the boards write through their outbox (src/api/projections.ts).
+--              conventions: text ids (uuidv7) for rows created here; builds are referenced by public id
+--              '<resonator>-<local base36>' and cards by '<shard hex>-<no base36>'; a uid is its nine digits as text
+--              (seeded uids start with 0). times are integer epoch milliseconds, enums are text with CHECK, json is
+--              stored as text
 
 -- identity
 
@@ -15,14 +17,14 @@ CREATE TABLE players (
   hide_uid       INTEGER NOT NULL DEFAULT 0 CHECK (hide_uid IN (0, 1)),
   -- set by the player's own choice: shown as Anonymous with their region
   anonymous      INTEGER NOT NULL DEFAULT 0 CHECK (anonymous IN (0, 1)),
-  -- set for a uid whose builds filled the boards before its player took part: shown as anonymous until the player
+  -- set for a uid whose builds were seeded before its player took part: shown as anonymous until the player
   -- first acts for it (a submission or a fresh-card login)
   setup_at       INTEGER,
   opted_out_at   INTEGER,                                -- null while participating
   first_seen_at  INTEGER NOT NULL,
   last_seen_at   INTEGER NOT NULL,
   seed_batch     TEXT REFERENCES seed_batches (id),
-  -- incremented with every change the boards need (hide_uid, anonymous, setup, opt-out, a ban); boards store the
+  -- incremented with every change the boards read (hide_uid, anonymous, setup, opt-out, a ban); boards store the
   -- newest copy they receive (BoardDO.syncPlayer)
   ver            INTEGER NOT NULL DEFAULT 1
 );
@@ -110,14 +112,6 @@ CREATE TABLE follows (
 ) WITHOUT ROWID;
 CREATE INDEX follows_target ON follows (kind, target);
 
-CREATE TABLE likes (
-  build_id       TEXT NOT NULL,
-  account_id     TEXT NOT NULL REFERENCES accounts (id),
-  created_at     INTEGER NOT NULL,
-  PRIMARY KEY (build_id, account_id)
-) WITHOUT ROWID;
-CREATE INDEX likes_account ON likes (account_id, created_at);
-
 CREATE TABLE bookmarks (
   account_id     TEXT NOT NULL REFERENCES accounts (id),
   build_id       TEXT NOT NULL,
@@ -125,22 +119,6 @@ CREATE TABLE bookmarks (
   PRIMARY KEY (account_id, build_id)
 ) WITHOUT ROWID;
 CREATE INDEX bookmarks_build ON bookmarks (build_id);
-
-CREATE TABLE comments (
-  id             TEXT PRIMARY KEY,
-  build_id       TEXT NOT NULL,
-  parent_id      TEXT REFERENCES comments (id),
-  account_id     TEXT REFERENCES accounts (id),
-  body           TEXT,
-  created_at     INTEGER NOT NULL,
-  edited_at      INTEGER,
-  removed_at     INTEGER,
-  removed_by     TEXT,
-  CHECK ((body IS NULL) = (removed_at IS NOT NULL))
-);
-CREATE INDEX comments_build ON comments (build_id, parent_id, created_at);
-CREATE INDEX comments_account ON comments (account_id);
-CREATE INDEX comments_parent ON comments (parent_id) WHERE parent_id IS NOT NULL;
 
 -- blocks between people (accounts), covering every uid of the blocked account
 CREATE TABLE blocks (
@@ -155,8 +133,7 @@ CREATE INDEX blocks_blocked ON blocks (blocked_account);
 CREATE TABLE notifications (
   id             TEXT PRIMARY KEY,
   account_id     TEXT NOT NULL REFERENCES accounts (id),
-  kind           TEXT NOT NULL CHECK (kind IN ('comment', 'reply', 'like', 'sanction', 'media', 'comment_removed',
-                   'scored', 'dethroned', 'appeal', 'uid_moved')),
+  kind           TEXT NOT NULL CHECK (kind IN ('sanction', 'media', 'scored', 'dethroned', 'appeal', 'uid_moved')),
   subject_id     TEXT NOT NULL,
   build_id       TEXT,
   actor_uid      TEXT,
@@ -174,8 +151,8 @@ CREATE INDEX notifications_read ON notifications (read_at) WHERE read_at IS NOT 
 -- documents, media, presets
 
 CREATE TABLE documents (
-  kind           TEXT NOT NULL CHECK (kind IN ('profile', 'build', 'card', 'views')),
-  owner_id       TEXT NOT NULL,                          -- a build id, an account id (profile, views), or account:resonator (card)
+  kind           TEXT NOT NULL CHECK (kind IN ('profile', 'card', 'views')),
+  owner_id       TEXT NOT NULL,                          -- an account id (profile, views), or account:resonator (card)
   schema_ver     INTEGER NOT NULL,
   body           TEXT NOT NULL,
   updated_at     INTEGER NOT NULL,
@@ -217,7 +194,7 @@ CREATE INDEX card_presets_account ON card_presets (account_id, updated_at);
 CREATE TABLE reports (
   id               TEXT PRIMARY KEY,
   build_id         TEXT NOT NULL,
-  -- the uid of the reported build's owner, which lets a player's reports be read without their boards
+  -- the uid of the reported build's owner, for reading a player's reports without their boards
   subject_uid      TEXT,
   reason           TEXT NOT NULL CHECK (reason IN ('misread', 'not_owner', 'abuse', 'other')),
   details          TEXT,
@@ -227,8 +204,7 @@ CREATE TABLE reports (
   created_at       INTEGER NOT NULL,
   resolved_at      INTEGER,
   assigned_to      TEXT,
-  assigned_at      INTEGER,
-  comment_id       TEXT REFERENCES comments (id)
+  assigned_at      INTEGER
 );
 CREATE INDEX reports_open ON reports (status, created_at);
 CREATE INDEX reports_build ON reports (build_id);
@@ -316,9 +292,9 @@ CREATE TABLE rulesets (
   archived_at    INTEGER,
   fingerprint    TEXT,
   scorer         TEXT,
-  -- the scorer hash in two parts (tools/lib/fingerprint.mjs scorerParts): the generator (src/engine/rotationGen) and the
-  -- rest of the scoring code (evaluation). a rollout whose scorer changed only its generator keeps each score with an
-  -- unchanged program (board/BoardDO.ts cellsOf, scorer/reuse.ts)
+  -- the scorer hash in two parts (tools/lib/fingerprint.mjs scorerParts): the generator (src/engine/rotationGen) and
+  -- the rest of the scoring code (evaluation). a rollout whose scorer differs only in its generator reuses each score
+  -- with an unchanged program (board/BoardDO.ts cellsOf, scorer/reuse.ts)
   generator_fp   TEXT,
   evaluation_fp  TEXT
 );
@@ -367,9 +343,9 @@ CREATE TABLE ruleset_checks (
   PRIMARY KEY (ruleset_id, from_ruleset)
 );
 
--- a sample check's result per scenario (moderation/checks.ts): the number of the scenario's stored live-ruleset scores
--- the new ruleset's scorer rescored and the number that differed. a rollout with a new scorer keeps old scores only on
--- scenarios where every sample matched (BoardDO.cellsOf); ruleset_checks stores the totals
+-- a sample check's result per scenario (moderation/checks.ts): the number of the scenario's stored live-ruleset
+-- scores the new ruleset's scorer rescored and the number that differed. a rollout with a new scorer reuses old
+-- scores only on scenarios where every sample matched (BoardDO.cellsOf); ruleset_checks stores the totals
 CREATE TABLE ruleset_check_scenarios (
   ruleset_id     TEXT NOT NULL REFERENCES rulesets (id),
   from_ruleset   TEXT NOT NULL REFERENCES rulesets (id),
@@ -394,8 +370,8 @@ CREATE TABLE seed_batches (
   builds         INTEGER NOT NULL DEFAULT 0,
   uid_from       TEXT,
   uid_to         TEXT,
-  -- each batch takes a range of build locals shared by every board (src/api/moderation/seed.ts), which lets a board
-  -- drop a batch by range; purged_boards is a json list of the boards a purge has finished
+  -- each batch takes a range of build locals shared by every board (src/api/moderation/seed.ts), so a board drops a
+  -- batch by range; purged_boards is a json list of the boards a purge has finished
   local_from     INTEGER,
   local_to       INTEGER,
   purged_boards  TEXT
@@ -411,8 +387,8 @@ CREATE TABLE boards (
   top            TEXT NOT NULL,                          -- json: public ids of the builds tied at #1
   top_score      REAL,
   updated_at     INTEGER NOT NULL,
-  -- the board's first row (src/board/types.ts HeadRow, json), written with its summary, which lets the boards index
-  -- read D1 alone; null until the board's next write sends it
+  -- the board's first row (src/board/types.ts HeadRow, json), written with its summary, so the boards index reads D1
+  -- alone; null until the board's next write sends it
   head           TEXT
 );
 
@@ -444,9 +420,9 @@ CREATE INDEX recent_uploads_uid ON recent_uploads (uid, at);
 CREATE INDEX recent_uploads_board ON recent_uploads (resonator_id, at) WHERE shown = 1;
 CREATE INDEX recent_uploads_age ON recent_uploads (at);
 
--- shown uploads counted per 15 minutes for the activity strip, since counting recent_uploads on each read covers every
--- upload of the strip's 16 days. triggers update it with every writer (projections, seeds, purges, pruning), and slots
--- are retained as long as the uploads they count (90 days), so a deleted upload always finds its slot
+-- shown uploads counted per 15 minutes for the activity strip, because counting recent_uploads on each read covers
+-- every upload of the strip's 16 days. triggers update it with every writer (projections, seeds, purges, pruning),
+-- and slots are retained as long as the uploads they count (90 days), so a deleted upload always finds its slot
 CREATE TABLE upload_slots (
   q        INTEGER PRIMARY KEY,
   entries  INTEGER NOT NULL
@@ -471,7 +447,7 @@ BEGIN
     ON CONFLICT (q) DO UPDATE SET entries = entries + 1;
 END;
 
--- applied outbox batches, which makes a resent batch apply once
+-- applied outbox batches, so a resent batch applies once
 CREATE TABLE board_sync (
   resonator_id   TEXT NOT NULL,
   first_seq      INTEGER NOT NULL,

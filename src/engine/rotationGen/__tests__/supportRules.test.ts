@@ -196,7 +196,7 @@ describe('prescribed-plan translation', () => {
     expect(createGearLibrary(gear).module('sonata', 12, 4).rules).toEqual([])
   })
 
-  it('exposes Midnight Veil only for five distinct pieces and keeps its damage owned by the wearer', async () => {
+  it('exposes Midnight Veil only for five distinct pieces and attributes its damage to the wearer', async () => {
     const { scenario } = await simplePlan('1602', [])
     scenario.contextMemberId = scenario.team.members[0].id
     await environment()
@@ -237,7 +237,7 @@ describe('prescribed-plan translation', () => {
     expect(executeScalarProgram(equippedProgram.scalar, inputs)[0] / total).toBeCloseTo(1, 6)
     const portable = compilePortableRotation(complete.workspace.rotNvrn!, scenario.program.program,
       [], new Set(['burst|0']), {}, undefined, undefined, { echoCount: 0 })
-    // candidate echoes are empty on purpose: the set's skill is gone once its five-piece activation is lost
+    // candidate echoes are empty on purpose: the set's skill ends once its five-piece activation is lost
     expect(executeScalarProgram(portable.scalar, new Float64Array(portable.scalar.inputCount))[0]).toBe(0)
     scenario.team.members[1].loadout.echoes = structuredClone(scenario.team.members[0].loadout.echoes)
     scenario.team.members[0].loadout.echoes[4]!.id = scenario.team.members[0].loadout.echoes[3]!.id
@@ -355,7 +355,7 @@ describe('prescribed-plan translation', () => {
     expect(fight.effects.some((effect: RuntimeRecord) => effect.id === 2)).toBe(true)
   })
 
-  it('replays Unison at its native Liberation grant instead of an earlier Intro snapshot', async () => {
+  it('replays Unison at its native Liberation grant', async () => {
     const { rules, combat } = await isolated('1312')
     const unison = Object.keys(rules[1312].effects).find(id => rules[1312].effects[id].name === 'Unison')!
     const kits = timelineKits(rules, { timelines: { owns: { 1312: ['Unison'] } } } as unknown as ActionPlan)
@@ -373,16 +373,44 @@ describe('prescribed-plan translation', () => {
     expect(state.effects.some((effect: RuntimeRecord) => String(effect.id) === unison && effect.stacks > 0 && effect.until > state.frame)).toBe(false)
   })
 
-  it('preserves observed shared Unison when a rotation accepts another resonator’s response', async () => {
+  it.each(['Intro - Furled Canopy: Sealed Delusion (Unison)',
+    'Intro - Unfurled Canopy: Whirling Thunder (Unison)'])(
+    'keeps native Unison distinct from responding with %s', async (name) => {
+      const { rules, combat } = await isolated('1312')
+      const plan = { actions: { shared: { kind: 'resonator', resonatorId: '1312', sourceName: name } },
+        timelines: { owns: { 1312: ['Unison'] } } } as unknown as ActionPlan
+      const kits = timelineKits(rules, plan)
+      const unison = Object.keys(kits[1312].effects).find(id => kits[1312].effects[id].name === 'Unison')!
+      expect(kits[1312].governed.has(Number(unison))).toBe(false)
+      const intro = Number(Object.keys(kits[1312].actions).find(id => kits[1312].actions[id].name === name))
+      const liberation = Number(Object.keys(kits[1312].actions).find(id => kits[1312].actions[id].name === 'Liberation - Umbral Canopy: Miasma Lock'))
+      // the folded Intro roster already contains its following Liberation's Unison, so it cannot grant the weapon's
+      // on-gaining-Unison bonus early
+      const { state } = playTimeline(kits, combat, { seconds: 5, events: [
+        [0, 'state', 0, 'Unison', 1, 0], [0, 'cast', 0, String(intro), -1],
+      ] }, new Set(), new Set())
+      expect(state.effects.some((effect: RuntimeRecord) => String(effect.id) === unison && effect.stacks > 0)).toBe(false)
+      playCast(state, 1312, liberation, Infinity)
+      expect(state.effects.some((effect: RuntimeRecord) => String(effect.id) === unison && effect.stacks > 0)).toBe(true)
+    })
+
+  it('signals a Unison response to equipment without granting Suoming Unison', async () => {
     const { rules, combat } = await isolated('1312')
-    const plan = { actions: { shared: { kind: 'resonator', resonatorId: '1312',
-      sourceName: 'Intro - Unfurled Canopy: Whirling Thunder (Unison)' } }, timelines: { owns: { 1312: ['Unison'] } } } as unknown as ActionPlan
-    const kits = timelineKits(rules, plan)
-    const unison = Object.keys(kits[1312].effects).find(id => kits[1312].effects[id].name === 'Unison')!
-    expect(kits[1312].governed.has(Number(unison))).toBe(true)
-    const { state } = playTimeline(kits, combat, { seconds: 1, events: [[0, 'state', 0, 'Unison', 1, 0]] }, new Set(), new Set())
-    expect(state.effects.some((effect: RuntimeRecord) => String(effect.id) === unison && effect.stacks === 1)).toBe(true)
-    expect(state.trace.some((row: RuntimeRecord) => row.type === 'effect' && String(row.effectId) === unison)).toBe(true)
+    const kit = rules[1312]
+    const response = Object.entries(kit.effects).find(([, effect]) => (effect as RuntimeRecord).responseKind === 'unisonResponse')
+    expect(response).toBeDefined()
+    const intro = Number(Object.keys(kit.actions).find(id => kit.actions[id].name === 'Intro - Furled Canopy: Sealed Delusion (Unison)'))
+    const incoming = Object.keys(kit.effects).find(id => kit.effects[id].shared && kit.effects[id].recipient === 'incomingMember')!
+    const unison = Object.keys(kit.effects).find(id => kit.effects[id].name === 'Unison')!
+    combat.members[0].weapon.rules.push({ id: 'response-listener', when: 'responseEvent',
+      conditions: [{ path: 'event.responseKind', operator: 'eq', value: 'unisonResponse' }],
+      operations: [{ op: 'grantEffect', effect: 999 }] })
+    combat.members[0].weapon.effects[999] = { name: 'Response Gear', recipient: 'self', maxStacks: 1 }
+    const state = createEffectState(rules, combat)
+    holdEffect(state, 1312, Number(incoming), 1312, 1)
+    playCast(state, 1312, intro, Infinity)
+    expect(state.trace.some((row: RuntimeRecord) => row.type === 'effect' && row.effectId === 999 && row.stacks === 1)).toBe(true)
+    expect(state.effects.some((effect: RuntimeRecord) => String(effect.id) === unison && effect.stacks > 0)).toBe(false)
   })
 
   it('doubles Seal Master attack multipliers while leaving other Basic damage unchanged', async () => {
@@ -400,7 +428,7 @@ describe('prescribed-plan translation', () => {
       .toBeCloseTo(off[index].effectiveStats!.multiplier! * (index === 4 ? 1 : 2), 8))
   })
 
-  it('applies Danjin Overflow at the runtime stage and keeps S2 independently scoped', async () => {
+  it('applies Danjin Overflow at the runtime stage and scopes S2 independently', async () => {
     const { scenario } = await simplePlan('1602', [])
     const { prepareCombatScenario, executeCombatScenarioProgram } = await import('@/engine/pipeline/combatScenario')
     const run = (overflow: boolean, s2: boolean) => {
@@ -455,7 +483,7 @@ describe('prescribed-plan translation', () => {
       .toBeCloseTo(off[index].effectiveStats!.multiplier! * (ids[index] === '9700022' ? 1 : (sequence >= 6 ? 3 : 1.5) + 0.05 * buds), 8))
   })
 
-  it.each(['live', 'beta'])('keeps Qiuyuan base bonuses active-only and S2 amplification team-wide in %s', async mode => {
+  it.each(['live', 'beta'])('applies Qiuyuan base bonuses to the active member only and S2 amplification team-wide in %s', async mode => {
     for (const kind of ['runtime-bundles', 'worker-bundles']) {
       const { source } = await json(`public/data/${mode}/resonators/${kind}/1411.json`)
       const scope = (id: string) => source.effects.find((effect: RuntimeRecord) => effect.id === id).targetScope
@@ -465,7 +493,7 @@ describe('prescribed-plan translation', () => {
     }
   })
 
-  it.each(['live', 'beta'])('keeps named Intro and Golden Impale damage types in every %s execution asset', async mode => {
+  it.each(['live', 'beta'])('preserves named Intro and Golden Impale damage types in every %s execution asset', async mode => {
     const sources = await json(`public/data/${mode}/resonators/sources.json`)
     for (const [owner, ids] of [['1608', { '1608025': 'introSkill', '1608026': 'resonanceSkill' }],
       ['1510', { '1510018': 'basicAtk' }]] as const) {
@@ -506,7 +534,7 @@ describe('prescribed-plan translation', () => {
     expect(fight.effects.some((effect: RuntimeRecord) => effect.id === bonus && effect.stacks === 1)).toBe(true)
   })
 
-  it.each(['live', 'beta'])('keeps Blueprint ER and Basic damage classifications in all %s artifacts', async mode => {
+  it.each(['live', 'beta'])('preserves Blueprint ER and Basic damage classifications in all %s artifacts', async mode => {
     const sources = await json(`public/data/${mode}/resonators/sources.json`)
     for (const kind of ['source', 'runtime-bundles', 'worker-bundles']) {
       const mornye = kind === 'source' ? sources.find((row: RuntimeRecord) => row.source.id === '1209')
@@ -589,7 +617,7 @@ describe('prescribed-plan translation', () => {
     expect(state.enemy.aeroErosion ?? 0).toBe(0)
   })
 
-  it('refreshes Suisui status caps independently after the triggering hit and lets them outlive the field', async () => {
+  it('refreshes Suisui status caps independently after the triggering hit and retains them after the field ends', async () => {
     const { rules, state } = await isolated('1110'), kit = rules['1110'], owner = 1110
     const effectId = (name: string) => Number(Object.keys(kit.effects).find(id => kit.effects[id].name === name))
     const field = effectId('Suisui: Ceaseless Landscape'), chafe = effectId('Suisui: Glacio Chafe Stack Limit')
@@ -637,7 +665,7 @@ describe('prescribed-plan translation', () => {
     expect(state.effects.some((effect: RuntimeRecord) => effect.id === cap && effect.stacks > 0 && effect.until > state.frame)).toBe(false)
   })
 
-  it.each(['live', 'beta'])('keeps Cartethyia target-stack amplification in the amplification bucket in %s execution assets', async mode => {
+  it.each(['live', 'beta'])('places Cartethyia target-stack amplification in the amplification bucket in %s execution assets', async mode => {
     const id = '1409:lvl70:aero-erosion-bonus'
     const sources = await json(`public/data/${mode}/resonators/sources.json`)
     const authored = sources.find((source: RuntimeRecord) => String(source.source.id) === '1409')
@@ -686,7 +714,7 @@ describe('prescribed-plan translation', () => {
       .toBeLessThan(activation)
   })
 
-  it('applies a before-damage gear grant to its own triggering hit without borrowing later grants', async () => {
+  it('applies a before-damage gear grant to its own triggering hit without applying later grants', async () => {
     const { rules, combat } = await isolated('1506'), kit = rules['1506']
     const ally = await isolated('1507')
     Object.assign(rules, ally.rules)
@@ -779,7 +807,7 @@ describe('prescribed-plan translation', () => {
     expect(output.diagnostics.scaledPartialFeatures).toBe(0)
   })
 
-  it('keeps each landed hit identity when a complete aggregate has different captured conditions', async () => {
+  it('preserves each landed hit identity when a complete aggregate has different captured conditions', async () => {
     const { rules, combat } = await isolated('1411'), kit = rules['1411']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === 'Skill - Undaunted Wayfarer (Hold)')! as [string, RuntimeRecord]
@@ -800,7 +828,7 @@ describe('prescribed-plan translation', () => {
     expect(enabled[0]).toMatchObject({ featureId: 'damage:1308010:hit:2', multiplier: 1 })
   })
 
-  it.each([20, 30, 60])('uses Sigrika opening %i Vitality for the runic bonus instead of its smaller recorded spend', async available => {
+  it.each([20, 30, 60])('uses Sigrika opening %i Vitality for the runic bonus over its smaller recorded spend', async available => {
     const { rules, combat } = await isolated('1412'), kit = rules['1412']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === 'Forte - Runic Chain Whip')! as [string, RuntimeRecord]
@@ -920,8 +948,8 @@ describe('prescribed-plan translation', () => {
     const kits = timelineKits(rules, { timelines: { owns: { 1208: ['Galbrena: Burning Drive'] } } } as unknown as ActionPlan)
     const id = Number(Object.keys(kits[1208].effects).find(id => kits[1208].effects[id].name === 'Galbrena: Burning Drive'))
     expect(kits[1208].effects[id].replayGrants).toBeUndefined()
-    // the timeline holder stays plain; its native grant rule can create a new
-    // holder after a gap as well as refresh an existing one
+    // the timeline holder stays plain; its native grant rule can create a new holder after a gap as well as refresh
+    // an existing one
     const state = createEffectState(kits, combat)
     resolveAction(state, 1208, 'Skill - Encroach')
     expect(state.effects.some((effect: RuntimeRecord) => effect.id === id && effect.until > state.frame)).toBe(true)
@@ -1037,7 +1065,7 @@ describe('prescribed-plan translation', () => {
       condition.changes.some((change: RuntimeRecord) => change.path === path && change.value === true)))).toBe(true)
   })
 
-  it('keeps a complete attack split when its own earlier hit activates a weapon buff', async () => {
+  it('preserves a complete attack split when its own earlier hit activates a weapon buff', async () => {
     const { rules, combat } = await isolated('1206'), kit = rules['1206']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === 'Forte Skill - Returned from Ashes')! as [string, RuntimeRecord]
@@ -1065,7 +1093,7 @@ describe('prescribed-plan translation', () => {
     expect(stable[0].featureId).not.toContain(':hit:')
   })
 
-  it('expires realms and gear between short-attack hits without borrowing a later activation', async () => {
+  it('expires realms and gear between short-attack hits without applying a later activation', async () => {
     const { rules, combat } = await isolated('1511'), kit = rules['1511']
     const shorekeeper = await isolated('1505'), realm = shorekeeper.rules['1505']
     rules['1505'] = realm
@@ -1101,14 +1129,14 @@ describe('prescribed-plan translation', () => {
     expect(features.slice(1).every((node: RuntimeRecord) => node.attached?.conditions.some((condition: RuntimeRecord) =>
       condition.changes.some((change: RuntimeRecord) => change.path === outroPath && change.value === false)))).toBe(true)
 
-    // a field created by a later prescribed cast still cannot be moved back
-    // into the current short tail merely because those hits resolve later.
+    // a field created by a later prescribed cast cannot be moved back into the current short tail because those hits
+    // resolve later
     const later = [{ ...trace[0], frame: 20, until: 100 }, cast, ...trace.filter(entry => entry.type === 'hit')]
       .sort((a, b) => a.frame - b.frame)
     const next = emitEditorProgram(rules, { ...combat, maxFrames: 60 }, { frame: 60, trace: later, casts: [cast] }, editor)
     expect(next.items.filter((node: RuntimeRecord) => node.type === 'feature').every((node: RuntimeRecord) => !node.attached)).toBe(true)
   })
-  it('keeps a short attack split when another cast enables its weapon between hits', async () => {
+  it('preserves a short attack split when another cast enables its weapon between hits', async () => {
     const { rules, combat } = await isolated('1109'), kit = rules['1109']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === 'Basic - Tracing Forms 3')! as [string, RuntimeRecord]
@@ -1136,7 +1164,7 @@ describe('prescribed-plan translation', () => {
       condition.changes.some((change: RuntimeRecord) => change.path === path && change.value === 1)))).toBe(true)
     expect(features.reduce((sum: number, node: RuntimeRecord) => sum + node.multiplier, 0)).toBe(events.length)
   })
-  it('keeps Heaven\'s Clarity through its consuming finisher without per-hit restoration nodes', async () => {
+  it('retains Heaven\'s Clarity through its consuming finisher without per-hit restoration nodes', async () => {
     const { rules, combat } = await isolated('1413'), kit = rules['1413']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === "Forte Heavy - Heaven's Reckoning")! as [string, RuntimeRecord]
@@ -1247,7 +1275,7 @@ describe('prescribed-plan translation', () => {
     expect(hits.flatMap((node: RuntimeRecord) => node.attached?.conditions ?? [])
       .flatMap((condition: RuntimeRecord) => condition.changes).some((change: RuntimeRecord) => change.path === handoffPath)).toBe(false)
   })
-  it('keeps different Wan Light states on the two Enhanced Arc hits without changing the timeline', async () => {
+  it('preserves different Wan Light states on the two Enhanced Arc hits without changing the timeline', async () => {
     const { rules, combat } = await isolated('1410'), kit = rules['1410']
     const [actionId, action] = Object.entries(kit.actions).find(([, action]) =>
       (action as RuntimeRecord).name === 'Forte Skill - Enhanced Arc Beyond the Edge')! as [string, RuntimeRecord]
@@ -1373,7 +1401,7 @@ describe('prescribed-plan translation', () => {
     expect(state.trace.find((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === field))
       .toMatchObject({ owner: 1505, sourceOwner: 1105, sourceActionId: outroId })
   })
-  it('keeps Inner active through Supernal and clears both when the realm ends', async () => {
+  it('retains Inner through Supernal and clears both when the realm ends', async () => {
     const { rules, combat } = await isolated('1505'), kit = rules['1505']
     const bundle = await gameData('resonators/runtime-bundles/1505')
     const effectId = (name: string) => Number(Object.keys(kit.effects).find(id => kit.effects[id].name === name))
@@ -1461,8 +1489,7 @@ describe('prescribed-plan translation', () => {
     expect(allowed.length).toBeGreaterThan(0)
     expect(denied.some((node: RuntimeRecord) => node.featureId === 'damage:1508:tune-break')).toBe(true)
     for (const node of denied) {
-      // the current generic break is Physical, so the Havoc-only control
-      // cannot affect it and needs no recipient attachment.
+      // the generic break is Physical, so the Havoc-only control cannot affect it and needs no recipient attachment
       if (node.featureId === 'damage:1508:tune-break') expect(node.attached?.conditions ?? []).toHaveLength(0)
       else expect(node.attached.conditions[0].changes[0]).toMatchObject({ path, value: false })
     }
@@ -1532,14 +1559,14 @@ describe('prescribed-plan translation', () => {
     expect(output.items.find((node: RuntimeRecord) => node.featureId === 'damage:1110:negative-effect:glacio-chafe')
       .attached?.conditions ?? []).toHaveLength(0)
   })
-  it('keeps Deadlock as a Skill cast that deals Heavy Attack damage', async () => {
+  it('classifies Deadlock as a Skill cast that deals Heavy Attack damage', async () => {
     const env = await environment(), rules = (await env.characters.load(['1511'], 'beta'))['1511']
     const action = (Object.values(rules.actions) as RuntimeRecord[]).find(action => action.name === 'Skill - Deadlock')!
     const bundle = await gameData('resonators/runtime-bundles/1511')
     expect(action.cast).toBe(rules.codes.cast.skill)
     expect(bundle.source.skills.find((skill: RuntimeRecord) => skill.id === '1511026')?.skillType).toEqual(['heavyAtk'])
   })
-  it('keeps named Tune responses separate from the generic break feature', async () => {
+  it('separates named Tune responses from the generic break feature', async () => {
     const env = await environment(), index = await interpretationData('characters/index')
     for (const id of Object.keys(index.rulesets)) {
       const rules = (await env.characters.load([id], 'beta'))[id]
@@ -1601,7 +1628,7 @@ describe('prescribed-plan translation', () => {
     expect(finisher.attached.conditions[0].changes[0]).toMatchObject({ value: true, path: `runtime.state.controls.${paths[0]}` })
     expect(nightfall.attached.conditions[0].changes[0]).toMatchObject({ value: 40, path: `runtime.state.controls.${paths[1]}` })
   })
-  it('keeps no damage formulas, legality constraints or resource ledgers in the implemented character data', async () => {
+  it('stores no damage formulas, legality constraints or resource ledgers in the implemented character data', async () => {
     const forbidden = new Set(['resources', 'requirements', 'curve', 'scaling', 'progression', 'staminaCost', 'chainTransition',
       'availableOn', 'permanentModifiers', 'conversion', 'motionStop', 'skillLevel', 'commitAt', 'cancelAt', 'swapCancelAt',
       '__choices', '__translationDefinition', '__transitionSource'])
@@ -1657,7 +1684,7 @@ describe('prescribed-plan translation', () => {
       resonatorId: '1505', stepId: 'step0:0', action: 'Liberation - End Loop' })
   })
 
-  it('can translate a basic-only plan without requiring Suisui or Lily’s unrelated kit callbacks', async () => {
+  it('translates a basic-only plan without the unrelated Suisui or Lily kit callbacks', async () => {
     const env = await environment()
     for (const [id, name] of [['1110', 'Basic - Zephyr Stance 1'], ['1512', 'Basic - Mend and Cleanse 1']]) {
       const { scenario, plan } = await simplePlan(id, [name])
@@ -1697,7 +1724,7 @@ describe('prescribed-plan translation', () => {
       effectControls: rules['1413'].effectControls, preambleChoices: [...new Set([path, ...Object.values(rules['1413'].effectControls)
         .flatMap(specs => (specs as Array<[string, unknown]>).map(([control]) => control))])]
         .map(control => ({ resonatorId: '1413', state: { path: control, kind: 'toggle', defaultValue: false } })) })
-    // every hit resets the toggle and decides it again: only the net value is written
+    // every hit resets the toggle and evaluates it again: only the net value is written
     const writes = output.items.filter((node: RuntimeRecord) => node.editorSection !== 'preamble' &&
       node.changes?.some((change: RuntimeRecord) => change.path === path))
     expect(writes.map((node: RuntimeRecord) => node.changes[0].value)).toEqual([true])
@@ -1707,7 +1734,7 @@ describe('prescribed-plan translation', () => {
       .not.toContainEqual(expect.objectContaining({ path, value: false }))
   })
 
-  it('turns the Tune Strain payout on with the Interfered the break leaves, not at the opening', async () => {
+  it('turns the Tune Strain payout on with the Interfered the break applies', async () => {
     const { rules, combat } = await isolated('1413')
     const path = 'runtime.state.controls.combatState:1413:draw_and_sunder:active'
     const interfered = Number(Object.entries(rules['1413'].effects as Record<string, RuntimeRecord>)
@@ -1721,7 +1748,7 @@ describe('prescribed-plan translation', () => {
       .toEqual([['preamble', false], ['rotation', true]])
   })
 
-  it('holds Sweet Dream consumed buds for the buff lifetime instead of spending them on one attack', async () => {
+  it('applies Sweet Dream consumed buds for the whole buff lifetime', async () => {
     const { rules, combat } = await isolated('1603')
     const path = 'runtime.state.controls.resonator:1603:sweet_dream:crimson_bud'
     const effectId = Number(Object.keys(rules['1603'].effects).find(id => rules['1603'].effects[id].name === 'Camellya: Sweet Dream'))
@@ -1750,7 +1777,7 @@ describe('prescribed-plan translation', () => {
     expect(writes).toEqual([false, true, false])
   })
 
-  it('attaches the Shifting surge to the hit that spends it and never writes it on the timeline', async () => {
+  it('attaches the Shifting surge to the hit that spends it and omits it from the timeline', async () => {
     const { rules, combat, state, cast } = await isolated('1211')
     cast('Basic - Stagecraft Form 1')
     const path = 'runtime.state.controls.team:1211:tune_strain_shifting:active'
@@ -1770,7 +1797,7 @@ describe('prescribed-plan translation', () => {
     expect(writes).toHaveLength(0)
     const carriers = output.items.filter((node: RuntimeRecord) => node.attached?.conditions
       ?.some((condition: RuntimeRecord) => condition.changes.some((change: RuntimeRecord) => change.path === path && change.value === true)))
-    // the consumed value applies to every matching hit of the skill.
+    // the consumed value applies to every matching hit of the skill
     expect(carriers).toHaveLength(1)
     expect(carriers[0].featureId).toMatch(/^damage:1211\d+$/)
   })
@@ -1790,7 +1817,7 @@ describe('prescribed-plan translation', () => {
     expect(state.members[1505]).not.toHaveProperty('resources')
   })
 
-  it('keeps a prescribed Tune Break distinct from its triggered response', async () => {
+  it('separates a prescribed Tune Break from its triggered response', async () => {
     const { rules, combat } = await isolated('1509')
     combat.initialEnemy = { tuneRuptureShifting: true }
     const state = createEffectState(rules, combat)

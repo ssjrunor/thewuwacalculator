@@ -354,8 +354,8 @@ const FlatList = lazy(async () => ({
 const SavedList = lazy(async () => ({
   default: (await import('@/modules/simulation/surfaces/rotation/program-editor/components/SavedList.tsx')).SavedList,
 }))
-const RotationConsole = lazy(async () => ({
-  default: (await import('@/modules/simulation/surfaces/rotation/program-editor/components/RotationConsole.tsx')).RotationConsole,
+const RotationTimeline = lazy(async () => ({
+  default: (await import('@/modules/simulation/surfaces/rotation/program-editor/components/RotationTimeline.tsx')).RotationTimeline,
 }))
 
 const EMPTY_SAVED_COMPARISONS: ReadonlyMap<string, SavedRotationComparisonResult | null> = new Map()
@@ -4348,7 +4348,7 @@ export function ProgramEditor() {
       </div>
 
       <div className="rte-cns" id="rte-console-panel">
-        {consoleOpen ? <Suspense fallback={<AppLoaderOverlay mode="inline" text="Loading timeline..." />}><RotationConsole
+        {consoleOpen ? <Suspense fallback={<AppLoaderOverlay mode="inline" text="Loading timeline..." />}><RotationTimeline
           model={consoleModel}
           members={consoleMembers}
           decimals={decimals}

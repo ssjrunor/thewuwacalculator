@@ -16,16 +16,14 @@ import { resonatorForms } from '@/domain/rotationActions/identities'
 import type { ResolvedTeammate } from './teammateBuilds'
 import { teammateEchoes, type ScenarioInputDeps } from './scenarioInput'
 
-/** the single name for every unit without an entity owner (shared:<path>, enemy:<id>). */
+// the single name for every unit without an entity owner (shared:<path>, enemy:<id>)
 export const SHARED_UNITS = 'shared'
 
-/** the scenario id without its ruleset, as units and offline anchors name it. */
+// the scenario id without its ruleset, as units and offline anchors name it
 export const scenarioKey = (scenarioId: string) => scenarioId.slice(scenarioId.indexOf(':') + 1)
 
-/**
- * units read by a scenario's score; `scored` is the scored seat's gear: the submitted build's echoes for a score, the
- * authored template's for the offline anchors (null resolves the template).
- */
+// units read by a scenario's score; `scored` is the scored seat's gear: the submitted build's echoes for a score, the
+// authored template's for the offline anchors (null resolves the template)
 export function scenarioReads(def: ScenarioDef, teammates: ReadonlyMap<string, ResolvedTeammate>,
   deps: Pick<ScenarioInputDeps, 'echoes' | 'secondaryByCost'>, scored: Array<{ id: string; set?: number | null }> | null): string[] {
   const reads = new Set<string>([`def:${scenarioKey(def.id)}`, `plan:${def.teamId}`, `selection:${def.resonatorId}`,
@@ -45,7 +43,7 @@ export function scenarioReads(def: ScenarioDef, teammates: ReadonlyMap<string, R
     reads.add(`weapon:${template.weapon.id}`)
     reads.add(`echo:${template.mainEchoId}`)
     for (const set of template.sets) reads.add(`set:${set.id}`)
-    wear(teammateEchoes(template, key!, deps))
+    wear(teammateEchoes(template, key!, deps, []))
   }
   return [...reads].sort()
 }

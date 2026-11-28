@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: projects executed rotation spans, active-member handoffs, containers, and state tracks.
+  description: the executed rotation as a timeline: cast spans, active-member handoffs, containers and state tracks.
 */
 
 import { DisplayImage } from '@/shared/ui/DisplayImage'
@@ -32,37 +32,34 @@ import type {
 } from '@/modules/simulation/surfaces/rotation/program-editor/presentation/consoleModel.ts'
 import type { FlatRowTarget } from '@/modules/simulation/surfaces/rotation/program-editor/presentation/flatRows.ts'
 import type { EditorMember } from '@/modules/simulation/surfaces/rotation/program-editor/model/program.ts'
+import { truncTo } from '@/shared/lib/number'
 
-/* the gutter the four track names are set in, and the room the state tracks
-   need on the right to print what they ended on */
+// the gutter for the four track names, and the room the state tracks need on the right for their final values
 const GUT = 106
 const PAD_R = 34
 
-/*
-  a rotation opens on hits worth a few hundred and closes on hits worth half a
-  million, so a linear mark would draw the opening as nothing at all. this
-  compression keeps the small end legible without flattening the big end.
-*/
+// hit values range from a few hundred to half a million, so the mark uses a compressed scale under which the small
+// end stays visible without flattening the large end
 const CURVE = 0.38
 
-/* one band lane, and the cell the pass ordinal is set in */
+// one band lane, and the cell for the pass ordinal
 const LANE = 9
 const CELL = 7
 
-/* the ruler counts in whichever of these keeps its numbers from colliding */
+// the ruler stride candidates; the ruler uses the first whose numbers do not collide
 const STRIDES = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
 
 interface Props {
   model: RcnModel | null
   members: EditorMember[]
   decimals: DamageDecimals
-  /** the node the table has open, which is where the playhead rests */
+  // the node the table has open, where the playhead rests
   selectedId: string | null
-  /** omitted for saved-list consoles with no selection action. */
+  // omitted for saved-list consoles with no selection action
   onSelect?: (target: FlatRowTarget) => void
-  /** what this console is drawing, printed beside the node count */
+  // the label beside the node count
   caption: string
-  /** what to say when there is nothing to draw, which differs by surface */
+  // the empty-state text, which differs by surface
   emptyNote: string
 }
 
@@ -71,7 +68,7 @@ function markHeight(value: number, peak: number, room: number): number {
   return Math.max(1.5, Math.pow(value / peak, CURVE) * room)
 }
 
-/** one svg path per colour keeps a long execution from mounting a bar group per step. */
+// one svg path per colour, so a long execution mounts no bar group per step
 const OutputMarks = memo(function OutputMarks({
   steps,
   peak,
@@ -120,7 +117,7 @@ const OutputMarks = memo(function OutputMarks({
   )
 })
 
-/* the cap that tells a liberation from a basic at six pixels wide */
+// the cap that distinguishes a liberation from a basic at six pixels wide
 function glyphMark(glyph: RcnGlyph, cx: number, top: number, width: number, color: string) {
   const style = { fill: color } as CSSProperties
   switch (glyph) {
@@ -143,15 +140,15 @@ function glyphMark(glyph: RcnGlyph, cx: number, top: number, width: number, colo
   }
 }
 
-/* the gutter fits about sixteen characters of the label face */
+// the gutter fits about sixteen characters of the label font
 function gutterText(text: string): string {
   return text.length > 17 ? `${text.slice(0, 16)}\u2026` : text
 }
 
-/** what a container is called on its opening pass, count and share included */
+// a container's label on its opening pass, count and share included
 function bandTitle(band: RcnBand): string {
   if (band.kind === 'uptime' && band.ratio !== undefined && band.ratio < 1) {
-    return `${band.label} ${Math.round(band.ratio * 100)}%`
+    return `${band.label} ${truncTo(band.ratio * 100)}%`
   }
   if (band.kind === 'repeat' && band.runs > 1) return `${band.label} x${band.runs}`
   return band.label
@@ -171,9 +168,9 @@ function statePath(track: RcnStateTrack, xOf: (i: number) => number, x0: number,
   return { d, area: `${d} L${x1} ${y + h} L${x0} ${y + h} Z`, last: track.points[track.points.length - 1] }
 }
 
-export function RotationConsole({ model, members, decimals, selectedId, onSelect, caption, emptyNote }: Props) {
+export function RotationTimeline({ model, members, decimals, selectedId, onSelect, caption, emptyNote }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
-  /* the plot mounts when it has content. bind the observer to that element. */
+  // the plot mounts when it has content, so the observer binds to that element
   const [plot, setPlot] = useState<HTMLDivElement | null>(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
   const [probe, setProbe] = useState<number | null>(null)
@@ -193,12 +190,8 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
 
   const byId = useMemo(() => new Map(members.map((member) => [member.id, member])), [members])
 
-  /*
-    resonators of the same element carry the same colour, and always will: the
-    colour is the element, not the person. so the first to use a colour takes
-    it plain and everyone after it takes a texture, which keeps a mono element
-    team readable without inventing hues the rest of the app does not use.
-  */
+  // resonators of the same element share its colour, so the first to use a colour gets it plain and later ones get a
+  // texture, for a readable mono-element team without extra hues
   const texture = useMemo(() => {
     const taken = new Map<string, number>()
     const out = new Map<string, number>()
@@ -256,7 +249,7 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
       slot,
       x1: x0 + pw,
       xOf: (i: number) => x0 + (i + 0.5) * slot,
-      /* return column boundaries, including the ruler's right edge. */
+      // return column boundaries, including the ruler's right edge
       edgeOf: (i: number) => (i >= count ? x0 + pw : x0 + i * slot),
       rulerY,
       bandTop,
@@ -272,7 +265,7 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
     }
   }, [box.h, box.w, count, lanes, model?.states.length])
 
-  /* the ruler counts in whichever stride keeps its numbers from touching */
+  // the ruler uses a stride whose numbers do not overlap
   const stride = useMemo(() => {
     const label = STRIDES.find((step) => step * geo.slot >= 34) ?? 1000
     return { label, tick: label % 2 === 0 ? label / 2 : label }
@@ -283,7 +276,7 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
       if (!plot || !count) return null
       const rect = plot.getBoundingClientRect()
       const x = event.clientX - rect.left
-      /* the gutter displays the track names, so pointing at one is not a pick */
+      // the gutter displays the track names, so pointing at one is not a pick
       if (x < geo.x0) return null
       const index = Math.round((x - geo.x0) / geo.slot - 0.5)
       return Math.min(Math.max(index, 0), count - 1)
@@ -420,8 +413,7 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
               ))}
             </defs>
 
-            {/* a pass turns over under every track at once, so the seam is cut
-                before anything is drawn on top of it */}
+            {/* the pass seams render before the tracks drawn over them */}
             {model.seams.map((seam) => (
               <line
                 key={`seam${seam.i}`} className="rcon__seam"
@@ -434,7 +426,6 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
               />
             ))}
 
-            {/* the ruler every track is read against */}
             <line x1={x0} y1={geo.rulerY} x2={x1} y2={geo.rulerY} className="rcon__hair" />
             {ticks.map((i) => (
               <line key={`t${i}`} x1={xOf(i)} y1={geo.rulerY} x2={xOf(i)} y2={geo.rulerY - 4} className="rcon__tick" />
@@ -500,7 +491,6 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
             })}
             {model.states.length ? label(geo.stateTop - 6, 'State') : null}
 
-            {/* the probe reads, the header lists the open table columns */}
             {probe != null ? (
               <g className="rcon__probe">
                 <line x1={xOf(probe)} y1={geo.rulerY} x2={xOf(probe)} y2={geo.bottom} />
@@ -535,7 +525,6 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
           </svg>
         ) : null}
 
-        {/* portraits ride over the field band, where a colour alone cannot say who */}
         {box.w > 0 ? model.spans.map((span) => {
           const member = byId.get(span.memberId)
           if (!member || (span.b - span.a + 1) * slot < 22) return null
@@ -560,11 +549,8 @@ export function RotationConsole({ model, members, decimals, selectedId, onSelect
   )
 }
 
-/**
- * one pass of one container. a stretch names itself on the pass it opens on
- * and counts each later pass. four cells labelled `Loop A 2 3 4` represent
- * four passes of one loop.
- */
+// one pass of one container: a stretch names itself on its opening pass and counts each later pass, so four cells
+// labelled `Loop A 2 3 4` are four passes of one loop
 function BandCell({
   band,
   edgeOf,
@@ -578,7 +564,7 @@ function BandCell({
   const width = Math.max(1, edgeOf(band.b + 1) - a - 2)
   const title = bandTitle(band)
   const ordinal = String(band.run)
-  /* the cell prints whichever of the two it can hold, and the name first */
+  // the cell shows whichever of the two fits, the name first
   const text = band.head && width > title.length * 4.3 + 8
     ? title
     : band.runs > 1 && width > ordinal.length * 4.6 + 8
@@ -595,7 +581,6 @@ function BandCell({
         data-tint={band.color ? 'on' : 'off'}
         style={band.color ? { fill: band.color } : undefined}
       />
-      {/* mark the cell start to locate each turnover on the ruler. */}
       <rect
         x={a}
         y={y - 2}

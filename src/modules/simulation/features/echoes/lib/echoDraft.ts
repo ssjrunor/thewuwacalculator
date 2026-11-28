@@ -20,7 +20,7 @@ export const MAX_SUBSTATS = 5
 
 export function fmtStatValue(key: string, value: number): string {
   if (key.endsWith('Flat')) {
-    return String(Math.round(value))
+    return String(truncTo(value))
   }
 
   if (key === 'tuneBreakBoost') {
@@ -31,7 +31,7 @@ export function fmtStatValue(key: string, value: number): string {
   return `${value}%`
 }
 
-// map an arbitrary stored value to its nearest legal roll index.
+// map an arbitrary stored value to its nearest legal roll index
 export function stepIndex(key: string, value: number): number {
   const steps = getSbstStepP(key)
   let best = 0
@@ -41,7 +41,7 @@ export function stepIndex(key: string, value: number): number {
   return best
 }
 
-// preserve relative roll quality when stat families have different tier counts.
+// preserve relative roll quality when stat families have different tier counts
 export function carryTier(fromKey: string, fromValue: number, toKey: string): number {
   const to = getSbstStepP(toKey)
   if (!to.length) return 0
@@ -54,7 +54,7 @@ export function carryTier(fromKey: string, fromValue: number, toKey: string): nu
 }
 
 export function useEchoDraft(echo: EchoInstance, echoes: EchoDef[]) {
-  // catalog replacement stays local until the caller receives the saved draft.
+  // catalog replacement stays local until the caller receives the saved draft
   const [echoId, setEchoId] = useState(echo.id)
   const [mainStatKey, setMainStatK] = useState(echo.mainStats.primary.key)
   const [selectedSet, setSelSet] = useState(echo.set)
@@ -78,7 +78,7 @@ export function useEchoDraft(echo: EchoInstance, echoes: EchoDef[]) {
   const setOptions = definition?.sets ?? []
   const usedKeys = useMemo(() => new Set(lclSbst.map(([key]) => key)), [lclSbst])
 
-  // retain only stats legal for the replacement piece, matching slot initialization.
+  // retain only stats legal for the replacement piece, matching slot initialization
   const recast = useCallback((nextId: string): boolean => {
     const nextDef = getEchoById(nextId)
     if (!nextDef) return false
@@ -98,7 +98,7 @@ export function useEchoDraft(echo: EchoInstance, echoes: EchoDef[]) {
     )))
   }, [])
 
-  // empty slots append a stat; occupied slots replace it while retaining roll quality.
+  // empty slots append a stat; occupied slots replace it while retaining roll quality
   const pickSubstat = useCallback((index: number, key: string) => {
     setLclSbst((prev) => {
       if (prev.some(([used], position) => used === key && position !== index)) return prev
@@ -130,7 +130,7 @@ export function useEchoDraft(echo: EchoInstance, echoes: EchoDef[]) {
     return steps.length > 0 && value === steps[steps.length - 1]
   }).length
 
-  // a draft without a legal main stat cannot be committed.
+  // a draft without a legal main stat cannot be committed
   const build = (): EchoInstance | null => {
     if (!mainStatKey || !definition) return null
 

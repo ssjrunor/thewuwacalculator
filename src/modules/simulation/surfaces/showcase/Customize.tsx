@@ -160,7 +160,7 @@ const TEXT_SLOT_META: Array<{ key: TextSlot; label: string; sample: string; weig
   { key: 'display', label: 'Display', sample: 'SSS', weight: 800, accentColor: true },
 ]
 
-// one editor writes any semantic text role selected by the caller.
+// one editor writes any semantic text role selected by the caller
 function TextStyleEditor({
   slots,
   accent,
@@ -293,8 +293,8 @@ function TuneTextarea({
   )
 }
 
-// holder identity is global. reconcile local drafts when
-// another writer, such as the echo parser, changes the persisted identity.
+// holder identity is global, so local drafts reconcile when another writer, such as the echo parser, changes the
+// persisted identity
 function TuneIdentity() {
   const playerId = useAppStore((state) => state.ui.preferences.playerId)
   const playerUid = useAppStore((state) => state.ui.preferences.playerUid)
@@ -500,7 +500,7 @@ function TuneAsset({
 type Layer = 'type' | 'marks' | 'glass' | 'portrait' | 'backdrop'
 type Pane = Layer | 'css'
 
-// top of the pile first: the order the card is composited in.
+// top of the stack first, the card's compositing order
 const LAYERS: Array<{ key: Layer; label: string }> = [
   { key: 'type', label: 'Type' },
   { key: 'marks', label: 'Marks' },
@@ -567,7 +567,7 @@ const box = ([left, top, width, height]: Box) => ({
   left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%`,
 })
 
-// part positions as percentages of the 992x720 card for each layout.
+// part positions as percentages of the 992x720 card for each layout
 const LAYOUT_GRID: Record<'classic' | 'detailed', {
   figure: Box
   panel: Box
@@ -609,7 +609,7 @@ const LAYOUT_GRID: Record<'classic' | 'detailed', {
   },
 }
 
-// each plate is that layer of the card in miniature, placed on the card's own grid.
+// each plate is that card layer in miniature, placed on the card's own grid
 function PlateArt({ layer, preview }: { layer: Layer; preview: PlatePreview }) {
   const { slots, hidden, classic } = preview
   const grid = LAYOUT_GRID[classic ? 'classic' : 'detailed']
@@ -625,7 +625,7 @@ function PlateArt({ layer, preview }: { layer: Layer; preview: PlatePreview }) {
     )
   }
   if (layer === 'marks') {
-    // the detailed layout always shows these, so only classic can drop them.
+    // the detailed layout always shows these, so only classic can drop them
     const off = (key: keyof ShowcaseCardHidden, locked = false) => (hidden[key] && (classic || !locked) ? 'true' : undefined)
     return (
       <>
@@ -687,11 +687,11 @@ function PlateArt({ layer, preview }: { layer: Layer; preview: PlatePreview }) {
   )
 }
 
-// the portrait's containing block on the card, in percent of the card.
+// the portrait's containing block on the card, in percent of the card
 const FRAME_FIGURE: Box = [0, 0, 32.25, 51.1]
 const SPINE_SPACE = 4096
 const SPINE_REACH = 800
-// the detailed layout raises the spine art by 7rem of the card's 45rem; an uploaded image stays put.
+// the detailed layout raises the spine art by 7rem of the card's 45rem; an uploaded image stays at its position
 const DETAIL_LIFT = (7 / 45) * 100
 
 type FrameEdge = 'Top' | 'Right' | 'Bottom' | 'Left'
@@ -721,8 +721,8 @@ function useFrameDrag<T>(
   }
 }
 
-// a miniature of the card: the art is placed with the card's own arithmetic,
-// so dragging it here moves it the same distance there.
+// a miniature of the card: the art is placed with the card's own arithmetic, so dragging it here moves it the same
+// distance on the card
 function PortraitFrame({
   art,
   resId,
@@ -827,7 +827,7 @@ function BackdropFrame({
     return () => { probe.onload = null }
   }, [art])
 
-  // background-position percentages travel the slack between box and image.
+  // background-position percentages move across the slack between box and image
   const move = useFrameDrag(() => ({ x, y }), (dx, dy, from) => {
     const rect = win.current?.getBoundingClientRect()
     if (!rect) return
@@ -907,6 +907,7 @@ export function ShowcaseCustomizePanel({
   drawerOpen,
   onToggleDrawer,
   onExpandCss,
+  board,
 }: {
   layout: ShowcaseLayout
   onLayoutChange: (layout: ShowcaseLayout) => void
@@ -958,15 +959,18 @@ export function ShowcaseCustomizePanel({
   drawerOpen: boolean
   onToggleDrawer: () => void
   onExpandCss: () => void
+  // a leaderboard card look: this footer replaces capture, and the showcase-only parts (layout, import, export, css,
+  // identity) are left out
+  board?: ReactNode
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [baseTypeResetKey, setBaseTypeResetKey] = useState(0)
   const [pane, setPane] = useState<Pane | null>(null)
-  // the inspector keeps its last layer mounted while it folds shut.
+  // the inspector's last layer stays mounted while it folds shut
   const [shown, setShown] = useState<Pane>('marks')
   const [hot, setHot] = useState<Layer | null>(null)
   const openImport = () => fileInputRef.current?.click()
-  // the card's default art is the resonator's spine setup frame when it ships one.
+  // the card's default art is the resonator's spine setup frame when it has one
   const [spineManifest, setSpineManifest] = useState(() => getLoadedSpineManifest())
   useEffect(() => {
     if (spineManifest) return undefined
@@ -1045,16 +1049,18 @@ export function ShowcaseCustomizePanel({
         <div className="ctz-line">
           <span className="ctz-title">Customize</span>
           <span className="ctz-tools">
-            <button type="button" className="ctz-tool" onClick={openImport} title="Import card or group file">Import</button>
-            <button type="button" className="ctz-tool" onClick={() => onExport('all')} title="Export everything to JSON">Export</button>
-            <button type="button" className="ctz-tool" aria-pressed={pane === 'css'} onClick={() => pick('css')}>CSS</button>
+            {board ? null : <>
+              <button type="button" className="ctz-tool" onClick={openImport} title="Import card or group file">Import</button>
+              <button type="button" className="ctz-tool" onClick={() => onExport('all')} title="Export everything to JSON">Export</button>
+              <button type="button" className="ctz-tool" aria-pressed={pane === 'css'} onClick={() => pick('css')}>CSS</button>
+            </>}
             <button type="button" className="ctz-tool" onClick={onReset}>Reset</button>
           </span>
         </div>
         <div className="ctz-rule">Layers</div>
       </header>
 
-      <div className="ctz-lay">
+      {board ? null : <div className="ctz-lay">
         <div
           className="ctz-sg ctz-sg--tile" role="radiogroup" aria-label="Card layout"
           style={{ '--n': LAYOUTS.length, '--i': LAYOUTS.findIndex((entry) => entry.value === layout) } as CssVars}
@@ -1074,7 +1080,7 @@ export function ShowcaseCustomizePanel({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="ctz-well">
         {LAYERS.map((entry, at) => {
@@ -1130,7 +1136,7 @@ export function ShowcaseCustomizePanel({
           ) : (
             <Chip label="Reset" onClick={resetShown} />
           )}
-          <Chip label="Export" onClick={exportShown} />
+          {board ? null : <Chip label="Export" onClick={exportShown} />}
           <Chip label="Close" onClick={() => pick(null)}><X size="0.75rem" aria-hidden="true" /></Chip>
         </div>
         <div className="ctz-ins-scroll">
@@ -1142,7 +1148,7 @@ export function ShowcaseCustomizePanel({
                 <TuneSwatch label="Text color" value={text} onChange={(v) => onStyleChange({ text: v })} />
                 <span className="ctz-sub">
                   Per-text styles
-                  <Chip label="Export" onClick={() => onExport('text')} />
+                  {board ? null : <Chip label="Export" onClick={() => onExport('text')} />}
                 </span>
                 <TextStyleEditor
                   slots={textSlots}
@@ -1156,7 +1162,7 @@ export function ShowcaseCustomizePanel({
 
             {shown === 'marks' ? (
               <>
-                <TuneIdentity />
+                {board ? null : <TuneIdentity />}
                 {layout === 'classic' ? (
                   <>
                     <TuneToggle label="Build score" on={!hidden.score} onChange={() => onToggleHidden('score')} />
@@ -1294,7 +1300,7 @@ export function ShowcaseCustomizePanel({
         </div>
       </div>
 
-      <div className="ctz-foot">
+      {board ? <div className="ctz-foot">{board}</div> : <div className="ctz-foot">
         <button
           type="button" className="ctz-key"
           disabled={capturing || editMode != null}
@@ -1314,7 +1320,7 @@ export function ShowcaseCustomizePanel({
           <Clipboard aria-hidden="true" size="1em" />
           Copy
         </button>
-      </div>
+      </div>}
 
       <input
         ref={fileInputRef}

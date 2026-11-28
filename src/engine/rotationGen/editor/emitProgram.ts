@@ -8,13 +8,14 @@ import { buildTeamPreamble } from './preamble.ts'
 import { foldHitRuns, foldRepeats } from './foldHits.ts'
 import { settleConsumedWindows } from './consumedWindows'
 import { echoAction, eventAppliesToOwner } from '../gear/echo.ts'
+import { omit } from '../omissions'
 import { OFF_TUNE_LOCKOUT_FRAMES } from '../events/rules'
 import { mergeControlValues, projectControlStacks } from '../controlProjection'
 
-// timeline effects provide current stacks. "consumed" controls represent the
-// stacks spent by one cast and apply to that cast's feature nodes.
+// timeline effects provide current stacks; "consumed" controls are the stacks spent by one cast and apply to that
+// cast's feature nodes
 
-/** the replay needs a write the rotation editor does not offer. */
+// the replay needs a write the rotation editor does not offer
 export class UnauthorablePath extends Error {
   readonly path: string
   constructor(path: string) {
@@ -24,7 +25,7 @@ export class UnauthorablePath extends Error {
 }
 
 const freshId = (type?: RuntimeValue, index?: RuntimeValue): RuntimeValue => `kit:team:${type}:${index}`
-// control namespaces identify the source resonator; equipment paths resolve through the member's actual loadout.
+// control namespaces identify the source resonator; equipment paths resolve through the member's actual loadout
 function resolvePathOwner(path?: RuntimeValue, members?: RuntimeValue): RuntimeValue {
   const match: RuntimeValue = path.match(/(?:resonator|sequence|inherent|team):(\d+):/)
   if (match && members.some((member?: RuntimeValue): RuntimeValue => String(member.resonatorId) === match[1])) return match[1]
@@ -39,7 +40,7 @@ function resolvePathOwner(path?: RuntimeValue, members?: RuntimeValue): RuntimeV
 function findFeature(features?: RuntimeValue, skillId?: RuntimeValue): RuntimeValue {
   return features.find((entry?: RuntimeValue): RuntimeValue => entry.skillId === skillId && entry.variant !== 'subHit')?.id
 }
-// map the landed event ordinal to a sub-hit feature after filtering out events assigned to another owner.
+// map the landed event ordinal to a sub-hit feature after filtering out events assigned to another owner
 function findHitFeature(features?: RuntimeValue, skillId?: RuntimeValue, action?: RuntimeValue, eventId?: RuntimeValue, owner?: RuntimeValue, skill?: RuntimeValue): RuntimeValue {
   const hits: RuntimeValue = action.events.filter((event?: RuntimeValue): RuntimeValue => event.damage &&
     eventAppliesToOwner(event, owner))
@@ -47,8 +48,8 @@ function findHitFeature(features?: RuntimeValue, skillId?: RuntimeValue, action?
   if (index < 0) return null
   const variants: RuntimeValue = features.filter((entry?: RuntimeValue): RuntimeValue => entry.skillId === skillId &&
     entry.variant === 'subHit').sort((a?: RuntimeValue, b?: RuntimeValue): RuntimeValue => a.hitIndex - b.hitIndex)
-  // a hit-table row can repeat one hit `count` times, so expand rows into one ordinal per hit; when the expanded count
-  // matches the action's damage events, each event maps to the row at its ordinal
+  // a hit-table row can repeat one hit `count` times, so expand rows into one ordinal per hit; when the expanded
+  // count matches the action's damage events, each event maps to the row at its ordinal
   const rows = skill?.hitTable ?? skill?.hits ?? []
   const ordinals = rows.flatMap((row: RuntimeValue, hitIndex: number) =>
     Array.from({ length: Math.max(1, row.count ?? 1) }, () => hitIndex))
@@ -69,10 +70,10 @@ function readSkillBindings(action?: RuntimeValue, member?: RuntimeValue, ruleset
   return bindings == null ? [] : Array.isArray(bindings) ? bindings : [bindings]
 }
 
-// translate an ordered replay trace into editor-authorable controls and features, reporting any incomplete bindings.
+// translate an ordered replay trace into editor-authorable controls and features, reporting any incomplete bindings
 export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue, report?: RuntimeValue, editor?: RuntimeValue): RuntimeValue {
-  // a consumed count can describe a held buff's captured input in place of stacks spent by the next attack; such
-  // counts follow the binding's lifetime
+  // a consumed count can also describe a held buff's captured input; such counts
+  // follow the binding's lifetime
   const heldStackPaths = new Set(Object.values(rulesets).flatMap((kit: RuntimeValue) =>
     Object.values(kit.effectControls ?? {}).flatMap((specs: RuntimeValue) =>
       specs.filter(([, kind]: RuntimeValue) => kind?.held).map(([path]: RuntimeValue) => path))))
@@ -109,8 +110,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   ].map(([path]: RuntimeValue) => path))]
   const valueKey = (path?: RuntimeValue, owner?: RuntimeValue): RuntimeValue => path.startsWith('runtime.state.controls.')
     ? `${owner ?? resolvePathOwner(path, combat.members)}|${path}` : path
-  // use the reference's opening value for controls without a named buff,
-  // including Shattered Hours in Tune Strain mode.
+  // use the reference's opening value for controls without a named buff, including Shattered Hours in Tune Strain
+  // mode
   const opening = (choice?: RuntimeValue): RuntimeValue => editor.preambleValues?.(choice)
   const standingValue = (choice?: RuntimeValue): RuntimeValue => {
     const standing = (rulesets[choice.resonatorId]?.standingControls ?? [] as RuntimeValue[])
@@ -124,7 +125,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   }
   const preamble: RuntimeValue = buildTeamPreamble(editor.preambleChoices,
     report.startOwner ?? combat.initialOnFieldResonatorId, standingValue)
-  // reject replay writes to paths unavailable in the rotation editor.
+  // reject replay writes to paths unavailable in the rotation editor
   const authorablePaths: RuntimeValue = new Set(preamble.flatMap((node?: RuntimeValue): RuntimeValue =>
     node.changes.map((change?: RuntimeValue): RuntimeValue => valueKey(change.path, change.resonatorId))))
   const features: RuntimeValue = Object.fromEntries(combat.members.map((member?: RuntimeValue): RuntimeValue => {
@@ -133,8 +134,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     return [id, [...editor.resonators[id].source.features, ...(editor.equipmentFeatures?.[id] ?? [])]]
   }))
   const allFeatureIds: RuntimeValue = new Set((Object.values(features) as RuntimeValue[]).flat().map((item?: RuntimeValue): RuntimeValue => item.id))
-  // attach each consumed stack count to damage features whose formulas read it.
-  // timeline stack counts remain separate from cast consumption.
+  // attach each consumed stack count to damage features whose formulas read it; timeline stack counts stay separate
+  // from cast consumption
   const consumedFeatureIdsByPath = new Map<string, Set<string>>()
   const readsPath = (value: RuntimeValue, path: string): boolean => {
     if (!value || typeof value !== 'object') return false
@@ -173,7 +174,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     .filter(([, value]) => value === true).map(([key]) => key))
   const castFeatureNodes: RuntimeValue = new Map()
   const castConditionTails: RuntimeValue = new Map()
-  // post-cast condition updates are inserted after that cast's last feature and after its previously inserted updates.
+  // post-cast condition updates are inserted after that cast's last feature and after its earlier inserted updates
   const insertForCast = (node?: RuntimeValue, sourceKey?: RuntimeValue): RuntimeValue => {
     const featureNodes: RuntimeValue = castFeatureNodes.get(sourceKey)
     if (!featureNodes?.length) {
@@ -191,8 +192,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     if (items.slice(anchorIndex + 1).some((item: RuntimeValue) => item.type === 'feature')) {
       anchorIndex = items.length - 1
     }
-    // a later grant can belong to an earlier cast: move the anchor past any enabled condition already writing one of the
-    // same controls, which keeps an expired window's old clear from overwriting its renewed activation
+    // a later grant can belong to an earlier cast: move the anchor past any enabled condition already writing one of
+    // the same controls, so an expired window's clear never overwrites its renewed activation
     const writes = new Set((node.changes ?? []).map((change: RuntimeValue) =>
       valueKey(change.path, change.resonatorId ?? node.resonatorId)))
     for (let index = anchorIndex + 1; index < items.length; index++) {
@@ -203,11 +204,11 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     items.splice(anchorIndex + 1, 0, node)
     castConditionTails.set(sourceKey, node.id)
   }
-  // an Active Other buff turning on pins whoever is active as it is written, so one that turns on
-  // at a handoff waits for the swap in its frame and is written just after it
+  // an Active Other buff turning on pins whoever is active as it is written, so one that turns on at a handoff waits
+  // for the swap in its frame and is written just after it
   const heldForSwap: RuntimeValue = new Map()
   // a recipient snapshot can precede the actual handoff when an overlapping action is reported at its press frame, so
-  // incoming-only buffs stay queued across frame boundaries without pinning them to the outgoing member
+  // incoming-only buffs stay queued across frame boundaries and are not pinned to the outgoing member
   const heldForRecipient = new Map<string, { target: string, path: string, value: RuntimeValue, owner: RuntimeValue }>()
   const releaseRecipients = (): void => {
     const active = String(values.get('runtime.rotation.activeResonatorId'))
@@ -217,7 +218,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       writeCondition(held.path, held.value, null, null, held.owner)
     }
   }
-  // frames with a swap or a cast handing off to the next member; only controls written in these frames wait for the swap
+  // frames with a swap or a cast handing off to the next member; only controls written in these frames wait for the
+  // swap
   const handoffFrames = new Set(report.trace.filter((entry: RuntimeValue) =>
     entry.type === 'swap' || entry.type === 'cast' && entry.next != null).map((entry: RuntimeValue) => entry.frame))
   let entryFrame = -1
@@ -227,8 +229,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     heldForSwap.clear()
     for (const args of held) writeCondition(...args)
   }
-  // a control the calculator reads off one feature: attached to the hit that spends its effect,
-  // never written on the timeline (Denia's Shifting Applied, on the team's first Shifting hit)
+  // a control the calculator reads off one feature: attached to the hit that spends its effect and not written on the
+  // timeline (Denia's Shifting Applied, on the team's first Shifting hit)
   const attachedControls = new Set<string>(combat.members.flatMap((member: RuntimeValue) =>
     (rulesets[member.resonatorId]?.attachedControls ?? []).map((path: string) => `${member.resonatorId}|runtime.state.controls.${path}`)))
   const emitCondition = (path?: RuntimeValue, value?: RuntimeValue, section?: RuntimeValue, sourceKey: RuntimeValue = null, sourceOwner: RuntimeValue = null, recipient: RuntimeValue = null): RuntimeValue => {
@@ -248,8 +250,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       return
     }
     if (!section && handoffFrames.has(entryFrame) && !swappedThisFrame && value && editor.activeOtherControls?.has(key) && values.get(valueKey(path, owner)) !== value) {
-      // repeated observations before the same handoff update the pending write without releasing it while the outgoing
-      // member is active
+      // repeated observations before the same handoff update the pending write without releasing it while the
+      // outgoing member is active
       heldForSwap.set(key, [path, value, section, null, sourceOwner])
       return
     }
@@ -263,13 +265,16 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         emitCondition(qualified, active, null, null, member.resonatorId)
     }
   }
-  // deduplicate writes by source-qualified path and reject any path missing from the editor's opening controls.
+  // deduplicate writes by source-qualified path and reject any path missing from the editor's opening controls
   const uncertainStatusInputs = new Set<string>()
   const writeCondition = (path?: RuntimeValue, value?: RuntimeValue, section?: RuntimeValue, sourceKey: RuntimeValue = null, sourceOwner: RuntimeValue = null): RuntimeValue => {
     const owner = sourceOwner == null ? resolvePathOwner(path, combat.members) : String(sourceOwner)
     const key: RuntimeValue = valueKey(path, owner)
     if (path.startsWith('enemy.combat.') && editor.fixedStatuses?.has(path.slice('enemy.combat.'.length))) return
-    if (!authorablePaths.has(key)) throw new UnauthorablePath(path)
+    if (!authorablePaths.has(key)) {
+      if (omit(editor, 'unavailable-condition', { path, resonatorId: owner })) return
+      throw new UnauthorablePath(path)
+    }
     if (value === true && owner) {
       const control = path.replace(/^runtime\.state\.controls\./, '')
       const graph = editor.resonators[owner]?.details?.stateGraph
@@ -301,7 +306,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   const resolved: RuntimeValue = new Map()
   // fight frame of each resolved hit, keyed by cast key and event id
   const castKey = (entry?: RuntimeValue): RuntimeValue => `${entry.owner}|${entry.actionId}|${entry.instance}`
-  // cast instance ids separate repeated uses of the same action and connect their landed hits to one feature group.
+  // cast instance ids separate repeated uses of the same action and connect their landed hits to one feature group
   const castsByKey: RuntimeValue = new Map(report.trace.filter((entry?: RuntimeValue): RuntimeValue => entry.type === 'cast')
     .map((entry?: RuntimeValue): RuntimeValue => [castKey(entry), entry]))
   const castControlSnapshots = new Map<string, Map<string, RuntimeValue>>()
@@ -318,13 +323,26 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   const recipientControls: RuntimeValue[] = []
   for (const member of combat.members) {
     const owner = member.resonatorId, rules = rulesets[owner], source = editor.resonators[String(owner)]?.source
-    // source stances can enable team effects such as Denia's Entropy Shift.
-    // reviewed recipient markers determine which members receive those effects.
+    // source stances can enable team effects such as Denia's Entropy Shift; reviewed recipient markers determine
+    // which members receive those effects
     for (const condition of rules.recipientConditions ?? []) recipientControls.push({ owner,
       path: condition.path, effects: [condition.effect], whenControl: condition.whenControl,
       includeOwner: condition.includeOwner,
       appEffects: (source?.effects ?? []).filter((effect: RuntimeValue) =>
         readsPath(effect.condition, condition.path.replace(/^runtime\./, ''))) })
+    // earned equipment bonuses can have several simultaneous recipients, so every generated feature, gear-triggered
+    // damage included, is restricted to its actual holder
+    for (const gear of [member.weapon, member.echoes.main, member.sonata]) {
+      for (const [effect, definition] of Object.entries(gear.effects ?? {}) as [string, RuntimeValue][]) {
+        if (definition.recipient !== 'actorMember') continue
+        for (const [path] of specsFor({ owner, effectId: effect }) ?? []) {
+          const appEffects = (editor.equipmentEffects?.[owner] ?? []).filter((effect: RuntimeValue) =>
+            readsPath(effect.condition, path.replace(/^runtime\./, '')))
+          if (!appEffects.length) continue
+          recipientControls.push({ owner, path, effects: [Number(effect)], includeOwner: true, appEffects })
+        }
+      }
+    }
   }
   const effectValue = (path?: RuntimeValue, owner?: RuntimeValue, holders = activeEffects, recipient: RuntimeValue = null,
     activeOwner = values.get('runtime.rotation.activeResonatorId')): RuntimeValue => {
@@ -362,12 +380,14 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   // equipment uses its actual state at every hit, including overlapping short attacks; attach those states locally
   // without importing reference gear stats
   const resolvedHitControls = new Map<string, RuntimeValue[]>()
+  const resolvedHitRecipientRestrictions = new Map<string, Set<RuntimeValue>>()
+  const observedRecipientEffects = new Set<string>()
   const replayEffects = new Set<string>(), replayPaths = new Map<string, RuntimeValue>()
+  for (const control of recipientControls) for (const effect of control.effects) replayEffects.add(`${control.owner}|${effect}`)
   for (const member of combat.members) {
     const owner = member.resonatorId
     const gearEffects = { ...member.weapon.effects, ...member.echoes.main.effects, ...member.sonata.effects }
-    // controls of effects that go to another seat (outro/intro handoffs);
-    // these are excluded from per-hit replay controls
+    // controls of effects that go to another seat (outro/intro handoffs), excluded from per-hit replay controls
     const handoffPaths = new Set(Object.entries({ ...rulesets[owner].effects, ...gearEffects })
       .filter(([, effect]: RuntimeValue) => !['self', 'team', 'enemy'].includes(effect.recipient ?? 'self') &&
         effect.recipient !== 'actorMember')
@@ -376,8 +396,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     const effects = { ...gearEffects, ...Object.fromEntries(Object.entries(rulesets[owner].effects)
       .filter(([, effect]: RuntimeValue) => effect.replayLifecycle || effect.duration != null && effect.maxStacks === 1)) }
     for (const effectId of Object.keys(effects)) {
-      // handoff toggles select a recipient when activated. keep later hits on
-      // the existing handoff path to preserve that recipient.
+      // handoff toggles select a recipient when activated; later hits stay on the existing handoff path, which
+      // preserves that recipient
       const recipientOnly = effects[effectId].recipient === 'actorMember'
       const handoffClearOnly = effects[effectId].recipient === 'incomingMember' &&
         (effects[effectId].replayLifecycle === true || Boolean(gearEffects[effectId]))
@@ -396,7 +416,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       }
     }
   }
-  // capture equipment and timed-field state at each hit so long follow-ups can use their hit-time conditions.
+  // capture equipment and timed-field state at each hit so long follow-ups can use their hit-time conditions
   const replayHolders = new Map<string, RuntimeValue>()
   const castHandoffPaths = new Map<string, Set<string>>()
   let replayActiveOwner = report.startOwner ?? combat.initialOnFieldResonatorId
@@ -404,8 +424,12 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   for (const entry of report.trace) {
     if (entry.type === 'swap') replayActiveOwner = entry.to
     if (entry.type === 'cast' && entry.next != null) replayActiveOwner = entry.next
-    for (const [key, holder] of replayHolders) if (holder.until <= entry.frame) replayHolders.delete(key)
+    // queued hits resolve at the endpoint of a held window; a new input on that frame expires it first, and the
+    // explicit clears below take precedence
+    for (const [key, holder] of replayHolders) if (holder.until < entry.frame ||
+      holder.until === entry.frame && (entry.type === 'cast' || entry.type === 'swap')) replayHolders.delete(key)
     if (entry.type === 'effect' && replayEffects.has(`${entry.owner}|${entry.effectId}`)) {
+      observedRecipientEffects.add(`${entry.owner}|${entry.effectId}`)
       const key = `${entry.owner}|${entry.effectId}|${entry.target}`
       if (entry.stacks <= 0 || entry.until <= entry.frame) replayHolders.delete(key)
       else replayHolders.set(key, entry)
@@ -420,29 +444,58 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       castHandoffPaths.set(key, held)
     }
     if (entry.type === 'hit' && entry.actionId != null) {
-      // a cast's own earlier hits can enable its later hits without borrowing a future cast's activation, even when the
-      // attack has a short tail
+      resolvedHitRecipientRestrictions.set(`${castKey(entry)}|${entry.eventId}`, new Set(recipientControls.filter(control =>
+        control.effects.some((effect: RuntimeValue) => observedRecipientEffects.has(`${control.owner}|${effect}`)) &&
+        ![...replayHolders.values()].some((holder: RuntimeValue) => holder.owner === control.owner &&
+          control.effects.includes(holder.effectId) && String(holder.target) === String(entry.owner) && holder.stacks > 0))))
+      // a cast's own earlier hits can enable its later hits without borrowing a future cast's activation, even when
+      // the attack has a short tail
       const activatedByCast = new Set([...replayHolders.values()].filter((holder: RuntimeValue) =>
         (holder.sourceOwner ?? holder.owner) === entry.owner && holder.sourceActionId === entry.actionId &&
         holder.sourceInstance === entry.instance && (holder.sourceSupport || findAction(rulesets, combat, entry.owner, entry.actionId)
           ?.events.some((event: RuntimeValue) => event.damage && String(event.id) === String(holder.sourceEventId))))
         .flatMap((holder: RuntimeValue) => (specsFor(holder) ?? []).map(([path]: RuntimeValue) => valueKey(path, holder.owner))))
-      // another real cast can enable a buff while this attack's remaining hits are pending; skip activations inferred from
-      // an unrelated event id on the current cast or from a later native-field projection
+      // another real cast can enable a buff while this attack's remaining hits are pending; skip activations inferred
+      // from an unrelated event id on the current cast or from a later native-field projection
       const activatedByOtherCast = new Set([...replayHolders.values()].filter((holder: RuntimeValue) => {
         if (holder.sourceActionId == null || holder.sourceInstance == null) return false
         const sourceKey = castKey({ owner: holder.sourceOwner ?? holder.owner, actionId: holder.sourceActionId, instance: holder.sourceInstance })
         const sourceFrame = replayCastFrames.get(sourceKey)
         return sourceKey !== castKey(entry) && sourceFrame != null && sourceFrame <= entry.frame
       }).flatMap((holder: RuntimeValue) => (specsFor(holder) ?? []).map(([path]: RuntimeValue) => valueKey(path, holder.owner))))
+      // a projected grant tied to an unknown event on this cast is not an observed hit-time activation, so the
+      // provenance guard skips it
+      const unprovenCastPaths = new Set([...replayHolders.values()].filter((holder: RuntimeValue) =>
+        (holder.sourceOwner ?? holder.owner) === entry.owner && holder.sourceActionId === entry.actionId &&
+        holder.sourceInstance === entry.instance && holder.sourceEventId != null &&
+        !findAction(rulesets, combat, entry.owner, entry.actionId)?.events.some((event: RuntimeValue) =>
+          String(event.id) === String(holder.sourceEventId)))
+        .flatMap((holder: RuntimeValue) => (specsFor(holder) ?? []).map(([path]: RuntimeValue) => valueKey(path, holder.owner))))
       resolvedHitControls.set(`${castKey(entry)}|${entry.eventId}`,
         [...[...replayPaths.values()].filter(({ owner, path, handoffClearOnly }) =>
           !handoffClearOnly || castHandoffPaths.get(castKey(entry))?.has(valueKey(path, owner)))
           .map(({ owner, path, selfOnly, clearOnly, recipientOnly, handoffClearOnly, equipment, fieldState }) => ({ owner, path, selfOnly, clearOnly, recipientOnly, handoffClearOnly, equipment, fieldState,
+          unprovenCast: unprovenCastPaths.has(valueKey(path, owner)),
           fromCast: activatedByCast.has(valueKey(path, owner)),
           fromOtherCast: activatedByOtherCast.has(valueKey(path, owner)), value: effectValue(path, owner, replayHolders, entry.owner, replayActiveOwner) })),
         { owner: entry.owner, path: 'runtime.rotation.activeResonatorId', value: String(replayActiveOwner), fieldState: true }])
     }
+  }
+  // numerical payout controls belong to the hit that evaluated them. casts can overlap on one frame, so a
+  // neighbouring hit's persistent write is not that hit's input, even when both share the same calculator feature. a
+  // held effect's window is tracked separately, so a numerical callback reusing that UI toggle leaves the effect's
+  // lifetime to the effect
+  const windowControls = new Set([...definitions.keys()].flatMap(key => {
+    const [owner, effectId] = key.split('|')
+    return (specsFor({ owner, effectId }) ?? []).map(([path]: RuntimeValue) => valueKey(path, owner))
+  }))
+  for (const entry of report.trace) {
+    if (entry.type !== 'control' || entry.sourceEventId == null || entry.sourceInstance == null) continue
+    if (windowControls.has(valueKey(entry.path, entry.owner))) continue
+    const key = `${entry.sourceOwner}|${entry.sourceActionId}|${entry.sourceInstance}|${entry.sourceEventId}`
+    const changes = resolvedHitControls.get(key) ?? []
+    changes.push({ owner: entry.owner, path: entry.path, value: entry.value, fromCast: true, exactPayout: true })
+    resolvedHitControls.set(key, changes)
   }
   const refresh = (paths?: RuntimeValue, sourceKey: RuntimeValue = null, owner: RuntimeValue = null, recipient: RuntimeValue = null): RuntimeValue => {
     for (const path of paths) {
@@ -461,7 +514,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     `${owner}|${actionId}|${instance}`
   const responses: RuntimeValue = new Map(report.trace.filter((entry?: RuntimeValue): RuntimeValue => entry.type === 'response')
     .map((entry?: RuntimeValue): RuntimeValue => [entry.id, entry]))
-  // triggered responses attach to their originating Tune Break when its action and cast instance are known.
+  // triggered responses attach to their originating Tune Break when its action and cast instance are known
   const tuneBreakResponses: RuntimeValue = new Map()
   const attachedResponseCasts: RuntimeValue = new Set()
   for (const entry of report.trace) {
@@ -488,9 +541,11 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   const addFeature = (owner?: RuntimeValue, id?: RuntimeValue, frame?: RuntimeValue, multiplier: RuntimeValue = 1, attachment: RuntimeValue = null): RuntimeValue => {
     // a generated feature node plays a whole number of times, with fractional shares resolved before this point
     if (!Number.isSafeInteger(multiplier) || multiplier < 1) {
+      if (omit(editor, 'unresolved-hit-count', { resonatorId: String(owner), featureId: id, multiplier })) return null
       throw new Error(`A generated feature requires an integer play count: ${owner} ${id} x${multiplier}`)
     }
     if (!allFeatureIds.has(id) || !features[String(owner)].some((entry?: RuntimeValue): RuntimeValue => entry.id === id)) {
+      if (omit(editor, 'unavailable-feature', { resonatorId: String(owner), featureId: id })) return null
       throw new Error(`Feature is not editor-authorable for ${owner}: ${id}`)
     }
     const node: RuntimeValue = { id: freshId(attachment ? 'attached-feature' : 'feature',
@@ -506,8 +561,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       if (!control.appEffects.some((effect: RuntimeValue) => effect.operations.some((operation: RuntimeValue) =>
         (!operation.attribute || operation.attribute === 'all' || !skill || operation.attribute === skill.element) &&
         (!operation.match?.skillIds || operation.match.skillIds.includes(feature?.skillId)) &&
-        // negative Status, Tune Rupture, and Hack ignore general amplification.
-        // resistance changes still require recipient checks.
+        // negative Status, Tune Rupture, and Hack ignore general amplification; resistance changes still require
+        // recipient checks
         !(operation.type === 'add_top_stat' && operation.stat === 'amplify' &&
           (skill?.tab === 'negativeEffect' || ['tuneRupture', 'hack'].includes(skill?.archetype))) &&
         !(operation.type === 'add_attribute_mod' && operation.mod === 'amplify' &&
@@ -539,7 +594,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     diagnostics.featureFrames[node.id] = frame
     return node
   }
-  // emit only landed damage events; complete runs use a parent feature and partial runs retain hit-level bindings.
+  // emit only landed damage events; complete runs use a parent feature and partial runs retain hit-level bindings
   const addCastFeatures = (entry?: RuntimeValue, attachment: RuntimeValue = null, frame = entry.frame): RuntimeValue => {
     const owner = entry.owner
     const action: RuntimeValue = findAction(rulesets, combat, owner, entry.actionId)
@@ -548,7 +603,10 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     const ids: RuntimeValue = readSkillBindings({ ...action, id: entry.actionId }, member, rulesets[owner])
     const damageEvents: RuntimeValue = action.events.filter((event?: RuntimeValue): RuntimeValue => event.damage)
     if (!damageEvents.length || action.equippedEchoReplacement || echoAction(member.echoes.main, entry.actionId)) return
-    if (!ids.length) throw new Error(`No feature binding for ${owner} ${action.name}`)
+    if (!ids.length) {
+      if (omit(editor, 'missing-feature-binding', { resonatorId: String(owner), action: action.name })) { emittedCasts.add(castKey(entry)); return }
+      throw new Error(`No feature binding for ${owner} ${action.name}`)
+    }
 
     const key: RuntimeValue = castKey(entry)
     const featureNodeIds: RuntimeValue = []
@@ -565,10 +623,13 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       const replayControls = handoffHit ? [] :
         resolvedHitControls.get(`${key}|${eventId}`) ?? []
       const changes = [...replayControls.filter((change: RuntimeValue) =>
-        change.fieldState || change.recipientOnly || change.fromCast || change.fromOtherCast || longFollowup && !change.clearOnly || change.value === false || change.value === 0 || change.value === '0'),
-        ...(entry.hitControls ?? []).filter((change: RuntimeValue) => change.hit === hitIndex)]
-        // Outros execute after the handoff. The trace's pre-swap hit marker
-        // must not reactivate the departing member's active-only bonuses.
+        change.fieldState || change.equipment && !change.unprovenCast || change.recipientOnly || change.fromCast || change.fromOtherCast || longFollowup && !change.clearOnly || change.value === false || change.value === 0 || change.value === '0'),
+        ...(entry.hitControls ?? []).filter((change: RuntimeValue) => change.hit === hitIndex).map((change: RuntimeValue) => ({
+          ...change, exactPayout: replayControls.some((prior: RuntimeValue) => prior.exactPayout && prior.path === change.path &&
+            String(prior.owner) === String(change.owner)),
+        }))]
+        // Outros execute after the handoff, so the trace's pre-swap hit marker leaves the departing member's
+        // active-only bonuses off
         .filter((change: RuntimeValue) => action.cast !== rulesets[owner].codes.cast.outro ||
           change.path !== 'runtime.rotation.activeResonatorId')
         .filter((change: RuntimeValue) => (!change.selfOnly || String(change.owner) === String(owner)) &&
@@ -576,8 +637,24 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
           !isConsumedStackControl(change.path) && authorablePaths.has(valueKey(change.path, change.owner)))
       // exact authored hit observations override the replay's coarse same-frame ordering; keep one write per
       // source-qualified control, with the last value
-      return [...new Map(changes.map((change: RuntimeValue) =>
-        [valueKey(change.path, change.owner), change])).values()]
+      const byPath = new Map(changes.map((change: RuntimeValue) =>
+        [valueKey(change.path, change.owner), change]))
+      // captured numeric toggles do not identify the buff's recipient: a positive snapshot grants no incoming-only
+      // bonus to a third member's delayed hit, even before the standing toggle is enabled
+      const restricted = resolvedHitRecipientRestrictions.get(`${key}|${eventId}`)
+      for (const control of restricted ?? []) {
+        // an owner's own cast can consume its enabling marker before damage; its exact hit snapshot takes precedence
+        // for that personal state
+        if (String(control.owner) === String(owner)) continue
+        const controlKey = valueKey(control.path, control.owner)
+        if (byPath.get(controlKey)?.value !== true) continue
+        if (control.whenControl) {
+          const modeKey = valueKey(`runtime.state.controls.${control.whenControl[0]}`, control.owner)
+          if ((byPath.get(modeKey)?.value ?? values.get(modeKey)) !== control.whenControl[1]) continue
+        }
+        byPath.set(controlKey, { owner: control.owner, path: control.path, value: false })
+      }
+      return [...byPath.values()]
     }
     const controlValue = (change: RuntimeValue): RuntimeValue =>
       typeof values.get(valueKey(change.path, change.owner)) === 'string' && typeof change.value === 'number'
@@ -585,17 +662,19 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     const hitStatesVary = (hits: RuntimeValue[], skillId: string): boolean => {
       if (hits.length < 2) return false
       const skill = editor.resonators[String(owner)]?.source.skills?.find((skill: RuntimeValue) => skill.id === skillId)
-      // some atomic app features summarize several source events without individual hit rows and remain one editor action
+      // some atomic app features summarize several source events without individual hit rows and remain one editor
+      // action
       if ((skill?.hitTable ?? skill?.hits ?? []).reduce((count: number, row: RuntimeValue) => count + (row.count ?? 1), 0) <= 1) return false
       const states = hits.map(hit => new Map(hitControlsFor(hit.id).map(change =>
         [valueKey(change.path, change.owner), controlValue(change)])))
       const paths = new Set(states.flatMap(state => [...state.keys()]))
       return [...paths].some(path => new Set(states.map(state => state.has(path) ? state.get(path) : values.get(path))).size > 1)
     }
-    // a finisher can consume its stance before its hit snapshot; attach the
-    // pre-cast stance only to features whose availability reads it.
+    // a finisher can consume its stance before its hit snapshot; attach the pre-cast stance only to features whose
+    // availability reads it
     const addBoundFeature = (id: string, multiplier = 1, eventId: RuntimeValue = null): RuntimeValue => {
       const node = addFeature(owner, id, frame, multiplier, attachment)
+      if (!node) return null
       const source = editor.resonators[String(owner)]?.source
       const feature = source?.features.find((candidate: RuntimeValue) => candidate.id === id)
       const skill = source?.skills?.find((candidate: RuntimeValue) => candidate.id === feature?.skillId)
@@ -616,8 +695,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       visit(skill?.visibleWhen)
       visit(skill?.skillTypeWhen)
       for (const path of gates) availabilityGates.add(path)
-      // cast-scoped bonuses can read a consumed stance without a feature gate,
-      // including Denia's Banish.
+      // cast-scoped bonuses can read a consumed stance without a feature gate, including Denia's Banish
       for (const effect of source?.effects ?? []) {
         const operations = (effect.operations ?? []).filter((operation: RuntimeValue) =>
           operation.match?.skillIds?.includes(feature?.skillId))
@@ -631,23 +709,23 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         const consumedInput = isConsumedStackControl(path) &&
           consumedFeatureIdsByPath.get(`${spent.owner}|${path}`)?.has(id)
         const spentModifier = spent.observedSpend === true && modifierReads.has(path)
-        if ((!gates.has(path) && !spentModifier && !consumedInput) || !authorablePaths.has(valueKey(path, spent.owner))) continue
+        const spentGate = gates.has(path) && (availabilityGates.has(path) || spent.consumed > 0 || spent.observedSpend === true)
+        if ((!spentGate && !spentModifier && !consumedInput) || !authorablePaths.has(valueKey(path, spent.owner))) continue
         const value = consumedInput ? spent.consumed : projectControlStacks(kind, spent.stacks)
         node.attached ??= { conditions: [], features: [] }
         node.attached.conditions.push({ id: `${node.id}:availability:${node.attached.conditions.length}`,
           type: 'condition', enabled: true, resonatorId: String(spent.owner),
           changes: [{ type: 'set', path, value, resonatorId: String(spent.owner) }] })
       }
-      // a timed numerical bonus is not a cast availability requirement: only actual consumption above preserves it past
-      // its lifetime, and each other hit uses its current state, including natural expiry mid-cast
+      // a timed numerical bonus is not a cast availability requirement: only actual consumption above preserves it
+      // past its lifetime, and each other hit uses its current state, including natural expiry mid-cast
       for (const path of availabilityGates) {
         const pathKey = valueKey(path, owner)
         const snapshot = castControlSnapshots.get(key)
         if (!snapshot?.has(pathKey) || !authorablePaths.has(pathKey)) continue
         const value = snapshot.get(pathKey)
-        // attach a consumed enabling stance when it was active at cast time.
-        // leave false cast-time values unset because hit-time effects can enable
-        // the control before damage, as with Qingxiao's Ephemeral multiplier.
+        // attach a consumed enabling stance when it was active at cast time; false cast-time values stay unset
+        // because hit-time effects can enable the control before damage, as with Qingxiao's Ephemeral multiplier
         if (value === false) continue
         if (value === values.get(pathKey) || node.attached?.conditions.some((condition: RuntimeValue) =>
           condition.changes?.some((change: RuntimeValue) => change.path === path))) continue
@@ -657,7 +735,18 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
           changes: [{ type: 'set', path, value, resonatorId: String(owner) }] })
       }
       for (const change of hitControlsFor(eventId)) {
-        // cast-time availability remains valid when a finisher consumes its stance.
+        // an exact hit observation outranks a recipient clear inferred from the folded cast roster; consumed
+        // availability inputs stay pinned
+        if (node.attached) node.attached.conditions = node.attached.conditions.filter((condition: RuntimeValue) => {
+          const observedSelfRecipient = condition.id?.includes(':recipient:') && recipientControls.some(control =>
+            control.includeOwner && control.path === change.path && String(control.owner) === String(change.owner))
+          if (!observedSelfRecipient &&
+            !(change.exactPayout && condition.id?.includes(':cast-state:'))) return true
+          condition.changes = condition.changes.filter((prior: RuntimeValue) => prior.path !== change.path ||
+            String(prior.resonatorId ?? condition.resonatorId) !== String(change.owner))
+          return condition.changes.length > 0
+        })
+        // cast-time availability stays valid when a finisher consumes its stance
         if (node.attached?.conditions.some((condition: RuntimeValue) => condition.changes?.some((prior: RuntimeValue) =>
           prior.path === change.path && String(prior.resonatorId ?? condition.resonatorId) === String(change.owner)))) continue
         const current = values.get(valueKey(change.path, change.owner))
@@ -670,9 +759,13 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       }
       return node
     }
+    const recordBoundFeature = (id: string, multiplier = 1, eventId: RuntimeValue = null): void => {
+      const node = addBoundFeature(id, multiplier, eventId)
+      if (node) featureNodeIds.push(node.id)
+    }
     if (typeof ids[0] === 'object') {
       for (const binding of ids) if (resolved.get(key)?.has(String(binding.event))) {
-        featureNodeIds.push(addBoundFeature(binding.feature, binding.multiplier ?? 1, binding.event).id)
+        recordBoundFeature(binding.feature, binding.multiplier ?? 1, binding.event)
       }
       castFeatureNodes.set(key, featureNodeIds)
       if (entry.timelineEvent != null) for (const id of featureNodeIds) diagnostics.featureCasts[id] = entry.timelineEvent
@@ -687,13 +780,16 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         resolved.get(key)?.has(String(event.id)))
       if (!resolvedHits.length) continue
       const parent: RuntimeValue = findFeature(features[String(owner)], skillId)
-      if (!parent) throw new Error(`No parent feature for ${owner} ${skillId}`)
-      // all hits landed: emit the parent feature once, unless per-hit controls
-      // on a multi-hit cast need the hits emitted one by one
+      if (!parent) {
+        if (omit(editor, 'unavailable-skill', { resonatorId: String(owner), skillId })) continue
+        throw new Error(`No parent feature for ${owner} ${skillId}`)
+      }
+      // all hits landed: emit the parent feature once, unless per-hit controls on a multi-hit cast need the hits
+      // emitted one by one
       if (resolvedHits.length === expected.length && !hitStatesVary(resolvedHits, skillId)) {
-        // uniform hits still need their shared hit-time state, including a bonus enabled by an earlier skill group in the
-        // same press
-        featureNodeIds.push(addBoundFeature(parent, 1, expected[0].id).id)
+        // uniform hits still need their shared hit-time state, including a bonus enabled by an earlier skill group in
+        // the same press
+        recordBoundFeature(parent, 1, expected[0].id)
         diagnostics.foldedHits += Math.max(0, resolvedHits.length - 1)
       } else {
         const partials: RuntimeValue = resolvedHits.map((hit?: RuntimeValue): RuntimeValue =>
@@ -701,19 +797,22 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
             editor.resonators[String(owner)]?.source.skills?.find((skill: RuntimeValue) => skill.id === skillId)))
         if (partials.every(Boolean)) {
           for (const [index, partial] of partials.entries()) {
-            featureNodeIds.push(addBoundFeature(partial, 1, resolvedHits[index].id).id)
+            recordBoundFeature(partial, 1, resolvedHits[index].id)
             diagnostics.partialHitFeatures++
           }
         } else {
-          // the reference's share of a cut-short cast covers the whole action, so only one skill
+          // the reference's share of a cut-short cast covers the whole action, so only one skill is written
           const share = ids.length === 1 ? entry.share : undefined
           if (share == null && (partials.some(Boolean) || !action.uniformHits)) {
+            if (omit(editor, 'missing-partial-hit-feature', { resonatorId: String(owner), skillId })) {
+              for (const [index, partial] of partials.entries()) if (partial) recordBoundFeature(partial, 1, resolvedHits[index].id)
+              continue
+            }
             throw new Error(`No partial hit feature for ${owner} ${skillId}`)
           }
-          // a sparse selection lists landed action events, so an aggregate parent feature is scaled by the share or the landed
-          // fraction of its hits
-          featureNodeIds.push(addBoundFeature(parent,
-            share ?? resolvedHits.length / expected.length).id)
+          // a sparse selection lists landed action events, so an aggregate parent feature is scaled by the share or
+          // the landed fraction of its hits
+          recordBoundFeature(parent, share ?? resolvedHits.length / expected.length)
           diagnostics.scaledPartialFeatures++
         }
       }
@@ -732,8 +831,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     for (const response of tuneBreakResponses.get(key) ?? []) addCastFeatures(response, sourceNode, frame)
     tuneBreakResponses.delete(key)
   }
-  // a short outgoing tail is written ahead of the Outro, after the handoff's active-member change, and a long follow-up
-  // at its own hit frame
+  // a short outgoing tail is written ahead of the Outro, after the handoff's active-member change, and a long
+  // follow-up at its own hit frame
   const LATE_HIT_FRAMES = 120
   const castsSoFar: RuntimeValue[] = []
   const handoffOutros = new Map<string, { cast: RuntimeValue, frame: number }>()
@@ -759,15 +858,15 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
   const prescribedCastsByFrame = new Map<number, Set<number>>()
   for (const entry of report.trace) if (entry.type === 'cast' && entry.timelineEvent != null) {
     const cast = findAction(rulesets, combat, entry.owner, entry.actionId)?.cast
-    // process outgoing tails after a handoff swap.
+    // process outgoing tails after a handoff swap
     if ([rulesets[entry.owner].codes.cast.outro, rulesets[entry.owner].codes.cast.intro].includes(cast)) continue
     const owners = prescribedCastsByFrame.get(entry.frame) ?? new Set<number>()
     owners.add(entry.owner)
     prescribedCastsByFrame.set(entry.frame, owners)
   }
-  // a rule that resets a control and decides it again ahead of the same hit (a catalog condition
-  // read on every hit) leaves only its net value: the reset never reaches any damage
-  // within one frame, control writes before the next hit collapse to their final value; a hit ends that collapse window.
+  // a rule that resets a control and evaluates it again ahead of the same hit (a catalog condition read on every hit)
+  // leaves only its net value, because the reset never reaches any damage: within one frame, control writes before
+  // the next hit collapse to their final value, and a hit ends that collapse window
   const superseded = new Set<RuntimeValue>()
   const lastControl = new Map<string, RuntimeValue>()
   for (const entry of report.trace) {
@@ -779,7 +878,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     lastControl.set(key, entry)
   }
   let lastHit: RuntimeValue = null
-  // delay local control attachments until hit folding has selected the final feature node.
+  // delay local control attachments until hit folding has selected the final feature node
   const pendingAttachments: Array<{ nodeId: string, path: string, owner: string, value: RuntimeValue }> = []
   const attachToHit = (hit: RuntimeValue, path: string, owner: RuntimeValue): void => {
     const nodeId = castFeatureNodes.get(castKey(hit))?.[0]
@@ -802,7 +901,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       flushHandoffOutros()
       entryFrame = entry.frame
       swappedThisFrame = false
-      // emit a short damage tail before the same member's next press and effects.
+      // emit a short damage tail before the same member's next press and effects
       for (const owner of prescribedCastsByFrame.get(entry.frame) ?? []) flushOutgoing(owner, entry.frame)
     }
     const expired: RuntimeValue = new Set()
@@ -825,16 +924,16 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       refreshFieldConditions()
       releaseHeld()
       releaseRecipients()
-      // write Active Other now; later effects in this frame use the incoming member.
+      // write Active Other now; later effects in this frame use the incoming member
       swappedThisFrame = true
-      // write handoff field changes before resolving late outgoing hits.
+      // write handoff field changes before resolving late outgoing hits
       if (entry.from != null) flushOutgoing(entry.from, entry.frame)
       continue
     }
     if (entry.type === 'control') {
-      // catalog-backed sequence conditions can depend on each hit's target state, and emitCondition filters flags without
-      // an authorable control; standing source flags describe sequence ownership, separate from the catalog's conditional
-      // activation (for example Sanhua's enemy HP threshold)
+      // catalog-backed sequence conditions can depend on each hit's target state, and emitCondition filters flags
+      // without an authorable control; standing source flags describe sequence ownership, separate from the catalog's
+      // conditional activation (for example Sanhua's enemy HP threshold)
       if (/^runtime\.state\.controls\.sequence:\d+:s\d+:active$/.test(entry.path) &&
         (entry.sourceWhen == null || entry.sourceWhen === 'combatStart')) continue
       if (!superseded.has(entry)) {
@@ -847,7 +946,10 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       for (const binding of rulesets[entry.owner].statControls ?? []) {
         if (binding.actionName !== entry.action) continue
         const path = `runtime.state.controls.${binding.controlKey}`
-        if (!authorablePaths.has(valueKey(path, entry.owner))) throw new UnauthorablePath(path)
+        if (!authorablePaths.has(valueKey(path, entry.owner))) {
+          if (omit(editor, 'unavailable-condition', { path, resonatorId: String(entry.owner) })) continue
+          throw new UnauthorablePath(path)
+        }
         items.push({ id: `${freshId('cast-stat', items.length + 1)}:stat-snapshot`, type: 'condition', enabled: true,
           resonatorId: String(entry.owner), changes: [{ type: 'set', path,
             value: values.get(valueKey(path, entry.owner)), resonatorId: String(entry.owner) }] })
@@ -857,8 +959,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       for (const change of editor.castControls?.[entry.actionId] ?? []) {
         emitCondition(change.path, change.value)
       }
-      // emit damage at the first resolved hit after cast-time state changes.
-      // attach Tune Break response features to the break node.
+      // emit damage at the first resolved hit after cast-time state changes, and attach Tune Break response features
+      // to the break node
       if (entry.next != null) {
         const removed: RuntimeValue = new Set()
         for (const [key, active] of activeEffects) {
@@ -874,7 +976,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         refreshFieldConditions()
         releaseHeld()
         releaseRecipients()
-        // resolve the outgoing action's remaining hit after the handoff.
+        // resolve the outgoing action's remaining hit after the handoff
         flushOutgoing(entry.owner, entry.frame)
       }
       continue
@@ -893,7 +995,7 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         ...(Object.entries(member.echoes.main.effects ?? {}) as [string, RuntimeValue][]),
         ...(Object.entries(member.sonata.effects) as [string, RuntimeValue][]),
       ]).find(([id]: RuntimeValue): RuntimeValue => id === String(entry.effectId))?.[1]
-      // apply the Tune Strain payout to every member with an Interfered response.
+      // apply the Tune Strain payout to every member with an Interfered response
       if (definition?.name === 'Tune Strain - Interfered') {
         const interfered = entry.stacks > 0 && entry.until > entry.frame
         syncStrainResponses(interfered)
@@ -902,9 +1004,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
       if (!specs) { omittedEffects.add(entry.effectId); continue }
       const effectKey = `${entry.owner}|${entry.effectId}|${entry.target}`
       const previous = activeEffects.get(effectKey)
-      // a consumption event sets the current holder to zero and stamps its
-      // `until` at this frame. Natural expiry is removed from activeEffects
-      // above before this branch, so the previous holder is the lifetime check.
+      // a consumption event sets the current holder to zero and stamps its `until` at this frame; natural expiry is
+      // removed from activeEffects above before this branch, so the previous holder is the lifetime check
       const consumed = previous
         ? Math.max(0, previous.stacks - entry.stacks) : 0
       if (consumed > 0) {
@@ -914,11 +1015,9 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
         for (const [path] of specs) {
           if (!isConsumedStackControl(path)) continue
           const featureIds = consumedFeatureIdsByPath.get(`${entry.owner}|${path}`)
-          // a stack can be spent by unrelated teammate mechanics too. Attach
-          // the delta only when this source hit emitted a feature whose
-          // authored formula reads the control. a nonmatching hit must not
-          // block the whole plan: the corresponding damage feature may be a
-          // separate delayed action in the supplied timeline.
+          // a stack can also be spent by unrelated teammate mechanics, so the delta is attached only when this source
+          // hit emitted a feature whose authored formula reads the control. a nonmatching hit leaves the plan valid,
+          // because the corresponding damage feature may be a separate delayed action in the supplied timeline
           if (featureIds && hit) attachConsumedToHit(hit, path, entry.owner, consumed, featureIds)
         }
       }
@@ -946,14 +1045,15 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     if (entry.hitKind) {
       const name = entry.hitKind.replace(/[A-Z]/g, (letter: string) => `-${letter.toLowerCase()}`)
       const node = addFeature(owner, `damage:${owner}:negative-effect:${name}`, entry.frame)
+      if (!node) continue
       if (Number.isFinite(entry.negativeEffectStacks)) node.negativeEffectStacks = entry.negativeEffectStacks
-      // Rage is an input of the existing Flare feature: keep the recorded component local and require a real
-      // editor control
+      // Rage is an input of the existing Flare feature: keep the recorded component local and require a real editor
+      // control
       const ragePath = 'enemy.combat.electroRage'
       if (entry.hitKind === 'electroFlare' && authorablePaths.has(ragePath)) {
         const rage = Number.isFinite(entry.negativeEffectAdditionalStacks) ? entry.negativeEffectAdditionalStacks : 0
-        // stored status stacks are not a payout: only the paired Rage row belongs to this tick, and an unpaired tick skips
-        // the persistent stacks
+        // stored status stacks are not a payout: only the paired Rage row belongs to this tick, and an unpaired tick
+        // skips the persistent stacks
         if (rage !== (values.get(ragePath) ?? 0)) pendingAttachments.push({ nodeId: node.id, path: ragePath, owner: String(owner), value: rage })
       }
       continue
@@ -961,8 +1061,8 @@ export function emitEditorProgram(rulesets?: RuntimeValue, combat?: RuntimeValue
     const key = castKey(entry)
     const sourceCast = castsByKey.get(key)
     if (findAction(rulesets, combat, owner, entry.actionId)?.cast === rulesets[owner].codes.cast.outro && sourceCast) {
-      // apply incoming Intro field changes and active-member switching before
-      // outgoing Outro damage; Discernment can end Stellarealm in this frame.
+      // apply incoming Intro field changes and active-member switching before outgoing Outro damage; Discernment can
+      // end Stellarealm in this frame
       if (!emittedCasts.has(key) && !handoffOutros.has(key)) {
         handoffOutros.set(key, { cast: sourceCast, frame: entry.frame })
       }

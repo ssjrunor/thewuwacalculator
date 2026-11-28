@@ -19,7 +19,7 @@ import { useEchoScores } from '@/application/hooks/useEchoScoringRevision.ts'
 import { cmptEchoCrit, getCvToneColor, getScrTone, SCORE_TONE_COLORS } from '@/modules/simulation/features/echoes/lib/metric.ts'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView.ts'
 import { formatBuildEvaluationScore } from '@/modules/simulation/model/buildEvaluationDisplay.ts'
-import { formatTruncCompact } from '@/shared/lib/number.ts'
+import { formatTrunc, formatTruncCompact, truncTo } from '@/shared/lib/number.ts'
 import { withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { groupUid } from '@/modules/simulation/features/echoes/lib/playerIdentity.ts'
 import { ContextTrigger } from '@/application/context-menu/ContextTrigger.tsx'
@@ -48,7 +48,7 @@ export function rarityVars(rarity: number | null | undefined): CssVars | undefin
   return { '--kit-rar': color, '--kit-rar-ink': getRarityInk(rarity) } as CssVars
 }
 
-// reduce marked text only until it fits its container or reaches its declared floor.
+// reduce marked text only until it fits its container or reaches its declared floor
 function fitSignature(node: HTMLElement): string {
   const style = getComputedStyle(node)
   return [node.textContent, node.clientWidth, style.fontFamily, style.fontSize, style.fontWeight, style.letterSpacing].join('|')
@@ -58,7 +58,7 @@ function fitLines(root: HTMLElement, cache: WeakMap<HTMLElement, string>): void 
   const nodes = [...root.querySelectorAll<HTMLElement>('[data-fit]')].filter((node) => cache.get(node) !== fitSignature(node))
   for (const node of nodes) node.style.removeProperty('font-size')
   const pending = nodes.map((node) => ({ node, floor: Number(node.dataset.fit) || 10, size: parseFloat(getComputedStyle(node).fontSize) }))
-  // read every overflow before writing this step, avoiding a layout per label.
+  // read every overflow before writing this step, so there is one layout per step
   for (;;) {
     const shrinking = pending.filter(({ node, floor, size }) => size > floor && node.scrollWidth > node.clientWidth + 0.5)
     if (!shrinking.length) break
@@ -70,7 +70,7 @@ function fitLines(root: HTMLElement, cache: WeakMap<HTMLElement, string>): void 
   for (const node of nodes) cache.set(node, fitSignature(node))
 }
 
-// derive the ribbon opening from the measured card bounds.
+// derive the ribbon opening from the measured card bounds
 function openRibbon(ribbon: HTMLElement, card: HTMLElement): void {
   const start = card.offsetLeft - ribbon.offsetLeft
   const end = start + card.offsetWidth
@@ -117,7 +117,7 @@ export const DetailedCard = memo(function DetailedCard({
   onEchoOpen?: (slotIndex: number) => void
   echoSelection?: EvaluationEchoSelection
   blank?: boolean
-  /** another player's name and UID, replacing the viewer's own. */
+  // another player's name and UID, replacing the viewer's own
   holder?: { name: string | null; uid: string | null }
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -216,7 +216,7 @@ export const DetailedCard = memo(function DetailedCard({
           <span className="showcase-detail-weapon-figs">
             <span className="showcase-detail-weapon-fig" data-stat-family={statFamily('atk')}>
               <em>{formatStatKeyLabel('atk')}</em>
-              <b>{Math.round(weaponStats?.atk ?? model.weapon.baseAtk)}</b>
+              <b>{truncTo(weaponStats?.atk ?? model.weapon.baseAtk)}</b>
             </span>
             <span className="showcase-detail-weapon-fig" data-stat-family={statFamily(model.weapon.statKey)}>
               <em>{formatStatKeyLabel(model.weapon.statKey)}</em>
@@ -315,7 +315,7 @@ export const DetailedCard = memo(function DetailedCard({
       <div className="showcase-detail-metrics">
         <span className="showcase-detail-avg-line">
           <b className="showcase-detail-avg" data-fit="22">
-            {avgDamage != null ? Math.round(avgDamage).toLocaleString('en-US') : '-'}
+            {avgDamage != null ? formatTrunc(avgDamage) : '-'}
           </b>
           <span className="showcase-detail-label">avg dmg</span>
         </span>

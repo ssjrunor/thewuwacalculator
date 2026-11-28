@@ -24,10 +24,10 @@ export const calibrationChunk = createRouteChunk(async () => (
 ))
 export const leaderboardChunk = createRouteChunk(async () => {
   // the page's code is fetched while the game data loads; nothing in it reads game data before it renders.
-  const page = import('@/modules/leaderboard/views/ScopePage')
+  const page = import('@/modules/leaderboard/views/LeaderboardPage')
   const { initGameData, getGameDataMode } = await import('@/data/gameData')
   await initGameData({ mode: getGameDataMode(), resonatorIds: [] })
-  return (await page).ScopePage
+  return (await page).LeaderboardPage
 })
 export const guidesChunk = createRouteChunk(async () => (
   (await import('@/modules/read/pages/GuidesPage')).GuidesPage

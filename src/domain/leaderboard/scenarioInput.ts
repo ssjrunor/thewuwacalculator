@@ -17,23 +17,25 @@ export interface ScenarioInputMember {
   role: 'scored' | 'teammate'
   mode: string | null
   sequence: number
-  /** level 90. */
+  // level 90
   weapon: { id: string; rank: number }
-  /** five positional slots; null means unequipped, including the main slot. */
+  // five positional slots; null means unequipped, including the main slot
   echoes: Array<EchoInstance | null>
-  /** each condition at its highest value in the scored rotation, stored by scoring for the card's combat stats; runs
-        are unaffected because the preamble writes every state before the first hit. */
+  // each condition at its highest value in the scored rotation, stored by scoring for the card's combat stats; runs
+  // are unaffected because the preamble writes every state before the first hit
   controls?: Record<string, string | number | boolean>
 }
 
 export interface ScenarioInputV1 {
+  // supported-model omissions retained with the scored cell's input
+  omissions?: Array<{ code: string; [key: string]: unknown }>
   v: 1
   scenarioId: string
   teamId: string
   scoredSlot: number
-  /** seat order, which is the rotation's slot order. */
+  // seat order, which is the rotation's slot order
   members: ScenarioInputMember[]
-  /** the scoring enemy: EVALUATION_ENEMY with the team's tune strain limit. */
+  // the scoring enemy: EVALUATION_ENEMY with the team's tune strain limit
   enemy: EnemyProfile
 }
 

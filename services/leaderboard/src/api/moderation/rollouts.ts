@@ -1,12 +1,10 @@
 /*
   Author: Runor Ewhro
-  description: ruleset lifecycle routes for staff with rulesets.manage. ruleset
-               files are uploaded through the api, then published, then rolled
-               out: each board installs the ruleset as rolling and scores every
-               kept build into it on the bulk lane, and the ruleset goes live
-               when every board finishes (advanceRollouts, run by the hourly
-               upkeep or /admin/sweep). cancelling a rollout drops its scores on
-               every board.
+  description: ruleset lifecycle routes for staff with rulesets.manage. ruleset files are uploaded through the api,
+               then published, then rolled out: each board installs the ruleset as rolling and scores every kept build
+               into it on the bulk lane, except the boards the rollout carries over (carry.ts), which take it at
+               go-live without a rescore; the ruleset goes live when every board finishes (advanceRollouts, run by the
+               hourly upkeep or /admin/sweep). cancelling a rollout drops its scores on every board.
 */
 
 import { HttpError, json, readJsonBody } from '../../lib/http.ts'
@@ -25,31 +23,32 @@ import { boardOf } from '../stubs.ts'
 import { STALL_MS } from '../../board/BoardDO.ts'
 import { sweepBoards } from '../maintenance.ts'
 import { scenariosWithoutAnchors } from '@lb/scoring'
+import { carriedResonators, carrySide } from './carry.ts'
 import type { RulesetManifest } from '@lb/contract/ruleset'
 
-/** a ruleset file path: what the assembler writes, nothing that climbs out of the ruleset's folder. */
+// a ruleset file path: what the assembler writes, nothing that climbs out of the ruleset's folder
 const FILE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.-]*(\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/
 
-/** PUT /admin/rulesets/:id/files?path=: uploads one file of an unpublished ruleset; the manifest is uploaded last. */
+// PUT /admin/rulesets/:id/files?path=: uploads one file of an unpublished ruleset; the manifest is uploaded last
 export async function uploadRulesetFile(context: RouteContext): Promise<Response> {
   await authorize(context, 'rulesets.manage')
   const { env, params, url } = context
   const path = url.searchParams.get('path') ?? ''
   if (!FILE_PATH.test(path) || path.includes('..')) throw new HttpError('bad_request', 'path names a file inside the ruleset')
-  // a published ruleset is immutable: its manifest hash is on record.
+  // a published ruleset is immutable: its manifest hash is on record
   if (await getRuleset(env.LB, params.id)) throw new HttpError('duplicate', `ruleset ${params.id} is already published`)
   const body = await context.request.arrayBuffer()
   await env.LB_DATA.put(rulesetKey(params.id, path), body, { httpMetadata: { contentType: 'application/json' } })
   return json({ path, bytes: body.byteLength }, { status: 201 })
 }
 
-/**
- * POST /admin/rulesets/:id/fingerprint { fingerprint, scorer, scenarios, data, manifestSha256 }: stamps fingerprints on
- * a ruleset published before fingerprints were recorded; existing values are not replaced. the ruleset, scorer and
- * scenario fingerprints (scenario fingerprints include the scorer) are accepted only from a checkout that fingerprints
- * the ruleset unchanged, since a different scorer's fingerprints would let a rollout keep scores they do not describe.
- * data fingerprints include no scorer and are accepted from any checkout with the published manifest hash.
- */
+// POST /admin/rulesets/:id/fingerprint { fingerprint, scorer, scenarios, data, manifestSha256 }: stamps fingerprints
+// on a ruleset that has none; existing values are not replaced. the ruleset, scorer and scenario fingerprints
+// (scenario fingerprints include the scorer) are accepted only from a checkout that fingerprints the ruleset
+// unchanged, because a different scorer's fingerprints would let a rollout keep scores they do not describe. data
+// fingerprints include no scorer and are accepted from any checkout with the published manifest hash; they replace
+// the recorded ones, because they are the folder's data read by this checkout's rules (tools/lib/fingerprint.mjs),
+// and rulesets are compared by the same rules
 export async function stampFingerprint(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params } = context
@@ -79,13 +78,13 @@ export async function stampFingerprint(context: RouteContext): Promise<Response>
     ...(sameScorer ? [
       env.LB.prepare('UPDATE rulesets SET fingerprint = COALESCE(fingerprint, ?), scorer = COALESCE(scorer, ?) WHERE id = ?')
         .bind(body.fingerprint, scorer, ruleset.id),
-      // scorer parts for a ruleset fingerprinted before parts were recorded, accepted only with its own scorer
+      // scorer parts for a ruleset fingerprinted without parts, accepted only with its own scorer
       ...(scorer && (!ruleset.scorer || ruleset.scorer === scorer) && hexOr(body.generator) && hexOr(body.evaluation) ? [
         env.LB.prepare('UPDATE rulesets SET generator_fp = COALESCE(generator_fp, ?), evaluation_fp = COALESCE(evaluation_fp, ?) WHERE id = ?')
           .bind(hexOr(body.generator), hexOr(body.evaluation), ruleset.id)] : []),
       ...(scenarios ? [scenarioFingerprintsStatement(env.LB, ruleset.id, scenarios)] : []),
     ] : []),
-    ...(data ? [scenarioFingerprintsStatement(env.LB, ruleset.id, data, 'data_fingerprint')] : []),
+    ...(data ? [scenarioFingerprintsStatement(env.LB, ruleset.id, data, 'data_fingerprint', { replace: true })] : []),
     audit(context, who, { action: 'ruleset.publish', subjectKind: 'ruleset', subjectId: ruleset.id,
       data: { fingerprint: sameScorer ? body.fingerprint : null, stamped: true, scenarios: sameScorer && scenarios ? Object.keys(scenarios).length : 0,
         data: data ? Object.keys(data).length : 0 } }),
@@ -93,7 +92,7 @@ export async function stampFingerprint(context: RouteContext): Promise<Response>
   return json({ rulesetId: ruleset.id, fingerprint: sameScorer ? body.fingerprint : ruleset.fingerprint, ...await fingerprintCounts(env.LB, ruleset.id) })
 }
 
-/** GET /admin/rulesets: every ruleset, newest first, with its rollout. */
+// GET /admin/rulesets: every ruleset, newest first, with its rollout
 export async function listRulesets(context: RouteContext): Promise<Response> {
   await authorize(context, 'rulesets.manage')
   const db = context.env.LB
@@ -103,7 +102,7 @@ export async function listRulesets(context: RouteContext): Promise<Response> {
   return json({ live: await liveRulesetId(db), rulesets: results })
 }
 
-/** POST /admin/rulesets/:id/rollout { force, keep }: scores every kept build into a published ruleset. */
+// POST /admin/rulesets/:id/rollout { force, keep }: scores every kept build into a published ruleset
 export async function startRollout(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params, now } = context
@@ -112,7 +111,8 @@ export async function startRollout(context: RouteContext): Promise<Response> {
     .catch(() => ({ force: false, keep: undefined, allowSearch: false }))
   const ruleset = await getRuleset(db, params.id)
   if (!ruleset || ruleset.status !== 'building') throw new HttpError('not_found', 'no such ruleset waiting to go live')
-  // a scenario without offline anchors runs its own search per build, about a minute per cell, or days on a full board
+  // a scenario without offline anchors runs its own search per build, about a minute per cell, or days on a full
+  // board
   if (!body.allowSearch) {
     const manifest = await (await env.LB_DATA.get(rulesetKey(ruleset.id, 'manifest.json')))?.json<RulesetManifest>()
     const missing = manifest ? scenariosWithoutAnchors(manifest) : []
@@ -126,26 +126,38 @@ export async function startRollout(context: RouteContext): Promise<Response> {
   if (open.length) throw new HttpError('duplicate', `ruleset ${open[0].ruleset_id} is still rolling out`)
   const from = await liveRulesetId(db)
   const live = from ? await getRuleset(db, from) : null
-  // an unchanged scorer and data would score every build the same again.
+  // an unchanged scorer and data would score every build the same again
   if (!body.force && live?.fingerprint && live.fingerprint === ruleset.fingerprint) {
     throw new HttpError('bad_request', `${ruleset.id} has the live ruleset's fingerprint: nothing would score differently (force to rescore anyway)`)
   }
-  // with a new scorer, old scores are kept on the scenarios whose every checked sample scored alike (BoardDO.cellsOf).
+  // with a new scorer, old scores are kept on the scenarios whose every checked sample scored alike (BoardDO.cellsOf)
   const trusted = from && ruleset.scorer ? (await db.prepare(`SELECT COUNT(*) AS n FROM ruleset_check_scenarios WHERE ruleset_id = ?
       AND from_ruleset = ? AND scorer = ? AND samples > 0 AND differing = 0`).bind(ruleset.id, from, ruleset.scorer).first<{ n: number }>())?.n ?? 0
     : 0
   const keep: RolloutKeep = body.keep === false ? 'none' : trusted > 0 ? 'data' : 'scenario'
   const boards = (await rulesetResonators(db, ruleset.id)).length
+  // boards the new ruleset leaves as they are take it at go-live without a rescore; a forced rollout or one with
+  // keep 'none' rescores every board
+  const carried = from && keep !== 'none' && !body.force ? await carriedBoards(env, from, ruleset.id) : []
   await db.batch([
     startRolloutStatement(db, { ruleset_id: ruleset.id, from_ruleset: from, keep, boards, started_by: staffName(who), started_at: now }),
-    audit(context, who, { action: 'ruleset.rollout', subjectKind: 'ruleset', subjectId: ruleset.id, data: { from, boards, keep } }),
+    ...(carried.length ? [db.prepare(`INSERT INTO rollout_carry (ruleset_id, resonator_id) SELECT ?, value FROM json_each(?)`)
+      .bind(ruleset.id, JSON.stringify(carried))] : []),
+    audit(context, who, { action: 'ruleset.rollout', subjectKind: 'ruleset', subjectId: ruleset.id,
+      data: { from, boards, keep, carried: carried.length } }),
   ])
-  // each board installs the ruleset now and fans its builds out from its alarm.
+  // each board installs the ruleset and fans its builds out from its alarm; a carried board waits for go-live
   await syncBoards(env, ruleset.id)
-  return json({ rulesetId: ruleset.id, from, boards, keep }, { status: 202 })
+  return json({ rulesetId: ruleset.id, from, boards, keep, carried }, { status: 202 })
 }
 
-/** POST /admin/rulesets/:id/rollout/cancel: stops rescoring; each board drops the rolling ruleset's tables. */
+// the boards a rollout from `from` to `to` leaves as they are, or none when either ruleset's files are missing
+async function carriedBoards(env: ApiEnv, from: string, to: string): Promise<string[]> {
+  const [before, after] = await Promise.all([carrySide(env, from), carrySide(env, to)])
+  return before && after ? carriedResonators(before, after) : []
+}
+
+// POST /admin/rulesets/:id/rollout/cancel: stops rescoring; each board drops the rolling ruleset's tables
 export async function cancelRollout(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params, now } = context
@@ -157,7 +169,7 @@ export async function cancelRollout(context: RouteContext): Promise<Response> {
   return json({ rulesetId: rollout.ruleset_id, cancelled: true })
 }
 
-/** POST /admin/rulesets/:id/rescore { buildIds }: start these builds over (or every kept one) on the ruleset. */
+// POST /admin/rulesets/:id/rescore { buildIds }: start these builds over (or every kept one) on the ruleset
 export async function rescoreBuilds(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params } = context
@@ -176,7 +188,7 @@ export async function rescoreBuilds(context: RouteContext): Promise<Response> {
   } else {
     for (const id of await rulesetResonators(env.LB, ruleset.id)) byBoard.set(Number(id), 'all')
   }
-  // a few named builds are someone waiting on them; a whole ruleset is bulk work.
+  // named builds run in the interactive lane; a whole ruleset runs as bulk work
   const lane = named ? 'interactive' as const : 'bulk' as const
   const sent = await Promise.all([...byBoard].map(([resonator, locals]) => boardOf(env, resonator).rescore(resonator, ruleset.no, locals, lane)))
   const builds = sent.reduce((a, b) => a + b, 0)
@@ -184,22 +196,24 @@ export async function rescoreBuilds(context: RouteContext): Promise<Response> {
   return json({ rulesetId: ruleset.id, builds }, { status: 202 })
 }
 
-/** POST /admin/sweep { stallMs }: runs every board's upkeep and the rollout pass immediately. */
+// POST /admin/sweep { stallMs }: runs every board's upkeep and the rollout pass immediately
 export async function sweepNow(context: RouteContext): Promise<Response> {
   await authorize(context, 'rulesets.manage')
-  const body = await readJsonBody<{ stallMs?: number }>(context.request).catch(() => ({ stallMs: undefined }))
+  const body = await readJsonBody<{ stallMs?: number; standings?: boolean }>(context.request).catch(() => ({ stallMs: undefined, standings: false }))
   const stallMs = typeof body.stallMs === 'number' && body.stallMs >= 0 ? body.stallMs : STALL_MS
-  return json({ scoring: await sweepBoards(context.env, stallMs), rollouts: await advanceRollouts(context.env, context.now) })
+  // standings: every board rechecks each player's standing, as at a go-live (a repair for D1's player_boards)
+  return json({ scoring: await sweepBoards(context.env, stallMs, { standings: body.standings === true }),
+    rollouts: await advanceRollouts(context.env, context.now) })
 }
 
 export interface RolloutReport {
-  /** rulesets made live in this pass. */
+  // rulesets made live in this pass
   live: string[]
-  /** rollouts finished this pass. */
+  // rollouts finished this pass
   done: string[]
 }
 
-/** makes a rollout live once every board finishes; each board retires the old ruleset on its next catalog sync. */
+// makes a rollout live once every board finishes; each board retires the old ruleset on its next catalog sync
 export async function advanceRollouts(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, now: number): Promise<RolloutReport> {
   const db = env.LB
   const report: RolloutReport = { live: [], done: [] }
@@ -220,7 +234,7 @@ export async function advanceRollouts(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, now: n
   return report
 }
 
-/** GET /admin/rulesets/:id/progress: a ruleset's rollout and its boards' jobs. */
+// GET /admin/rulesets/:id/progress: a ruleset's rollout and its boards' jobs
 export async function rolloutStatus(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, rulesetId: string) {
   const [rollout, progress] = await Promise.all([getRollout(env.LB, rulesetId), rulesetJobs(env, rulesetId, { force: false })])
   return { rollout, progress }

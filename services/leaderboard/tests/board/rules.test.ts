@@ -15,6 +15,8 @@ import { SCHEMA_VERSION } from '../../src/board/schema.ts'
 import { writeScore } from '../../src/board/scorePack.ts'
 import { cellRanks, field, page, standing } from '../../src/board/reads.ts'
 import type { CellResult, OutboxOp } from '../../src/board/types.ts'
+import { packSnapshot, unpackSnapshot } from '../../src/lib/snapshotPack.ts'
+import type { BuildSnapshot } from '@lb/contract/snapshot'
 import { facts, memoryBoard, rulesetDef, snapOf } from './support.ts'
 
 const A = 500_000_001
@@ -33,7 +35,7 @@ function place(store: BoardStore, uid: number, salt: number, now: number, patch:
     drawnAt: now, owner: true, now })
 }
 
-/** scores every cell of a build's job on a ruleset: `score` on cell 0, lower on the rest. */
+// scores every cell of a build's job on a ruleset: `score` on cell 0, lower on the rest
 function score(store: BoardStore, local: number, value: number, now: number, rs = 1) {
   const job = store.job(rs, local)!
   const results: CellResult[] = [...store.ruleset(rs)!.cells.values()].map((cell) => ({
@@ -46,7 +48,7 @@ const ops = (store: BoardStore) => store.outbox(10_000).map((row) => row.op)
 const notices = (store: BoardStore) => ops(store).filter((op): op is Extract<OutboxOp, { op: 'notify' }> => op.op === 'notify')
 
 describe('board rules', () => {
-  it('ranks every build of a player as itself, and tells D1 their best', () => {
+  it('ranks every build of a player as itself, and sends D1 their best', () => {
     const { store } = board()
     const first = place(store, A, 1, 10).placement
     expect(first).toMatchObject({ active: true, repeated: false })
@@ -58,11 +60,52 @@ describe('board rules', () => {
     expect(page(store, { offset: 0, limit: 10 })!.rows.map((row) => row.local)).toEqual([second.local, first.local])
     expect(standing(store, second.local)).toMatchObject({ rank: 1, total: 2, score: 120 })
     expect(standing(store, first.local)).toMatchObject({ rank: 2, total: 2, score: 100 })
-    // D1's standing: both kept, the best one active and listed.
+    // D1's standing: both kept, the best one active and listed
     expect(ops(store).filter((op) => op.op === 'player_board').at(-1)).toMatchObject({ uid: A, standing: 2, active: store.gbid(second.local),
       listed: store.gbid(second.local) })
-    // the same card again is the build already stored.
+    // the same card again is the build already stored
     expect(place(store, A, 2, 14).placement).toMatchObject({ local: second.local, active: true, repeated: true })
+  })
+
+  it('takes another card of a stored build as that build when only what scoring maxes differs', () => {
+    const { store } = board()
+    const first = place(store, A, 1, 10).placement
+    let cards = 0
+    const leveled = (patch: (snapshot: BuildSnapshot) => void) => {
+      const snapshot = unpackSnapshot(snapOf(A, 0, 1))
+      patch(snapshot)
+      cards += 1
+      return store.place({ uid: A, player: facts(A), card: `other-${cards}`, snap: packSnapshot(snapshot), snapHash: `other-${cards}`,
+        seq: 0, drawnAt: 20, owner: true, now: 20 }).placement
+    }
+    // skills, the resonator's level and the weapon's level are maxed in every scenario
+    expect(leveled((s) => { s.resonator.skillLevels = { introSkill: 6 }; s.resonator.level = 80; s.weapon.level = 70 }))
+      .toMatchObject({ local: first.local, repeated: true })
+    // the weapon or an echo is a different build
+    expect(leveled((s) => { s.weapon.id = '21010012' }).repeated).toBe(false)
+    expect(leveled((s) => { s.echoes[1].substats = { critDmg: 12.6 } }).repeated).toBe(false)
+  })
+
+  it('takes a re-read of a build\'s own card as what that card shows, and staff fill-ins only over the snapshot they saw', () => {
+    const { store } = board()
+    const first = place(store, A, 1, 10).placement.local
+    const reread = unpackSnapshot(snapOf(A, 0, 1))
+    reread.resonator.level = 90
+    reread.name = 'read again'
+    expect(store.place({ uid: A, player: facts(A), card: `c${A}-1`, snap: packSnapshot(reread), snapHash: 'reread', seq: 0, drawnAt: 10,
+      owner: false, now: 20 }).placement).toMatchObject({ local: first, repeated: true })
+    expect(unpackSnapshot(store.build(first)!.snap)).toMatchObject({ name: 'read again', resonator: { level: 90 } })
+    // another card of the build leaves the build's own read unchanged
+    const other = unpackSnapshot(snapOf(A, 0, 1))
+    other.resonator.level = 70
+    store.place({ uid: A, player: facts(A), card: 'other', snap: packSnapshot(other), snapHash: 'other', seq: 0, drawnAt: 30, owner: true, now: 30 })
+    expect(store.build(first)!.snap_h).toBe('reread')
+
+    const filled = structuredClone(reread)
+    filled.weapon.level = 90
+    expect(store.editSnapshot(first, packSnapshot(filled), 'filled', 'stale', 'account:staff', ['weaponLevel'], 40)).toBe(false)
+    expect(store.editSnapshot(first, packSnapshot(filled), 'filled', 'reread', 'account:staff', ['weaponLevel'], 40)).toBe(true)
+    expect(unpackSnapshot(store.build(first)!.snap).weapon.level).toBe(90)
   })
 
   it('takes a hidden or deleted build off the board and leaves the player\'s others where they were', () => {
@@ -73,7 +116,7 @@ describe('board rules', () => {
     score(store, two, 110, 13)
     store.setOwnerHidden(one, A, true, 14)
     expect(page(store, { offset: 0, limit: 10 })!.rows.map((row) => row.local)).toEqual([two])
-    // D1's best listed build moves to the one still shown; the best kept stays the hidden one.
+    // D1's best listed build is the one still shown; the best kept is the hidden one
     expect(ops(store).filter((op) => op.op === 'player_board').at(-1)).toMatchObject({ active: store.gbid(one), listed: store.gbid(two) })
     store.setOwnerHidden(one, A, false, 15)
     expect(page(store, { offset: 0, limit: 10 })!.rows.map((row) => row.local)).toEqual([one, two])
@@ -99,7 +142,7 @@ describe('board rules', () => {
     expect(store.sql.first(`SELECT name FROM sqlite_master WHERE name = 'e1'`)).toBeNull()
   })
 
-  it('sends D1 nothing for a rollout that leaves every standing as it was, and keeps no event of its jobs', () => {
+  it('sends D1 nothing for a rollout that leaves every standing as it was, and stores no event of its jobs', () => {
     const { store } = board()
     const a = place(store, A, 1, 10).placement.local
     const b = place(store, B, 1, 11).placement.local
@@ -111,10 +154,10 @@ describe('board rules', () => {
     while (store.fanOutSlice(2, 100, 21).orders.length) { /* every build's job on 2 */ }
     score(store, a, 100, 22, 2)
     score(store, b, 90, 23, 2)
-    // scoring on a rolling ruleset: no standing, upload or summary moves, and no event row.
+    // scoring on a rolling ruleset: no standing, upload or summary changes, and no event row is written
     expect(ops(store)).toEqual([])
     expect(store.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM events`)!.n).toBe(events)
-    // its entries wait for the walk: written once (the alarm's steps), and only then is the ruleset settled.
+    // its entries wait for the walk: written once (the alarm's steps), and only then is the ruleset settled
     expect([store.ruleset(2) && store.rulesetSettled(2), store.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM e2`)!.n]).toEqual([false, 0])
     expect(store.endDeferrals()).toEqual([2])
     expect(store.rebuildEntries()).toBe(true)
@@ -123,7 +166,7 @@ describe('board rules', () => {
     // going live rechecks every player's best build; each is unchanged, so D1 receives only the board's new ruleset
     store.goLive(2, 30)
     expect(ops(store).map((op) => op.op)).toEqual(['board'])
-    // the owner hides their build, which changes its upload and standing and is sent
+    // the owner hides their build, which changes its upload and standing, and both are sent
     store.outboxApplied(store.outbox(10_000).at(-1)!.seq)
     store.setOwnerHidden(b, B, true, 31)
     expect(ops(store).map((op) => op.op).sort()).toEqual(['board', 'player_board', 'upload'])
@@ -139,11 +182,11 @@ describe('board rules', () => {
     const [order] = store.fanOutSlice(2, 10, 21).orders
     expect(order.reuse!.old.map((cell) => cell.key.split(':')[1])).toEqual(['a', 'a', 'c', 'c'])
     expect(order.cells).toHaveLength(6)
-    // the flag outlives the store: a board woken again reads it from its cells.
+    // the flag persists across store instances: a board woken again reads it from its cells
     expect(new BoardStore(store.sql, 1506).ruleset(2)!.cells.get(2)!.reuse).toBe(false)
   })
 
-  it('lets a job a rollout kept whole read the earlier object, follows it down a chain, and frees it once no job reads it', () => {
+  it('reads the earlier object for a job a rollout kept whole, follows it down a chain, and frees it once no job reads it', () => {
     const { store } = board()
     const local = place(store, A, 1, 10).placement.local
     score(store, local, 100, 11)
@@ -163,11 +206,11 @@ describe('board rules', () => {
     expect(store.pendingDetail()).toEqual([])
     store.goLive(2, 23)
     expect(store.detailIdOf(2, local)).toBe('rs-1')
-    // ruleset 1 ended: its objects are queued to go, but this build's stays while a job reads it.
+    // ruleset 1 ended: its objects are queued for deletion, except this build's while a job reads it
     expect(store.detailPurges()).toEqual(['rs-1'])
     expect([...store.detailReaders('rs-1', [local, local + 1])]).toEqual([local])
     store.detailPurged('rs-1')
-    // the next rollout reuses from 2, and its offer reads 1's object.
+    // the next rollout reuses from 2, and its offer reads 1's object
     store.installRuleset({ ...rulesetDef(3), reuseFrom: 2 }, 30)
     expect(store.fanOutSlice(3, 10, 31).orders[0].reuse).toMatchObject({ fromId: 'rs-2', detailId: 'rs-1' })
     // scored again with its own object; once 2 ends, 1's objects have no readers and 1's purge runs again
@@ -178,7 +221,7 @@ describe('board rules', () => {
     expect([...store.detailReaders('rs-1', [local])]).toEqual([])
   })
 
-  it('counts a result once per job: a repeat is kept, a failure takes a later ok, an old job\'s result is stale', () => {
+  it('counts a result once per job: a repeat leaves the stored result, a later ok replaces a failure, and an old job\'s result is stale', () => {
     const { store } = board()
     const local = place(store, A, 1, 10).placement.local
     const gen = store.job(1, local)!.gen
@@ -197,7 +240,7 @@ describe('board rules', () => {
     expect(store.recordScores([{ ...cell('ok', 99), rs: 7 }], 16).acks).toEqual(['stale'])
   })
 
-  it('tells the player whose #1 was taken, and a build its first score', () => {
+  it('notifies the player whose #1 was taken, and the owner of a build\'s first score', () => {
     const { store } = board()
     const a = place(store, A, 1, 10).placement.local
     score(store, a, 100, 11)
@@ -206,7 +249,7 @@ describe('board rules', () => {
     const b = place(store, B, 1, 12).placement.local
     score(store, b, 101, 13)
     expect(notices(store).map((op) => [op.kind, op.uid])).toEqual([['dethroned', A], ['scored', B]])
-    // a tie for #1 dethrones nobody.
+    // a tie for #1 dethrones nobody
     store.outboxApplied(Number.MAX_SAFE_INTEGER)
     const c = place(store, C, 1, 14).placement.local
     score(store, c, 101, 15)
@@ -223,22 +266,23 @@ describe('board rules', () => {
     expect(last).toMatchObject({ op: 'board', rulesetId: 'rs-1', total: 1, top: [store.gbid(a)], topQ: 1_000_000,
       head: { rank: 1, local: a, uid: A, score: 100 } })
     expect(ops(store)).toContainEqual({ op: 'player_board', uid: A, standing: 1, active: store.gbid(a), listed: store.gbid(a), listedAt: 10, seq: 0 })
-    // ops leave in order and are dropped once applied.
+    // ops are sent in order and dropped once applied
     const seqs = store.outbox(10_000).map((row) => row.seq)
     expect(seqs).toEqual([...seqs].sort((x, y) => x - y))
     store.outboxApplied(seqs.at(-1)!)
     expect(store.outbox()).toEqual([])
-    // the first row is part of the summary: a rename of the player holding it sends the summary again.
+    // the first row is part of the summary: renaming the player holding it sends the summary again
     store.syncPlayer(facts(A, { name: 'Renamed', ver: 2 }))
     expect(ops(store).filter((op) => op.op === 'board')).toMatchObject([{ head: { local: a, name: 'Renamed' } }])
-    // with nothing changed, upkeep's check sends nothing.
+    // with nothing changed, upkeep's check sends nothing
     store.outboxApplied(store.outbox(10_000).at(-1)!.seq)
     store.resummarize()
     expect(ops(store)).toEqual([])
   })
 
-  it('never numbers an op with a seq it used before, once the outbox has drained', () => {
-    // d1 treats a batch whose first seq it has seen as a replay (projections.ts board_sync), so a reused seq loses ops
+  it('numbers each op with an unused seq after the outbox drains', () => {
+    // d1 treats a batch whose first seq it has seen as a replay (projections.ts board_sync), so a reused seq loses
+    // ops
     const { store } = board()
     place(store, A, 1, 10)
     const first = store.outbox(10_000).map((row) => row.seq)
@@ -261,7 +305,7 @@ describe('board rules', () => {
     expect(store.stagedDetail(1, local).size).toBe(0)
   })
 
-  it('leaves a hidden uid out of server filters but keeps an anonymous player\'s server', () => {
+  it('omits a hidden uid from server filters and lists an anonymous player\'s server', () => {
     const { store } = board()
     const a = place(store, A, 1, 10).placement.local
     const b = place(store, B, 1, 11).placement.local
@@ -274,7 +318,7 @@ describe('board rules', () => {
     expect(byServer(A)).toEqual([])
     store.syncPlayer(facts(A, { hideUid: true, masked: true, ver: 3 }))
     expect(byServer(A)).toEqual([a])
-    // an older word on the player changes nothing.
+    // an older player row from D1 changes nothing
     store.syncPlayer(facts(A, { unlisted: true, ver: 2 }))
     expect(byServer(A)).toEqual([a])
     store.syncPlayer(facts(A, { unlisted: true, ver: 4 }))
@@ -306,22 +350,22 @@ describe('board rules', () => {
     const { store } = board()
     const local = place(store, A, 1, 10).placement.local
     score(store, local, 100, 11)
-    // an error row is scored again, not offered.
+    // an error row is not offered and is scored again
     const errored = writeScore(store.scoreBlob(1, local)!, { ...store.scoreOf(1, local, 5)!, status: 2, q: null })
     store.sql.run(`UPDATE s1 SET cells = ? WHERE build = ?`, errored, local)
-    // the next ruleset drops team c and adds team d.
+    // the next ruleset drops team c and adds team d
     store.installRuleset({ ...rulesetDef(2, { teams: ['a', 'b', 'd'] }), reuseFrom: 1 }, 20)
     const [order] = store.fanOutSlice(2, 10, 21).orders
     expect(order.reuse!.from).toBe(1)
     expect(order.reuse!.fromId).toBe('rs-1')
     expect(order.reuse!.old.map((cell) => [cell.key.split(':')[1], cell.score])).toEqual([['a', 100], ['a', 89], ['b', 88], ['b', 87]])
     expect(order.cells).toHaveLength(6)
-    // once anything of the job is in, an order is plain cells.
+    // once any of the job's cells is in, an order is plain cells
     store.recordScores([{ rs: 2, local, gen: order.gen, cell: 0, status: 'ok', score: 100, damage: 1000, dpr: 5, flags: 0, reason: null,
       weapon: 21010011, stats: null, detail: null }], 22)
     store.sql.run(`UPDATE j2 SET sent_at = NULL WHERE build = ?`, local)
     expect(store.unsentOrders().map((entry) => entry.reuse)).toEqual([undefined])
-    // a ruleset installed without reuse offers nothing.
+    // a ruleset installed without reuse offers nothing
     const plain = memoryBoard().store
     plain.installRuleset(rulesetDef(1), 1, { live: true })
     const other = place(plain, B, 1, 10).placement.local

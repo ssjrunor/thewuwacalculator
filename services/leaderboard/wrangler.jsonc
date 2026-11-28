@@ -42,7 +42,9 @@
       { "binding": "SCORE_BULK_QUEUE", "queue": "lb-score-bulk" }
     ],
     "consumers": [
-      { "queue": "lb-read", "max_batch_size": 1, "max_retries": 3, "dead_letter_queue": "lb-read-dlq" },
+      // a batch reads on one warm reader page (dispatch.ts), so a submission's cards go together; a batch is taken as
+      // soon as it has a message (max_batch_timeout 0), never held back to fill
+      { "queue": "lb-read", "max_batch_size": 10, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "lb-read-dlq" },
       // cards that failed every read are refused as read_failed (maintenance.ts)
       { "queue": "lb-read-dlq", "max_batch_size": 10, "max_retries": 3 }
     ]

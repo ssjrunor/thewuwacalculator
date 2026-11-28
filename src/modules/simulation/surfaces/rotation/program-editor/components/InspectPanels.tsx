@@ -108,8 +108,9 @@ import {
   BuffRows,
   InspectorSection,
 } from '@/modules/simulation/surfaces/rotation/program-editor/components/InspectorPrimitives.tsx'
+import { formatTruncCompact, truncTo } from '@/shared/lib/number'
 
-/** what the inspector can do to the one note a node is allowed to own */
+// inspector actions for the one note a node can have
 interface NoteActions {
   note: EditorNote | null
   onAdd: () => void
@@ -117,7 +118,7 @@ interface NoteActions {
   onWrite: (text: string) => void
   onColor: (color: string | undefined) => void
   onRemove: () => void
-  /** standalone notes also take the normal clipboard actions. */
+  // standalone notes also take the normal clipboard actions
   nodeActions?: ScopedNodeActions
 }
 
@@ -176,11 +177,8 @@ function ActBtn({
   )
 }
 
-/*
-  inspector numbers used to commit on every digit, which cloned the whole
-  rotation for a value that is not finished yet. the draft stays local until
-  the field is left or enter confirms it.
-*/
+// the numeric draft stays local until the field is left or enter confirms it, so a partial value never clones the
+// rotation
 function DraftNumber({
   value,
   displayValue,
@@ -322,10 +320,8 @@ function ColourPicker({
   )
 }
 
-/*
-  author notes here. the list displays them in a row button; the editor keeps
-  the text field outside that interactive row.
-*/
+// author notes here; the list displays them in a row button, and the editor renders the text field outside that
+// interactive row
 function NoteSect(actions: NoteActions) {
   const { note, onAdd } = actions
   if (!note) {
@@ -459,9 +455,7 @@ function NoteFields({
   )
 }
 
-/*
-  all node kinds share these three clipboard actions.
-*/
+// all node kinds share these three clipboard actions
 function ClipActs({ actions }: { actions: ScopedNodeActions }) {
   return (
     <>
@@ -519,7 +513,6 @@ function NodeActions({
       <div className="rte-acts">
         <ActBtn icon={<Pencil size="0.8rem" />} label="Edit feature" onPress={actions.onEdit} />
 
-        {/* swaps only exist where the skill has a neighbour to swap to */}
         {actions.previousLabel ? (
           <ActBtn
             icon={<ChevronsLeft size="0.8rem" />}
@@ -581,36 +574,36 @@ function NodeActions({
 }
 
 interface ScopedNodeActions {
-  /** section or labelled loop pass targeted by an edit */
+  // section or labelled loop pass targeted by an edit
   scope: EditorExecutionScope | null
-  /** explicit loop identity colour; never inherited from the inspected node */
+  // explicit loop identity colour; never inherited from the inspected node
   scopeColor?: string
-  /** false for a node that cannot be lifted out of the tree whole */
+  // false for a node that cannot be lifted out of the tree whole
   canCopy: boolean
   canPaste: boolean
   onCopy: () => void
   onCut: () => void
-  /** stand a copy of this node directly after it */
+  // stand a copy of this node directly after it
   onDuplicate: () => void
   onPaste: () => void
 }
 
 export interface StepActions extends ScopedNodeActions {
-  /** the neighbouring skills this step can be swapped for, if any */
+  // the neighbouring skills this step can be swapped for, if any
   previousLabel: string | null
   adjacentLabel: string | null
-  /** the state writes attached to this step, in authored order */
+  // the state writes attached to this step, in authored order
   attached: AttachedWrite[]
   onReplacePrevious: () => void
   onAddAdjacent: () => void
   onReplaceAdjacent: () => void
   onEdit: () => void
   onSetCondition: () => void
-  /** instances in the negative-effect stack series (default 1) */
+  // instances in the negative-effect stack series (default 1)
   onNegInstances: (value: number) => void
-  /** hits that keep the same stack value before it steps down (default 1) */
+  // hits that keep the same stack value before it steps down (default 1)
   onNegStableWidth: (value: number) => void
-  /* the features attached to this step, and the two ways to change the set */
+  // the features attached to this step, and the two ways to change the set
   attachedFeatures: EditorStep[]
   onAttachFeature: () => void
   onDetachFeature: (childId: string) => void
@@ -623,12 +616,8 @@ export interface StepActions extends ScopedNodeActions {
   onDelete: () => void
 }
 
-/**
- * instances and stable width for a negative-effect skill that builds a stack
- * series. fixed-max skills omit this section. values land on the authored
- * feature node the same way the pane modal
- * writes them.
- */
+// instances and stable width for a negative-effect skill that builds a stack series; fixed-max skills omit this
+// section, and values are written to the authored feature node as the pane modal writes them
 function NegEffectSeries({
   step,
   actions,
@@ -701,16 +690,9 @@ function NegEffectSeries({
   )
 }
 
-/*
-  a condition writes state without damage, buffs, or a stat line. show its
-  source, current value, and write history.
-*/
-/*
-  the state's control uses this surface's vocabulary. changing it applies the
-  same edit as the condition editor: the
-  condition writes a new value, or, inside a loop, writes a different one on
-  the run being viewed.
-*/
+// a condition writes state without damage, buffs, or a stat line; show its source, current value, and write
+// history. its control applies the same edit as the condition editor: the condition writes a new value, or, inside a
+// loop, a different one on the viewed run
 function CondValue({
   state,
   value,
@@ -816,15 +798,9 @@ function CondValue({
   )
 }
 
-/*
-  show state writes authored on a step. their result names arrive after a run;
-  the panel displays authored values and edits each one
-  with the same control its state would have as a condition.
-
-  they are also scoped, which nothing else on the step says: a write here opens
-  an overlay the step and its own attachments read, and the list past it does
-  not. the panel states that once, under the writes it applies to.
-*/
+// state writes authored on a step; their result names arrive after a run, and the panel displays authored values
+// and edits each one with the control its state has as a condition. the writes are scoped: a write here opens an
+// overlay the step and its own attachments read, and later rows do not, which the panel states once under the writes
 function AttachedWrites({ actions }: { actions: StepActions }) {
   const writes = actions.attached
   const features = actions.attachedFeatures
@@ -861,10 +837,7 @@ function AttachedWrites({ actions }: { actions: StepActions }) {
                   onActionChange={(next) => actions.onSetAttachedAction(write.index, next)}
                 />
               ) : (
-                /*
-                  this write has no catalog path or editable control. show its
-                  authored value.
-                */
+                // this write has no catalog path or editable control, so show its authored value
                 <span className="rte-attach__raw">{write.value || '-'}</span>
               )}
             </div>
@@ -872,11 +845,6 @@ function AttachedWrites({ actions }: { actions: StepActions }) {
         </div>
       ) : null}
 
-      {/*
-        a carried feature is a feature, so the panel names it and gets out of
-        the way: what it does is set where every other feature's is, on the row
-        it draws in the list.
-      */}
       {features.length > 0 ? (
         <div className="rte-attach">
           {features.map((child) => (
@@ -891,11 +859,7 @@ function AttachedWrites({ actions }: { actions: StepActions }) {
                   <X size="0.7rem" />
                 </button>
               </div>
-              {/*
-                its own count, on the terms the step above states its own. the
-                engine runs it at this times the parent's, which the row in the
-                list is where you read.
-              */}
+              {/* the engine runs it at this count times the parent's */}
               <label className="rte-attach__mult">
                 <span className="rte-mult__sym" aria-hidden="true">&times;</span>
                 <DraftNumber
@@ -930,7 +894,7 @@ function AttachedWrites({ actions }: { actions: StepActions }) {
 }
 
 export interface ConditionActions extends ScopedNodeActions {
-  /** which modifier stat a formula condition writes; ignored by every other */
+  // which modifier stat a formula condition writes; ignored by every other
   onSetModifier: (choiceId: string) => void
   onSetValue: (value: string) => void
   onSetAction: (action: ConditionWriteAction) => void
@@ -939,11 +903,8 @@ export interface ConditionActions extends ScopedNodeActions {
   onDelete: () => void
 }
 
-/*
-  a handoff writes the active resonator as a condition and shares its actions,
-  including per-run edits. the write action is the
-  only one of the condition's it has no use for: an id is set, never added to.
-*/
+// a handoff writes the active resonator as a condition and shares its actions, including per-run edits, except the
+// write action: an id is set, never added to
 export interface HandoffActions extends ScopedNodeActions {
   onSetTo: (memberId: string) => void
   onEdit: () => void
@@ -1125,10 +1086,7 @@ function CondInspector({
   const isModifier = node.state?.ownerKey === ROT_FORMULA_OWNER_KEY
   const modifierLabel = modifierOptions
     .find((option) => option.value === node.state?.id)?.label ?? node.label
-  /*
-    keyed by the condition it belongs to, so selecting another one closes the
-    group without an effect having to reach in and shut it.
-  */
+  // keyed by the condition it belongs to, so selecting another one closes the group without an effect
   const [picking, setPicking] = useState<string | null>(null)
   const here = history.findIndex((entry) =>
     isCurrentWrite(entry, node.id, actions.scope, runsByLoopId))
@@ -1192,10 +1150,6 @@ function CondInspector({
         <div className="rte-acts">
           {node.state ? (
             <div className="rte-cedit">
-              {/*
-                a modifier condition covers a group of stats. its target stat
-                remains editable after insertion.
-              */}
               {isModifier && modifierOptions.length > 0 ? (
                 <Expandable className="rte-modpick"
                   TriggerTag="button"
@@ -1285,11 +1239,8 @@ function MemberFace({
   )
 }
 
-/*
-  a handoff inspects as the pair it is. its value is a resonator id, so the
-  select the condition branch would draw becomes the team, and the history's
-  value delta becomes the two faces.
-*/
+// a handoff inspects as a pair: its value is a resonator id, so the condition branch's select becomes the team and
+// the history's value delta becomes the two portraits
 function HandoffInspector({
   node,
   run,
@@ -1404,15 +1355,12 @@ function HandoffInspector({
   )
 }
 
-/*
-  a block is a container: it has no owner asset and no stat line of its own.
-  what it has is a shape (how many times, or how much of the time), a total,
-  and the things inside it.
-*/
+// a block is a container with no owner asset and no stat line of its own: it has a shape (how many times, or how
+// much of the time), a total, and its contents
 export interface BlockActions extends ScopedNodeActions {
   onAddSetup: () => void
   onRemoveSetup: () => void
-  /** take a loop's end away, leaving it running back around to its own start */
+  // take a loop's end away, leaving it running back around to its own start
   onRemoveEnd: () => void
   onRename: (label: string) => void
   onColor: (color: string) => void
@@ -1512,7 +1460,7 @@ function collectInspectorNodes(
   return out
 }
 
-/** every authored node in a completed rotation result, grouped by section. */
+// every authored node in a completed rotation result, grouped by section
 export function RotationNodesInspector({
   sections,
 }: {
@@ -1550,13 +1498,10 @@ function BlockInspector({
   onSelectNode,
 }: {
   node: EditorBlock
-  /**
-   * executed block content in execution order. split loop drawings resolve
-   * to the whole executable loop.
-   */
+  // executed block content in execution order; split loop drawings resolve to the whole executable loop
   body: EditorNode[]
   run: number
-  /** what the loop deals on each of its passes, run 1 first */
+  // what the loop deals on each of its passes, run 1 first
   runTotals: number[]
   shut: boolean
   actions: BlockActions
@@ -1566,7 +1511,7 @@ function BlockInspector({
 }) {
   const isUptime = node.type === 'uptime'
   const value = isUptime
-    ? Math.round((node.ratioByRun?.[run] ?? node.ratio ?? 1) * 100)
+    ? truncTo((node.ratioByRun?.[run] ?? node.ratio ?? 1) * 100)
     : Math.max(1, node.runsByRun?.[run] ?? node.runs)
   const disabled = Boolean(node.disabled)
   const colors: readonly string[] = node.type === 'loop' ? ROT_LOOP_COLORS : ROT_BLOCK_COLORS
@@ -1575,7 +1520,7 @@ function BlockInspector({
   const body = bodyItems.filter((child) => child.type !== 'setup')
   const hasSetup = Boolean(setup?.children.length)
   const repeatValue = Math.max(1, node.runsByRun?.[run] ?? node.runs)
-  const uptimeValue = Math.round((node.ratioByRun?.[run] ?? node.ratio ?? 1) * 100)
+  const uptimeValue = truncTo((node.ratioByRun?.[run] ?? node.ratio ?? 1) * 100)
 
   return (
     <>
@@ -1590,8 +1535,6 @@ function BlockInspector({
             />
           ) : null}
 
-          {/* what each pass actually deals. the loop runs the same nodes every
-              time, so where the numbers differ it is the state that differs. */}
           {runTotals.length > 1 ? (
             <ol className="rte-runlist">
               {runTotals.map((amount, index) => {
@@ -1618,11 +1561,6 @@ function BlockInspector({
             </ol>
           ) : null}
 
-          {/*
-            two numbers do not need two cards. each setting is a ruled line:
-            the name on the left in the panel's own label voice, the value on
-            the right, with a single unit label.
-          */}
           {node.type === 'repeat' ? (
             <div className="rte-blockset">
               <label className="rte-blockset__row">
@@ -1644,10 +1582,7 @@ function BlockInspector({
                 <RunScope scope={actions.scope} base={repeatValue !== node.runs ? node.runs : null} scopeColor={actions.scopeColor} />
               </label>
 
-              {/*
-                the window is the setup branch's, so the row that edits it is
-                also the row that adds and removes the branch.
-              */}
+              {/* the window belongs to the setup branch, so this row also adds and removes the branch */}
               <div className={`rte-blockset__row${setup ? '' : ' is-empty'}`}>
                 <span className="rte-blockset__key">Setup window</span>
                 {setup ? (
@@ -1721,11 +1656,8 @@ function BlockInspector({
       <InspectorSection label="Actions" defaultOpen={true}>
         <div className="rte-acts">
           {node.type === 'loop' ? (
-            /*
-              a loop with no end is a shape you can author, so the page offers
-              it: the end goes back onto the start and the loop runs on round
-              to it. a loop that already has none has nothing to take away.
-            */
+            // a loop with no end is authorable, so the page offers it: the end goes back onto the start and the loop
+            // runs on to it. a loop with no end has nothing to remove
             <ActBtn
               icon={<Unlink size="0.8rem" />}
               label="Remove end"
@@ -1762,11 +1694,8 @@ function BlockInspector({
   )
 }
 
-/*
-  resonators choose the scope of the second split. within that scope, the
-  three lenses are the same damage seen by skill type, talent node, or
-  attribute, so each still adds up to its own 100%.
-*/
+// resonators choose the scope of the second split; within that scope, the three lenses split the same damage by skill
+// type, talent node, or attribute, so each sums to 100%
 type BreakdownLensKey = 'type' | 'node' | 'attr'
 type BreakdownLensField = 'skillTypes' | 'talentNodes' | 'attributes'
 
@@ -1780,13 +1709,13 @@ const BREAKDOWN_LENSES: {
   { key: 'attr', label: 'Attr', field: 'attributes' },
 ]
 
-/** how many rows are left standing once the list has to fold */
+// how many rows remain visible once the list folds
 const RANK_ROWS = 4
 
 function useTightList(signature: string) {
   const listRef = useRef<HTMLOListElement | null>(null)
   const [tight, setTight] = useState(false)
-  // the committed answer, so measuring never depends on state
+  // the committed value, so measuring never depends on state
   const held = useRef(false)
 
   const measure = useCallback(() => {
@@ -1806,8 +1735,8 @@ function useTightList(signature: string) {
       return
     }
 
-    // going back needs room for every row still folded away, plus a little,
-    // so the list cannot fold and unfold around a single pixel
+    // unfolding needs room for every folded row plus a margin, so the list cannot fold and unfold around a single
+    // pixel
     const rows = list.children.length
     const step = rows > 0 ? list.getBoundingClientRect().height / rows : 0
     const hidden = Number(list.dataset.hidden ?? 0)
@@ -1835,7 +1764,7 @@ function useTightList(signature: string) {
       })
     }
 
-    // the observer delivers its initial size in the first callback.
+    // the observer delivers its initial size in the first callback
     const observer = new ResizeObserver(schedule)
     observer.observe(port)
     observer.observe(list)
@@ -1877,15 +1806,15 @@ function RankedBreakdown({
   selectedId?: string | null
   onSelect?: (id: string) => void
   decimals: number
-  /** what the colourless ranks ramp down from */
+  // what the colourless ranks ramp down from
   tone?: string
 }) {
   const { listRef, tight } = useTightList(signature)
   const shown = tight && !all ? groups.slice(0, RANK_ROWS) : groups
   const rest = groups.slice(shown.length)
   const restPct = rest.reduce((sum, group) => sum + group.sharePct, 0)
-  // bars read against the leader, not against the whole, so the shape of the
-  // list stays legible when one group contains most of the rotation
+  // bars scale to the leader, so the list stays readable when one group contains most of the
+  // rotation
   const leader = Math.max(1, groups[0]?.avg ?? 1)
 
   if (groups.length === 0) {
@@ -1924,7 +1853,7 @@ function RankedBreakdown({
               </span>
               <span className="rte-rank__num">
                 {formatDamage(group.avg, decimals)}
-                <em>{group.sharePct.toFixed(1)}%</em>
+                <em>{formatTruncCompact(group.sharePct, 1)}%</em>
               </span>
             </>
           )
@@ -1945,8 +1874,7 @@ function RankedBreakdown({
           ) : (
             <li
               key={group.id} className="rte-rank__row"
-              /* normal, crit and the row count stay reachable without
-                 taking a column each */
+              // normal, crit and the row count are available without a column each
               title={title}
             >
               {content}
@@ -1962,7 +1890,7 @@ function RankedBreakdown({
         >
           {all
             ? 'Show the top four'
-            : `+ ${rest.length} more . ${restPct.toFixed(1)}%`}
+            : `+ ${rest.length} more . ${formatTruncCompact(restPct, 1)}%`}
         </button>
       ) : null}
     </>
@@ -2006,23 +1934,21 @@ function glyphMask(src: string): React.CSSProperties {
 
 interface EchoRun {
   setId: number
-  /** first and last cell in the strip this set covers */
+  // first and last cell in the strip this set covers
   start: number
   end: number
-  /** unique pieces, counted the way the engine counts them for a bonus */
+  // unique pieces, counted the way the engine counts them for a bonus
   pieces: number
-  /** required piece count: one, three, or five */
+  // required piece count: one, three, or five
   req: number
-  /** whether the full set bonus is active */
+  // whether the full set bonus is active
   complete: boolean
-  /** whether any set bonus tier is active */
+  // whether any set bonus tier is active
   live: boolean
 }
 
-/*
-  one-piece and three-piece sets have one bonus tier; five-piece sets also
-  have a two-piece tier. use each set's required count when rendering progress.
-*/
+// one-piece and three-piece sets have one bonus tier; five-piece sets also have a two-piece tier, so progress uses
+// each set's required count
 function setLadder(setId: number): { req: number; firstTier: number } {
   const setMax = getEchoSetDe(setId)?.setMax
   if (setMax === 1) return { req: 1, firstTier: 1 }
@@ -2102,10 +2028,7 @@ function BuildAction({
   )
 }
 
-/*
-  omit the resonator name and portrait when the parent already identifies the
-  member; always show build-specific data.
-*/
+// omit the resonator name and portrait when the parent already identifies the member; always show build-specific data
 export function BuildBand({
   member,
   identified = true,
@@ -2147,9 +2070,6 @@ export function BuildBand({
         <span className="rte-bld__stamp">
           <span title="Resonator level">LV {member.level}</span>
           <span className="rte-bld__seq" title="Sequence">S{member.sequence}</span>
-          {/* level, sequence and budget are all facts about the build as a
-              whole, so they read as one stamp and the foot is left to the
-              weapon */}
           <span className="rte-bld__bdgt"
             title={`${cost} of ${MAX_ECHO_COST} cost used`}
           >
@@ -2220,12 +2140,8 @@ export function BuildBand({
                     {icon ? (
                       <DisplayImage src={icon} alt="" onError={withDefIconM} loading="lazy" />
                     ) : null}
-                    {/* a two-slot tie cannot hold a set name without shredding
-                        it, and two sets share #ffffff, so the glyph is what
-                        names a set and the words are a bonus where they fit */}
+                    {/* two sets share #ffffff, so the glyph identifies the set and the name shows only where it fits */}
                     {width >= 3 ? <span className="rte-bld__set">{name}</span> : null}
-                    {/* complete sets show their achieved count. incomplete sets
-                        also show the target count. */}
                     <em>{run.complete
                       ? <>&times;{run.pieces}</>
                       : `${run.pieces}/${run.req}`}</em>
@@ -2249,8 +2165,6 @@ export function BuildBand({
             onError={withDefWpnMg}
             loading="lazy"
           />
-          {/* the row has one voice: art, then the name as its label, then the
-              figures. rarity is the only thing that inks it. */}
           <span className="rte-bld__wname" title={member.weapon.name}>
             {member.weapon.name || 'Weapon'}
           </span>
@@ -2289,12 +2203,8 @@ export function BuildBand({
   )
 }
 
-/**
- * the builds a run was made with, as its own fold. every surface that reads a
- * rotation shows the same one, including the saved panel before its run has
- * resolved: a take's builds are known the moment it is picked, and do not have
- * to wait for the numbers.
- */
+// the builds a run was made with, as its own fold; every surface that reads a rotation shows it, including the saved
+// panel before its run resolves, because a take's builds are known once it is picked
 export function BuildsSection({
   members,
   defaultOpen = false,
@@ -2330,12 +2240,8 @@ export function RotationTotalsInspector({
   members?: EditorMember[]
   decimals: number
   buildActions?: BuildActions
-  /*
-    what each fold does when the panel first draws, straight through to the
-    section. a saved take opens on its builds and leaves the rest shut: the
-    builds are read off its snapshot and have nothing to wait for, and the
-    folds that do wait fill in collapsed, where nobody is looking.
-  */
+  // each fold's initial state when the panel first renders: a saved take opens on its builds, which come from its
+  // snapshot, and the folds that wait on the run stay collapsed
   defaultOpen?: {
     resonators?: boolean
     builds?: boolean
@@ -2365,11 +2271,7 @@ export function RotationTotalsInspector({
 
   return (
     <>
-      {/*
-        healing and shield are stated by the totals strip at the foot of the
-        page, which reports whatever the page is showing. the panel breaks
-        those totals down by source.
-      */}
+      {/* the totals strip at the foot of the page states healing and shield; this panel splits them by source */}
       <InspectorSection label="Resonators" defaultOpen={defaultOpen.resonators ?? true}>
         <RankedBreakdown
           groups={summary.resonators}
@@ -2398,7 +2300,7 @@ export function RotationTotalsInspector({
         <div className="rte-lens"
           role="group"
           aria-label="Break down by"
-          /* colour the lens by the resonator whose reading is displayed. */
+          // colour the lens by the resonator whose reading is displayed
           style={selectedResonator?.color
             ? { '--rte-res': selectedResonator.color } as React.CSSProperties
             : undefined}
@@ -2421,8 +2323,6 @@ export function RotationTotalsInspector({
           signature={`${selectedResonator?.id ?? 'total'}:${lens.key}:${groups.length}`}
           all={view.all}
           onToggleAll={() => setView((current) => ({ ...current, all: !current.all }))}
-          /* attributes carry the colours of the elements they are, which are
-             not the resonator's to overrule */
           tone={selectedResonator && lens.key !== 'attr' ? selectedResonator.color : undefined}
           decimals={decimals}
         />
@@ -2440,7 +2340,7 @@ export function RotationTotalsInspector({
   )
 }
 
-/** one kind of node in the set, and how many of it were caught */
+// one kind of node in the set, and how many of it were caught
 interface SelectionTally {
   label: string
   count: number
@@ -2448,23 +2348,16 @@ interface SelectionTally {
 
 export interface SelectionSummary {
   count: number
-  /** ordered most numerous first, so the bar reads left to right */
+  // ordered most numerous first, so the bar reads left to right
   tallies: SelectionTally[]
 }
 
-/*
-  what a set of rows can be told to do. loopify and blockify already act on the
-  whole selection, and the clipboard and delete take the set the same way, so
-  the branch offers exactly these and invents nothing.
-*/
+// actions on a set of rows: loopify, blockify, the clipboard and delete all act on the whole selection
 export interface SelectionActions {
   hasSelection: boolean
   canCopy: boolean
   canPaste: boolean
-  /**
-   * stand picked rows beside each other. only surfaces that display multiple
-   * rows expose this action.
-   */
+  // place picked rows next to each other; only surfaces that display multiple rows expose this action
   onCompare?: () => void
   canCompare?: boolean
   compareLabel?: string
@@ -2481,22 +2374,15 @@ export interface SelectionActions {
   onDelete?: () => void
 }
 
-/*
-  grade the panel accent down the tally to connect the bar and count chips.
-  kinds have no colour
-  of their own in this editor: a step is coloured by the element it deals and a
-  swap by whoever takes the field, so borrowing either here would be a lie.
-*/
+// the tally uses the panel accent, because node kinds have no colour of their own in this editor (a step is coloured
+// by its element, a swap by the incoming member)
 const SELECTION_TONES = ['100%', '62%', '40%', '26%']
 
 export function selectionTone(index: number): string {
   return SELECTION_TONES[Math.min(index, SELECTION_TONES.length - 1)]
 }
 
-/*
-  selection mode inspects the set: how much was caught, what
-  it is made of, and what can be done to all of it at once.
-*/
+// selection mode inspects the set: how much was picked, what it is made of, and what can be done to all of it at once
 export function SelectionInspector({
   summary,
   actions,
@@ -2628,7 +2514,7 @@ export function SelectionInspector({
   )
 }
 
-/** flat execution places aggregate readings beside their rows. */
+// flat execution places aggregate readings beside their rows
 export function RotationTotalsPanel({
   open,
   summary,
@@ -2719,11 +2605,11 @@ export function Inspector({
   blockShut: boolean
   blockTotal: number
   blockSteps: number
-  /** what the selected loop runs, in the order it runs it */
+  // what the selected loop runs, in the order it runs it
   blockBody: EditorNode[]
   blockActions: BlockActions
   handoffActions: HandoffActions
-  /** non-null only while selection mode is on, and it takes the whole panel */
+  // non-null only while selection mode is on, and it takes the whole panel
   selection: SelectionSummary | null
   selectionActions: SelectionActions
   history: WriteRecordRow[]
@@ -2737,30 +2623,26 @@ export function Inspector({
   buffs: BuffLine[]
   summary: RotationSummary
   totalAvg: number
-  /** how many decimal places a damage figure states before it is cut */
+  // how many decimal places a damage figure states before it is cut
   decimals: number
   actions: StepActions
   condActions: ConditionActions
   onRunChange: (run: number) => void
   onNavigateNode: (target: RotationNodeTarget) => void
-  /** whether the page has this note out of the margin */
+  // whether the page has this note out of the margin
   open?: boolean
-  /** the page measures the note to hang it beside its row */
+  // the page measures the note to hang it beside its row
   panelRef?: React.Ref<HTMLElement>
-  /** the colour of whatever is being inspected, so the margin can take it too */
+  // the colour of whatever is being inspected, so the margin can take it too
   onAccent?: (accent: string) => void
-  /** null while nothing that can own a note is being inspected */
+  // null while nothing that can own a note is being inspected
   noteActions?: NoteActions | null
-  /** flat execution keeps totals in their own side panel */
+  // flat execution shows totals in their own side panel
   showTotalsView?: boolean
   buildActions?: BuildActions
 }) {
-  /*
-    selection mode outranks whatever node was last inspected: the panel is
-    describing the set now, and the node it was on is only one member of it.
-    it takes the item slot so entering the mode switches to it and totals stays
-    one press away.
-  */
+  // selection mode takes precedence over the last inspected node; it takes the item slot, so entering the mode
+  // switches to it and totals stay one press away
   const selectedBranchId = selection
     ? 'selection'
     : note?.id ?? step?.id ?? condition?.id ?? block?.id ?? handoff?.id ?? null
@@ -2784,10 +2666,7 @@ export function Inspector({
   const activeView = showTotalsView
     ? hasItemView ? nextInspectorState.view : 'totals'
     : 'item'
-  /*
-    the draft is keyed by the block it belongs to, so selecting another node
-    drops it without an effect having to clear it.
-  */
+  // the draft is keyed by the block it belongs to, so selecting another node drops it without an effect
   const [rename, setRename] = useState<{ id: string; draft: string } | null>(null)
   const renameId = note?.id ?? (block && block.type !== 'setup' ? block.id : null)
   const renaming = renameId && rename?.id === renameId ? rename : null
@@ -2803,22 +2682,17 @@ export function Inspector({
       rising: condition.rising,
     }
     : null
-  /*
-    a condition is identified by where its state comes from, not by who is
-    holding the field. the head uses the source asset with an owner fallback.
-    state conditions have no damage element or attribute icon.
-  */
+  // a condition is identified by its state source; the head uses the source asset with an owner
+  // fallback, and state conditions have no damage element or attribute icon
   const isCond = Boolean(condition)
-  /*
-    show the echo icon with a caster marker for echo attacks.
-  */
+  // show the echo icon with a caster marker for echo attacks
   const echo = step?.owner.kind === 'echo' ? getEchoById(step.owner.echoId) : null
   const echoId = step?.owner.kind === 'echo' ? step.owner.echoId : null
   // a modifier writes the rotation's own formula, so it has no resonator source
   const isModifierCond = condition?.state?.ownerKey === ROT_FORMULA_OWNER_KEY
   const handoffTo = handoff ? members.find((entry) => entry.id === handoff.to) : undefined
   const handoffFrom = handoff ? members.find((entry) => entry.id === handoff.from) : undefined
-  // blocks use a drawn mark for their shape.
+  // blocks use a drawn mark for their shape
   const BlockIcon = block ? BLOCK_ICON[block.type] : null
   const isTotals = showTotalsView && activeView === 'totals'
   const itemNodeType = step?.sourceNode?.type
@@ -2858,20 +2732,14 @@ export function Inspector({
     ? block.color ?? (block.type === 'loop' ? ROT_LOOP_COLORS[0] : ROT_BLOCK_COLORS[0])
     : step?.color ?? ATTR_COLORS[step ? stepElement : owner.attribute]
 
-  /*
-    the bookmark and the pip sit outside this panel but belong to it, so the
-    colour it took has to travel back up to the page that draws them.
-  */
+  // the bookmark and the pip render outside this panel, so its colour is passed up to the page that renders them
   useEffect(() => {
     onAccent?.(panelAccent)
   }, [onAccent, panelAccent])
 
   return (
-    /*
-      the panel takes the accent of the thing being inspected: a block's own
-      colour, or the element a step actually deals,
-      which is not always its caster's.
-    */
+    // the panel accent is the inspected item's colour: a block's own colour, or the element a step deals, which can
+    // differ from its caster's
     <aside
       ref={panelRef}
       className={`rte-inspector${open ? ' is-out' : ''}`}
@@ -2884,7 +2752,6 @@ export function Inspector({
       } as React.CSSProperties}
     >
       <div className="rte-inspector__head">
-        {/* the palette's mode strip, doing the same job here */}
         {showTotalsView && hasItemView ? (
           <div className="rte-palette__modes" role="tablist" aria-label="Inspector view">
             <button
@@ -2908,11 +2775,6 @@ export function Inspector({
           </div>
         ) : null}
 
-        {/*
-          a handoff has no single subject, so its head is the pair: the one
-          walking off, the arrow, and the one taking the field, whose name is
-          the title.
-        */}
         {selection && !isTotals ? null : !isTotals && handoff ? (
           <div className="rte-inspector__top rte-hoff__top">
             <DisplayImage className="rte-hoff__top-out"
@@ -2967,9 +2829,7 @@ export function Inspector({
               />
             </span>
           ) : isModifierCond ? (
-            /*
-              a modifier belongs to the rotation formula and uses a drawn mark.
-            */
+            // a modifier belongs to the rotation formula and uses a drawn mark
             <span className="rte-inspector__avatar is-block" aria-hidden="true">
               <Swords size="1rem" />
             </span>
@@ -2984,7 +2844,6 @@ export function Inspector({
             />
           )}
           <span className="rte-inspector__titles">
-            {/* every authored container has a name */}
             {!isTotals && renaming ? (
               <input
                 type="text" className="rte-inspector__rename"
@@ -3037,11 +2896,7 @@ export function Inspector({
         )}
 
         {selection && !isTotals ? (
-          /*
-            the count is the figure, and the bar under it is that count split
-            by kind: the same measure read twice, once as a number and once as
-            a proportion.
-          */
+          // the count, with a bar under it that splits the count by kind
           <>
             <div className="rte-figure rte-figure--sel">
               <b>{selection.count}</b>
@@ -3101,7 +2956,7 @@ export function Inspector({
             <b>{formatDamage(damage, decimals)}</b>
             <span className="rte-figure__unit">avg</span>
             <span className="rte-figure__share">
-              {step ? `${sharePct.toFixed(1)}%` : '-'}
+              {step ? `${formatTruncCompact(sharePct, 1)}%` : '-'}
             </span>
           </div>
         )}
@@ -3170,13 +3025,11 @@ export function Inspector({
               </>
             ) : null}
 
-            {/* every node that can own a note offers the same one place to write it */}
             {noteActions ? <NoteSect {...noteActions} /> : null}
 
             {note || condition || block || handoff ? null : (
             <InspectorSection label={<>Buffs applied . {buffs.length}</>}>
-              {/* the count comes from what actually resolved for this row, not from
-                  a field on the node: the node has no idea what applies to it */}
+              {/* the count comes from what resolved for this row, because the node has no field for what applies to it */}
               {step && buffs.length > 0 ? (
                 <BuffRows buffs={buffs} />
               ) : (

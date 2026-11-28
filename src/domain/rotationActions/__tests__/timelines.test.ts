@@ -4,7 +4,7 @@
 */
 
 import { describe, expect, it } from 'vitest'
-import { packTimeline, readTimeline, unpackTimeline } from '../timelines'
+import { deduplicateTimelines, packTimeline, readTimeline, unpackTimeline } from '../timelines'
 import type { ActionTimeline } from '../types'
 
 const timeline: ActionTimeline = { seconds: 12.5, events: [
@@ -46,6 +46,46 @@ describe('stored timelines', () => {
     expect(readTimeline(undefined, 0, 2)).toBeNull()
   })
 
+  it('shares identical results across source sequences while preserving different clocks and event order', () => {
+    const names: string[] = []
+    const packed = packTimeline(timeline, names, new Map())
+    const original = { owns: {}, names, runs: {
+      '0:0': packed, '1:2': structuredClone(packed),
+      '1:3': { ...packed, seconds: 13 },
+      '1:4': { ...packed, events: [...packed.events].reverse() },
+    } }
+    const compacted = deduplicateTimelines(original)
+    expect(compacted.runs['1:2']).toBe('0:0')
+    expect(typeof compacted.runs['1:3']).toBe('object')
+    expect(typeof compacted.runs['1:4']).toBe('object')
+    for (const key of Object.keys(original.runs)) {
+      const [seat, sequence] = key.split(':').map(Number)
+      expect(readTimeline(compacted, seat, sequence)).toEqual(readTimeline(original, seat, sequence))
+    }
+    expect(typeof original.runs['1:2']).toBe('object')
+  })
+
+  it('flattens forward references when an existing concrete target becomes shared and stays idempotent', () => {
+    const names: string[] = []
+    const packed = packTimeline(timeline, names, new Map())
+    const original = { owns: {}, names, runs: {
+      '0:0': '0:2', '0:1': structuredClone(packed), '0:2': packed, '1:0': '0:2',
+    } }
+    const compacted = deduplicateTimelines(original)
+    expect(compacted.runs).toEqual({ '0:0': packed, '0:1': '0:0', '0:2': '0:0', '1:0': '0:0' })
+    for (const key of Object.keys(original.runs)) {
+      const [seat, sequence] = key.split(':').map(Number)
+      expect(readTimeline(compacted, seat, sequence)).toEqual(readTimeline(original, seat, sequence))
+    }
+    expect(deduplicateTimelines(compacted)).toEqual(compacted)
+  })
+
+  it('rejects missing or chained reference targets', () => {
+    expect(() => deduplicateTimelines({ owns: {}, names: [], runs: { '0:0': 'missing' } })).toThrow('concrete target')
+    expect(() => deduplicateTimelines({ owns: {}, names: [], runs: { '0:0': '0:1', '0:1': '0:2',
+      '0:2': { seconds: 1, events: [] } } })).toThrow('concrete target')
+  })
+
   it('preserves the consumed resource identity and its source cast', () => {
     const names: string[] = []
     const source: ActionTimeline = { seconds: 1, events: [
@@ -75,7 +115,7 @@ describe('stored timelines', () => {
     expect(unpackTimeline(packTimeline(source, names, new Map()), names)).toEqual(source)
   })
 
-  it('refuse a kind or string the table does not hold', () => {
+  it('refuse a kind or string the table does not contain', () => {
     expect(() => unpackTimeline({ seconds: 1, events: [[0, 5, 0]] }, ['section'])).toThrow(/names no string/)
     expect(() => unpackTimeline({ seconds: 1, events: [[0, 0, 0]] }, ['dance'])).toThrow(/Unknown timeline event/)
   })

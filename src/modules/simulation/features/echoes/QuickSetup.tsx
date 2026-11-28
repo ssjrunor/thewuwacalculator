@@ -37,6 +37,7 @@ import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback'
 import { Crown, Hammer, Minus, Plus, RotateCcw, Rows3, TriangleAlert, X } from 'lucide-react'
 import { useMobileUi } from '@/shared/responsive/mobileUi'
 import { MobilePages } from '@/shared/ui/mobile/MobilePages'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 const MAX_COST = 12
 const MAX_SUBSTATS = 5
@@ -612,7 +613,7 @@ export function QuickSetup({
             <span><b>{config.echoCount}</b> {config.echoCount === 1 ? 'echo' : 'echoes'}</span>
             <span className={totalCost > MAX_COST ? 'is-over' : undefined}><b>{totalCost}/{MAX_COST}</b> cost</span>
             <span><b>{totalSubPc}/{config.echoCount}</b> with substats</span>
-            {group ? <span>CV <b>{critValue.toFixed(1)}</b></span> : null}
+            {group ? <span>CV <b>{formatTruncCompact(critValue, 1)}</b></span> : null}
           </span>
           <button
             type="button" className="amdl__act"

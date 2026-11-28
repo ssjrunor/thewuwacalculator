@@ -54,11 +54,9 @@ import {
 import { RES_NODE_KEYS, glyphVars, resNodeIcon, type ResNodeKey } from '@/shared/lib/gameAssets.ts'
 import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay.ts'
 import { formatEffectConditionName } from '@/modules/simulation/model/sourceStateDisplay.ts'
+import { truncTo } from '@/shared/lib/number'
 
-/*
-  the glyph identifies both skill kind and owner. omit those text columns from
-  this compact list.
-*/
+// the glyph identifies both skill kind and owner, so this compact list omits those text columns
 const NODE_KEYS = new Set<string>(RES_NODE_KEYS)
 
 interface FlatListProps {
@@ -82,13 +80,13 @@ interface FlatListProps {
   onRangeSelection: (id: string) => void
   onToggleSelection: (id: string) => void
   rowMenu: (row: FlatRow) => MenuEntry[]
-  /** move where off-tune starts counting again after a tune break */
+  // move where off-tune starts counting again after a tune break
   onOffTuneResume: (id: string, on: boolean) => void
   offTuneAuthoring: ReadonlyMap<string, OffTuneAuthoringState>
   revealRequest: RotationNodeRevealRequest | null
 }
 
-/** the talent node glyph, or the element it afflicts when the skill has no node */
+// the talent node glyph, or the element it afflicts when the skill has no node
 function StepGlyph({ step, roster }: { step: EditorStep; roster: TeamLookup }) {
   const tab = step.kindLabel
   if (step.owner.kind === 'member' && NODE_KEYS.has(tab)) {
@@ -148,7 +146,6 @@ function ConditionLine({
       aria-selected={selectionMode ? focusSelected : undefined}
       onClick={onClick}
     >
-      {/* align marks with the hit count gutter. */}
       <i className="rtf-ord" aria-hidden="true" />
       <i className="rte-cond__tick" aria-hidden="true">
         {src ? <DisplayImage className="rte-cond__art" src={src} alt="" onError={art?.onError} loading="lazy" /> : null}
@@ -172,7 +169,7 @@ function ConditionLine({
 
 function scopeText(scope: FlatScope): string {
   if (scope.kind === 'uptime') {
-    return `${scope.label} · ${Math.round((scope.ratio ?? 1) * 100)}%`
+    return `${scope.label} · ${truncTo((scope.ratio ?? 1) * 100)}%`
   }
   if (scope.kind === 'repeat') return `${scope.label} · ×${scope.runs}`
   return `${scope.label} · ${scope.run}/${scope.runs}`
@@ -212,10 +209,7 @@ export function FlatList({
   const drawn = useMemo(() => decorateFlatRows(rows), [rows])
   const peakDamage = useMemo(() => flatPeak(rows), [rows])
 
-  /*
-    the same register the authoring list is showing. the two are one reading of
-    one rotation, so toggling between them must not move a column.
-  */
+  // the same register the authoring list shows, and every column stays in place when toggling between the two lists
   const register = useMemo(
     () => buildRegister(statKeys, shutGroups, groupOrder),
     [statKeys, shutGroups, groupOrder],
@@ -326,17 +320,8 @@ export function FlatList({
             && Boolean(previous && selectedIds.has(previous.row.target.nodeId))
           const joinsAfter = focusSelected
             && Boolean(next && !next.band && selectedIds.has(next.row.target.nodeId))
-          /*
-            the tree brackets what was written; this brackets who was holding
-            the field. same device, and the only grouping an execution order
-            can honestly offer.
-          */
-          /*
-            a container opens with a rule across the run and its name set at
-            the end of it. the body is not indented: an execution order is one
-            sequence, and stepping it in would say the hits inside a loop are a
-            different kind of thing from the hits outside it.
-          */
+          // groups rows by the field holder; a container opens with a rule across the run and its name at the end,
+          // and its body is not indented because an execution order is one sequence
           const bandLine = band ? (
             <div className="rtf-band">
               <span className="rtf-band__rule" aria-hidden="true" />
@@ -403,12 +388,7 @@ export function FlatList({
                 onClick={(event) => selectRow(event, row.target)}
               >
                 <span className="rte-step">
-                  {/*
-                    place the count inside the name column. register columns
-                    retain their authoring-list positions.
-                  */}
                   <i className="rtf-ord">{ordinal}</i>
-                  {/* the holder is named where the wash starts and nowhere else */}
                   <span className="rte-step__owner rtf-rail is-held">
                     {face ? (
                       <DisplayImage className="rte-step__art"

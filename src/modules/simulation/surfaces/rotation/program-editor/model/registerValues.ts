@@ -4,11 +4,10 @@
 */
 
 import type { RtChng, RuntimeValue, SourceState } from '@/domain/gameData/contracts.ts'
+import { formatTruncCompact } from '@/shared/lib/number'
 
-/**
- * form used by edit controls and authored write fields.
- * booleans are `on`/`off`; numbers keep full string precision.
- */
+// form used by edit controls and authored write fields; booleans are `on`/`off` and numbers keep full string
+// precision
 export function regTextValue(value: string | number | boolean | undefined): string {
   if (value === true) return 'on'
   if (value === false) return 'off'
@@ -16,24 +15,19 @@ export function regTextValue(value: string | number | boolean | undefined): stri
   return String(value)
 }
 
-/**
- * form used when projecting simulation history onto rows.
- * same as regTextValue, except non-integer numbers are fixed to two decimals.
- */
+// form used when projecting simulation history onto rows: regTextValue with non-integer numbers fixed to two decimals
 export function regDisplayValue(value: string | number | boolean | undefined): string {
   if (value === true) return 'on'
   if (value === false) return 'off'
   if (value == null) return ''
   if (typeof value === 'number') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2)
+    return Number.isInteger(value) ? String(value) : formatTruncCompact(value, 2)
   }
   return String(value)
 }
 
-/**
- * parse a display/edit string (or raw runtime value) back into a change value
- * using the target state's kind when known.
- */
+// parse a display/edit string (or raw runtime value) back into a change value, using the target state's kind when
+// known
 export function parseRegValue(
   state: SourceState | undefined,
   value: RuntimeValue | undefined,

@@ -36,15 +36,12 @@ export function cloneEchoes(equipped: Array<EchoInstance | null>): Array<EchoIns
   return equipped.map((echo) => echo ? cloneEchoSlot(echo) : null)
 }
 
-// the 0%/100%/200% anchors are the expensive part of a evaluation and depend on
-// the equipped build only through the er target and the retained utility plan.
-// we cache the anchor bundle keyed on everything that actually moves it, so a
-// build edit that leaves those untouched (substats, main stats, non-utility
-// sets) skips the candidate search entirely and only re-scores the live build.
-// the cache is also mirrored to IndexedDB (see anchorStore) so the search
-// survives worker idle-teardown and page reloads.
-// anchor snapshots include the generated 0/100/200% build details. a small lru
-// avoids pinning dozens of large object graphs after browsing many scenarios.
+// the 0%/100%/200% anchors are the expensive part of an evaluation and depend on the equipped build only through
+// the er target and the retained utility plan. the anchor bundle is cached on everything that moves it, so a build
+// edit that leaves those untouched (substats, main stats, non-utility sets) skips the candidate search and only
+// re-scores the live build. the cache is mirrored to IndexedDB (anchorStore) so the search survives worker idle
+// teardown and page reloads. anchor snapshots include the generated 0/100/200% build details, and a small lru bounds
+// how many large object graphs stay in memory across scenarios
 const MAX_ANCHOR_CACHE_ENTRIES = 2
 const anchorCache = new Map<string, EvaluationAnchors>()
 
@@ -83,8 +80,8 @@ function touchAnchors(key: string): EvaluationAnchors | undefined {
   return cached
 }
 
-// in-memory lru insert only, used both for freshly computed anchors and for
-// entries rehydrated from disk (which must not be written straight back).
+// in-memory lru insert only, used for freshly computed anchors and for entries rehydrated from disk (which are not
+// written back)
 function cacheAnchors(key: string, anchors: EvaluationAnchors): EvaluationAnchors {
   anchorCache.delete(key)
   anchorCache.set(key, anchors)
@@ -96,17 +93,16 @@ function cacheAnchors(key: string, anchors: EvaluationAnchors): EvaluationAnchor
   return anchors
 }
 
-// cache a newly computed bundle and mirror it to disk for later sessions.
+// cache a newly computed bundle and mirror it to disk for later sessions
 function rememberAnchors(key: string, anchors: EvaluationAnchors): EvaluationAnchors {
   cacheAnchors(key, anchors)
   persistAnchor(key, anchors)
   return anchors
 }
 
-// load persisted anchors into the in-memory cache once before the first search.
-// the worker boundary performs this async step; compute remains synchronous.
-// re-inserting oldest-first preserves lru order. entries computed this session
-// take precedence over persisted anchors.
+// load persisted anchors into the in-memory cache once before the first search. the worker boundary performs this
+// async step, and compute stays synchronous. re-inserting oldest-first preserves lru order, and entries computed this
+// session take precedence over persisted anchors
 let anchorHydration: Promise<void> | null = null
 export function ensureAnchorStoreHydrated(): Promise<void> {
   if (!anchorHydration) {
@@ -123,11 +119,9 @@ export function ensureAnchorStoreHydrated(): Promise<void> {
   return anchorHydration
 }
 
-// echo payloads are the live build input to the evaluation score, but they are
-// not the input to the anchor search once the anchor-specific channels below
-// have been separated. keep runtime state and team composition in the key,
-// while removing nested echo instances that would otherwise make every stat
-// edit look like a new anchor problem.
+// echo payloads are the live build input to the evaluation score, but not the input to the anchor search once the
+// anchor-specific channels below are separated. the key includes runtime state and team composition and removes
+// nested echo instances, which would make every stat edit a new anchor problem
 function stripEchoesForAnchorKey(runtime: ResRuntime): ResRuntime {
   return {
     ...runtime,
@@ -171,14 +165,13 @@ export function evaluationAnchorCacheKey(
     kind: 'evaluation-anchors',
     revision: EVALUATION_ANCHOR_CACHE_REVISION,
     gameDataMode: getGameDataMode(),
-    // the suggestion context already contains the compiled team effects used
-    // by the anchor search. its raw runtime references are normalized above;
-    // retaining runtimesById here would reintroduce every teammate echo stat as
-    // a false cache dependency.
+    // the suggestion context already contains the compiled team effects used by the anchor search, and its raw
+    // runtime references are normalized above; runtimesById is left out because it would add every teammate echo stat
+    // as a false cache dependency
     context: stripContextEchoesForAnchorKey(ctx),
     runtime: stripEchoesForAnchorKey(runtime),
     enemy,
-    // the channels through which the equipped build *does* reach the anchors:
+    // the channels through which the equipped build reaches the anchors:
     targetEr: evaluationErTarget(ctx, equipped),
     utility: utilityPlan
       .map((entry) => `${entry.setId}:${entry.pieces}`)
@@ -234,9 +227,8 @@ function withUtilitySetRows(
   }
 }
 
-// build a evaluation reusing cached anchors when the anchor inputs are unchanged.
-// `runtime` here is the evaluation runtime (default rotation), so user rotation
-// edits don't fragment the cache.
+// build an evaluation reusing cached anchors when the anchor inputs are unchanged. `runtime` here is the evaluation
+// runtime (default rotation), so user rotation edits do not fragment the cache
 function cachedEvaluationAnchors(
   ctx: SuggestContext,
   runtime: ResRuntime,
@@ -320,9 +312,8 @@ export function buildEvaluationAlternatives(
   const ctx = inputCtx
   const resultLimit = typeof limit === 'number' ? Math.max(0, Math.floor(limit)) : 12
   if (resultLimit === 0) return []
-  // alternatives are ranked after scoring. a small deterministic evaluation
-  // budget prevents a report from cloning and simulating every legal swap just
-  // to return a handful of rows. this is intentionally lossy for latency.
+  // alternatives are ranked after scoring under a small deterministic evaluation budget, so a report simulates a
+  // handful of swaps and not every legal one; the ranking is lossy for latency
   const evaluationLimit = Math.max(24, Math.min(96, resultLimit * 6))
   let evaluations = 0
   const takeEvaluation = (): boolean => {
@@ -389,8 +380,7 @@ export function buildEvaluationAlternatives(
       .map((echo) => getEchoById(echo.id)?.cost ?? 0)
       .filter((cost) => cost > 0)
     const validPlans = makeEvaluationCostPlans(forcedMainCost)
-    // id|set uniqueness follows the in-game piece rule. the same id remains
-    // available in a different set.
+    // id|set uniqueness follows the in-game piece rule; the same id remains available in a different set
     const usedKeys = new Set(equippedEchoes.map((echo) => `${echo.id}|${echo.set}`))
     const setCounts = new Map<number, number>()
     for (const echo of equippedEchoes) {
@@ -610,24 +600,27 @@ function prepareRotationEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>
   return { evaluationContext, evaluationRuntime, defaultRotation }
 }
 
-// saved programs use the app's normal ER, utility-gear, anchor search and
-// team-damage evaluator; only the selected rotation changes.
+// saved programs use the app's normal ER, utility-gear, anchor search and team-damage evaluator; only the selected
+// rotation changes
 export function evaluateProgramBuild(input: Omit<DefRotEvaluationIn, 'simulation'>,
-  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }) {
+  program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }, checkCancel?: EvaluationCancelCheck,
+  options: { cacheAnchors?: boolean } = {}) {
   const prepared = prepareRotationEvaluation(input, program)
   if (!prepared) return null
   const { evaluationContext, evaluationRuntime } = prepared
   const damage = evaluateEquippedDamage(evaluationContext, input.runtime.build.echoes)
-  const anchors = cachedEvaluationAnchors(evaluationContext, evaluationRuntime, input.enemy)
+  const anchors = options.cacheAnchors === false
+    ? buildEvaluationAnchors(evaluationContext, evaluationRuntime.build.echoes, checkCancel)
+    : cachedEvaluationAnchors(evaluationContext, evaluationRuntime, input.enemy, checkCancel)
   if (!anchors) return null
   return { damage, score: 100 * scorePercent(damage, anchors.baselineDamage, anchors.referenceDamage, anchors.maximumDamage),
     anchors: { baselineDamage: anchors.baselineDamage, benchDamage: anchors.referenceDamage, perfectDamage: anchors.maximumDamage } }
 }
 
 // the equipped build's damage and final energy regen on a program without the anchor search, for scoring against
-// anchors made elsewhere (the offline anchor generator)
-// with `erRequirement`, a build under `below` final energy regen is first repaired up to `target` (erRepair.ts), and
-// damage and energy regen are the repaired build's, with `repair` listing the changes
+// anchors made elsewhere (the offline anchor generator). with `erRequirement`, a build under `below` final energy
+// regen is first repaired up to `target` (erRepair.ts), and damage and energy regen are the repaired build's, with
+// `repair` listing the changes
 export function evaluateProgramDamage(input: Omit<DefRotEvaluationIn, 'simulation'>,
   program: { items: RotationNode[]; combatSetup?: RotationCombatSetup },
   erRequirement?: { target: number; below: number } | null) {
@@ -635,20 +628,18 @@ export function evaluateProgramDamage(input: Omit<DefRotEvaluationIn, 'simulatio
   return prepared ? measureProgramDamage(prepared, input.runtime.build.echoes, erRequirement) : null
 }
 
-/** an evaluation context for one program, as evaluateProgramDamage builds it, for measuring any number of builds. */
+// an evaluation context for one program, as evaluateProgramDamage builds it, for measuring any number of builds
 export type ProgramEvaluation = NonNullable<ReturnType<typeof prepareRotationEvaluation>>
 
-/** the program's evaluation context for `input`; evaluateProgramDamage's first half. */
+// the program's evaluation context for `input`; evaluateProgramDamage's first half
 export function prepareProgramEvaluation(input: Omit<DefRotEvaluationIn, 'simulation'>,
   program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }): ProgramEvaluation | null {
   return prepareRotationEvaluation(input, program)
 }
 
-/**
- * hash of prepareProgramEvaluation's inputs: everything except the subject's echoes, of which it reads only the
- * utility set plan (prepareRotationEvaluation), and the subject's rotation, which the program replaces; builds with
- * equal keys can share one context.
- */
+// hash of prepareProgramEvaluation's inputs: everything except the subject's echoes, of which it reads only the
+// utility set plan (prepareRotationEvaluation), and the subject's rotation, which the program replaces; builds with
+// equal keys can share one context
 export function programEvaluationKey(input: Omit<DefRotEvaluationIn, 'simulation'>,
   program: { items: RotationNode[]; combatSetup?: RotationCombatSetup }): string {
   const { runtime, runtimesById } = input
@@ -665,7 +656,7 @@ export function programEvaluationKey(input: Omit<DefRotEvaluationIn, 'simulation
       build: { ...runtime.build, echoes: null, utilityPlan: utilityPlanFor(runtime.build.echoes) } }, program: programKey(program) })
 }
 
-/** the key of a program's items: builds sharing one program (read-only, rebaseInterpretation) walk it once. */
+// the key of a program's items: builds sharing one program (read-only, rebaseInterpretation) walk it once
 const itemKeys = new WeakMap<RotationNode[], string>()
 
 function itemsKey(items: RotationNode[]): string {
@@ -678,7 +669,7 @@ function programKey(program: { items: RotationNode[]; combatSetup?: RotationComb
   return { items: itemsKey(program.items), combatSetup: program.combatSetup }
 }
 
-/** a rotation with each of its node lists as its key: the same content keys alike, and a shared list is walked once. */
+// a rotation with each of its node lists as its key: the same content keys alike, and a shared list is walked once
 function rotationKey(rotation: ResRuntime['rotation']): ResRuntime['rotation'] {
   if (!rotation) return rotation
   const keyed: Record<string, unknown> = {}
@@ -688,20 +679,20 @@ function rotationKey(rotation: ResRuntime['rotation']): ResRuntime['rotation'] {
   return keyed as unknown as ResRuntime['rotation']
 }
 
-/** a build's damage and final energy regen on a prepared program; a compiled measure also reports the subject's own
-    damage as a run's breakdown does (`dpr`: tune breaks excluded, loops per run), which the replay leaves to the run. */
+// a build's damage and final energy regen on a prepared program; a compiled measure also reports the subject's own
+// damage as a run's breakdown does (`dpr`: tune breaks included, loops per run), which the replay leaves to the run
 export interface ProgramMeasurement { damage: number; energyRegen: number; dpr?: number }
-/** how a prepared program measures a build: replayed (replayMeasure) or compiled (compiledMeasure.ts). */
+// how a prepared program measures a build: replayed (replayMeasure) or compiled (compiledMeasure.ts)
 export type ProgramMeasure = (echoes: Array<EchoInstance | null>) => ProgramMeasurement
 
-/** the program replayed for the build: the exact measure every other is checked against. */
+// the program replayed for the build: the exact measure every other is checked against
 export function replayMeasure(prepared: ProgramEvaluation): ProgramMeasure {
   const ctx = prepared.evaluationContext
   return (candidate) => ({ damage: evaluateEquippedDamage(ctx, candidate), energyRegen: evaluationErTarget(ctx, candidate) })
 }
 
-/** a build's damage and final energy regen on a prepared program, repaired to `erRequirement` when short; `measure`
-    takes every measurement, including the repair's candidates, and defaults to the replay. */
+// a build's damage and final energy regen on a prepared program, repaired to `erRequirement` when short; `measure`
+// takes every measurement, including the repair's candidates, and defaults to the replay
 export function measureProgramDamage(prepared: ProgramEvaluation, echoes: Array<EchoInstance | null>,
   erRequirement?: { target: number; below: number } | null, measure: ProgramMeasure = replayMeasure(prepared)) {
   const ctx = prepared.evaluationContext
@@ -713,8 +704,8 @@ export function measureProgramDamage(prepared: ProgramEvaluation, echoes: Array<
   return { ...measure(repaired.echoes), repair: repaired }
 }
 
-// calculate the equipped build first. only the returned grading operation needs
-// reference anchors; callers can publish damage before loading/searching them.
+// calculate the equipped build first; only the returned grading operation needs reference anchors, so callers can
+// publish damage before loading or searching them
 export function prepareRotationBuildScore(input: Omit<DefRotEvaluationIn, 'simulation'>) {
   const prepared = prepareRotationEvaluation(input)
   if (!prepared) return null
@@ -739,8 +730,8 @@ export function prepareRotationBuildScore(input: Omit<DefRotEvaluationIn, 'simul
   }
 }
 
-/** the build's damage on its resonator's default rotation, split by feature, without anchors, cheap enough for a page
-    that only reads a build. */
+// the build's damage on its resonator's default rotation, split by feature, without anchors, cheap enough for a page
+// that only reads a build
 export function rotationFeatureBreakdown(input: Omit<DefRotEvaluationIn, 'simulation'>) {
   const prepared = prepareRotationEvaluation(input)
   if (!prepared) return null

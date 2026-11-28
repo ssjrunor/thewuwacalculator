@@ -27,6 +27,37 @@ const gameData = (path: string) => json(join(process.cwd(), 'public/data/beta', 
 const interpretationData = (path: string) => json(join(process.cwd(), 'src/data/rotationGen', `${path}.json`))
 
 describe('portable action interpreter', () => {
+  it('projects paired Twin Nova stacks through a generated preamble and cleaned editor program', async () => {
+    const { scenario, plan } = await json(join(__dirname, 'fixtures/team.json')) as { scenario: CombatScenario; plan: ActionPlan }
+    const member = scenario.team.members[0]!
+    const echoes = member.loadout.echoes
+    if (!echoes[0] || !echoes[1]) throw new Error('Fixture needs two Echo slots')
+    echoes[0] = { ...echoes[0], id: '6000179', set: 26, mainEcho: true }
+    echoes[1] = { ...echoes[1], id: '6000180', set: 26, mainEcho: false }
+    const names: string[] = [], indices = new Map<string, number>()
+    plan.timelines = { owns: {}, names, runs: { [`0:${member.progression.sequence}`]: packTimeline({ seconds: 10, events: [
+      [0, 'swap', 0], [0, 'cast', 0, 'Basic - Vibration Manifestation 1', 1],
+      [60, 'cast', 0, 'Forte Skill - Resonating Spin', 1],
+      [120, 'cast', 0, '#echo', 0], [200, 'cast', 0, '#echo', 0],
+    ] }, names, indices) } }
+    scenario.contextMemberId = member.id
+    const environment = await createInterpreterEnvironment({ mode: 'beta', gameData, interpretationData })
+    let before: readonly RotationNode[] = []
+    const result = await interpretTeamActions(environment, plan, scenario, { onBeforeCleanup: program => { before = program } })
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('interpreted')
+    if (result.status !== 'interpreted') return
+    const values: unknown[] = []
+    const visit = (entry: unknown): void => {
+      if (!entry || typeof entry !== 'object') return
+      const row = entry as Record<string, unknown>
+      if (row.path === 'runtime.state.controls.echo:6000179:main:stacks') values.push(row.value)
+      for (const child of Object.values(row)) visit(child)
+    }
+    visit(before)
+    expect(values).toEqual(expect.arrayContaining([0, 1, 4]))
+    expect(result.scenario.team.members[0]!.loadout).toEqual(member.loadout)
+  })
+
   it('discovers the owning teammate controls that change negative-effect caps from authored source conditions', async () => {
     const { scenario } = await json(join(__dirname, 'fixtures/team.json')) as { scenario: CombatScenario }
     scenario.team.members[0]!.resonatorId = '1508'
@@ -137,7 +168,7 @@ describe('portable action interpreter', () => {
     scenario.contextMemberId = lynae.id
     scenario.team = makeScenarioTeam([lynae, ...authored.filter(member => member.id !== lynae.id)])
     const names: string[] = [], index = new Map<string, number>()
-    // the Skill's hit lands 30 frames on, after the Outro at 10 has already handed over
+    // the Skill's hit lands 30 frames later, after the Outro at 10 has handed over
     plan.timelines = { owns: {}, names, runs: { [`1:${lynae.progression.sequence}`]: packTimeline({ seconds: 3, events: [
       [0, 'swap', 1], [0, 'cast', 1, 'Skill - Lynae-Style Palettes', -1],
       [10, 'cast', 1, "Outro - Let's Hit the Road!", -1], [10, 'swap', 2]] }, names, index) } }
@@ -186,7 +217,7 @@ describe('portable action interpreter', () => {
     expect(order.indexOf(`active ${authored[2].resonatorId}`)).toBeGreaterThan(-1)
   })
 
-  it('keeps gear caches scoped to the supplied data snapshot', async () => {
+  it('scopes gear caches to the supplied data snapshot', async () => {
     const first = await createInterpreterEnvironment({ mode: 'beta', gameData, interpretationData })
     const firstWeapon = first.gear.module('weapon', '21050046')
     const second = await createInterpreterEnvironment({ mode: 'beta', gameData,
@@ -244,7 +275,7 @@ describe('portable action interpreter', () => {
       choice.state.path.endsWith('.mode') ? 'second' : undefined))).toEqual(['second', true, 0])
   })
 
-  it('opens the preamble as the editor does, carrying only the seats\' modes', async () => {
+  it('opens the preamble as the editor does, with only the seats\' modes', async () => {
     const { plan, scenario } = await json(join(__dirname, 'fixtures/team.json'))
     const lynae = scenario.team.members.find((member: { resonatorId: string }) => member.resonatorId === '1509')
     lynae.local.controls['resonator:1509:mode:value'] = 'tune_strain'

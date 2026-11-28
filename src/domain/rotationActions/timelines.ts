@@ -5,17 +5,17 @@
 
 import type { ActionTimeline, ActionTimelines, PackedTimeline, TimelineEvent } from './types'
 
-/** where each kind keeps its strings, after the frame and kind. */
+// where each kind stores its strings, after the frame and kind
 const STRING_FIELDS: Record<string, number[]> = { cast: [3], state: [3], status: [3], tick: [3], control: [2], consume: [3, 5],
-  hitControl: [3, 6, 7], hitInfliction: [3, 6] }
+  hitControl: [3, 6, 7], hitInfliction: [3, 6], heal: [4], shield: [4] }
 
-/** a timeline in the stored form: frames as gaps, strings as indices into one shared table. */
+// a timeline in the stored form: frames as gaps, strings as indices into one shared table
 export function packTimeline(timeline: ActionTimeline, names: string[], index: Map<string, number>): PackedTimeline {
   const id = (text: string): number => {
     if (!index.has(text)) { index.set(text, names.length); names.push(text) }
     return index.get(text)!
   }
-  // the shared string table is updated in place; each stored frame is a delta from the preceding event.
+  // the shared string table is updated in place; each stored frame is a delta from the preceding event
   let last = 0
   return { seconds: timeline.seconds, events: timeline.events.map((event) => {
     const packed = (event as unknown[]).map((value, position) =>
@@ -25,14 +25,14 @@ export function packTimeline(timeline: ActionTimeline, names: string[], index: M
   }) }
 }
 
-/** the stored form read back; throws on an index or kind the table does not hold. */
+// the stored form read back; throws on an index or kind the table does not hold
 export function unpackTimeline(packed: PackedTimeline, names: readonly string[]): ActionTimeline {
   const name = (index: number): string => {
     const text = names[index]
     if (typeof text !== 'string') throw new Error(`Timeline names no string ${index}`)
     return text
   }
-  // restore absolute frames before resolving the event kind and its string-valued tuple fields.
+  // restore absolute frames before resolving the event kind and its string-valued tuple fields
   let frame = 0
   return { seconds: packed.seconds, events: packed.events.map((event) => {
     frame += event[0]
@@ -43,11 +43,27 @@ export function unpackTimeline(packed: PackedTimeline, names: readonly string[])
   }) }
 }
 
-/** the timeline for one context seat and sequence, following a shared key. */
+// the timeline for one context seat and sequence, following a shared key
 export function readTimeline(timelines: ActionTimelines | undefined, seat: number, sequence: number): ActionTimeline | null {
   if (!timelines) return null
-  // a shared timeline key resolves one reference level, matching the serialized action-plan format.
+  // a shared timeline key resolves one reference level, matching the serialized action-plan format
   let run = timelines.runs[`${seat}:${sequence}`]
   if (typeof run === 'string') run = timelines.runs[run]
   return run && typeof run === 'object' ? unpackTimeline(run, timelines.names) : null
+}
+
+// share identical results even when different source builds produced them, resolving against the original table so
+// every reference stays one level deep
+export function deduplicateTimelines(timelines: ActionTimelines): ActionTimelines {
+  const seen = new Map<string, string>()
+  const runs: ActionTimelines['runs'] = {}
+  for (const [key, stored] of Object.entries(timelines.runs)) {
+    const run = typeof stored === 'string' ? timelines.runs[stored] : stored
+    if (!run || typeof run !== 'object') throw new Error(`Timeline ${key} has no concrete target`)
+    const body = JSON.stringify(run)
+    const shared = seen.get(body)
+    if (shared !== undefined) runs[key] = shared
+    else { seen.set(body, key); runs[key] = run }
+  }
+  return { ...timelines, runs }
 }

@@ -22,22 +22,22 @@ export interface BuildRef extends BuildKey {
   board: ReturnType<typeof boardOf>
 }
 
-/** a public build id's board and local id; not_found for an id that is not one. */
+// a public build id's board and local id; not_found for an id that is not one
 export function buildRef(env: Pick<ApiEnv, 'BOARDS'>, id: string): BuildRef {
   const key = parseBuildId(id)
   if (!key) throw new HttpError('not_found', "hmm... this build isn't available. it may have been hidden or deleted.")
   return { ...key, id: formatBuildId(key), board: boardOf(env, key.resonator) }
 }
 
-/** a build as its board shows it, or null. */
+// a build as its board shows it, or null
 export async function buildViewOf(env: Pick<ApiEnv, 'BOARDS'>, id: string): Promise<{ ref: BuildRef; view: BuildView } | null> {
   const ref = buildRef(env, id)
   const view = await ref.board.build(ref.resonator, ref.local)
   return view ? { ref, view } : null
 }
 
-/** a kept build of a uid the session has, with that uid; `linked` requires the uid on the signed-in account, which
-    writing a build's notes and looks needs (hiding and deleting do not). */
+// a kept build of a uid the session has, with that uid; `linked` requires the uid on the signed-in account, which is
+// required for writing a build's notes and looks (hiding and deleting do not require it)
 export async function ownedBuild(context: Pick<RouteContext, 'request' | 'env' | 'now'>, id: string,
   { linked = false }: { linked?: boolean } = {}): Promise<{ ref: BuildRef; view: BuildView; uid: string; session: SessionActor }> {
   const found = await buildViewOf(context.env, id)
@@ -47,7 +47,8 @@ export async function ownedBuild(context: Pick<RouteContext, 'request' | 'env' |
   return { ...found, uid, session }
 }
 
-/** a player acted for a setup uid: it is an ordinary player from now on (the board takes the build as uploaded now). */
+// a player acted for a setup uid: the uid becomes an ordinary player and the board records the build as uploaded at
+// this time
 export function endSetupStatements(db: D1Database, uid: string, buildId: string | null, now: number) {
   return [
     endSetupStatement(db, uid),
@@ -56,8 +57,8 @@ export function endSetupStatements(db: D1Database, uid: string, buildId: string 
   ]
 }
 
-/** deletes an owner's build: the board drops it and ranks their next best, and the card is blocked against
-    resubmission; likes, bookmarks and documents are removed through the board's outbox. */
+// deletes an owner's build: the board drops it and ranks their next best, and the card is blocked against
+// resubmission; bookmarks and notifications are removed through the board's outbox
 export async function deleteBuild(env: Pick<ApiEnv, 'LB' | 'BOARDS' | 'CARD_REGISTRY'>, ref: BuildRef, uid: string, now: number): Promise<void> {
   const ended = await ref.board.endBuild(ref.resonator, ref.local, 'deleted', `uid:${uid}`, uidToInt(uid) ?? undefined)
   if (!ended) throw new HttpError('not_found', "hmm... this build isn't available. it may have been hidden or deleted.")
@@ -66,7 +67,7 @@ export async function deleteBuild(env: Pick<ApiEnv, 'LB' | 'BOARDS' | 'CARD_REGI
   await auditStatement(env.LB, { actorKind: 'uid', actorId: uid, action: 'build.delete', subjectKind: 'build', subjectId: ref.id }, now).run()
 }
 
-/** the owner hides a build from everyone else, or shows it again; it competes again from the scores it has. */
+// the owner hides a build from everyone else, or shows it again; it competes again from the scores it has
 export async function setOwnerHidden(ref: BuildRef, uid: string, hidden: boolean): Promise<void> {
   if (!await ref.board.setOwnerHidden(ref.resonator, ref.local, uidToInt(uid)!, hidden)) throw new HttpError('forbidden', "hmm... this build cannot be hidden right now. refresh your profile and try again.")
 }

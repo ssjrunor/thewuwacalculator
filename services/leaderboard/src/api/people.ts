@@ -2,8 +2,8 @@
   Author: Runor Ewhro
   description: resolves the person behind a uid. a uid linked to an account is
                one of that person's uids, and their profile shows the builds of
-               all of them; a uid on no account is its own person. profiles, card
-               looks and comments belong to the account. public views leave out
+               all of them; a uid on no account is its own person. profiles and card
+               looks belong to the account. public views leave out
                uids nobody may see (unlisted, anonymous or setup), so a profile
                never reveals them.
 */
@@ -16,14 +16,14 @@ import { refColumns, toRef, type RefColumns } from '../db/social.ts'
 import { shownDocuments } from './documents/routes.ts'
 
 export interface Person {
-  /** the account the uids are linked to; null for a uid on no account. */
+  // the account the uids are linked to; null for a uid on no account
   accountId: string | null
-  /** the uids whose builds the person's profile shows, oldest link first. */
+  // the uids whose builds the person's profile shows, oldest link first
   uids: string[]
 }
 
-/** the person a uid belongs to; with `own` (the viewer has the uid) it includes every uid of the account, otherwise
-    the uid itself and its publicly visible siblings. */
+// the person a uid belongs to; with `own` (the viewer has the uid) it includes every uid of the account, otherwise
+// the uid itself and its publicly visible siblings
 export async function personOf(db: D1Database, uid: string, { own = false }: { own?: boolean } = {}): Promise<Person> {
   const { results } = await db.prepare(`SELECT s.account_id, s.uid, ${maskedSql('p')} AS masked,
       EXISTS (SELECT 1 FROM listed_players lp WHERE lp.uid = s.uid) AS listed
@@ -35,7 +35,7 @@ export async function personOf(db: D1Database, uid: string, { own = false }: { o
     uids: results.filter((row) => row.uid === uid || own || (row.listed === 1 && row.masked === 0)).map((row) => row.uid) }
 }
 
-/** public profile documents of the accounts linked to these uids, by uid. */
+// public profile documents of the accounts linked to these uids, by uid
 export async function profilesOf(db: D1Database, uids: string[]): Promise<(uid: string) => ProfileDoc | undefined> {
   const owners = await accountsOf(db, uids)
   const docs = owners.size ? await shownDocuments(db, ['profile'], [...new Set(owners.values())], false) : new Map()
@@ -45,8 +45,8 @@ export async function profilesOf(db: D1Database, uids: string[]): Promise<(uid: 
   }
 }
 
-/** account names for social responses (a comment's author): the profile display name, linked through the account's
-    newest publicly visible uid as a player ref; accounts without one get a name and no link. */
+// account names for social responses (a blocked person): the profile display name, linked through the account's
+// newest publicly visible uid as a player ref; accounts without one get a name and no link
 export async function accountRefs(db: D1Database, accountIds: Array<string | null>): Promise<(accountId: string | null) => PlayerRef> {
   const ids = [...new Set(accountIds.filter((id): id is string => id != null))]
   if (!ids.length) return () => ({ uid: null, buildId: null, name: null })

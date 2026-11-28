@@ -38,10 +38,11 @@ import { getWpnById } from '@/data/catalog/weaponCatalogService.ts'
 import { wpnAtkAt } from '@/engine/runtime/weaponState.ts'
 import { Expandable } from '@/shared/ui/Expandable.tsx'
 import { Tooltip } from '@/shared/ui/Tooltip.tsx'
+import { formatTrunc, formatTruncCompact, truncTo } from '@/shared/lib/number'
 
 type CssVars = CSSProperties & Record<string, string | number>
 
-/* use the report colors for the 100% and 200% columns. */
+// report colors for the 100% and 200% columns
 const TONE_100 = getBuildEvaluationTone(100).color
 const TONE_200 = getBuildEvaluationTone(200).color
 
@@ -62,9 +63,8 @@ function signedStatValue(key: string, value: number): string {
   return `${value > 0 ? '+' : '−'}${formatStatKeyValue(key, Math.abs(value))}`
 }
 
-/* echo totals, counts, and roll quality are properties of the equipped echoes
-   themselves. build them synchronously so the popup is useful before a
-   evaluation exists; damage/share are overlaid later from the evaluation. */
+// echo totals, counts, and roll quality come from the equipped echoes alone, so they are built synchronously and the
+// popup renders before an evaluation exists; damage/share are overlaid from the evaluation
 function makeCurrentStatRows(runtime: ResRuntime): EvaluationStatContribution[] {
   const echoes = runtime.build.echoes.filter((echo) => echo != null)
   const mainTotals: Record<string, number> = {}
@@ -107,24 +107,21 @@ interface SheetGroup {
   rows: EvaluationOverviewStatRow[]
 }
 
-/*
-  pair flat and percentage contribution rows for each overview stat. for
-  example, overview `atk` uses `atkFlat` and `atkPercent` contributions;
-  single-form stats use the plain key.
-*/
+// pair flat and percentage contribution rows for each overview stat: overview `atk` uses `atkFlat` and `atkPercent`
+// contributions, and single-form stats use the plain key
 interface Contrib {
   flat?: EvaluationStatContribution
   pct?: EvaluationStatContribution
 }
 
-/* one stat, read in all three builds */
+// one stat, read in all three builds
 interface TriContrib {
   cur: Contrib
   b1: Contrib
   b2: Contrib
 }
 
-/* the three builds' contribution tables, which the rows read across */
+// the three builds' contribution tables, which the rows read across
 interface TriRows {
   cur: EvaluationStatContribution[]
   b1: EvaluationStatContribution[]
@@ -155,11 +152,8 @@ function StatMark({ label, statKey }: { label: string; statKey: string }) {
   )
 }
 
-/*
-  the program editor dropdown compares the same three builds as the row.
-  flat and percentage values for one stat appear together but remain separate
-  measurements, such as 430 flat atk and 71.5% atk.
-*/
+// the program editor dropdown compares the same three builds as the row; flat and percentage values for one stat
+// appear together as separate measurements, such as 430 flat atk and 71.5% atk
 function TipCell({
   contrib,
   pick,
@@ -187,8 +181,7 @@ function TipCell({
   )
 }
 
-/* two rows of the same stat carry a quality each, so the reading takes the one
-   that actually has rolls behind it */
+// two rows of the same stat have a quality each, so the reading takes the one with rolls behind it
 function qualityOf({ flat, pct }: Contrib): number | null {
   if (!flat && !pct) return null
   return (pct?.total ?? 0) >= (flat?.total ?? 0)
@@ -229,16 +222,15 @@ function StatTip({
 
   const rolls = (contrib: Contrib) => {
     const mains = (contrib.flat?.mainCount ?? 0) + (contrib.pct?.mainCount ?? 0)
-    const subs = Math.round(((contrib.flat?.substatCount ?? 0) + (contrib.pct?.substatCount ?? 0)) * 10) / 10
-    /* omit stat kinds with no backing value. */
+    const subs = truncTo((contrib.flat?.substatCount ?? 0) + (contrib.pct?.substatCount ?? 0), 1)
+    // omit stat kinds with no backing value
     return [mains > 0 ? `${mains} main` : '', subs > 0 ? `${subs} sub` : '']
       .filter(Boolean).join(' \u00b7 ') || '\u2013'
   }
 
-  const num = (value: number) => (value > 0 ? `+${Math.round(value).toLocaleString()}` : '\u2013')
-  // er is additive. reconcile each combat total against the same base printed
-  // in the sheet so sonata, weapon, main-echo, and active bonuses are not
-  // mistaken for echo stat lines.
+  const num = (value: number) => (value > 0 ? `+${formatTrunc(value)}` : '\u2013')
+  // er is additive: reconcile each combat total against the same base printed in the sheet so sonata, weapon,
+  // main-echo, and active bonuses are not counted as echo stat lines
   const erOtherGain = (column: keyof TriContrib) => {
     const row = overview[column]
     if (!row) return 0
@@ -316,7 +308,7 @@ function StatTip({
           const quality = qualityOf(tri[key])
           return (
             <span key={key} className={`is-${key}`} data-ready={ready[key] ? 'true' : 'false'}>
-              {quality === null ? '\u2013' : `${Math.round(quality)}%`}
+              {quality === null ? '\u2013' : `${truncTo(quality)}%`}
             </span>
           )
         })}
@@ -335,7 +327,7 @@ function StatTip({
               const share = shareOf(tri[key])
               return (
                 <span key={key} className="pst-evaluation-value" data-ready={ready[key] ? 'true' : 'false'}>
-                  {share > 0 ? `${share.toFixed(1)}%` : '\u2013'}
+                  {share > 0 ? `${formatTruncCompact(share, 1)}%` : '\u2013'}
                 </span>
               )
             })}
@@ -374,7 +366,7 @@ function ScopeDrawer({ addends, open, parentLabel, onPick }: {
   )
 }
 
-/* the count the caret is promising, said the way the damage row says its hits */
+// the count the caret shows, worded like the damage row's hit count
 function ScopeCount({ addends }: { addends: ScopedAddend[] }) {
   return (
     <i className="pgd-hits pst-scopes">
@@ -464,8 +456,7 @@ function StatRow({
 }) {
   const displayBonus = row.total - displayBase
   const flat = near(row.total, displayBase)
-  /* any displayed build can supply echo details, even when the current build
-     has none for this stat. */
+  // any displayed build can supply echo details, even when the current build has none for this stat
   const hasEcho = [contrib.cur, contrib.b1, contrib.b2]
     .some(({ flat, pct }) => Boolean(flat?.total || pct?.total))
   const same100 = b100 ? near(b100.total, row.total) : true
@@ -829,7 +820,7 @@ function StatWorksheet({
               <div className="pgd-ws-r pst-factor">
                 <span className="pgd-ws-op">×</span>
                 <span className="pgd-ws-lb">Combined multiplier</span>
-                <span className="pgd-ws-vl">×{(1 + percentTotal / 100).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}</span>
+                <span className="pgd-ws-vl">×{formatTruncCompact(1 + percentTotal / 100, 3).replace(/0+$/, '').replace(/\.$/, '')}</span>
               </div>
             </>
           ) : null}
@@ -872,11 +863,8 @@ function StatWorksheet({
   )
 }
 
-/*
-  render modifiers without a standard sheet row using the same disclosure
-  layout. leave the two comparison cells empty because evaluation does not
-  provide defence ignore values for them.
-*/
+// render modifiers without a standard sheet row using the same disclosure layout; the two comparison cells stay empty
+// because evaluation provides no defence ignore values for them
 function ResidueStatRow({
   row,
   evaluationReady,
@@ -951,9 +939,6 @@ function ResidueStatRow({
       >
         <span className="pst-st">
           <span className="pst-name-txt">{row.label}</span>
-          {/* one mark, not two: a modifier with no unconditional value is
-              entirely scoped, so the count would be saying it again. the name
-              column is narrow and the pills would eat the label. */}
           {row.displayValue === null ? (
             <i className="pst-only" title={`Only where a scope reaches it · ${row.scoped.length} scope${row.scoped.length > 1 ? 's' : ''}`}>
               scoped only
@@ -1147,7 +1132,7 @@ function StatGroup({
   onOpen: (key: string) => void
 }) {
   const moved = group.rows.filter((row) => !near(row.total, actualBaseByKey.get(row.key) ?? row.base)).length
-  /* a shut group still reports: the count stands where the column names were */
+  // a collapsed group shows its count and hides the column names
   const differs = group.rows.filter((row) => {
     const a = by100.get(row.key)
     const b = by200.get(row.key)
@@ -1245,7 +1230,7 @@ export function ModulationStats({
   const [opened, setOpened] = useState<Record<string, boolean>>({})
   const toggleOpen = (key: string) => setOpened((prev) => ({ ...prev, [key]: !prev[key] }))
 
-  /* group stat-tree values that have no sheet row by type. */
+  // group stat-tree values that have no sheet row by type
   const residue = useMemo(() => makeStatResidue(statsTree), [statsTree])
 
   const builtOn = useMemo(() => [
@@ -1304,8 +1289,7 @@ export function ModulationStats({
   const pickedResidue = useMemo(() => picked?.startsWith('residue:')
     ? residue.rows.find((row) => `residue:${row.key}` === picked) ?? null
     : null, [picked, residue.rows])
-  /* the card opens on whatever earns the most, so the view says something
-     before it is asked anything */
+  // the card opens on the highest contributor
   const pickedRow = useMemo(() => {
     if (pickedResidue) return null
     if (picked) return allRows.find((row) => row.key === picked) ?? null

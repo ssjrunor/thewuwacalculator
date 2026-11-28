@@ -1,11 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the leaderboard controls in the app header on every page: card
-               submit (also U, or pasting a card link anywhere) and, for a
-               signed-in account, the inbox bell with its unread count. the
-               account button opens the sign-in window, and a sign-in returning
-               from Discord or Google (?signin=) is reported here. it also syncs
-               pins to the signed-in account.
+  description: leaderboard controls in the app header: card submit, the inbox and the account button.
 */
 
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -17,25 +12,25 @@ import { Tooltip } from '@/shared/ui/Tooltip'
 import { syncPins } from '../model/pins'
 import { looksLikeCard, noteViewerChanged, notify, openSignIn, openSubmit, useLbChrome, watchMe } from './chrome'
 
-const InboxPop = lazy(async () => ({ default: (await import('./InboxPop')).InboxPop }))
+const Inbox = lazy(async () => ({ default: (await import('./Inbox')).Inbox }))
 const SignInWindow = lazy(async () => ({ default: (await import('./SignIn')).SignInWindow }))
 
 const SIGNED: Record<string, [string, boolean]> = {
   ok: ['signed in! welcome back :P', false],
   denied: ['sign-in cancelled. you can try again whenever you like :P', true],
   failed: ["oopsies... sign-in didn't go through. try again? :(", true],
-  suspended: ['this account is suspended. check your account standing for details and appeals.', true],
+  suspended: ['this account is suspended. check your account status for details and appeals.', true],
 }
 
 let handledReturn: string | null = null
 
-/** a sign in back from the provider: say how it went, drop it from the address, and reload the viewer. */
+// a sign-in returning from the provider: report the result, remove it from the address, and reload the viewer
 function useSignInResult() {
   const location = useLocation()
   const navigate = useNavigate()
   const result = new URLSearchParams(location.search).get('signin')
   useEffect(() => {
-    // one report per return: the effect can run twice before the address drops the result.
+    // one report per return, because the effect can run twice before the address drops the result
     if (!result || handledReturn === location.key) return
     handledReturn = location.key
     const params = new URLSearchParams(location.search)
@@ -43,7 +38,8 @@ function useSignInResult() {
     const said = SIGNED[result] ?? SIGNED.failed
     notify(...said)
     void noteViewerChanged()
-    navigate({ pathname: result === 'suspended' ? `${APP_ROUTES.leaderboard}/me` : location.pathname, search: params.toString() }, { replace: true })
+    if (result === 'suspended') params.set('s', 'status')
+    navigate({ pathname: result === 'suspended' ? `${APP_ROUTES.leaderboard}/me/account` : location.pathname, search: params.toString() }, { replace: true })
   }, [result, location.key, location.pathname, location.search, navigate])
 }
 
@@ -63,7 +59,7 @@ export function LbHeadTools() {
   if (inbox && !inboxAsked) setInboxAsked(true)
 
   useEffect(() => {
-    // who is viewing, asked first on every page, then again each minute in view and when the tab is shown.
+    // the viewer, requested first on every page, then each minute in view and when the tab is shown
     watchMe()
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'u' && event.key !== 'U') return
@@ -91,6 +87,8 @@ export function LbHeadTools() {
   useEffect(() => { if (accountId !== undefined) void syncPins(accountId) }, [accountId])
 
   const unread = me?.account?.unread.notifications ?? 0
+  const navigate = useNavigate()
+  const account = () => me?.account ? navigate(`${APP_ROUTES.leaderboard}/me/account`) : openSignIn()
 
   return (
     <>
@@ -108,12 +106,12 @@ export function LbHeadTools() {
               {unread ? <span className="lbi-badge">{unread > 99 ? '99+' : unread}</span> : null}
             </button>
           </Tooltip>
-          {inboxAsked ? <Suspense fallback={null}><InboxPop open={inbox} host={anchor} trigger={bell} onClose={() => setInbox(false)} /></Suspense> : null}
+          {inboxAsked ? <Suspense fallback={null}><Inbox open={inbox} host={anchor} trigger={bell} onClose={() => setInbox(false)} /></Suspense> : null}
         </div>
       ) : null}
       {known ? (
         <Tooltip content={me?.account ? 'Your account' : 'Sign in'} placement="bottom">
-          <button type="button" className={`ax-g${me?.account ? ' lbi-on' : ''}`} aria-label={me?.account ? 'Your account' : 'Sign in'} onClick={openSignIn}>
+          <button type="button" className={`ax-g${me?.account ? ' lbi-on' : ''}`} aria-label={me?.account ? 'Your account' : 'Sign in'} onClick={account}>
             <CircleUserRound aria-hidden="true" />
           </button>
         </Tooltip>

@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: renders an equipped loadout as rows built from the suggestions
-               pane's own parts, in a wide "slice" and a compact "tray"
-               density, while preserving inventory slot indices.
+  description: an equipped loadout as rows of echo cards, in wide and compact densities.
 */
 
 import { DisplayImage } from '@/shared/ui/DisplayImage'
@@ -28,7 +26,7 @@ import { withDefEchoMg, withDefIconM } from '@/shared/lib/imageFallback.ts'
 import { formatTruncCompact } from '@/shared/lib/number.ts'
 import '@/styles/features/echoes/rows.css'
 
-// reserve five substat tracks; short echoes leave unused tracks empty.
+// reserve five substat tracks; short echoes leave unused tracks empty
 const SUB_TRACKS = 5
 
 export type EchoRowVariant = 'slice' | 'tray' | 'card'
@@ -65,9 +63,7 @@ export interface EchoRowItem {
   score: number | null
 }
 
-// leads because it is the only real hierarchy in a loadout, then rows group by
-// sonata so the tinted wedges sit together. cost is deliberately not an
-// ordering key: it says nothing about an equipped echo.
+// the main echo leads, then rows group by sonata; cost is not an ordering key
 export function makeEchoRows(args: {
   echoes: Array<EchoInstance | null>
   scores?: Array<number | null> | null
@@ -171,7 +167,7 @@ export function EchoRow({
   const setName = echo.set ? getSntSetNam(echo.set) : null
   const setClr = echo.set ? getSntSetClr(echo.set) : null
   const subs = subEntries(echo)
-  // an echo is read on the crit it rolled, so its own mark counts substats only
+  // an echo is graded on the crit it rolled, so its own mark counts substats only
   const cv = cmptEchoCrit(echo.substats)
 
   const classNames = [
@@ -213,8 +209,8 @@ export function EchoRow({
     ? <DisplayImage src={setIcon} alt={setName ?? ''} className="ecr__setcoin" loading="lazy" onError={withDefIconM} />
     : null
 
-  /* the card is the shared face, so a loadout reads the same in a modal as it
-     does on the bench. only the wrapper and its selection chrome are local. */
+  // the shared echo card renders the loadout, so it matches between a modal and the bench; only the wrapper and its
+  // selection controls are local
   if (variant === 'card') {
     const scored = score != null && score > 0
     const cardClass = [
@@ -276,7 +272,7 @@ export function EchoRow({
           {score != null && score > 0 && (
             <span className="ecr__score">{formatTruncCompact(score, 1)}</span>
           )}
-          <span className="ecr__cv" title={`Crit value ${cv.toFixed(1)}`}>{cv.toFixed(1)}</span>
+          <span className="ecr__cv" title={`Crit value ${formatTruncCompact(cv, 1)}`}>{formatTruncCompact(cv, 1)}</span>
         </span>
       </div>
     )
@@ -285,7 +281,6 @@ export function EchoRow({
   return (
     <div className={classNames} style={rowStyle} onClick={onClick} {...domProps}>
       {gutter}
-      {/* extend the wedge beyond its track and use a sonata gradient. */}
       <div className="ecr__wedge">
         {definition?.icon && (
           <DisplayImage
@@ -323,10 +318,10 @@ export function EchoRow({
           <div className="ecr__hd">
             <span className="ecr__tag">{score != null && score > 0 ? 'Score' : 'CV'}</span>
             {score != null && score > 0 && (
-              <span className="ecr__cv" title={`Crit value ${cv.toFixed(1)}`}>CV {cv.toFixed(1)}</span>
+              <span className="ecr__cv" title={`Crit value ${formatTruncCompact(cv, 1)}`}>CV {formatTruncCompact(cv, 1)}</span>
             )}
             <span className="ecr__score">
-              {score != null && score > 0 ? formatTruncCompact(score, 1) : cv.toFixed(1)}
+              {score != null && score > 0 ? formatTruncCompact(score, 1) : formatTruncCompact(cv, 1)}
             </span>
           </div>
           {score != null && score > 0 && (
@@ -392,7 +387,7 @@ export function EchoRowsFoot({
           <span className="ecr-foot__v"
             style={{ '--ecr-grade': getCvToneColor(cmptBldCritGr(echoes)) } as CssProps}
           >
-            {cv.toFixed(1)}
+            {formatTruncCompact(cv, 1)}
           </span>
         </span>
       </div>
@@ -413,8 +408,8 @@ export function EchoRows({
   wrapRow,
   selection,
 }: EchoRowsProps) {
-  // row wrapping is intentionally last so selection layers can preserve the
-  // normalized row props while adding drag, checkbox, or context-menu chrome
+  // row wrapping runs last so selection layers keep the normalized row props while adding drag, checkbox, or
+  // context-menu controls
   const items = makeEchoRows({ echoes, scores, slotCount })
 
   const listClass = ['ecr', `ecr--${variant}`, className].filter(Boolean).join(' ')

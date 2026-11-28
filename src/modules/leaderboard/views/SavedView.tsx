@@ -1,8 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: builds the viewer saved from other players, newest first and
-               private to them. a saved build stays listed, marked, after a
-               later card replaces it, and each opens on its player's profile.
+  description: the viewer's saved builds, newest first.
 */
 
 import { useQueries, useQuery } from '@tanstack/react-query'
@@ -18,7 +16,7 @@ import { boardPath } from '../model/listed'
 import { playerName } from '../model/players'
 
 type Saved = BookmarksResponse['builds'][number]
-/** scores are read for the first rows only; the rest open to show theirs. */
+// scores are read for the first rows only; the rest open to show theirs
 const SCORED = 40
 
 export function SavedView() {
@@ -33,7 +31,7 @@ export function SavedView() {
   // a build opens on its player's profile, or on its board for anonymous players, who have none
   const target = (b: Saved) => b.player.anonymous ? boardPath(b.resonatorId) : `${playerTo({ uid: b.player.uid, buildId: b.buildId })}?build=${b.buildId}`
 
-  // the row goes at once; a refused unsave puts it back.
+  // the row is removed at once; a refused unsave restores it
   const drop = (b: Saved) => {
     const edit = (change: (builds: Saved[]) => Saved[]) =>
       queryClient.setQueryData<BookmarksResponse>(lbKeys.bookmarks(), (r) => r ? { ...r, builds: change(r.builds) } : r)
@@ -50,7 +48,8 @@ export function SavedView() {
       <div className="svv-hd"><span>Player</span><span>Resonator</span><span>Weapon</span><span>Saved</span><span>Score</span><span /></div>
       {list.map((b) => {
         const d = detail[b.buildId]
-        const w = d ? wpnOf(d.best?.scenario.weaponId ?? d.snapshot.weapon.id) : null
+        const weaponId = d?.best?.scenario.weaponId ?? d?.snapshot.weapon.id
+        const w = weaponId ? wpnOf(weaponId) : null
         return (
           <div key={b.buildId} className="svv-r" role="button" tabIndex={0}
             onClick={() => go(target(b))}

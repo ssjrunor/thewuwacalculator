@@ -26,20 +26,20 @@ export interface CatalogEcho {
 }
 
 export interface ScenarioInputDeps {
-  /** every echo that can be equipped: id, cost and the sets it can roll. */
+  // every echo that can be equipped: id, cost and the sets it can roll
   echoes: CatalogEcho[]
-  /** the fixed second main stat by echo cost. */
+  // the fixed second main stat by echo cost
   secondaryByCost: Record<number, { key: string; value: number }>
-  /** the scoring enemy for a team (tune strain limit depends on the members). */
+  // the scoring enemy for a team (tune strain limit depends on the members)
   enemyFor: (resonatorIds: string[]) => EnemyProfile
 }
 
-// both rover forms are one leaderboard identity, as everywhere else plans name resonators.
+// both rover forms are one leaderboard identity, as everywhere else plans name resonators
 export { canonicalResonatorId }
 
 export const SNAPSHOT_ECHOES = 5
 
-// validate the stored snapshot contract before replacing scenario progression and assembling teammate builds.
+// validate the stored snapshot contract before replacing scenario progression and assembling teammate builds
 export function snapshotIssues(snapshot: BuildSnapshot): ScenarioInputIssue[] {
   const issues: ScenarioInputIssue[] = []
   if (snapshot.v !== 1) return ['snapshot_version']
@@ -54,7 +54,7 @@ export function snapshotIssues(snapshot: BuildSnapshot): ScenarioInputIssue[] {
   return issues
 }
 
-/** the card's Echoes in their original slots, including empty slots. */
+// the card's Echoes in their original slots, including empty slots
 export function snapshotEchoes(snapshot: BuildSnapshot): Array<EchoInstance | null> {
   const echoes: Array<EchoInstance | null> = Array(SNAPSHOT_ECHOES).fill(null)
   for (const echo of snapshot.echoes) echoes[echo.slot] = {
@@ -71,17 +71,18 @@ export function snapshotEchoes(snapshot: BuildSnapshot): Array<EchoInstance | nu
   return echoes
 }
 
-/** a teammate's echoes as runtime echoes. the build fixes stats, the main echo
-    and the set counts; any echo of the right cost and set fills the rest, so
-    the first one in the catalog is taken. */
+// a teammate's echoes as runtime echoes. the build fixes stats, the main echo
+// and the set counts; any echo of the right cost and set fills the rest, so
+// the first one in the catalog is taken
 export function teammateEchoes(
   teammate: ResolvedTeammate,
   teamSlot: string,
   deps: Pick<ScenarioInputDeps, 'echoes' | 'secondaryByCost'>,
+  omissions?: Array<{ code: string; [key: string]: unknown }>,
 ): EchoInstance[] {
   const remaining = teammate.sets.map((set) => ({ ...set }))
   const used = new Set<string>()
-  // reserve the required main Echo first, then allocate higher-cost slots while enforcing unique Echo identities.
+  // reserve the required main Echo first, then allocate higher-cost slots while enforcing unique Echo identities
   const order = teammate.echoes.map((echo, index) => ({ echo, index }))
     .sort((a, b) => Number(b.echo.mainEcho) - Number(a.echo.mainEcho) || b.echo.cost - a.echo.cost)
   const picked = new Map<number, { id: string; set: number }>()
@@ -97,11 +98,17 @@ export function teammateEchoes(
         break
       }
     }
-    // pieces past the set plan (e.g. 3+2 plus a fifth echo) take any echo of the cost.
+    // pieces past the set plan (e.g. 3+2 plus a fifth echo) take any echo of the cost
     if (!found) {
       const candidate = deps.echoes.find((entry) => entry.cost === echo.cost && !used.has(entry.id) &&
         (!echo.mainEcho || entry.id === teammate.mainEchoId))
       if (candidate) found = { id: candidate.id, set: candidate.sets[0] }
+    }
+    if (!found && omissions) {
+      const set = remaining.find(entry => entry.pieces > 0)
+      found = { id: echo.mainEcho ? teammate.mainEchoId : `missing:${teamSlot}:${index}`, set: set?.id ?? teammate.sets[0]?.id ?? 0 }
+      if (set) set.pieces--
+      omissions.push({ code: 'missing-teammate-echo-identity', teamSlot, slot: index, sourceId: found.id })
     }
     if (!found) throw new Error(`${teamSlot}: no ${echo.cost}-cost echo for slot ${index}`)
     used.add(found.id)
@@ -110,7 +117,8 @@ export function teammateEchoes(
 
   return teammate.echoes.map((echo, index) => {
     const secondary = deps.secondaryByCost[echo.cost]
-    if (!secondary) throw new Error(`No second main stat for cost ${echo.cost}`)
+    if (!secondary && !omissions) throw new Error(`No second main stat for cost ${echo.cost}`)
+    if (!secondary) omissions!.push({ code: 'missing-teammate-secondary-stat', teamSlot, cost: echo.cost })
     const { id, set } = picked.get(index)!
     return {
       uid: `team:${teamSlot}:${index}`,
@@ -119,22 +127,25 @@ export function teammateEchoes(
       mainEcho: echo.mainEcho,
       mainStats: {
         primary: { key: echo.main[0], value: echo.main[1] },
-        secondary: { ...secondary },
+        secondary: secondary ? { ...secondary } : { key: 'atkFlat', value: 0 },
       },
       substats: { ...echo.substats },
     }
   })
 }
 
-// combine the scored card seat with fixed teammate builds and return all validation issues before constructing a scenario.
+// combine the scored card seat with fixed teammate builds and return all validation issues before constructing a
+// scenario
 export function buildScenarioInput(
   snapshot: BuildSnapshot,
   scenario: ScenarioDef,
   teammates: ReadonlyMap<string, ResolvedTeammate>,
   deps: ScenarioInputDeps,
+  options: { allowPartial?: boolean } = {},
 ): ScenarioInputResult {
   const issues = snapshotIssues(snapshot)
   const detail: string[] = []
+  const omissions: NonNullable<import('@/domain/leaderboard/scenarioInput').ScenarioInput['omissions']> = []
   if (canonicalResonatorId(snapshot.resonator.id) !== canonicalResonatorId(scenario.resonatorId)) {
     issues.push('resonator_mismatch')
     detail.push(`card is ${snapshot.resonator.id}, scenario scores ${scenario.resonatorId}`)
@@ -143,7 +154,8 @@ export function buildScenarioInput(
 
   const members: ScenarioInputMember[] = []
   let scoredSlot = -1
-  // authored slot numbers determine team order; the scored seat uses card Echoes and sequence with the scenario weapon.
+  // authored slot numbers determine team order; the scored seat uses card Echoes and sequence with the scenario
+  // weapon
   for (const member of [...scenario.members].sort((a, b) => a.slot - b.slot)) {
     if (member.isContext) {
       scoredSlot = member.slot
@@ -159,7 +171,11 @@ export function buildScenarioInput(
       continue
     }
 
-    const teammate = member.teamSlot ? teammates.get(member.teamSlot) : undefined
+    let teammate = member.teamSlot ? teammates.get(member.teamSlot) : undefined
+    if (options.allowPartial && (!teammate || canonicalResonatorId(teammate.resonatorId) !== canonicalResonatorId(member.resonatorId))) {
+      omissions.push({ code: 'missing-teammate-build', resonatorId: member.resonatorId, teamSlot: member.teamSlot })
+      teammate = { resonatorId: member.resonatorId, weapon: { id: '', rank: 1 }, sequence: 0, sets: [], mainEchoId: '', echoes: [] }
+    }
     if (!teammate) {
       issues.push('teammate_missing')
       detail.push(`no teammate build for ${member.teamSlot ?? `slot ${member.slot}`}`)
@@ -172,7 +188,7 @@ export function buildScenarioInput(
     }
     let echoes: EchoInstance[]
     try {
-      echoes = teammateEchoes(teammate, member.teamSlot!, deps)
+      echoes = teammateEchoes(teammate, member.teamSlot!, deps, options.allowPartial ? omissions : undefined)
     } catch (error) {
       issues.push('teammate_echo')
       detail.push(String((error as Error).message))
@@ -197,6 +213,7 @@ export function buildScenarioInput(
       scenarioId: scenario.id,
       teamId: scenario.teamId,
       scoredSlot,
+      ...(omissions.length ? { omissions } : {}),
       members,
       enemy: deps.enemyFor(members.map((member) => member.resonatorId)),
     },

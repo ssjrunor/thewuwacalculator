@@ -7,7 +7,10 @@
                own weapon, no teammates, and the score pending.
 */
 
-import type { BuildDetailResponse, ScenarioCell } from '@/domain/leaderboard/api'
+import type { BuildDetailResponse, ScenarioCell, ScenarioSummary } from '@/domain/leaderboard/api'
+import type { WeaponRole } from '@/domain/leaderboard/ruleset'
+import { queryClient } from '@/shared/lib/queryClient'
+import { lbq } from '../api/queries'
 import type { ScenarioInput } from '@/domain/leaderboard/scenarioInput'
 import type { ResRuntime } from '@/domain/entities/runtime'
 import type { CombatScenario } from '@/domain/entities/combatScenario'
@@ -24,7 +27,7 @@ import { makeRailModel } from '@/modules/simulation/workspace/railModel'
 import { buildSonataPlan } from '@/modules/simulation/workspace/ui'
 import type { BuildRailModel, ShowcaseBuildModel } from '@/modules/simulation/workspace/BuildRail'
 
-/** an expected card display failure with a message safe to show in the build panel. */
+// an expected card display failure with a message safe to show in the build panel
 export class CardBuildError extends Error {}
 
 export interface CardBuild {
@@ -35,8 +38,8 @@ export interface CardBuild {
   showcase: ShowcaseBuildModel
 }
 
-/** the input a cell was scored with: the detail's own for the best cell, or one fetched for other cells
-    (GET /builds/:id/scenarios/:sid/input). */
+// the input a cell was scored with: the detail's own for the best cell, or one fetched for other cells
+// (GET /builds/:id/scenarios/:sid/input)
 export function cardInput(detail: BuildDetailResponse, cell: ScenarioCell, input: ScenarioInput | null | undefined = detail.scoredInput): ScenarioInput {
   if (!input) throw new CardBuildError("hmm... we can't show this build's card right now. try again later :(")
   const scored = input.members.find(member => member.slot === input.scoredSlot && member.role === 'scored')
@@ -52,12 +55,28 @@ export function loadCardBuild(detail: BuildDetailResponse, cell: ScenarioCell, i
   return drawCard(detail, cardInput(detail, cell, input === undefined ? detail.scoredInput : input))
 }
 
-/** the card before any scenario scores the build: the submitted build alone. */
-export function loadPendingCard(detail: BuildDetailResponse): Promise<CardBuild> {
-  return drawCard(detail, cardScenarioInput(detail.snapshot))
+const ROLE_ORDER: WeaponRole[] = ['signature', 'primary', 'alternative', 'standard']
+
+// the weapon the board's top scenario scores with: what stands in on a card that drew none
+export function standInWeapon(scenarios: ScenarioSummary[], resonatorId: string): string | null {
+  const own = scenarios.filter((scenario) => canonicalResonatorId(scenario.resonatorId) === canonicalResonatorId(resonatorId))
+  own.sort((a, b) => a.teamRank - b.teamRank || ROLE_ORDER.indexOf(a.weaponRole) - ROLE_ORDER.indexOf(b.weaponRole))
+  return own[0]?.weaponId ?? null
 }
 
-async function drawCard(detail: BuildDetailResponse, input: ScenarioInput): Promise<CardBuild> {
+// the card before any scenario scores the build: the submitted build alone (also what staff compare with the Kuro
+// card, from a read's snapshot). a card that drew no weapon is drawn with the board's top scenario weapon
+export async function loadPendingCard(detail: Pick<BuildDetailResponse, 'buildId' | 'snapshot'>): Promise<CardBuild> {
+  let fallback: string | null = null
+  if (!detail.snapshot.weapon.id) {
+    const live = await queryClient.fetchQuery(lbq.live()).catch(() => null)
+    fallback = live ? standInWeapon(live.scenarios, detail.snapshot.resonator.id) : null
+    if (!fallback) throw new CardBuildError("hmm... this card drew no weapon, and no board weapon could stand in. try again later :(")
+  }
+  return drawCard(detail, cardScenarioInput(detail.snapshot, fallback))
+}
+
+async function drawCard(detail: Pick<BuildDetailResponse, 'buildId'>, input: ScenarioInput): Promise<CardBuild> {
   const ids = [...new Set(input.members.map(member => member.resonatorId))]
   await ensureResonatorData(ids)
   const scenario = createScenario({ ...input, scenarioId: `card:${detail.buildId}:${input.scenarioId}` })

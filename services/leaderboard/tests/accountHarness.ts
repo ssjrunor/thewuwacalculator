@@ -30,7 +30,7 @@ const AUD = 'aud'
 const ctx = { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext
 export const A = '500000001'
 export const B = '500000002'
-/** a png header for `width` by `height`: the signature and the IHDR chunk, the only bytes the service reads. */
+// a png header for `width` by `height`: the signature and the IHDR chunk, the only bytes the service reads
 export const pngOf = (width: number, height: number) => {
   const bytes = new Uint8Array(33)
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
@@ -45,14 +45,14 @@ export let env: ApiEnv & { LB: ReturnType<typeof memoryD1>; CARDS: ReturnType<ty
 let issuer: Awaited<ReturnType<typeof accessIssuer>>
 let serial = 0
 
-/** a provider that approves any code: the code names the person signing in. */
+// a provider that approves any code: the code names the person signing in
 const fakeDiscord: OAuthProvider = {
   authorizeUrl: ({ state, challenge, redirectUri }) =>
     `https://discord.test/authorize?state=${state}&challenge=${challenge}&redirect=${encodeURIComponent(redirectUri)}`,
   identify: async ({ code, verifier }) => {
     if (!verifier) throw new Error('no verifier')
     if (code === 'bad') throw new Error('refused')
-    // a person named `plain-*` has a bare discord profile; anyone else has a name, avatar, banner and accent.
+    // a person named `plain-*` has a bare discord profile; anyone else has a name, avatar, banner and accent
     const id = String(1000 + [...code].reduce((sum, char) => sum + char.charCodeAt(0), 0))
     const profile = discordProfile(code.startsWith('plain-') ? { id, username: code }
       : { id, username: code, global_name: `Discord ${code}`, avatar: 'a'.repeat(32), banner: 'b'.repeat(32), accent_color: 0x3366cc })
@@ -60,7 +60,7 @@ const fakeDiscord: OAuthProvider = {
   },
 }
 
-/** `devAdmin` signs in as the local `lb` tool does: the dev token, on a request to this machine. */
+// `devAdmin` signs in as the local `lb` tool does: the dev token, on a request to this machine
 export async function call(method: string, path: string,
   options: { body?: unknown; raw?: Uint8Array; cookie?: string; admin?: boolean; devAdmin?: boolean; devToken?: string; origin?: string } = {}) {
   const headers = new Headers({ origin: APP, 'cf-connecting-ip': '203.0.113.9' })
@@ -81,7 +81,7 @@ const DEV_TOKEN = 'd'.repeat(40)
 
 export const cookieOf = (headers: Headers) => headers.get('set-cookie')?.split(';')[0] ?? null
 
-/** a claim session (no account) holding `uid`, proved with a fresh card. */
+// a claim session (no account) holding `uid`, proved with a fresh card
 export async function claimSession(uid: string): Promise<string> {
   const token = `token-${++serial}`
   const hash = await sessionTokenHash(env.SESSION_KEY, token)
@@ -94,7 +94,7 @@ export async function claimSession(uid: string): Promise<string> {
   return `lb_session=${token}`
 }
 
-/** signs in with the fake provider as `person` from the session in `cookie` (if any) and returns the resulting cookie. */
+// signs in with the fake provider as `person` from the session in `cookie` (if any) and returns the resulting cookie
 export async function signIn(person: string, cookie?: string): Promise<{ cookie: string | null; landed: string }> {
   const start = await call('GET', '/auth/oauth/discord/start?return=/leaderboard/me', { cookie })
   expect(start.status).toBe(302)
@@ -105,24 +105,24 @@ export async function signIn(person: string, cookie?: string): Promise<{ cookie:
 }
 
 const seeded = new Map<string, { build: string; card: string; snapHash: string }>()
-/** the build seedPlayer stored last for a uid, and its card and snapshot hash. */
+// the build seedPlayer stored last for a uid, and its card and snapshot hash
 export const buildOf = (uid: string) => seeded.get(uid)?.build ?? `1108-zz${uid.slice(-3)}`
 export const seededCard = (uid: string) => seeded.get(uid)!
 
-/** the boards' alarms (outbox to D1, detail objects) until they are still. */
+// run the boards' alarms (outbox to D1, detail objects) until none has work left
 export const settle = (soonMs?: number) => runAlarms([env.BOARDS, env.CARD_REGISTRY] as Array<MemoryNamespace<unknown>>, { soonMs })
 
-/** a board's sqlite database. */
+// a board's sqlite database
 export const boardDb = (resonator = '1108') => env.BOARDS.instances.get(resonator)!.storage.db
 
-/** what was queued, a group message (bulk work, many builds) taken apart into one cell message per build. */
+// what was queued, a group message (bulk work, many builds) taken apart into one cell message per build
 export const cellsOf = (messages: unknown[]): CellMessage[] =>
   messages.flatMap((message) => isGroupMessage(message) ? cellMessagesOfGroup(message) : [message as CellMessage])
 
-/** the queued messages, as cells (cellsOf). */
+// the queued messages, as cells (cellsOf)
 export const takeCells = () => cellsOf(env.SCORE_QUEUE.take())
 
-/** the scorer's part: every cell queued (a group's, each of its builds) scores `score` on its board. */
+// the scorer's part: every cell queued (a group's, each of its builds) scores `score` on its board
 export async function scoreQueued(score: number, weapon = 21020086): Promise<number> {
   const sent = takeCells()
   for (const message of sent) {
@@ -133,8 +133,8 @@ export async function scoreQueued(score: number, weapon = 21020086): Promise<num
   return sent.length
 }
 
-/** a player with one active build, scored and on its board; `at` is the upload time and `hide` hides the uid. repeat
-    calls for a uid store another build (a different weapon level), ranked by its score like an upload. */
+// a player with one active build, scored and on its board; `at` is the upload time and `hide` hides the uid. repeat
+// calls for a uid store another build (a different weapon level), ranked by its score like an upload
 export async function seedPlayer(uid: string, name: string, score: number,
   { at = 1, hide = false, linkHash }: { at?: number; hide?: boolean; linkHash?: string } = {}) {
   env.LB.sqlite.prepare(`INSERT OR IGNORE INTO players (uid, region, last_name, hide_uid, first_seen_at, last_seen_at) VALUES (?, '5', ?, ?, 1, 1)`)
@@ -142,15 +142,16 @@ export async function seedPlayer(uid: string, name: string, score: number,
   return placeScored(uid, score, { at, linkHash, name })
 }
 
-/** a read 1108 card of an existing player, placed on its board and scored `score` (null leaves its job scoring);
-    each call creates a new build with a different weapon level. */
+// a read 1108 card of an existing player, placed on its board and scored `score` (null leaves its job scoring);
+// each call creates a new build: its one echo's crit rate differs (levels alone are the same build)
 export async function placeScored(uid: string, score: number | null, { at = 1, drawnAt = 1, seq = 0, weapon = '21020086', owner = false,
   linkHash, name = null }: { at?: number; drawnAt?: number; seq?: number; weapon?: string; owner?: boolean; linkHash?: string
   name?: string | null } = {}): Promise<string> {
   const n = ++serial
   const snapshot: BuildSnapshot = { v: 1, gameVer: 'test', uid, name, resonator: { id: '1108', level: 90, sequence: seq, skillLevels: {} },
-    weapon: { id: weapon, level: 90 - (n % 10) }, echoes: [] }
-  // its card, read and placed in the registry as ingest leaves one.
+    weapon: { id: weapon, level: 90 - (n % 10) }, echoes: [{ slot: 0, id: '6000000', set: 0, mainEcho: true,
+      main: { primary: { key: 'critDmg', value: 44 }, secondary: { key: 'atkFlat', value: 150 } }, substats: { critRate: n / 10 } }] }
+  // its card, read and placed in the registry as ingest leaves one
   const hash = linkHash ?? n.toString(16).padStart(64, '0')
   const registry = shardOfLink(env, hash)
   const { card } = await registry.stub.record(registry.shard, { linkHash: hash, contentType: 'image/jpeg', byteSize: 1,
@@ -172,10 +173,10 @@ export const boardIds = async () => ((await call('GET', '/boards/1108')).body.ro
 export const accountOf = (cookie: string) => call('GET', '/me', { cookie }).then((me) => me.body.account?.id as string)
 
 export const C = '500000003'
-/** the one scenario the harness's ruleset scores. */
+// the one scenario the harness's ruleset scores
 export const SCENARIO = 'ruleset:1108:t1:21020086'
 
-/** registers the setup hooks; call once at the top of a test file. */
+// registers the setup hooks; call once at the top of a test file
 export function setUpAccountHarness(): void {
   beforeAll(async () => {
     issuer = await accessIssuer(TEAM, AUD)

@@ -1,22 +1,12 @@
 /*
   Author: Runor Ewhro
-  description: hover previews: a small card of the page a board or player
-               link opens, following the cursor with a short ease and a tilt in
-               its motion direction. links opt in with data-pv (Ref and the
-               pinned chips), and one layer per page listens for them. a player
-               preview shows their banner, avatar, bio, featured builds and
-               their standing against the viewer; a customized profile (its own
-               accent or banner) tints the card and runs a light around its
-               border. a board preview shows its #1, #2 and #3 builds and the
-               viewer's rank. it appears after 120ms, swaps at once between
-               links, flips at the screen edges and hides on scroll, Escape or a
-               click.
+  description: hover previews for player and board links.
 */
 
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import type { BoardRow, PlayerBuild } from '@/domain/leaderboard/api'
+import type { BoardRow } from '@/domain/leaderboard/api'
 import { getBuildEvaluationGrade, getBuildEvaluationTone } from '@/modules/simulation/model/buildEvaluationDisplay'
 import { lbApi } from '../api/client'
 import { lbq } from '../api/queries'
@@ -26,8 +16,9 @@ import { playerPinned, usePins } from '../model/pins'
 import { Region } from './build/BuildRow'
 import { Framed } from './profile/Framed'
 import { useScope } from '../state/ctx'
-import { fmtUid, reduced, teammates } from '../model/listed'
+import { fmtUid, reduced, runOf, teammates } from '../model/listed'
 import { ownsUid } from '../chrome/chrome'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 type Target = { kind: 'board'; id: string } | { kind: 'player'; who: Who; name: string | null }
 
@@ -40,13 +31,13 @@ function targetOf(el: HTMLElement): Target | null {
   return null
 }
 
-/** preview attributes for a link, spread onto the anchor or button. */
+// preview attributes for a link, spread onto the anchor or button
 export const pvBoard = (id: string) => ({ 'data-pv': 'b', 'data-pv-id': id })
 export const pvPlayer = (who: { uid: string | null; buildId: string; name?: string | null }) =>
   ({ 'data-pv': 'p', 'data-pv-uid': who.uid ?? '', 'data-pv-build': who.buildId, 'data-pv-name': who.name ?? '' })
 
-/** the viewer's private profile, including images pending approval; null until requested. cards use the pages'
-    query keys, so a card or page read earlier paints at once. */
+// the viewer's private profile, including images pending approval; null until requested. cards use the pages'
+// query keys, so a card or page read earlier paints at once
 export function useOwnProfile(on: boolean) {
   const data = useQuery({ ...lbq.myProfile(), enabled: on }).data ?? null
   // a disabled query still returns cached data, so return it only for the viewer's own rows
@@ -87,13 +78,13 @@ function BoardCard({ id }: { id: string }) {
         <div className="pvc-body">
           <div className="pvc-lead" style={{ '--g': ink(top.score) } as CSSProperties}>
             <span className="who"><Region region={top.region} />{playerName(top)}<em>#1</em></span>
-            <span className="big">{top.score.toFixed(1)}<small>%</small><em>{getBuildEvaluationGrade(top.score)}</em></span>
+            <span className="big">{formatTruncCompact(top.score, 1)}<small>%</small><em>{getBuildEvaluationGrade(top.score)}</em></span>
             <span className="pvc-kr"><Kit row={{ resonatorId: id, scenario: top.scenario }} />{top.dpr != null ? <span className="dp"><b>{grp(top.dpr)}</b> DPR</span> : null}</span>
           </div>
           {rows && rows.length > 1 ? (
             <div className="pvc-rest">{rows.slice(1, 3).map((x, i) => (
               <div key={x.buildId} style={{ '--i': i + 1, '--g': ink(x.score) } as CSSProperties}>
-                <span className="r">#{x.rank}</span><Region region={x.region} /><span className="p">{playerName(x)}</span><b>{x.score.toFixed(1)}%</b>
+                <span className="r">#{x.rank}</span><Region region={x.region} /><span className="p">{playerName(x)}</span><b>{formatTruncCompact(x.score, 1)}%</b>
               </div>))}
             </div>
           ) : null}
@@ -128,23 +119,12 @@ function PlayerCard({ who, name }: { who: Who; name: string | null }) {
   const shown = doc?.displayName ?? p.name ?? name ?? 'Unnamed'
   const ign = doc?.displayName && p.name && doc.displayName !== p.name ? p.name : null
   const tuned = Boolean(accent || banner)
-  const byId = new Map(p.builds.map((b) => [b.buildId, b]))
-  const picked = (doc?.featured ?? []).map((id) => byId.get(id)).filter((b): b is PlayerBuild => Boolean(b))
-  const plates = (picked.length ? picked : p.builds.filter((b) => b.score != null).sort((a, b) => b.score! - a.score!)).slice(0, picked.length ? 4 : 3)
+  // the head of the profile band's run: featured first, then each other board's best
+  const { picked, run } = runOf(p.builds, doc?.featured ?? [], (b) => b.drawnAt)
+  const plates = run.slice(0, picked.length ? 4 : 3)
   const atTop = p.builds.filter((b) => b.rank === 1).length
   const pinnedBy = social?.followers ?? 0
   const pinned = !own && playerPinned(pins, who)
-
-  let rel: ReactNode = null
-  if (own) rel = <span>your profile</span>
-  else if (mine) {
-    const yours = new Map(rankedOf(mine).map((b) => [b.resonatorId, b]))
-    const both = rankedOf(p).filter((b) => yours.has(b.resonatorId))
-    const lead = both.filter((b) => yours.get(b.resonatorId)!.rank < b.rank).length
-    rel = both.length
-      ? <><span><b>{both.length}</b> {both.length === 1 ? 'board' : 'boards'} in common</span><span>you lead <b className="me">{lead}</b></span><span>they lead <b>{both.length - lead}</b></span></>
-      : <span>no boards in common with you</span>
-  }
 
   return (
     <div className={`pvc-card${tuned ? ' tuned' : ''}`} style={accent ? { '--me': accent } as CSSProperties : undefined}>
@@ -165,19 +145,19 @@ function PlayerCard({ who, name }: { who: Who; name: string | null }) {
           <div className="pvc-feat" style={{ '--n': Math.max(3, plates.length) } as CSSProperties}>{plates.map((b, i) => (
             <div key={b.buildId} style={{ '--i': i, '--g': ink(b.score), '--p': `${standingBar(b.rank, b.total).toFixed(0)}%` } as CSSProperties}>
               <img src={resFace(b.resonatorId)} alt={resName(b.resonatorId)} />
-              <b>{b.score != null ? `${b.score.toFixed(1)}%` : '-'}</b>
+              <b>{b.score != null ? `${formatTruncCompact(b.score, 1)}%` : '-'}</b>
               <em>{b.rank != null ? `#${b.rank}/${b.total}` : 'unranked'}</em><i />
             </div>))}
           </div>
         ) : <div className="pvc-rel"><span>no scored builds here yet... :P</span></div>}
-        {rel ? <div className="pvc-rel">{rel}</div> : null}
+        {own ? <div className="pvc-rel"> <span>your profile</span></div> : null}
       </div>
     </div>
   )
 }
 
-/** the card's current and target position, updated per frame outside React; one layer mounts at a time, so one
-    controller serves it. */
+// the card's current and target position, updated per frame outside React; one layer mounts at a time, so one
+// controller serves it
 const c = {
   el: null as HTMLDivElement | null,
   on: false, key: '', mx: 0, my: 0, px: 0, py: 0, raf: 0, shut: 0, snap: false,
@@ -218,13 +198,13 @@ const c = {
 }
 const attach = (el: HTMLDivElement | null) => { c.el = el }
 
-/** one per page: finds the link under the cursor and positions its preview card. */
+// one per page: finds the link under the cursor and positions its preview card
 export function PreviewLayer() {
   const [target, setTarget] = useState<Target | null>(null)
   const [stamp, setStamp] = useState(0)
   const location = useLocation()
 
-  // a new subject lays out first, then takes its place.
+  // a new subject lays out first, then moves into place
   useLayoutEffect(() => {
     if (!stamp) return
     cancelAnimationFrame(c.raf)
@@ -272,7 +252,7 @@ export function PreviewLayer() {
     document.addEventListener('keydown', key)
     document.addEventListener('focusin', focus)
     document.addEventListener('focusout', blur)
-    // a card that loads after it was placed may grow: place it again.
+    // a card that loads after it was placed may grow, so it is placed again
     const resized = new ResizeObserver(() => { if (c.on) c.kick() })
     if (c.el) resized.observe(c.el)
     return () => {
@@ -290,7 +270,7 @@ export function PreviewLayer() {
     }
   }, [])
 
-  // a move to another page closes it.
+  // navigating to another page closes it
   useEffect(() => { c.hide() }, [location.pathname, location.search])
 
   return (

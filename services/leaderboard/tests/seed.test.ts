@@ -29,7 +29,7 @@ async function seedBatch(mode: 'written' | 'scored' = 'written') {
   const { id, localFrom } = made.body as { id: string; localFrom: number }
   const rows = async (body: SeedRows) => {
     const sent = await call('POST', `/admin/seed/${id}/rows`, { devAdmin: true, body })
-    // the tool says when the batch is in; here, after every chunk of builds.
+    // the tool marks the batch done; here, after every chunk of builds
     if (body.builds && sent.status === 200) expect((await call('POST', `/admin/seed/${id}/finish`, { devAdmin: true, body: {} })).status).toBe(200)
     await settle()
     return sent
@@ -38,7 +38,7 @@ async function seedBatch(mode: 'written' | 'scored' = 'written') {
     { uid: T1, region: '9', name: '漂泊者', hideUid: false, anonymous: false, firstSeenAt: 10 },
     { uid: T2, region: '6', name: 'Remi', hideUid: false, anonymous: false, firstSeenAt: 10 },
   ] })).status).toBe(200)
-  // the nth build of the batch.
+  // the nth build of the batch
   const idOf = (n: number) => formatBuildId({ resonator: 1108, local: localFrom + n })
   const build = (n: number, uid: string, name: string, score: number | null, at: number): SeedBuild => ({
     id: idOf(n), uid, resonatorId: '1108', sequence: 0, snapshot: snapshot(uid, name), at: NOW + at, drawnAt: NOW + at - 10,
@@ -60,7 +60,7 @@ describe('test data', () => {
     const real = await rows({ players: [{ uid: '512345678', region: '5', name: 'x', hideUid: false, anonymous: false, firstSeenAt: 1 }] })
     expect(real.status).toBe(400)
     expect((await rows({ builds: [{ ...build(0, T1, 'x', 50, 20), uid: '599999999' }] })).status).toBe(400)
-    // a build id outside the batch's range, or on another board, is refused.
+    // a build id outside the batch's range, or on another board, is refused
     expect((await rows({ builds: [{ ...build(0, T1, 'x', 50, 20), id: '1108-1' }] })).status).toBe(400)
     expect((await rows({ builds: [{ ...build(0, T1, 'x', 50, 20), resonatorId: '1205' }] })).status).toBe(400)
     expect((await rows({ builds: [build(0, T1, 'x', null, 20)] })).status).toBe(400)
@@ -72,7 +72,7 @@ describe('test data', () => {
     expect(localFrom).toBe(SEED_LOCAL_FLOOR)
     expect((await rows({ builds: [build(0, T1, '漂泊者', 130, 20), build(1, T2, 'Remi', 90, 30), build(2, T2, 'Remi', 100, 40)] })).status)
       .toBe(200)
-    // every card is ranked as itself.
+    // every card is ranked as itself
     const board = await boardRows()
     expect(board.map((row) => row.buildId)).toEqual([idOf(0), buildOf(A), idOf(2), idOf(1)])
     expect(board.map((row) => row.rank)).toEqual([1, 2, 3, 4])
@@ -87,18 +87,13 @@ describe('test data', () => {
     expect((await rows({ accounts })).status).toBe(200)
     expect((await rows({
       profiles: [{ uid: T1, displayName: '漂泊者☆', bio: '声骸刷到吐' }],
-      comments: [{ id: 'c-1', buildId: idOf(0), parentId: null, accountId: 'acc-2', uid: T2, body: 'How did you get crit this high?', at: 50 },
-        { id: 'c-2', buildId: idOf(0), parentId: 'c-1', accountId: 'acc-1', uid: T1, body: '谢谢！运气好', at: 60 }],
-      likes: [{ buildId: idOf(0), accountId: 'acc-2', at: 55 }],
       follows: [{ accountId: 'acc-2', kind: 'player', target: T1, at: 56 }],
     })).status).toBe(200)
-    expect((await call('GET', `/builds/${idOf(0)}/comments`)).body.comments[0].replies).toHaveLength(1)
     expect((await call('GET', `/players/${T1}`)).body.profile).toMatchObject({ displayName: '漂泊者☆' })
 
-    // a real account likes and comments on a test build: that goes with the batch too.
+    // a real account saves a test build, and the save is removed with the batch
     const real = (await signIn('ana', await claimSession(A))).cookie!
-    expect((await call('PUT', `/builds/${idOf(0)}/like`, { cookie: real })).status).toBe(200)
-    expect((await call('POST', `/builds/${idOf(0)}/comments`, { cookie: real, body: { body: 'nice' } })).status).toBe(201)
+    expect((await call('PUT', `/builds/${idOf(0)}/bookmark`, { cookie: real })).status).toBe(200)
     expect((await call('PUT', `/follows/players/${T1}`, { cookie: real })).status).toBe(200)
 
     expect((await call('GET', '/admin/seed', { admin: true })).body.batches).toEqual([expect.objectContaining({ id, players: 2, accounts: 2, builds: 3 })])
@@ -109,11 +104,11 @@ describe('test data', () => {
     const left = await boardRows()
     expect(left.map((row) => [row.buildId, row.rank])).toEqual([[buildOf(A), 1]])
     slotsHold()
-    for (const table of ['seed_batches', 'comments', 'likes', 'follows']) expect(count(table)).toBe(0)
+    for (const table of ['seed_batches', 'bookmarks', 'follows']) expect(count(table)).toBe(0)
     for (const table of ['players', 'player_boards', 'recent_uploads']) {
       expect(env.LB.sqlite.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE uid LIKE '0%'`).get()).toEqual({ n: 0 })
     }
-    // profiles are the accounts', and every seeded account is gone with its documents.
+    // profiles are the accounts', and every seeded account is removed with its documents
     expect(env.LB.sqlite.prepare(`SELECT COUNT(*) AS n FROM documents WHERE kind IN ('profile', 'views', 'card')
       AND substr(owner_id, 1, 36) NOT IN (SELECT id FROM accounts)`).get()).toEqual({ n: 0 })
     expect(boardDb().prepare(`SELECT COUNT(*) AS n FROM builds WHERE id >= ?`).get(SEED_LOCAL_FLOOR)).toEqual({ n: 0 })
@@ -142,12 +137,12 @@ describe('test data', () => {
     expect(boardDb().prepare(`SELECT COUNT(*) AS n FROM s1`).get()).toEqual({ n: 2 })
     expect((await call('GET', '/admin/seed', { admin: true })).body.batches[0]).toMatchObject({ id, players: 2, builds: 2, uidFrom: T1, uidTo: T2 })
 
-    // a player's card in a later chunk is ranked beside their others.
+    // a player's card in a later chunk is ranked beside their others
     expect((await rows({ builds: [build(2, T1, '漂泊者', 140, 50)] })).status).toBe(200)
     expect((await boardRows()).map((row) => row.buildId)).toEqual([idOf(2), idOf(0), idOf(1)])
     expect(boardDb().prepare(`SELECT state FROM builds WHERE id = ?`).get(SEED_LOCAL_FLOOR)).toEqual({ state: 0 })
     expect((await call('POST', '/admin/seed/purge', { admin: true, body: { batch: id } })).body).toMatchObject({ builds: 3, done: true })
-    // a later batch takes the next range.
+    // a later batch takes the next range
     const next = await call('POST', '/admin/seed', { devAdmin: true, body: { label: 'again', mode: 'written', builds: 1 } })
     expect(next.body.localFrom).toBe(SEED_LOCAL_FLOOR)
   })
@@ -157,9 +152,9 @@ describe('test data', () => {
     const before = env.SCORE_QUEUE.sent.length
     expect((await rows({ builds: [build(0, T1, 'x', null, 20)] })).status).toBe(200)
     expect(env.SCORE_QUEUE.sent.length).toBeGreaterThan(before)
-    // bulk work goes as a group message: its build is the seeded one.
+    // bulk work is sent as a group message: its build is the seeded one
     expect(cellsOf(env.SCORE_QUEUE.sent).at(-1)).toMatchObject({ lane: 'bulk', local: SEED_LOCAL_FLOOR })
-    // purging every batch takes it too.
+    // purging every batch removes it too
     expect((await call('POST', '/admin/seed/purge', { admin: true, body: {} })).body.builds).toBe(1)
     expect(boardDb().prepare(`SELECT COUNT(*) AS n FROM builds`).get()).toEqual({ n: 0 })
   })

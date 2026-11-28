@@ -23,24 +23,37 @@ function snapshot(patch: (snap: BuildSnapshot) => void = () => undefined): Build
 }
 
 describe('program keys', () => {
+  it('separates paired Twin Nova forms without splitting ordinary equivalent Echo identities', () => {
+    const paired = [echo('6000179', 26, { mainEcho: true }), echo('6000180', 26)]
+    const unpaired = [paired[0], echo('6000178', 26)]
+    expect(programEchoKey(paired).pairedEcho).toBe('6000180')
+    expect(programEchoKey(unpaired).pairedEcho).toBeUndefined()
+    const card = snapshot(snap => {
+      snap.echoes[0].id = '6000179'; snap.echoes[1].id = '6000180'
+    })
+    const first = snapshotProgramKey(card, true)
+    card.echoes[1].id = '6000178'
+    expect(snapshotProgramKey(card, true)).not.toBe(first)
+  })
+
   it('reads the main echo, distinct pieces per set and tune break boost', () => {
     expect(programEchoKey([echo('1', 7, { mainEcho: true }), echo('2', 7), echo('2', 7), null, echo('3', 9,
       { stats: [{ key: 'tuneBreakBoost', value: 2 }, null], substats: { tuneBreakBoost: 1.5 } })]))
       .toEqual({ main: { id: '1', flagged: true }, sets: [['7', 2], ['9', 1]], tuneBreakBoost: 3.5 })
-    // no flagged echo: the first slot's, marked as a fallback; an empty first slot falls to the first equipped.
+    // no flagged echo: the first slot's, marked as a fallback; an empty first slot falls to the first equipped
     expect(programEchoKey([echo('5', 7), echo('6', 7)]).main).toEqual({ id: '5', flagged: false })
     expect(programEchoKey([null, echo('6', 7)]).main).toEqual({ id: '6', flagged: false })
     expect(programEchoKey([null, null]).main).toBeNull()
   })
 
-  it('groups snapshots by form, sequence and echo key, and keeps an unshared one whole', () => {
+  it('groups snapshots by form, sequence and echo key, and leaves an unshared one whole', () => {
     const base = snapshotProgramKey(snapshot(), true)
     expect(base).toBe('1506|0|6000040|7x3,9x2|0')
     expect(snapshotProgramKey(snapshot((snap) => { snap.echoes[2].substats = { critDmg: 21 }; snap.uid = '600000002' }), true)).toBe(base)
     expect(snapshotProgramKey(snapshot((snap) => { snap.resonator.sequence = 2 }), true)).not.toBe(base)
     expect(snapshotProgramKey(snapshot((snap) => { snap.echoes[0].mainEcho = false }), true)).toBe('1506|0|6000040?|7x3,9x2|0')
     expect(snapshotProgramKey(snapshot((snap) => { snap.echoes[4].substats = { tuneBreakBoost: 3 } }), true)).toBe('1506|0|6000040|7x3,9x2|3')
-    // unshared: any echo change is another group, in whatever order the snapshot lists its slots.
+    // unshared: any echo change is another group, in whatever order the snapshot lists its slots
     const whole = snapshotProgramKey(snapshot(), false)
     expect(snapshotProgramKey(snapshot((snap) => { snap.echoes.reverse() }), false)).toBe(whole)
     expect(snapshotProgramKey(snapshot((snap) => { snap.echoes[2].substats = { critDmg: 21 } }), false)).not.toBe(whole)

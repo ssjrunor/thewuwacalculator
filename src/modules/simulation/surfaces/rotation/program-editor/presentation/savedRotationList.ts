@@ -1,10 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: resolves saved rotations into the marks the saved list draws.
-               a saved rotation is one run from zero to its average, cut into
-               the members who dealt it, so everything here exists to turn an
-               entry into those runs and to work out the window the field is
-               currently read through.
+  description: resolves saved rotations into the saved list's rows: each entry's damage split into per-member runs
+               along a shared axis, the rank shown per row, and the axis window for the selected entry.
 */
 
 import {
@@ -37,27 +34,25 @@ export interface SavedMember {
   name: string
   accent: string
   profile: string
-  /* standing art and the face position within it. the picked row aligns each
-     member's face to the same point. */
+  // standing art and the face position within it; the picked row aligns each member's face to the same point
   sprite: string
   faceX: number
   faceY: number
   faceScale: number
-  /* the member's cut of the average, 0 to 1 */
+  // the member's cut of the average, 0 to 1
   share: number
-  /* the member's own run on the shared axis, cumulative in team order, so the
-     row's line reads as one mark and still says who dealt which part of it */
+  // the member's own run on the shared axis, cumulative in team order, so the row's line is one mark split by member
   from: number
   to: number
-  /** precision-aware display allocation; all members sum to the displayed total */
+  // precision-aware display allocation; all members sum to the displayed total
   figure?: number
 }
 
 export interface SavedEntry {
   id: string
-  /* what the take is called once the squad it names is taken off the front */
+  // the take's name with the squad prefix removed
   label: string
-  /* the members other than the lead, named, for the row's own line */
+  // the members other than the lead, named, for the row's own line
   mates: SavedMember[]
   members: SavedMember[]
   lead: SavedMember
@@ -68,11 +63,11 @@ export interface SavedEntry {
   dps: number | null
   updatedAt: number
   entry: SavedRotation
-  /* the latest completed live take, resolved and ranked as a saved row. */
+  // the latest completed live take, resolved and ranked as a saved row
   live: boolean
 }
 
-/** members that dealt damage, independent of who merely occupied a team slot. */
+// members that dealt damage, independent of who occupied a team slot
 export function savedContributors(row: Pick<SavedEntry, 'members'>): SavedMember[] {
   return row.members.filter((member) => member.to > member.from)
 }
@@ -80,7 +75,7 @@ export function savedContributors(row: Pick<SavedEntry, 'members'>): SavedMember
 export interface SavedAxis {
   lo: number
   hi: number
-  /* 0 to 1 along the track */
+  // 0 to 1 along the track
   at: (value: number) => number
 }
 
@@ -106,7 +101,7 @@ export interface SavedMemberTake {
   damage: number
   share: number
   total: number
-  /* the take's snapshot lets the ledger show the build behind its figure. */
+  // the take's snapshot: the build behind its figure
   entry: SavedRotation
 }
 
@@ -115,8 +110,7 @@ const SPRITE_ROOT = '/assets/game/resonators/sprites'
 const DEF_FACE_X = 48
 const DEF_FACE_Y = 31
 
-// the app uses the profile for every small portrait and the shared default
-// asset when a resonator has no art shipped yet
+// the app uses the profile for every small portrait and the shared default asset when a resonator has no art
 function savedFace(resonatorId: ResonatorId | undefined): string {
   if (!resonatorId) {
     return DEF_ICON_SRC
@@ -125,7 +119,7 @@ function savedFace(resonatorId: ResonatorId | undefined): string {
   return getResSeedBy(resonatorId)?.profile ?? `${PROFILE_ROOT}/${resonatorId}.webp`
 }
 
-// the standing art, which is the only portrait large enough to be cut into
+// the standing art, the only portrait large enough to crop
 function savedSprite(resonatorId: ResonatorId | undefined): string {
   if (!resonatorId) {
     return DEF_ICON_SRC
@@ -204,11 +198,8 @@ function apportionMemberFigures(
   }))
 }
 
-/*
-  the lead column already says who a rotation was written for, so the row only
-  has to say what is left of the name. entries are saved as "A/B/C Rotation 2",
-  and a bare "Rotation" says nothing at all once the squad is off the front.
-*/
+// the lead column already names who a rotation was written for, so the row shows the rest of the name; entries are
+// saved as "A/B/C Rotation 2", and a bare "Rotation" is dropped once the squad prefix is removed
 export function savedEntryLabel(entry: SavedRotation, members: SavedMember[]): string {
   const name = entry.name.trim()
   const squad = members.map((member) => member.name).join('/')
@@ -238,8 +229,7 @@ export function makeSavedEntry(
   const avg = totals?.avg ?? 0
   const contributions = summary?.members ?? []
 
-  /* the runs are laid end to end in team order, so the last one closes on the
-     entry's own average and the row stays one mark on the shared axis */
+  // the runs are laid end to end in team order, so the last one ends on the entry's own average
   let cursor = 0
   const context = savedRotationContextMember(entry)
   const contextName = getResSeedBy(context.resonatorId)?.name ?? context.resonatorId
@@ -324,7 +314,7 @@ export function makeSavedEntries(
         cmp = a.avg - b.avg
         break
       case 'dps':
-        // untimed rotations have no rate and sort last in either direction.
+        // untimed rotations have no rate and sort last in either direction
         if (a.dps != null && b.dps == null) return -1
         if (a.dps == null && b.dps != null) return 1
         cmp = (a.dps ?? 0) - (b.dps ?? 0)
@@ -341,12 +331,8 @@ export function makeSavedEntries(
   return rows
 }
 
-/*
-  what a row prints where the order goes. the archive is numbered by what is
-  actually in it, so the live take never takes a number off a saved one: it
-  prints the rank it would take once it is kept, and every take below it keeps
-  the rank it already has.
-*/
+// the rank a row shows: the archive is numbered by its saved entries, so the live take shows the rank it would take
+// once saved and every take below it retains its rank
 export function rankSavedEntries(rows: SavedEntry[]): ReadonlyMap<string, number> {
   const ranks = new Map<string, number>()
   let kept = 0
@@ -363,19 +349,15 @@ export function rankSavedEntries(rows: SavedEntry[]): ReadonlyMap<string, number
   return ranks
 }
 
-/*
-  one axis, from zero to the highest ceiling in the filter. it is the same in
-  both views and gives their rows one shared gridline backdrop. starting at zero
-  also means the scale needs no declaring: the gridlines say it.
-*/
+// one axis from zero to the highest ceiling in the filter, shared by both views so their rows have one gridline
+// backdrop; a zero start needs no scale label
 export function makeSavedScale(lo: number, hi: number): SavedAxis {
   const floor = Math.min(0, lo)
   const span = hi - floor > 0 ? hi - floor : 1
   return {
     lo: floor,
     hi,
-    /* deliberately unclamped: a zoomed window has to be able to say that a
-       take fell off one of its ends */
+    // unclamped, so a zoomed window can show that a take falls outside one of its ends
     at: (value) => (value - floor) / span,
   }
 }
@@ -387,11 +369,8 @@ export function makeSavedAxis(rows: SavedEntry[]): SavedAxis {
   return makeSavedScale(0, hi)
 }
 
-/*
-  the selected entry sets a zero-based axis range with padding for nearby
-  results. limit the range expansion so distant high-value entries do not
-  force the full archive scale.
-*/
+// the selected entry sets a zero-based axis range with padding for nearby results; the expansion is limited so
+// distant high-value entries do not force the full archive scale
 const WIN_PAD = 0.06
 const WIN_REACH = 1
 
@@ -405,7 +384,7 @@ export function savedAxisWindow(
   }
 
   let hi = Math.max(selected.normal, selected.avg, selected.crit)
-  /* an entry with no normal-to-crit spread still gets something to reach with */
+  // an entry with no normal-to-crit spread still gets a minimum reach
   const floor = selected.normal > 0 ? selected.normal : selected.avg
   const reach = Math.max(hi - floor, selected.avg * 0.1) * WIN_REACH
 
@@ -451,10 +430,7 @@ export function makeSavedTicks(axis: SavedAxis): number[] {
   return out
 }
 
-/*
-  grouped by the active resonator, not by team: everything written for one lead
-  together, sections ordered by their own best so the strongest work is first.
-*/
+// grouped by the active resonator: everything written for one lead together, sections ordered by their own best
 export function groupSavedEntries(rows: SavedEntry[]): SavedGroup[] {
   const byLead = new Map<ResonatorId, SavedEntry[]>()
   for (const row of rows) {
@@ -481,8 +457,7 @@ export function groupSavedEntries(rows: SavedEntry[]): SavedGroup[] {
   return groups
 }
 
-/* every member who appears anywhere in the archive, accumulated from the
-   same average-damage segments the field draws. */
+// every member who appears anywhere in the archive, accumulated from the same average-damage segments the field draws
 export function makeSavedRoster(rows: SavedEntry[]): SavedRosterMember[] {
   const roster = new Map<ResonatorId, SavedRosterMember>()
 
@@ -511,8 +486,8 @@ export function makeSavedRoster(rows: SavedEntry[]): SavedRosterMember[] {
   ))
 }
 
-/* one selected member's damage in every saved entry that contains them. the
-   row order is preserved so the ledger can be read directly against the field. */
+// one selected member's damage in every saved entry that contains them, in row order so the ledger lines up with the
+// field
 export function makeMemberTakes(
   rows: SavedEntry[],
   memberId: ResonatorId | null,
@@ -551,13 +526,11 @@ export function formatSavedTime(updatedAt: number): string {
   return SVD_LST_AT.format(updatedAt)
 }
 
+// a damage figure truncated to its places, never rounded up
 export function formatSavedFigure(value: number, decimals = 0): string {
   const places = Math.min(Math.max(Math.trunc(decimals), 0), 4)
   if (!Number.isFinite(value)) return '0'
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: places,
-    maximumFractionDigits: places,
-  })
+  return formatTrunc(value, places)
 }
 
 export function formatSavedTick(value: number, decimals = 0): string {

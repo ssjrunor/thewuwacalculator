@@ -13,12 +13,9 @@ import { listEffectsFor } from '../../../data/catalog/gameDataService.ts'
 import { activeOtherTargetGroups } from '../../effects/activeOtherTargets.ts'
 import { listRtSrcRef, makeSourceCat } from '../../services/runtimeSourceService.ts'
 
-/**
- * the states the rotation editor offers for this scenario, and the values its
- * Generate Preamble opens them at. the scenario's own values (a seat's
- * resonance mode) carry into the opening; nothing else is written that the
- * editor could not add by hand.
- */
+// the states the rotation editor offers for this scenario, and the values its Generate Preamble opens them at; the
+// scenario's own values (a seat's resonance mode) are applied to the opening, and nothing else is written that the
+// editor could not add by hand
 export function prepareEditorSources({ scenario, resonators, echoes, sonataDefinitions }: {
   scenario: CombatScenario
   resonators: RuntimeValue
@@ -30,13 +27,14 @@ export function prepareEditorSources({ scenario, resonators, echoes, sonataDefin
   if (!actRt) throw new Error('Scenario has no active member runtime')
   const runtimesById = { ...mkPartRtLkp(scenario), [actRt.id]: actRt }
   const preambleChoices = rotationStateChoices(actRt, runtimesById, scenario.target.id)
-  // an enemy effect the team resolves at a fixed stack count (Glacio Bite)
-  // has no stacks to write; its status updates are left to the resolver.
+  // an enemy effect the team resolves at a fixed stack count (Glacio Bite) has no stacks to write; its status updates
+  // are left to the resolver
   const fixedStatuses = new Set(negEffectsFor(actRt, runtimesById)
     .filter((effect) => !effect.sliderVisible).map((effect) => effect.key))
-  // a control behind an Active Other buff: the app pins the buff to whoever is active when it turns on
-  // activation paths are source-qualified because separate members can expose the same equipment control.
+  // a control behind an Active Other buff: the app pins the buff to whoever is active when it turns on; activation
+  // paths are source-qualified because separate members can expose the same equipment control
   const activeOtherControls = new Set<string>()
+  const equipmentEffects: RuntimeValue = {}
   const negativeCapControls = new Set<string>()
   const capDependencies = (condition: RuntimeValue, sourceId: string): void => {
     if (!condition || typeof condition !== 'object') return
@@ -60,12 +58,14 @@ export function prepareEditorSources({ scenario, resonators, echoes, sonataDefin
     const sources = [...listRtSrcRef(runtime), ...(runtime.build.weapon.id ? [{ type: 'weapon' as const, id: runtime.build.weapon.id }] : []),
       ...[...new Set((runtime.build.echoes as RuntimeValue[]).flatMap((echo) => echo ? [echo.set] : []))]
         .map((set) => ({ type: 'echoSet' as const, id: String(set) }))]
+    equipmentEffects[runtime.id] = sources.filter(source => source.type !== 'resonator')
+      .flatMap(source => listEffectsFor(source.type, source.id))
     for (const group of activeOtherTargetGroups(sources.flatMap((source) => listEffectsFor(source.type, source.id)))) {
       for (const path of group.paths) if (path.startsWith('state.controls.')) activeOtherControls.add(`${runtime.id}|runtime.${path}`)
     }
   }
   const equipmentFeatures = Object.fromEntries(Object.values(runtimesById).map(runtime => [runtime.id,
     makeSourceCat(runtime).features.filter(feature => feature.source.type === 'echoSet')]))
-  return { resonators, echoes, equipmentFeatures, preambleChoices, preambleValues: scenarioOpeningValues(runtimesById),
+  return { resonators, echoes, equipmentFeatures, equipmentEffects, preambleChoices, preambleValues: scenarioOpeningValues(runtimesById),
     fixedStatuses, activeOtherControls, negativeCapControls, effectControls: {}, castControls: {} }
 }

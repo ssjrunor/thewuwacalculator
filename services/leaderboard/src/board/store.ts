@@ -1,22 +1,14 @@
 /*
   Author: Runor Ewhro
-  description: one resonator's board: builds, their scores per cell, the jobs
-               scoring them, the entries that rank them, and the counts ranks
-               are read from. every write is one SQLite transaction, and the
-               ops D1 needs (a player's standing, an upload, the board's top, a
-               notice) are written to the outbox in that transaction and sent
-               after it.
-               rules carried over from the D1 schema (db/ranking.ts,
-               db/scores.ts): every stored build is kept and scored; the best on
-               the live ruleset is the active, listed one; owner-hidden builds do
-               not compete; a job's best cell is chosen once (score, then damage,
-               then scenario id). entries exist only for listed builds (active,
-               not hidden, player listed, job scored with a best cell) on every
-               ruleset they are scored on.
-               a build's entries depend only on its scores and the seq+region
-               key it was listed under (stored on its job), so a build is
-               unlisted before any of these change and relisted after (relist),
-               which keeps entries and counts consistent.
+  description: one resonator's board: builds, their scores per cell, the jobs scoring them, the entries that rank
+               them, and the counts ranks are read from. every write is one SQLite transaction, and the ops D1 needs
+               (a player's standing, an upload, the board's top, a notice) are written to the outbox in that
+               transaction and sent after it. every stored build is scored; the best on the live ruleset is the
+               active, listed one; owner-hidden builds do not compete; a job's best cell is chosen once (score, then
+               damage, then scenario id). entries exist only for listed builds (active, not hidden, player listed, job
+               scored with a best cell) on every ruleset they are scored on, and depend only on the build's scores and
+               the seq+region key stored on its job, so a build is unlisted before either changes and relisted after
+               (relist).
 */
 
 import { BUCKET_SHIFT, BUCKETS, bucketOf, fromQ, Q_OFFSET, toQ } from '../lib/score.ts'
@@ -28,13 +20,15 @@ import { page } from './reads.ts'
 import { toBase64 } from '../scorer/messages.ts'
 import { emptyScores, readScore, readScores, scoredCells, writeScore, type PackedScore } from './scorePack.ts'
 import { unpackSnapshot } from '../lib/snapshotPack.ts'
+import { canonicalJson } from '@lb/contract/canonical'
+import type { BuildSnapshot } from '@lb/contract/snapshot'
 import { snapshotProgramKey } from '@lb/contract/programKey'
 import type {
   CellDef, CellResult, GroupOrder, JobOrder, Lane, OldCell, OutboxOp, PlaceInput, PlaceResult, Placement, PlayerFacts, RecordAck, RecordResult,
   HeadRow, RescoreRequest, ReuseOffer, RulesetInstall, SeedInput, SeedPlaced, SeedPurged,
 } from './types.ts'
 
-/** build states; every kept build is active, ranked and shown as itself. */
+// build states; every kept build is active, ranked and shown as itself
 export const STATE = { active: 0, deleted: 2, hidden: 3 } as const
 export const JOB = { scoring: 0, scored: 1, failed: 2 } as const
 export const CELL_STATUS = { ok: 0, unsupported: 1, error: 2 } as const
@@ -51,10 +45,10 @@ export interface RulesetInfo {
   rs: number
   id: string
   state: number
-  /** a rolling ruleset's: the one its fan-out offers old scores from, or null. */
+  // a rolling ruleset's: the one its fan-out offers old scores from, or null
   reuseFrom: number | null
   cells: Map<number, CellInfo>
-  /** facet per team key and per weapon id, and the cell a team and weapon pick together. */
+  // facet per team key and per weapon id, and the cell a team and weapon pick together
   teams: Map<string, number>
   weapons: Map<number, number>
   pairs: Map<string, CellInfo>
@@ -116,7 +110,7 @@ export interface ScoreRow {
   reason: number | null
 }
 
-/** one entry of a listed build: its value on a facet and the source cell. */
+// one entry of a listed build: its value on a facet and the source cell
 export interface FacetEntry {
   facet: number
   q: number
@@ -124,81 +118,82 @@ export interface FacetEntry {
 }
 
 const STATUS_CODE: Record<CellResult['status'], number> = { ok: 0, unsupported: 1, error: 2 }
-/** the kinds of score health tallies (x<rs>). */
+// the kinds of score health tallies (x<rs>)
 const DEFECT = { error: 0, overPerfect: 1 } as const
-/** SCORE_FLAGS.overPerfect (scorer/job.ts), not imported by the board; tests/board/explain.test.ts checks they match. */
+// SCORE_FLAGS.overPerfect (scorer/job.ts), not imported by the board; tests/board/explain.test.ts checks that they
+// match
 export const OVER_PERFECT = 2
-/** a score taken lean (scorer/job.ts SCORE_FLAGS.lean): its detail waits for a fill to have its breakdown. */
+// a score taken lean (scorer/job.ts SCORE_FLAGS.lean): its breakdown comes from a later fill
 export const LEAN = 4
 
-/** a build's scores while one recordScores call takes its cells: written once, at the end. */
+// a build's scores while one recordScores call takes its cells: written once, at the end
 interface Recording {
   rs: number
   local: number
   cells: Uint8Array
   counted: number
-  /** the ruleset whose detail object the job reads (a kept result's detailFrom), null for the job's own object,
-        undefined when the results did not report it. */
+  // the ruleset whose detail object the job reads (a kept result's detailFrom), null for the job's own object,
+  // undefined when the results did not report it
   detailFrom?: number | null
 }
 
-/** how many slots a ruleset's score blob has: one per cell number. */
+// how many slots a ruleset's score blob has: one per cell number
 const slotsOf = (info: RulesetInfo) => Math.max(0, ...info.cells.keys()) + 1
-/** how long the scenario costs a bulk order is sorted by stay in memory. */
+// how long the scenario costs a bulk order is sorted by stay in memory
 const COSTS_MS = 10 * 60_000
-/** window of the timings behind the costs (the timings table stores 14 days). */
+// window of the timings behind the costs (the timings table stores 14 days)
 const COSTS_WINDOW_MS = 14 * 24 * 3600_000
-/** most recent timings averaged for costs; a full rollout writes millions in the window, and a recent sample is
-    accurate enough. */
+// most recent timings averaged for costs; a full rollout writes millions in the window, and a recent sample is
+// accurate enough
 const COSTS_SAMPLE = 50_000
 const LANE_CODE: Record<Lane, number> = { interactive: 0, bulk: 1 }
-/** builds staged per range while the entries are rebuilt. */
+// builds staged per range while the entries are rebuilt
 const REBUILD_BUILDS = 20_000
-/** entry rows staged per statement; about 35 json characters each, which keeps a chunk well under 1 MB. */
+// entry rows staged per statement; about 35 json characters each, so a chunk stays well under 1 MB
 const STAGE_ROWS = 20_000
-/** staged entries one rebuild step copies into the new entries table, in rank order, with their counts. */
+// staged entries one rebuild step copies into the new entries table, in rank order, with their counts
 const SORT_ROWS = 20_000
 
-/** the paced walks over a board's builds (store.walks). */
+// the paced walks over a board's builds (store.walks)
 export const WALKS = ['rescore', 'fill'] as const
 export type Walk = typeof WALKS[number]
 
-/** maximum builds per group message; about 300 B each, well under the queue's 128 KB message limit. */
+// maximum builds per group message; about 300 B each, well under the queue's 128 KB message limit
 export const GROUP_MAX = 200
-/** cpu budget per group; a scorer batch runs two, within the scorer's 300 s cpu limit even at twice the estimate
-    (a worker cannot time itself out because its clock moves only on i/o). */
+// cpu budget per group; a scorer batch runs two, within the scorer's 300 s cpu limit even at twice the estimate
+// (a worker cannot time itself out because its clock moves only on i/o)
 export const GROUP_BUDGET_MS = 60_000
-/** a build's cost in a group before the cell has bulk timings, about the p95 of a cell scored alone. */
+// a build's cost in a group before the cell has bulk timings, about the p95 of a cell scored alone
 const GROUP_BUILD_MS = 1_500
-/** how long staged cells wait for more builds with their program before a smaller group goes anyway. */
+// how long staged cells wait for more builds with their program before a smaller group is sent
 export const GROUP_WAIT_MS = 5_000
-/** groups cut in one call, so one alarm's send stays small. */
+// groups cut in one call, so one alarm's send stays small
 const GROUPS_PER_CUT = 100
-/** open bulk jobs per ruleset fan-out; the walk admits more builds as these finish, which limits the queue to a few
-    minutes of this board's work and keeps waiting jobs from looking stalled. */
+// open bulk jobs per ruleset fan-out; the walk admits more builds as these finish, which limits the queue to a few
+// minutes of this board's work so waiting jobs never read as stalled
 export const OPEN_BULK_JOBS = 2_000
-/** seeded builds carried over per rollout walk slice (fanOutSlice): copied rows with no open job. */
+// seeded builds carried over per rollout walk slice (fanOutSlice): copied rows with no open job
 export const SEED_CARRY_SLICE = 2_000
-/** how long scoring timings are kept (cellCosts and /admin/timings read the last 14 days). */
+// how long scoring timings are kept (cellCosts and /admin/timings read the last 14 days)
 const TIMINGS_KEEP_MS = 14 * 24 * 3600_000
 
-/** a rebuild of the entries under way (rebuildEntries): the ruleset being written, its phase, where its stage goes
-    on (a build local, null once every range is staged), the facets it has still to sort, the last (ns, build) of the
-    first of those already copied (null before its first slice), and the rulesets after it. */
+// a rebuild of the entries in progress (rebuildEntries): the ruleset being written, its phase, where its stage
+// continues (a build local, null once every range is staged), the facets it has still to sort, the last (ns, build)
+// of the first of those already copied (null before its first slice), and the rulesets after it
 interface EntriesRebuild { rs: number; phase: 'stage' | 'sort'; from: number | null; facets: number[]; at?: [number, number] | null
   rest: number[] }
 
-/** an entry's count bucket in sql, from its ns (-q), as score.ts bucketOf has it. */
+// an entry's count bucket in sql, from its ns (-q), as score.ts bucketOf has it
 const bucketSql = (ns: string) =>
   `MAX(0, MIN(${BUCKETS - 1}, CASE WHEN ${Q_OFFSET} - ${ns} >= 0 THEN (${Q_OFFSET} - ${ns}) / ${1 << BUCKET_SHIFT} ELSE 0 END))`
 export const laneName = (code: number): Lane => (code === 1 ? 'bulk' : 'interactive')
 
-/** a cell row's order as the best of a set: higher score, then higher damage, then the lower scenario id. */
+// a cell row's order as the best of a set: higher score, then higher damage, then the lower scenario id
 function better(a: { q: number; damage: number; key: string }, b: { q: number; damage: number; key: string }): boolean {
   return a.q > b.q || (a.q === b.q && (a.damage > b.damage || (a.damage === b.damage && a.key < b.key)))
 }
 
-/** a 53-bit hash of a text (cyrb53), stored per sent op to detect whether the next one differs. */
+// a 53-bit hash of a text (cyrb53), stored per sent op to detect whether the next one differs
 export function hash53(text: string): number {
   let h1 = 0xdeadbeef
   let h2 = 0x41c6ce57
@@ -212,25 +207,30 @@ export function hash53(text: string): number {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0)
 }
 
-/** a player's region key: their server (1-5 for digits 5-9) unless they hide their uid without being masked. */
+// a player's region key: their server (1-5 for digits 5-9) unless they hide their uid without being masked
 export function regionKey(player: Pick<PlayerRow, 'region' | 'flags'> | null): number {
   if (!player) return 0
   if (player.flags & PLAYER_FLAG.hideUid && !(player.flags & PLAYER_FLAG.masked)) return 0
   return player.region != null && player.region >= 5 && player.region <= 9 ? player.region - 4 : 0
 }
 
-/** whether a build shows on the boards and in the activity feed: kept, not hidden by its owner, its player listed. */
+// whether a build shows on the boards and in the activity feed: kept, not hidden by its owner, its player listed
 export const shownBuild = (state: number, ownerHiddenAt: number | null, playerFlags: number) =>
   state === STATE.active && ownerHiddenAt == null && !(playerFlags & PLAYER_FLAG.unlisted)
 
 const flagsOf = (facts: PlayerFacts) =>
   (facts.hideUid ? PLAYER_FLAG.hideUid : 0) | (facts.masked ? PLAYER_FLAG.masked : 0) | (facts.unlisted ? PLAYER_FLAG.unlisted : 0)
 
-/** what one write touched, for the outbox ops it owes at the end. */
+// what one write touched, for the outbox ops it owes at the end
 interface WriteScope {
   uids: Set<number>
   uploads: Set<number>
 }
+
+// what scoring reads of a build: scenarios max the resonator's level, its skills and the weapon's level, so those are
+// left out
+const scoredKey = (snapshot: BuildSnapshot): string => canonicalJson({ resonator: snapshot.resonator.id,
+  sequence: snapshot.resonator.sequence, weapon: snapshot.weapon.id, echoes: [...snapshot.echoes].sort((a, b) => a.slot - b.slot) })
 
 export class BoardStore {
   readonly sql: SqlLike
@@ -284,7 +284,7 @@ export class BoardStore {
     this.sql.run(`INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v`, key, value)
   }
 
-  /** the board's version: it moves with every write, and caches key on it. */
+  // the board's version: every write increments it, and caches key on it
   get ver(): number {
     return this.meta<number>('ver') ?? 0
   }
@@ -302,7 +302,7 @@ export class BoardStore {
     return undefined
   }
 
-  /** rulesets builds are scored and listed on: the live one and any rolling ruleset. */
+  // rulesets builds are scored and listed on: the live one and any rolling ruleset
   activeRulesets(): RulesetInfo[] {
     return [...this.rulesets.values()]
   }
@@ -321,7 +321,7 @@ export class BoardStore {
     return formatBuildId({ resonator: this.resonator, local })
   }
 
-  /** runs one write: a transaction, its outbox ops and the version bump; memory is restored on rollback. */
+  // runs one write: a transaction, its outbox ops and the version bump; memory is restored on rollback
   write<T>(work: () => T): T {
     if (this.scope) return work()
     try {
@@ -341,7 +341,7 @@ export class BoardStore {
     }
   }
 
-  /** bookkeeping that needs no outbox or version bump: its own transaction, or the write it is called inside. */
+  // bookkeeping that needs no outbox or version bump: its own transaction, or the write it is called inside
 
   private atomic<T>(work: () => T): T {
     return this.scope ? work() : this.sql.transaction(work)
@@ -388,12 +388,12 @@ export class BoardStore {
     return this.sql.first<JobRow>(`SELECT * FROM j${rs} WHERE build = ?`, local)
   }
 
-  /** a build's scores on a ruleset, by cell. */
+  // a build's scores on a ruleset, by cell
   scores(rs: number, local: number): ScoreRow[] {
     return readScores(this.scoreBlob(rs, local))
   }
 
-  /** one cell's score, or null. */
+  // one cell's score, or null
   scoreOf(rs: number, local: number, cell: number): ScoreRow | null {
     const cells = this.scoreBlob(rs, local)
     return cells ? readScore(cells, cell) : null
@@ -401,8 +401,8 @@ export class BoardStore {
 
   // detail fills
 
-  /** the lean (build, cell) pairs among these, with their job generation and snapshot, for a fill to rescore with a
-        breakdown; seeded builds share the board's template detail and are skipped. */
+  // the lean (build, cell) pairs among these, with their job generation and snapshot, for a fill to rescore with a
+  // breakdown; seeded builds share the board's template detail and are skipped
   leanCells(rs: number, pairs: ReadonlyArray<{ local: number; cell: number }>): Array<{ local: number; cell: number; gen: number; snap: Uint8Array }> {
     const info = this.rulesets.get(rs)
     if (!info) return []
@@ -418,8 +418,8 @@ export class BoardStore {
     return out
   }
 
-  /** where a fill's breakdown goes: the job's staged detail while its object is unwritten ('staged'), else its R2
-      object ('object'); null when the fill is stale (a newer score, or no longer lean). */
+  // where a fill's breakdown goes: the job's staged detail while its object is unwritten ('staged'), else its R2
+  // object ('object'); null when the fill is stale (a newer score, or a cell that is not lean)
   fillTarget(rs: number, local: number, gen: number, cell: number): 'staged' | 'object' | null {
     const job = this.job(rs, local)
     if (!job || job.gen !== gen) return null
@@ -429,8 +429,8 @@ export class BoardStore {
     return staged ? 'staged' : 'object'
   }
 
-  /** a fill landed: the cell's breakdown replaces its staged body (`body`), or is in its R2 object already (no body);
-      the score is no longer lean, and cached build pages read anew (write bumps the version). */
+  // a fill landed: the cell's breakdown replaces its staged body (`body`), or is already in its R2 object (no body);
+  // the score is marked not lean, and cached build pages read again (the write bumps the version)
   filled(rs: number, local: number, gen: number, cell: number, body?: string): boolean {
     return this.write(() => {
       if (this.fillTarget(rs, local, gen, cell) == null) return false
@@ -443,11 +443,9 @@ export class BoardStore {
     })
   }
 
-  /**
-     * up to `per` random ok scores per named cell from active builds with finished jobs (a sample check's draw), each
-     * with its build's packed snapshot; `eligible` counts the source builds. builds are found by probing random ids
-     * without walking the board, and each build gives one cell that still needs samples.
-     */
+  // up to `per` random ok scores per named cell from active builds with finished jobs (a sample check's draw), each
+  // with its build's packed snapshot; `eligible` counts the source builds. builds are found by probing random ids
+  // without walking the board, and each build gives one cell that still needs samples
   sampleScores(rs: number, cells: number[], per: number): { eligible: number; rows: Array<{ local: number; key: string; snap: string }> } {
     const info = this.rulesets.get(rs)!
     const eligible = this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM j${rs} WHERE status = ?`, JOB.scored)!.n
@@ -474,14 +472,15 @@ export class BoardStore {
     return { eligible, rows }
   }
 
-  /** a build's packed scores on a ruleset (scorePack.ts), or null before any cell is in. */
+  // a build's packed scores on a ruleset (scorePack.ts), or null before any cell is in
   scoreBlob(rs: number, local: number): Uint8Array | null {
     return this.sql.first<{ cells: Uint8Array }>(`SELECT cells FROM s${rs} WHERE build = ?`, local)?.cells ?? null
   }
 
   // rulesets
 
-  /** installs a ruleset on the board: its tables and cells, numbered into facets; an installed ruleset is unchanged. */
+  // installs a ruleset on the board: its tables and cells, numbered into facets; an installed ruleset is left
+  // unchanged
   installRuleset(def: RulesetInstall, now: number, { live = false }: { live?: boolean } = {}): RulesetInfo {
     return this.write(() => {
       const found = this.rulesets.get(def.rs)
@@ -505,15 +504,15 @@ export class BoardStore {
       this.rulesets.set(def.rs, info)
       this.ranks.set(def.rs, new RankIndex(this.sql, def.rs))
       if (state === RULESET.live) this.live = def.rs
-      // a rollout's entries are written once, when its walk is done (endDeferrals), not a build at a time.
+      // a rollout's entries are written once when its walk is done (endDeferrals) for every build at once
       else this.setMeta('entries_deferred', JSON.stringify([...this.deferredRulesets(), def.rs]))
       return info
     })
   }
 
-  /** makes a rolling ruleset live (its entries are written once its walk finishes) and drops the old ruleset's
-        tables. entries not yet written (the rollout waits for them in rulesetSettled) are written by the bounded
-        rebuild across alarms. */
+  // makes a rolling ruleset live (its entries are written once its walk finishes) and drops the old ruleset's
+  // tables. entries not yet written (the rollout waits for them in rulesetSettled) are written by the bounded
+  // rebuild across alarms
   goLive(rs: number, now: number): void {
     this.write(() => {
       const info = this.rulesets.get(rs)
@@ -531,7 +530,75 @@ export class BoardStore {
     })
   }
 
-  /** drops the tables of a rolling ruleset that will not go live. */
+  // whether the live ruleset's tables can be carried to a ruleset with these cells unchanged: the same cells in the
+  // same facets (api/moderation/carry.ts compares their scores)
+  carries(cells: CellDef[]): boolean {
+    const info = this.live == null ? undefined : this.rulesets.get(this.live)
+    if (!info) return false
+    const next = numberFacets(cells)
+    return next.length === info.cells.size && next.every((cell) => {
+      const was = info.cells.get(cell.cell)
+      return !!was && was.key === cell.key && was.teamId === cell.teamId && was.teamKey === cell.teamKey && was.teamRank === cell.teamRank
+        && was.weaponId === cell.weaponId && was.weaponRank === cell.weaponRank && was.weaponRole === cell.weaponRole
+        && JSON.stringify(was.members) === JSON.stringify(cell.members)
+        && was.teamFacet === cell.teamFacet && was.weaponFacet === cell.weaponFacet && was.cellFacet === cell.cellFacet
+    })
+  }
+
+  // whether a carry can run now: no entries rebuild is pending or in progress (its state names the rulesets it walks)
+  carryReady(): boolean {
+    return !this.entriesStale() && this.rebuildJob() == null && !this.unlistedRulesets().length
+  }
+
+  // makes a ruleset live by renaming the live ruleset's tables to it, for a board the rollout carries over: no build
+  // row is written again except its job's detail_from, which reads the old ruleset's detail object. the
+  // indexes are made again under the new number, the cells and timings move with it, and the old ruleset is archived
+  // with nothing to drop or purge (the new jobs read its objects; they are deleted when the new ruleset ends)
+  carryLive(def: RulesetInstall, now: number): RulesetInfo {
+    return this.write(() => {
+      const from = this.live
+      if (from == null || this.rulesets.has(def.rs) || !this.carries(def.cells) || !this.carryReady()) {
+        throw new Error(`board: ruleset ${def.id} cannot be carried from the live ruleset here`)
+      }
+      if (this.sql.first(`SELECT 1 FROM rulesets WHERE rs = ? OR id = ?`, def.rs, def.id)) {
+        throw new Error(`board: ruleset ${def.id} (${def.rs}) was here before and ended; it does not come back`)
+      }
+      const named = (rs: number) => dropRulesetTables(rs).map((statement) => statement.slice('DROP TABLE IF EXISTS '.length))
+      const tables = named(from)
+      const renamed = named(def.rs)
+      const held = new Set(this.sql.all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table'`).map((row) => row.name))
+      // named indexes are dropped with their old names; rulesetTables creates the ones every ruleset has under the
+      // new number
+      for (const index of this.sql.all<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL
+        AND tbl_name IN (SELECT value FROM json_each(?))`, JSON.stringify(tables))) this.sql.run(`DROP INDEX ${index.name}`)
+      tables.forEach((table, index) => { if (held.has(table)) this.sql.run(`ALTER TABLE ${table} RENAME TO ${renamed[index]}`) })
+      for (const statement of rulesetTables(def.rs)) this.sql.run(statement)
+      this.sql.run(`UPDATE j${def.rs} SET detail_from = ? WHERE detail_from IS NULL AND detail_at IS NOT NULL`, from)
+      this.sql.run(`UPDATE cells SET rs = ? WHERE rs = ?`, def.rs, from)
+      this.sql.run(`UPDATE timings SET rs = ? WHERE rs = ?`, def.rs, from)
+      this.sql.run(`UPDATE rulesets SET state = ?, ended_at = ? WHERE rs = ?`, RULESET.archived, now, from)
+      this.sql.run(`INSERT INTO rulesets (rs, id, state, installed_at, live_at, reuse_from) VALUES (?, ?, ?, ?, ?, NULL)`,
+        def.rs, def.id, RULESET.live, now, now)
+      // walks in progress continue under the new number
+      for (const kind of WALKS) {
+        const walks = JSON.parse(this.meta<string>(`${kind}_walk`) ?? '{}') as Record<number, number>
+        if (walks[from] == null) continue
+        walks[def.rs] = walks[from]
+        delete walks[from]
+        this.setMeta(`${kind}_walk`, JSON.stringify(walks))
+      }
+      const cells = [...this.rulesets.get(from)!.cells.values()]
+      const info = infoOf(def.rs, def.id, RULESET.live, null, cells)
+      this.rulesets.delete(from)
+      this.ranks.delete(from)
+      this.rulesets.set(def.rs, info)
+      this.ranks.set(def.rs, new RankIndex(this.sql, def.rs))
+      this.live = def.rs
+      return info
+    })
+  }
+
+  // drops the tables of a rolling ruleset that will not go live
   cancelRuleset(rs: number, now: number): void {
     this.write(() => {
       const info = this.rulesets.get(rs)
@@ -541,11 +608,12 @@ export class BoardStore {
   }
 
   private retire(rs: number, state: number, now: number): void {
-    // the earlier rulesets whose objects its jobs read: with this one gone, some of those may be read by no one.
+    // the earlier rulesets whose objects its jobs read: with this one gone, some of those may have no readers
     const origins = this.sql.all<{ rs: number }>(`SELECT DISTINCT detail_from AS rs FROM j${rs} WHERE detail_from IS NOT NULL`)
     for (const statement of dropRulesetTables(rs)) this.sql.run(statement)
     this.sql.run(`UPDATE rulesets SET state = ?, ended_at = ? WHERE rs = ?`, state, now, rs)
-    // its detail objects in R2 go too, a slice per alarm (BoardDO.purgeDetail), but for those a later job still reads.
+    // its detail objects in R2 are deleted too, a slice per alarm (BoardDO.purgeDetail), except those a later job
+    // still reads
     this.queueDetailPurge(this.rulesets.get(rs)!.id)
     for (const origin of origins) if (!this.rulesets.has(origin.rs)) this.queueDetailPurge(this.rulesetIdOf(origin.rs))
     this.rulesets.delete(rs)
@@ -555,7 +623,8 @@ export class BoardStore {
 
   // players
 
-  /** takes D1's word on a player when it is newer than the copy here, and relists their builds if it moved them. */
+  // applies D1's player row when it is newer than the copy here, and relists their builds when it changes their
+  // listing
   syncPlayer(facts: PlayerFacts): void {
     this.write(() => this.upsertPlayer(facts))
   }
@@ -576,17 +645,35 @@ export class BoardStore {
 
   // builds
 
-  /** stores a read build, or matches an already stored one, and returns the scoring it needs. */
+  // the player's kept build that scores as this snapshot would, or null. a staff-hidden one does not match and is
+  // stored as a new build
+  private sameBuild(uid: number, snapHash: string, snapshot: BuildSnapshot): BuildRow | null {
+    const exact = this.sql.first<BuildRow>(`SELECT * FROM builds WHERE uid = ? AND snap_h = ? AND state = ${STATE.active}
+      ORDER BY id DESC LIMIT 1`, uid, snapHash)
+    if (exact) return exact
+    // a card that differs only in what scoring maxes (levels, skills) is the same build. a player keeps few builds
+    // per board, so theirs are compared one by one
+    const key = scoredKey(snapshot)
+    for (const build of this.sql.all<BuildRow>(`SELECT * FROM builds WHERE uid = ? AND +state = ${STATE.active} ORDER BY id DESC`, uid)) {
+      if (scoredKey(unpackSnapshot(build.snap)) === key) return build
+    }
+    return null
+  }
+
+  // stores a read build, or matches an already stored one, and returns the scoring it needs
   place(input: PlaceInput): PlaceResult {
     return this.write(() => {
       const { now } = input
       this.upsertPlayer(input.player)
       this.scope!.uids.add(input.uid)
       const actor = input.owner ? `uid:${input.uid}` : null
-      // the same snapshot matches the stored build, except a staff-hidden one, which comes back as new
-      const same = this.sql.first<BuildRow>(`SELECT * FROM builds WHERE uid = ? AND snap_h = ? AND state = ${STATE.active}
-        ORDER BY id DESC LIMIT 1`, input.uid, input.snapHash)
+      const same = this.sameBuild(input.uid, input.snapHash, unpackSnapshot(input.snap))
       if (same) {
+        // a re-read of the build's own card replaces what that card was read as (what scoring maxes, and the name)
+        if (same.card === input.card && same.snap_h !== input.snapHash) {
+          this.sql.run(`UPDATE builds SET snap = ?, snap_h = ? WHERE id = ?`, input.snap, input.snapHash, same.id)
+          this.event(same.id, 'build.reread', null, { card: input.card }, now)
+        }
         if (input.claimSetup) this.claimSetupBuild(same.id, actor, input.card, now)
         else this.sql.run(`UPDATE builds SET last_seen_at = ? WHERE id = ?`, now, same.id)
         const placement: Placement = input.claimSetup ? { local: same.id, active: true, repeated: false, claimed: true }
@@ -604,8 +691,8 @@ export class BoardStore {
     })
   }
 
-  /** makes the card's sender the first uploader of a setup uid's build, now, keeping its scores; false when the build
-        is not the uid's or was removed. */
+  // makes the card's sender the first uploader of a setup uid's build at this time, keeping its scores; false when
+  // the build is not the uid's or was removed
   claimSetup(local: number, uid: number, card: string, now: number): boolean {
     return this.write(() => {
       const build = this.build(local)
@@ -622,8 +709,8 @@ export class BoardStore {
     this.scope!.uploads.add(local)
   }
 
-  /** a job generation unused on this board, which keeps results for older jobs (restarted, or ended with their
-        build) from counting toward newer ones. */
+  // a job generation unused on this board, so results for earlier jobs (restarted, or ended with their build) never
+  // count toward later ones
   private nextGen(): number {
     const next = this.meta<number>('next_gen') ?? 1
     this.setMeta('next_gen', next + 1)
@@ -636,7 +723,7 @@ export class BoardStore {
     return next
   }
 
-  /** creates a job on every live or rolling ruleset without one for the build, and returns every unsent job's orders. */
+  // creates a job on every live or rolling ruleset without one for the build, and returns every unsent job's orders
   private ensureJobs(local: number, lane: Lane, now: number): JobOrder[] {
     const orders: JobOrder[] = []
     for (const info of this.rulesets.values()) {
@@ -654,8 +741,8 @@ export class BoardStore {
   private orderOf(info: RulesetInfo, job: JobRow): JobOrder {
     const done = new Set(scoredCells(this.scoreBlob(info.rs, job.build)))
     let cells = [...info.cells.values()].filter((cell) => !done.has(cell.cell)).map((cell) => ({ cell: cell.cell, key: cell.key }))
-    // bulk work sends its slowest scenarios first, which keeps the longest cell from being last; new uploads keep team
-    // order, so the best team scores first
+    // bulk work sends its slowest scenarios first, so the longest cell is never last; new uploads keep team order, so
+    // the best team scores first
     if (job.lane === LANE_CODE.bulk && cells.length > 1) {
       const costs = this.cellCosts()
       cells = cells.map((cell, index) => ({ cell, index, ms: costs.get(cell.key) ?? 0 }))
@@ -664,21 +751,21 @@ export class BoardStore {
     return { rs: info.rs, rulesetId: info.id, local: job.build, gen: job.gen, lane: laneName(job.lane), cells }
   }
 
-  /** each scenario's mean scoring time on this board over the last two weeks, by key, which carries across rulesets. */
+  // each scenario's mean scoring time on this board over the last two weeks, by key, shared across rulesets
   cellCosts(now = Date.now()): Map<string, number> {
     if (this.costs && now - this.costs.at < COSTS_MS) return this.costs.byKey
     this.costs = { at: now, byKey: this.meanCosts(now, null) }
     return this.costs.byKey
   }
 
-  /** each scenario's mean bulk-lane cost per build (a group's builds each record their share of it), by key. */
+  // each scenario's mean bulk-lane cost per build (a group's builds each record their share of it), by key
   groupCosts(now = Date.now()): Map<string, number> {
     if (this.groupCostCache && now - this.groupCostCache.at < COSTS_MS) return this.groupCostCache.byKey
     this.groupCostCache = { at: now, byKey: this.meanCosts(now, 'bulk') }
     return this.groupCostCache.byKey
   }
 
-  /** mean ms by scenario key over the latest COSTS_SAMPLE timings in the window (of one lane, or all). */
+  // mean ms by scenario key over the latest COSTS_SAMPLE timings in the window (of one lane, or all)
   private meanCosts(now: number, lane: Lane | null): Map<string, number> {
     const rows = this.sql.all<{ key: string; ms: number }>(`SELECT c.key, AVG(t.ms) AS ms FROM (SELECT rs, cell, ms, lane FROM timings
       WHERE at >= ? ORDER BY at DESC LIMIT ?) t JOIN cells c ON c.rs = t.rs AND c.cell = t.cell
@@ -686,23 +773,21 @@ export class BoardStore {
     return new Map(rows.map((row) => [row.key, row.ms]))
   }
 
-  /** builds per group for a cell: what fits GROUP_BUDGET_MS at the cell's per-build cost, up to GROUP_MAX. */
+  // builds per group for a cell: what fits GROUP_BUDGET_MS at the cell's per-build cost, up to GROUP_MAX
   groupSize(key: string, now = Date.now()): number {
     const ms = this.groupCosts(now).get(key) ?? GROUP_BUILD_MS
     return Math.max(1, Math.min(GROUP_MAX, Math.floor(GROUP_BUDGET_MS / Math.max(1, ms))))
   }
 
-  /**
-     * the reuse offer of a rolling ruleset's fan-out: the build's scores on the source ruleset for scenarios both score,
-     * from a finished job there, with error rows rescored. undefined when the rollout keeps nothing, the source ruleset
-     * is gone, or the job has started.
-     */
+  // the reuse offer of a rolling ruleset's fan-out: the build's scores on the source ruleset for scenarios both
+  // score, from a finished job there, with error rows rescored. undefined when the rollout reuses nothing, the source
+  // ruleset is gone, or the job has started
   private reuseOffer(info: RulesetInfo, job: JobRow): ReuseOffer | undefined {
     const from = info.reuseFrom == null || info.rs === this.live ? null : this.rulesets.get(info.reuseFrom)
     if (!from || job.done > 0 || job.resumes > 0) return undefined
     const old = this.job(from.rs, job.build)
     if (!old || old.status !== JOB.scored) return undefined
-    // a cell its sample check found scoring differently now is scored again, its old score not offered.
+    // a cell its sample check found scoring differently is scored again without offering its old score
     const byKey = new Map([...info.cells.values()].map((cell) => [cell.key, cell.reuse ?? true]))
     const wanted = new Set([...byKey].filter(([, reuse]) => reuse !== false).map(([key]) => key))
     const stats = new Map(this.sql.all<{ weapon: number; stats: Uint8Array }>(`SELECT weapon, stats FROM w${from.rs} WHERE build = ?`, job.build)
@@ -715,19 +800,19 @@ export class BoardStore {
         damage: row.damage, dpr: row.dpr, flags: row.flags, reason: this.reasonText(row.reason), stats: stats.get(cell.weaponId) ?? null,
         ...(byKey.get(cell.key) === 'program' ? { program: true as const } : {}) })
     }
-    // the old job's detail may itself be an earlier ruleset's object: the offer names where it is.
+    // the old job's detail may itself be an earlier ruleset's object: the offer names it
     const detailId = old.detail_from != null ? this.rulesetIdOf(old.detail_from) : from.id
     return cells.length ? { from: from.rs, fromId: from.id, detailId, old: cells } : undefined
   }
 
-  /** an order with the reuse offer its job may still take. */
+  // an order with the reuse offer its job may still take
   private offered(info: RulesetInfo, job: JobRow): JobOrder {
     const order = this.orderOf(info, job)
     const reuse = this.reuseOffer(info, job)
     return reuse ? { ...order, reuse } : order
   }
 
-  /** the orders were handed to the queue. */
+  // the orders were handed to the queue
   markSent(orders: Array<Pick<JobOrder, 'rs' | 'local' | 'gen'>>, now: number): void {
     if (!orders.length) return
     this.write(() => {
@@ -738,7 +823,7 @@ export class BoardStore {
     })
   }
 
-  /** starts a build's job on a ruleset over (a rescore): its scores there go, its entries with them. */
+  // restarts a build's job on a ruleset (a rescore): its scores there are deleted with its entries
   restartJob(rs: number, local: number, lane: Lane, now: number): JobOrder | null {
     return this.write(() => {
       const info = this.rulesets.get(rs)
@@ -746,7 +831,7 @@ export class BoardStore {
       if (!info || !build || build.state !== STATE.active) return null
       this.unlist(rs, local)
       this.dropScores(rs, local)
-      // an object it read from an ended ruleset may now be read by no one: that ruleset's purge looks again.
+      // an object it read from an ended ruleset may have no readers left: that ruleset's purge checks again
       const from = this.job(rs, local)?.detail_from
       if (from != null && !this.rulesets.has(from)) this.queueDetailPurge(this.rulesetIdOf(from))
       const gen = this.nextGen()
@@ -756,7 +841,7 @@ export class BoardStore {
         progress_at = excluded.progress_at, sent_at = NULL, finished_at = NULL, resumes = 0, detail_at = NULL, listed_sr = NULL,
         detail_from = NULL`,
       local, gen, info.cells.size, LANE_CODE[lane], now, now)
-      // its best player standing may have moved with the scores it lost.
+      // its best player standing may change with the scores it lost
       if (rs === this.live) this.scope!.uids.add(build.uid)
       return this.orderOf(info, this.job(rs, local)!)
     })
@@ -772,7 +857,7 @@ export class BoardStore {
 
   // grouped bulk work
 
-  /** a build's program key hash (domain/leaderboard/programKey.ts): builds with equal ones are sent together. */
+  // a build's program key hash (domain/leaderboard/programKey.ts): builds with equal ones are sent together
   private programKeyOf(local: number, cache: Map<number, number>): number {
     let key = cache.get(local)
     if (key === undefined) {
@@ -783,11 +868,9 @@ export class BoardStore {
     return key
   }
 
-  /**
-     * stages bulk orders without a reuse offer for group messages (cutGroups) and marks their jobs sent; staged rows are
-     * stored here, so a staged job counts as sent. the live ruleset's first cell of each also measures the card's own
-     * stats.
-     */
+  // stages bulk orders without a reuse offer for group messages (cutGroups) and marks their jobs sent; staged rows
+  // are stored here, so a staged job counts as sent. the live ruleset's first cell of each also measures the card's
+  // own stats
   stage(orders: JobOrder[], now: number): void {
     if (!orders.length) return
     this.write(() => {
@@ -802,7 +885,7 @@ export class BoardStore {
     })
   }
 
-  /** stages the cells a reuse message did not keep with the rest of the bulk work. */
+  // stages the cells a reuse message did not keep with the rest of the bulk work
   private stageRescore(rescore: RescoreRequest[], now: number): void {
     const keys = new Map<number, number>()
     for (const request of rescore) {
@@ -818,7 +901,7 @@ export class BoardStore {
     }
   }
 
-  /** whether bulk cells wait to be sent, and when the oldest was staged. */
+  // whether bulk cells wait to be sent, and when the oldest was staged
   stagedSince(): number | null {
     let oldest: number | null = null
     for (const rs of this.rulesets.keys()) {
@@ -828,12 +911,10 @@ export class BoardStore {
     return oldest
   }
 
-  /**
-     * cuts staged cells into group messages per ruleset, cell and program key, up to groupSize builds; a group is cut
-     * when full or once its oldest cell has waited `wait` ms (every group with `flush`). builds whose job moved on
-     * (finished, restarted) are dropped. rows are removed as they are cut, and a group lost after this is a stalled job
-     * the sweep resumes.
-     */
+  // cuts staged cells into group messages per ruleset, cell and program key, up to groupSize builds; a group is cut
+  // when full or once its oldest cell has waited `wait` ms (every group with `flush`). builds whose job moved on
+  // (finished, restarted) are dropped. rows are removed as they are cut, and a group lost after this is a stalled job
+  // the sweep resumes
   cutGroups(now: number, wait = GROUP_WAIT_MS, flush = false): GroupOrder[] {
     return this.write(() => {
       const out: GroupOrder[] = []
@@ -849,7 +930,7 @@ export class BoardStore {
             const rows = this.sql.all<{ build: number; cs: number }>(`SELECT build, cs FROM n${info.rs} WHERE cell = ? AND pkey = ?
               ORDER BY build LIMIT ?`, group.cell, group.pkey, most)
             if (!rows.length) break
-            // a partial remainder waits for more builds unless it is old enough or everything goes.
+            // a partial remainder waits for more builds unless it is old enough or `flush` is set
             if (rows.length < most && !flush && group.first > now - wait) break
             const builds: GroupOrder['builds'] = []
             for (const row of rows) {
@@ -868,12 +949,12 @@ export class BoardStore {
     })
   }
 
-  /** open bulk jobs of a ruleset (scoring), counted on j<rs>_status. */
+  // open bulk jobs of a ruleset (scoring), counted on j<rs>_status
   openBulkJobs(rs: number): number {
     return this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM j${rs} WHERE status = 0`)?.n ?? 0
   }
 
-  /** timings past the window cellCosts and /admin/timings read go, a slice at a time. */
+  // prune timings older than the window cellCosts and /admin/timings read, a slice at a time
   pruneTimings(now: number, limit = 10_000): number {
     return this.write(() => {
       // delete by rowid, which caps each statement at the limit even for runs of equal times
@@ -887,9 +968,9 @@ export class BoardStore {
 
   // scores
 
-  /** records scored cells. a cell counts once per job generation; repeats and results for restarted jobs change
-        nothing, except an ok result replacing an earlier failure without counting again. a job finishes here when
-        every cell is in. */
+  // records scored cells. a cell counts once per job generation; repeats and results for restarted jobs change
+  // nothing, except an ok result replacing an earlier failure without counting again. a job finishes here when
+  // every cell is in
   recordScores(results: CellResult[], now: number, rescore: RescoreRequest[] = []): RecordResult {
     return this.write(() => {
       const acks: RecordAck[] = []
@@ -897,7 +978,7 @@ export class BoardStore {
       for (const result of results) acks.push(this.recordOne(result, now, touched))
       // stage the cells a reuse message did not keep, and record the kept ones in the same write
       if (rescore.length) this.stageRescore(rescore, now)
-      // each touched build's scores and job progress, written once however many of its cells came in.
+      // each touched build's scores and job progress, written once however many of its cells came in
       for (const entry of touched.values()) {
         this.sql.run(`INSERT INTO s${entry.rs} (build, cells) VALUES (?, ?) ON CONFLICT (build) DO UPDATE SET cells = excluded.cells`,
           entry.local, entry.cells)
@@ -940,7 +1021,8 @@ export class BoardStore {
       detailFrom })
     this.noteDefects(result.rs, result.local, existing, score)
     if (result.stats) {
-      // a weapon's stats are written when they differ: a build's cells share a few weapons, and a kept score repeats them.
+      // a weapon's stats are written when they differ, because a build's cells share a few weapons and a kept score
+      // repeats them
       this.sql.run(`INSERT INTO w${result.rs} (build, weapon, stats) VALUES (?, ?, ?)
         ON CONFLICT (build, weapon) DO UPDATE SET stats = excluded.stats WHERE stats IS NOT excluded.stats`, result.local, result.weapon, result.stats)
     }
@@ -961,7 +1043,7 @@ export class BoardStore {
     return ack
   }
 
-  /** a score that replaces another moves the health tally (x<rs>): a cell that failed, a score past perfect. */
+  // a score that replaces another moves the health tally (x<rs>): a cell that failed, a score past perfect
   private noteDefects(rs: number, local: number, before: PackedScore | null, after: PackedScore): void {
     if (before?.status === CELL_STATUS.error) this.sql.run(`DELETE FROM x${rs} WHERE kind = ? AND build = ? AND cell = ?`, DEFECT.error, local, before.cell)
     if (before && before.flags & OVER_PERFECT) this.sql.run(`DELETE FROM x${rs} WHERE kind = ? AND build = ? AND cell = ?`, DEFECT.overPerfect, local, before.cell)
@@ -969,7 +1051,7 @@ export class BoardStore {
     if (after.flags & OVER_PERFECT) this.sql.run(`INSERT OR REPLACE INTO x${rs} (kind, build, cell, q) VALUES (?, ?, ?, ?)`, DEFECT.overPerfect, local, after.cell, after.q)
   }
 
-  /** a job failed as a whole (its fan-out dead-lettered): it finishes without a score. */
+  // a job failed as a whole (its fan-out dead-lettered): it finishes without a score
   failJob(rs: number, local: number, gen: number, now: number): boolean {
     return this.write(() => {
       const job = this.job(rs, local)
@@ -983,7 +1065,7 @@ export class BoardStore {
     })
   }
 
-  /** finishes a complete job: its best cell, the build's entries, the player's standing, and the scoring news. */
+  // finishes a complete job: its best cell, the build's entries, the player's standing, and the scoring news
   private finalize(rs: number, local: number, now: number): void {
     const info = this.rulesets.get(rs)!
     const build = this.build(local)!
@@ -994,15 +1076,15 @@ export class BoardStore {
       if (!best || better(candidate, best)) best = candidate
     }
     const isLive = rs === this.live
-    // who held #1 (another player) is read before this build can take it.
+    // read who held #1 (another player) before this build can take it
     const top = isLive && best ? this.topOther(rs, build.uid) : null
     this.sql.run(`UPDATE j${rs} SET status = ?, finished_at = ?, best_cell = ?, best_q = ? WHERE build = ?`,
       JOB.scored, now, best?.cell ?? null, best?.q ?? null, local)
     // a job reading an earlier ruleset's object has no object to write
     this.sql.run(`UPDATE j${rs} SET detail_at = ? WHERE build = ? AND detail_from IS NOT NULL`, now, local)
     if (!isLive) {
-      // a rolling ruleset's job changes only that ruleset's entries: D1 shows nothing new until it goes live, and events
-      // would add a row per build per rollout. rollout entries wait for the walk (list skips them)
+      // a rolling ruleset's job changes only that ruleset's entries: D1 shows nothing new until it goes live, and
+      // events would add a row per build per rollout. rollout entries wait for the walk (list skips them)
       this.unlist(rs, local)
       this.list(rs, local)
       return
@@ -1025,7 +1107,7 @@ export class BoardStore {
     }
   }
 
-  /** the board's #1 entry held by another player, if any. */
+  // the board's #1 entry held by another player, if any
   private topOther(rs: number, uid: number): { build: number; q: number; uid: number } | null {
     const rows = this.sql.all<{ build: number; ns: number; uid: number }>(`SELECT e.build, e.ns, b.uid FROM e${rs} e
       JOIN builds b ON b.id = e.build WHERE e.facet = 0 ORDER BY e.ns, e.build LIMIT 2`)
@@ -1036,12 +1118,12 @@ export class BoardStore {
 
   // entries
 
-  /** a build's entries on a ruleset, from its scores: its best cell, its best per team and per weapon, every cell. */
+  // a build's entries on a ruleset, from its scores: its best cell, its best per team and per weapon, every cell
   facetEntries(rs: number, local: number, bestCell: number, bestQ: number): FacetEntry[] {
     return entriesOf(this.rulesets.get(rs)!, this.scores(rs, local), bestCell, bestQ)
   }
 
-  /** whether a build is listed on a ruleset now. */
+  // whether a build is listed on a ruleset now
   private listable(build: BuildRow, job: JobRow | null): boolean {
     if (!job || job.status !== JOB.scored || job.best_cell == null || job.best_q == null) return false
     return shownBuild(build.state, build.owner_hidden_at, this.player(build.uid)?.flags ?? 0)
@@ -1076,7 +1158,7 @@ export class BoardStore {
     if (rs === this.live) this.scope!.uploads.add(local)
   }
 
-  /** brings a build's entries on every ruleset in line with what it is now. */
+  // updates a build's entries on every ruleset to match its current state
   private relist(local: number): void {
     for (const rs of this.rulesets.keys()) {
       this.unlist(rs, local)
@@ -1084,13 +1166,13 @@ export class BoardStore {
     }
     const build = this.build(local)
     if (build) this.scope!.uids.add(build.uid)
-    // its upload's visibility follows the same facts.
+    // its upload's visibility follows the same facts
     this.scope!.uploads.add(local)
   }
 
   // owner and staff
 
-  /** the owner hides a build from everyone else, or shows it again; it is ranked again from the scores it has. */
+  // the owner hides a build from everyone else, or shows it again; it is ranked again from the scores it has
   setOwnerHidden(local: number, uid: number, hidden: boolean, now: number): boolean {
     return this.write(() => {
       const build = this.build(local)
@@ -1103,8 +1185,8 @@ export class BoardStore {
     })
   }
 
-  /** a build leaves for good (the owner deleted it) or until a moderator restores it (hidden): its entries and scores
-      go. */
+  // a build is removed for good (the owner deleted it) or until a moderator restores it (hidden): its entries and
+  // scores are deleted
   endBuild(local: number, state: 'deleted' | 'hidden', actor: string, now: number, { uid }: { uid?: number } = {}): BuildRow | null {
     return this.write(() => {
       const build = this.build(local)
@@ -1124,7 +1206,19 @@ export class BoardStore {
     })
   }
 
-  /** a moderator restores a hidden build: it is scored again and ranked once it is. */
+  // staff fill in what the reader missed (the name, levels and skills, which scoring maxes): the snapshot is replaced
+  // when the build still has the one staff edited, else false
+  editSnapshot(local: number, snap: Uint8Array, snapHash: string, expect: string, actor: string, fields: string[], now: number): boolean {
+    return this.write(() => {
+      const build = this.build(local)
+      if (!build || build.state === STATE.deleted || build.snap_h !== expect) return false
+      this.sql.run(`UPDATE builds SET snap = ?, snap_h = ? WHERE id = ?`, snap, snapHash, local)
+      this.event(local, 'build.edit', actor, { fields }, now)
+      return true
+    })
+  }
+
+  // a moderator restores a hidden build: it is scored again and ranked once scored
   restoreBuild(local: number, actor: string, now: number): JobOrder[] | null {
     return this.write(() => {
       const build = this.build(local)
@@ -1137,7 +1231,7 @@ export class BoardStore {
     })
   }
 
-  /** a player opted out: every build of theirs here is deleted. */
+  // a player opted out: every build of theirs here is deleted
   deletePlayerBuilds(uid: number, now: number): number[] {
     return this.write(() => {
       const ids = this.sql.all<{ id: number }>(`SELECT id FROM builds WHERE uid = ? AND state <> 2`, uid).map((row) => row.id)
@@ -1148,10 +1242,8 @@ export class BoardStore {
 
   // after each write
 
-  /**
-     * a player's D1 row for this board (player_boards): their kept build count, their best build (highest live score,
-     * then newest) and their best listed build, used by profile and social links and profile highlights.
-     */
+  // a player's D1 row for this board (player_boards): their kept build count, their best build (highest live score,
+  // then newest) and their best listed build, used by profile and social links and profile highlights
   standingOf(uid: number): Omit<Extract<OutboxOp, { op: 'player_board' }>, 'op'> {
     const live = this.live
     const builds = this.sql.all<{ id: number; seq: number; created_at: number; best_q: number | null; listed_sr: number | null }>(
@@ -1165,12 +1257,12 @@ export class BoardStore {
       listedAt: listed ? listed.created_at : null, seq: best?.seq ?? null }
   }
 
-  /** the outbox ops a write owes: each touched player's standing here, each touched upload, and the board's top. */
+  // the outbox ops a write owes: each touched player's standing here, each touched upload, and the board's top
   private settle(): void {
     const scope = this.scope!
     for (const uid of scope.uids) {
       const op: OutboxOp = { op: 'player_board', ...this.standingOf(uid) }
-      // a standing D1 already has is not sent again: most writes leave the player's best build where it was.
+      // a standing D1 already has is not sent again: most writes leave the player's best build unchanged
       const sent = hash53(JSON.stringify(op))
       const player = this.player(uid)
       if (player?.sent === sent) continue
@@ -1179,11 +1271,11 @@ export class BoardStore {
     }
     for (const local of scope.uploads) {
       const build = this.build(local)
-      // a deleted build's upload goes with it (build_gone).
+      // a deleted build's upload is removed with it (build_gone)
       if (!build || build.state === STATE.deleted) continue
-      // the activity feed shows every build, scored or not, while its player is listed and it is not hidden.
+      // the activity feed shows every build, scored or not, while its player is listed and it is not hidden
       const shown = shownBuild(build.state, build.owner_hidden_at, this.player(build.uid)?.flags ?? 0)
-      // its row in D1 changes only with whether it is shown.
+      // its row in D1 changes only with whether it is shown
       if (build.upload_sent === (shown ? 1 : 0)) continue
       this.sql.run(`UPDATE builds SET upload_sent = ? WHERE id = ?`, shown ? 1 : 0, local)
       this.push({ op: 'upload', gbid: this.gbid(local), uid: build.uid, at: build.created_at, shown })
@@ -1191,7 +1283,7 @@ export class BoardStore {
     this.summarize()
   }
 
-  /** the board's summary for D1 (total, the builds tied at #1, the first row), queued when it changed. */
+  // the board's summary for D1 (total, the builds tied at #1, the first row), queued when it changed
   private summarize(): void {
     if (this.live == null) return
     const live = this.rulesets.get(this.live)!
@@ -1199,7 +1291,7 @@ export class BoardStore {
     const rows = this.sql.all<{ build: number; ns: number }>(`SELECT build, ns FROM e${this.live} WHERE facet = 0 ORDER BY ns, build LIMIT 8`)
     const topQ = rows.length ? -rows[0].ns : null
     const top = rows.filter((row) => row.ns === rows[0].ns).map((row) => this.gbid(row.build))
-    // include the first row, which lets the boards index read D1 alone; changes to it (a rename, a hidden uid) count
+    // include the first row, so the boards index reads D1 alone; changes to it (a rename, a hidden uid) count
     const first = page(this, { rs: this.live, offset: 0, limit: 1 })?.rows[0] ?? null
     const head: HeadRow | null = first ? { ...first, stats: first.stats ? toBase64(first.stats) : null } : null
     const summary = JSON.stringify([live.id, total, top, topQ, head])
@@ -1209,7 +1301,8 @@ export class BoardStore {
     }
   }
 
-  /** the summary checked outside a write (upkeep): sends one the board owes, as when its shape grew, without a version bump. */
+  // the summary checked outside a write (upkeep): sends one the board owes, as when its shape grew, without a version
+  // bump
   resummarize(): void {
     if (this.scope) return
     this.sql.transaction(() => this.summarize())
@@ -1217,27 +1310,27 @@ export class BoardStore {
 
   // outbox
 
-  /** the oldest ops not yet applied to D1, oldest first. */
+  // the oldest ops not yet applied to D1, oldest first
   outbox(limit = 500): Array<{ seq: number; op: OutboxOp }> {
     return this.sql.all<{ seq: number; op: string }>(`SELECT seq, op FROM outbox ORDER BY seq LIMIT ?`, limit)
       .map((row) => ({ seq: row.seq, op: JSON.parse(row.op) as OutboxOp }))
   }
 
-  /** D1 has applied every op up to `seq`. */
+  // D1 has applied every op up to `seq`
   outboxApplied(seq: number): void {
     this.atomic(() => this.sql.run(`DELETE FROM outbox WHERE seq <= ?`, seq))
   }
 
   // detail staging
 
-  /** a finished job's staged cell detail, by cell, for its R2 object. */
+  // a finished job's staged cell detail, by cell, for its R2 object
   stagedDetail(rs: number, local: number): Map<number, string> {
     if (!this.rulesets.has(rs)) return new Map()
     return new Map(this.sql.all<{ cell: number; body: string }>(`SELECT cell, body FROM d${rs} WHERE build = ?`, local)
       .map((row) => [row.cell, row.body]))
   }
 
-  /** clears a job's staging once its R2 object is written; a job restarted since keeps its own staging. */
+  // clears a job's staging once its R2 object is written; a job restarted in between retains its own staging
   detailWritten(rs: number, local: number, gen: number, now: number): void {
     if (!this.rulesets.has(rs)) return
     this.atomic(() => {
@@ -1250,7 +1343,7 @@ export class BoardStore {
     })
   }
 
-  /** finished jobs whose detail object is still to be written. */
+  // finished jobs whose detail object is still to be written
   pendingDetail(limit = 50): Array<{ rs: number; local: number; gen: number }> {
     const out: Array<{ rs: number; local: number; gen: number }> = []
     for (const rs of this.rulesets.keys()) {
@@ -1263,13 +1356,13 @@ export class BoardStore {
 
   // upkeep
 
-  /** the next kept builds a ruleset's rollout walk has not reached (by build id), as bulk-lane job orders; done once
-        the walk passes the last build. */
+  // the next kept builds a ruleset's rollout walk has not reached (by build id), as bulk-lane job orders; done once
+  // the walk passes the last build
   fanOutSlice(rs: number, limit: number, now: number): { orders: JobOrder[]; done: boolean } {
     return this.write(() => {
       if (!this.rulesets.has(rs)) return { orders: [], done: true }
-      // paced: the walk admits builds only while the ruleset has fewer than OPEN_BULK_JOBS open jobs; carried-over seeds
-      // open no jobs and use a separate budget
+      // paced: the walk admits builds only while the ruleset has fewer than OPEN_BULK_JOBS open jobs; carried-over
+      // seeds open no jobs and use a separate budget
       const room = Math.min(limit, OPEN_BULK_JOBS - this.openBulkJobs(rs))
       if (room <= 0) return { orders: [], done: false }
       const cursor = this.sql.first<{ cursor: number }>(`SELECT cursor FROM rulesets WHERE rs = ?`, rs)!.cursor
@@ -1278,7 +1371,7 @@ export class BoardStore {
       let scored = 0, carried = 0, last: number | null = null
       for (const { id } of ids) {
         const seed = id >= SEED_LOCAL_FLOOR
-        if (seed && carried >= SEED_CARRY_SLICE) break // the next slice goes on from here
+        if (seed && carried >= SEED_CARRY_SLICE) break // the next slice continues from here
         if (seed && this.carrySeed(rs, id, now)) { carried += 1; last = id; continue }
         if (scored >= room) break
         scored += 1
@@ -1293,12 +1386,10 @@ export class BoardStore {
     })
   }
 
-  /**
-     * carries a seeded build (test data, api/moderation/seed.ts) into a rollout. its scores are the seed tool's model, so
-     * the rolling ruleset copies them cell by cell from the source ruleset (or the live one) on the scenarios both
-     * score, finished at once like a written seed (no object of its own, entries with the rollout's). false when
-     * nothing finished exists to copy, and the build is scored normally.
-     */
+  // copies a seeded build (test data, api/moderation/seed.ts) into a rollout. its scores are the seed tool's model,
+  // so the rolling ruleset copies them cell by cell from the source ruleset (or the live one) on the scenarios both
+  // score, finished at once like a written seed (no object of its own, entries with the rollout's). false when
+  // nothing finished exists to copy, and the build is scored normally
   private carrySeed(rs: number, local: number, now: number): boolean {
     const info = this.rulesets.get(rs)!
     if (this.job(rs, local)) return true
@@ -1324,7 +1415,8 @@ export class BoardStore {
     }
     if (count) this.sql.run(`INSERT INTO s${rs} (build, cells) VALUES (?, ?)`, local, cells)
     this.sql.run(`INSERT INTO w${rs} (build, weapon, stats) SELECT build, weapon, stats FROM w${from.rs} WHERE build = ?`, local)
-    // detail_at 0: finished with no object of its own (seeds read the board's template); listed with the rollout's entries
+    // detail_at 0: finished with no object of its own (seeds read the board's template); listed with the rollout's
+    // entries
     this.sql.run(`INSERT INTO j${rs} (build, gen, expected, done, status, best_cell, best_q, lane, created_at, progress_at, sent_at,
         finished_at, detail_at, listed_sr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
     local, this.nextGen(), info.cells.size, count, best ? JOB.scored : JOB.failed, best?.cell ?? null, best?.q ?? null, LANE_CODE.bulk,
@@ -1332,7 +1424,7 @@ export class BoardStore {
     return true
   }
 
-  /** whether a rolling-out ruleset or a rescore walk still has builds to reach and room to admit them now. */
+  // whether a rolling-out ruleset or a rescore walk still has builds to reach and room to admit them now
   hasRolloutWork(): boolean {
     for (const info of this.activeRulesets()) {
       if (info.rs === this.live || this.openBulkJobs(info.rs) >= OPEN_BULK_JOBS) continue
@@ -1347,27 +1439,23 @@ export class BoardStore {
 
   // paced walks
 
-  /**
-     * rulesets with a walk in progress, mapped to the last build id reached (meta 'rescore_walk' / 'fill_walk'). a
-     * rescore walk rescores every kept build; a fill walk creates a job for each build without one there (a seed
-     * batch's unscored builds).
-     */
+  // rulesets with a walk in progress, mapped to the last build id reached (meta 'rescore_walk' / 'fill_walk'). a
+  // rescore walk rescores every kept build; a fill walk creates a job for each build without one there (a seed
+  // batch's unscored builds)
   walks(kind: Walk): Record<number, number> {
     const walks = JSON.parse(this.meta<string>(`${kind}_walk`) ?? '{}') as Record<number, number>
     for (const rs of Object.keys(walks).map(Number)) if (!this.rulesets.has(rs)) delete walks[rs]
     return walks
   }
 
-  /** rulesets a rescore of every build is walking. */
+  // rulesets a rescore of every build is walking
   rescoreWalks(): Record<number, number> {
     return this.walks('rescore')
   }
 
-  /**
-     * rescores every kept build on a ruleset, paced like a rollout: the walk restarts builds by id while the ruleset has
-     * fewer than OPEN_BULK_JOBS open jobs (walkSlice, from the alarm), and a walk in progress restarts from the first
-     * build. returns the number of builds to restart.
-     */
+  // rescores every kept build on a ruleset, paced like a rollout: the walk restarts builds by id while the ruleset
+  // has fewer than OPEN_BULK_JOBS open jobs (walkSlice, from the alarm), and a walk in progress restarts from the
+  // first build. returns the number of builds to restart
   startRescoreWalk(rs: number): number {
     return this.write(() => {
       if (!this.rulesets.has(rs)) return 0
@@ -1376,22 +1464,21 @@ export class BoardStore {
     })
   }
 
-  /** a fill walk on every ruleset from just before `from`, or from where one already going is if that is earlier. */
+  // a fill walk on every ruleset from just before `from`, or from the position of a walk in progress when that is
+  // earlier
   private startFillWalk(from: number): void {
     const walks = this.walks('fill')
     for (const rs of this.rulesets.keys()) walks[rs] = Math.min(walks[rs] ?? Infinity, from - 1)
     this.setMeta('fill_walk', JSON.stringify(walks))
   }
 
-  /** the next builds of a rescore walk restarted on the bulk lane, as orders; the walk ends past the last build. */
+  // the next builds of a rescore walk restarted on the bulk lane, as orders; the walk ends past the last build
   rescoreSlice(rs: number, limit: number, now: number): JobOrder[] {
     return this.walkSlice('rescore', rs, limit, now)
   }
 
-  /**
-     * the next walk builds as bulk orders, up to the ruleset's free room: a rescore walk restarts each, a fill walk
-     * creates each missing job; the walk ends after the last build.
-     */
+  // the next walk builds as bulk orders, up to the ruleset's free room: a rescore walk restarts each, a fill walk
+  // creates each missing job; the walk ends after the last build
   walkSlice(kind: Walk, rs: number, limit: number, now: number): JobOrder[] {
     return this.write(() => {
       const walks = this.walks(kind)
@@ -1418,13 +1505,14 @@ export class BoardStore {
     })
   }
 
-  /** whether a ruleset's walk over the board has finished, none of its jobs is still scoring and its entries are written. */
+  // whether a ruleset's walk over the board has finished, none of its jobs is still scoring and its entries are
+  // written
   rulesetSettled(rs: number): boolean {
     if (!this.rulesets.has(rs)) return true
     return this.walked(rs) && !this.entriesPending(rs)
   }
 
-  /** whether a ruleset's walk over the board has finished and none of its jobs is still scoring. */
+  // whether a ruleset's walk over the board has finished and none of its jobs is still scoring
   private walked(rs: number): boolean {
     if (!this.rulesets.has(rs)) return true
     const cursor = this.sql.first<{ cursor: number }>(`SELECT cursor FROM rulesets WHERE rs = ?`, rs)!.cursor
@@ -1432,7 +1520,7 @@ export class BoardStore {
     return !behind && !this.sql.first(`SELECT 1 FROM j${rs} WHERE status = 0 LIMIT 1`)
   }
 
-  /** jobs whose orders were never sent (the queue send failed after the write). */
+  // jobs whose orders were never sent (the queue send failed after the write)
   unsentOrders(limit = 200): JobOrder[] {
     const out: JobOrder[] = []
     for (const info of this.rulesets.values()) {
@@ -1444,7 +1532,7 @@ export class BoardStore {
     return out
   }
 
-  /** jobs sent but with no result since `before`. */
+  // jobs sent but with no result since `before`
   stalledJobs(before: number, limit = 200): Array<{ rs: number; local: number; gen: number; resumes: number }> {
     const out: Array<{ rs: number; local: number; gen: number; resumes: number }> = []
     for (const rs of this.rulesets.keys()) {
@@ -1456,7 +1544,7 @@ export class BoardStore {
     return out
   }
 
-  /** resends a stalled job's missing cells; results already recorded count once, which makes late results no-ops. */
+  // resends a stalled job's missing cells; results already recorded count once, so late results are no-ops
   resumeJob(rs: number, local: number, gen: number, now: number): JobOrder | null {
     return this.write(() => {
       const info = this.rulesets.get(rs)
@@ -1467,7 +1555,7 @@ export class BoardStore {
     })
   }
 
-  /** a job given up on: its missing cells are errors, and it finishes on what did score. */
+  // a job given up on: its missing cells are errors, and it finishes on what did score
   abandonJob(rs: number, local: number, gen: number, reason: string, now: number): boolean {
     return this.write(() => {
       const info = this.rulesets.get(rs)
@@ -1480,19 +1568,18 @@ export class BoardStore {
     })
   }
 
-  /** whether any job on the board is still scoring. */
-  /** builds kept here, counted on builds_state, not on the table and its snapshots. */
+  // builds kept here, counted on builds_state without reading the table and its snapshots
   keptBuilds(): number {
     return this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM builds WHERE state = 0`)!.n
   }
 
-  /** a ruleset's jobs per status, each counted on j<rs>_status. */
+  // a ruleset's jobs per status, each counted on j<rs>_status
   jobCounts(rs: number): { scoring: number; scored: number; failed: number } {
     const count = (status: number) => this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM j${rs} WHERE status = ?`, status)!.n
     return { scoring: count(JOB.scoring), scored: count(JOB.scored), failed: count(JOB.failed) }
   }
 
-  /** a ruleset's cells that could not score, and how many scores passed the perfect build with the highest few (x<rs>). */
+  // a ruleset's cells that could not score, and how many scores passed the perfect build with the highest few (x<rs>)
   scoreDefects(rs: number, top = 5): { errorRows: number; over: number; overTop: Array<{ build: number; cell: number; q: number }> } {
     const count = (kind: number) => this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM x${rs} WHERE kind = ?`, kind)!.n
     return {
@@ -1508,12 +1595,12 @@ export class BoardStore {
     return false
   }
 
-  /** rulesets that ended here whose detail objects are still in R2. */
+  // rulesets that ended here whose detail objects are still in R2
   detailPurges(): string[] {
     return JSON.parse(this.meta<string>('detail_purge') ?? '[]') as string[]
   }
 
-  /** every detail object of the ruleset here is deleted. */
+  // every detail object of the ruleset here is deleted
   detailPurged(id: string): void {
     this.atomic(() => {
       this.setMeta('detail_purge', JSON.stringify(this.detailPurges().filter((entry) => entry !== id)))
@@ -1521,7 +1608,7 @@ export class BoardStore {
     })
   }
 
-  /** the last R2 key listed by the purge in progress, which skips objects already listed. */
+  // the last R2 key listed by the purge in progress, so objects already listed are skipped
   detailPurgeAfter(): string | null {
     return this.meta<string>('detail_purge_after') ?? null
   }
@@ -1535,7 +1622,7 @@ export class BoardStore {
     if (!queued.includes(id)) this.setMeta('detail_purge', JSON.stringify([...queued, id]))
   }
 
-  /** of the builds named, those whose job on a ruleset still held reads ruleset `id`'s detail object. */
+  // of the builds named, those whose job on a ruleset still held reads ruleset `id`'s detail object
   detailReaders(id: string, locals: number[]): Set<number> {
     const origin = this.rsOfId(id)
     const out = new Set<number>()
@@ -1547,7 +1634,7 @@ export class BoardStore {
     return out
   }
 
-  /** the ruleset id of the object with a job's detail: its own, or the earlier one a rollout kept it from. */
+  // the ruleset id of the object with a job's detail: its own, or the earlier one a rollout kept it from
   detailIdOf(rs: number, local: number): string | null {
     const info = this.rulesets.get(rs)
     if (!info) return null
@@ -1555,26 +1642,24 @@ export class BoardStore {
     return from != null ? this.rulesetIdOf(from) : info.id
   }
 
-  /** a ruleset's id by its number here, ended ones included. */
+  // a ruleset's id by its number here, ended ones included
   rulesetIdOf(rs: number): string {
     return this.sql.first<{ id: string }>(`SELECT id FROM rulesets WHERE rs = ?`, rs)!.id
   }
 
-  /** a ruleset's number on this board by id, ended ones included; undefined when the board never had it. */
+  // a ruleset's number on this board by id, ended ones included; undefined when the board never had it
   rsOfId(id: string): number | undefined {
     return this.sql.first<{ rs: number }>(`SELECT rs FROM rulesets WHERE id = ?`, id)?.rs
   }
 
   // test data
 
-  /**
-     * inserts a seed batch's builds in bulk (api/moderation/seed.ts), each at a local in the batch's range. written
-     * builds (with scores) finish at once on the live ruleset, each ranked as itself; the rest wait for the scorer like
-     * uploads. rows are inserted with one statement per table from json. written builds' entries are deferred:
-     * chunked writes would scatter them across the entry index (dozens of random pages per build), so the board marks
-     * entries stale and writes them all in key order when the batch finishes (rebuildEntries). builds already present
-     * (a resent chunk) are left as they are.
-     */
+  // inserts a seed batch's builds in bulk (api/moderation/seed.ts), each at a local in the batch's range. written
+  // builds (with scores) finish at once on the live ruleset, each ranked as itself; the rest wait for the scorer like
+  // uploads. rows are inserted with one statement per table from json. written builds' entries are deferred because
+  // chunked writes would scatter them across the entry index (dozens of random pages per build): the board marks
+  // entries stale and writes them all in key order when the batch finishes (rebuildEntries). builds already present
+  // (a resent chunk) are left as they are
   seed(input: SeedInput): SeedPlaced {
     return this.write(() => {
       const [lo, hi] = input.range
@@ -1611,7 +1696,8 @@ export class BoardStore {
           }
         }
         this.insertBuilds(buildRows)
-        // their jobs come from a paced walk over the batch (walkSlice 'fill'), not all at once: a batch can be millions.
+        // their jobs come from a paced walk over the batch (walkSlice 'fill'), because a batch can hold millions of
+        // builds
         this.startFillWalk(Math.min(...fresh.map((build) => build.local)))
       } else {
         const info = live!
@@ -1652,12 +1738,12 @@ export class BoardStore {
             finished_at, detail_at, listed_sr)
           SELECT value ->> 0, value ->> 1, value ->> 2, value ->> 3, value ->> 4, value ->> 5, value ->> 6, 1, value ->> 7, value ->> 7,
             value ->> 7, value ->> 7, 0, value ->> 8 FROM json_each(?)`, JSON.stringify(jobRows))
-        // listed builds' entries are written by the rebuild and stay stale until then; a rebuild in progress started before
-        // these rows and restarts
+        // listed builds' entries are written by the rebuild and stay stale until then; a rebuild in progress started
+        // before these rows restarts
         this.abandonRebuild()
         this.markStale('all', input.now)
       }
-      // what D1 shows of each player and upload here.
+      // what D1 shows of each player and upload here
       for (const uid of byUid.keys()) {
         placed.players.push(this.standingOf(uid))
         const flags = players.get(uid)?.flags ?? 0
@@ -1675,11 +1761,9 @@ export class BoardStore {
         value ->> 9, value ->> 10 FROM json_each(?)`, JSON.stringify(rows))
   }
 
-  /**
-     * removes a seed batch: every build at a local in `range`, and every player in `uids` left with no builds. a large
-     * batch fills most of its board, so filled tables are copied without it and swapped in; a small batch is deleted in
-     * place. counts are recomputed from the remaining entries.
-     */
+  // removes a seed batch: every build at a local in `range`, and every player in `uids` left with no builds. a large
+  // batch fills most of its board, so filled tables are copied without it and swapped in; a small batch is deleted in
+  // place. counts are recomputed from the remaining entries
   purgeSeeds(range: [number, number], uids: [number, number]): SeedPurged {
     return this.write(() => {
       const [lo, hi] = range
@@ -1695,14 +1779,14 @@ export class BoardStore {
             purged.detail.push({ rulesetId: row.from == null ? info.id : this.rulesetIdOf(row.from), local: row.build })
           }
           for (const table of ['s', 'x', 'w', 'j', 'd']) this.cut(`${table}${info.rs}`, 'build', lo, hi, swap)
-          // entries are removed the same way and their counts recomputed from what remains; a stale board's rebuild restarts
-          // on the remaining rows
+          // entries are removed the same way and their counts recomputed from what remains; a stale board's rebuild
+          // restarts on the remaining rows
           this.cut(`e${info.rs}`, 'build', lo, hi, swap)
           this.countEntries(info.rs)
         }
         this.cut('events', 'build', lo, hi, swap)
         this.cut('builds', 'id', lo, hi, swap)
-        // a rebuild under way started over what is gone: it starts again on what is left.
+        // a rebuild in progress started over removed rows, so it restarts on the remaining ones
         if (this.entriesStale()) this.abandonRebuild()
       }
       const before = this.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM players WHERE uid BETWEEN ? AND ?`, uids[0], uids[1])!.n
@@ -1713,29 +1797,27 @@ export class BoardStore {
     })
   }
 
-  /** whether written seeds wait for their entries (seed). */
+  // whether written seeds wait for their entries (seed)
   entriesStale(): boolean {
     return this.meta<number>('entries_stale') != null
   }
 
-  /** when a written seed last left the entries stale, or null. */
+  // when a written seed last left the entries stale, or null
   entriesStaleSince(): number | null {
     return this.meta<number>('entries_stale')
   }
 
-  /**
-     * rewrites every ruleset's entries and counts from the listed builds' scores, `steps` steps per call (at least one;
-     * a step stages one range of `rangeSize` builds or copies `sortRows` staged entries in rank order) in one
-     * transaction, which keeps each call short on a large board. the budget counts work because workerd's clock does
-     * not advance during synchronous sql (a time budget let one alarm rebuild a whole board). returns whether it is
-     * done; reads use the old entries until then. per ruleset it runs two phases, each writing in key order:
-     *   stage  builds in ranges of the job table: each build's entries (entriesOf's rules, in sql) go to a staging table
-     *          keyed (facet, build), which appends to the end of every facet
-     *   sort   facet by facet, a slice at a time: staged rows in rank order (the staging table's rank index) go into a
-     *          new entries table, with their counts
-     * the new tables then take the old tables' names. a list or unlist during the rebuild is mirrored into the rows
-     * already written (mirrorEntry).
-     */
+  // rewrites every ruleset's entries and counts from the listed builds' scores, `steps` steps per call (at least one;
+  // a step stages one range of `rangeSize` builds or copies `sortRows` staged entries in rank order) in one
+  // transaction, so each call stays short on a large board. the budget counts work because workerd's clock does not
+  // advance during synchronous sql. returns whether it is done; reads use the old entries until then. per ruleset it
+  // runs two phases, each writing in key order:
+  //   stage  builds in ranges of the job table: each build's entries (entriesOf's rules, in sql) go to a staging table
+  //          keyed (facet, build), which appends to the end of every facet
+  //   sort   facet by facet, a slice at a time: staged rows in rank order (the staging table's rank index) go into a
+  //          new entries table, with their counts
+  // the new tables then take the old tables' names. a list or unlist during the rebuild is mirrored into the rows
+  // already written (mirrorEntry)
   rebuildEntries(steps = Infinity, rangeSize = REBUILD_BUILDS, sortRows = SORT_ROWS): boolean {
     if (!this.entriesStale()) return true
     let done = false
@@ -1758,7 +1840,7 @@ export class BoardStore {
           job.phase = 'sort'
         }
         while (job.facets.length && !spent()) {
-          // one step copies up to sortRows entries, through as many facets as that reaches.
+          // one step copies up to sortRows entries, through as many facets as that reaches
           let budget = sortRows
           while (job.facets.length && budget > 0) {
             const { done, rows } = this.sortSlice(job, budget)
@@ -1786,25 +1868,29 @@ export class BoardStore {
     return done
   }
 
-  /** a seed batch is in: its entries need not wait out the quiet window. */
+  // a seed batch is complete: its entries skip the quiet window
   hurryEntries(): void {
     if (this.entriesStale()) this.atomic(() => this.setMeta('entries_stale', 0))
   }
 
-  /** whether a go-live's recheck of every player's standing is in progress (standingsSlice). */
+  // whether a go-live's recheck of every player's standing is in progress (standingsSlice)
   standingsPending(): boolean {
     return this.meta<number>('standings_from') != null
   }
 
-  /**
-     * rechecks a slice of players (by uid) and sends changed standings to D1; after a go-live the live ruleset sets each
-     * player's best build. returns whether players remain.
-     */
+  // starts the recheck a go-live starts, which repairs D1's player_boards: only changed standings are sent
+  recheckStandings(): void {
+    if (!this.standingsPending()) this.atomic(() => this.setMeta('standings_from', 0))
+  }
+
+  // rechecks a slice of players (by uid) and sends changed standings to D1; after a go-live the live ruleset sets
+  // each player's best build. returns whether players remain
   standingsSlice(limit: number): boolean {
     const from = this.meta<number>('standings_from')
     if (from == null) return false
     return this.write(() => {
-      // walk builds_player (uid first); `+state` keeps the planner off builds_state, which would read every row
+      // walk builds_player (uid first); `+state` removes builds_state from the plan, because that index reads every
+      // row
       const uids = this.sql.all<{ uid: number }>(`SELECT DISTINCT uid FROM builds WHERE uid > ? AND +state = 0 ORDER BY uid LIMIT ?`, from, limit)
       for (const { uid } of uids) this.scope!.uids.add(uid)
       this.setMeta('standings_from', uids.length === limit ? uids.at(-1)!.uid : null)
@@ -1812,22 +1898,22 @@ export class BoardStore {
     })
   }
 
-  /** whether timings older than TIMINGS_KEEP_MS wait to be pruned (pruneTimings). */
+  // whether timings older than TIMINGS_KEEP_MS wait to be pruned (pruneTimings)
   timingsToPrune(now: number): boolean {
     return this.sql.first(`SELECT 1 FROM timings WHERE at < ? LIMIT 1`, now - TIMINGS_KEEP_MS) != null
   }
 
-  /** whether an entries rebuild is in progress, which schedules the alarm soon. */
+  // whether an entries rebuild is in progress, which schedules the alarm soon
   rebuilding(): boolean {
     return this.rebuildJob() != null
   }
 
   // deferred entries
-  // a rollout rescores every build on a ruleset that has no readers until it goes live. listing each build when its
-  // job finished wrote entries one row at a time into a growing index in random order; deferred rulesets are listed
-  // once by the bounded rebuild (stage, then sort in key order) after the walk passes every build
+  // a rollout rescores every build on a ruleset that has no readers until it goes live, so its entries are deferred:
+  // the bounded rebuild (stage, then sort in key order) lists them once after the walk passes every build, which
+  // writes the index in key order
 
-  /** rolling rulesets whose entries wait for their walk (meta 'entries_deferred'). */
+  // rolling rulesets whose entries wait for their walk (meta 'entries_deferred')
   deferredRulesets(): number[] {
     const text = this.meta<string>('entries_deferred')
     return text ? (JSON.parse(text) as number[]).filter((rs) => this.rulesets.has(rs)) : []
@@ -1837,7 +1923,7 @@ export class BoardStore {
     return this.meta<string>('entries_deferred') != null && this.deferredRulesets().includes(rs)
   }
 
-  /** rulesets whose deferral ended and whose rebuild has not swapped in yet (meta 'entries_unlisted'). */
+  // rulesets whose deferral ended and whose rebuild has not swapped in yet (meta 'entries_unlisted')
   private unlistedRulesets(): number[] {
     const text = this.meta<string>('entries_unlisted')
     return text ? (JSON.parse(text) as number[]).filter((rs) => this.rulesets.has(rs)) : []
@@ -1847,18 +1933,19 @@ export class BoardStore {
     this.setMeta('entries_unlisted', rulesets.length ? JSON.stringify(rulesets) : null)
   }
 
-  /** whether a ruleset's entries table is missing listed builds: deferred, or its first rebuild unfinished. */
+  // whether a ruleset's entries table is missing listed builds: deferred, or its first rebuild unfinished
   entriesWaiting(rs: number): boolean {
     return this.isDeferred(rs) || this.unlistedRulesets().includes(rs)
   }
 
-  /** the rulesets a stale board rebuilds (meta 'entries_stale_rs'); null for every one. */
+  // the rulesets a stale board rebuilds (meta 'entries_stale_rs'); null for every one
   private staleRulesets(): number[] | null {
     const text = this.meta<string>('entries_stale_rs')
     return text ? (JSON.parse(text) as number[]).filter((rs) => this.rulesets.has(rs)) : null
   }
 
-  /** entries to rebuild: every ruleset's, or these rulesets' (added to what is stale already, and to a rebuild going). */
+  // entries to rebuild: every ruleset's, or these rulesets' (added to the ones already stale, and to a rebuild in
+  // progress)
   private markStale(rulesets: number[] | 'all', at: number): void {
     const wasStale = this.entriesStale()
     const known = wasStale ? this.staleRulesets() : []
@@ -1875,7 +1962,7 @@ export class BoardStore {
     }
   }
 
-  /** whether a ruleset's entries are not all written: deferred, or waiting on a rebuild. */
+  // whether a ruleset's entries are not all written: deferred, or waiting on a rebuild
   private entriesPending(rs: number): boolean {
     if (this.entriesWaiting(rs)) return true
     if (!this.entriesStale()) return false
@@ -1883,12 +1970,12 @@ export class BoardStore {
     return stale == null || stale.includes(rs)
   }
 
-  /** rolling rulesets whose walk is done and whose entries still wait for it. */
+  // rolling rulesets whose walk is done and whose entries still wait for it
   deferralsDue(): number[] {
     return this.deferredRulesets().filter((rs) => this.walked(rs))
   }
 
-  /** each done walk's ruleset is listed: its entries rebuilt, a bounded step per alarm (rebuildEntries). */
+  // each done walk's ruleset is listed: its entries rebuilt, a bounded step per alarm (rebuildEntries)
   endDeferrals(): number[] {
     return this.write(() => {
       const due = this.deferralsDue()
@@ -1897,7 +1984,7 @@ export class BoardStore {
     })
   }
 
-  /** rulesets listed from now on, their entries so far written by a rebuild; until it swaps in, they wait. */
+  // rulesets listed from this point, their entries so far written by a rebuild; until it swaps in, they wait
   private endDeferral(rulesets: number[]): void {
     this.setMeta('entries_deferred', JSON.stringify(this.deferredRulesets().filter((rs) => !rulesets.includes(rs))))
     this.setUnlisted([...new Set([...this.unlistedRulesets(), ...rulesets])])
@@ -1920,7 +2007,7 @@ export class BoardStore {
     this.rebuildCache = job
   }
 
-  /** the first of `rulesets` to rebuild, with its new tables made; null when none is left. */
+  // the first of `rulesets` to rebuild, with its new tables made; null when none is left
   private beginRebuild(rulesets: number[]): EntriesRebuild | null {
     const deferred = this.deferredRulesets()
     const [rs, ...rest] = rulesets.filter((candidate) => this.rulesets.has(candidate) && !deferred.includes(candidate))
@@ -1931,7 +2018,7 @@ export class BoardStore {
     this.sql.run(c.replace(`c${rs} `, `c${rs}_new `))
     this.sql.run(`CREATE TABLE e${rs}_stage (facet INTEGER NOT NULL, build INTEGER NOT NULL, ns INTEGER NOT NULL, sr INTEGER NOT NULL,
       cell INTEGER NOT NULL, PRIMARY KEY (facet, build)) WITHOUT ROWID`)
-    // the sort reads each facet in rank order a slice at a time from here.
+    // the sort reads each facet in rank order a slice at a time from here
     this.sql.run(`CREATE INDEX e${rs}_stage_rank ON e${rs}_stage (facet, ns, build)`)
     const info = this.rulesets.get(rs)!
     const facets = [...new Set([0, ...[...info.cells.values()].flatMap((cell) => [cell.teamFacet, cell.weaponFacet, cell.cellFacet])])].sort((a, b) => a - b)
@@ -1945,7 +2032,7 @@ export class BoardStore {
     for (const table of [`e${rs}_new`, `c${rs}_new`, `e${rs}_stage`]) this.sql.run(`DROP TABLE IF EXISTS ${table}`)
   }
 
-  /** stops a rebuild in progress and drops its tables; the entries stay stale, so it restarts from the beginning. */
+  // stops a rebuild in progress and drops its tables; the entries stay stale, so it restarts from the beginning
   private abandonRebuild(): void {
     const job = this.rebuildJob()
     if (!job) return
@@ -1953,8 +2040,8 @@ export class BoardStore {
     this.setRebuildJob(null)
   }
 
-  /** stages the entries of one range of the job table from `from`; returns the next range's start, or null after
-        the last. */
+  // stages the entries of one range of the job table from `from`; returns the next range's start, or null after
+  // the last
   private stageEntries(rs: number, from: number, size: number): number | null {
     const next = this.sql.first<{ build: number }>(`SELECT build FROM j${rs} WHERE build >= ? ORDER BY build LIMIT 1 OFFSET ?`,
       from, size)?.build ?? null
@@ -1973,7 +2060,7 @@ export class BoardStore {
       if (sr == null) continue
       for (const entry of entriesOf(info, readScores(row.cells), row.best_cell, row.best_q)) rows.push([entry.facet, row.build, nsOf(entry.q), sr, entry.cell])
     }
-    // insert in chunks: one range's entries as a single json text exceed the store's bound string limit
+    // insert in chunks because one range's entries as a single json text exceed the store's bound string limit
     // (SQLITE_TOOBIG); rows are in build order, so each chunk follows the previous one in key order
     for (let at = 0; at < rows.length; at += STAGE_ROWS) {
       this.sql.run(`INSERT INTO e${rs}_stage (facet, build, ns, sr, cell)
@@ -1983,11 +2070,9 @@ export class BoardStore {
     return next
   }
 
-  /**
-     * copies the next `rows` staged entries of the job's first facet into the new entries table in rank order, with
-     * their counts; returns whether the facet is done and how many rows were copied, and moves job.at to the last
-     * (ns, build) copied.
-     */
+  // copies the next `rows` staged entries of the job's first facet into the new entries table in rank order, with
+  // their counts; returns whether the facet is done and how many rows were copied, and moves job.at to the last
+  // (ns, build) copied
   private sortSlice(job: EntriesRebuild, rows: number): { done: boolean; rows: number } {
     const { rs } = job
     const facet = job.facets[0]
@@ -2008,7 +2093,7 @@ export class BoardStore {
     return { done: false, rows: copied }
   }
 
-  /** the rebuilt tables take the old ones' names; the counts in memory are read again. */
+  // the rebuilt tables take the old ones' names; the counts in memory are read again
   private swapEntries(rs: number): void {
     this.sql.run(`DROP TABLE e${rs}_stage`)
     this.sql.run(`DROP TABLE e${rs}`)
@@ -2018,17 +2103,17 @@ export class BoardStore {
     this.rank(rs).reset()
   }
 
-  /** an entry listed (1) or unlisted (-1) while a rebuild runs, put where the rebuild has already been: the staging
-      table for a build it staged and a facet it has not sorted, the new tables for a facet it has. */
+  // an entry listed (1) or unlisted (-1) while a rebuild runs, written where the rebuild has already been: the
+  // staging table for a build it staged and a facet it has not sorted, the new tables for a facet it has
   private mirrorEntry(rs: number, local: number, entry: FacetEntry, sr: number, delta: 1 | -1): void {
     const job = this.rebuildJob()
     if (!job || job.rs !== rs) return
     const ns = nsOf(entry.q)
-    // copied already: a facet the sort is done with, or the one it is in up to its cursor.
+    // already copied: a facet the sort is done with, or the one it is in up to its cursor
     const at = job.facets[0] === entry.facet ? job.at : null
     const sorted = job.phase === 'sort' && (!job.facets.includes(entry.facet) || (at != null && (ns < at[0] || (ns === at[0] && local <= at[1]))))
     if (!sorted) {
-      // a build the stage has not reached is read from its scores when it gets there.
+      // a build the stage has not reached is read from its scores when the stage reaches it
       if (job.phase === 'stage' && (job.from == null || local >= job.from)) return
       if (delta < 0) this.sql.run(`DELETE FROM e${rs}_stage WHERE facet = ? AND build = ?`, entry.facet, local)
       else this.sql.run(`INSERT OR REPLACE INTO e${rs}_stage (facet, build, ns, sr, cell) VALUES (?, ?, ?, ?, ?)`, entry.facet, local, nsOf(entry.q), sr, entry.cell)
@@ -2040,15 +2125,15 @@ export class BoardStore {
       ON CONFLICT (facet, sr, bucket) DO UPDATE SET n = n + excluded.n`, entry.facet, sr, bucketOf(entry.q), delta)
   }
 
-  /** a ruleset's counts from its entries; the bucket of q = -ns as score.ts bucketOf has it. */
+  // a ruleset's counts from its entries; the bucket of q = -ns as score.ts bucketOf has it
   private countEntries(rs: number): void {
     this.sql.run(`DELETE FROM c${rs}`)
     this.sql.run(`INSERT INTO c${rs} (facet, sr, bucket, n) SELECT facet, sr, ${bucketSql('ns')} AS b, COUNT(*) FROM e${rs} GROUP BY facet, sr, b`)
     this.rank(rs).reset()
   }
 
-  /** a table without the rows whose `column` is in [lo, hi]: deleted in place, or (swap) the rest copied to a new
-      table that takes its name and indexes. */
+  // a table without the rows whose `column` is in [lo, hi]: deleted in place, or (swap) the rest copied to a new
+  // table that takes its name and indexes
   private cut(table: string, column: string, lo: number, hi: number, swap: boolean): void {
     if (!swap) {
       this.sql.run(`DELETE FROM ${table} WHERE ${column} BETWEEN ? AND ?`, lo, hi)
@@ -2066,13 +2151,13 @@ export class BoardStore {
     for (const index of ddl.filter((row) => row.type === 'index')) this.sql.run(index.sql)
   }
 
-  /** the builds a card made here, newest first. */
+  // the builds a card made here, newest first
   buildsOfCard(card: string): BuildRow[] {
     return this.sql.all<BuildRow>(`SELECT * FROM builds WHERE card = ? ORDER BY id DESC`, card)
   }
 }
 
-/** numbers a ruleset's cells into facets: 0 is the whole board, then each team, each weapon, each cell. */
+// numbers a ruleset's cells into facets: 0 is the whole board, then each team, each weapon, each cell
 export function numberFacets(cells: CellDef[]): CellInfo[] {
   const teams = [...new Map([...cells].sort((a, b) => a.teamRank - b.teamRank || a.teamKey.localeCompare(b.teamKey))
     .map((cell) => [cell.teamKey, 0])).keys()]
@@ -2088,7 +2173,7 @@ export function numberFacets(cells: CellDef[]): CellInfo[] {
   })
 }
 
-/** a build's entries on a ruleset from its score rows: its best cell, its best per team and per weapon, every cell. */
+// a build's entries on a ruleset from its score rows: its best cell, its best per team and per weapon, every cell
 function entriesOf(info: RulesetInfo, rows: Iterable<{ cell: number; status: number; q: number | null; damage: number | null }>, bestCell: number,
   bestQ: number): FacetEntry[] {
   const entries: FacetEntry[] = [{ facet: 0, q: bestQ, cell: bestCell }]

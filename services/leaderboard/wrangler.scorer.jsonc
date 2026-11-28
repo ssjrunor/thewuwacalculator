@@ -25,7 +25,9 @@
       { "binding": "SCORE_BULK_QUEUE", "queue": "lb-score-bulk" }
     ],
     "consumers": [
-      { "queue": "lb-score", "max_batch_size": 5, "max_retries": 3, "dead_letter_queue": "lb-score-dlq" },
+      // a new build's scenarios are scored as soon as they arrive: the 5 s default for filling a batch was most of a
+      // new build's wait
+      { "queue": "lb-score", "max_batch_size": 5, "max_batch_timeout": 0, "max_retries": 3, "dead_letter_queue": "lb-score-dlq" },
       // rescores on their own backlog, which keeps lb-score (new player builds) ahead of them. a bulk message is a group
       // (one cell of up to 200 builds sharing a program), so a batch of 2 is a few hundred scores; 200 consumers leave room
       // under the account limit for the interactive lane. boards pace their sends (board/store.ts OPEN_BULK_JOBS), which

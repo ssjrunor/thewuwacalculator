@@ -38,5 +38,8 @@ export class CardRegistryDO extends DurableObject {
     return this.shard(shard).refusedImages(before, limit, reasons)
   }
   async stuckPending(shard: number, before: number, limit: number) { return this.shard(shard).stuckPending(before, limit) }
+  async refusals(shard: number, since: number, reasons: readonly string[], limit: number) {
+    return this.shard(shard).refusals(since, reasons, limit)
+  }
   async history(shard: number, no: number) { return { events: this.shard(shard).events(no), reads: this.shard(shard).reads(no) } }
 }

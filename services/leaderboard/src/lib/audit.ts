@@ -10,22 +10,21 @@ import { uuidv7 } from './ids.ts'
 
 export type ActorKind = 'uid' | 'account' | 'admin' | 'system'
 
-/** subjects the log is kept against. */
-export type SubjectKind = 'build' | 'card' | 'player' | 'account' | 'report' | 'ruleset' | 'sanction' | 'media' | 'document' | 'score' | 'comment'
+// subjects the log is kept against
+export type SubjectKind = 'build' | 'card' | 'player' | 'account' | 'report' | 'ruleset' | 'sanction' | 'media' | 'document' | 'score'
   | 'seed'
 
-/** every logged action as `subject.verb`; new writes add their action here. */
+// every logged action as `subject.verb`
 export type AuditAction =
-  | 'build.submit' | 'build.delete' | 'build.hide' | 'build.restore'
+  | 'build.submit' | 'build.delete' | 'build.hide' | 'build.restore' | 'build.rescore' | 'build.edit'
   | 'build.hide_own' | 'build.show_own'
-  | 'card.admin_submit' | 'card.block' | 'card.reject' | 'card.dead_letter' | 'card.retention_erase'
+  | 'card.admin_submit' | 'card.reread' | 'card.uid_set' | 'card.block' | 'card.reject' | 'card.dead_letter' | 'card.retention_erase'
   | 'player.hide_uid' | 'player.anonymous' | 'player.opt_out' | 'player.opt_in' | 'player.setup' | 'player.setup_end'
   | 'uid.claim' | 'uid.release' | 'uid.link' | 'uid.unlink'
   | 'account.create' | 'account.sign_in' | 'account.login_add' | 'account.login_remove' | 'account.delete' | 'account.role'
   | 'report.create' | 'report.assign' | 'report.note' | 'report.resolved' | 'report.dismissed'
   | 'sanction.issue' | 'sanction.lift' | 'appeal.write' | 'appeal.decide'
   | 'document.write' | 'document.clear' | 'document.reviewed'
-  | 'comment.write' | 'comment.edit' | 'comment.remove'
   | 'media.upload' | 'media.delete' | 'media.approved' | 'media.rejected'
   | 'preset.write' | 'preset.delete'
   | 'ruleset.publish' | 'ruleset.rescore' | 'ruleset.activate' | 'ruleset.rollout' | 'ruleset.rollout_cancel' | 'ruleset.check'
@@ -61,14 +60,14 @@ export interface AuditRow {
   data: string | null
 }
 
-/** a subject's history, newest first. */
+// a subject's history, newest first
 export async function historyOf(db: D1Database, subjectKind: SubjectKind, subjectId: string, limit: number): Promise<AuditRow[]> {
   const { results } = await db.prepare(`SELECT * FROM audit_log WHERE subject_kind = ? AND subject_id = ? ORDER BY at DESC, id DESC LIMIT ?`)
     .bind(subjectKind, subjectId, limit).all<AuditRow>()
   return results
 }
 
-/** what an actor did, newest first. */
+// what an actor did, newest first
 export async function actionsBy(db: D1Database, actor: Actor, limit: number): Promise<AuditRow[]> {
   const { results } = await db.prepare(`SELECT * FROM audit_log WHERE actor_kind = ? AND actor_id IS ? ORDER BY at DESC, id DESC LIMIT ?`)
     .bind(actor.actorKind, actor.actorId, limit).all<AuditRow>()

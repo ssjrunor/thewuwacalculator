@@ -3,6 +3,7 @@
   description: discovers evaluation echo, main-stat, sonata, and main-echo candidates.
 */
 import type { EchoInstance } from '@/domain/entities/runtime';
+import { countEchoSets } from '@/domain/gameData/echoSetCounts';
 import type { SkillTypeKey } from '@/domain/entities/stats';
 import { SUBSTAT_KEYS, getSbstStepP, ECHO_MAIN_STATS, ECHO_SIDE_STATS } from '@/data/gameData/catalog/echoStats';
 import { getEchoById, listChsByCos, listEchoes } from '@/data/catalog/echoCatalogService';
@@ -58,8 +59,7 @@ export function makeSetSummary(setRows: Uint8Array, echoes: EchoInstance[]): Eva
 export function utilityPlanFor(equipped: Array<EchoInstance | null>): SetPlanEntry[] {
   const echoes = equipped.filter((echo): echo is EchoInstance => echo != null)
   if (echoes.length === 0) return []
-  const setRows = Uint8Array.from(echoes.map((echo) => echo.set))
-  return makeSetSummary(setRows, echoes)
+  return makeEffectiveSetPlan(Object.entries(countEchoSets(echoes)).map(([id, count]) => [Number(id), count] as const))
     .filter((set) => isUtilitySet(set.setId) && isMaxSetPlan(set.setId, set.pieces))
     .map((set) => ({ setId: set.setId, pieces: set.pieces }))
 }
@@ -197,8 +197,8 @@ export function mainBuffDominates(left: Float32Array, right: Float32Array): bool
   return strictlyBetter
 }
 
-// fixtures and dominance depend on the profile catalog, not on the thousands
-// of set/cost plans visited by an anchor search. prepare them once per search.
+// fixtures and dominance depend only on the profile catalog, and on none of the thousands of set/cost plans visited
+// by an anchor search, so they are prepared once per search
 export function prepareMainEchoChoices(
   profiles: MainEchoProfile[],
   requiredMainEchoId: string | null = null,
@@ -464,13 +464,10 @@ export function makeStatContributions(
     .sort((left, right) => right.damage - left.damage || right.total - left.total)
 }
 
-// yields one candidate per legal main-stat assignment. each candidate's
-// `stats` / `primaryStats` / `mainCounts` alias the live recursion buffers and
-// are only valid for the duration of that iteration: the consumer reads what it
-// needs synchronously and deep-copies on a new best (see `consider` in
-// search.ts). streaming this keeps peak memory at o(one candidate) and avoids a
-// per-candidate Float32Array slice for the (vast majority of) candidates that
-// never become the running best.
+// yields one candidate per legal main-stat assignment. each candidate's `stats` / `primaryStats` / `mainCounts` alias
+// the live recursion buffers and are valid only for that iteration: the consumer reads what it needs synchronously
+// and deep-copies on a new best (`consider` in search.ts). streaming bounds peak memory to one candidate and
+// allocates no Float32Array slice for the candidates that never become the running best
 export function* enumerateMainStatCandidates(
   frame: EvaluationEchoFrame,
   mainsOnly: Float32Array,
@@ -563,11 +560,9 @@ export function findUsefulStatImpacts(
   const fullDamage = frame.score(probe, frame.sets)
   const epsilon = Math.max(0.000001, Math.abs(fullDamage) * 1e-9)
   const impacts: Array<{ key: string; impact: number }> = []
-  // reuse one scratch buffer across probe keys. a slice per key would allocate
-  // about 20 Float32Arrays per frame across roughly 4500 frames.
-  // `scratch.set(probe)` reproduces the bytes of `probe.slice()` exactly. the
-  // resulting useful impact list is byte-identical to the per-key-allocation
-  // version before normalization.
+  // one scratch buffer is reused across probe keys (a slice per key would allocate about 20 Float32Arrays per frame
+  // across roughly 4500 frames); `scratch.set(probe)` reproduces the bytes of `probe.slice()` exactly, so the useful
+  // impact list is byte-identical to a per-key allocation before normalization
   const scratch = new Float32Array(probe.length)
   for (const [key, value] of Object.entries(probeValues)) {
     if (value <= 0) continue

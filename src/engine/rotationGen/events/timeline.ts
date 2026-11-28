@@ -8,55 +8,52 @@ import type { ActionPlan, ActionTimeline } from '../../../domain/rotationActions
 import { PlanTranslationError } from '../planCoverage'
 import { advanceEffectState, createEffectState, findAction, holdEffect, holdStatus,
   playCast, playSupport, playSwap, playTick } from './execute.ts'
-import { echoAction } from '../gear/echo.ts'
+import { echoAction, equippedEchoActionId } from '../gear/echo.ts'
 import { readTimeline } from '../../../domain/rotationActions/timelines.ts'
+import { omit } from '../omissions'
 
-/** the statuses whose damage the calculator has a feature for. */
+// the statuses whose damage the calculator has a feature for
 const TICKED = new Set(['spectroFrazzle', 'aeroErosion', 'fusionBurst', 'glacioChafe', 'electroFlare'])
-/** negative statuses whose stacks come from the reference timeline. */
+// negative statuses whose stacks come from the reference timeline
 const HELD = new Set([...TICKED, 'havocBane', 'electroRage', 'heliacalEmber'])
-/**
- * the reference timeline keeps Shifting active until the break. equipment
- * responds to each reapplication, including Glint of Clouds, as a separate event.
- */
+// Shifting is active on the reference timeline until the break; equipment responds to each reapplication, including
+// Glint of Clouds, as a separate event
 const SHIFTING = new Set(['tuneStrainShifting', 'tuneRuptureShifting', 'tuneHackShifting'])
 const shiftingOf = (name?: string): string | undefined => {
   const match = /^Tune (Strain|Rupture|Hack) - Shifting$/.exec(name ?? '')
   return match ? `tune${match[1]}Shifting` : undefined
 }
 
-/** kit operations the timeline already accounts for: what was cast, inflicted, healed or shared. */
+// kit operations the timeline already accounts for: what was cast, inflicted, healed or shared
 const TIMELINE_OPS = new Set(['queueAction', 'cancelPendingAction', 'heal', 'shield', 'applyStatus', 'emitHit',
   'grantUnisonBoon', 'takeUnisonBoon', 'sendOthersOff', 'translationGap'])
-/** kit operations on one effect: kept only for effects the timeline does not govern. */
+// kit operations on one effect: kept only for effects the timeline does not govern
 const EFFECT_OPS = new Set(['grantEffect', 'removeEffect', 'setEffectStacks', 'decrementEffectStacks', 'consumeEffect',
   'increaseEffectCap', 'endEffectOnSwap', 'extendEffect', 'queueHandoffEffect'])
 
 const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/** the timeline for this scenario's scored seat and sequence, if the plan has one. */
-export function timelineFor(plan: ActionPlan, seat: number, sequence: number): ActionTimeline | null {
-  return readTimeline(plan.timelines, seat, sequence)
+// the timeline for this scenario's scored seat and sequence, if the plan has one
+export function timelineFor(plan: ActionPlan, seat: number, sequence: number, policy?: RuntimeValue): ActionTimeline | null {
+  const exact = readTimeline(plan.timelines, seat, sequence)
+  if (exact || !policy?.allowPartial || !plan.timelines) return exact
+  const candidates = Object.keys(plan.timelines.runs).map(key => key.split(':').map(Number))
+    .filter(([slot, value]) => slot === seat && Number.isInteger(value)).map(([, value]) => value)
+    .sort((a, b) => Number(a > sequence) - Number(b > sequence) || Math.abs(a - sequence) - Math.abs(b - sequence))
+  for (const candidate of candidates) {
+    const timeline = readTimeline(plan.timelines, seat, candidate)
+    if (!timeline) continue
+    omit(policy, 'sequence-timeline-fallback', { resonatorId: plan.team[seat].resonatorId,
+      requestedSequence: sequence, timelineSequence: candidate })
+    return timeline
+  }
+  return null
 }
 
-/**
- * each kit as the timeline replays it: effects the timeline governs (and every negative status)
- * become plain holders the timeline sets, and only rules on the rest keep running.
- */
+// each kit as the timeline replays it: effects the timeline governs (and every negative status) become plain holders
+// the timeline sets, and only rules on the rest run
 export function timelineKits(rulesets: RuntimeValue, plan: ActionPlan): RuntimeValue {
   return Object.fromEntries(Object.entries(rulesets as Record<string, RuntimeValue>).map(([id, rules]) => {
-    const prescribed = new Set(Object.values(plan.actions ?? {}).flatMap(action =>
-      action.kind === 'resonator' && String(action.resonatorId) === id ? [action.sourceName] : []))
-    for (const section of plan.sections ?? []) for (const step of section.steps) {
-      if (step.type !== 'swap' || !step.response) continue
-      if (String(plan.team[step.fromSlot]?.resonatorId) === id) prescribed.add(step.response.outro)
-      if (String(plan.team[step.toSlot]?.resonatorId) === id) prescribed.add(step.response.intro)
-    }
-    // a local grant/consume graph is complete only for the selected actions; shared-response actions can receive the
-    // state from another kit and keep their observed lifecycle, including those external grants
-    rules = { ...rules, effects: Object.fromEntries(Object.entries(rules.effects as Record<string, RuntimeValue>)
-      .map(([key, effect]) => [key, effect.replayLifecycleExceptActions?.some((name: string) => prescribed.has(name))
-        ? { ...effect, replayLifecycle: false } : effect])) }
     const owned = new Set(plan.timelines?.owns[id] ?? [])
     const governed = new Set(Object.entries(rules.effects as Record<string, RuntimeValue>)
       .filter(([, effect]) => !effect.replayLifecycle && (effect.name && owned.has(effect.name) || effect.status ||
@@ -70,14 +67,17 @@ export function timelineKits(rulesets: RuntimeValue, plan: ActionPlan): RuntimeV
     const effects = Object.fromEntries(Object.entries(rules.effects as Record<string, RuntimeValue>).map(([effectId, effect]) =>
       [effectId, governed.has(Number(effectId)) ? { name: effect.name, recipient: effect.recipient,
         endsOn: effect.endsOn,
-        // retain trigger modifiers for timeline-governed stacks; equipment
-        // reads trigger inputs that scale with the source's stats.
+        // another kit can grant this same shared effect natively, so its signal stays intrinsic even when this
+        // owner's holder follows the timeline
+        responseKind: effect.responseKind,
+        // retain trigger modifiers for timeline-governed stacks; equipment reads trigger inputs that scale with the
+        // source's stats
         triggerModifiers: effect.triggerModifiers,
         triggerModifiersPerStack: effect.triggerModifiersPerStack,
         triggerModifiersAtMax: effect.triggerModifiersAtMax,
         maxStacks: effect.maxStacks, ...(refreshableEffect(effectId) ? { duration: effect.duration } : {}) } : effect]))
-    // the timeline sets a status's stacks, but only the kit knows each time it is applied (a
-    // reapplication at the cap changes no stacks): an inflicting operation stays as a signal
+    // the timeline sets a status's stacks, but only the kit records each application (a reapplication at the cap
+    // changes no stacks), so an inflicting operation stays as a signal
     const inflicts = new Set<string>()
     const statusOf = (operation: RuntimeValue): string | undefined => operation.op === 'applyStatus' ? operation.status
       : operation.op === 'grantEffect' ? rules.effects[operation.effect]?.status?.key ??
@@ -89,8 +89,8 @@ export function timelineKits(rulesets: RuntimeValue, plan: ActionPlan): RuntimeV
       return { op: 'signalStatus', status, ...SHIFTING.has(status) ? { negative: false } : {},
         ...operation.op === 'grantEffect' ? { effect: operation.effect, stacks: operation.stacks ?? 1 } : {} }
     }
-    // a single-stack buff can be granted again without changing its snapshot.
-    // retain the kit trigger for duration refreshes; timeline snapshots set stacks.
+    // a single-stack buff can be granted again without changing its snapshot; retain the kit trigger for duration
+    // refreshes, and timeline snapshots set stacks
     const refreshable = (operation: RuntimeValue): boolean => operation.op === 'grantEffect' &&
       refreshableEffect(String(operation.effect))
     const kept = (operation: RuntimeValue) => operation.op === 'signalStatus' || operation.refreshOnly === true ||
@@ -107,11 +107,12 @@ export function timelineKits(rulesets: RuntimeValue, plan: ActionPlan): RuntimeV
   }))
 }
 
-// resolve special Tune Break and Echo markers first; ambiguous named actions prefer a variant containing every landed hit.
+// resolve special Tune Break and Echo markers first; ambiguous named actions prefer a variant containing every landed
+// hit
 function resolveActionId(member: RuntimeValue, name: string, landed: number): number {
   if (name === '#tuneBreak') return member.ruleset.tuneBreakAction
   if (name === '#echo') {
-    const id = member.source.echoes.main.actionId ?? member.source.echoes.main.action?.id
+    const id = equippedEchoActionId(member)
     if (id == null || !echoAction(member.source.echoes.main, id)) throw new PlanTranslationError({ code: 'missing-action-binding',
       resonatorId: String(member.ruleset.resonatorId), action: 'equipped Echo', message: 'The equipped Echo has no action' })
     return id
@@ -123,28 +124,32 @@ function resolveActionId(member: RuntimeValue, name: string, landed: number): nu
     const fits = found.filter(([, action]) => action.events.filter((event: RuntimeValue) => event.damage).length >= landed)
     return Number((fits[0] ?? found[0])[0])
   }
-  return findAction(member, name)[0]
+  try { return findAction(member, name)[0] }
+  catch (error) {
+    if (error instanceof PlanTranslationError && omit(member.source, 'missing-action-binding', { resonatorId: String(member.ruleset.resonatorId), action: name })) return -1
+    throw error
+  }
 }
 
-/**
- * replays the reference's solve: its casts, landed hits, swaps, breaks and the kit states it held,
- * frame for frame. Equipment rules and the effects the timeline does not govern still run.
- * `writable` names the enemy and team paths the rotation editor can write.
- */
+// replays the reference's solve: its casts, landed hits, swaps, breaks and the kit states it held, frame for frame.
+// equipment rules and the effects the timeline does not govern still run. `writable` names the enemy and team paths
+// the rotation editor can write
 export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline: ActionTimeline, writable: Set<string>, fixedStatuses: Set<string>): RuntimeValue {
   const seat = (slot: number): number => combat.members[slot].resonatorId
   const first = (timeline.events as RuntimeValue[]).find((event) => event[1] === 'swap')
   if (first) combat.initialOnFieldResonatorId = seat(first[2])
   const tail = Math.max(0, ...(Object.values(kits) as RuntimeValue[]).flatMap((rules) =>
-    (Object.values(rules.actions) as RuntimeValue[]).flatMap((action) => action.events.map((event: RuntimeValue) => event.at ?? 0))))
+    (Object.values(rules.actions) as RuntimeValue[]).flatMap((action) => action.events.map((event: RuntimeValue) => event.at ?? 0))),
+  ...combat.members.flatMap((member: RuntimeValue) => (Object.values(member.echoes.main.actions ?? {}) as RuntimeValue[])
+    .filter(action => action.endsOnNextInput).map(action => action.timing.duration)))
   combat.maxFrames = (timeline.events.at(-1)?.[0] ?? 0) + tail + 60
   for (const member of combat.members) {
     const governed = kits[member.resonatorId].governed
     member.initialEffectGrants = (member.initialEffectGrants ?? []).filter((grant: RuntimeValue) => !governed.has(Number(grant.effect)))
   }
   const fight = createEffectState(kits, combat)
-  // recorded heals refresh their equipment windows normally; a periodic heal supplies its next event and does not make
-  // every on-heal buff permanent
+  // recorded heals refresh their equipment windows normally; a periodic heal supplies its next event and does not
+  // make every on-heal buff permanent
   const effectIds = (owner: number): Map<string, number> => new Map(Object.entries(kits[owner].effects as Record<string, RuntimeValue>)
     .map(([id, effect]) => [effect.name, Number(id)]))
   const ids = Object.fromEntries(combat.members.map((member: RuntimeValue) => [member.resonatorId, effectIds(member.resonatorId)]))
@@ -168,7 +173,7 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
     const stacks = rageTicks.get(key)?.[ordinal]
     if (stacks != null) pairedRage.set(index, stacks)
   })
-  // index per-cast consumption and hit-control records before replay; later casts can then restore the correct local inputs.
+  // index per-cast consumption and hit-control records before replay, so later casts restore the correct local inputs
   const consumptions = new Map<string, RuntimeValue[]>()
   const hitControls = new Map<string, RuntimeValue[]>()
   const hitInflictions = new Map<string, RuntimeValue[]>()
@@ -193,9 +198,9 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
       consumed: event[4], stacks: event[4] })
     consumptions.set(key, values)
   }
-  // the reference reads a cast's held state at its hits, so a state its own cast spends (Unison,
-  // spent by the Unison Outro) comes just ahead of the cast. the condition stays there, but the
-  // cast's own rules still see what it spent: `spentBy[cast index]` restores it around the cast.
+  // the reference reads a cast's held state at its hits, so a state its own cast spends (Unison, spent by the Unison
+  // Outro) comes just ahead of the cast. the condition stays there, and `spentBy[cast index]` restores what the cast
+  // spent around its own rules
   const spentBy = new Map<number, RuntimeValue[]>()
   const ownCast = (index: number): number | undefined => {
     const [frame, , slot] = events[index]
@@ -210,14 +215,17 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
     if (event[1] !== 'cast' || event[3].startsWith('#')) return
     const owner = seat(event[2]), member = fight.members[owner]
     const action = member.ruleset.actions[resolveActionId(member, event[3], event[4])]
-    if (action?.cast === member.ruleset.codes.cast.liberation && action.timing?.timeStop)
+    if (action?.timing?.timeStop)
       lastCastAt.set(event[0], index)
   })
   for (const [index, event] of events.entries()) {
     const [frame, kind] = event
     const lastCast = lastCastAt.get(frame)
     advanceEffectState(fight, Math.min(Math.max(frame, fight.frame), fight.frameLimit),
-      kind === 'heal' || kind === 'shield' || lastCast != null && index <= lastCast)
+      (kind === 'heal' || kind === 'shield') && event[3] !== 1 ? true : lastCast != null && index <= lastCast
+        // an ordinary tail due on this frame precedes the next cast; only captured hits shifted onto the time-stop
+        // frame wait for its cast
+        ? (pending: RuntimeValue) => pending.capturedTimingShift === true : false)
     switch (kind) {
       case 'section': fight.trace.push({ type: 'section', index: event[2], frame: fight.frame }); break
       case 'swap': playSwap(fight, seat(event[2])); break
@@ -235,41 +243,49 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
           restored.stacks = prior.stacks
           return { restored, now, stacks }
         })
-        // the cast trace stores consumed inputs and sparse hit controls used when building the final editor features.
+        // the cast trace stores consumed inputs and sparse hit controls used when building the final editor features
         const consumptionKey = `${event[0]}|${event[2]}|${event[3]}`
-        // a resource-dependent cast can spend only part of its opening stacks: snapshot the live stacks before the cast's own
-        // operations change them, and mark them as an observed spend separate from availability
+        // a resource-dependent cast can spend only part of its opening stacks: snapshot the live stacks before the
+        // cast's own operations change them, and mark them as an observed spend separate from availability
         const recordedConsumptions = (consumptions.get(consumptionKey) ?? []).map((recorded: RuntimeValue) => ({
           ...recorded,
           observedSpend: true,
           stacks: fight.effects.find((effect: RuntimeValue) => effect.owner === recorded.owner &&
             effect.id === recorded.effectId && effect.until > fight.frame)?.stacks ?? recorded.stacks,
         }))
-        const castTraceAt = fight.trace.length
         const castId = resolveActionId(member, event[3], landed)
+        if (castId < 0) break
         let incoming: number | undefined
-        // an Outro recipient comes from the current incoming member or a later swap in this same frame.
+        // an Outro recipient comes from the current incoming member or a later swap in this same frame
         if (member.ruleset.actions[castId]?.cast === member.ruleset.codes.cast.outro) {
           if (fight.active !== owner) incoming = fight.active
           else for (let next = index + 1; next < events.length && events[next][0] === frame; next++) {
             if (events[next][1] === 'swap') { incoming = seat(events[next][2]); break }
           }
         }
-        playCast(fight, owner, castId, landed, event[5], index,
+        const castTrace = playCast(fight, owner, castId, landed, event[5], index,
           useRecordedHits ? event[6] : undefined, incoming, useRecordedHits ? event[7] : undefined, hitInflictions.get(consumptionKey))
         const changes = hitControls.get(`${event[0]}|${event[2]}|${event[3]}`)
-        if (changes?.length) fight.trace[castTraceAt].hitControls = changes
-        if (spent.length) fight.trace[castTraceAt].spentEffects = (spentBy.get(index) ?? []).map((prior: RuntimeValue, at: number) =>
+        if (changes?.length) {
+          castTrace.hitControls = changes
+          const damageEvents = member.ruleset.actions[castId]?.events.filter((event: RuntimeValue) => event.damage) ?? []
+          fight.observedTargetStates ??= {}
+          fight.observedTargetStates[castTrace.instance] = Object.fromEntries(damageEvents.map((event: RuntimeValue, hit: number) =>
+            [event.id, Object.fromEntries(changes.filter((change: RuntimeValue) => change.hit === hit &&
+              change.path.startsWith('enemy.combat.')).map((change: RuntimeValue) => [change.path.slice('enemy.combat.'.length), change.value]))]))
+        }
+        if (spent.length) castTrace.spentEffects = (spentBy.get(index) ?? []).map((prior: RuntimeValue, at: number) =>
           ({ owner: prior.owner, effectId: prior.id, stacks: prior.stacks,
             consumed: Math.max(0, prior.stacks - spent[at].stacks) }))
         for (const recorded of recordedConsumptions) {
-          const effects = fight.trace[castTraceAt].spentEffects ??= []
+          const effects = castTrace.spentEffects ??= []
           const prior = effects.find((effect: RuntimeValue) => effect.owner === recorded.owner && effect.effectId === recorded.effectId)
           if (prior) { prior.consumed = recorded.consumed; prior.observedSpend = true }
           else effects.push(recorded)
         }
         consumptions.delete(consumptionKey)
-        // temporary pre-consumption stacks apply only during this cast; restore the timeline snapshot immediately afterward.
+        // temporary pre-consumption stacks apply only during this cast; restore the timeline snapshot immediately
+        // afterward
         for (const { restored, now, stacks } of spent) {
           if (now) now.stacks = stacks
           else fight.effects = fight.effects.filter((effect: RuntimeValue) => effect !== restored)
@@ -278,23 +294,23 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
       }
       case 'state': {
         const owner = seat(event[2]), name = event[3], target = event[5]
-        // a nameless state names no kit effect (older captures matched it to an arbitrary marker)
+        // a nameless state names no kit effect
         if (!name) { skipped.push(event); break }
-        // a shared effect, such as a break debuff, resolves through the kit defining it.
+        // a shared effect, such as a break debuff, resolves through the kit defining it
         const holder = ids[owner].has(name) ? owner : combat.members.map((member: RuntimeValue) => member.resonatorId)
           .find((id: number) => ids[id].has(name))
         if (holder == null) { skipped.push(event); break }
         const effectId = ids[holder].get(name)!
-        // a reviewed native lifecycle is authoritative over an intermediate
-        // held snapshot. its original cast triggers and expiry remain active.
+        // a reviewed native lifecycle takes precedence over an intermediate held snapshot; its original cast triggers
+        // and expiry stay active
         if (kits[holder].effects[effectId]?.replayLifecycle) break
         const where = target === -1 ? 'team' : target === -2 ? 'enemy' : seat(target)
         const prior = held(effectId, where)
         const spender = prior && event[4] < prior.stacks ? ownCast(index) : undefined
         if (spender != null) spentBy.set(spender, [...(spentBy.get(spender) ?? []), { ...prior }])
-        // the reference reads a state its seat's cast changed in the same frame as that cast's outcome, including long casts
-        // (a field); a buff held on another seat is observed on its recipient and stays untied from the source's same-frame
-        // cast, since tying it could move a later clear before intervening hits
+        // the reference reads a state its seat's cast changed in the same frame as that cast's outcome, including
+        // long casts (a field); a buff held on another seat is observed on its recipient and is not tied to the
+        // source's same-frame cast, because tying it could move a later clear before intervening hits
         const cast = target >= 0 && seat(target) !== holder ? undefined : fight.members[seat(event[2])].timelineCast
         holdEffect(fight, holder, effectId, where, event[4],
           responseKinds(holder, effectId), cast?.frame === fight.frame && cast.span <= 60 ? cast : undefined)
@@ -304,8 +320,7 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
         const key = event[3], path = `enemy.combat.${key}`
         // a kit that signals its own applications is their only source; a rise here would count one twice
         holdStatus(fight, seat(event[2]), key, event[4], writable.has(path) || fixedStatuses.has(key), !kits[seat(event[2])].inflicts?.has(key))
-        // some status damage inputs use resonator controls, including Zani's
-        // Heliacal Ember count.
+        // some status damage inputs use resonator controls, including Zani's Heliacal Ember count
         for (const member of combat.members) for (const [effectId, definition] of Object.entries(kits[member.resonatorId].effects) as [string, RuntimeValue][]) {
           if (normalizeName(definition.name ?? '') !== normalizeName(key)) continue
           if (!kits[member.resonatorId].effectControls?.[effectId]?.length) continue
@@ -314,7 +329,11 @@ export function playTimeline(kits: RuntimeValue, combat: RuntimeValue, timeline:
         break
       }
       case 'tick': if (TICKED.has(event[3])) playTick(fight, seat(event[2]), event[3], event[4], pairedRage.get(index)); break
-      case 'heal': case 'shield': playSupport(fight, seat(event[2]), kind); break
+      case 'heal': case 'shield': {
+        const owner = seat(event[2]), actionId = event[4] == null ? undefined : resolveActionId(fight.members[owner], event[4], -1)
+        playSupport(fight, owner, kind, actionId)
+        break
+      }
       case 'control': {
         if (event[2] === 'teamEffects.unisonBoon') fight.unisonBoon.stacks = event[3]
         if (writable.has(event[2])) fight.trace.push({ type: 'control', frame: fight.frame, path: event[2], value: event[3] })

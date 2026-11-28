@@ -10,10 +10,12 @@ import { initialCharacterState } from './initialState'
 import { unisonBoonMax } from '../../domain/gameData/unisonBoon'
 import { buildupRateEffects, offTuneByAction } from './events/offTune'
 
-/** prepare trigger inputs, not an independently simulated build or resource budget. */
+// prepare the trigger inputs of the supplied scenario
 export function prepareInterpreterState({ scenario, mode, weaponBundles, resonatorBundles,
-  echoCatalog, gearLibrary, rulesets, damageEntries = [], resolveIdentity = (id: string) => id, maxFrames = 7200 }: RuntimeValue): RuntimeValue {
-  // member order is the authored replay order; scenario progression, controls, and equipment supply all trigger inputs.
+  echoCatalog, gearLibrary, rulesets, damageEntries = [], resolveIdentity = (id: string) => id, maxFrames = 7200,
+  allowPartial = false, omissions = [] }: RuntimeValue): RuntimeValue {
+  // member order is the authored replay order; scenario progression, controls, and equipment supply all trigger
+  // inputs
   const members = scenario.team.members.map((source: RuntimeValue) => ({
     resonatorId: Number(source.resonatorId),
     element: ({ aero: 64, electro: 128, fusion: 192, glacio: 256, spectro: 320, havoc: 384, physical: 448 } as Record<string, number>)[resonatorBundles?.[source.resonatorId]?.seed.attribute],
@@ -22,14 +24,16 @@ export function prepareInterpreterState({ scenario, mode, weaponBundles, resonat
     offTuneByAction: resonatorBundles?.[source.resonatorId]
       ? offTuneByAction(rulesets[source.resonatorId], resonatorBundles[source.resonatorId].source, damageEntries) : {},
     buildupRateEffects: buildupRateEffects(resonatorBundles?.[source.resonatorId]?.source ?? {}),
-    initialState: initialCharacterState(rulesets[source.resonatorId], source),
+    initialState: initialCharacterState(rulesets[source.resonatorId], source, { allowPartial, omissions }),
+    allowPartial, omissions,
     initialControls: { ...Object.fromEntries((resonatorBundles?.[source.resonatorId]?.details.stateGraph?.nodes ?? [])
       .map((node: RuntimeValue) => [node.key, node.defaultValue])), ...structuredClone(source.local.controls) }, initialHpRatio: source.initialHpRatio ?? 1,
     ...bindResonatorReferences(prepareEquipment({ loadout: source.loadout, weaponBundle: weaponBundles[source.loadout.weapon.id],
       echoCatalog, gearLibrary }), resolveIdentity),
   }))
-  // clone enemy state because replay writes counters and shifting flags without changing the supplied scenario.
-  return { mode, framesPerSecond: 60, maxFrames, members,
+  // clone enemy state because replay writes counters and shifting flags without changing the supplied scenario
+  for (const member of members) { omissions.push(...member.omissions); member.omissions = omissions }
+  return { mode, framesPerSecond: 60, maxFrames, members, allowPartial, omissions,
     unisonBoon: { stacks: scenario.environment.teamEffects?.unisonBoon ?? 0, max: unisonBoonMax(scenario.team.members) },
     initialEnemy: { ...structuredClone(scenario.environment.combatState),
       tuneStrainInterferedStacks: scenario.target.status?.tuneStrain ?? 0,

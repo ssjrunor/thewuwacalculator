@@ -1,7 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: protects generated resonator-source invariants that are easy to
-               regress during authored override updates.
+  description: checks generated resonator-source invariants that authored override updates can break.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -82,6 +81,13 @@ function makeJinhsiScope(incandescence: number, forteSkillLevel: number): Effect
 }
 
 describe('resonator source invariants', () => {
+  it('classifies both Lucy Overrides and damaging Spoofing programs as Heavy damage', () => {
+    const source = (JSON.parse(resonatorSourcesRaw) as SrcPkg[]).find(source => source.source.id === '1511')!
+    for (const id of ['1511028', '1511029', '1511030', '1511032']) {
+      expect(source.skills!.find(skill => skill.id === id)?.skillType).toEqual(['heavyAtk'])
+    }
+    expect(source.skills!.find(skill => skill.id === '1511031')?.archetype).toBe('hack')
+  })
   it('retains Lynae Outro total while exposing its reference hit schedule for timed conditions', () => {
     const source = (JSON.parse(resonatorSourcesRaw) as SrcPkg[]).find(source => source.source.id === '1509')!
     const skill = source.skills!.find(skill => skill.id === '1509:outro')!
@@ -206,7 +212,7 @@ describe('resonator source invariants', () => {
     })
   })
 
-  it('keeps Jinhsi Incandescence on Skill-typed Stella Glamor at its Forte scaling', () => {
+  it('preserves Jinhsi Incandescence on Skill-typed Stella Glamor at its Forte scaling', () => {
     const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
     const jinhsi = sources.find((source) => source.source.id === '1304')
     const solarFlare = jinhsi?.skills?.find((skill) => skill.id === '1304030')
@@ -285,7 +291,7 @@ describe('resonator source invariants', () => {
     }
   })
 
-  it('keeps Luuk S6 at a flat two additional Tune Strain stacks', () => {
+  it('grants Luuk S6 a flat two additional Tune Strain stacks', () => {
     const sources = JSON.parse(resonatorSourcesRaw) as SrcPkg[]
     const luuk = sources.find((source) => source.source.id === '1510')
     const effect = luuk?.effects?.find((candidate) => candidate.id === '1510:s6:tune-strain-extra')

@@ -4,7 +4,8 @@
                (default 24): dead letters, open reports and live sessions from
                D1; each active board's report (rulesets, builds, outbox backlog
                and size); live-ruleset jobs, error rows and over-perfect scores
-               summed across boards; and stuck reads in the registry shards.
+               summed across boards; and stuck and refused reads in the
+               registry shards.
 */
 
 import { authorize } from '../auth/staff.ts'
@@ -17,8 +18,14 @@ import { rulesetResonators } from '../../db/rulesets.ts'
 import { ALL_SHARDS, boardOf, shardStub } from '../stubs.ts'
 import { STUCK_PENDING_MS } from '../maintenance.ts'
 import type { RouteContext } from '../router.ts'
+import type { RefusedCard } from '../../cards/registry.ts'
 
 const HOUR_MS = 3_600_000
+
+// the refusals of a card's read: the reader could not read its uid or build, or failed on it every try
+const READ_REFUSALS = ['uid_unreadable', 'unreadable', 'incomplete_build', 'read_failed'] as const
+// how many of the newest refused cards the report names
+const RECENT_REFUSED = 10
 
 type Counts = Record<string, number>
 
@@ -27,7 +34,8 @@ export interface HealthReport {
   deadLetters: Counts
   scoring: { rulesetId: string | null; fingerprint: string | null; jobs: JobTotals | null; errorRows: number
     overPerfect: { n: number; scores: Array<{ buildId: string; scenarioId: string; score: number }> } }
-  cards: { stuckPending: number }
+  // refused: cards the reader refused (or failed on) in the window, per reason, and the newest of them
+  cards: { stuckPending: number; refused: Counts; recentRefused: RefusedCard[] }
   rollout: { rulesetId: string; startedAt: number; jobs: JobTotals } | null
   boards: Array<Awaited<ReturnType<ReturnType<typeof boardOf>['health']>>>
   reports: { open: number }
@@ -52,14 +60,20 @@ export async function healthReport(env: Pick<ApiEnv, 'LB' | 'BOARDS' | 'CARD_REG
     open ? rulesetJobs(env, open.ruleset_id, { force: false }) : Promise.resolve(null),
     Promise.all(resonators.map((id) => boardOf(env, id).health(Number(id)))),
   ])
-  // a card pending this long after its fetch lost its read; maintenance queues it again.
-  const stuck = await Promise.all(ALL_SHARDS.map((shard) => shardStub(env, shard).stuckPending(shard, now - STUCK_PENDING_MS, 1000)))
+  // a card pending this long after its fetch has lost its read; maintenance queues it again
+  const [stuck, refusals] = await Promise.all([
+    Promise.all(ALL_SHARDS.map((shard) => shardStub(env, shard).stuckPending(shard, now - STUCK_PENDING_MS, 1000))),
+    Promise.all(ALL_SHARDS.map((shard) => shardStub(env, shard).refusals(shard, since, READ_REFUSALS, RECENT_REFUSED))),
+  ])
+  const refused: Counts = {}
+  for (const { counts } of refusals) for (const [reason, n] of Object.entries(counts)) refused[reason] = (refused[reason] ?? 0) + n
+  const recentRefused = refusals.flatMap((shard) => shard.recent).sort((a, b) => b.at - a.at).slice(0, RECENT_REFUSED)
   const overPerfect = boards.flatMap((board) => board.overPerfect.scores).sort((a, b) => b.score - a.score).slice(0, 5)
   return {
     windowHours: hours, deadLetters,
     scoring: { rulesetId: live, fingerprint: fingerprint ?? null, jobs, errorRows: boards.reduce((sum, board) => sum + board.errorRows, 0),
       overPerfect: { n: boards.reduce((sum, board) => sum + board.overPerfect.n, 0), scores: overPerfect } },
-    cards: { stuckPending: stuck.reduce((sum, cards) => sum + cards.length, 0) },
+    cards: { stuckPending: stuck.reduce((sum, cards) => sum + cards.length, 0), refused, recentRefused },
     rollout: open && rolling ? { rulesetId: open.ruleset_id, startedAt: open.started_at, jobs: rolling } : null,
     boards, reports: { open: reports ?? 0 }, sessions: { live: sessions ?? 0 },
   }
@@ -71,11 +85,9 @@ export async function health(context: RouteContext): Promise<Response> {
   return json(await healthReport(context.env, context.now, hours))
 }
 
-/**
- * GET /admin/timings?hours=: where scoring time goes, from every board's recorded timings (24 hours by default, 14
- * days at most): per scenario its count, mean, p50, p95 and max, the anchor sources it used and its mean per stage,
- * slowest total first, with the totals over all of them.
- */
+// GET /admin/timings?hours=: where scoring time goes, from every board's recorded timings (24 hours by default, 14
+// days at most): per scenario its count, mean, p50, p95 and max, the anchor sources it used and its mean per stage,
+// slowest total first, with the totals over all of them
 export async function timings(context: RouteContext): Promise<Response> {
   await authorize(context, 'health.read')
   const { env, now } = context

@@ -1,8 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: the board restructure's keys and formats: packed snapshots
-               round-trip field for field (key order too), q and buckets cover
-               every score, and the id formats parse only what they print.
+  description: the board's keys and formats: packed snapshots round-trip field for field (key order too), q and
+               buckets cover every score, and the id formats parse only what they print.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -24,7 +23,7 @@ const card: BuildSnapshot = {
   ],
 }
 
-/** a deterministic random snapshot with odd shapes mixed in: unknown keys, text ids, nulls, floats, empty parts. */
+// a deterministic random snapshot with odd shapes mixed in: unknown keys, text ids, nulls, floats, empty parts
 function randomSnapshot(seed: number): BuildSnapshot {
   let state = seed >>> 0 || 1
   const next = () => (state = (state * 1_103_515_245 + 12_345) >>> 0) / 2 ** 32
@@ -73,14 +72,17 @@ describe('packed snapshots', () => {
 })
 
 describe('scores as q', () => {
-  it('keeps the shown precision, so shown ties are q ties', () => {
+  it('preserves the shown precision, so shown ties are q ties', () => {
     expect(toQ(99.76)).toBe(997_600)
     expect(fromQ(toQ(157.1234))).toBe(157.1234)
     expect(toQ(88.12344)).toBe(toQ(88.12341))
+    // cut toward zero, never rounded up
+    expect(toQ(99.99996)).toBe(999_999)
+    expect(toQ(-1.23456)).toBe(-12_345)
     expect(() => toQ(Number.NaN)).toThrow()
   })
 
-  it('puts every q in a bucket whose bounds hold it, the edges open-ended', () => {
+  it('puts every q in a bucket whose bounds contain it, with open-ended edges', () => {
     for (const q of [-5e9, -1_000_001, -1_000_000, -1, 0, 1, 997_600, 1_571_234, 3_193_343, 3_194_304, 9e9]) {
       const bucket = bucketOf(q)
       expect(bucket).toBeGreaterThanOrEqual(0)

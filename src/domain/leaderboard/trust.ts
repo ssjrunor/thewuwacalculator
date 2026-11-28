@@ -10,16 +10,14 @@
 export type TrustLevel = 'new' | 'member' | 'trusted'
 
 export interface TrustLimits {
-  /** comments and replies in a rolling day. */
-  commentsPerDay: number
-  /** uploads waiting for review at once. */
+  // uploads waiting for review at once
   pendingMedia: number
 }
 
 export const TRUST_LIMITS: Readonly<Record<TrustLevel, TrustLimits>> = {
-  new: { commentsPerDay: 10, pendingMedia: 2 },
-  member: { commentsPerDay: 100, pendingMedia: 12 },
-  trusted: { commentsPerDay: 500, pendingMedia: 30 },
+  new: { pendingMedia: 2 },
+  member: { pendingMedia: 12 },
+  trusted: { pendingMedia: 30 },
 }
 
 const DAY_MS = 86_400_000
@@ -27,13 +25,13 @@ const DAY_MS = 86_400_000
 export interface TrustRecord {
   createdAt: number
   linkedUids: number
-  /** the newest sanction other than a warning, lifted or not; null when it has none. */
+  // the newest sanction other than a warning, lifted or not; null when it has none
   lastSanctionAt: number | null
   staff: boolean
 }
 
-/** new: under three days old, no linked uid, or sanctioned in the last thirty days; trusted: thirty days old with no
-    sanction in ninety; member: everyone else; staff count as trusted. */
+// new: under three days old, no linked uid, or sanctioned in the last thirty days; trusted: thirty days old with no
+// sanction in ninety; member: everyone else; staff count as trusted
 export function trustLevel(record: TrustRecord, now: number): TrustLevel {
   if (record.staff) return 'trusted'
   const sanctionedWithin = (days: number) => record.lastSanctionAt != null && now - record.lastSanctionAt < days * DAY_MS

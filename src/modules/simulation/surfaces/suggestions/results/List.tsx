@@ -25,6 +25,7 @@ import {
   type RowEcho,
   type EchoSlot,
 } from '@/modules/simulation/surfaces/suggestions/results/model.ts'
+import { truncTo } from '@/shared/lib/number'
 
 const pct = (value: number) =>
   `${value > 0 ? '+' : value < 0 ? '−' : ''}${getDiffLabel(value, false)}`
@@ -95,9 +96,9 @@ function Build({ kind, row }: { kind: Kind, row: Row }) {
           <b>{weapon.name}</b>
           <span className="suggestion-results__wstats">
             <em>{weapon.rarity}★ R{weapon.rank}</em>
-            <span className="suggestion-results__wstat" title={`ATK ${Math.round(weapon.baseAtk)}`}>
+            <span className="suggestion-results__wstat" title={`ATK ${truncTo(weapon.baseAtk)}`}>
               <i className="sst-icon" style={maskStyle(statIconSrc('atk'))} />
-              {Math.round(weapon.baseAtk)}
+              {truncTo(weapon.baseAtk)}
             </span>
             <span
               className="suggestion-results__wstat"
@@ -202,7 +203,7 @@ function Out({ row, index }: { row: Row, index: number }) {
   )
 }
 
-/* a plan can offer one set group twice; each piece takes a different set from it. */
+// a plan can offer one set group twice; each piece takes a different set from it
 function pickSetOptions(trays: EchoSlot[]) {
   const used = new Set<string>()
   return trays.map((tray) => {
@@ -247,9 +248,9 @@ function SelectedResult({ row, comparison, onApply }: { row: Row, comparison: Re
           {Array.from({ length: weapon.rarity }, (_, index) => <Star key={index} />)}
         </span>
         <span>R{weapon.rank}</span>
-        <span title={`ATK ${Math.round(weapon.baseAtk)}`}>
+        <span title={`ATK ${truncTo(weapon.baseAtk)}`}>
           <i className="suggestion-results__bar-glyph" style={maskStyle(statIconSrc('atk'))} />
-          {Math.round(weapon.baseAtk)}
+          {truncTo(weapon.baseAtk)}
         </span>
         <span title={formatStatKeyLabel(weapon.statKey)}>
           <i className="suggestion-results__bar-glyph" style={maskStyle(statIconSrc(weapon.statKey))} />
@@ -400,7 +401,7 @@ export function List({
   held: number
   onHeld: (index: number) => void
   onApply: (row: Row) => void
-  /** materialized comparison for the currently held result. */
+  // materialized comparison for the currently held result
   comparison: ReactNode
   running: boolean
   targetValue: string
@@ -419,13 +420,13 @@ export function List({
   const originRow = originIndex >= 0 ? rows[originIndex] : null
   const heldRow = rows[held] ?? null
 
-  // measure connector endpoints after wrapping because row geometry is data-dependent.
+  // measure connector endpoints after wrapping because row geometry is data-dependent
   useLayoutEffect(() => {
     const sheet = sheetRef.current
     if (!sheet) return
     let frame = 0
 
-    // anchor each Echo connector to the tray identified by its scored seat index.
+    // anchor each Echo connector to the tray identified by its scored seat index
     const placeThreads = () => {
       sheet.querySelectorAll<HTMLElement>('.suggestion-results__thread').forEach((thread) => {
         const build = thread.parentElement
@@ -441,7 +442,7 @@ export function List({
 
     const measure = () => {
       placeThreads()
-      // convert viewport rectangles to content coordinates using both scroll offsets.
+      // convert viewport rectangles to content coordinates using both scroll offsets
       const box = sheet.getBoundingClientRect()
       const at = (element: Element) => {
         const rect = element.getBoundingClientRect()
@@ -477,8 +478,8 @@ export function List({
         })
       })
 
-      // exclude the svg from height measurement: using scrollHeight would feed
-      // the previous connector-layer height back into shorter result lists.
+      // exclude the svg from height measurement, because scrollHeight would include the previous connector-layer
+      // height for shorter result lists
       let height = 0
       for (const child of sheet.children) {
         if (child instanceof SVGElement) continue
@@ -506,7 +507,7 @@ export function List({
     return () => { cancelAnimationFrame(frame); observer.disconnect() }
   }, [originIndex, rows])
 
-  /* each channel opens at its top */
+  // each channel opens at its top
   useLayoutEffect(() => {
     sheetRef.current?.scrollTo({ top: 0 })
   }, [kind])
@@ -527,7 +528,7 @@ export function List({
     return []
   }, [kind, setConds, wpnSets])
 
-  /* arrow keys walk the ledger in the order it is drawn */
+  // arrow keys move through the ledger in its rendered order
   const onKeyDown = (event: ReactKeyEvt<HTMLDivElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     const sheet = sheetRef.current

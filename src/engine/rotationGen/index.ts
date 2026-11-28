@@ -4,6 +4,7 @@
 */
 
 export { createInterpreterEnvironment } from './environment.ts'
+export { catalogRotationFallback } from './fallback'
 export { interpretTeamActions, interpretedProgram, rebaseInterpretation, type InterpretedProgram } from './interpret.ts'
 export type { InterpreterEnvironment, InterpreterLoaders, InterpretationOptions, InterpretationResult, JsonLoader } from './types'
 export type { ActionPlan } from '../../domain/rotationActions/types'

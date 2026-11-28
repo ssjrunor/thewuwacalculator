@@ -30,14 +30,11 @@ import {
   type RotationEditorStatKey,
 } from '@/domain/entities/rotationEditorPreferences.ts'
 import type { OffTuneTrace } from '@/domain/entities/stats'
+import { formatTrunc } from '@/shared/lib/number'
 
-/**
- * every value the simulator captured while evaluating an execution entry.
- *
- * basic and global fields are the resolved owner snapshot at that execution;
- * skill-scoped fields such as crit, bonus and enemy modifiers are already
- * aggregated for the skill itself.
- */
+// every value the simulator captured while evaluating an execution entry: basic and global fields are the resolved
+// owner snapshot at that execution, and skill-scoped fields such as crit, bonus and enemy modifiers are aggregated
+// for the skill itself
 export const STAT_KEYS = ROTATION_EDITOR_STAT_KEYS
 export type StatKey = RotationEditorStatKey
 
@@ -47,20 +44,14 @@ export function isTextStatKey(key: StatKey): boolean {
   return TEXT_STAT_KEYS.has(key)
 }
 
-/**
- * which band of the register a factor belongs to.
- *
- * the list used to hold every column as one uniform track set, which asked the
- * reader to tell a word from an outcome from an input with nothing but the
- * heading to go on. the bands are the taxonomy stated once, at the top, so a
- * cell does not have to carry it.
- */
+// the register band a factor belongs to (identity, output, skill, resonator, modifiers, enemy), labelled once in the
+// heading row
 export type RegisterGroup = RotationEditorRegisterGroup
 
 export const REGISTER_GROUPS: readonly RegisterGroup[] = ROTATION_EDITOR_REGISTER_GROUPS
 
 const GROUP_OF: Record<StatKey, RegisterGroup> = {
-  // what the step is, which is not a measurement of anything
+  // what the step is
   skillType: 'identity',
   talentNode: 'identity',
   attribute: 'identity',
@@ -70,12 +61,12 @@ const GROUP_OF: Record<StatKey, RegisterGroup> = {
   crit: 'output',
   // the skill's own contribution
   multiplier: 'skill',
-  // the caster's snapshot, which barely moves down a resonator's stretch
+  // the caster's snapshot
   atk: 'resonator',
   hp: 'resonator',
   def: 'resonator',
   energyRegen: 'resonator',
-  // what was stacked on top of it
+  // buffs stacked on the snapshot
   critRate: 'modifiers',
   critDmg: 'modifiers',
   bonus: 'modifiers',
@@ -83,7 +74,7 @@ const GROUP_OF: Record<StatKey, RegisterGroup> = {
   tuneBreakBoost: 'modifiers',
   finalDmg: 'modifiers',
   flatDmg: 'modifiers',
-  // what the thing being hit did about it
+  // the target's own factors
   defIgnore: 'enemy',
   defShred: 'enemy',
   resistance: 'enemy',
@@ -103,7 +94,7 @@ export const GROUP_NAMES: Record<RegisterGroup, string> = {
   enemy: 'Debuffs',
 }
 
-/** what a band is called once it is folded down to a single track */
+// a band's label when folded to a single track
 export const GROUP_SHORT: Record<RegisterGroup, string> = {
   identity: 'META',
   output: 'OUT',
@@ -117,18 +108,14 @@ const STAT_REM = 4
 const IDENTITY_REM = 5.8
 const OFF_TUNE_REM = 6
 const GAP_REM = 0.9
-/* wide enough for the longest name in GROUP_SHORT and its caret, and no wider */
+// wide enough for the longest name in GROUP_SHORT and its caret
 const SHUT_REM = 3
 const DAMAGE_REM = 9.4
 const CELL_REM = 0.35
 const NAME_REM = 20
 
-/*
-  the identity tracks hold words, not figures. `Res. Liberation` is the longest
-  of both the catalog's short types and the tabs' short node names, so the two
-  are the same size. only `Coordinated Attack` runs past it, and it keeps the
-  full text as its title.
-*/
+// the identity tracks hold words: `Res. Liberation` is the longest of both the catalog's short types and the tabs'
+// short node names, so the two tracks share a size; `Coordinated Attack` is longer and shows its full text as a title
 const IDENTITY_KEYS = new Set<StatKey>(['skillType', 'talentNode', 'attribute'])
 
 function trackRem(key: StatKey): number {
@@ -141,7 +128,7 @@ export function groupRem(group: RegisterGroup, keys: readonly StatKey[]): number
     return 0
   }
   const cells = keys.length + (group === 'output' ? 1 : 0)
-  // the fence is counted in: it is width the band brings with it
+  // the fence width is included in the band's width
   return keys.reduce((sum, key) => sum + trackRem(key), 0)
     + (group === 'output' ? DAMAGE_REM : 0)
     + cells * CELL_REM
@@ -152,7 +139,7 @@ interface RegisterBand {
   group: RegisterGroup
   keys: readonly StatKey[]
   shut: boolean
-  /** the average damage rides at the head of the output band */
+  // the average damage is the first column of the output band
   leadsDamage: boolean
 
   fenced: boolean
@@ -164,9 +151,9 @@ export interface RegisterLayout {
   template: string
 
   tail: string
-  /** minimum track width; the list scrolls below this threshold. */
+  // minimum track width; the list scrolls below this threshold
   minWidth: string
-  /** the same width as a number, for anything that has to weigh it */
+  // the same width as a number, for width arithmetic
   widthRem: number
 }
 
@@ -174,13 +161,8 @@ const GAP = `${GAP_REM}rem`
 const SHUT_TRACK = `${SHUT_REM}rem`
 const DAMAGE_TRACK = `${DAMAGE_REM}rem`
 
-/**
- * the register's tracks, worked out from the columns the page is showing.
- *
- * hide groups with no visible columns. switching every modifier off removes
- * that band. the
- * output band always exists: the average is a column the page cannot turn off.
- */
+// the register's tracks from the columns the page shows; groups with no visible columns are hidden, and the output
+// band is always present because the average column cannot be turned off
 export function buildRegister(
   statKeys: readonly StatKey[],
   shutGroups: ReadonlySet<RegisterGroup>,
@@ -204,7 +186,7 @@ export function buildRegister(
   }
 
   const tracks: string[] = []
-  // damage column index used to measure the remaining width.
+  // damage column index used to measure the remaining width
   let damageAt = -1
   let widthRem = NAME_REM + CELL_REM
 
@@ -231,7 +213,7 @@ export function buildRegister(
     }
   }
 
-  // the 0.35rem between cells counts as much as the cells do
+  // the 0.35rem gap between cells counts toward the width
   const sum = (parts: string[]) => (parts.length === 0
     ? '0rem'
     : `calc(${parts.join(' + ')} + ${parts.length} * ${CELL_REM}rem)`)
@@ -245,12 +227,12 @@ export function buildRegister(
   }
 }
 
-/** how many cells a band draws, for a heading that spans its own tracks */
+// how many cells a band draws, for a heading that spans its own tracks
 export function bandSpan(band: RegisterBand): number {
   return band.shut ? 1 : band.keys.length + (band.leadsDamage ? 1 : 0)
 }
 
-/** the initial register is intentionally dense; its scroller handles overflow */
+// the initial register is dense; its scroller handles overflow
 export const MAX_STAT_KEYS = 12
 
 export const DOCKED_STAT_DROP = 5
@@ -259,10 +241,10 @@ export function statCeiling(docked: boolean, compact = false): number {
   return MAX_STAT_KEYS - (docked ? DOCKED_STAT_DROP : 0) - (compact ? 1 : 0)
 }
 
-/** the columns a rotation opens with, which is what the list has always shown */
+// the columns a rotation opens with
 export const DEFAULT_STAT_KEYS: readonly StatKey[] = DEFAULT_ROTATION_EDITOR_STAT_KEYS
 
-/** what a column is called over a number, cut to fit the track */
+// a column's label over a number, cut to fit the track
 export const STAT_HEADS: Record<StatKey, string> = {
   normal: 'NORMAL',
   crit: 'CRIT',
@@ -288,7 +270,7 @@ export const STAT_HEADS: Record<StatKey, string> = {
   flatDmg: 'FLAT',
 }
 
-/** what it is called where there is room to say it */
+// a column's full label where there is room
 export const STAT_NAMES: Record<StatKey, string> = {
   normal: 'Normal damage',
   crit: 'Critical damage',
@@ -314,7 +296,7 @@ export const STAT_NAMES: Record<StatKey, string> = {
   flatDmg: 'Flat damage',
 }
 
-/** empty row values render as absent columns. */
+// empty row values render as absent columns
 export const EMPTY_STATS: StatLine = {
   atk: null,
   hp: null,
@@ -335,7 +317,7 @@ export const EMPTY_STATS: StatLine = {
   offTune: null,
 }
 
-/** what a row was worked out against for one factor, on one pass. */
+// what a row was evaluated against for one factor, on one pass
 export function factorAt(step: EditorStep, run: number, key: StatKey): number | string | null {
   if (key === 'normal') {
     return atRun(step.normalDamageByRun, run, 0)
@@ -359,32 +341,24 @@ export function factorAt(step: EditorStep, run: number, key: StatKey): number | 
   return atRun(step.statsByRun, run, EMPTY_STATS)[key]
 }
 
-/**
- * the working behind an entry's off-tune, if the run captured it.
- *
- * the cell itself can only print where the gauge ended up; this is what the
- * readout opens onto.
- */
+// the working behind an entry's off-tune, if the run captured it; the cell shows where the gauge ended, and this is
+// what the readout opens
 export function offTuneTraceAt(step: EditorStep, run: number): OffTuneTrace | null {
   return atRun(step.statsByRun, run, EMPTY_STATS).offTuneTrace ?? null
 }
 
 export interface OffTuneAuthoringState {
-  /** this authored row is inside the current post-break hold. */
+  // this authored row is inside the current post-break hold
   sealed: boolean
-  /** any feature in the segment can become the player's chosen landing. */
+  // any feature in the segment can become the player's chosen landing
   canResume: boolean
-  /** the landing currently selected by the player or by the three-row default. */
+  // the landing currently selected by the player or by the three-row default
   resume: 'mark' | 'default' | null
 }
 
-/**
- * derive the editable cooldown from the current tree.
- *
- * attached hits inherit their parent's seal but never consume another held
- * row. rows after the current landing stay eligible so the landing can be
- * moved later without first running or using a context menu.
- */
+// derive the editable cooldown from the current tree: attached hits inherit their parent's seal but never consume
+// another held row, and rows after the current landing stay eligible so the landing can move without a run or a
+// context menu
 export function offTuneAuthoringStates(
   sections: readonly EditorSection[],
 ): ReadonlyMap<string, OffTuneAuthoringState> {
@@ -426,7 +400,7 @@ export function offTuneAuthoringStates(
   return states
 }
 
-/** which gauge/cooldown state this entry is in, if any. */
+// which gauge/cooldown state this entry is in, if any
 export function offTuneState(
   trace: OffTuneTrace | null,
 ): 'crest' | 'held' | 'reset' | 'sealed' | null {
@@ -445,10 +419,8 @@ export function fmtExact(value: number): string {
   })
 }
 
-/**
- * read a per-run value. a node outside any loop only ever has run 1, and a
- * node inside one that never varies has a single entry. both use the fallback.
- */
+// read a per-run value; a node outside any loop has only run 1, and a node inside one that never varies has a single
+// entry, and both use the fallback
 export function atRun<T>(map: ByRun<T> | undefined, run: number, fallback: T): T {
   if (!map) {
     return fallback
@@ -479,11 +451,7 @@ export function stepDamageAt(step: EditorStep, run: number): number {
   return step.loopScoped ? 0 : step.damageByRun[1] ?? 0
 }
 
-/**
- * a stat cell repeats far more often than it changes: across a whole
- * resonator stretch only one or two values move. flagging the repeats lets
- * the repeats can be faded, leaving the change points.
- */
+// flag stat cells that repeat the cell above, so repeats can be faded and change points stand out
 export type GhostMap = ReadonlyMap<string, ReadonlySet<StatKey>>
 
 export function computeGhosts(
@@ -520,17 +488,10 @@ export function computeGhosts(
       const run = selectedRunForLoopIds(loopScopeByNodeId.get(node.id) ?? [], selections)
       const prev = previous
       const prevRun = previousRun
-      /*
-        key flags by factor. visible column positions can change, so an index
-        does not identify a stable factor.
-      */
+      // key flags by factor, because visible column positions can change
       ghosts.set(
         node.id,
-        /*
-          numbers only. a repeated atk is a value that did not move, which is
-          worth stepping back from. a repeated `Basic Atk` is just what the
-          step is, and fading it says nothing about the row.
-        */
+        // numbers only: a repeated atk is an unchanged value, while a repeated `Basic Atk` is the step's name
         new Set(STAT_KEYS.filter((key) =>
           !isTextStatKey(key)
           && prev != null
@@ -547,12 +508,8 @@ export function computeGhosts(
   return ghosts
 }
 
-/**
- * how many steps in a row one owner takes before anything else acts. only the
- * step that opens a run displays its portrait, so the icon column stops
- * repeating the same face down a stretch, and every step in the run points
- * back at that head so the run can be folded shut under it.
- */
+// how many consecutive steps one owner takes before anything else acts; only the step that opens a run shows its
+// portrait, and every step in the run points back at that head so the run can fold under it
 interface RunInfo {
   headId: string
   length: number
@@ -567,8 +524,8 @@ function ownerKey(owner: NodeOwner): string {
 export function computeOwnerRuns(sections: EditorSection[]): RunMap {
   const runs = new Map<string, RunInfo>()
 
-  // each children list is its own passage: a block indents its rows, so a run
-  // does not reach across the boundary even when the owner is unchanged.
+  // each children list is its own passage: a block indents its rows, so a run does not cross the boundary even when
+  // the owner is unchanged
   const visit = (nodes: EditorNode[]) => {
     let headId: string | null = null
     let key: string | null = null
@@ -587,7 +544,7 @@ export function computeOwnerRuns(sections: EditorSection[]): RunMap {
         continue
       }
 
-      // conditions are asides and do not break or count toward action runs.
+      // conditions do not break or count toward action runs
       if (node.type !== 'step') {
         continue
       }
@@ -610,7 +567,7 @@ export function computeOwnerRuns(sections: EditorSection[]): RunMap {
 
   visit(sections.flatMap((section) => section.children))
 
-  // members carry the head's length too, so a lookup answers both questions
+  // members store the head's length too, so one lookup returns both
   for (const [id, info] of runs) {
     if (info.headId !== id) {
       info.length = runs.get(info.headId)?.length ?? 1
@@ -620,12 +577,8 @@ export function computeOwnerRuns(sections: EditorSection[]): RunMap {
   return runs
 }
 
-/**
- * consecutive conditions written by the same source, so a stretch of them can
- * fold under that source's art the way a stretch of steps folds under a
- * portrait. only sources with art group: the art is the control, so without
- * one there is nothing to press.
- */
+// consecutive conditions written by the same source fold under that source's art, as a run of steps folds under a
+// portrait; only sources with art group, because the art is the fold control
 export function computeCondRuns(sections: EditorSection[]): RunMap {
   const runs = new Map<string, RunInfo>()
 
@@ -683,11 +636,8 @@ interface RowFoldGroup {
   tail: EditorNode[]
 }
 
-/**
- * the compact row group beginning at `index`, if any. both the renderer and
- * node navigation use this so a programmatic reveal opens the exact same fold
- * that hid the row.
- */
+// the compact row group beginning at `index`, if any; the renderer and node navigation both use it, so a programmatic
+// reveal opens the same fold that hid the row
 export function rowFoldGroupAt(
   nodes: readonly EditorNode[],
   index: number,
@@ -737,10 +687,8 @@ export function rowFoldGroupAt(
     : null
 }
 
-/**
- * every row hidden beneath a compact owner/source head. block and section
- * folds are structural and are resolved by the node locator itself.
- */
+// every row hidden beneath a compact owner/source head; block and section folds are structural and resolved by the
+// node locator
 export function computeRowFoldParents(sections: EditorSection[]): ReadonlyMap<string, string> {
   const ownerRuns = computeOwnerRuns(sections)
   const condRuns = computeCondRuns(sections)
@@ -771,12 +719,9 @@ export function computeRowFoldParents(sections: EditorSection[]): ReadonlyMap<st
   return parents
 }
 
-/**
- * maps each crossing loop segment to its depth below the start segment.
- * document order distinguishes crossing loops from loops that wrap to an
- * earlier segment. the start segment has depth zero so its bracket remains
- * open for the continuation.
- */
+// maps each crossing loop segment to its depth below the start segment; document order distinguishes crossing loops
+// from loops that wrap to an earlier segment, and the start segment has depth zero so its bracket stays open for the
+// continuation
 export function computeLoopCrossings(sections: EditorSection[]): ReadonlyMap<string, number> {
   const crossings = new Map<string, number>()
   const startedAt = new Map<string, { depth: number; nodeId: string }>()
@@ -845,7 +790,7 @@ export function loopBodyItems(sections: EditorSection[], loopId: string): Editor
   return [...fromStart, ...beforeStart]
 }
 
-/** how many damage steps in a set of rows, at any depth */
+// how many damage steps in a set of rows, at any depth
 export function stepCount(nodes: EditorNode[]): number {
   return nodes.reduce(
     (sum, node) => sum + (node.type === 'step' ? 1 : isEditorBlock(node) ? blockSteps(node) : 0),
@@ -864,7 +809,7 @@ export function collectSteps(nodes: EditorNode[], out: EditorStep[] = []): Edito
   return out
 }
 
-/** the count or share a block actually used on a given run */
+// the count or share a block used on a given run
 export function blockRunsAt(block: EditorBlock, run: number): number {
   return Math.max(1, Math.floor(atRun(block.runsByRun, run, block.runs)))
 }
@@ -873,7 +818,7 @@ export function blockRatioAt(block: EditorBlock, run: number): number {
   return atRun(block.ratioByRun, run, block.ratio ?? 1)
 }
 
-/** damage a block contributes on a given run, for its collapsed summary */
+// damage a block contributes on a given run, for its collapsed summary
 export function blockTotal(block: EditorBlock, run: number): number {
   if (block.damageByRun?.[run] !== undefined) {
     return block.damageByRun[run]
@@ -889,23 +834,20 @@ export function blockTotal(block: EditorBlock, run: number): number {
   )
 }
 
-/** how many damage steps in a block, at any depth */
+// how many damage steps in a block, at any depth
 export function blockSteps(block: EditorBlock): number {
   return collectSteps(block.children).length
 }
 
-/** how precise the rotation's numeric cells may be stated */
+// how precise the rotation's numeric cells may be stated
 export const DAMAGE_DECIMALS = ROTATION_EDITOR_DAMAGE_DECIMALS
 export type DamageDecimals = RotationEditorDamageDecimals
 
-/** how percentage-point stats in the register are stated. */
+// how percentage-point stats in the register are stated
 export type PercentDisplay = RotationEditorPercentDisplay
 
-/*
-  the engine stores a skill multiplier as the formula factor (0.42), while
-  every other multiplicative register stat is a percentage point (42). keep
-  that storage detail here so every visible stat column can use one unit.
-*/
+// the engine stores a skill multiplier as the formula factor (0.42), while every other multiplicative register stat
+// is a percentage point (42); converting here gives every visible stat column one unit
 const PERCENT_STAT_KEYS = new Set<StatKey>([
   'multiplier',
   'critRate',
@@ -926,18 +868,15 @@ function fmtFixed(value: number, decimals: number): string {
     return '0'
   }
 
-  const places = Math.min(Math.max(Math.trunc(decimals), 0), 4)
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: places,
-    maximumFractionDigits: places,
-  })
+  // truncated to its places, never rounded up
+  return formatTrunc(value, Math.min(Math.max(Math.trunc(decimals), 0), 4))
 }
 
 export function formatDamage(value: number, decimals: number): string {
   return fmtFixed(value, decimals)
 }
 
-/** the header displays the unit once, leaving each row's numeric cells compact. */
+// the header shows the unit once, so each row's numeric cells stay compact
 export function fmtStatHeading(key: StatKey, display: PercentDisplay): string {
   return `${STAT_HEADS[key]}${display === 'percent' && PERCENT_STAT_KEYS.has(key) ? '%' : ''}`
 }

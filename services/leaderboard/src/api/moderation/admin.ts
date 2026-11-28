@@ -22,17 +22,16 @@ import { cardRef } from '../stubs.ts'
 import { rulesetJobs, syncBoards } from '../boardCommands.ts'
 import type { Staff } from '../auth/staff.ts'
 import type { RouteContext } from '../router.ts'
-import { cardStatus, takeCard } from '../cards/routes.ts'
-import { getComment } from '../../db/comments.ts'
+import { cardStatus, sendReads, takeCard } from '../cards/routes.ts'
+import type { ReadMessage } from '../../env.ts'
 import { authorize, staffAudit as audit } from '../auth/staff.ts'
-import { staffRemoveComment } from '../social/comments.ts'
 import { staffReport } from './tools.ts'
 import { rolloutStatus } from './rollouts.ts'
 
 const staffActor = (who: Staff) => `${who.actorKind}:${who.actorId}`
 
-/** hides a build for staff; its board ranks the player's next best build in its place, and the card id is returned
-    for blocking. */
+// hides a build for staff; its board ranks the player's next best build in its place, and the card id is returned
+// for blocking
 async function hideOnBoard(ref: BuildRef, who: Staff): Promise<string | null> {
   return (await ref.board.endBuild(ref.resonator, ref.local, 'hidden', staffActor(who)))?.card ?? null
 }
@@ -50,27 +49,26 @@ export async function listReports(context: RouteContext): Promise<Response> {
 
 export async function resolveReport(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'reports.review')
-  const body = await readJsonBody<{ status?: string; resolution?: string; hideBuild?: boolean; blockCard?: boolean; removeComment?: boolean }>(
+  const body = await readJsonBody<{ status?: string; resolution?: string; hideBuild?: boolean; blockCard?: boolean }>(
     context.request)
   if (body.status !== 'resolved' && body.status !== 'dismissed') throw new HttpError('bad_request', 'status is resolved or dismissed')
-  // closing a report can also hide its build, block its card or remove its comment, each with its own permission
+  // closing a report can also hide its build or block its card, each with its own permission
   if (body.hideBuild) await authorize(context, 'builds.moderate')
   if (body.blockCard) await authorize(context, 'cards.moderate')
-  if (body.removeComment) await authorize(context, 'comments.moderate')
   const report = await getReport(context.env.LB, context.params.id)
   if (!report) throw new HttpError('not_found', "hmm... we couldn't find that report. refresh the queue and try again.")
-  if (body.removeComment && !report.comment_id) throw new HttpError('bad_request', 'this report is not about a comment')
   const db = context.env.LB
-  const ref = body.hideBuild || body.blockCard ? buildRef(context.env, report.build_id) : null
-  // hiding ends the build on its board; blocking needs its card, which the board names (also for a build hidden before).
-  const card = ref ? body.hideBuild ? await hideOnBoard(ref, who) : (await ref.board.build(ref.resonator, ref.local))?.card ?? null : null
+  if (body.hideBuild && !report.build_id) throw new HttpError('bad_request', 'this card made no build, so there is nothing to hide.')
+  const ref = report.build_id && (body.hideBuild || body.blockCard) ? buildRef(context.env, report.build_id) : null
+  // hiding ends the build on its board; blocking needs its card, which the board names (also for an already hidden
+  // build), or the report names for a card that made no build
+  const card = ref ? body.hideBuild ? await hideOnBoard(ref, who) : (await ref.board.build(ref.resonator, ref.local))?.card ?? null
+    : body.blockCard ? report.card_id : null
   if (body.blockCard && card) await blockCardId(context, card, who)
-  const comment = body.removeComment && report.comment_id ? await getComment(db, report.comment_id) : null
   await db.batch([
     resolveReportStatement(db, report.id, body.status, body.resolution ?? null, context.now),
-    ...(comment?.removed_at == null && comment ? staffRemoveComment(context, who, comment, report.id) : []),
     audit(context, who, { action: `report.${body.status}`, subjectKind: 'report', subjectId: report.id,
-      data: { hideBuild: !!body.hideBuild, blockCard: !!body.blockCard, removeComment: !!body.removeComment } }),
+      data: { hideBuild: !!body.hideBuild, blockCard: !!body.blockCard } }),
   ])
   return json({ ok: true })
 }
@@ -78,13 +76,13 @@ export async function resolveReport(context: RouteContext): Promise<Response> {
 export async function hideBuild(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'builds.moderate')
   const ref = buildRef(context.env, context.params.id)
-  // the player's next best build of the resonator is ranked in its place.
+  // rank the player's next best build of the resonator in its place
   if (await hideOnBoard(ref, who) == null) throw new HttpError('not_found', "hmm... this build isn't available. it may have been hidden or deleted.")
   await audit(context, who, { action: 'build.hide', subjectKind: 'build', subjectId: ref.id }).run()
   return json({ ok: true })
 }
 
-/** a restored build returns as history, and is ranked again if it is the player's best. */
+// a restored build returns as history, and is ranked again if it is the player's best
 export async function restoreBuild(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'builds.moderate')
   const ref = buildRef(context.env, context.params.id)
@@ -93,11 +91,9 @@ export async function restoreBuild(context: RouteContext): Promise<Response> {
   return json({ ok: true })
 }
 
-/**
- * submits a card for a moderator through the POST /cards intake (one fetch per link, queued read) without a turnstile
- * check or freshness limit, for test reads and re-checks; a new card is queued with 202, a known link returns its
- * current status with 200.
- */
+// submits a card for a moderator through the POST /cards intake (one fetch per link, queued read) without a turnstile
+// check or freshness limit, for test reads and re-checks; a new card is queued with 202, a known link returns its
+// current status with 200
 export async function adminSubmitCard(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'cards.moderate')
   const body = await readJsonBody<{ input?: unknown }>(context.request)
@@ -106,6 +102,49 @@ export async function adminSubmitCard(context: RouteContext): Promise<Response> 
   if (!duplicate) await context.env.READ_QUEUE.send({ cardId: card.id })
   await audit(context, who, { action: 'card.admin_submit', subjectKind: 'card', subjectId: card.id, data: { duplicate } }).run()
   return json({ ...(await cardStatus(context.env, card)), duplicate }, { status: duplicate ? 200 : 202 })
+}
+
+// cards one staff batch takes: each is a kuro fetch, a few at a time
+export const ADMIN_CARDS_PER_BATCH = 50
+const ADMIN_BATCH_FETCHES = 4
+
+// several cards in without Turnstile (scripts/ingest/discord-card-links.mjs): new cards are read together, as one
+// queue batch; a card already in is reported as a duplicate and not read again. results keep the request order
+export async function adminSubmitCards(context: RouteContext): Promise<Response> {
+  const who = await authorize(context, 'cards.moderate')
+  const body = await readJsonBody<{ inputs?: unknown }>(context.request)
+  const inputs = Array.isArray(body.inputs) ? [...new Set(body.inputs.filter((x): x is string => typeof x === 'string'))] : []
+  if (!inputs.length) throw new HttpError('bad_link', 'send at least one card link or file name')
+  if (inputs.length > ADMIN_CARDS_PER_BATCH) throw new HttpError('bad_request', `send up to ${ADMIN_CARDS_PER_BATCH} cards at once`)
+  type Result = { input: string; ok: true; cardId: string; status: string; duplicate: boolean }
+    | { input: string; ok: false; error: { code: string; message: string } }
+  const results: Result[] = new Array(inputs.length)
+  const reads: ReadMessage[] = []
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(ADMIN_BATCH_FETCHES, inputs.length) }, async () => {
+    while (next < inputs.length) {
+      const index = next
+      next += 1
+      const input = inputs[index]
+      try {
+        const { card, duplicate } = await takeCard(context, input)
+        // moderator reads have no owner and claim the build for no uid
+        if (!duplicate) reads.push({ cardId: card.id })
+        results[index] = { input, ok: true, cardId: card.id, status: duplicate ? card.status : 'pending', duplicate }
+      } catch (error) {
+        if (!(error instanceof HttpError)) console.error('admin batch submit failed', input, error)
+        results[index] = { input, ok: false, error: error instanceof HttpError ? { code: error.code, message: error.message }
+          : { code: 'internal', message: 'could not take this card' } }
+      }
+    }
+  }))
+  await sendReads(context.env, reads)
+  const taken = results.filter((result) => result.ok)
+  if (taken.length) {
+    await context.env.LB.batch(taken.map((result) => audit(context, who, { action: 'card.admin_submit', subjectKind: 'card',
+      subjectId: result.cardId, data: { duplicate: result.duplicate, batch: true } })))
+  }
+  return json({ results })
 }
 
 export async function blockCard(context: RouteContext): Promise<Response> {
@@ -122,7 +161,7 @@ async function readObjectJson<T>(bucket: R2Bucket, key: string): Promise<{ value
   return { value: JSON.parse(text) as T, text }
 }
 
-/** record a ruleset already uploaded to LB_DATA as `building`; the caller names the manifest hash it uploaded. */
+// record a ruleset already uploaded to LB_DATA as `building`; the caller names the manifest hash it uploaded
 export async function publishRuleset(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params, now } = context
@@ -136,11 +175,11 @@ export async function publishRuleset(context: RouteContext): Promise<Response> {
   }
   // reference values stay in the R2 package; the catalog stores the scenarios, numbered into each resonator's cells
   const statements = publishStatements(env.LB, manifest, sha, await nextRulesetNo(env.LB), now)
-  // d1 batches are transactions; keep each well under the statement limit.
+  // d1 batches are transactions; each batch stays well under the statement limit
   for (let start = 0; start < statements.length; start += 500) await env.LB.batch(statements.slice(start, start + 500))
   if (typeof body.fingerprint === 'string' && /^[0-9a-f]{64}$/.test(body.fingerprint)) {
     const scorer = hexOr(body.scorer)
-    // the scorer's parts go with it, or not at all.
+    // the scorer parts are written with the scorer hash or not at all
     const parts = scorer ? [hexOr(body.generator), hexOr(body.evaluation)] : [null, null]
     await env.LB.prepare('UPDATE rulesets SET fingerprint = ?, scorer = ?, generator_fp = ?, evaluation_fp = ? WHERE id = ?')
       .bind(body.fingerprint, scorer, ...(parts[0] && parts[1] ? parts : [null, null]), params.id).run()
@@ -165,7 +204,7 @@ export async function rulesetProgress(context: RouteContext): Promise<Response> 
     jobs, rollout, progress })
 }
 
-/** make a fully rescored ruleset live and archive the previous one. */
+// make a fully rescored ruleset live and archive the previous one
 export async function activateRuleset(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'rulesets.manage')
   const { env, params, now } = context
@@ -174,7 +213,8 @@ export async function activateRuleset(context: RouteContext): Promise<Response> 
   const jobs = await rulesetJobs(env, ruleset.id)
   const body = await readJsonBody<{ allowFailed?: boolean }>(context.request).catch(() => ({ allowFailed: false }))
   if (jobs.scoring > 0) throw new HttpError('forbidden', `${jobs.scoring} builds are still scoring`)
-  // a board lists a rollout's builds after its walk finishes; going live earlier would list them all at once
+  // a board lists a rollout's builds after its walk finishes, so go-live waits until every installed board has
+  // settled
   if (jobs.installed === jobs.boards && jobs.settled < jobs.boards) {
     throw new HttpError('forbidden', `${jobs.boards - jobs.settled} boards are still walking or writing their entries`)
   }

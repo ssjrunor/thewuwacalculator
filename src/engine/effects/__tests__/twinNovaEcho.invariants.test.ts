@@ -39,7 +39,7 @@ function twinNovaEchoSkillBonus(
   const runtime = makeResRuntime(seed)
   runtime.build.echoes = [
     echo(mainEchoId, true),
-    includePair ? echo(pairedEchoId, false) : null,
+    includePair ? { ...echo(pairedEchoId, false), set: 27 } : null,
     null,
     null,
     null,
@@ -48,7 +48,7 @@ function twinNovaEchoSkillBonus(
   const graph = makeCombatGraph({ actRt: runtime, activeSeed: seed })
   const context = makeCombatEnv({ graph, targetSlotId: 'active', enemy: makeEnemy() })
   const skills = listSkillsFor('echo', mainEchoId)
-  if (skills.length !== 2 || !skills[0]) throw new Error(`Missing Twin Nova skills for ${mainEchoId}`)
+  if (skills.length < 2 || !skills[0]) throw new Error(`Missing Twin Nova skills for ${mainEchoId}`)
 
   return {
     echoSkillBucket: context.buffs.skillType.echoSkill.dmgBonus,
@@ -60,6 +60,8 @@ function twinNovaEchoSkillBonus(
       context.numericLane,
       { ...skills[0], id: 'echo:unrelated:skill:1' },
     ).skillBuffs?.dmgBonus ?? 0,
+    attributes: context.buffs.attribute,
+    skills,
   }
 }
 
@@ -71,11 +73,21 @@ describe('Twin Nova Echo effects', () => {
       const active = twinNovaEchoSkillBonus(echoId, 6)
       const unpaired = twinNovaEchoSkillBonus(echoId, 6, false)
 
-      expect(inactive.twinNovaBonuses).toEqual([0, 0])
-      expect(active.twinNovaBonuses).toEqual([60, 60])
-      expect(unpaired.twinNovaBonuses).toEqual([0, 0])
+      expect(inactive.twinNovaBonuses).toEqual(active.skills.map(() => 0))
+      expect(active.twinNovaBonuses).toEqual(active.skills.map(() => 60))
+      expect(unpaired.twinNovaBonuses).toEqual(active.skills.map(() => 0))
       expect(active.echoSkillBucket).toBe(0)
       expect(active.unrelatedEchoSkillBonus).toBe(0)
     },
   )
+
+  it('converts the paired Blade passive and its two forms to Spectro', () => {
+    const paired = twinNovaEchoSkillBonus('6000180', 6)
+    const unpaired = twinNovaEchoSkillBonus('6000180', 6, false)
+    expect(paired.attributes.spectro.dmgBonus - unpaired.attributes.spectro.dmgBonus).toBe(12)
+    expect(unpaired.attributes.electro.dmgBonus - paired.attributes.electro.dmgBonus).toBe(12)
+    expect(paired.skills.filter(skill => skill.id !== 'echo:6000180:skill:1')
+      .map(skill => skill.element)).toEqual(['spectro', 'spectro'])
+    expect(paired.skills[0]?.element).toBe('electro')
+  })
 })

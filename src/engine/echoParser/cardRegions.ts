@@ -19,14 +19,13 @@ export const QR_PLATE = {
   left: 1459,
   top: 53,
   width: 237,
-  /** rows and columns that cross the plate however the card has drifted */
+  // rows and columns that cross the plate however the card has drifted
   rows: [120, 170, 220],
   columns: [1500, 1580, 1660],
 } as const
 
-// quarter-size median of fixed card elements; alpha marks unchanged pixels.
-// reference cards score 0.4-6.6, including 1120-wide jpeg copies; other game
-// screenshots score at least 42. scripts/analysis/cardFrameTemplate.cjs rebuilds it.
+// quarter-size median of fixed card elements; alpha marks unchanged pixels. reference cards score 0.4-6.6, including
+// 1120-wide jpeg copies; other game screenshots score at least 42. scripts/analysis/cardFrameTemplate.cjs builds it
 export const CARD_FRAME = {
   src: '/assets/app/import/card-frame.png',
   width: 480,
@@ -34,14 +33,14 @@ export const CARD_FRAME = {
   maxScore: 15,
 } as const
 
-// maximum image offset accepted when aligning a card to its reference regions.
+// maximum image offset accepted when aligning a card to its reference regions
 export const MAX_DRIFT = 40
 
 // horizontal step between the five echo panels
 export const SLOT_SPACING = 374
 
 export const BUILD_REGIONS = {
-  // the name region includes the level badge on the same line.
+  // the name region includes the level badge on the same line
   resonatorName: { x: 68, y: 18, width: 700, height: 62 },
   // start below the name glyphs to exclude adjacent letters; this is the shortest read, and a longer name
   // ("TheRealFrank" runs to x 228) widens it to its own last letter (PLAYER_NAME)
@@ -58,14 +57,39 @@ export const BUILD_REGIONS = {
   },
 } as const satisfies Record<string, ImageRegion | Record<string, ImageRegion>>
 
-// catalog weapon icon bounds measured from reference cards.
+// catalog weapon icon bounds measured from reference cards
 export const WEAPON_ICON = { x: 1468, y: 454, size: 116 } as const
+
+// the bot card draws Reminiscence: Kronaclaw in neither of its stored forms (the phantom's antlered framing in the
+// plain form's purple), so neither matches and its panel reads as no echo. its own drawing is a third form
+// (scripts/analysis/echoCardArt.mjs), the median of its panels on the local leaderboard's cards
+export const ECHO_CARD_ART = {
+  ids: ['6000194'],
+  src: (id: string) => `/assets/app/import/echo-card/${id}.png`,
+} as const
+
+// the bot card draws three standard weapons with other art than their catalog icon, which then scores like a
+// different weapon (Cosmic Ripples ranked below three other rectifiers). an english card names its weapon anyway; a
+// chinese or japanese one has only the icon. these are matched against the card's own drawing
+// (scripts/analysis/weaponCardIcon.mjs): its median over the local leaderboard's cards, masked to where it differs
+// from an empty panel
+export const WEAPON_CARD_ICON = {
+  ids: ['21020015', '21030015', '21050015'],
+  // summed rgb distance from the empty panel that counts as weapon art
+  minDistance: 60,
+  src: (id: string) => `/assets/app/import/weapon-card/${id}.png`,
+} as const
 
 // the name starts where the fixed "Player ID:" label ends and runs to the first wide gap in its gold ink; bright
 // non-gold pixels inside that span are portrait art behind the letters (rebecca's gun): 12.3% of the span on that
 // card, at most 2.1% on every other bench card at full size and 4.8% through a 1120 wide jpeg
 export const PLAYER_NAME = {
   x: 106,
+  // a japanese card's "プレイヤーネーム:" ends by x 168
+  jaX: 170,
+  // full-width characters sit 17.75 px apart, their ink from 1 or 2 px into each cell
+  cellPitch: 17.75,
+  cellLead: 2,
   maxX: 348,
   y: 88,
   height: 25,
@@ -76,56 +100,76 @@ export const PLAYER_NAME = {
   maxArtShare: 0.07,
 } as const
 
+// a chinese card's uid label ("特徵碼：") is wider than "UID:", which pushes its last digits over the portrait. on two
+// resonators that art crosses them (rebecca's gun, lucy's gold streak) and both reads lose digits, so their art
+// behind the line is kept as a template (scripts/analysis/uidArtTemplate.mjs, from english cards, whose digits end by
+// x 152) and subtracted. measured on the local leaderboard's nine chinese cards of the two: every read was right or a
+// digit short, never another uid, and three reads agreed on all nine
+export const UID_ART = {
+  // the template's columns: the art from here right, clear of an english card's digits
+  art: { x: 155, y: 111, width: 63, height: 29 },
+  // where the digits start after each label's colon
+  digitsFrom: { en: 56, zh: 90 },
+  // a pixel this far (rgb distance) from the template is ink; two cuts, so a threshold slip can't agree with itself
+  cuts: [40, 60],
+  // template pixels at least this bright are art that can share a digit's colour (lucy's streak)
+  brightArt: 120,
+  // such a pixel is ink when a digit's ink sits this close on both sides of it in the row
+  bridge: 2,
+  src: (resonatorId: string) => `/assets/app/import/uid-art/${resonatorId}.png`,
+  resonators: ['1308', '1511'] as readonly string[],
+} as const
+
 export const SEQUENCE_CENTERS = [189, 268, 347, 426, 505, 585] as const
 export const SEQUENCE_SAMPLE = { y: 570, size: 11 } as const
 export const ATTRIBUTE_REGION = { x: 15, y: 25, width: 50, height: 47 } as const
 
-// find the level badge by its gold plate within the name band.
+// find the level badge by its gold plate within the name band
 export const LEVEL_BADGE_BAND = { x: 120, y: 24, width: 648, height: 52 } as const
 
-// locate the level badge using the wide gold region on the name line.
+// locate the level badge using the wide gold region on the name line
 export const LEVEL_BADGE_PLATE = {
-  /** a column counts once this many of its pixels are plate gold */
+  // a column counts once this many of its pixels are plate gold
   minRows: 8,
-  /** the glyphs break the plate, so columns this far apart still join */
+  // the glyphs break the plate, so columns this far apart still join
   maxGap: 16,
-  /** minimum badge width in pixels. */
+  // minimum badge width in pixels
   minWidth: 24,
-  /** minimum share of gold pixels in a badge row. */
+  // minimum share of gold pixels in a badge row
   rowFill: 0.35,
-  /** crop padding */
+  // crop padding
   pad: { x: 2, y: 3 },
 } as const
 
-// digit region starts after "LV." and ends before the plate hatching.
+// digit region starts after "LV." and ends before the plate hatching
 export const LEVEL_BADGE_DIGITS = { from: 27, width: 26 } as const
 
-// gap between the name and badge regions.
+// gap between the name and badge regions
 export const NAME_BADGE_GAP = 6
 
 export interface EchoSlotRegions {
-  /** the secondary stat row ("ATK 150", "HP 2280"), printed on every filled panel */
+  // the secondary stat row ("ATK 150", "HP 2280"), printed on every filled panel
   sideStat: ImageRegion
   cost: ImageRegion
   mainStatLabel: ImageRegion
-  /** the band holding the main stat's printed value, star mark included */
+  // the band holding the main stat's printed value, star mark included
   mainStatValue: ImageRegion
-  /** the label half of each substat row, wrapped second line included */
+  // the label half of each substat row, wrapped second line included
   substats: ImageRegion[]
-  /** the number half of each substat row */
+  // the number half of each substat row
   substatValues: ImageRegion[]
   echoImage: ImageRegion
   set: ImageRegion
 }
 
-// filled panels have at least 230 bright side-stat pixels in 960px jpeg copies;
-// brightness detects the row after compression changes its colour.
+// filled panels have at least 230 bright side-stat pixels in 960px jpeg copies; brightness detects the row after
+// compression changes its colour
 export const FILLED_PANEL_MIN_INK = 80
 
 // substat rows sit on a fixed pitch, measured from their bullets
 export const SUBSTAT_ROW_CENTERS = [892, 926, 960, 994, 1028] as const
 
-// measured row bounds include the first line and any wrapped second line.
+// measured row bounds include the first line and any wrapped second line
 const SUBSTAT_ROW = { above: 6, height: 34 } as const
 
 // labels end by x 282 and values start at 319 on every card, so the two are read
@@ -133,9 +177,9 @@ const SUBSTAT_ROW = { above: 6, height: 34 } as const
 const SUBSTAT_LABEL = { x: 64, width: 232 } as const
 const SUBSTAT_VALUE = { x: 296, width: 88, above: 12, height: 24 } as const
 
-// classify short labels by first-line ink width on native and 1120px jpeg cards:
-// HP spans 20-21 pixels, ATK and DEF span 24-31, and other labels span at least 70.
-// DEF begins with a 10-13 pixel stem; ATK begins with a 3-7 pixel stroke.
+// classify short labels by first-line ink width on native and 1120px jpeg cards: HP spans 20-21 pixels, ATK and
+// DEF span 24-31, and other labels span at least 70. DEF begins with a 10-13 pixel stem; ATK begins with a 3-7 pixel
+// stroke
 export const SHORT_LABEL = {
   band: 15,
   minInk: 2,
@@ -151,7 +195,7 @@ export function getEchoSlotRgns(): EchoSlotRegions[] {
     return {
       sideStat: { x: 36 + o, y: 842, width: 88, height: 28 },
       cost: { x: 336 + o, y: 674, width: 18, height: 24 },
-      // the value region begins below the label region.
+      // the value region begins below the label region
       mainStatLabel: { x: 215 + o, y: 722, width: 173, height: 28 },
       // the value's ink spans y 759-778 and x 268-369 (star from 268 or 291, digits from 295 or 317)
       mainStatValue: { x: 250 + o, y: 755, width: 145, height: 28 },
@@ -178,9 +222,9 @@ export type CardReadGroup = 'resonator' | 'echoes' | 'weapon' | 'player'
 export interface CardReadArea {
   group: CardReadGroup
   region: ImageRegion
-  /** what the reader is looking at, in the parser's own words */
+  // what the reader is looking at, in the parser's own words
   label: string
-  /** 1-based echo slot for panel areas */
+  // 1-based echo slot for panel areas
   slot?: number
 }
 

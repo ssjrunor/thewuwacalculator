@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: preserves the scored team input across the leaderboard API and card adapter.
+  description: checks that the scored team input is preserved across the leaderboard API and the card adapter.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -27,14 +27,14 @@ function fixture() {
     reason: null, score: 134.93, damage: 10_000_000, dpr: null, rank: 1, total: 1 }
   const detail: BuildDetailResponse = { rulesetId: 'ruleset', buildId: 'build', uid: null, name: null,
     scoringStatus: 'scored', submittedAt: 1, drawnAt: 1, stats: null, best: cell, cells: [cell], scoredInput: input,
-    notes: null, card: null,
+    card: null,
     snapshot: { v: 1, gameVer: 'test', uid: '', name: null, resonator: { id: '1108', level: 1, sequence: 6, skillLevels: {} },
       weapon: { id: '21020086', level: 1 }, echoes: [] } }
   return { detail, cell, input }
 }
 
 describe('leaderboard card input', () => {
-  it('keeps authored seats, teammate gear, sequences, modes and the scored weapon rank exactly as served', () => {
+  it('preserves authored seats, teammate gear, sequences, modes and the scored weapon rank exactly as served', () => {
     const { detail, cell, input } = fixture()
     expect(cardInput(detail, cell)).toEqual(input)
   })
@@ -48,7 +48,7 @@ describe('leaderboard card input', () => {
     expect(input.members[1].echoes[0]!.substats.energyRegen).toBe(12.4)
   })
 
-  it('refuses missing or mismatched stored context instead of fabricating a team', () => {
+  it('refuses missing or mismatched stored context', () => {
     const { detail, cell } = fixture()
     expect(() => cardInput({ ...detail, scoredInput: null }, cell)).toThrow(CardBuildError)
     expect(() => cardInput(detail, { ...cell, scenario: { ...cell.scenario, id: 'another-scenario' } })).toThrow(CardBuildError)

@@ -1,9 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the report form inside an opened build's panel (or under a
-               comment, reporting that comment): reason, optional details, the
-               bot check and send. reports go to the moderator queue
-               (POST /reports).
+  description: the report form for an opened build.
 */
 
 import { useState } from 'react'
@@ -18,11 +15,9 @@ const REASONS: Array<[ReportRequest['reason'], string]> = [
   ['abuse', 'Abusive name'],
   ['other', 'Other'],
 ]
-/** a comment is reported for what it says. */
-const COMMENT_REASONS: Array<[ReportRequest['reason'], string]> = [['abuse', 'Abusive'], ['other', 'Other']]
 const MAX_DETAILS = 2000
 
-export function ReportBuild({ buildId, commentId, onClose }: { buildId: string; commentId?: string; onClose: () => void }) {
+export function ReportBuild({ buildId, onClose }: { buildId: string; onClose: () => void }) {
   const [reason, setReason] = useState<ReportRequest['reason'] | null>(null)
   const [details, setDetails] = useState('')
   const [token, setToken] = useState<string | null>(null)
@@ -39,7 +34,7 @@ export function ReportBuild({ buildId, commentId, onClose }: { buildId: string; 
     setBusy(true)
     setNote(null)
     try {
-      await lbApi.report({ ...(commentId ? { commentId } : { buildId }), reason, details: details.trim() || undefined, turnstileToken: token })
+      await lbApi.report({ buildId, reason, details: details.trim() || undefined, turnstileToken: token })
       setDone(true)
     } catch (error) {
       setNote({ text: errorText(error), bad: true })
@@ -53,7 +48,7 @@ export function ReportBuild({ buildId, commentId, onClose }: { buildId: string; 
   return (
     <form className="rpb" onSubmit={(event) => { event.preventDefault(); void send() }}>
       <div className="rpb-why" role="radiogroup" aria-label="Reason">
-        {(commentId ? COMMENT_REASONS : REASONS).map(([key, label]) => (
+        {REASONS.map(([key, label]) => (
           <button key={key} type="button" role="radio" aria-checked={reason === key} className={reason === key ? 'on' : ''}
             onClick={() => setReason(key)}>{label}</button>
         ))}

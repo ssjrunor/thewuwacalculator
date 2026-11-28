@@ -4,7 +4,7 @@
 */
 
 import { create } from 'zustand'
-import type { ChannelId } from '@/modules/simulation/features/teams/stage/MemberStage.tsx'
+import type { ChannelId } from '@/modules/simulation/features/teams/member/MemberConfig.tsx'
 import type { CombatScenarioId } from '@/domain/entities/combatScenario.ts'
 
 interface ConsoleTarget {

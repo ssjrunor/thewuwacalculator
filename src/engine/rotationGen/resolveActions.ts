@@ -6,6 +6,8 @@
 import type { RuntimeValue } from './types.ts'
 import { assertActionPlan } from '../../domain/rotationActions/actionPlan.ts'
 import { PlanTranslationError } from './planCoverage'
+import { equippedEchoActionId } from './gear/echo'
+import { omit } from './omissions'
 import { createEffectState, advanceEffectState,
   maybeTuneBreak, resolveAction, resolveSwap } from './events/execute.ts'
 
@@ -23,11 +25,11 @@ function prescribedActionIds(source?: RuntimeValue, member?: RuntimeValue): Runt
     normalizeName(action.name) === normalizeName(source)).map(([id]: RuntimeValue): RuntimeValue => Number(id))
 }
 
-/** only consume the supplied steps; never rebuild a plan from its recipe ID. */
+// consume only the supplied steps; a plan is not rebuilt from its recipe ID
 export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue, plan?: RuntimeValue): RuntimeValue {
   assertActionPlan(plan)
-  // a solved plan may use full animations considerably longer than its cancelled reference.
-  // derive the frame limit from the prescribed actions and their delayed events.
+  // a solved plan may use full animations considerably longer than its cancelled reference, so the frame limit comes
+  // from the prescribed actions and their delayed events
   const allActions = (Object.values(rulesets) as RuntimeValue[]).flatMap(rules => Object.values(rules.actions)) as RuntimeValue[]
   const durationFrames = (action: RuntimeValue): number => {
     const frames = action.timing.duration ?? 0, stop = action.timing.timeStop
@@ -40,7 +42,7 @@ export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue
       [plan.actions[step.actionId].sourceName]
     for (const name of names.filter((name: unknown) => typeof name === 'string')) plannedFrames += Math.max(0, ...allActions.filter(action => normalizeName(action.name) === normalizeName(name)).map(durationFrames))
   }
-  // include delayed action events and one extra second after the planned inputs when deriving the frame limit.
+  // include delayed action events and one extra second after the planned inputs when deriving the frame limit
   const tailFrames = Math.max(0, ...allActions.flatMap(action => action.events.map((event: RuntimeValue) => event.at ?? 0)))
   combat.maxFrames = Math.max(combat.maxFrames, Math.ceil(plannedFrames + tailFrames + 60))
   const state: RuntimeValue = createEffectState(rulesets, combat)
@@ -57,7 +59,7 @@ export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue
         wait(state.frame + step.frames)
         continue
       }
-      // finish the current input before replaying the prescribed Outro/Intro pair and advancing to its completion.
+      // finish the current input before replaying the prescribed Outro/Intro pair and advancing to its completion
       if (step.type === 'swap') {
         state.currentStepId = step.id
         wait(Math.max(state.readyAt, state.frame))
@@ -71,15 +73,16 @@ export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue
       const member = state.members[owner]
       const source = plan.actions[step.actionId]
       if (source.kind === 'equippedEcho' && member.source.echoes.main.id == null) continue
-      const matches = source.kind === 'equippedEcho' ? [member.source.echoes.main.action.id]
+      const matches = source.kind === 'equippedEcho' ? [equippedEchoActionId(member)]
         : prescribedActionIds(source.sourceName, member)
+      if (matches.length !== 1 && omit(state, 'missing-action-binding', { resonatorId: String(owner), action: source.sourceName })) continue
       if (matches.length !== 1) throw new PlanTranslationError({ code: 'missing-action-binding',
         stepId: step.id, resonatorId: String(owner), action: source.sourceName,
         message: `No unique action binding: ${step.actionId}` })
       const actionId = matches[0]
       resolveAction(state, owner, actionId)
-      // the copied interpreter uses full animations. preserve source cancellation instructions
-      // in the plan and explicitly report the ones this prototype has not implemented.
+      // the copied interpreter uses full animations; source cancellation instructions are kept in the plan, and the
+      // ones without an implementation are reported
       if (step.cancel && source.kind !== 'equippedEcho') unresolvedInstructions.push({
         stepId: step.id, instruction: step.cancel, reason: 'Source cancel timing is not implemented' })
       wait(Math.max(state.frame, state.readyAt))
@@ -90,7 +93,7 @@ export function resolveActionPlan(rulesets?: RuntimeValue, combat?: RuntimeValue
       throw new Error('Action plan did not complete all four sections')
     }
   }
-  // resolve delayed hits after the last input; a tail beyond the calculated limit fails the complete plan.
+  // resolve delayed hits after the last input; a tail beyond the calculated limit fails the complete plan
   const end: RuntimeValue = Math.max(state.frame, ...state.pending.map((event?: RuntimeValue): RuntimeValue => event.frame))
   if (end > state.frameLimit) throw new Error('Action tails exceed the interpretation frame limit')
   wait(end)

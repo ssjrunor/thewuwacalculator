@@ -24,7 +24,7 @@ export function createReferenceSearch(session: ScoringSession): ReferenceSearch 
     const template = seat && session.ruleset.teammates.get(`${def.teamId}:${seat.slot}`)
     if (!template) return { status: 'unsupported', reason: 'insufficient_data' }
     const context = session.context(async () => ({ status: 'unsupported', reason: 'reference_search' }))
-    const echoes = teammateEchoes(template, `${def.teamId}:${seat!.slot}`, context.deps)
+    const echoes = teammateEchoes(template, `${def.teamId}:${seat!.slot}`, context.deps, [])
     const snapshot: BuildSnapshot = {
       v: 1, gameVer: session.ruleset.manifest.gameVer, uid: '', name: null,
       resonator: { id: def.resonatorId, level: 90, sequence, skillLevels: {} },
@@ -34,10 +34,10 @@ export function createReferenceSearch(session: ScoringSession): ReferenceSearch 
         main: structuredClone(echo.mainStats), substats: { ...echo.substats },
       })),
     }
-    const built = buildScenarioInput(snapshot, def, context.teammates, context.deps)
+    const built = buildScenarioInput(snapshot, def, context.teammates, context.deps, { allowPartial: true })
     if (!built.ok) return { status: 'unsupported', reason: 'insufficient_data' }
     await ensureResonatorData(scenarioResonatorIds(built.input))
-    const interpreted = await interpretTeamActions(session.interpreter, plan, createScenario(built.input))
+    const interpreted = await interpretTeamActions(session.interpreter, plan, createScenario(built.input), { allowPartial: true })
     if (interpreted.status !== 'interpreted') return { status: 'unsupported', reason: 'insufficient_data' }
     const { scenario } = interpreted
     const executed = await executeScoringRotation({ def, input: built.input, scenario })
@@ -47,6 +47,7 @@ export function createReferenceSearch(session: ScoringSession): ReferenceSearch 
       initialOnFieldMemberId: scenario.initialOnFieldMemberId,
       members: scenario.team.members.map((member) => ({ id: member.id, resonatorId: member.resonatorId })),
       program: scenario.program.program,
+      ...(interpreted.diagnostics.omissions?.length ? { omissions: interpreted.diagnostics.omissions } : {}),
     }
     const hash = await sha256Hex(canonicalJson(program))
     return { status: 'ok', ...executed.anchors, programs: { baseline: hash, bench: hash, perfect: hash } }

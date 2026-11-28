@@ -5,12 +5,14 @@
                snapped roll, a single uid read, an unidentified echo) becomes an
                issue, and a read with any issue produces no snapshot. a corrected
                digit (exactly one legal value fits) is accepted and listed for
-               review.
+               review, and an accepted read's other doubts (a missing name, an
+               unread level, a guessed match) are flagged for staff.
 */
 
 import type { BuildSnapshot, SnapshotEcho } from '@/domain/leaderboard/snapshot'
 import type {
   CardReadConfidence,
+  CardReadFlag,
   CardReadIssue,
   CardReadOutcome,
   CardReadResult,
@@ -29,9 +31,9 @@ function isEmptyPanel(echo: RawPrsdEcho): boolean {
   return echo.echoName === null && echo.mainStatLbl === '' && echo.substats.length === 0
 }
 
-/* the parser leaves the id null when only gender variants of one resonator
-   match (Rover: Aero 1406/1408). those score identically, so the first
-   variant is selected; any other ambiguity stays unresolved. */
+// the parser leaves the id null when only gender variants of one resonator
+// match (Rover: Aero 1406/1408). those score identically, so the first
+// variant is selected; any other ambiguity stays unresolved
 function settleResonator(parsed: ParsedBuildScreenshot): string | null {
   if (parsed.resonator.id) return parsed.resonator.id
   const candidates = parsed.resonator.candidateIds
@@ -60,7 +62,29 @@ function outcomeFor(issues: CardReadIssue[]): CardReadOutcome {
   return 'unreadable'
 }
 
-/** a read that never reached the parser's result, e.g. a wrong image size. */
+// punctuation a name decoration ("~", a star, a note) can come back as
+const NAME_EDGE = /^[-_.'/:]|[-_.'/:]$/
+
+// doubts about an accepted read: fields it kept without reading them, and matches it had to guess
+function readFlags(parsed: ParsedBuildScreenshot): CardReadFlag[] {
+  const flags: CardReadFlag[] = []
+  const { player, resonator, weapon } = parsed
+  if (player.id === null) {
+    flags.push(player.nameInk === 'none' ? 'name_blank' : player.nameInk === 'obscured' ? 'name_obscured' : 'name_unread')
+  } else {
+    if (NAME_EDGE.test(player.id)) flags.push('name_edge')
+    if (player.nameUnconfirmed) flags.push('name_unconfirmed')
+  }
+  if (resonator.byArt) flags.push('resonator_by_art')
+  if (weapon.id === null) flags.push('weapon_unread')
+  if (weapon.iconOverrode) flags.push('weapon_disagrees')
+  if (resonator.level === null) flags.push('level_unread')
+  if (weapon.level === null) flags.push('weapon_level_unread')
+  if (Object.values(resonator.skillLevels).some((level) => level === null)) flags.push('skill_unread')
+  return flags
+}
+
+// a read that never reached the parser's result, e.g. a wrong image size
 export function failedCardRead(error: string, ms: number): CardReadResult {
   return {
     parserVer: CARD_PARSER_VER,
@@ -81,19 +105,19 @@ export function failedCardRead(error: string, ms: number): CardReadResult {
   }
 }
 
-/** build the leaderboard read for one parsed card. `gameVer` is the game
-    data version the parser resolved names against. */
+// build the leaderboard read for one parsed card. `gameVer` is the game
+// data version the parser resolved names against
 export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms: number): CardReadResult {
   const issues = new Set<CardReadIssue>()
   if (!parsed.source.botFrame) issues.add('not_bot_card')
 
-  // a leaderboard UID requires two agreeing reads; a single valid OCR result remains insufficient evidence.
+  // a leaderboard UID requires two agreeing reads; a single valid OCR read is not enough
   const uidAgreed = parsed.player.uidAgreed === true && parsed.player.uid !== null
   if (!uidAgreed) issues.add('uid_unverified')
 
   const resonatorId = settleResonator(parsed)
   if (!resonatorId) issues.add('resonator_unresolved')
-  if (!parsed.weapon.id) issues.add('weapon_unresolved')
+  // boards score with their scenario's weapon, so a weapon the card left out (a blank panel) refuses nothing
 
   const built = mkEchoNstnFr(parsed.echoes)
   const echoes: SnapshotEcho[] = []
@@ -132,6 +156,7 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
 
   const issueList = [...issues]
   const outcome = outcomeFor(issueList)
+  const flags = outcome === 'ok' ? readFlags(parsed) : []
   const confidence: CardReadConfidence = {
     frameScore: parsed.source.frameScore,
     botFrame: parsed.source.botFrame,
@@ -140,13 +165,15 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
     echoes: echoConfidence,
     issues: issueList,
     ...(review.length ? { review } : {}),
+    ...(flags.length ? { flags } : {}),
   }
 
-  // preserve recognized details in confidence output, but create a scoring snapshot only when every required read is exact.
-  const snapshot: BuildSnapshot | null = outcome === 'ok' ? {
+  // keep recognized details in confidence output, and create a scoring snapshot only when every required read is
+  // exact
+  const buildAs = (uid: string): BuildSnapshot => ({
     v: 1,
     gameVer,
-    uid: parsed.player.uid!,
+    uid,
     name: parsed.player.id,
     resonator: {
       id: resonatorId!,
@@ -154,9 +181,12 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
       sequence: parsed.resonator.sequence,
       skillLevels: { ...parsed.resonator.skillLevels },
     },
-    weapon: { id: parsed.weapon.id!, level: parsed.weapon.level },
+    weapon: { id: parsed.weapon.id || null, level: parsed.weapon.level },
     echoes,
-  } : null
+  })
+  const snapshot = outcome === 'ok' ? buildAs(parsed.player.uid!) : null
+  // the uid alone kept the card out: everything else is exact, so staff can place it once they read the uid
+  const awaitingUid = issueList.length === 1 && issueList[0] === 'uid_unverified' ? buildAs(parsed.player.uid ?? '') : null
 
   return {
     parserVer: CARD_PARSER_VER,
@@ -164,6 +194,7 @@ export function makeCardRead(parsed: ParsedBuildScreenshot, gameVer: string, ms:
     uid: uidAgreed ? parsed.player.uid : null,
     resonatorId,
     snapshot,
+    ...(awaitingUid ? { awaitingUid } : {}),
     confidence,
     ms,
   }

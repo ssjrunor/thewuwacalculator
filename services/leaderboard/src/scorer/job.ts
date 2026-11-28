@@ -28,17 +28,17 @@ import type { CellResult } from '../board/types.ts'
 declare const LB_GENERATOR_SHA: string | undefined
 const runningGenerator = typeof LB_GENERATOR_SHA === 'string' ? LB_GENERATOR_SHA : null
 
-/** display notes on a score. */
+// display notes on a score
 export const SCORE_FLAGS = {
-  /** generated and executed, but the scenario has no reference values for this sequence. */
+  // generated and executed, but the scenario has no reference values for this sequence
   noRefs: 1,
-  /** scored past the perfect build (200): its perfect anchor missed a build, a defect to look into (/admin/health). */
+  // scored past the perfect build (200): its perfect anchor missed a build, a defect to look into (/admin/health)
   overPerfect: 2,
-  /** scored lean: its detail has no breakdown yet (CellDetail.lean); the board fills it when it is asked for. */
+  // scored lean: its detail has no breakdown yet (CellDetail.lean); the board fills it on request
   lean: 4,
 } as const
 
-/** stored rotations in R2 (src/engine/leaderboard/rotationStore.ts), by content key. */
+// stored rotations in R2 (src/engine/leaderboard/rotationStore.ts), by content key
 function bucketRotations(bucket: R2Bucket): RotationStore {
   return {
     async get(key) {
@@ -51,20 +51,20 @@ function bucketRotations(bucket: R2Bucket): RotationStore {
   }
 }
 
-/** executes the generated program with the ruleset's loaded game data and searches its own anchors; sessions with
-    offline anchors use them through offlineAnchorExecutor. */
+// executes the generated program with the ruleset's loaded game data and searches its own anchors; sessions with
+// offline anchors use them through offlineAnchorExecutor
 export const executeRotation: RotationExecutor = executeScoringRotation
 
-/** what scoring reaches beyond the bindings; tests substitute these. */
+// what scoring reaches beyond the bindings; tests substitute these
 export interface ScorerServices {
   execute?: RotationExecutor
   generate?: RotationGenerator
-  /** a rollout's reuse decision (reuse.ts reuseCells). */
+  // a rollout's reuse decision (reuse.ts reuseCells)
   reuse?: (env: ScorerEnv, message: ReuseMessage) => Promise<ReuseOutcome>
 }
 
-/** thrown when the local scorer does not respond; the message is retried for it because workerd cannot finish a long
-    anchor search and would stall the queue (worker.ts). */
+// thrown when the local scorer does not respond; the message is retried because workerd cannot finish a long anchor
+// search and would stall the queue (worker.ts)
 export class LocalScorerUnavailable extends Error {
   constructor(url: string) {
     super(`local scorer not reachable at ${url}`)
@@ -72,7 +72,7 @@ export class LocalScorerUnavailable extends Error {
   }
 }
 
-/** local dev only: the scenario scored by tools/local-scorer.mjs in node, off the workerd thread. */
+// local dev only: the scenario scored by tools/local-scorer.mjs in node, off the workerd thread
 async function scoreInNode(env: ScorerEnv, url: string, message: CellMessage, snapshot: BuildSnapshot): Promise<ScenarioScore> {
   const ruleset = await getRuleset(env.LB, message.rid)
   if (!ruleset) throw new Error(`ruleset ${message.rid} is not published`)
@@ -88,26 +88,26 @@ async function scoreInNode(env: ScorerEnv, url: string, message: CellMessage, sn
   return await response.json() as ScenarioScore
 }
 
-/** a substituted generator (tests) neither reads nor stores programs: what it makes is not the generator's. */
+// a substituted generator (tests) neither reads nor stores programs, because its programs are not the generator's
 const withGenerator = (context: ScenarioScoringContext, services: ScorerServices): ScenarioScoringContext =>
   services.generate ? { ...context, generate: services.generate, programs: undefined } : context
 
-/** a ruleset's scoring context as the scorer scores with it: programs found and kept in the stored rotations (R2). */
+// a ruleset's scoring context as the scorer scores with it: programs found and kept in the stored rotations (R2)
 export function storedContext(env: ScorerEnv, session: ScoringSession, services: ScorerServices = {}): ScenarioScoringContext {
   const { context } = withStoredRotations(session.context(services.execute ?? offlineAnchorExecutor((id) => session.ruleset.anchorsFor(id))),
     bucketRotations(env.LB_DATA), session.ruleset, runningGenerator)
   return withGenerator(context, services)
 }
 
-/** share of builds given a shared program that also generate their own to check it (LB_PROGRAM_CHECK). */
+// share of builds given a shared program that also generate their own to check it (LB_PROGRAM_CHECK)
 const PROGRAM_CHECK = 0.02
-/** the share of builds measured by a group's compiled program that are also replayed to check it (LB_DAMAGE_CHECK). */
+// the share of builds measured by a group's compiled program that are also replayed to check it (LB_DAMAGE_CHECK)
 const DAMAGE_CHECK = 0.02
 
-/** a group of this many builds or more records one build's timing in this many (scoreGroup). */
+// a group of this many builds or more records one build's timing in this many (scoreGroup)
 export const TIMING_SAMPLE = 20
 
-/** the board record of a scored cell and its detail; unrated injected-executor results are unsupported. */
+// the board record of a scored cell and its detail; unrated injected-executor results are unsupported
 export function cellResult(message: Pick<CellMessage, 'rs' | 'local' | 'gen' | 'cell' | 'key'>, score: ScenarioScore): CellResult {
   const unrated = score.status === 'ok' && score.score == null
   const over = !unrated && overPerfect(score.score)
@@ -149,10 +149,10 @@ export async function scoreCell(env: ScorerEnv, message: CellMessage, services: 
   // leaves the board's stats unchanged
   if (message.cs) {
     try {
-      const stats = await cardBuildStats(snapshot)
+      const stats = await cardBuildStats(snapshot, session!.ruleset.defById.get(scenarioIdOf(message))?.weapon.id)
       result.cardStats = stats ? packStats(stats) : null
     } catch {
-      // kept out: the board keeps what it has.
+      // kept out: the board's stored values stay
     }
   }
   // `ms` is the scenario's own work: the node thread's clock (the wall span includes waiting for a free thread), or
@@ -167,7 +167,7 @@ export async function scoreCell(env: ScorerEnv, message: CellMessage, services: 
   return result
 }
 
-/** local dev only: a group scored by tools/local-scorer.mjs on one node thread. */
+// local dev only: a group scored by tools/local-scorer.mjs on one node thread
 async function scoreGroupInNode(env: ScorerEnv, url: string, message: GroupMessage, snapshots: BuildSnapshot[],
   detail: 'full' | 'lean'): Promise<ScenarioScore[]> {
   const ruleset = await getRuleset(env.LB, message.rid)
@@ -184,26 +184,24 @@ async function scoreGroupInNode(env: ScorerEnv, url: string, message: GroupMessa
   return await response.json() as ScenarioScore[]
 }
 
-/** a setting that reads as a share (0 to 1), else `fallback`. */
+// a setting that reads as a share (0 to 1), else `fallback`
 const shareOf = (setting: string | undefined, fallback: number) => {
   const value = Number(setting)
   return setting != null && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback
 }
 
-/** what share of reused programs a group checks: LB_PROGRAM_CHECK when it reads as a share, else PROGRAM_CHECK. */
+// what share of reused programs a group checks: LB_PROGRAM_CHECK when it reads as a share, else PROGRAM_CHECK
 export const programCheckOf = (env: Pick<ScorerEnv, 'LB_PROGRAM_CHECK'>): number => shareOf(env.LB_PROGRAM_CHECK, PROGRAM_CHECK)
 
-/** what share of compiled measurements a group checks against the replay: LB_DAMAGE_CHECK, else DAMAGE_CHECK. */
+// what share of compiled measurements a group checks against the replay: LB_DAMAGE_CHECK, else DAMAGE_CHECK
 export const damageCheckOf = (env: Pick<ScorerEnv, 'LB_DAMAGE_CHECK'>): number => shareOf(env.LB_DAMAGE_CHECK, DAMAGE_CHECK)
 
-/** detail level of bulk group scores: lean (no breakdown, filled when a board page or build requests it) unless
-    LB_LEAN_BULK is '0'; the interactive lane always scores full. */
+// detail level of bulk group scores: lean (no breakdown, filled when a board page or build requests it) unless
+// LB_LEAN_BULK is '0'; the interactive lane always scores full
 export const detailOf = (env: Pick<ScorerEnv, 'LB_LEAN_BULK'>): 'full' | 'lean' => env.LB_LEAN_BULK === '0' ? 'full' : 'lean'
 
-/**
- * scores one cell of every build in a group message with one program per program key (scoreScenarioGroup), each build
- * with its own result; builds whose reused program differed in a check are logged and scored on their own program.
- */
+// scores one cell of every build in a group message with one program per program key (scoreScenarioGroup), each build
+// with its own result; builds whose reused program differed in a check are logged and scored on their own program
 export async function scoreGroup(env: ScorerEnv, message: GroupMessage, services: ScorerServices = {},
   detail: 'full' | 'lean' = detailOf(env)): Promise<CellResult[]> {
   const snapshots = message.builds.map((build) => unpackSnapshot(fromBase64(build.snap)))
@@ -215,14 +213,14 @@ export async function scoreGroup(env: ScorerEnv, message: GroupMessage, services
   if (!scores) {
     const def = session!.ruleset.defById.get(scenarioIdOf(message))
     if (!def) throw new Error(`scenario ${scenarioIdOf(message)} is not in ruleset ${message.rid}`)
-    // one executor for the group, so builds that share an evaluation context measure on one (execute.ts).
+    // one executor for the group, so builds that share an evaluation context measure on one (execute.ts)
     scores = await scoreScenarioGroup(snapshots, def, storedContext(env, session!, services),
       { programCheck: programCheckOf(env), damageCheck: damageCheckOf(env), detail })
   }
   const wall = Math.max(0, Date.now() - started)
   const results: CellResult[] = []
-  // large groups time one build in TIMING_SAMPLE from a random start, which keeps the board's means unbiased (the first
-  // build includes the group's compile) and writes a twentieth of the rows in a rollout
+  // large groups time one build in TIMING_SAMPLE from a random start, so the board's means are unbiased (the
+  // first build includes the group's compile) and writes a twentieth of the rows in a rollout
   const sampled = message.builds.length >= TIMING_SAMPLE ? Math.floor(Math.random() * TIMING_SAMPLE) : -1
   for (const [index, build] of message.builds.entries()) {
     const score = scores[index]
@@ -231,15 +229,16 @@ export async function scoreGroup(env: ScorerEnv, message: GroupMessage, services
     const result = cellResult({ rs: message.rs, local: build.local, gen: build.gen, cell: message.cell, key: message.key }, score)
     if (build.cs) {
       try {
-        const stats = await cardBuildStats(snapshots[index])
+        const stats = await cardBuildStats(snapshots[index], session!.ruleset.defById.get(scenarioIdOf(message))?.weapon.id)
         result.cardStats = stats ? packStats(stats) : null
       } catch {
-        // kept out: the board keeps what it has.
+        // kept out: the board's stored values stay
       }
     }
     results.push(result)
     if (sampled >= 0 && index % TIMING_SAMPLE !== sampled) continue
-    // a node thread times each build; in a worker the clock advances only on i/o, so each build gets an equal share of the span
+    // a node thread times each build; in a worker the clock advances only on i/o, so each build gets an equal share
+    // of the span
     result.timing = {
       lane: 'bulk', runner, wallMs: Math.round(wall / message.builds.length),
       ms: runner === 'node' && score.timing?.total != null ? Math.round(score.timing.total) : Math.round(wall / message.builds.length),

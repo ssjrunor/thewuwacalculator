@@ -43,6 +43,243 @@ const hits = (fight: RuntimeRecord) => fight.trace.filter((entry: RuntimeRecord)
 const stacksOf = (fight: RuntimeRecord, id: number) => fight.effects.find((effect: RuntimeRecord) => effect.id === id)?.stacks ?? 0
 
 describe('reference timeline replay', () => {
+  it.each([false, true])('preserves native shared-effect signals when another owner follows the timeline (reverse: %s)', reverse => {
+    const { kits, combat } = setup([{ id: 'grant', when: codes.event.cast,
+      operations: [{ op: 'grantEffect', effect: 7 }] }], [], {
+      7: { name: 'Shared Unison', recipient: 'self', maxStacks: 1, shared: true,
+        responseKind: 'unisonGained', replayLifecycle: true },
+    })
+    const other = structuredClone(kits[1])
+    other.resonatorId = 2
+    other.effects[7].replayLifecycle = false
+    other.rules = []
+    const replay = timelineKits({ 1: kits[1], 2: other }, {
+      timelines: { owns: { 2: ['Shared Unison'] } },
+    } as unknown as ActionPlan)
+    combat.members[0].weapon.effects[50] = { name: 'Earned Gear', recipient: 'self', maxStacks: 1 }
+    combat.members[0].weapon.rules = [{ id: 'listen', when: 'responseEvent',
+      conditions: [{ path: 'event.responseKind', operator: 'eq', value: 'unisonGained' },
+        { path: 'event.actor', operator: 'eq', value: 1 }],
+      operations: [{ op: 'grantEffect', effect: 50 }] }]
+    const second = structuredClone(combat.members[0])
+    second.resonatorId = 2
+    second.weapon = { effects: {}, rules: [] }
+    combat.members.push(second)
+    if (reverse) combat.members.reverse()
+    const { state } = playTimeline(replay, combat, { seconds: 1, events: [
+      [0, 'cast', reverse ? 1 : 0, 'Basic - Press', -1],
+    ] }, new Set(), new Set())
+    expect(state.effects.some((effect: RuntimeRecord) => effect.id === 50 && effect.target === 1 && effect.stacks === 1)).toBe(true)
+    expect(state.effects.some((effect: RuntimeRecord) => effect.id === 7 && effect.target === 2)).toBe(false)
+  })
+
+  it('excludes an earned equipment bonus from an unqualified gear-damage feature', () => {
+    const { kits, combat } = setup([], [])
+    kits[2] = { ...structuredClone(kits[1]), resonatorId: 2 }
+    combat.members.push({ ...structuredClone(combat.members[0]), resonatorId: 2 })
+    const path = 'runtime.state.controls.weapon:1:earned'
+    combat.members[0].weapon.effects = { 11: { name: 'Earned bonus', recipient: 'actorMember', maxStacks: 1 } }
+    const bundle = { source: { skills: [], features: [] } }
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 3 }, { frame: 3, casts: [], trace: [
+      { type: 'effect', owner: 1, target: 2, effectId: 11, recipient: 'actorMember', stacks: 1, until: 100, frame: 0 },
+      { type: 'hit', owner: 1, featureId: 'damage:gear', frame: 1 },
+      { type: 'hit', owner: 2, featureId: 'damage:gear', frame: 2 },
+    ] }, { resonators: { 1: bundle, 2: bundle },
+      equipmentFeatures: { 1: [{ id: 'damage:gear' }], 2: [{ id: 'damage:gear' }] },
+      equipmentEffects: { 1: [{ condition: { type: 'truthy', from: 'sourceRuntime', path: 'state.controls.weapon:1:earned' },
+        operations: [{ type: 'add_base_stat', stat: 'atk', field: 'percent', value: 16 }] }] },
+      memberEffectControls: { 1: { 11: [[path, true]] } },
+      preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: false } }],
+    })
+    const nodes = output.items.filter((node: RuntimeRecord) => node.type === 'feature')
+    expect(nodes).toHaveLength(2)
+    expect(nodes[0].attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes))
+      .toContainEqual(expect.objectContaining({ path, value: false, resonatorId: '1' }))
+    expect(nodes[1].attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes) ?? [])
+      .not.toContainEqual(expect.objectContaining({ path, value: false }))
+  })
+  it('retains separate Lullaby recipients after swaps and clears them when Soothed Soul ends', () => {
+    const { kits, combat } = setup([], [])
+    const module: RuntimeRecord = structuredClone(gear.weapons['21030076'].variants[0])
+    const atk = Number(Object.keys(module.effects).find(id => module.effects[id].name === 'Lullaby: Unison'))
+    combat.members[0].weapon = module
+    for (const id of [2, 3]) {
+      kits[id] = structuredClone(kits[1])
+      kits[id].resonatorId = id
+      kits[id].effects[50] = { name: 'Earned Unison', recipient: 'self', maxStacks: 1, responseKind: 'unison' }
+      kits[id].rules.push({ id: 'earn-unison', when: 'afterCast', operations: [{ op: 'grantEffect', effect: 50 }] })
+      const member = structuredClone(combat.members[0])
+      member.resonatorId = id
+      member.weapon = { effects: {}, rules: [] }
+      combat.members.push(member)
+    }
+    const { state } = playTimeline(kits, combat, { seconds: 31, events: [
+      [0, 'heal', 0, 1], [1, 'swap', 1], [1, 'cast', 1, 'Basic - Press', 3],
+      [20, 'swap', 2], [20, 'cast', 2, 'Basic - Press', 3], [40, 'swap', 0], [1860, 'section', 1],
+    ] }, new Set(), new Set())
+    const grants = state.trace.filter((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === atk && entry.stacks > 0)
+    expect(grants.map((entry: RuntimeRecord) => [entry.target, entry.until]).sort()).toEqual([[2, 1800], [3, 1800]])
+    expect(state.trace.some((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === atk && entry.stacks === 0 && entry.frame < 1800)).toBe(false)
+    expect(state.effects.some((effect: RuntimeRecord) => effect.id === atk && effect.until > state.frame)).toBe(false)
+  })
+  it('does not mutate hit-entry callback membership when that hit consumes its marker', () => {
+    const { kits, combat } = setup([
+      { id: 'place', when: 'afterCast', operations: [{ op: 'grantEffect', effect: 7, recipient: 'self', stacks: 1 }] },
+      { id: 'spend', when: codes.event.hit, phase: 'beforeHit', operations: [{ op: 'consumeEffect', effect: 7, stacks: 1 }] },
+      { id: 'listen', when: codes.event.hit, phase: 'beforeHit',
+        conditions: [{ path: 'event.effectsBeforeHit.1.7.stacks', operator: 'gt', value: 0 }],
+        operations: [{ op: 'grantEffect', effect: 8, recipient: 'self', stacks: 1 }] },
+    ], [], { 7: { name: 'Field', recipient: 'self', maxStacks: 1, replayLifecycle: true } })
+    const { state } = playTimeline(kits, combat, { seconds: 1, events: [[0, 'cast', 0, 'Basic - Press', 3]] }, new Set(), new Set())
+    expect(state.trace.filter((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === 8)
+      .map((entry: RuntimeRecord) => entry.frame)).toEqual([0])
+  })
+  it.each([false, true])('pins a numerical payout across overlapping casts unless the window belongs to a held effect (%s)', ownsWindow => {
+    const { kits, combat } = setup([], [])
+    kits[1].actions[10].events = kits[1].actions[10].events.slice(0, 2)
+    const path = 'runtime.state.controls.payout'
+    if (ownsWindow) kits[1].effectControls = { 7: [[path, true]] }
+    const casts = [1, 2].map(instance => ({ type: 'cast', owner: 1, actionId: 10, instance, frame: instance - 1 }))
+    const trace = [...casts, ...[1, 2].flatMap(instance => [
+      { type: 'control', owner: 1, path, value: instance === 1, frame: instance + 4,
+        sourceOwner: 1, sourceActionId: 10, sourceInstance: instance, sourceEventId: 2 },
+      { type: 'hit', owner: 1, actionId: 10, instance, eventId: 2, frame: instance + 4 },
+    ])]
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 7 }, { frame: 7, trace, casts }, {
+      effectControls: kits[1].effectControls ?? {},
+      resonators: { 1: { source: { skills: [{ id: 'press', skillTypeWhen: [{ when: {
+        type: 'truthy', from: 'sourceRuntime', path: 'state.controls.payout' }, skillType: ['resonanceLiberation'] }] }],
+      features: [{ id: 'damage:press', skillId: 'press' }] } } },
+      preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: true } }],
+    })
+    const nodes = output.items.filter((node: RuntimeRecord) => node.type === 'feature')
+    if (ownsWindow) {
+      expect(nodes).toHaveLength(1)
+      expect(nodes[0].multiplier).toBe(2)
+      expect(output.items.slice(output.items.indexOf(nodes[0]) + 1).flatMap((node: RuntimeRecord) => node.changes ?? []))
+        .toContainEqual(expect.objectContaining({ path, value: false }))
+    } else {
+      expect(nodes).toHaveLength(2)
+      const attached = nodes[1].attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes) ?? []
+      expect(attached).not.toContainEqual(expect.objectContaining({ path, value: true }))
+      expect(output.items.slice(0, output.items.indexOf(nodes[1])).flatMap((node: RuntimeRecord) => node.changes ?? [])
+        .filter((change: RuntimeRecord) => change.path === path).at(-1)?.value).toBe(false)
+    }
+  })
+  it('applies an exact hit observation over a recipient clear inferred from a folded roster', () => {
+    const { kits, combat } = setup([], [])
+    const path = 'runtime.state.controls.recipient-window'
+    kits[1].recipientConditions = [{ path, effect: 7, includeOwner: true }]
+    const source = { skills: [{ id: 'press' }], features: [{ id: 'damage:press', skillId: 'press' }],
+      effects: [{ condition: { type: 'truthy', from: 'sourceRuntime', path: 'state.controls.recipient-window' },
+        operations: [{ type: 'add_stat', stat: 'atkPercent', value: 20 }] }] }
+    const cast = { type: 'cast', owner: 1, actionId: 10, instance: 1, frame: 0,
+      hitControls: [0, 1, 2].map(hit => ({ hit, owner: 1, path, value: true })) }
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 11 }, { frame: 11, casts: [cast], trace: [cast,
+      ...[0, 1, 2].map(index => ({ type: 'hit', owner: 1, actionId: 10, eventId: 2 + index, instance: 1, frame: index * 5 })),
+    ] }, { resonators: { 1: { source } }, preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: true } }] })
+    const features = output.items.filter((node: RuntimeRecord) => node.type === 'feature')
+    expect(features).toHaveLength(1)
+    expect(features[0].attached?.conditions.flatMap((node: RuntimeRecord) => node.changes) ?? [])
+      .not.toContainEqual(expect.objectContaining({ path, value: false }))
+  })
+  it.each([[2, 'unison', true], [3, 'unison', false], [3, 'flare', true], [1, 'unison', true]])(
+    'restricts positive hit snapshots to observed recipients (member %s, mode %s)', (actor, mode, expected) => {
+      const { kits, combat } = setup([], [])
+      const path = 'runtime.state.controls.recipient-window'
+      const modePath = 'runtime.state.controls.mode'
+      kits[1].recipientConditions = [{ path, effect: 7, includeOwner: true, whenControl: ['mode', 'unison'] }]
+      for (const id of [2, 3]) {
+        kits[id] = { ...structuredClone(kits[1]), resonatorId: id, recipientConditions: [] }
+        combat.members.push({ ...structuredClone(combat.members[0]), resonatorId: id })
+      }
+      const source = { skills: [{ id: 'press' }], features: [{ id: 'damage:press', skillId: 'press' }],
+        effects: [{ condition: { type: 'truthy', from: 'sourceRuntime', path: 'state.controls.recipient-window' },
+          operations: [{ type: 'add_top_stat', stat: 'amplify', value: 20 }] }] }
+      const cast = { type: 'cast', owner: actor, actionId: 10, instance: 1, frame: 0,
+        hitControls: [0, 1, 2].map(hit => ({ hit, owner: 1, path, value: true })) }
+      const output = emitEditorProgram(kits, { ...combat, maxFrames: 11 }, { frame: 11, casts: [cast], trace: [
+        { type: 'effect', owner: 1, effectId: 7, target: 2, stacks: 1, until: 100, frame: 0 }, cast,
+        ...[0, 1, 2].map(index => ({ type: 'hit', owner: actor, actionId: 10, eventId: 2 + index, instance: 1, frame: index * 5 })),
+      ] }, { resonators: { 1: { source }, 2: { source }, 3: { source } },
+        preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: false } },
+          { resonatorId: '1', state: { path: modePath, kind: 'select', defaultValue: mode } }],
+      })
+      const features = output.items.filter((node: RuntimeRecord) => node.type === 'feature')
+      expect(features).toHaveLength(1)
+      const changes = features[0].attached?.conditions.flatMap((node: RuntimeRecord) => node.changes) ?? []
+      expect(changes.find((change: RuntimeRecord) => change.path === path)?.value ?? false).toBe(expected)
+    })
+  it('preserves callback membership at hit entry when the same hit creates its field', () => {
+    const { kits, combat } = setup([
+      { id: 'place', when: codes.event.hit, phase: 'beforeHit', operations: [{ op: 'grantEffect', effect: 7, recipient: 'self', stacks: 1 }] },
+      { id: 'listen', when: codes.event.hit, phase: 'beforeHit',
+        conditions: [{ path: 'event.effectsBeforeHit.1.7.stacks', operator: 'gt', value: 0 }],
+        operations: [{ op: 'grantEffect', effect: 8, recipient: 'self', stacks: 1 }] },
+    ], [], { 7: { name: 'Field', recipient: 'self', maxStacks: 1, duration: 100, replayLifecycle: true } })
+    const { state } = playTimeline(kits, combat, { seconds: 1, events: [[0, 'cast', 0, 'Basic - Press', 3]] }, new Set(), new Set())
+    expect(state.trace.filter((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === 8)
+      .map((entry: RuntimeRecord) => entry.frame)).toEqual([5, 10])
+  })
+  it('uses captured hit-local enemy stacks before evaluating equipment triggers', () => {
+    const { kits, combat } = setup([], [])
+    combat.members[0].weapon.effects = { 80: { name: 'Target status reward', recipient: 'self', maxStacks: 1 } }
+    combat.members[0].weapon.rules = [{ id: 'status-hit', when: codes.event.hit, phase: 'afterHit',
+      conditions: [{ path: 'enemy.aeroErosion', operator: 'gte', value: 1 }],
+      operations: [{ op: 'grantEffect', effect: 80, recipient: 'self', stacks: 1 }] }]
+    const { state } = playTimeline(kits, combat, { seconds: 1, events: [
+      [0, 'status', 0, 'aeroErosion', 2],
+      [0, 'hitControl', 0, 'Basic - Press', 0, 0, 'enemy.combat.aeroErosion', '0'],
+      [0, 'hitControl', 0, 'Basic - Press', 1, 0, 'enemy.combat.aeroErosion', '0'],
+      [0, 'hitControl', 0, 'Basic - Press', 2, 0, 'enemy.combat.aeroErosion', '2'],
+      [0, 'cast', 0, 'Basic - Press', 3],
+    ] }, new Set(['enemy.combat.aeroErosion']), new Set())
+    expect(state.trace.filter((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === 80)
+      .map((entry: RuntimeRecord) => entry.frame)).toEqual([10])
+  })
+  it.each([0, 1])('restores numerical buff gates only for actual consumption (consumed: %s)', consumed => {
+    const path = 'runtime.state.controls.window'
+    const { kits, combat } = setup([], [])
+    kits[1].effectControls = { 7: [[path, true]] }
+    const cast = { type: 'cast', owner: 1, actionId: 10, instance: 1, frame: 1,
+      spentEffects: [{ owner: 1, effectId: 7, stacks: 1, consumed }] }
+    const source = { skills: [{ id: 'press' }], features: [{ id: 'damage:press', skillId: 'press' }],
+      effects: [{ trigger: 'skill', condition: { type: 'truthy', from: 'sourceRuntime', path: 'state.controls.window' },
+        operations: [{ type: 'scale_skill_multiplier', match: { skillIds: ['press'] }, value: { type: 'const', value: 2 } }] }] }
+    const trace = [
+      { type: 'effect', owner: 1, effectId: 7, target: 1, stacks: 1, until: 100, frame: 0 },
+      { type: 'effect', owner: 1, effectId: 7, target: 1, stacks: 0, until: 1, frame: 1 }, cast,
+      ...[0, 1, 2].map(index => ({ type: 'hit', owner: 1, actionId: 10, eventId: 2 + index, instance: 1, frame: 1 + index * 5 })),
+    ]
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 12 }, { frame: 12, casts: [cast], trace },
+      { effectControls: kits[1].effectControls, resonators: { 1: { source } },
+        preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: false } }] })
+    const node = output.items.find((node: RuntimeRecord) => node.type === 'feature')
+    const before = output.items.slice(0, output.items.indexOf(node)).flatMap((item: RuntimeRecord) => item.changes ?? [])
+    const attached = node.attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes) ?? []
+    expect([...before, ...attached].filter((change: RuntimeRecord) => change.path === path).at(-1)?.value ?? false).toBe(consumed > 0)
+  })
+
+  it('places a captured post-hit heal after same-frame damage', () => {
+    const result = play({ seconds: 1, events: [
+      [0, 'cast', 0, 'Basic - Press', 1], [0, 'heal', 0, 1, 'Basic - Press'],
+    ] })
+    const ordered = result.state.trace.filter((entry: RuntimeRecord) => ['hit', 'heal'].includes(entry.type))
+    expect(ordered.map((entry: RuntimeRecord) => entry.type)).toEqual(['hit', 'heal'])
+  })
+
+  it('attributes delayed healing to its source cast after the healer casts another action', () => {
+    const { kits, combat } = setup([{ id: 'heal', when: 'heal', operations: [{ op: 'grantEffect', effect: 8 }] }], [])
+    kits[1].actions[20] = { name: 'Skill - Later', cast: codes.cast.skill, timing: { duration: 1 },
+      events: [{ id: 99, kind: codes.event.cast, at: 0 }] }
+    const { state } = playTimeline(kits, combat, { seconds: 1, events: [
+      [0, 'cast', 0, 'Basic - Press', 0], [1, 'cast', 0, 'Skill - Later', 0],
+      [2, 'heal', 0, 1, 'Basic - Press'],
+    ] }, new Set(), new Set())
+    expect(state.trace.find((entry: RuntimeRecord) => entry.type === 'effect' && entry.effectId === 8))
+      .toMatchObject({ sourceActionId: 10, sourceInstance: 1, sourceSupport: 'heal' })
+  })
+
   it.each([false, true])('preserves numeric stacks when a toggle shares their control (toggle last: %s)', toggleLast => {
     const { kits, combat } = setup([], [])
     const path = 'runtime.state.controls.shared'
@@ -72,7 +309,7 @@ describe('reference timeline replay', () => {
       .flatMap((node: RuntimeRecord) => node.changes)).toContainEqual(expect.objectContaining({ path, value: 2 }))
   })
 
-  it('keeps the departing Outro off field instead of restoring its pre-swap active snapshot', () => {
+  it('places the departing Outro off field without restoring its pre-swap active snapshot', () => {
     const { kits, combat } = setup([], [])
     kits[1].actions[11] = { name: 'Outro - Depart', cast: codes.cast.outro, timing: { duration: 0 },
       events: [{ id: 20, kind: codes.event.cast, at: 0 },
@@ -151,7 +388,28 @@ describe('reference timeline replay', () => {
     else expect(hit).toBeLessThan(cast)
   })
 
-  it('keeps cast resource changes distinct from hit gains and remembers availability before clamping', () => {
+  it.each([codes.cast.liberation, codes.cast.skill])('orders naturally due hits before a time-stop cast and compressed hits after it (cast %s)', castType => {
+    const { kits, combat } = setup([{ id: 'liberation-buff', when: codes.event.cast, actions: [20],
+      operations: [{ op: 'grantEffect', effect: 8 }] }], [])
+    kits[1].actions[20] = { name: 'Liberation - Cast', cast: castType,
+      timing: { duration: 20, timeStop: [0, 10] }, events: [{ id: 99, kind: codes.event.cast, at: 0 }] }
+    const { state } = playTimeline(kits, combat, { seconds: 1, events: [
+      // native hit 1 is due at 5; native hit 2 is due at 10 and compressed to 5
+      [0, 'cast', 0, 'Basic - Press', 2, null, [1, 2], [5, 5]],
+      [5, 'cast', 0, 'Liberation - Cast', 0],
+    ] }, new Set(), new Set())
+    const at = state.trace.filter((row: RuntimeRecord) => row.frame === 5)
+    const natural = at.findIndex((row: RuntimeRecord) => row.type === 'hit' && row.eventId === 3)
+    const cast = at.findIndex((row: RuntimeRecord) => row.type === 'cast' && row.actionId === 20)
+    const buff = at.findIndex((row: RuntimeRecord) => row.type === 'effect' && row.effectId === 8)
+    const shifted = at.findIndex((row: RuntimeRecord) => row.type === 'hit' && row.eventId === 4)
+    expect(natural).toBeGreaterThanOrEqual(0)
+    expect(natural).toBeLessThan(cast)
+    expect(buff).toBeGreaterThan(cast)
+    expect(shifted).toBeGreaterThan(buff)
+  })
+
+  it('separates cast resource changes from hit gains and records availability before clamping', () => {
     const path = 'runtime.state.controls.test:paid'
     const { kits, combat } = setup([
       { id: 1, when: 'afterCast', actions: [10], operations: [
@@ -208,7 +466,7 @@ describe('reference timeline replay', () => {
     expect(values(false)).toEqual([0, 6])
   })
 
-  it('triggers and refreshes Woodland reduction from positive Erosion counts, never an empty target', () => {
+  it('triggers and refreshes Woodland reduction only from positive Erosion counts', () => {
     const { kits, combat } = setup([], [])
     combat.members[0].weapon = structuredClone(gear.weapons['21030026'].variants[0])
     const weapon = combat.members[0].weapon
@@ -227,7 +485,7 @@ describe('reference timeline replay', () => {
     expect(weapon.effects[effect].recipient).toBe('team')
   })
 
-  it.each(['21050056', '21020066'])('keeps Echo-window cooldowns independent by cast identity (%s)', weaponId => {
+  it.each(['21050056', '21020066'])('tracks Echo-window cooldowns per cast identity (%s)', weaponId => {
     const { kits, combat } = setup([], [])
     kits[2] = { ...structuredClone(kits[1]), resonatorId: 2 }
     combat.members.push({ ...structuredClone(combat.members[0]), resonatorId: 2 })
@@ -257,7 +515,7 @@ describe('reference timeline replay', () => {
     }
   })
 
-  it('lets a hit start its own status cooldown before later hits are gated', () => {
+  it('starts a hit\'s own status cooldown before later hits are gated', () => {
     const { kits, combat } = setup([{
       id: 1, when: codes.event.hit, phase: 'beforeHit', actions: [10],
       conditions: [{ path: 'effects.7.stacks', operator: 'lte', value: 0 }],
@@ -289,7 +547,7 @@ describe('reference timeline replay', () => {
       .toEqual([equippedId === 99 ? 6 : 68])
   })
 
-  it.each([99, 100])('keeps zero landed Echo hits from triggering on-hit gear for the recorded identity (%s)', equippedId => {
+  it.each([99, 100])('triggers no on-hit gear from zero landed Echo hits of the recorded identity (%s)', equippedId => {
     const { kits, combat } = setup([], [])
     combat.members[0].echoes.main = { id: equippedId, actionId: 20, effects: {},
       rules: [{ id: 'echo-hit-window', when: codes.event.hit, phase: 'afterHit',
@@ -650,7 +908,7 @@ describe('reference timeline replay', () => {
     expect(atHits).toEqual([true, true])
   })
 
-  it('keeps later parent-hit stack grants after intervening attacks', () => {
+  it('retains later parent-hit stack grants after intervening attacks', () => {
     const path = 'runtime.state.controls.weapon:1:stacks'
     const { kits, combat } = setup([], [])
     kits[1].effectControls = { 7: [[path, 'stacks']] }
@@ -678,6 +936,69 @@ describe('reference timeline replay', () => {
     }
     expect(childStacks).toBe(1)
     expect(stacks).toBe(3)
+  })
+
+  it.each([false, true])('preserves short-attack equipment state across a timed transition (gain: %s)', gain => {
+    const path = 'runtime.state.controls.weapon:1:bonus'
+    const { kits, combat } = setup([], [])
+    kits[1].effectControls = { 50: [[path, true]] }
+    combat.members[0].weapon.effects[50] = { name: 'Timed Gear', recipient: 'self', maxStacks: 1 }
+    const cast = { type: 'cast', owner: 1, actionId: 10, instance: 1, frame: 0 }
+    const effect = { type: 'effect', owner: 1, effectId: 50, target: 1, recipient: 'self',
+      stacks: 1, frame: gain ? 7 : 0, until: gain ? 50 : 7 }
+    const hit = (frame: number, eventId: number) => ({ type: 'hit', owner: 1, actionId: 10, instance: 1, eventId, frame })
+    const trace = gain ? [cast, hit(0, 2), hit(5, 3), effect, hit(10, 4)] : [effect, cast, hit(0, 2), hit(5, 3), hit(10, 4)]
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 10 }, { frame: 10, trace, casts: [cast] }, {
+      resonators: { 1: { source: { skills: [{ id: 'press', hitTable: [{ count: 3, values: [1] }] }],
+        features: [{ id: 'damage:press', skillId: 'press' },
+          { id: 'damage:press:hit:1', skillId: 'press', variant: 'subHit', hitIndex: 0 }] } } },
+      effectControls: kits[1].effectControls,
+      preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: false } }],
+    })
+    let standing = false
+    const states: boolean[] = []
+    for (const node of output.items) {
+      for (const change of node.changes ?? []) if (change.path === path) standing = change.value
+      if (node.type !== 'feature') continue
+      const local = node.attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes)
+        .find((change: RuntimeRecord) => change.path === path)
+      states.push(...Array(node.multiplier).fill(local ? local.value : standing))
+      expect(node.featureId).toBe('damage:press:hit:1')
+      expect(Number.isInteger(node.multiplier)).toBe(true)
+    }
+    expect(states).toEqual(gain ? [false, false, true] : [true, true, false])
+  })
+
+  it.each(['hit', 'cast', 'swap', 'clear'])('resolves an equipment expiry endpoint with authoritative %s ordering', boundary => {
+    const path = 'runtime.state.controls.weapon:1:bonus'
+    const { kits, combat } = setup([], [])
+    kits[1].effectControls = { 50: [[path, true]] }
+    combat.members[0].weapon.effects[50] = { name: 'Timed Gear', recipient: 'self', maxStacks: 1 }
+    const cast = { type: 'cast', owner: 1, actionId: 10, instance: 1, frame: 0 }
+    const effect = { type: 'effect', owner: 1, effectId: 50, target: 1, recipient: 'self', stacks: 1, frame: 0, until: 10 }
+    const hit = (frame: number, eventId: number) => ({ type: 'hit', owner: 1, actionId: 10, instance: 1, eventId, frame })
+    const transition = boundary === 'cast' ? [{ ...cast, frame: 10, instance: 2 }] :
+      boundary === 'swap' ? [{ type: 'swap', from: 1, to: 1, frame: 10 }] :
+      boundary === 'clear' ? [{ ...effect, frame: 10, stacks: 0 }] : []
+    const output = emitEditorProgram(kits, { ...combat, maxFrames: 15 }, {
+      frame: 15, trace: [effect, cast, hit(5, 2), ...transition, hit(10, 3), hit(15, 4)], casts: [cast],
+    }, {
+      resonators: { 1: { source: { skills: [{ id: 'press', hitTable: [{ count: 3, values: [1] }] }],
+        features: [{ id: 'damage:press', skillId: 'press' },
+          { id: 'damage:press:hit:1', skillId: 'press', variant: 'subHit', hitIndex: 0 }] } } },
+      effectControls: kits[1].effectControls,
+      preambleChoices: [{ resonatorId: '1', state: { path, kind: 'toggle', defaultValue: false } }],
+    })
+    let standing = false
+    const states: boolean[] = []
+    for (const node of output.items) {
+      for (const change of node.changes ?? []) if (change.path === path) standing = change.value
+      if (node.type !== 'feature') continue
+      const local = node.attached?.conditions.flatMap((condition: RuntimeRecord) => condition.changes)
+        .find((change: RuntimeRecord) => change.path === path)
+      states.push(...Array(node.multiplier).fill(local ? local.value : standing))
+    }
+    expect(states).toEqual([true, boundary === 'hit', false])
   })
 
   it('does not preserve an expired numerical bonus as a cast availability condition', () => {
@@ -841,7 +1162,7 @@ describe('reference timeline replay', () => {
     expect(grants.some((entry: RuntimeRecord) => entry.frame === 0)).toBe(true)
     expect(grants.find((entry: RuntimeRecord) => entry.frame === 100)?.until).toBe(160)
   })
-  it('refreshes the original team holder so a later clear cannot leave a ghost buff', () => {
+  it('refreshes the original team holder, and a later clear ends the team buff', () => {
     const rules = [{ id: 1, when: 'afterCast', actions: [10], operations: [
       { op: 'grantEffect', effect: 13, recipient: 'team', stacks: 1 }] }]
     const effects = { 13: { name: 'Kit: Team Timed', recipient: 'team', maxStacks: 1, duration: 60 } }
@@ -854,7 +1175,7 @@ describe('reference timeline replay', () => {
     expect(events.every((entry: RuntimeRecord) => entry.target === 'team' && entry.recipient === 'team')).toBe(true)
     expect(events.some((entry: RuntimeRecord) => entry.frame === 70 && entry.stacks > 0)).toBe(false)
   })
-  it('keeps pre-cast availability distinct from a smaller observed spend', () => {
+  it('separates pre-cast availability from a smaller observed spend', () => {
     const { state } = play({ seconds: 2, events: [[0, 'swap', 0],
       [0, 'state', 0, 'Kit: Fuel', 60, -1],
       [30, 'consume', 0, 'Kit: Fuel', 1, 'Basic - Press'],
@@ -910,8 +1231,8 @@ describe('reference timeline replay', () => {
     expect(stacksOf(state, 8)).toBe(1)
   })
 
-  it('lets a cast\'s own rules see the state the reference shows it spending just ahead of it', () => {
-    // the reference reads a cast's held state at its hits: Unison spent by its Outro is gone first
+  it('exposes to a cast\'s own rules the state it spends just ahead of it in the reference', () => {
+    // the reference reads a cast's held state at its hits: Unison spent by its Outro ends first
     const answer = [{ id: 1, when: 'afterCast', actions: [10], conditions: [{ path: 'effects.7.stacks', operator: 'gte', value: 1 }],
       operations: [{ op: 'grantEffect', effect: 8, recipient: 'self', stacks: 1 }] }]
     const { state } = play({ seconds: 1, events: [[0, 'swap', 0], [0, 'state', 0, 'Kit: Stance', 1, 0],
@@ -923,7 +1244,7 @@ describe('reference timeline replay', () => {
     expect(order.slice(0, 2)).toEqual(['7:0', 'cast'])
   })
 
-  it('never takes a nameless reference state for a nameless kit effect', () => {
+  it('does not match a nameless reference state to a nameless kit effect', () => {
     const { kits, skipped } = play({ seconds: 1, events: [[0, 'swap', 0], [0, 'state', 0, '', 1, 0]] }, [], undefined, ['Kit: Stance', ''])
     expect(kits[1].governed.has(9)).toBe(false)
     expect(skipped).toHaveLength(1)
@@ -940,7 +1261,7 @@ describe('reference timeline replay', () => {
   })
 
   it('signals a status reapplication when stacks stay at their cap', () => {
-    // reapplying a status at its cap leaves the reference stack count unchanged.
+    // reapplying a status at its cap leaves the reference stack count unchanged
     const rules = [{ id: 1, when: 'afterCast', actions: [10], operations: [{ op: 'grantEffect', effect: 12, stacks: 1 }] },
       { id: 2, when: 'statusApplied', conditions: [{ path: 'event.status', operator: 'eq', value: 'glacioChafe' }],
         operations: [{ op: 'grantEffect', effect: 8, recipient: 'self', stacks: 1 }] }]
@@ -949,7 +1270,7 @@ describe('reference timeline replay', () => {
       [30, 'cast', 0, 'Basic - Press', -1]] }, [], rules, [], effects)
     expect(capped.kits[1].inflicts.has('glacioChafe')).toBe(true)
     expect(stacksOf(capped.state, 8)).toBe(1)
-    // the held rise itself is no second application
+    // the held rise itself is not a second application
     const rising = play({ seconds: 1, events: [[0, 'swap', 0], [0, 'status', 0, 'glacioChafe', 1]] }, [], rules, [], effects)
     expect(stacksOf(rising.state, 8)).toBe(0)
   })
@@ -964,13 +1285,13 @@ describe('reference timeline replay', () => {
     const { kits, state } = play({ seconds: 2, events: [[0, 'swap', 0], [0, 'state', 0, 'Tune Strain - Shifting', 1, -2],
       [0, 'cast', 0, 'Basic - Press', -1], [30, 'cast', 0, 'Basic - Press', -1]] }, [], rules, [], effects)
     expect(kits[1].inflicts.has('tuneStrainShifting')).toBe(false)
-    // both presses lay it again: each is an application the equipment answers
+    // both presses apply it again: each is an application the equipment responds to
     expect(stacksOf(state, 7)).toBe(2)
-    // and a Shifting is no negative status
+    // and a Shifting is not a negative status
     expect(stacksOf(state, 8)).toBe(0)
   })
 
-  it('hands a heal the healer\'s running cast', () => {
+  it('attributes a heal to the healer\'s running cast', () => {
     const rules = [{ id: 1, when: 'heal', conditions: [{ path: 'event.cast', operator: 'eq', value: codes.cast.basic }],
       operations: [{ op: 'grantEffect', effect: 8, recipient: 'self', stacks: 1 }] }]
     const { state } = play({ seconds: 1, events: [[0, 'swap', 0], [0, 'cast', 0, 'Basic - Press', -1], [5, 'heal', 0]] }, [], rules)

@@ -17,6 +17,7 @@ import { StatGlyph } from '@/modules/simulation/workspace/ui.tsx'
 import { formatStatKeyLabel } from '@/modules/simulation/model/statsView.ts'
 import { MAX_SUBSTATS, fmtStatValue, stepIndex } from '@/modules/simulation/features/echoes/lib/echoDraft.ts'
 import type { EchoDraft } from '@/modules/simulation/features/echoes/lib/echoDraft.ts'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 const ROW_H = 56
 const SWIPE = 50
@@ -40,7 +41,7 @@ function BigReel({ statKey, value, onChange }: { statKey: string, value: number,
   useEffect(() => {
     const node = scroller.current
     if (node) node.scrollTop = index * ROW_H
-    // reel changes must not recenter themselves; only a stat identity change does.
+    // the reel recenters only when the stat identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statKey])
 
@@ -164,7 +165,7 @@ export function MobileEchoEdit({ state, draft, mainEcho, onRecast, onSave, onClo
   const [slot, setSlot] = useState(0)
   const swipeFrom = useRef<number | null>(null)
 
-  // clamp selection after a removal shortens the draft.
+  // clamp the selection after a removal shortens the draft
   const open = Math.min(slot, Math.max(0, Math.min(lclSbst.length, MAX_SUBSTATS - 1)))
   const entry = lclSbst[open]
 
@@ -336,7 +337,7 @@ export function MobileEchoEdit({ state, draft, mainEcho, onRecast, onSave, onClo
         </section>
 
         <footer className="mee-foot">
-          <span>CV <b>{critValue.toFixed(1)}</b></span>
+          <span>CV <b>{formatTruncCompact(critValue, 1)}</b></span>
           <span className="mee-foot__fill">{topRolls} top {topRolls === 1 ? 'roll' : 'rolls'}</span>
           <button type="button" className="mee-act" onClick={onClose}>Cancel</button>
           <button type="button" className="mee-act is-go" onClick={onSave} disabled={!mainStatKey}>Save changes</button>

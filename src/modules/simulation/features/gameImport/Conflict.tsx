@@ -10,7 +10,7 @@ import { getSntSetClr, getSntSetNam } from '@/data/gameData/catalog/sonataSets'
 import { getWpnById } from '@/data/catalog/weaponCatalogService'
 import { cmptEchoCrit } from '@/modules/simulation/features/echoes/lib/metric'
 import { formatStatKeyLabel, formatStatKeyValue } from '@/modules/simulation/model/statsView'
-import { formatTruncCompact } from '@/shared/lib/number'
+import { formatTrunc, formatTruncCompact } from '@/shared/lib/number'
 import type { ReviewRow } from './lib/model'
 
 const KEPT_BEAT_MS = 420
@@ -141,7 +141,7 @@ export function Conflict({ row, slotIndex, anchor, host, kept, onPick, onClose }
               <b>{info?.name ?? 'Weapon'}</b>
               <i>Lv {candidate.weapon.level} · R{candidate.weapon.rank}</i>
               <u>
-                ATK {Math.round(candidate.weapon.baseAtk).toLocaleString('en-US')}
+                ATK {formatTrunc(candidate.weapon.baseAtk)}
                 {info?.statKey ? ` · ${formatStatKeyLabel(info.statKey)} ${formatStatKeyValue(info.statKey, info.statsByLevel?.[candidate.weapon.level]?.secondaryStatValue ?? info.statValue)}` : ''}
               </u>
             </span>

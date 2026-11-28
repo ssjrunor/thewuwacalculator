@@ -14,6 +14,7 @@ import type { EffectScope, EffectOp } from '@/domain/gameData/contracts.ts'
 import type { EchoInstance, ResRuntime } from '@/domain/entities/runtime.ts'
 import type { AttributeKey, FinalStats, ResBaseStats, SkillTypeKey } from '@/domain/entities/stats.ts'
 import { getEchoById } from '@/data/catalog/echoCatalogService.ts'
+import { getEchoSetDe } from '@/data/gameData/echoSets/effects'
 import { evalCond, evalForm } from '@/engine/effects/evaluator.ts'
 import { countEchoSets } from '@/engine/pipeline/buildCombatContext.ts'
 import { ECHO_STAT_STRIDE, MAIN_BUFF_LEN } from '@/engine/search/layout/constants.ts'
@@ -21,9 +22,8 @@ import type { OptTargetSkill } from '@/engine/search/context/selectedSkill.ts'
 
 export type TgtScpMode = 'self' | 'ally'
 
-// compact main-echo rows are added to the searched resonator's own damage.
-// team-scoped effects for other recipients are evaluated by the full rotation
-// damage plan, which resolves active/activeOther routes at each damage event.
+// compact main-echo rows are added to the searched resonator's own damage; team-scoped effects for other recipients
+// are evaluated by the full rotation damage plan, which resolves active/activeOther routes at each damage event
 function targetsSearchedRuntime(targetScope: string | undefined): boolean {
   return !targetScope
     || targetScope === 'self'
@@ -52,7 +52,7 @@ type MainStatVctr = Float32Array
 
 
 // assign a stable "kind" id per echo id so duplicate echoes can be identified cheaply
-// two rows with the same echo id will get the same kind id
+// two rows with the same echo id get the same kind id
 function buildKindIds(echoes: EchoInstance[]): Uint16Array {
   const out = new Uint16Array(echoes.length)
   const byEchoId = new Map<string, number>()
@@ -139,7 +139,7 @@ function opMtchSkll(operation: EffectOp, selectedSkill: OptTargetSkill): boolean
 }
 
 // convert one evaluated effect operation into the selected-skill-specific main bonus vector
-// this version is precise: it only writes bonuses that really affect the chosen target skill
+// only bonuses that affect the chosen target skill are written
 function addMainOp(
     vector: Float32Array,
     operation: EffectOp,
@@ -150,8 +150,8 @@ function addMainOp(
     return
   }
 
-  // only atk base-stat contributions matter here from add_base_stat
-  // the main-Echo row format currently excludes hp and def.
+  // only atk base-stat contributions apply from add_base_stat
+  // the main-Echo row format excludes hp and def
   if (operation.type === 'add_base_stat') {
     if (operation.stat === 'atk' && operation.field === 'percent') {
       vector[MAIN_BUFF.atkPercent] += value
@@ -161,8 +161,7 @@ function addMainOp(
     return
   }
 
-  // apply every supported top stat to the main buff vector, including cr/cd,
-  // dmgBonus, and energyRegen.
+  // apply every supported top stat to the main buff vector, including cr/cd, dmgBonus, and energyRegen
   if (operation.type === 'add_top_stat') {
     if (operation.stat === 'energyRegen') {
       vector[MAIN_BUFF.energyRegen] += value
@@ -207,7 +206,7 @@ function addMainOp(
   }
 
   // skill-type dmg bonus only contributes to matching buckets
-  // this lets one operation contribute to several buckets if it names several skill types
+  // one operation contributes to several buckets when it names several skill types
   if (operation.type === 'add_skilltype_mod') {
     if (!skllTypeMtch(selectedSkill, operation.skillType) || operation.mod !== 'dmgBonus') {
       return
@@ -242,7 +241,7 @@ function addMainOp(
   }
 
   // skill-scoped dmg bonus fans out into the actual selected skill's buckets
-  // this is used when the effect says "matching skill gets dmg bonus"
+  // used when the effect gives a dmg bonus to a matching skill
   if (operation.type === 'add_skill_mod') {
     if (!opMtchSkll(operation, selectedSkill) || operation.mod !== 'dmgBonus') {
       return
@@ -257,8 +256,8 @@ function addMainOp(
   }
 }
 
-// add a generic attribute bucket when we are not targeting a single specific skill
-// this is broader than addMainOperation because it does not filter to one selected element
+// add a generic attribute bucket when no single specific skill is targeted
+// broader than addMainOperation because it does not filter to one selected element
 function addMainElemV(vector: MainStatVctr, attribute: AttributeKey | 'all', value: number): void {
   switch (attribute) {
     case 'all':
@@ -292,8 +291,8 @@ function addMainElemV(vector: MainStatVctr, attribute: AttributeKey | 'all', val
   }
 }
 
-// add a generic skill-type bucket when we are not targeting a single specific skill
-// 'all' means the bonus is duplicated into every supported skill bucket
+// add a generic skill-type bucket when no single specific skill is targeted
+// 'all' duplicates the bonus into every supported skill bucket
 function addMainSkllT(vector: MainStatVctr, type: SkillTypeKey | 'all', value: number): void {
   switch (type) {
     case 'all':
@@ -327,8 +326,8 @@ function addMainSkllT(vector: MainStatVctr, type: SkillTypeKey | 'all', value: n
   }
 }
 
-// try to infer affected generic skill-type buckets from skill match metadata
-// this is used by the generic builder when there is no concrete selected skill
+// infer affected generic skill-type buckets from skill match metadata
+// used by the generic builder when there is no concrete selected skill
 function inferGnrcSkl(operation: EffectOp): Array<SkillTypeKey | 'all'> {
   const inferred = new Set<SkillTypeKey | 'all'>()
 
@@ -339,7 +338,7 @@ function inferGnrcSkl(operation: EffectOp): Array<SkillTypeKey | 'all'> {
     }
   }
 
-  // tabs can sometimes be mapped into optimizer skill buckets
+  // tabs can map into optimizer skill buckets
   if ('match' in operation && operation.match?.tabs) {
     for (const tab of operation.match.tabs) {
       switch (tab) {
@@ -361,7 +360,7 @@ function inferGnrcSkl(operation: EffectOp): Array<SkillTypeKey | 'all'> {
     }
   }
 
-  // echo:* skill ids are a useful fallback hint
+  // echo:* skill ids are the fallback hint
   if ('match' in operation && operation.match?.skillIds) {
     for (const skillId of operation.match.skillIds) {
       if (skillId.startsWith('echo:')) {
@@ -389,7 +388,7 @@ function addGnrcMainO(
     return
   }
 
-  // generic rows still only model atk-related base-stat additions here
+  // generic rows model only atk-related base-stat additions
   if (operation.type === 'add_base_stat') {
     if (operation.stat === 'atk' && operation.field === 'percent') {
       vector[MAIN_BUFF.atkPercent] += value
@@ -399,8 +398,7 @@ function addGnrcMainO(
     return
   }
 
-  // mirror of the targeted-skill top-stat router above; keep them in sync
-  // when adding new slot types.
+  // generic counterpart of the targeted-skill top-stat router above, with the same slot types
   if (operation.type === 'add_top_stat') {
     if (operation.stat === 'energyRegen') {
       vector[MAIN_BUFF.energyRegen] += value
@@ -455,8 +453,8 @@ function addGnrcMainO(
 }
 
 // build a temporary runtime where this echo is equipped as the sole main echo
-// and its states are forced on/maxed so effect evaluation reflects "main echo active"
-// this lets us evaluate the echo's own data-driven passive effects in isolation.
+// and its states are on/maxed, so effect evaluation reflects "main echo active"
+// and the echo's own data-driven passive effects are evaluated in isolation
 function mkMainEchoRt(runtime: ResRuntime, echo: EchoInstance): ResRuntime {
   const gameData = getGameData()
   const controls = { ...runtime.state.controls }
@@ -494,8 +492,8 @@ function mkMainEchoRt(runtime: ResRuntime, echo: EchoInstance): ResRuntime {
 }
 
 // encode raw inventory echo rows for optimizer search
-// only self mode currently injects stats because ally mode is for bonus-only contexts
-// sets, costs, and kinds are still recorded in both modes.
+// only self mode injects stats because ally mode is for bonus-only contexts
+// sets, costs, and kinds are recorded in both modes
 export function encEchoRows(
     echoes: EchoInstance[],
     _slct: OptTargetSkill,
@@ -521,7 +519,8 @@ export function encEchoRows(
     }
 
     // set/cost metadata is always kept because combo generation and set logic need it
-    sets[index] = echo.set
+    // unknown sets contribute no effects, and an unknown id is never truncated into a supported Sonata's byte
+    sets[index] = getEchoSetDe(echo.set) && echo.set > 0 && echo.set <= 255 ? echo.set : 0
     costs[index] = getEchoById(echo.id)?.cost ?? 0
   }
 
@@ -536,7 +535,7 @@ export function encEchoRows(
 
 // build selected-skill-specific main echo bonus rows
 // each row describes what choosing that echo as the main echo adds for that target skill
-// row i corresponds to echo i in the input array.
+// row i corresponds to echo i in the input array
 export function mkMainEchoRo(options: {
   echoes: EchoInstance[]
   runtime: ResRuntime
@@ -617,8 +616,7 @@ export function mkMainEchoRo(options: {
 }
 
 // build generic main echo rows used when the optimizer is not tied to one exact skill shape
-// this is broader and more approximate than buildMainEchoRows because it does not filter
-// through one selected skill identity.
+// broader and more approximate than buildMainEchoRows because it does not filter through one selected skill identity
 export function mkGnrcMainEc(options: {
   echoes: EchoInstance[]
   runtime: ResRuntime

@@ -26,10 +26,18 @@ import { teamLedger } from './teamLedger'
 
 const clock = () => globalThis.performance?.now() ?? Date.now()
 
-// teammates and shared Tune Break stay in the scoring objective; the card shows only this resonator's own avg damage
+// a deterministic work limit, so the same partial model receives the same result on different machines;
+// offline/reference searches without omissions use the normal unrestricted app search
+const FALLBACK_ANCHOR_SEARCH_CHECKS = 512
+class AnchorSearchWorkLimit extends Error {}
+const normalizationFailed = (omission: { code: string }) =>
+  omission.code === 'score-normalization-work-limit' || omission.code === 'score-normalization-unavailable'
+
+// teammates stay in the scoring objective; the card shows this resonator's own avg damage, its Tune Breaks included,
+// as the rotation editor splits it
 export function scoredContribution(entries: readonly FeatureResult[], resonatorId: string): ScoredContribution {
   const own = entries.filter((entry) => canonicalResonatorId(entry.resonatorId) === canonicalResonatorId(resonatorId)
-    && entry.aggregationType === 'damage' && entry.skill.tab !== 'tuneBreak')
+    && entry.aggregationType === 'damage')
   const damage = sumRotTtls(own).avg
   const features = new Map<string, ScoredContribution['features'][number]>()
   for (const entry of own) {
@@ -44,27 +52,42 @@ export function scoredContribution(entries: readonly FeatureResult[], resonatorI
     sharePct: damage > 0 ? feature.damage / damage * 100 : 0 })).sort((a, b) => b.damage - a.damage) }
 }
 
-/** the scored resonator's own split with the team's side of the same run (teamLedger.ts). */
+// the scored resonator's own split with the team's side of the same run (teamLedger.ts)
 function withTeam(result: ProgramResult, subject: ResRuntime, runtimesById: Record<string, ResRuntime>): ScoredContribution {
   return { ...scoredContribution(result.entries, subject.id), team: teamLedger(result, subject, runtimesById) }
 }
 
-/** scores the program with self-searched anchors; `echoes` replaces the scored build's echoes in the score (an
-    energy regen repair), and the contribution stays the submitted build's. */
-async function searchAnchors({ def, scenario }: ExecutionRequest, echoes?: Array<EchoInstance | null>): Promise<ExecutionResult> {
+// scores the program with self-searched anchors; `echoes` replaces the scored build's echoes in the score (an
+// energy regen repair), and the contribution stays the submitted build's
+async function searchAnchors({ def, scenario, omissions }: ExecutionRequest, echoes?: Array<EchoInstance | null>,
+  searchChecks = omissions?.length ? FALLBACK_ANCHOR_SEARCH_CHECKS : Infinity): Promise<ExecutionResult> {
   if (!hasScoringData(def)) return { status: 'unsupported', reason: 'insufficient_data' }
   const t0 = clock()
   const result = executeCombatScenarioProgram(prepareCombatScenario(scenario), scenario.program.program)
-  if (!result?.entries.length) return { status: 'unsupported', reason: 'insufficient_data' }
+  if (!result?.entries.length) return { status: 'ok', damage: 0, score: 0,
+    contribution: { damage: 0, features: [] }, omissions: [{ code: 'no-supported-damage' }] }
   const projection = projectScenarioEngineRuntimes(scenario)
   const subject = projection.subjectRuntime
   const t1 = clock()
-  const evaluation = evaluateProgramBuild({
+  let checks = 0, limited = false
+  const check = Number.isFinite(searchChecks) ? () => { if (++checks > searchChecks) throw new AnchorSearchWorkLimit() } : undefined
+  let evaluation: ReturnType<typeof evaluateProgramBuild>
+  try { evaluation = evaluateProgramBuild({
     scenarioId: scenario.id, memberId: scenario.contextMemberId,
     runtime: echoes ? { ...subject, build: { ...subject.build, echoes } } : subject,
     enemy: scenario.target, runtimesById: projection.runtimesById,
-  }, { items: scenario.program.program, combatSetup: rotationCombatSetup(scenario) })
-  if (!evaluation) return { status: 'unsupported', reason: 'insufficient_data' }
+  }, { items: scenario.program.program, combatSetup: rotationCombatSetup(scenario) }, check,
+  // a warm cache applies the same work limit to every build
+  { cacheAnchors: !check }) }
+  catch (error) {
+    if (!(error instanceof AnchorSearchWorkLimit)) throw error
+    limited = true
+    evaluation = null
+  }
+  if (!evaluation) return { status: 'ok', damage: sumRotTtls(result.entries).avg, score: 0,
+    contribution: withTeam(result, subject, projection.runtimesById), omissions: [{ code: limited ? 'score-normalization-work-limit' : 'score-normalization-unavailable',
+      ...(limited ? { checks: searchChecks } : {}) }],
+    timing: { run: t1 - t0, search: clock() - t1 } }
   const t2 = clock()
   const contribution = withTeam(result, subject, projection.runtimesById)
   return { status: 'ok', ...evaluation, contribution,
@@ -73,43 +96,41 @@ async function searchAnchors({ def, scenario }: ExecutionRequest, echoes?: Array
 
 export const executeScoringRotation: RotationExecutor = (request) => searchAnchors(request)
 
-/** evaluation contexts cached per executor; a group's builds rarely need more than one or two. */
+// evaluation contexts cached per executor; a group's builds rarely need more than one or two
 const EVALUATION_CONTEXTS = 4
 
-/** the fewest of a group's builds left to measure for compiling a context's program to pay: one compile costs about
-    what a few replays do, and a compiled build a fraction of a millisecond (compiledMeasure.ts). */
+// the fewest of a group's builds left to measure for compiling a context's program to pay: one compile costs about
+// what a few replays do, and a compiled build a fraction of a millisecond (compiledMeasure.ts)
 export const COMPILE_MIN_BUILDS = 8
 
-/** an evaluation context, and how it measures the builds of the group it last served. */
+// an evaluation context, and how it measures the builds of the group it last served
 interface EvaluationContext {
   evaluation: ProgramEvaluation | null
-  /** the group the measure below was decided for. */
+  // the group the measure below was decided for
   group?: ExecutionGroup
-  /** the compiled measure, once it agreed with the replay on the group's first build here; else the replay. */
+  // the compiled measure, once it agreed with the replay on the group's first build here; else the replay
   compiled?: ProgramMeasure
-  /** whether the compiled measure's DPR matched a full run's here: until it has, every build runs fully, and once it
-      has not, every build does again. */
+  // whether the compiled measure's DPR matched a full run's here: every build runs fully until it has, and again
+  // once it has not
   dpr?: 'checked' | 'failed'
 }
 
-/** maximum relative difference between a compiled DPR and a run's for the two to match. the run (detailed executor)
-    and the scoring evaluation already differ by parts in 1e8, the compiled program models the evaluation, and a kit
-    the compiler models differently is off by parts in 1e4. */
+// maximum relative difference between a compiled DPR and a run's for the two to match. the run (detailed executor)
+// and the scoring evaluation already differ by parts in 1e8, the compiled program models the evaluation, and a kit
+// the compiler models differently is off by parts in 1e4
 const DPR_TOLERANCE = 1e-6
 const sameDpr = (compiled: number | undefined, run: number) => compiled != null && Number.isFinite(compiled)
   && Math.abs(compiled - run) <= DPR_TOLERANCE * Math.max(Math.abs(compiled), Math.abs(run))
 
-/** how one build was measured: the replay, or the compiled program (checked or not). */
+// how one build was measured: the replay, or the compiled program (checked or not)
 type Measured = { measure: ProgramMeasure; model: 'replay' | 'compiled'; mismatch?: true; compileMs?: number; checkMs?: number
-  /** a sampled check build (group.damageCheck), run fully with its DPR checked too. */
+  // a sampled check build (group.damageCheck), run fully with its DPR checked too
   sampled?: true }
 
-/**
- * the measure for this build on its context. the first build of a group on a context is replayed; with enough of the
- * group left, the program is compiled for the group's gear and kept only if it measures that build like the replay.
- * a share of later builds (group.damageCheck) is also replayed, and a mismatch returns the context to the replay for
- * the rest of the group.
- */
+// the measure for this build on its context. the first build of a group on a context is replayed; with enough of the
+// group left, the program is compiled for the group's gear and kept only if it measures that build like the replay.
+// a share of later builds (group.damageCheck) is also replayed, and a mismatch returns the context to the replay for
+// the rest of the group
 function measureFor(context: EvaluationContext, evaluation: ProgramEvaluation, echoes: Parameters<ProgramMeasure>[0],
   group: ExecutionGroup | undefined): Measured {
   const replay = replayMeasure(evaluation)
@@ -140,8 +161,8 @@ function measureFor(context: EvaluationContext, evaluation: ProgramEvaluation, e
   return { measure: context.compiled, model: 'compiled' }
 }
 
-/** a scenario's program measures for its scored seat as the executor builds them: the seat's echoes, the replay, and
-    the program compiled for given (echo id, set) pairs; for tests and tools, null without an evaluation context. */
+// a scenario's program measures for its scored seat as the executor builds them: the seat's echoes, the replay, and
+// the program compiled for given (echo id, set) pairs; for tests and tools, null without an evaluation context
 export function programMeasures(scenario: CombatScenario) {
   const projection = projectScenarioEngineRuntimes(scenario)
   const evaluation = prepareProgramEvaluation({ scenarioId: scenario.id, memberId: scenario.contextMemberId,
@@ -150,21 +171,18 @@ export function programMeasures(scenario: CombatScenario) {
   if (!evaluation) return null
   const replay = replayMeasure(evaluation)
   return { echoes: projection.subjectRuntime.build.echoes, replay,
-    /** the full run's DPR for the scenario's own build (contribution.damage). */
+    // the full run's DPR for the scenario's own build (contribution.damage)
     runDpr: () => scoredContribution(executeCombatScenarioProgram(prepareCombatScenario(scenario), scenario.program.program)?.entries ?? [],
       projection.subjectRuntime.id).damage,
     compile: (worn: Iterable<readonly [string, number]>, fallback: ProgramMeasure = replay) => compileProgramMeasure(evaluation, worn, fallback) }
 }
 
-/**
- * scores with offline anchors (scripts/anchorgen): the build's damage and energy regen on the program, then its anchor
- * state. scenarios without anchors, and states whose formula failed its engine checks, are scored by
- * executeScoringRotation, which searches its own anchors.
- *
- * builds under the case's energy regen requirement (anchorErRequirement) are scored repaired up to it inside their
- * own budget (evaluation/erRepair.ts), and builds no repair reaches cannot sustain the rotation and score 0; in both
- * cases the contribution (the shown DPR) is the submitted build's.
- */
+// scores with offline anchors (scripts/anchorgen): the build's damage and energy regen on the program, then its
+// anchor state. scenarios without anchors, and states whose formula failed its engine checks, are scored by
+// executeScoringRotation, which searches its own anchors. builds under the case's energy regen requirement
+// (anchorErRequirement) are scored repaired up to it inside their own budget (evaluation/erRepair.ts), and builds no
+// repair reaches cannot sustain the rotation and score 0; in both cases the contribution (the shown DPR) is the
+// submitted build's
 export function offlineAnchorExecutor(anchorsFor: (scenarioId: string) => Promise<ScenarioAnchorsFile | null>): RotationExecutor {
   // evaluation contexts by their inputs (programEvaluationKey): builds of a group sharing a program and a utility set
   // plan measure on one context without recapturing the program; a few, most recent last
@@ -183,10 +201,22 @@ export function offlineAnchorExecutor(anchorsFor: (scenarioId: string) => Promis
     return made
   }
   return async (request) => {
-    const { def, scenario, input } = request
-    if (!hasScoringData(def)) return { status: 'unsupported', reason: 'insufficient_data' }
-    const file = await anchorsFor(def.id)
-    if (!file) return executeScoringRotation(request)
+    if (!hasScoringData(request.def)) return { status: 'unsupported', reason: 'insufficient_data' }
+    const file = await anchorsFor(request.def.id)
+    if (!file) return searchAnchors(request)
+    if (!request.omissions?.length) return scoreOnAnchors(request, file)
+    // a partial model searches anchors on its own supported calculation first; when that search cannot finish, the
+    // case's anchors score it, pricing in what the model lacks, so the score is a lower bound and never 0
+    const searched = await searchAnchors(request)
+    if (searched.status !== 'ok' || !searched.omissions?.some(normalizationFailed)) return searched
+    const anchored = await scoreOnAnchors(request, file)
+    if (anchored.status !== 'ok') return searched
+    return { ...anchored, omissions: [...searched.omissions.filter(normalizationFailed), ...anchored.omissions ?? []],
+      timing: { ...anchored.timing, search: (anchored.timing?.search ?? 0) + (searched.timing?.search ?? 0) } }
+  }
+
+  async function scoreOnAnchors(request: ExecutionRequest, file: ScenarioAnchorsFile): Promise<ExecutionResult> {
+    const { scenario, input } = request
     const t0 = clock()
     const projection = projectScenarioEngineRuntimes(scenario)
     const sequence = input.members.find((member) => member.slot === input.scoredSlot)!.sequence
@@ -196,11 +226,11 @@ export function offlineAnchorExecutor(anchorsFor: (scenarioId: string) => Promis
     const echoes = projection.subjectRuntime.build.echoes
     const measured = context.evaluation && measureFor(context, context.evaluation, echoes, request.group)
     const evaluated = measured && measureProgramDamage(context.evaluation!, echoes, anchorErRequirement(file, sequence), measured.measure)
-    if (!evaluated) return { status: 'unsupported', reason: 'insufficient_data' }
+    if (!evaluated) return searchAnchors(request)
     const erRepair = evaluated.repair?.repair
     const t1 = clock()
-    // a lean build on a context whose compiled DPR a full run confirmed skips the run, using the compiled measure for the
-    // submitted build's DPR (a repair measures other echoes, so its own measure is taken again)
+    // a lean build on a context whose compiled DPR a full run confirmed skips the run and uses the compiled measure
+    // for the submitted build's DPR (a repair measures other echoes, so its own measure is taken again)
     const ownDpr = measured.model === 'compiled' ? (erRepair ? measured.measure(echoes) : evaluated).dpr : undefined
     const lean = request.detail === 'lean' && measured.model === 'compiled' && !measured.sampled && context.dpr === 'checked'
       && ownDpr != null && Number.isFinite(ownDpr)
@@ -208,9 +238,9 @@ export function offlineAnchorExecutor(anchorsFor: (scenarioId: string) => Promis
     let dprMismatch = false
     if (!lean) {
       const result = executeCombatScenarioProgram(prepareCombatScenario(scenario), scenario.program.program)
-      if (!result?.entries.length) return { status: 'unsupported', reason: 'insufficient_data' }
+      if (!result?.entries.length) return searchAnchors(request)
       run = { contribution: withTeam(result, projection.subjectRuntime, projection.runtimesById), peaks: peaksOfRun(scenario, result.inspection) }
-      // the first full run on a compiled context, and each sampled one, check its DPR.
+      // the first full run on a compiled context, and each sampled one, checks its DPR
       if (context.compiled && context.dpr !== 'failed' && (context.dpr === undefined || measured.sampled)) {
         const compiledDpr = ownDpr ?? context.compiled(echoes).dpr
         if (sameDpr(compiledDpr, run.contribution.damage)) context.dpr = 'checked'

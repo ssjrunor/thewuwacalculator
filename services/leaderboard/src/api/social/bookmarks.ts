@@ -1,20 +1,34 @@
 /*
   Author: Runor Ewhro
   description: bookmarks, an account's private saved builds. a saved build stays
-               reachable after its player replaces it (through build history);
-               hidden or deleted builds drop out of the list.
+               reachable after its player submits a newer card (every kept build
+               stays listed on their profile); hidden or deleted builds drop out
+               of the list. a build's social read says whether the viewer saved
+               it and follows its player.
 */
 
-import type { BookmarksResponse } from '@lb/contract/api'
+import type { BookmarksResponse, BuildSocialResponse } from '@lb/contract/api'
 import { HttpError, json } from '../../lib/http.ts'
-import { BOOKMARK_CAP, bookmarkCount, bookmarksOf, bookmarkStatement, listedRefs, toRef, unbookmarkStatement } from '../../db/social.ts'
+import { BOOKMARK_CAP, bookmarkCount, bookmarksOf, bookmarkStatement, isBookmarked, isFollowing, listedRefs, toRef, unbookmarkStatement } from '../../db/social.ts'
 import { isOpen, resonatorOfId, rowsOf } from '../crossBoard.ts'
 import { uidToText } from '../../lib/ids.ts'
 import type { RouteContext } from '../router.ts'
 import { visibleBuild } from '../board/routes.ts'
-import { requireAccount } from '../auth/sessions.ts'
+import { optionalSession, requireAccount } from '../auth/sessions.ts'
 
-/** GET /bookmarks. */
+// GET /builds/:id/social: the viewer's own state; per-viewer, so not cached
+export async function buildSocial(context: RouteContext): Promise<Response> {
+  const { ref, uid } = await visibleBuild(context)
+  const db = context.env.LB
+  const viewer = (await optionalSession(context))?.accountId ?? null
+  const [following, bookmarked] = viewer
+    ? await Promise.all([isFollowing(db, viewer, 'player', uid), isBookmarked(db, viewer, ref.id)])
+    : [false, false]
+  const body: BuildSocialResponse = { following, bookmarked }
+  return json(body)
+}
+
+// GET /bookmarks
 export async function listBookmarks(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const marks = await bookmarksOf(context.env.LB, session.accountId)
@@ -29,7 +43,7 @@ export async function listBookmarks(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** PUT /builds/:id/bookmark. */
+// PUT /builds/:id/bookmark
 export async function bookmarkBuild(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const { ref } = await visibleBuild(context)
@@ -39,7 +53,7 @@ export async function bookmarkBuild(context: RouteContext): Promise<Response> {
   return json({ bookmarked: true })
 }
 
-/** DELETE /builds/:id/bookmark: works on any build, so one since hidden can still be let go. */
+// DELETE /builds/:id/bookmark: works on any build, including one hidden after it was saved
 export async function unbookmarkBuild(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   await unbookmarkStatement(context.env.LB, session.accountId, context.params.id).run()

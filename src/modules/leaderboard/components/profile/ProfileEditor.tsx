@@ -1,11 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the profile editor: a display name replacing the in-game one, a
-               signature, up to four links, an accent (any colour readable on
-               both themes), an avatar and a banner (shown to others after staff
-               approval; reframing needs no new review), the builds leading the
-               list, and visibility settings. saving replaces the whole profile
-               document.
+  description: the profile editor; saving replaces the profile document except its privacy.
 */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -32,17 +27,14 @@ interface Draft {
   avatarFrame: ImageFrame | null
   bannerFrame: ImageFrame | null
   featured: string[]
-  history: boolean
   followers: boolean
-  hideUid: boolean
-  anonymous: boolean
 }
 
-const draftOf = (doc: ProfileDoc | null, hideUid: boolean, anonymous: boolean): Draft => ({
+const draftOf = (doc: ProfileDoc | null): Draft => ({
   displayName: doc?.displayName ?? '', bio: doc?.bio ?? '', links: doc?.links.map((l) => ({ ...l })) ?? [],
   accent: doc?.accent ?? null, avatar: doc?.avatar ?? null, banner: doc?.banner ?? null,
   avatarFrame: doc?.avatarFrame ?? null, bannerFrame: doc?.bannerFrame ?? null, featured: doc?.featured ?? [],
-  history: doc?.privacy.history ?? true, followers: doc?.privacy.followers ?? true, hideUid, anonymous,
+  followers: doc?.privacy.followers ?? true,
 })
 
 function docOf(d: Draft): ProfileDoc {
@@ -56,11 +48,11 @@ function docOf(d: Draft): ProfileDoc {
     ...(d.avatar && d.avatarFrame ? { avatarFrame: d.avatarFrame } : {}),
     ...(d.banner && d.bannerFrame ? { bannerFrame: d.bannerFrame } : {}),
     featured: d.featured,
-    privacy: { history: d.history, followers: d.followers },
+    privacy: { followers: d.followers },
   }
 }
 
-/** what is wrong with a draft, before the service says so. */
+// what is wrong with a draft, before the service says so
 function problem(d: Draft): string | null {
   for (const l of d.links) {
     if (!l.label.trim() && !l.url.trim()) continue
@@ -70,28 +62,14 @@ function problem(d: Draft): string | null {
   return null
 }
 
-function Toggle({ on, label, hint, onChange }: { on: boolean; label: string; hint: string; onChange: (on: boolean) => void }) {
-  return (
-    <label className="ped-tg">
-      <span><b>{label}</b><small>{hint}</small></span>
-      <input type="checkbox" role="switch" checked={on} onChange={(event) => onChange(event.target.checked)} />
-      <i aria-hidden="true" />
-    </label>
-  )
-}
-
-export function ProfileEditor({ profile, rows, uid, hideUid, anonymous, onClose, onSaved }: {
+export function ProfileEditor({ profile, rows, onClose, onSaved }: {
   profile: PlayerProfileResponse
   rows: Row[]
-  /** the uid the hide-uid and anonymous settings are for. */
-  uid: string | null
-  hideUid: boolean
-  anonymous: boolean
   onClose: () => void
   onSaved: (message: string) => void
 }) {
   const [open, setOpen] = useState(true)
-  const start = useMemo(() => draftOf(profile.profile, hideUid, anonymous), [profile.profile, hideUid, anonymous])
+  const start = useMemo(() => draftOf(profile.profile), [profile.profile])
   const [d, setD] = useState<Draft>(start)
   const [media, setMedia] = useState<Map<string, MediaItem>>(new Map())
   const [busy, setBusy] = useState<string | null>(null)
@@ -107,7 +85,7 @@ export function ProfileEditor({ profile, rows, uid, hideUid, anonymous, onClose,
     lbApi.myMedia().then((r) => setMedia(new Map(r.media.map((m) => [m.id, m]))), () => undefined)
   }, [])
 
-  // the modal plays its way out, then the profile drops it.
+  // the modal plays its exit, then the profile unmounts it
   const close = () => { setOpen(false); window.setTimeout(onClose, 340) }
 
   const upload = (purpose: 'avatar' | 'banner', file: File) => {
@@ -125,9 +103,6 @@ export function ProfileEditor({ profile, rows, uid, hideUid, anonymous, onClose,
     setNote(null)
     try {
       await lbApi.putProfile(docOf(d))
-      if (uid && (d.hideUid !== hideUid || d.anonymous !== anonymous)) {
-        await lbApi.patchUid(uid, { ...(d.hideUid !== hideUid ? { hideUid: d.hideUid } : {}), ...(d.anonymous !== anonymous ? { anonymous: d.anonymous } : {}) })
-      }
       onSaved(d.avatar !== start.avatar || d.banner !== start.banner ? "profile saved! any new images show to others after staff approve them :P" : 'profile saved! :P')
       close()
     } catch (e) {
@@ -205,13 +180,6 @@ export function ProfileEditor({ profile, rows, uid, hideUid, anonymous, onClose,
           <section className="amdl__grp">
             <h3 className="amdl__grp-name">Accent</h3>
             <AccentPicker value={d.accent} onChange={(accent) => edit({ accent })} />
-          </section>
-          <section className="amdl__grp">
-            <h3 className="amdl__grp-name">What others see</h3>
-            <Toggle on={d.history} label="Build history" hint="let others browse your visible cards and see what changed between builds :P" onChange={(history) => edit({ history })} />
-            <Toggle on={d.followers} label="Pin count" hint="show how many accounts have pinned you on your profile" onChange={(followers) => edit({ followers })} />
-            <Toggle on={!d.hideUid} label="UID" hint="turn this off to hide your UID. people can still open your profile through your builds" onChange={(on) => edit({ hideUid: !on })} />
-            <Toggle on={!d.anonymous} label="Profile" hint="turn this off to appear as anon with your server on the boards. only you can open your profile" onChange={(on) => edit({ anonymous: !on })} />
           </section>
         </div>
       </div>

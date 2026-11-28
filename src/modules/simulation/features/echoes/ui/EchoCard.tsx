@@ -1,9 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the parts an echo card is built from: a sonata band carrying the
-               main stats, the substats it rolled, and a ribbon inked with its
-               grade. surfaces bring their own wrapper, so a modal row and a
-               bench slot can wear the same face with their own chrome on it.
+  description: the parts of an echo card: main stats, substats and the grade mark.
 */
 
 import { DisplayImage } from '@/shared/ui/DisplayImage'
@@ -24,15 +21,14 @@ export interface EchoCardStat {
   value: number
 }
 
-// reserve five substat tracks; short echoes leave unused tracks empty.
+// reserve five substat tracks; short echoes leave unused tracks empty
 const SUB_TRACKS = 5
 
 export function echoStatTitle(key: string, value: number): string {
   return `${formatStatKeyLabel(key)} ${formatStatKeyValue(key, value)}`
 }
 
-/* the sonata paints the card and the grade inks the ribbon: the score where a
-   surface has one, the crit value the echo rolled where it does not */
+// the grade mark: the score where a surface has one, else the echo's crit value
 export function echoCardVars({
   setColor,
   cv,
@@ -70,7 +66,7 @@ export function EchoCardBand({
   mainEcho: boolean
   primary: EchoCardStat
   secondary: EchoCardStat
-  // optional overlay mark for the card band.
+  // optional overlay mark for the card band
   overlay?: ReactNode
 }) {
   return (
@@ -135,8 +131,8 @@ export function EchoCardRibbon({ cv, score = null }: { cv: number; score?: numbe
 
   return (
     <div className="ecr-card__ribbon">
-      <span className="ecr-card__cv" title={`Crit value ${cv.toFixed(1)}`}>
-        {scored ? `CV ${cv.toFixed(1)}` : cv.toFixed(1)}
+      <span className="ecr-card__cv" title={`Crit value ${formatTruncCompact(cv, 1)}`}>
+        {scored ? `CV ${formatTruncCompact(cv, 1)}` : formatTruncCompact(cv, 1)}
       </span>
       {scored && <span className="ecr-card__score">{formatTruncCompact(score, 1)}</span>}
     </div>

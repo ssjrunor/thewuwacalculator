@@ -7,6 +7,7 @@ import type { ScenarioTeamMember } from '../../domain/entities/combatScenario'
 import type { RuntimeRecord } from './types'
 import { bindResonatorReferences, mapResonatorNamespaces, roverIdentityResolver } from '../../domain/entities/roverIdentityBinding'
 import { canonicalResonatorId } from '../../domain/rotationActions/identities'
+import { omit } from './omissions'
 
 export type InitialStateValue = boolean | number | string
 export interface InitialStateBinding {
@@ -15,7 +16,7 @@ export interface InitialStateBinding {
   values?: Record<string, InitialStateValue>
 }
 
-/** keep opaque action/packet ids stable; remap only qualified resonator namespaces. */
+// keep opaque action/packet ids stable; remap only qualified resonator namespaces
 export function rebindRuleIdentity(source: RuntimeRecord, requested: string, teamIds: readonly string[] = [requested]): RuntimeRecord {
   const from = String(source.resonatorId)
   // library callers may request both forms independently: the current member selects its own form, and other elements
@@ -28,14 +29,17 @@ export function rebindRuleIdentity(source: RuntimeRecord, requested: string, tea
   return result
 }
 
-export function initialCharacterState(rules: RuntimeRecord, member: ScenarioTeamMember): Record<string, InitialStateValue> {
+export function initialCharacterState(rules: RuntimeRecord, member: ScenarioTeamMember, policy?: RuntimeRecord): Record<string, InitialStateValue> {
   const result: Record<string, InitialStateValue> = {}
-  // only declared initial bindings read scenario controls; unsupported authored values reject interpretation.
+  // only declared initial bindings read scenario controls; unsupported authored values reject interpretation
   for (const binding of (rules.initialStateBindings ?? []) as InitialStateBinding[]) {
     const value = member.local.controls[binding.controlKey]
     if (value === undefined) continue
     const mapped = binding.values ? binding.values[String(value)] : value
-    if (mapped === undefined) throw new Error(`Unsupported initial value ${String(value)} for ${binding.controlKey}`)
+    if (mapped === undefined) {
+      if (omit(policy, 'unsupported-initial-state', { resonatorId: member.resonatorId, control: binding.controlKey, value })) continue
+      throw new Error(`Unsupported initial value ${String(value)} for ${binding.controlKey}`)
+    }
     result[binding.path] = mapped
   }
   return result

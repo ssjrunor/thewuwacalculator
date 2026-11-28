@@ -7,11 +7,13 @@ import type { CombatScenario } from '../../domain/entities/combatScenario'
 import type { RotationNode } from '../../domain/gameData/contracts'
 
 export interface InterpretationOptions {
-  /** called by offline validation to capture the complete program before either cleanup stage. */
+  // scoring retains supported mechanics and reports optional data gaps; audits are strict by default
+  allowPartial?: boolean
+  // called by offline validation to capture the complete program before either cleanup stage
   onBeforeCleanup?: (program: readonly RotationNode[]) => void
 }
 
-// rule operations address heterogeneous JSON values through authored property paths.
+// rule operations address heterogeneous JSON values through authored property paths
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RuntimeValue = any
 export type RuntimeRecord = Record<string, RuntimeValue>
@@ -30,9 +32,9 @@ export interface GearLibrary {
 
 export interface InterpreterLoaders {
   mode: DataMode
-  /** logical paths omit .json and are relative to the ruleset's game-data directory. */
+  // logical paths omit .json and are relative to the ruleset's game-data directory
   gameData: JsonLoader
-  /** logical paths omit .json and are relative to the interpretation-data directory. */
+  // logical paths omit .json and are relative to the interpretation-data directory
   interpretationData: JsonLoader
 }
 
@@ -51,7 +53,8 @@ export interface InterpreterEnvironment {
 export interface InterpretationDiagnostics extends RuntimeRecord {
   code?: string
   message?: string
-  /** set when the program includes values read from the build's stats (editor/statControls.ts), which limits it to that build. */
+  // set when the program includes values read from the build's stats (editor/statControls.ts), which limits it to
+  // that build
   readsBuildStats?: boolean
 }
 

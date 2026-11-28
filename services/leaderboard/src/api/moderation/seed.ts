@@ -1,8 +1,8 @@
 /*
   Author: Runor Ewhro
   description: test data for a local dev database: `lb seed` creates a batch of
-               players, builds, accounts and their documents (profiles, comments,
-               likes, follows), and `lb seed purge` removes a whole batch.
+               players, builds, accounts and their documents (profiles and
+               follows), and `lb seed purge` removes a whole batch.
                creating batches is local dev only; listing and purging work
                anywhere, which covers a database copied off this machine. a
                batch takes a range of build locals shared by every board (from
@@ -42,9 +42,9 @@ import { authorize, isLocalDevAdmin, staffAudit } from '../auth/staff.ts'
 export type SeedMode = 'scored' | 'written'
 
 export interface SeedPlayer {
-  /** nine digits starting with 0, which no game uid uses. */
+  // nine digits starting with 0, which no game uid uses
   uid: string
-  /** the server digit the player shows. */
+  // the server digit the player shows
   region: string
   name: string
   hideUid: boolean
@@ -53,25 +53,25 @@ export interface SeedPlayer {
 }
 
 export interface SeedBuild {
-  /** its public id: its resonator and a local in the batch's range. */
+  // its public id: its resonator and a local in the batch's range
   id: string
   uid: string
   resonatorId: string
   sequence: number
   snapshot: BuildSnapshot
-  /** when it was uploaded, and when kuro drew its card. */
+  // when it was uploaded, and when kuro drew its card
   at: number
   drawnAt: number
-  /** written mode: each scenario's modelled score on the live ruleset; the best one includes its stats. */
+  // written mode: each scenario's modelled score on the live ruleset; the best one includes its stats
   scores?: Array<{ scenarioId: string; score: number; damage: number; dpr: number; stats: BuildStats | null }>
 }
 
 export interface SeedAccount {
   id: string
-  /** the seeded uid it is linked to (by a claim). */
+  // the seeded uid it is linked to (by a claim)
   uid: string
   createdAt: number
-  /** the claim that links it; made here when not given. */
+  // the claim that links it; made here when not given
   claimId?: string
 }
 
@@ -79,10 +79,8 @@ export interface SeedRows {
   players?: SeedPlayer[]
   builds?: SeedBuild[]
   accounts?: SeedAccount[]
-  /** a profile is the account's: it goes to the account the uid is linked to. */
+  // a profile belongs to the account the uid is linked to
   profiles?: Array<{ uid: string; displayName?: string; bio?: string }>
-  comments?: Array<{ id: string; buildId: string; parentId: string | null; accountId: string; body: string; at: number }>
-  likes?: Array<{ buildId: string; accountId: string; at: number }>
   follows?: Array<{ accountId: string; kind: 'player' | 'board'; target: string; at: number }>
 }
 
@@ -94,10 +92,10 @@ export interface SeedBatchSummary {
   players: number
   accounts: number
   builds: number
-  /** the uids it spans; null before it has players. */
+  // the uids it spans; null before it has players
   uidFrom: string | null
   uidTo: string | null
-  /** first build local of the batch's range, the same on every board. */
+  // first build local of the batch's range, the same on every board
   localFrom: number
   localTo: number
 }
@@ -116,21 +114,21 @@ interface BatchRow {
 }
 
 const SEED_UID = /^0\d{8}$/
-/** a request of rows: a chunk of a large batch runs to several MB. */
+// a request of rows: a chunk of a large batch runs to several MB
 const MAX_BODY = 64 * 1024 * 1024
-/** the json bound to one statement stays under D1's string limit. */
+// the json bound to one statement stays under D1's string limit
 const MAX_BIND = 900_000
-/** recent_uploads retention; maintenance prunes older uploads. */
+// recent_uploads retention; maintenance prunes older uploads
 const RECENT_MS = 90 * 86_400_000
 
-/** the dev-only gate: an admin, by the local dev token on this machine. */
+// the dev-only gate: an admin, by the local dev token on this machine
 async function localAdmin(context: RouteContext) {
   const who = await authorize(context, 'roles.assign')
   if (!isLocalDevAdmin(context)) throw new HttpError('forbidden', 'test data is only made on a local dev database')
   return who
 }
 
-/** GET /admin/seed: every batch with its contents. */
+// GET /admin/seed: every batch with its contents
 export async function listSeedBatches(context: RouteContext): Promise<Response> {
   await authorize(context, 'health.read')
   const { results } = await context.env.LB.prepare(`SELECT id, label, mode, created_at AS createdAt, players, accounts, builds,
@@ -139,8 +137,8 @@ export async function listSeedBatches(context: RouteContext): Promise<Response> 
   return json({ batches: results })
 }
 
-/** POST /admin/seed { label, mode, builds }: creates a batch with room for `builds` builds and returns its local range
-    and the ruleset used for modelled scores. */
+// POST /admin/seed { label, mode, builds }: creates a batch with room for `builds` builds and returns its local range
+// and the ruleset used for modelled scores
 export async function createSeedBatch(context: RouteContext): Promise<Response> {
   const who = await localAdmin(context)
   const body = await readJsonBody<{ label?: unknown; mode?: unknown; builds?: unknown }>(context.request)
@@ -164,7 +162,7 @@ export async function createSeedBatch(context: RouteContext): Promise<Response> 
   return json({ id, label, mode: body.mode, rulesetId, localFrom, localTo }, { status: 201 })
 }
 
-/** `sql` reads rows from json_each(?1); one statement per slice of rows that fits MAX_BIND. more binds follow as ?2... */
+// `sql` reads rows from json_each(?1); one statement per slice of rows that fits MAX_BIND. more binds follow as ?2...
 function bulk(db: D1Database, sql: string, rows: unknown[][], ...binds: unknown[]): D1PreparedStatement[] {
   const statements: D1PreparedStatement[] = []
   let part: string[] = [], size = 2
@@ -183,14 +181,14 @@ function bulk(db: D1Database, sql: string, rows: unknown[][], ...binds: unknown[
   return statements
 }
 
-/** the nth field of a json_each row. */
+// the nth field of a json_each row
 const f = (n: number) => `json_extract(value, '$[${n}]')`
 const IDS = '(SELECT value FROM json_each(?1))'
 const changes = (results: D1Result[], from: number, to: number) => results.slice(from, to).reduce((sum, row) => sum + (row.meta.changes ?? 0), 0)
 
 const templated = new Set<string>()
 
-/** a board's seeds read one shared detail object, copied from one of its real builds. */
+// a board's seeds read one shared detail object, copied from one of its real builds
 async function ensureTemplate(env: RouteContext['env'], rulesetId: string, resonator: number): Promise<void> {
   const key = seedTemplateKey(rulesetId, resonator)
   if (templated.has(key)) return
@@ -210,8 +208,8 @@ async function ensureTemplate(env: RouteContext['env'], rulesetId: string, reson
 
 const parseBuildIdOf = (key: string) => parseBuildId(key.slice(key.lastIndexOf('/') + 1).replace(/\.json\.gz$/, ''))
 
-/** POST /admin/seed/:id/rows: inserts players, then builds, then accounts and their documents, in one or more calls;
-    existing rows are left as they are, which makes a resent chunk a no-op. */
+// POST /admin/seed/:id/rows: inserts players, then builds, then accounts and their documents, in one or more calls;
+// existing rows are left as they are, so a resent chunk is a no-op
 export async function insertSeedRows(context: RouteContext): Promise<Response> {
   await localAdmin(context)
   const { env } = context
@@ -318,13 +316,13 @@ export async function insertSeedRows(context: RouteContext): Promise<Response> {
 
   const profiles = rows.profiles ?? []
   await inBatch(profiles.map((profile) => profile.uid))
-  // a comment, like or follow is written by one of this batch's accounts.
-  const written = [...(rows.comments ?? []), ...(rows.likes ?? []), ...(rows.follows ?? [])]
+  // a follow is written by one of this batch's accounts
+  const written = rows.follows ?? []
   if (written.length) {
     const accountIds = [...new Set(written.map((row) => row.accountId))]
     const { n } = (await db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE seed_batch = ?1 AND id IN (SELECT value FROM json_each(?2))`)
       .bind(batch.id, JSON.stringify(accountIds)).first<{ n: number }>())!
-    if (n !== accountIds.length) throw new HttpError('bad_request', 'every comment, like and follow is written by an account of this batch')
+    if (n !== accountIds.length) throw new HttpError('bad_request', 'every follow is written by an account of this batch')
   }
   const owners = profiles.length ? await accountsOf(db, profiles.map((profile) => profile.uid)) : new Map<string, string>()
   const statements = [
@@ -336,24 +334,17 @@ export async function insertSeedRows(context: RouteContext): Promise<Response> {
       return putDocumentStatement(db, { kind: 'profile', ownerId: owner, version: DOCUMENTS.profile.version, body: parsed.data,
         reviewedBy: 'seed' }, now)
     }),
-    // insert replies after their parent comments
-    ...bulk(db, `INSERT OR IGNORE INTO comments (id, build_id, parent_id, account_id, body, created_at)
-      SELECT ${f(0)}, ${f(1)}, ${f(2)}, ${f(3)}, ${f(4)}, ${f(5)} FROM json_each(?1)`,
-    [...(rows.comments ?? [])].sort((a, b) => Number(a.parentId != null) - Number(b.parentId != null))
-      .map((comment) => [comment.id, comment.buildId, comment.parentId, comment.accountId, comment.body, comment.at])),
-    ...bulk(db, `INSERT OR IGNORE INTO likes (build_id, account_id, created_at) SELECT ${f(0)}, ${f(1)}, ${f(2)} FROM json_each(?1)`,
-      (rows.likes ?? []).map((like) => [like.buildId, like.accountId, like.at])),
     ...bulk(db, `INSERT OR IGNORE INTO follows (account_id, kind, target, created_at) SELECT ${f(0)}, ${f(1)}, ${f(2)}, ${f(3)} FROM json_each(?1)`,
       (rows.follows ?? []).map((follow) => [follow.accountId, follow.kind, follow.target, follow.at])),
   ]
   for (let start = 0; start < statements.length; start += 200) await db.batch(statements.slice(start, start + 200))
 
   return json({ players: players.length, builds: builds.length, inserted, accounts: accounts.length, profiles: profiles.length,
-    comments: rows.comments?.length ?? 0, likes: rows.likes?.length ?? 0, follows: rows.follows?.length ?? 0 })
+    follows: rows.follows?.length ?? 0 })
 }
 
-/** POST /admin/seed/:id/finish: marks the batch complete; each board writes its written builds' entries in key order
-    (BoardDO.finishSeeds), and a board that misses the call writes them a minute after its last chunk. */
+// POST /admin/seed/:id/finish: marks the batch complete; each board writes its written builds' entries in key order
+// (BoardDO.finishSeeds), and a board that misses the call writes them a minute after its last chunk
 export async function finishSeedBatch(context: RouteContext): Promise<Response> {
   await localAdmin(context)
   const { env } = context
@@ -367,10 +358,10 @@ export async function finishSeedBatch(context: RouteContext): Promise<Response> 
 
 // purge
 
-/** how many of a batch's accounts or players one purge step takes. */
+// how many of a batch's accounts or players one purge step takes
 const STEP = { accounts: 5000, players: 5000 }
 
-/** statements removing the reports by or about a list of ids, with their dependent rows; `where` reads ?1. */
+// statements removing the reports by or about a list of ids, with their dependent rows; `where` reads ?1
 const reportStatements = (db: D1Database, where: string, ids: string) => {
   const reports = `(SELECT id FROM reports WHERE ${where})`
   return [
@@ -380,46 +371,37 @@ const reportStatements = (db: D1Database, where: string, ids: string) => {
   ]
 }
 
-/** a step's statements, every one reading the step's ids as json from ?1. */
+// a step's statements, every one reading the step's ids as json from ?1
 const each = (db: D1Database, ids: string, sql: string[]) => sql.map((text) => db.prepare(text).bind(ids))
 
-/** statements removing everything written about a board's seed builds. their public ids are the board id plus 8
-    base36 digits (seed locals are at least 2^38), so the id range matches the local range and uses the build_id indexes. */
+// statements removing everything written about a board's seed builds. their public ids are the board id plus 8 base36
+// digits (seed locals are at least 2^38), so the id range matches the local range and uses the build_id indexes
 function buildRangeStatements(db: D1Database, resonator: string, from: number, to: number): D1PreparedStatement[] {
   const lo = formatBuildId({ resonator: Number(resonator), local: from })
   const hi = formatBuildId({ resonator: Number(resonator), local: to })
   const range = `BETWEEN ?1 AND ?2 AND length(build_id) = length(?1)`
-  const comments = `(SELECT id FROM comments WHERE build_id ${range})`
   const reports = `(SELECT id FROM reports WHERE build_id ${range})`
   return [
     `DELETE FROM notifications WHERE build_id ${range}`,
-    `DELETE FROM likes WHERE build_id ${range}`,
     `DELETE FROM bookmarks WHERE build_id ${range}`,
     `DELETE FROM report_notes WHERE report_id IN ${reports}`,
     `UPDATE sanctions SET report_id = NULL WHERE report_id IN ${reports}`,
     `DELETE FROM reports WHERE build_id ${range}`,
-    `DELETE FROM comments WHERE parent_id IN ${comments}`,
-    `DELETE FROM comments WHERE build_id ${range}`,
-    `DELETE FROM documents WHERE kind = 'build' AND owner_id BETWEEN ?1 AND ?2 AND length(owner_id) = length(?1)`,
     `DELETE FROM recent_uploads WHERE build_id ${range}`,
   ].map((text) => db.prepare(text).bind(lo, hi))
 }
 
-/** statements removing accounts and every row that references them. */
+// statements removing accounts and every row that references them
 function accountStatements(db: D1Database, accountIds: string[]) {
   const accounts = JSON.stringify(accountIds)
-  const comments = `(SELECT id FROM comments WHERE account_id IN ${IDS})`
   return [
     ...each(db, accounts, [
       `DELETE FROM audit_log WHERE (subject_kind = 'account' AND subject_id IN ${IDS}) OR actor_id IN ${IDS}`,
-      `DELETE FROM notifications WHERE account_id IN ${IDS} OR subject_id IN ${comments}`,
-      `DELETE FROM likes WHERE account_id IN ${IDS}`,
+      `DELETE FROM notifications WHERE account_id IN ${IDS}`,
       `DELETE FROM bookmarks WHERE account_id IN ${IDS}`,
     ]),
     ...reportStatements(db, `reporter_account IN ${IDS}`, accounts),
     ...each(db, accounts, [
-      `DELETE FROM comments WHERE parent_id IN ${comments}`,
-      `DELETE FROM comments WHERE account_id IN ${IDS}`,
       `DELETE FROM follows WHERE account_id IN ${IDS}`,
       `DELETE FROM blocks WHERE account_id IN ${IDS} OR blocked_account IN ${IDS}`,
       `DELETE FROM documents WHERE kind IN ('profile', 'views') AND owner_id IN ${IDS}`,
@@ -436,8 +418,8 @@ function accountStatements(db: D1Database, accountIds: string[]) {
   ]
 }
 
-/** statements removing players with their documents, claims and D1 board copies; their builds and accounts are
-    removed before this. */
+// statements removing players with their documents, claims and D1 board copies; their builds and accounts are
+// removed before this
 function playerStatements(db: D1Database, uids: string[]) {
   const players = JSON.stringify(uids)
   return [
@@ -462,7 +444,7 @@ function playerStatements(db: D1Database, uids: string[]) {
 
 export interface PurgeStep { done: boolean; builds: number; accounts: number; players: number }
 
-/** every board a batch may be on: boards with a summary and boards the live ruleset scores. */
+// every board a batch may be on: boards with a summary and boards the live ruleset scores
 async function boardsOf(db: D1Database): Promise<string[]> {
   const { results } = await db.prepare(`SELECT resonator_id FROM boards UNION
     SELECT DISTINCT resonator_id FROM scenarios WHERE ruleset_id = (SELECT value FROM settings WHERE key = 'live_ruleset')`)
@@ -470,15 +452,15 @@ async function boardsOf(db: D1Database): Promise<string[]> {
   return results.map((row) => row.resonator_id).sort()
 }
 
-/** one purge step: a board's builds, else some accounts, else some players, else the batch row. an interrupted purge
-    leaves the batch listed and closed to new rows, and resumes where it stopped. */
+// one purge step: a board's builds, else some accounts, else some players, else the batch row. an interrupted purge
+// leaves the batch listed and closed to new rows, and resumes where it stopped
 export async function purgeStep(env: RouteContext['env'], batch: BatchRow): Promise<PurgeStep> {
   const db = env.LB
   const step = { done: false, builds: 0, accounts: 0, players: 0 }
   const done = new Set<string>(batch.purged_boards ? JSON.parse(batch.purged_boards) as string[] : [])
   const next = (await boardsOf(db)).find((resonator) => !done.has(resonator))
   if (next) {
-    // a seed uid is below SEED_UID_CEILING; a batch with no players yet spans none.
+    // a seed uid is below SEED_UID_CEILING; a batch with no players yet spans none
     const uids: [number, number] = batch.uid_from == null ? [1, 0] : [Number(batch.uid_from), Math.min(Number(batch.uid_to), SEED_UID_CEILING - 1)]
     const purged = await boardOf(env, next).purgeSeeds(Number(next), [batch.local_from, batch.local_to], uids)
     done.add(next)
@@ -506,11 +488,11 @@ export async function purgeStep(env: RouteContext['env'], batch: BatchRow): Prom
   return { ...step, done: true }
 }
 
-/** time budget of one purge request; the tool repeats the call until done. */
+// time budget of one purge request; the tool repeats the call until done
 const PURGE_BUDGET_MS = 20_000
 
-/** POST /admin/seed/purge { batch? }: purges one batch, or all of them without `batch`; returns `done: false` while
-    work remains. */
+// POST /admin/seed/purge { batch? }: purges one batch, or all of them without `batch`; returns `done: false` while
+// work remains
 export async function purgeSeedBatches(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'roles.assign')
   const body = await readJsonBody<{ batch?: unknown }>(context.request)
@@ -522,7 +504,7 @@ export async function purgeSeedBatches(context: RouteContext): Promise<Response>
   const started = Date.now()
   const removed = { batches: [] as string[], players: 0, accounts: 0, builds: 0 }
   for (const batch of batches) {
-    // from now on the batch takes no more rows.
+    // close the batch to new rows
     if (batch.purged_boards == null) {
       batch.purged_boards = '[]'
       await db.prepare(`UPDATE seed_batches SET purged_boards = '[]' WHERE id = ? AND purged_boards IS NULL`).bind(batch.id).run()

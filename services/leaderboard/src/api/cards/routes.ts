@@ -25,7 +25,7 @@ import { syncPlayerBoards } from '../players.ts'
 import { boardOf, cardRef, shardOfLink } from '../stubs.ts'
 import { parseBuildId, uidToText } from '../../lib/ids.ts'
 import { cardImageKey, type CardRecord } from '../../cards/registry.ts'
-import type { ApiEnv } from '../../env.ts'
+import type { ApiEnv, ReadMessage } from '../../env.ts'
 import { fetchIdentified, identifyCard, type CollectedCard } from './collect.ts'
 import { storeCardImage } from './store.ts'
 
@@ -36,17 +36,14 @@ export async function rateLimit(limiter: RateLimit, key: string): Promise<void> 
 
 export interface TakenCard {
   card: CardRecord
-  /** the link was already a card, so nothing new was stored or queued. */
+  // the link was already a card, so nothing new was stored or queued
   duplicate: boolean
-  /** first drawn within the freshness window (proves control for a login). */
+  // first drawn within the freshness window (proves control for a login)
   fresh: boolean
 }
 
-/**
- * the card the user's link names. a known link is answered from the database
- * without fetching (kuro never rewrites a card file); only a new card, or a
- * refused one whose image was erased (opt-out or retention), is fetched from kuro.
- */
+// the card the user's link names. a known link is answered from the database without fetching (kuro never rewrites a
+// card file); only a new card, or a refused one whose image was erased (opt-out or retention), is fetched from kuro
 export async function takeCard(context: RouteContext, input: unknown, { mustBeFresh = false } = {}): Promise<TakenCard> {
   if (typeof input !== 'string') throw new HttpError('bad_link', "hmm... paste a Kuro card link or the card's file name first :P")
   const { env, now } = context
@@ -59,13 +56,13 @@ export async function takeCard(context: RouteContext, input: unknown, { mustBeFr
   if (!identified.ok) throw new HttpError(identified.code as ErrorCode, identified.message)
   const shard = shardOfLink(env, identified.linkHash)
   const known = await shard.stub.byLink(shard.shard, identified.linkHash)
-  // only refused cards with erased images are refetched; known readable evidence retains its original card timestamp.
+  // only refused cards with erased images are refetched; known readable evidence retains its original card timestamp
   const erased = known?.status === 'rejected' && (known.reject_reason === 'opted_out' || known.image_erased_at != null)
   if (known && !erased) {
     const fresh = isFreshCard(known.kuro_last_modified, now, freshMaxAgeSeconds)
     if (mustBeFresh) requireFresh(fresh)
     // re-read from the stored image a card whose reads all failed (reader down), that was refused while its uid was
-    // suspended, or that an older reader refused; a uid that is still suspended is refused again
+    // suspended, or that an earlier reader version refused; a uid that is still suspended is refused again
     if (known.status === 'rejected' && (known.reject_reason === 'read_failed' || known.reject_reason === 'suspended'
       || rereadable(known))) {
       await shard.stub.setStatus(shard.shard, known.no, 'pending', null)
@@ -75,25 +72,25 @@ export async function takeCard(context: RouteContext, input: unknown, { mustBeFr
   }
   const fetched = await fetchIdentified(identified, options)
   if (!fetched.ok) throw new HttpError(fetched.code as ErrorCode, fetched.message)
-  // a login refuses a stale card before anything is stored.
+  // a login refuses a stale card before anything is stored
   if (mustBeFresh) requireFresh(fetched.card.fresh)
   const { card, duplicate } = await recordCard(context, shard, fetched.card, known)
   return { card, duplicate, fresh: fetched.card.fresh }
 }
 
-// a card the reader refused can read differently once the reader changes; a newer reader gets one more look.
+// a card an earlier reader version refused is read once more by a newer reader version
 const REREAD_REASONS = new Set(['unreadable', 'uid_unreadable', 'incomplete_build'])
 function rereadable(card: CardRecord): boolean {
   if (!REREAD_REASONS.has(card.reject_reason ?? '')) return false
   return card.read_ver !== null && card.read_ver !== CARD_PARSER_VER
 }
 
-/** a fetched card stored and recorded; `known` is its earlier row when its image was erased. */
+// a fetched card stored and recorded; `known` is its earlier row when its image was erased
 async function recordCard(context: RouteContext, shard: ReturnType<typeof shardOfLink>, collected: CollectedCard,
   known: CardRecord | null): Promise<{ card: CardRecord; duplicate: boolean }> {
   const { env } = context
   if (known) {
-    // a card set aside (opted out, or erased by retention) is read again from its new copy.
+    // a card set aside (opted out, or erased by retention) is read again from its new copy
     await storeCardImage(env.CARDS, cardImageKey(known), collected.bytes, collected.contentType)
     await shard.stub.restoreImage(shard.shard, known.no)
     return { card: { ...known, status: 'pending', reject_reason: null, image_erased_at: null }, duplicate: false }
@@ -108,7 +105,7 @@ async function recordCard(context: RouteContext, shard: ReturnType<typeof shardO
   return { card, duplicate: !inserted }
 }
 
-/** the current board row of the build a read card created. */
+// the current board row of the build a read card created
 async function placedBuild(env: Pick<ApiEnv, 'BOARDS'>, card: CardRecord) {
   const key = card.build ? parseBuildId(card.build) : null
   if (!key) return null
@@ -126,13 +123,13 @@ export async function cardStatus(env: Pick<ApiEnv, 'BOARDS'>, card: CardRecord):
   if (!build) return { cardId: card.id, status: 'reading' }
   const read = { buildId: build.id, resonatorId: build.resonatorId }
   if (build.row.state !== 'active') return { cardId: card.id, status: 'scored', ...read, active: false }
-  // every kept build is scored and ranked as itself once its score is in.
+  // every kept build is scored and ranked as itself once its score is in
   const status = build.row.scoring ? 'scoring' : build.row.cellKey != null ? 'scored' : 'insufficient_data'
   return { cardId: card.id, status, ...read, active: true }
 }
 
-/** the read owner for a submitted card, resolved once per request and only for new cards (or setup uids' cards);
-    staff submissions do not end a uid's setup state. */
+// the read owner for a submitted card, resolved once per request and only for new cards (or setup uids' cards);
+// staff submissions do not end a uid's setup state
 function readOwner(context: RouteContext) {
   let owner: Promise<{ ownerUids?: string[]; byPlayer: boolean }> | null = null
   return () => owner ??= (async () => {
@@ -144,8 +141,8 @@ function readOwner(context: RouteContext) {
   })()
 }
 
-/** a player resubmitting a card already read for a setup uid: the uid leaves setup, the build counts as uploaded now
-    and keeps its scores, with no new read or scoring. */
+// a player resubmitting a card already read for a setup uid: the uid leaves setup, and the build counts as uploaded
+// at this time and retains its scores, with no new read or scoring
 async function claimSetupCard(context: RouteContext, card: CardRecord, owner: ReturnType<typeof readOwner>): Promise<boolean> {
   if (card.status !== 'read' || card.uid == null) return false
   const build = await placedBuild(context.env, card)
@@ -153,20 +150,35 @@ async function claimSetupCard(context: RouteContext, card: CardRecord, owner: Re
   const uid = uidToText(card.uid)
   if ((await getPlayer(context.env.LB, uid))?.setup_at == null || !(await owner()).byPlayer) return false
   await context.env.LB.batch(endSetupStatements(context.env.LB, uid, build.id, context.now))
-  // the boards name the player now; this one also takes the build as their upload.
+  // sync the player to every board; this build's board also records the build as their upload
   await syncPlayerBoards(context.env, uid)
   const ref = buildRef(context.env, build.id)
   return ref.board.claimSetup(ref.resonator, ref.local, card.uid, card.id)
 }
 
-/** take one card and queue its read when it is new. */
-async function acceptCard(context: RouteContext, input: unknown, owner: ReturnType<typeof readOwner>): Promise<SubmitCardResponse> {
+// read messages for several cards sent as one queue batch, so their reads share one warm reader page; a batch's
+// cards go in order of arrival, at most the queue's 100 per call
+export async function sendReads(env: Pick<ApiEnv, 'READ_QUEUE'>, messages: ReadMessage[]): Promise<void> {
+  for (let start = 0; start < messages.length; start += 100) {
+    // a multi-card send marks its messages bulk, which leaves the reader browser up between batches; a single card's
+    // read closes it
+    await env.READ_QUEUE.sendBatch(messages.slice(start, start + 100).map((body) => ({ body: messages.length > 1 ? { ...body, bulk: true } : body })))
+  }
+}
+
+// take one card and queue its read when it is new; with `reads`, the read is collected for one sendReads
+async function acceptCard(context: RouteContext, input: unknown, owner: ReturnType<typeof readOwner>,
+  reads?: ReadMessage[]): Promise<SubmitCardResponse> {
   const taken = await takeCard(context, input)
   const { card } = taken
   // only newly accepted cards enter the read queue, and duplicates return the existing status; a setup uid's card was
   // never sent by a player, so the first player to send it gets a new card's response
   const duplicate = taken.duplicate && !await claimSetupCard(context, card, owner)
-  if (!taken.duplicate) await context.env.READ_QUEUE.send({ cardId: card.id, ...await owner() })
+  if (!taken.duplicate) {
+    const message = { cardId: card.id, ...await owner() }
+    if (reads) reads.push(message)
+    else await context.env.READ_QUEUE.send(message)
+  }
   // a known card returns its full status route response, including any refusal reason
   return { ...(await publicCardStatus(context.env, card)), duplicate }
 }
@@ -181,10 +193,9 @@ export async function submitCard(context: RouteContext): Promise<Response> {
   return json(response, { status: response.duplicate ? 200 : 202 })
 }
 
-/**
- * submits several cards under one bot check. each card counts against the submit limit like a single submission, and
- * cards past the limit return rate_limited; refused cards do not affect the rest, and results keep the request order.
- */
+// submits several cards under one bot check. each card counts against the submit limit like a single submission,
+// cards past the limit return rate_limited, refused cards do not affect the rest, and results follow the request
+// order
 export async function submitCards(context: RouteContext): Promise<Response> {
   const { request, env } = context
   const ip = clientIp(request)
@@ -196,12 +207,13 @@ export async function submitCards(context: RouteContext): Promise<Response> {
   await requireTurnstile(body.turnstileToken, env.TURNSTILE_SECRET, ip)
   const owner = readOwner(context)
   const results: SubmitCardResult[] = []
+  const reads: ReadMessage[] = []
   let limited: HttpError | null = null
   for (const [index, input] of inputs.entries()) {
     try {
       if (limited) throw limited
       if (index > 0) await rateLimit(env.SUBMIT_LIMIT, `submit:${ip}`)
-      results.push({ input, ok: true, card: await acceptCard(context, input, owner) })
+      results.push({ input, ok: true, card: await acceptCard(context, input, owner, reads) })
     } catch (error) {
       if (!(error instanceof HttpError)) {
         console.error('batch submit failed', error)
@@ -212,11 +224,13 @@ export async function submitCards(context: RouteContext): Promise<Response> {
       results.push({ input, ok: false, error: { code: error.code, message: error.message } })
     }
   }
+  // a card recorded but never queued (the send failed) is sent again by upkeep once it has waited pending
+  await sendReads(env, reads)
   const response: SubmitCardsResponse = { results }
   return json(response)
 }
 
-/** a card's status as anyone may see it: an opted-out uid's cards say nothing more than that they were refused. */
+// a card's status as anyone may see it: an opted-out uid's cards show only that they were refused
 async function publicCardStatus(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, card: CardRecord): Promise<CardStatusResponse> {
   const status = await cardStatus(env, card)
   if (status.buildId && card.uid != null) {

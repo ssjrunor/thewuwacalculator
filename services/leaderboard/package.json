@@ -18,9 +18,9 @@
     "ruleset:refs": "node ../../scripts/leaderboard/tools/refs.mjs",
     "ruleset:publish": "node ../../scripts/leaderboard/tools/lb.mjs publish",
     "ruleset:rollout": "node ../../scripts/leaderboard/tools/lb.mjs rollout",
-    "admin": "node ../../scripts/leaderboard/tools/admin.mjs",
+    "admin": "node tools/admin.mjs",
     "lb": "node ../../scripts/leaderboard/tools/lb.mjs",
-    "backup": "node ../../scripts/leaderboard/tools/backup.mjs",
+    "backup": "node tools/backup.mjs",
     "test": "cd ../.. && vitest run services/leaderboard/tests"
   },
   "devDependencies": {

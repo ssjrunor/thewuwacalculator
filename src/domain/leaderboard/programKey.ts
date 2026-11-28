@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
   description: the parts of a scored seat's echoes the rotation generator reads,
-               which lets builds matching on them share one generated program. a
+               so builds matching on them share one generated program. a
                scenario maxes every member's level, skills and weapon, so per
                build only the seat's form, sequence and echoes differ, and of the
                echoes the generator reads the main echo (the flagged one, else
@@ -18,7 +18,7 @@
 import { countEchoSets } from '@/domain/gameData/echoSetCounts'
 import type { BuildSnapshot } from './snapshot'
 
-/** one equipped echo in snapshot or runtime form. */
+// one equipped echo in snapshot or runtime form
 export interface KeyEcho {
   id: string | number
   set: number
@@ -27,19 +27,21 @@ export interface KeyEcho {
   substats: Readonly<Record<string, number>> | null | undefined
 }
 
-/** the echo part of a program key: plain data, canonical when written with canonicalJson. */
+// the echo part of a program key: plain data, canonical when written with canonicalJson
 export interface ProgramEchoKey {
-  /** the main echo's id and whether a slot flagged it (gear reads only a flagged one; the editor falls back). */
+  // the main echo's id and whether a slot flagged it (gear reads only a flagged one; the editor uses the first slot)
   main: { id: string; flagged: boolean } | null
-  /** sonata set id to pieces, a repeated echo counted once, ascending by set. */
+  // sonata set id to pieces, a repeated echo counted once, ascending by set
   sets: Array<[string, number]>
-  /** tune break boost over every equipped echo's main stats and substats. */
+  // tune break boost over every equipped echo's main stats and substats
   tuneBreakBoost: number
+  // paired transformations read the sibling Echo independently of its set
+  pairedEcho?: string
 }
 
 const TUNE_BREAK_BOOST = 'tuneBreakBoost'
 
-/** the generator's reads of a seat's echoes, `echoes` in slot order with empty slots as null. */
+// the generator's reads of a seat's echoes, `echoes` in slot order with empty slots as null
 export function programEchoKey(echoes: ReadonlyArray<KeyEcho | null>): ProgramEchoKey {
   const equipped = echoes.filter((echo): echo is KeyEcho => echo != null)
   const flagged = equipped.find((echo) => echo.mainEcho)
@@ -52,10 +54,12 @@ export function programEchoKey(echoes: ReadonlyArray<KeyEcho | null>): ProgramEc
     for (const stat of echo.stats) if (stat?.key === TUNE_BREAK_BOOST) tuneBreakBoost += stat.value
     tuneBreakBoost += echo.substats?.[TUNE_BREAK_BOOST] ?? 0
   }
-  return { main, sets, tuneBreakBoost }
+  const sibling = main?.flagged ? ({ '6000179': '6000180', '6000180': '6000179' } as Record<string, string>)[main.id] : undefined
+  const pairedEcho = sibling && equipped.some(echo => !echo.mainEcho && String(echo.id) === sibling) ? sibling : undefined
+  return { main, sets, tuneBreakBoost, ...(pairedEcho ? { pairedEcho } : {}) }
 }
 
-/** a snapshot's echoes in slot order, empty slots null, as the scenario seats them (scenarioInput.snapshotEchoes). */
+// a snapshot's echoes in slot order, empty slots null, as the scenario seats them (scenarioInput.snapshotEchoes)
 export function snapshotKeyEchoes(snapshot: BuildSnapshot, slots = 5): Array<KeyEcho | null> {
   const echoes: Array<KeyEcho | null> = Array(slots).fill(null)
   for (const echo of snapshot.echoes) {
@@ -65,14 +69,12 @@ export function snapshotKeyEchoes(snapshot: BuildSnapshot, slots = 5): Array<Key
   return echoes
 }
 
-/**
- * the board's grouping key for a build in a scenario as text: the seat's form, sequence and echo key. builds with equal
- * text share a program; the scorer derives its own key from the scenario and splits groups that disagree. `share`
- * false (the scenario copies build stats into its program) keys on the full echo list.
- */
+// the board's grouping key for a build in a scenario as text: the seat's form, sequence and echo key. builds with
+// equal text share a program; the scorer derives its own key from the scenario and splits groups that disagree.
+// `share` false (the scenario copies build stats into its program) keys on the full echo list
 export function snapshotProgramKey(snapshot: BuildSnapshot, share: boolean): string {
   const seat = `${snapshot.resonator.id}|${snapshot.resonator.sequence}`
   if (!share) return `${seat}|${JSON.stringify([...snapshot.echoes].sort((a, b) => a.slot - b.slot))}`
   const key = programEchoKey(snapshotKeyEchoes(snapshot))
-  return `${seat}|${key.main ? `${key.main.id}${key.main.flagged ? '' : '?'}` : '-'}|${key.sets.map(([set, n]) => `${set}x${n}`).join(',')}|${key.tuneBreakBoost}`
+  return `${seat}|${key.main ? `${key.main.id}${key.main.flagged ? '' : '?'}` : '-'}|${key.sets.map(([set, n]) => `${set}x${n}`).join(',')}|${key.tuneBreakBoost}${key.pairedEcho ? `|pair:${key.pairedEcho}` : ''}`
 }

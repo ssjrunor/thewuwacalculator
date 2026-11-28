@@ -1,10 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the sign-in modal. an account (Discord or Google) syncs pins,
-               likes, comments, the inbox and UIDs across devices, and a UID is
-               claimed with a card drawn in the last 15 minutes, with or without
-               an account. signed in, the modal lists the account's logins and
-               UIDs, links another login, and signs out.
+  description: the sign-in modal: Discord or Google sign-in, uid claims and linked logins.
 */
 
 import { useEffect, useState } from 'react'
@@ -17,12 +13,12 @@ import { lbApi } from '../api/client'
 import { closeSignIn, noteViewerChanged, notify, useLbChrome } from './chrome'
 import { LbModal } from './LbModal'
 
-const NAME: Record<LoginProvider, string> = { discord: 'Discord', google: 'Google' }
-const MARK: Record<LoginProvider, string> = { discord: 'D', google: 'G' }
-const day = (at: number) => new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+export const NAME: Record<LoginProvider, string> = { discord: 'Discord', google: 'Google' }
+export const MARK: Record<LoginProvider, string> = { discord: 'D', google: 'G' }
+export const day = (at: number) => new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-/** where the provider sends the browser back to: here, without an old sign-in result. */
-function here(): string {
+// where the provider redirects the browser: this page, without an earlier sign-in result
+export function here(): string {
   const url = new URL(window.location.href)
   url.searchParams.delete('signin')
   return `${url.pathname}${url.search}`
@@ -45,11 +41,11 @@ function Providers({ have, offered, linking, onRetry }: { have: LoginProvider[];
   )
 }
 
-/** claim a uid with a card drawn in the last 15 minutes. */
-function Claim() {
+// claim a uid with a card drawn in the last 15 minutes
+export function Claim() {
   const [input, setInput] = useState('')
   const [token, setToken] = useState<string | null>(null)
-  // a turnstile token is good for one request; each try draws a new widget.
+  // a turnstile token is valid for one request, so each try renders a new widget
   const [round, setRound] = useState(0)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -150,8 +146,8 @@ export function SignInWindow() {
         <section className="amdl__grp">
           <h3 className="amdl__grp-name">Account</h3>
           <p className="lbm-lead">{me
-            ? 'sign in to keep your freshly claimed UID across devices, pin players, like builds, leave comments and get an inbox :P'
-            : 'sign in for pins, likes, comments and an inbox! freshly claimed UIDs stay on your account across devices :P'}</p>
+            ? 'sign in to keep your freshly claimed UID across devices, pin players, save builds and get an inbox :P'
+            : 'sign in for pins, saves and an inbox! freshly claimed UIDs stay on your account across devices :P'}</p>
           <Providers have={have} offered={offered} linking={false} onRetry={() => setOffered(null)} />
         </section>
       )}

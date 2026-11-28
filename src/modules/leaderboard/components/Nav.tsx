@@ -1,15 +1,10 @@
 /*
   Author: Runor Ewhro
-  description: the leaderboard channel band: one sticky band under the app
-               header with a well per page (Activity, Boards, You, Staff) and its
-               count, the finder, and the Pinned channel. Pinned opens a list of
-               the viewer's pinned players and boards for any number of pins,
-               with a filter, newest uploads first (signed in, from the account's
-               feed) or A to Z, and an unpin per item.
+  description: leaderboard page navigation: page links with counts, the finder and the pinned list.
 */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Activity, CircleUserRound, LayoutGrid, Pin, Search, ShieldCheck, X } from 'lucide-react'
+import { Activity, CircleUserRound, IdCard, LayoutGrid, Pin, Search, ShieldCheck, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import type { FeedResponse } from '@/domain/leaderboard/api'
 import { queryClient } from '@/shared/lib/queryClient'
@@ -17,13 +12,14 @@ import { lbApi } from '../api/client'
 import { LIVE_MS, lbKeys, lbq } from '../api/queries'
 import { grp, resFace, resName } from '../model/format'
 import { rankedOf } from '../model/players'
+import { TROUBLE_WORD, troubleOf } from '../model/standing'
 import { toggleBoardPin, togglePlayerPin, usePins, type PinnedPlayer } from '../model/pins'
 import type { ScopeCtxValue } from '../state/ctx'
 import { agoLong, boardPath, LB, plural, share } from '../model/listed'
 
-export type Tab = 'activity' | 'boards' | 'me' | 'staff' | null
+export type Tab = 'activity' | 'boards' | 'profiles' | 'me' | 'staff' | null
 
-/** what the feed says of one pinned player or board: uploads since the feed was last read, and the latest one. */
+// what the feed says of one pinned player or board: uploads since the feed was last read, and the latest one
 interface Heard { fresh: number; at: number }
 
 function heardOf(feed: FeedResponse | null) {
@@ -136,20 +132,23 @@ function PinnedList({ ctx, feed, onClose }: { ctx: ScopeCtxValue; feed: FeedResp
   )
 }
 
-export function Channels({ ctx, tab, staff, today, finder }: { ctx: ScopeCtxValue; tab: Tab; staff: boolean; today: number | null; finder: ReactNode }) {
+export function Nav({ ctx, tab, staff, today, finder }: { ctx: ScopeCtxValue; tab: Tab; staff: boolean; today: number | null; finder: ReactNode }) {
   const pins = usePins()
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
   const account = ctx.me?.account?.id ?? null
-  // the feed marks pins that uploaded since the viewer's last look; it requires an account and is keyed by it, waits
+  // the feed marks pins that uploaded since the viewer last read it; it requires an account and is keyed by it, waits
   // for the page's own reads, and refetches each minute in view
   const feed = useQuery({ ...lbq.feed(account ?? ''), enabled: Boolean(account), refetchInterval: LIVE_MS }).data ?? null
+  // a running mute, suspension or ban marks the You channel with a warning
+  const sanctions = useQuery({ ...lbq.sanctions(), enabled: Boolean(account), staleTime: 5 * 60_000 }).data?.sanctions
+  const trouble = troubleOf(ctx.me, sanctions)
   const setFeed = (next: FeedResponse) => { if (account) queryClient.setQueryData(lbKeys.feed(account), next) }
 
   const heard = useMemo(() => heardOf(feed), [feed])
   const fresh = feed ? pins.players.filter((p) => heardFor(heard.players, p)?.fresh).length : 0
 
-  // closing the list after reading it marks the feed read.
+  // closing the list after reading it marks the feed read
   const close = () => {
     setOpen(false)
     if (feed && fresh) { lbApi.feedSeen().catch(() => undefined); setFeed({ ...feed, seenAt: Date.now(), fresh: 0 }) }
@@ -164,8 +163,8 @@ export function Channels({ ctx, tab, staff, today, finder }: { ctx: ScopeCtxValu
   })
 
   const mine = ctx.mine?.builds.length ?? 0
-  const ch = (key: Exclude<Tab, null>, path: string, icon: ReactNode, label: string, sub: string) => (
-    <button className={`ch${tab === key ? ' on' : ''}`} onClick={() => ctx.go(path)} aria-current={tab === key ? 'page' : undefined}>
+  const ch = (key: Exclude<Tab, null>, path: string, icon: ReactNode, label: string, sub: string, bad = false) => (
+    <button className={`ch${tab === key ? ' on' : ''}${bad ? ' bad' : ''}`} onClick={() => ctx.go(path)} aria-current={tab === key ? 'page' : undefined}>
       <span className="k-well">{icon}</span><span className="ch-t"><b>{label}</b><small>{sub}</small></span>
     </button>
   )
@@ -173,7 +172,10 @@ export function Channels({ ctx, tab, staff, today, finder }: { ctx: ScopeCtxValu
     <nav className="chb" aria-label="Leaderboard">
       {ch('activity', LB, <Activity size={14} strokeWidth={2.2} />, 'Activity', today == null ? 'Latest' : `${grp(today)} today`)}
       {ch('boards', `${LB}/boards`, <LayoutGrid size={14} strokeWidth={2.2} />, 'Boards', ctx.boards ? plural(ctx.boards.boards.length, 'board') : 'Every board')}
-      {ch('me', `${LB}/me`, <CircleUserRound size={14} strokeWidth={2.2} />, 'You', ctx.session === 'unknown' ? 'Profile' : ctx.me?.uids.length ? plural(mine, 'build') : 'Sign in')}
+      {ch('profiles', `${LB}/profiles`, <IdCard size={14} strokeWidth={2.2} />, 'Profiles',
+        ctx.boards?.profiles != null ? plural(ctx.boards.profiles, 'profile') : 'Every profile')}
+      {ch('me', trouble ? `${LB}/me/account?s=status` : `${LB}/me`, <CircleUserRound size={14} strokeWidth={2.2} />, 'You',
+        trouble ? TROUBLE_WORD[trouble] : ctx.session === 'unknown' ? 'Profile' : ctx.me?.uids.length ? plural(mine, 'build') : 'Sign in', Boolean(trouble))}
       {staff ? ch('staff', `${LB}/staff`, <ShieldCheck size={14} strokeWidth={2.2} />, 'Staff', 'Queues') : null}
       <span className="sp" />
       {finder}

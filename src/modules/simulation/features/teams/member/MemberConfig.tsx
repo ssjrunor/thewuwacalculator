@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: edits scenario-member progression, equipment, source controls,
-               routing, and loadouts with optional externally controlled channels.
+  description: the member config panel: progression, equipment, skills, effects, echoes and buffs of one team
+               member.
 */
 
 import { flushSync } from 'react-dom'
@@ -105,9 +105,9 @@ import { withDefIconM, withDefResMg, withDefWpnMg } from '@/shared/lib/imageFall
 import { useMobileUi } from '@/shared/responsive/mobileUi'
 import { MobileConsoleBar } from '@/modules/simulation/features/teams/mobile/MobileConsoleBar.tsx'
 import type { ConsolePage } from '@/modules/simulation/features/teams/mobile/MobileConsoleBar.tsx'
+import { truncTo } from '@/shared/lib/number'
 
-// nested tools are not needed to display the member. keep their loading boundary
-// below the editor so opening one cannot suspend the whole console session.
+// nested tools load below the editor's suspense boundary, so opening one never suspends the whole console session
 const Edit = lazy(async () => ({
   default: (await import('@/modules/simulation/features/echoes/Edit.tsx')).Edit,
 }))
@@ -129,23 +129,23 @@ export type ChannelId = 'loadout' | 'skills' | 'effects' | 'echoes' | 'buffs'
 const MAX_ECHO_COST = 12
 const TEAM_ECHO_SEL_SURFACE = 'teammate-config-echo-selection'
 
-// member editing inputs are separate from modal lifecycle state.
-export interface MemberStageProps {
-  /** portal target for nested dialogs; defaults to the app shell. */
+// member editing inputs are separate from modal lifecycle state
+export interface MemberConfigProps {
+  // portal target for nested dialogs; defaults to the app shell
   portalTarget?: HTMLElement | null
   member: ResView
   roster: ResView[]
   runtime: ResRuntime
   actRt: ResRuntime
-  /** whether this member is the current scenario subject. */
+  // whether this member is the current scenario subject
   isActive: boolean
   invBlds: SavedBuild[]
   sttDefs: SourceState[]
   cmbtSttsView: StatsView | null
   initChannel?: ChannelId
-  /** controlled channel; when absent, initChannel seeds local state. */
+  // controlled channel; when absent, initChannel seeds local state
   channel?: ChannelId
-  /** controlled weapon-editor visibility; when absent, local state is used. */
+  // controlled weapon-editor visibility; when absent, local state is used
   rackOpen?: boolean
   onRackOpenChange?: (open: boolean) => void
   onSwitchMember: (resonatorId: string) => void
@@ -157,12 +157,12 @@ export interface MemberStageProps {
   getSelTgt: (ownerKey: string) => string | null
   setSelTgt: (ownerKey: string, tgtResId: string | null) => void
   onClose?: () => void
-  /** bare mode delegates framing and channel controls to the parent surface. */
+  // bare mode delegates framing and channel controls to the parent surface
   frame?: 'modal' | 'bare'
 }
 
-// modal hosting extends member editing inputs with visibility lifecycle state.
-export interface ConfigModalProps extends MemberStageProps {
+// modal hosting extends member editing inputs with visibility lifecycle state
+export interface ConfigModalProps extends MemberConfigProps {
   visible: boolean
   open: boolean
   closing?: boolean
@@ -225,7 +225,7 @@ function StarDial({
   )
 }
 
-// pointer input snaps near authored ascension stops; typed levels remain clamped.
+// pointer input snaps near authored ascension stops; typed levels stay clamped
 function LevelTray({
   label,
   value,
@@ -316,7 +316,7 @@ function BuildCard({
   index: number
   onApply: () => void
 }) {
-  // portrait metadata is available even when this build's character kit isn't loaded.
+  // portrait metadata is available even when this build's character kit is not loaded
   const resonator = getResSeedBy(entry.resonatorId)
   const portrait = resonator?.sprite || resonator?.profile
   const mainEcho = entry.build.echoes[0]
@@ -420,7 +420,7 @@ function WeaponCard({
               maskImage: `url(${WPN_STAT_CNS.atk})`,
             } as CssProps}
           />
-          <i>{Math.round(stats.atk)}</i>
+          <i>{truncTo(stats.atk)}</i>
         </span>
         <span className="mcc-build-card-gap" aria-hidden="true" />
         <span className="mcc-wpn-card-stat" title={`${WPNSTATLBLS[def.statKey] ?? def.statKey} at Lv 90`}>
@@ -440,7 +440,7 @@ function WeaponCard({
   )
 }
 
-// mark linked teammate states in the modal from the stored control value.
+// mark linked teammate states in the modal from the stored control value
 function stateIsLive(rt: ResRuntime, state: SourceState, actRt: ResRuntime): boolean {
   const resolved = readRtPath(rt, state.path) ?? getSrcSttNct(rt, rt, state, actRt)
   if (state.kind === 'toggle') {
@@ -708,7 +708,7 @@ export const CHANNELS: Array<{
   activeOnly?: boolean
 }> = [
   { id: 'loadout', label: 'Loadout', icon: <Package size="1em" /> },
-  // all scenario members own progression and share the same editing channels.
+  // all scenario members have their own progression and share the same editing channels
   { id: 'skills', label: 'Skills', icon: <Network size="1em" /> },
   { id: 'effects', label: 'Effects', icon: <Zap size="1em" /> },
   { id: 'echoes', label: 'Echoes', icon: <Gem size="1em" /> },
@@ -739,9 +739,9 @@ function ResonatorView({
   setSelTgt,
   onClose,
   frame = 'modal',
-}: MemberStageProps) {
+}: MemberConfigProps) {
   const onBare = frame === 'bare'
-  // nested dialogs use the supplied host or the shared app portal.
+  // nested dialogs use the supplied host or the shared app portal
   const dialogHost = portalTarget ?? mainPortal()
   const maxWpnOnInit = useAppStore((state) => state.ui.preferences.maxResOnInit)
   const savedEchoes = useAppStore(selectSavedEchoSignatures)
@@ -765,8 +765,7 @@ function ResonatorView({
   const mobile = useMobileUi()
   const [mPage, setMPage] = useState<ConsolePage>('stage')
   const [showAllBlds, setShowAllBlds] = useState(false)
-  // reset tray state during render when the selected member changes.
-  // only one level tray can be active.
+  // reset tray state during render when the selected member changes; only one level tray can be active
   const [lvlTray, setLvlTray] = useState<'res' | 'wpn' | null>(null)
   const [trayOwner, setTrayOwner] = useState(member.id)
   if (trayOwner !== member.id) {
@@ -833,7 +832,7 @@ function ResonatorView({
     onRtPdt((prev) => tglTrcNd(prev, nodeId, member))
   }, [member, onRtPdt])
 
-  // only levelled non-outro entries can write canonical skill levels.
+  // only levelled non-outro entries can write canonical skill levels
   const onDockChng = useCallback((entry: ForteDock, next: number) => {
     const key = entry.key
     if (!entry.levelled || key === 'outroSkill') {
@@ -843,14 +842,14 @@ function ResonatorView({
     onRtPdt((prev) => setSkllLvl(prev, key, next))
   }, [onRtPdt])
 
-  /* the sigil writes the mode group's control, the same path its selector does */
+  // the sigil writes the mode group's control, the same path its selector writes
   const onModeChng = useCallback((controlKey: string, next: string) => {
     onRtPdt((prev) => writeRtPath(prev, mkCntrPath(controlKey), next))
   }, [onRtPdt])
 
   const cscdRtUpd: RtUpdHnd = useCallback((updater) => {
-    // cascade resets run against the visible teammate controls so mutually
-    // exclusive state groups stay normalized after local edits.
+    // cascade resets run against the visible teammate controls so mutually exclusive state groups stay normalized
+    // after local edits
     onRtPdt((prev) => {
       const next = updater(prev)
       const cscdCntr = applyCscdRst(
@@ -969,8 +968,7 @@ function ResonatorView({
     [runtime.build.echoes],
   )
 
-  // main echo selection is explicit. a partial build may have no main echo, so
-  // later derived panels must not promote another slot implicitly.
+  // main echo selection is explicit: a partial build may have no main echo, and no other slot is promoted
   const mainEcho = runtime.build.echoes.find((echo) => echo?.mainEcho) ?? null
   const mainEchoDef = mainEcho ? getEchoById(mainEcho.id) : null
   const equippedEchoes = runtime.build.echoes
@@ -1016,7 +1014,7 @@ function ResonatorView({
     ord: qppdEchoSlots,
     av: qppdEchoSlots,
     bar: true,
-    // modal selection actions take precedence over simulation page actions.
+    // modal selection actions take precedence over simulation page actions
     pri: 40,
     acts: [
       {
@@ -1087,14 +1085,14 @@ function ResonatorView({
   const selEchoSlotL = selection.selectedIdsInOrder
   const selectedEchoSlots = useMemo(() => new Set(selEchoSlotL), [selEchoSlotL])
 
-  // preview changes reset the expandable skill text to the compact state.
+  // preview changes reset the expandable skill text to the compact state
   const pickPreview = useCallback((uid: string) => {
     setPvwUid(uid)
     setBriefOpen(false)
   }, [])
 
-  // main-echo writes are persisted as build flags; runtime materialization then
-  // resolves the main echo source states from the updated build.
+  // main-echo writes are persisted as build flags; runtime materialization then resolves the main echo source states
+  // from the updated build
   const setMainEcho = useCallback((uid: string) => {
     onRtPdt((prev) => ({
       ...prev,
@@ -1107,8 +1105,7 @@ function ResonatorView({
     }))
   }, [onRtPdt])
 
-  // unequipping preserves explicit main-echo state by leaving the build without
-  // a main echo when the removed entry was flagged.
+  // unequipping a flagged main echo leaves the build without a main echo
   const unequipEcho = useCallback((uid: string) => {
     onRtPdt((prev) => ({
       ...prev,
@@ -1274,8 +1271,8 @@ function ResonatorView({
     rmEchoSlts([pickerSlot])
   }, [pickerSlot, rmEchoSlts])
 
-  /* the scenario stores each seat directly. only a support seat is re-cast here;
-     the active resonator is switched from the roster, never from its own console. */
+  // the scenario stores each seat directly; only a support seat is re-cast here, and the active resonator is switched
+  // from the roster
   const { setMember: setLiveTeamMember, setTeam: setLiveTeam } = useTeamSlots()
   const setTeamMember = onSetTeamMember ?? setLiveTeamMember
   const setTeam = onSetTeam ?? setLiveTeam
@@ -1284,26 +1281,25 @@ function ResonatorView({
 
   const onTeamSet = useCallback((supports: readonly (string | null)[]) => {
     if (!canManageSeat) return
-    // the store write renders synchronously, so commit the closing phase first
-    // or the new team remounts an open picker.
+    // the store write renders synchronously, so commit the closing phase first, before the new team remounts an open
+    // picker
     flushSync(() => seatPicker.hide())
     setTeam(supports)
     if (supports.includes(member.id)) return
-    // the staged console is seat-based; keep it attached to the member that now
-    // occupies the edited slot.
+    // the staged console is seat-based; keep it attached to the member that occupies the edited slot
     const next = supports[seatIndex - 1] ?? supports.find(Boolean) ?? actRt.id
     onSwitchMember(next)
   }, [actRt.id, canManageSeat, member.id, onSwitchMember, seatIndex, seatPicker, setTeam])
 
   const onSeatRemove = useCallback(() => {
     if (!canManageSeat) return
-    // switch before clearing the viewed member so the modal always has a
-    // surviving runtime, wrapping to the context resonator at the end.
+    // switch before clearing the viewed member so the modal always has a surviving runtime, wrapping to the context
+    // resonator at the end
     onSwitchMember(actRt.build.team[seatIndex + 1] ?? actRt.id)
     setTeamMember(seatIndex, null)
   }, [actRt.build.team, actRt.id, canManageSeat, onSwitchMember, seatIndex, setTeamMember])
 
-  // the editor displays the budget for its own recastable slot.
+  // the editor displays the budget for its own recastable slot
   const editSlotCost = useMemo(() => {
     const slot = echoEditModal.value
     if (slot == null) return 0
@@ -1558,8 +1554,7 @@ function ResonatorView({
     }
   ), [selectEchoRange, selectEchoSlot, selMode, toggleEchoSlot])
 
-  // the detail expander is available only when the rendered description is
-  // actually clamped by layout.
+  // the detail expander is available only when layout clamps the rendered description
   useLayoutEffect(() => {
     const measure = () => {
       const el = briefBodyRef.current
@@ -1574,17 +1569,15 @@ function ResonatorView({
     (sum, echo) => sum + (echo ? getEchoById(echo.id)?.cost ?? 0 : 0),
     0,
   )
-  // support echo positions exclude the explicit main echo; when no main exists,
-  // present echoes fill the available support positions.
+  // support echo positions exclude the explicit main echo; with no main echo, present echoes fill the support
+  // positions
   const orbitEchoes = mainEcho
     ? equippedEchoes.filter((echo) => !echo || echo.uid !== mainEcho.uid)
     : [...presentEchoes, null, null, null, null].slice(0, 4)
-  // one size value sets both css and node geometry so the echo layout scales
-  // without recalculating individual constants.
+  // one size value sets both css and node geometry, so the echo layout scales without per-constant recalculation
   const orbitSize = 25
   const orbitScale = orbitSize / 20
-  // support echo geometry is authored per position; empty and equipped slots
-  // share the same coordinate data.
+  // support echo geometry is authored per position; empty and equipped slots share the same coordinate data
   const orbitLayout = [
     { r: 5.7, a: 34, size: 3.2 },
     { r: 4.2, a: 126, size: 2.2 },
@@ -1625,7 +1618,7 @@ function ResonatorView({
   }, [maxWpnOnInit, weapons, onRtPdt])
 
   const onRackPick = useCallback((nextWeaponId: string) => {
-    // picking the current weapon closes the rack without changing rank state.
+    // picking the current weapon closes the rack without changing rank state
     if (nextWeaponId !== weaponId) {
       onWpnChng(nextWeaponId)
     }
@@ -1744,7 +1737,7 @@ function ResonatorView({
   }
 
   const channels = CHANNELS
-  // an unsupported controlled channel falls back to loadout.
+  // an unsupported controlled channel falls back to loadout
   const actChannel = channels.some((entry) => entry.id === channel) ? channel : 'loadout'
 
   const stageBody = (
@@ -2442,7 +2435,7 @@ function ResonatorView({
                             maskImage: `url(${WPN_STAT_CNS.atk})`,
                           } as CssProps}
                         />
-                        <i>{Math.round(wpnStats.atk)}</i>
+                        <i>{truncTo(wpnStats.atk)}</i>
                       </span>
                       <span className="mcc-wpn-stat">
                         {WPN_STAT_CNS[weaponDef.statKey] ? (
@@ -2740,6 +2733,6 @@ function ResonatorView({
   )
 }
 
-// the modal shell stays mounted across view switches so only the resonator
-// view remounts; keying by member id resets all per-member local state.
-export { ResonatorView as MemberStage }
+// the modal shell stays mounted across view switches so only the resonator view remounts; keying by member id resets
+// all per-member local state
+export { ResonatorView as MemberConfig }

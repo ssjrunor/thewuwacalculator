@@ -21,33 +21,33 @@ import {
 import type { RouteContext } from '../router.ts'
 
 export interface ClaimResult {
-  /** the new claim session token, set when one was started; written to the cookie. */
+  // the new claim session token, set when one was started; written to the cookie
   token: string | null
   tokenHash: string
   expiresAt: number
 }
 
-/** the uid read off a fresh card becomes the session's: linked to its account, or held by its claim session. */
+// the uid read off a fresh card becomes the session's: linked to its account, or held by its claim session
 export async function claimUid(context: Pick<RouteContext, 'env' | 'now'>, session: SessionActor | null,
-  claim: { uid: string; cardId: string; name: string | null }): Promise<ClaimResult> {
+  claim: { uid: string; cardId: string; name: string | null; drawnAt: number }): Promise<ClaimResult> {
   const { env, now } = context
   const db = env.LB
   const [holder, link] = await Promise.all([liveHolder(db, claim.uid, now), linkOf(db, claim.uid)])
   const accountId = session?.accountId ?? null
   const audit = (action: AuditAction, data: Record<string, unknown>) => auditStatement(db, { actorKind: 'uid', actorId: claim.uid,
     action, subjectKind: 'player', subjectId: claim.uid, data: { cardId: claim.cardId, ...data } }, now)
-  const statements: D1PreparedStatement[] = [upsertPlayerStatement(db, { uid: claim.uid, name: claim.name }, now)]
+  const statements: D1PreparedStatement[] = [upsertPlayerStatement(db, { uid: claim.uid, name: claim.name, nameAt: claim.drawnAt }, now)]
   const kept = (result: ClaimResult) => db.batch(statements).then(() => result)
 
-  // already this session's: nothing to prove again.
+  // the uid already belongs to this session
   if (session && (accountId ? link?.account_id === accountId : holder?.token_hash === session.tokenHash)) {
     return kept({ token: null, tokenHash: session.tokenHash, expiresAt: session.expiresAt })
   }
   const { id: claimId, statement } = insertClaimStatement(db, claim, now)
   statements.push(statement)
-  // taken from the claim session that held it: that session lets it go, and ends if it has nothing else.
+  // the uid is released from the claim session that held it, which ends when it has no uids left
   if (holder) statements.push(...await releaseStatements(context, holder, claim.uid))
-  // taken from another account: it is told the uid left.
+  // the uid moves off another account: that account is notified
   if (link && link.account_id !== accountId) {
     statements.push(notifyStatement(db, { accountId: link.account_id, kind: 'uid_moved', subjectId: claim.uid, data: { uid: claim.uid } }, now))
   }
@@ -56,7 +56,7 @@ export async function claimUid(context: Pick<RouteContext, 'env' | 'now'>, sessi
     statements.push(linkUidStatement(db, { uid: claim.uid, accountId, claimId }, now), audit('uid.link', { from: link?.account_id ?? null }))
     return kept({ token: null, tokenHash: session!.tokenHash, expiresAt: session!.expiresAt })
   }
-  // signed out, the uid leaves the account it was in: this browser's proof is newer.
+  // signed out: the uid is unlinked from its account, because this browser's card proof is newer
   if (link) statements.push(unlinkUidStatement(db, claim.uid), audit('uid.unlink', { from: link.account_id, taken: true }))
   let result: ClaimResult
   if (session) {
@@ -71,7 +71,7 @@ export async function claimUid(context: Pick<RouteContext, 'env' | 'now'>, sessi
   return kept(result)
 }
 
-/** removes one uid from a claim session and ends the session when no uids remain. */
+// removes one uid from a claim session and ends the session when no uids remain
 export async function releaseStatements(context: Pick<RouteContext, 'env' | 'now'>, hold: Pick<HoldRow, 'token_hash'>,
   uid: string): Promise<D1PreparedStatement[]> {
   const db = context.env.LB
@@ -83,7 +83,7 @@ export async function releaseStatements(context: Pick<RouteContext, 'env' | 'now
   ]
 }
 
-/** signing out: the session ends and every uid it held is unclaimed with it. */
+// signing out: the session ends and every uid it held is unclaimed with it
 export const endSessionStatements = (context: Pick<RouteContext, 'env' | 'now'>, tokenHash: string) =>
   [deleteSessionHoldsStatement(context.env.LB, tokenHash), revokeSessionStatement(context.env.LB, tokenHash, context.now)]
 

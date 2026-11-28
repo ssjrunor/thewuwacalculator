@@ -25,18 +25,18 @@ import { lowerSkill, lowerDamage, type PortableSkill } from './damage'
 
 export interface PortableRotationProgram {
   scalar: ScalarProgram
-  /** outputs: total damage, the sheet's ATK/HP/DEF/CR/CD/ER/bonus/amp, then participant totals, then participant shown
-     * totals (from `shownOffset`); the sheet is the searched build at rest, before any hit. */
+  // outputs: total damage, the sheet's ATK/HP/DEF/CR/CD/ER/bonus/amp, then participant totals, then participant shown
+  // totals (from `shownOffset`); the sheet is the searched build at rest, before any hit
   displayScalar: ScalarProgram
-  /** start of displayScalar's shown totals: each participant's damage as a run's breakdown reports it
-     * (pipeline/rotationTotals.ts), excluding tune breaks and dividing each event by its enclosing loops' run counts;
-     * -1 when compiled without them (RotationCandidateOptions.shown). */
+  // start of displayScalar's shown totals: each participant's damage as a run's breakdown reports it
+  // (pipeline/rotationTotals.ts), tune breaks included, dividing each event by its enclosing loops' run counts;
+  // -1 when compiled without them (RotationCandidateOptions.shown)
   shownOffset: number
-  /** catalog string symbols, indexed by encoded inventory/theory row. */
+  // catalog string symbols, indexed by encoded inventory/theory row
   echoSymbols: Uint32Array
   participantIds: string[]
 }
-/** the packed rows a portable program scores; the optimizer's rotation payload is one. */
+// the packed rows a portable program scores; the optimizer's rotation payload is one
 export interface PortablePayload {
   stats: Float32Array
   sets: Uint8Array
@@ -46,17 +46,17 @@ export interface PortablePayload {
   rotationProgram: PortableRotationProgram
   weaponPrograms?: PortableRotationProgram[]
 }
-/** the compiler only consumes immutable, transferable preparation data. */
+// the compiler only consumes immutable, transferable preparation data
 export type PortableRotationEnvironment = Pick<RunEnvironment,
   'graph' | 'enemy' | 'prmrResId' | 'catalogByResonator' | 'stateDefsByResonator' | 'enemyStateDefs'>
 export interface RotationCandidateOptions {
   echoCount?: number
   lockedMainId?: string | null
-  /** suggestions and grading vary numeric rows after preparation. */
+  // suggestions and grading vary numeric rows after preparation
   dynamicStats?: boolean
   selfMainEchoEffects?: boolean | 'dynamic'
   setControls?: Readonly<Record<string, boolean | number | string | undefined>>
-  /** also lower each participant's shown damage (shownOffset); off, the program has only what searches need. */
+  // also lower each participant's shown damage (shownOffset); off, the program has only what searches need
   shown?: boolean
 }
 interface Snapshot { team: TeamSnapshot; formula: Map<RotFormulaStatKey, Scalar> }
@@ -73,7 +73,7 @@ class RuntimeBranch {
   constructor(key: string, value: PortableValue) { this.key = key; this.value = value }
 }
 
-// lower rotation nodes into scalar operations after capturing the standing sheet and initializing rotation recipients.
+// lower rotation nodes into scalar operations after capturing the standing sheet and initializing rotation recipients
 export function compilePortableRotation(
   environment: PortableRotationEnvironment,
   items: readonly RotationNode[],
@@ -99,14 +99,14 @@ class RotationLowering {
   private formula = new Map<RotFormulaStatKey, Scalar>()
   private readonly ordinals = new Map<string, Scalar>()
   private readonly totals: Scalar[]
-  /** per participant: damage as a breakdown shows it (shownOffset). */
+  // per participant: damage as a breakdown shows it (shownOffset)
   private readonly shown: Scalar[]
-  /** run counts of the loops being walked, by loop id, matching the detailed executor's actLoopRunqi. */
+  // run counts of the loops being walked, by loop id, matching the detailed executor's actLoopRunqi
   private readonly loopRuns = new Map<string, number>()
   private sheet: Scalar[] = []
   private readonly damageEventKeys: ReadonlySet<string> | undefined
   private readonly loopPlans = new WeakMap<readonly RotationNode[], CompiledRotationPlan>()
-  /** whether shown totals are lowered (RotationCandidateOptions.shown). */
+  // whether shown totals are lowered (RotationCandidateOptions.shown)
   private readonly lowersShown: boolean
   constructor(environment: PortableRotationEnvironment, candidates: readonly EchoInstance[], featureKeys: ReadonlySet<string>, damageEventKeys?: ReadonlySet<string>, dynamicStats = false, selfMainEchoEffects: boolean | 'dynamic' = true, shown = false) {
     this.lowersShown = shown
@@ -155,9 +155,8 @@ class RotationLowering {
     const { team } = this
     const read = team.scope(lane)
     return typeof value === 'number' ? team.ir.constant(value) : team.dsl.formula(value, (from, path) => {
-      // rotation values use the authored runtime scope, which has no derived
-      // pool/final plane. uptime shares resolve activeRuntime to the context
-      // resonator, as the detailed executor does.
+      // rotation values use the authored runtime scope, which has no derived pool/final plane; uptime shares resolve
+      // activeRuntime to the context resonator, as the detailed executor does
       if (from === 'pool' || from === 'baseStats' || from === 'finalStats' || from === 'sourceFinalStats') return team.dsl.literal(undefined)
       if (primaryActive && from === 'activeRuntime') return team.runtime(team.sourceLane, path)
       if (primaryActive && from === 'context' && path.startsWith('activeRuntime.')) return team.runtime(team.sourceLane, path.slice(14))
@@ -217,13 +216,13 @@ class RotationLowering {
   private walkSetup(items: readonly RotationNode[], lane: number, scale: Scalar) {
     const totals = [...this.totals], shown = [...this.shown]
     this.walk(items, lane, scale)
-    // setup features advance authored state and occurrence identities. their
-    // damage is discarded before the block body, as in the detailed executor.
+    // setup features advance authored state and occurrence identities; their damage is discarded before the block
+    // body, as in the detailed executor
     for (let index = 0; index < totals.length; index++) this.totals[index] = totals[index]!
     if (this.lowersShown) for (let index = 0; index < shown.length; index++) this.shown[index] = shown[index]!
   }
-  /** the marker walker preserves overlapping and wrap-around loop calls. only
-   * ordinary structured loops use pre-resolved pass bodies. */
+  // the marker walker preserves overlapping and wrap-around loop calls; only ordinary structured loops use
+  // pre-resolved pass bodies
   private loop(items: readonly RotationNode[], startIndex: number, fallback: number): number {
     const start = items[startIndex]
     if (start?.type !== 'loop' || start.kind !== 'start') return startIndex
@@ -323,7 +322,7 @@ class RotationLowering {
     for (const [key, value] of body.formula) this.formula.set(key, ir.select(ir.not(ir.eq(value, setup.formula.get(key) ?? ir.zero)), value, parent.formula.get(key) ?? ir.zero))
     team.invalidate()
   }
-  /** runtime views resolve dynamic metadata through finite IR branches. */
+  // runtime views resolve dynamic metadata through finite IR branches
   private runtimeViews(forced: ReadonlyMap<string, unknown>): ResRuntime[] {
     const { team } = this
     return team.runtimes.map((runtime, lane) => {
@@ -418,7 +417,7 @@ class RotationLowering {
     if (change.type === 'add') value = { kind: ir.one, data: ir.add(ir.select(ir.operation(ScalarOp.finite, dsl.number(previous)), dsl.number(previous), ir.zero), dsl.number(value)) }
     if (formulaKey) { this.formula.set(formulaKey, ir.select(gate, ir.select(ir.operation(ScalarOp.finite, dsl.number(value)), dsl.number(value), ir.zero), previous.data)); return { change, lane } }
     if (path === 'rotation.activeResonatorId') { team.setActive(this.lane(String(change.value), team.sourceLane), gate); return { change, lane } }
-    // source-qualified route keys can target a different source lane from the condition node's current member.
+    // source-qualified route keys can target a different source lane from the condition node's current member
     if (path.startsWith('routing.selectedTargetsByOwnerKey.')) {
       const scoped = splitScopedTargetOwnerKey(path.slice('routing.selectedTargetsByOwnerKey.'.length))
       const targetLane = scoped.sourceRuntimeId ? this.lane(scoped.sourceRuntimeId, lane) : lane
@@ -527,15 +526,10 @@ class RotationLowering {
     })
     this.totals[lane] = ir.add(this.totals[lane]!, score)
     if (!this.lowersShown) return
-    // a breakdown leaves tune breaks out and states each loop's events per run.
+    // a breakdown counts every damage event, tune breaks included, and states each loop's events per run
     let divisor = 1
     for (const runs of this.loopRuns.values()) divisor *= runs
-    const counted = raw.tab !== 'tuneBreak' && !raw.skillVariantWhen?.length ? ir.one : this.runtimeComputation((runtimes, evaluate) => {
-      const lookup = Object.fromEntries(runtimes.map((runtime) => [runtime.id, runtime]))
-      const resolved = resolveSkill(runtimes[lane]!, raw, (condition) => evaluate(condition, team.scope(lane)), lookup, this.negativeEvaluator(evaluate))
-      return resolved.tab === 'tuneBreak' ? ir.zero : ir.one
-    })
-    this.shown[lane] = ir.add(this.shown[lane]!, ir.div(ir.mul(score, counted), ir.constant(divisor)))
+    this.shown[lane] = ir.add(this.shown[lane]!, ir.div(score, ir.constant(divisor)))
 
   }
   // the build at rest, before any node runs: the same final cells Modulation's

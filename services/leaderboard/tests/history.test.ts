@@ -1,7 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: build history (every build ranked as itself, each with its
-               current standing), scoring news, privacy, mutes, trust caps,
+  description: every build ranked as itself, scoring news, privacy, mutes, trust caps,
                appeals, bookmarks, per-resonator cards, card presets, saved board
                views and the document review queue, through the real routes and
                sql on seeded players.
@@ -14,10 +13,10 @@ setUpAccountHarness()
 
 let serial = 0
 
-/** a signed-in account with `uid` linked to it. */
+// a signed-in account with `uid` linked to it
 const member = async (person: string, uid: string) => (await signIn(person, await claimSession(uid))).cookie!
 
-/** a newer card of the uid's 1108, with another weapon, placed by its owner and scored (ranked as itself). */
+// a newer card of the uid's 1108, with another weapon, placed by its owner and scored (ranked as itself)
 const newBuild = (uid: string, score: number, weapon = '21020016') => {
   const n = ++serial
   return placeScored(uid, score, { seq: 1, weapon, owner: true, at: 10 + n, drawnAt: 10 + n })
@@ -26,11 +25,11 @@ const newBuild = (uid: string, score: number, weapon = '21020016') => {
 const inbox = (cookie: string) => call('GET', '/notifications', { cookie }).then((r) => r.body.notifications as Array<Record<string, unknown>>)
 const sanction = (body: Record<string, unknown>) => call('POST', '/admin/sanctions', { admin: true, body })
 
-describe('build history', () => {
-  it('ranks every build as itself, and keeps them all in the history with their standing now', async () => {
+describe('every build ranked', () => {
+  it('ranks every build as itself, and lists them all on the profile', async () => {
     const old = await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
-    // a newer card scoring lower is ranked as itself, under the older one.
+    // a newer card scoring lower is ranked as itself, under the older one
     const lower = await newBuild(A, 100)
     expect(await boardIds()).toEqual([old, buildOf(B), lower])
     const ids = (body: { builds: Array<{ buildId: string }> }) => body.builds.map((build) => build.buildId).sort()
@@ -40,15 +39,6 @@ describe('build history', () => {
     const next = await newBuild(A, 130)
     expect(await boardIds()).toEqual([next, old, buildOf(B), lower])
     expect(ids((await call('GET', `/players/${A}`)).body)).toEqual([next, old, lower].sort())
-
-    const history = (await call('GET', `/players/${A}/history`)).body
-    expect(history.resonators).toHaveLength(1)
-    const [newest, middle, first] = history.resonators[0].entries
-    expect(newest).toMatchObject({ buildId: next, rulesetId: 'ruleset', score: 130, rank: 1, total: 4 })
-    expect(middle).toMatchObject({ buildId: lower, rulesetId: 'ruleset', score: 100, rank: 4, total: 4 })
-    expect(first).toMatchObject({ buildId: old, rulesetId: 'ruleset', score: 120, rank: 2, total: 4, changes: [] })
-    expect(first.hidden).toBeUndefined()
-    expect((await call('GET', `/players/${A}/history?resonator=1209`)).body.resonators).toEqual([])
   })
 
   it('takes a hidden or deleted build off the board, and leaves the player\'s others ranked', async () => {
@@ -65,7 +55,7 @@ describe('build history', () => {
     expect((await call('POST', `/admin/builds/${old}/hide`, { admin: true, body: {} })).status).toBe(200)
     expect(await boardIds()).toEqual([buildOf(B), lower])
     await call('POST', `/admin/builds/${old}/restore`, { admin: true, body: {} })
-    // hiding dropped its scores: it is ranked again once it has scored again.
+    // hiding dropped its scores: it is ranked again once it has scored again
     expect(await boardIds()).toEqual([buildOf(B), lower])
     expect(await scoreQueued(120)).toBe(1)
     expect(await boardIds()).toEqual([old, buildOf(B), lower])
@@ -74,7 +64,7 @@ describe('build history', () => {
     expect(await boardIds()).toEqual([buildOf(B), lower])
   })
 
-  it('tells the owner a build scored and the dethroned #1 they lost it', async () => {
+  it('notifies the owner that a build scored, and the dethroned #1 that they lost it', async () => {
     await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
     const ana = await member('ana', A)
@@ -87,36 +77,29 @@ describe('build history', () => {
     expect(await inbox(ana)).toHaveLength(1)
   })
 
-  it('keeps the history and the follower count private when the player asks', async () => {
+  it('hides the follower count when the player chooses', async () => {
     await seedPlayer(A, 'Alpha', 120)
     const cookie = (await signIn('plain-ana', await claimSession(A))).cookie!
-    await call('PUT', '/players/me/documents/profile', { cookie, body: { privacy: { history: false, followers: false } } })
-    expect((await call('GET', `/players/${A}/history`)).status).toBe(403)
+    await call('PUT', '/players/me/documents/profile', { cookie, body: { privacy: { followers: false } } })
     expect((await call('GET', `/players/${A}/social`)).body.followers).toBeNull()
-    expect((await call('GET', `/players/${A}/history`, { cookie })).status).toBe(200)
     expect((await call('GET', `/players/${A}/social`, { cookie })).body.followers).toBe(0)
   })
 })
 
 describe('writers', () => {
-  it('mutes a writer (comments, documents, uploads) until lifted, and caps a new account\'s comments', async () => {
-    const build = await seedPlayer(A, 'Alpha', 120)
+  it('mutes a writer (documents, uploads) until lifted', async () => {
+    await seedPlayer(A, 'Alpha', 120)
     const ana = await member('ana', A)
     const id = await accountOf(ana)
     expect((await sanction({ subjectKind: 'account', subjectId: id, kind: 'warn', reason: 'x', days: 2 })).status).toBe(400)
     const mute = (await sanction({ subjectKind: 'account', subjectId: id, kind: 'mute', reason: 'spam' })).body
     expect(mute).toMatchObject({ kind: 'mute', expiresAt: null })
-    expect((await call('POST', `/builds/${build}/comments`, { cookie: ana, body: { body: 'hi' } })).body.error.code).toBe('muted')
     expect((await call('PUT', '/players/me/documents/profile', { cookie: ana, body: { bio: 'x' } })).body.error.code).toBe('muted')
     expect((await call('POST', '/media?purpose=avatar', { cookie: ana, raw: PNG })).body.error.code).toBe('muted')
-    // a mute stops writing, not acting.
+    // a mute stops writing and allows acting
     expect((await call('GET', '/feed', { cookie: ana })).status).toBe(200)
     await call('POST', `/admin/sanctions/${mute.id}/lift`, { admin: true, body: {} })
-
-    // a brand new account writes ten comments a day.
-    expect((await call('GET', '/me', { cookie: ana })).body.account.trust).toBe('new')
-    for (let i = 0; i < 10; i += 1) expect((await call('POST', `/builds/${build}/comments`, { cookie: ana, body: { body: `c${i}` } })).status).toBe(201)
-    expect((await call('POST', `/builds/${build}/comments`, { cookie: ana, body: { body: 'one more' } })).body.error.code).toBe('rate_limited')
+    expect((await call('PUT', '/players/me/documents/profile', { cookie: ana, body: { bio: 'x' } })).status).toBe(200)
   })
 
   it('lets a suspended account appeal, and lifts the sanction when the appeal is granted', async () => {
@@ -140,7 +123,7 @@ describe('writers', () => {
 })
 
 describe('saves and styles', () => {
-  it('bookmarks a build, which stays saved while it is kept', async () => {
+  it('bookmarks a build, and the bookmark remains after the player uploads a newer build', async () => {
     const old = await seedPlayer(A, 'Alpha', 120)
     const ben = (await signIn('ben')).cookie!
     expect((await call('PUT', `/builds/${old}/bookmark`, { cookie: ben })).body).toEqual({ bookmarked: true })
@@ -151,9 +134,9 @@ describe('saves and styles', () => {
     expect((await call('GET', '/bookmarks', { cookie: ben })).body.builds).toEqual([])
   })
 
-  it('keeps one card per resonator, worn by each new build of it', async () => {
+  it('stores one card per resonator and applies it to each new build of it', async () => {
     await seedPlayer(A, 'Alpha', 120)
-    // the card looks are the account's: a claim session has none to write.
+    // the card looks are the account's: a claim session has none to write
     const claim = await claimSession(A)
     expect((await call('PUT', '/players/me/cards/1108', { cookie: claim, body: { style: {}, hidden: {} } })).status).toBe(401)
     const cookie = (await signIn('plain-ana', claim)).cookie!
@@ -163,7 +146,7 @@ describe('saves and styles', () => {
     expect((await call('GET', `/builds/${next}`)).body.card).toMatchObject({ style: { accent: '#ff0000' }, hidden: { score: true } })
   })
 
-  it('keeps card presets, shares them by id, and saves board views on the account', async () => {
+  it('stores card presets, shares them by id, and saves board views on the account', async () => {
     const ana = (await signIn('ana')).cookie!
     const ben = (await signIn('ben')).cookie!
     expect((await call('POST', '/presets', { cookie: ana, body: { name: 'x', style: { customCss: 'a{}' } } })).status).toBe(400)
@@ -185,7 +168,7 @@ describe('saves and styles', () => {
 })
 
 describe('document review', () => {
-  it('queues what people wrote until a moderator has read that version', async () => {
+  it('queues written text until a moderator has reviewed that version', async () => {
     await seedPlayer(A, 'Alpha', 120)
     const cookie = (await signIn('plain-ana', await claimSession(A))).cookie!
     const owner = await accountOf(cookie)

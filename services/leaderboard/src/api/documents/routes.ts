@@ -1,8 +1,8 @@
 /*
   Author: Runor Ewhro
   description: settings documents written by a signed-in account: its profile,
-               its showcase card per resonator, its saved board views, and notes
-               on builds of its linked uids. a write sends the whole document,
+               its showcase card per resonator and its saved board views. a write
+               sends the whole document,
                which is parsed by the shared schema and stored as parsed. images
                must be the writer's own uploads and show to others once approved.
 */
@@ -19,15 +19,14 @@ import type { RouteContext } from '../router.ts'
 import { requireAccount } from '../auth/sessions.ts'
 import { staffName, staffWith } from '../auth/staff.ts'
 import { assertNotMuted } from '../auth/writers.ts'
-import { ownedBuild } from '../builds/lifecycle.ts'
 import { rowsOf } from '../crossBoard.ts'
 import { uidToText } from '../../lib/ids.ts'
 import type { ApiEnv } from '../../env.ts'
 
 type Shown = NonNullable<ReturnType<typeof readDocument>>
 
-/** documents for a reader, keyed `kind:owner`, parsed at the current version; unapproved images are dropped unless
-    the reader owns them. */
+// documents for a reader, keyed `kind:owner`, parsed at the current version; unapproved images are dropped unless
+// the reader uploaded them
 export async function shownDocuments(db: D1Database, kinds: DocumentKind[], ownerIds: string[], own: boolean): Promise<Map<string, Shown>> {
   const rows = await documentsOf(db, kinds, ownerIds)
   const read = [...rows.values()].flatMap((row) => {
@@ -38,16 +37,16 @@ export async function shownDocuments(db: D1Database, kinds: DocumentKind[], owne
   return new Map(read.map(({ row, body }) => [`${row.kind}:${row.owner_id}`, approved ? withApprovedMedia(row.kind, body, approved) : body]))
 }
 
-/** what a person lets others see beyond their shown builds (their account profile's privacy; open when unset, and
-    for a uid on no account). */
+// what a person lets others see beyond their shown builds (their account profile's privacy; open when unset, and
+// for a uid on no account)
 export async function privacyOf(db: D1Database, accountId: string | null): Promise<ProfileDoc['privacy']> {
-  if (!accountId) return { history: true, followers: true }
+  if (!accountId) return { followers: true }
   const row = (await documentsOf(db, ['profile'], [accountId])).get(`profile:${accountId}`)
   const body = row ? readDocument('profile', row.schema_ver, row.body) as ProfileDoc | null : null
-  return body?.privacy ?? { history: true, followers: true }
+  return body?.privacy ?? { followers: true }
 }
 
-/** checks that a document's images are the writer's own uploads and none were rejected. */
+// checks that a document's images are the writer's own uploads and none were rejected
 export async function checkMedia(db: D1Database, accountId: string | null, ids: string[]): Promise<void> {
   if (!ids.length) return
   if (!accountId) throw new HttpError('unauthorized', "hold on... sign in before uploading or using your own images :P")
@@ -56,7 +55,7 @@ export async function checkMedia(db: D1Database, accountId: string | null, ids: 
   if (results.length !== new Set(ids).size) throw new HttpError('bad_request', "hmm... one of these images isn't an available upload from your account. upload it again or choose one of your own images :P")
 }
 
-/** checks that a profile features only builds of the uids linked to the account. */
+// checks that a profile features only builds of the uids linked to the account
 async function checkFeatured(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, accountId: string, featured: string[]): Promise<void> {
   if (!featured.length) return
   const [rows, { results }] = await Promise.all([rowsOf(env, featured),
@@ -72,12 +71,12 @@ async function checkFeatured(env: Pick<ApiEnv, 'LB' | 'BOARDS'>, accountId: stri
 function parse<K extends DocumentKind>(kind: K, body: unknown) {
   const result = DOCUMENTS[kind].schema.safeParse(body)
   if (!result.success) {
-    // schema paths name the field to fix; avoid exposing the validator's JSON/type diagnostics in the UI.
+    // schema paths name the field to fix; the validator's JSON/type diagnostics stay out of the UI message
     const issue = result.error.issues[0]
     const labels: Record<string, string> = { displayName: 'display name', bio: 'signature', links: 'profile links',
       accent: 'accent colour', avatar: 'avatar', banner: 'banner', featured: 'featured builds', privacy: 'privacy settings',
-      avatarFrame: 'avatar framing', bannerFrame: 'banner framing', commentsOpen: 'comment setting', title: 'build title',
-      note: 'build note', tags: 'build tags', views: 'saved views', style: 'card style', saved: 'card settings' }
+      avatarFrame: 'avatar framing', bannerFrame: 'banner framing',
+      views: 'saved views', style: 'card style', saved: 'card settings' }
     const field = issue?.path.includes('label') ? 'profile link label' : labels[String(issue?.path[0])] ?? `${kind} settings`
     let detail = `hmm... check your ${field} and try saving again :P`
     if (issue?.path.includes('url')) detail = "hmm... each profile link needs a full https:// address :P"
@@ -106,14 +105,10 @@ interface Target {
   accountId: string | null
 }
 
-/** resolves a document's owner: the signed-in account (profile, saved views, card looks per resonator as
-    `account:resonator`) or a build of a uid linked to it. */
+// resolves a document's owner: the signed-in account (profile, saved views) or one of its card looks per resonator
+// (`account:resonator`)
 async function target(context: RouteContext, kind: string, from: Owner): Promise<Target> {
   if (!isDocumentKind(kind) || DOCUMENTS[kind].owner !== from) throw new HttpError('not_found', 'no such document')
-  if (from === 'build') {
-    const { ref, uid, session } = await ownedBuild(context, context.params.id, { linked: true })
-    return { kind, ownerId: ref.id, uid, accountId: session.accountId }
-  }
   const session = await requireAccount(context)
   const who = { uid: null, accountId: session.accountId }
   if (from === 'account') return { kind, ownerId: session.accountId, ...who }
@@ -127,7 +122,7 @@ async function target(context: RouteContext, kind: string, from: Owner): Promise
 
 const actorOf = (at: Target) => at.uid ? { actorKind: 'uid' as const, actorId: at.uid } : { actorKind: 'account' as const, actorId: at.accountId! }
 
-/** PUT a document: the whole body, parsed and stored as parsed. */
+// PUT a document: the whole body, parsed and stored as parsed
 function putAt(from: Owner, fixedKind?: DocumentKind) {
   return async (context: RouteContext): Promise<Response> => {
     const at = await target(context, fixedKind ?? context.params.kind, from)
@@ -138,7 +133,7 @@ function putAt(from: Owner, fixedKind?: DocumentKind) {
     const body = parse(kind, await readJsonBody<unknown>(context.request))
     await checkMedia(db, at.accountId, documentMedia(kind, body))
     if (kind === 'profile') await checkFeatured(context.env, at.accountId!, (body as { featured: string[] }).featured)
-    // a writer exempt from review leaves no document in the staff queue.
+    // a writer exempt from review leaves no document in the staff queue
     const exempt = await staffWith(context, 'review.exempt')
     await db.batch([putDocumentStatement(db, { kind, ownerId, version: DOCUMENTS[kind].version, body,
       reviewedBy: exempt ? staffName(exempt) : null }, context.now),
@@ -157,21 +152,18 @@ function deleteAt(from: Owner, fixedKind?: DocumentKind) {
   }
 }
 
-/** PUT and DELETE /players/me/documents/:kind: the signed-in person's profile. */
+// PUT and DELETE /players/me/documents/:kind: the signed-in person's profile
 export const putPlayerDocument = putAt('account')
 export const deletePlayerDocument = deleteAt('account')
-/** PUT and DELETE /builds/:id/documents/:kind (a build's notes). */
-export const putBuildDocument = putAt('build')
-export const deleteBuildDocument = deleteAt('build')
-/** PUT and DELETE /players/me/cards/:resonatorId: the showcase card every build of that resonator wears, across the
-    person's uids. */
+// PUT and DELETE /players/me/cards/:resonatorId: the showcase card every build of that resonator wears, across the
+// person's uids
 export const putCardDocument = putAt('loadout', 'card')
 export const deleteCardDocument = deleteAt('loadout', 'card')
-/** PUT and DELETE /account/documents/:kind (saved board views; the profile too). */
+// PUT and DELETE /account/documents/:kind (saved board views; the profile too)
 export const putAccountDocument = putAt('account')
 export const deleteAccountDocument = deleteAt('account')
 
-/** GET /account/documents/:kind: the account's document, or null. */
+// GET /account/documents/:kind: the account's document, or null
 export async function getAccountDocument(context: RouteContext): Promise<Response> {
   const at = await target(context, context.params.kind, 'account')
   const row = (await documentsOf(context.env.LB, [at.kind], [at.ownerId])).get(`${at.kind}:${at.ownerId}`)

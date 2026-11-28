@@ -26,7 +26,7 @@ setUpAccountHarness()
 
 const NEXT = 'next'
 
-/** publishes the next ruleset: the live one's single scenario under a new number. */
+// publishes the next ruleset: the live one's single scenario under a new number
 function publishNext(fingerprint = 'new-fp') {
   env.LB.sqlite.exec(`
     UPDATE rulesets SET fingerprint = 'old-fp' WHERE id = 'ruleset';
@@ -39,7 +39,7 @@ function publishNext(fingerprint = 'new-fp') {
   `)
 }
 
-/** a test reuse step: keeps the old scores of `keep`'s builds and scores the rest. */
+// a test reuse step: reuses the old scores of `keep`'s builds and scores the rest
 const keepFor = (keep: Set<number>) => async (_env: unknown, message: ReuseMessage): Promise<ReuseOutcome> => {
   if (!keep.has(message.local)) return { results: [], rescore: message.cells, kept: 0, rescaled: 0 }
   return { kept: message.old.length, rescaled: 0, rescore: [], results: message.old.map((old) => ({ rs: message.rs, local: message.local,
@@ -68,15 +68,15 @@ describe('ruleset rollouts', () => {
     publishNext()
     expect((await call('POST', `/admin/rulesets/${NEXT}/rollout`, { devAdmin: true, body: {} })).body)
       .toMatchObject({ rulesetId: NEXT, from: 'ruleset', boards: 1 })
-    // the board's alarm fans its builds out on the bulk lane.
+    // the board's alarm fans its builds out on the bulk lane
     await settle(120_000)
-    // both builds share one program and go as one group
+    // both builds share one program and are sent as one group
     expect(env.SCORE_QUEUE.sent.map((message) => [message.k, message.rid, message.lane])).toEqual([['g', NEXT, 'bulk']])
     expect(cellsOf(env.SCORE_QUEUE.sent).map((message) => [message.rid, message.lane])).toEqual([[NEXT, 'bulk'], [NEXT, 'bulk']])
     expect((await sweep()).body.rollouts).toEqual({ live: [], done: [] })
     expect(live()).toBe('ruleset')
 
-    // scored on the new ruleset, it goes live and the board ranks by it (B now ahead)
+    // scored on the new ruleset, it goes live and the board ranks by it (B ahead)
     const [first, second] = takeCells()
     env.SCORE_QUEUE.sent.push(first as never)
     await scoreQueued(90)
@@ -91,6 +91,41 @@ describe('ruleset rollouts', () => {
     const scores = new Map((board.rows as Array<{ buildId: string; score: number }>).map((row) => [row.buildId, row.score]))
     expect([...scores.values()].sort()).toEqual([140, 90])
     expect(await boardIds()).toHaveLength(2)
+  })
+
+  it('carries a board the new ruleset leaves as it is: nothing is scored, and it goes live with the same scores', async () => {
+    await seedPlayer(A, 'Alpha', 120)
+    await seedPlayer(B, 'Beta', 110)
+    publishNext()
+    // the same scenario, fingerprint, anchors and units in both rulesets
+    env.LB.sqlite.exec(`UPDATE scenarios SET fingerprint = 'scenario-fp'`)
+    for (const id of ['ruleset', NEXT]) {
+      await env.LB_DATA.put(`rulesets/${id}/manifest.json`, JSON.stringify({ id, files: { anchors: 'anchors/', units: 'units.json', refs: null },
+        hashes: { 'anchors/1108/t1-21020086.json': { bytes: 1, sha256: 'anchor' } }, scenarios: [] }))
+      await env.LB_DATA.put(`rulesets/${id}/units.json`, JSON.stringify({ units: { 'echo:1': 'e', 'def:1108:t1:21020086': 'd' } }))
+    }
+    expect((await call('POST', `/admin/rulesets/${NEXT}/rollout`, { devAdmin: true, body: {} })).body)
+      .toMatchObject({ rulesetId: NEXT, boards: 1, carried: ['1108'] })
+    await settle(120_000)
+    expect(env.SCORE_QUEUE.sent).toEqual([])
+    expect((await call('GET', `/admin/rulesets/${NEXT}/progress`, { devAdmin: true })).body.progress)
+      .toMatchObject({ installed: 1, carried: 1, settled: 1, scoring: 0 })
+
+    expect((await sweep()).body.rollouts).toEqual({ live: [NEXT], done: [NEXT] })
+    await settle()
+    expect(env.SCORE_QUEUE.sent).toEqual([])
+    const board = (await call('GET', '/boards/1108')).body
+    expect(board.rulesetId).toBe(NEXT)
+    expect((board.rows as Array<{ buildId: string; score: number }>).map((row) => [row.buildId, row.score]))
+      .toEqual([[buildOf(A), 120], [buildOf(B), 110]])
+    const detail = (await call('GET', `/builds/${buildOf(A)}`)).body
+    expect(detail.cells.map((cell: { scenario: { id: string }; status: string }) => [cell.scenario.id, cell.status]))
+      .toEqual([[`${NEXT}:1108:t1:21020086`, 'ok']])
+    // the jobs moved to the new number and read the old ruleset's detail objects, which stay in R2
+    expect(boardDb().prepare(`SELECT build, detail_from FROM j2 ORDER BY build`).all()).toEqual([
+      { build: localOf(buildOf(A)), detail_from: 1 }, { build: localOf(buildOf(B)), detail_from: 1 }])
+    expect([...env.LB_DATA.objects.keys()].filter((key) => key.startsWith('detail/'))).toEqual([
+      `detail/ruleset/1108/${buildOf(A)}.json.gz`, `detail/ruleset/1108/${buildOf(B)}.json.gz`])
   })
 
   it('refuses a rollout whose fingerprint matches the live ruleset, unless forced', async () => {
@@ -137,7 +172,7 @@ describe('ruleset rollouts', () => {
     expect(env.LB.sqlite.prepare(`SELECT COUNT(*) AS n FROM audit_log WHERE action = 'score.dead_letter'`).get()).toEqual({ n: 2 })
   })
 
-  it('hands a deployed batch\'s rest back to its lanes once it runs past the budget', async () => {
+  it('returns the rest of a deployed batch to its lanes once it runs past the budget', async () => {
     const bulk = { ...env.SCORE_QUEUE, sent: [] as unknown[] }
     Object.assign(env, { SCORE_BULK_QUEUE: { sent: bulk.sent, sendBatch: async (messages: Array<{ body: unknown }>) => {
       for (const message of messages) bulk.sent.push(message.body)
@@ -162,14 +197,14 @@ describe('ruleset rollouts', () => {
     }
   })
 
-  it('keeps a build\'s scores on scenarios that score alike, and sends only the rest', async () => {
+  it('reuses a build\'s scores on scenarios that score alike, and sends only the rest', async () => {
     await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
     publishNext()
     env.LB.sqlite.exec(`UPDATE rulesets SET scorer = 'same'`)
     expect((await call('POST', `/admin/rulesets/${NEXT}/rollout`, { devAdmin: true, body: {} })).body).toMatchObject({ keep: 'scenario' })
     await settle(120_000)
-    // one message per build, with its old score on the scenario both rulesets score.
+    // one message per build, with its old score on the scenario both rulesets score
     const offers = env.SCORE_QUEUE.take() as unknown as ReuseMessage[]
     expect(offers.map((offer) => [offer.k, offer.rid, offer.fid, offer.lane, offer.old.map((old) => [old.key, old.score])])).toEqual([
       ['r', NEXT, 'ruleset', 'bulk', [['1108:t1:21020086', 120]]], ['r', NEXT, 'ruleset', 'bulk', [['1108:t1:21020086', 110]]]])
@@ -210,7 +245,7 @@ describe('ruleset rollouts', () => {
     expect(cellsOf(env.SCORE_QUEUE.take()).map((message) => [message.k, message.key])).toEqual([['s', '1108:t1:21020086']])
   })
 
-  it('scores a job whole when its reuse keeps failing, and offers nothing when the scorer changed', async () => {
+  it('scores a job whole when its reuse fails repeatedly, and offers nothing when the scorer changed', async () => {
     await seedPlayer(A, 'Alpha', 120)
     publishNext()
     env.LB.sqlite.exec(`UPDATE rulesets SET scorer = 'same'`)
@@ -233,7 +268,7 @@ describe('ruleset rollouts', () => {
     }
   })
 
-  it('a sample check of the new scorer, all identical, lets the rollout keep scores by data', async () => {
+  it('reuses scores by data when a sample check of the new scorer is all identical', async () => {
     await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
     publishNext()
@@ -245,7 +280,7 @@ describe('ruleset rollouts', () => {
       .toEqual([[buildOf(A), `${NEXT}:1108:t1:21020086`], [buildOf(B), `${NEXT}:1108:t1:21020086`]].sort())
     expect(sample.samples[0].snapshot).toMatchObject({ uid: expect.any(String), resonator: { id: '1108' } })
 
-    // what the new scorer gave each: the same score, damage and parts as stored.
+    // what the new scorer gave each: the same score, damage and parts as stored
     const scored = (buildId: string, score: number) => ({ buildId, scenarioId: `${NEXT}:1108:t1:21020086`, result: {
       scenarioId: `${NEXT}:1108:t1:21020086`, status: 'ok', score, damage: score * 100, reason: null, contribution: null, input: null,
       anchors: null, programSha256: null, stats: null } })
@@ -253,29 +288,29 @@ describe('ruleset rollouts', () => {
     expect((await verify([scored(buildOf(A), 120), scored(buildOf(B), 111)])).body)
       .toMatchObject({ samples: 2, differing: [{ buildId: buildOf(B), fields: ['score', 'damage'] }], scenarios: { checked: 1, kept: 0 },
         keep: 'scenario' })
-    // the scenario differed, so a rollout now keeps nothing
+    // the scenario differed, so a rollout reuses nothing
     expect(env.LB.sqlite.prepare(`SELECT key, samples, differing FROM ruleset_check_scenarios`).all())
       .toEqual([{ key: '1108:t1:21020086', samples: 2, differing: 1 }])
     expect((await call('POST', `/admin/rulesets/${NEXT}/verify`, { devAdmin: true, body: { scorer: 'old', results: [scored(buildOf(A), 120)] } })).status)
       .toBe(400)
-    // checked again, its verdict is replaced.
+    // checked again, its verdict is replaced
     expect((await verify([scored(buildOf(A), 120), scored(buildOf(B), 110)])).body)
       .toMatchObject({ samples: 2, differing: [], scenarios: { checked: 1, kept: 1 }, keep: 'data' })
     expect(env.LB.sqlite.prepare(`SELECT samples, differing FROM ruleset_checks`).all()).toEqual([{ samples: 2, differing: 0 }])
 
-    // the scorers differ, yet the scenario's passed check makes the boards offer its old scores.
+    // the scorers differ, and the scenario's passed check makes the boards offer its old scores
     expect((await call('POST', `/admin/rulesets/${NEXT}/rollout`, { devAdmin: true, body: {} })).body).toMatchObject({ keep: 'data' })
     await settle(120_000)
     expect((env.SCORE_QUEUE.take() as unknown as ReuseMessage[]).map((message) => message.k)).toEqual(['r', 'r'])
   })
 
-  it('cancel drops the rolling ruleset\'s tables and detail objects, and a late result acks as stale', async () => {
+  it('cancelling drops the rolling ruleset\'s tables and detail objects, and a late result acks as stale', async () => {
     await seedPlayer(A, 'Alpha', 120)
     publishNext()
     await call('POST', `/admin/rulesets/${NEXT}/rollout`, { devAdmin: true, body: {} })
     await settle(120_000)
     const [late] = takeCells()
-    // one build of the rollout already has its detail object.
+    // one build of the rollout already has its detail object
     await env.LB_DATA.put(`detail/${NEXT}/1108/${buildOf(A)}.json.gz`, await gzipJson({ v: 1 }))
     expect((await call('POST', `/admin/rulesets/${NEXT}/rollout/cancel`, { devAdmin: true, body: {} })).body).toEqual({ rulesetId: NEXT, cancelled: true })
     await settle()

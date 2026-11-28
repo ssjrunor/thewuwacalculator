@@ -10,32 +10,30 @@ export const ROLES = ['user', 'moderator', 'admin'] as const
 export type Role = (typeof ROLES)[number]
 
 export type Permission =
-  /** read the report queue and take, note and close reports. */
+  // read the report queue and take, note and close reports
   | 'reports.review'
-  /** hide or restore any build. */
+  // hide or restore any build
   | 'builds.moderate'
-  /** submit cards without a challenge, and block cards. */
+  // submit cards without a challenge, and block cards
   | 'cards.moderate'
-  /** clear a player's or build's settings documents. */
+  // clear a player's or build's settings documents
   | 'documents.moderate'
-  /** remove any comment. */
-  | 'comments.moderate'
-  /** approve or reject uploaded media. */
+  // approve or reject uploaded media
   | 'media.review'
-  /** warn, suspend or ban a uid or an account, and lift it. */
+  // warn, suspend or ban a uid or an account, and lift it
   | 'sanctions.issue'
-  /** read any subject's full history: its audit trail, reports and sanctions. */
+  // read any subject's full history: its audit trail, reports and sanctions
   | 'history.read'
-  /** read service health. */
+  // read service health
   | 'health.read'
-  /** publish, rescore and activate rulesets. */
+  // publish, rescore and activate rulesets
   | 'rulesets.manage'
-  /** give or take an account's role. */
+  // give or take an account's role
   | 'roles.assign'
-  /** what they upload or write goes out without waiting in a staff queue; reports on it still reach staff. */
+  // what they upload or write goes out without waiting in a staff queue; reports on it still reach staff
   | 'review.exempt'
 
-const MODERATOR: readonly Permission[] = ['reports.review', 'builds.moderate', 'cards.moderate', 'documents.moderate', 'comments.moderate', 'media.review',
+const MODERATOR: readonly Permission[] = ['reports.review', 'builds.moderate', 'cards.moderate', 'documents.moderate', 'media.review',
   'sanctions.issue', 'history.read', 'health.read']
 
 export const GRANTS: Readonly<Record<Role, readonly Permission[]>> = {

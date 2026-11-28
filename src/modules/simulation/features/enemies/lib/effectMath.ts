@@ -26,7 +26,7 @@ function statePath(path: string): string {
   return /^(state|base|build)\./.test(normalized) ? `runtime.${normalized}` : normalized
 }
 
-/** match a control when either an activation condition or formula reads its path. */
+// match a control when either an activation condition or formula reads its path
 export function effectReferencesState(effect: EffectDef, state: SourceState): boolean {
   const expected = statePath(state.path)
   function references(value: unknown): boolean {
@@ -40,7 +40,7 @@ export function effectReferencesState(effect: EffectDef, state: SourceState): bo
 }
 
 function fmtNum(value: number): string {
-  return formatTruncCompact(Math.round(value * 100) / 100, 2)
+  return formatTruncCompact(value, 2)
 }
 
 function term(formula: FormExpr, scope: EffectScope): string {
@@ -64,14 +64,14 @@ function term(formula: FormExpr, scope: EffectScope): string {
   }
 
   if (formula.type === 'clamp') {
-    // display the source operand without the clamp bounds.
+    // display the source operand without the clamp bounds
     return term(formula.value, scope)
   }
 
   return fmtNum(evalForm(formula, scope))
 }
 
-/** serializes the evaluated operands without changing formula order. */
+// serializes the evaluated operands without changing formula order
 function formulaMath(formula: FormExpr, scope: EffectScope): string {
   if (formula.type === 'mul') {
     return formula.values.map((entry) => term(entry, scope)).join(' x ')
@@ -93,8 +93,8 @@ export function mkEffectScope(
   const base = mkSrcSttScp(runtime, runtime, state, runtime)
   const finalStats = simulation?.finalStats
 
-  // source effects read both direct and context-prefixed final stats; the
-  // target enemy is the current draft when the console has unsaved changes.
+  // source effects read both direct and context-prefixed final stats; the target enemy is the current draft when the
+  // console has unsaved changes
   return {
     ...base,
     sourceFinalStats: finalStats,
@@ -108,10 +108,8 @@ export function mkEffectScope(
   }
 }
 
-/**
- * returns every matching top-stat operation with its evaluated operands.
- * inactive operations retain their formula but contribute zero.
- */
+// returns every matching top-stat operation with its evaluated operands; inactive operations retain their formula
+// but contribute zero
 export function topStatMath(
   runtime: ResRuntime,
   state: SourceState | readonly SourceState[],

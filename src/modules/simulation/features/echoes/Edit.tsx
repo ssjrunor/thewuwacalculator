@@ -22,10 +22,11 @@ import { formatStatKeyLabel } from '@/modules/simulation/model/statsView.ts'
 import { MAX_SUBSTATS, carryTier, fmtStatValue, stepIndex, useEchoDraft } from '@/modules/simulation/features/echoes/lib/echoDraft.ts'
 import { useMobileUi } from '@/shared/responsive/mobileUi'
 import { MobileEchoEdit } from '@/modules/simulation/features/echoes/mobile/MobileEchoEdit.tsx'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 export { carryTier }
 
-// accepted aliases resolve to canonical stat keys before committing an edit.
+// accepted aliases resolve to canonical stat keys before committing an edit
 const STAT_ALIASES: Record<string, string[]> = {
   critRate: ['cr'],
   critDmg: ['cd'],
@@ -67,7 +68,7 @@ interface StatFieldP {
   onPick: (key: string) => void
 }
 
-// resolve typed labels and aliases to an available stat; enter or tab commits it.
+// resolve typed labels and aliases to an available stat; enter or tab commits it
 export function StatField({ statKey, options, usedKeys, placeholder, ariaLabel, onPick }: StatFieldP) {
   const inputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -217,7 +218,7 @@ interface RollReelP {
   innerRef?: (node: HTMLDivElement | null) => void
 }
 
-// wheel, drag, keyboard, and slider input all resolve to a legal roll index.
+// wheel, drag, keyboard, and slider input all resolve to a legal roll index
 export function RollReel({ statKey, value, onChange, innerRef }: RollReelP) {
   const steps = useMemo(() => getSbstStepP(statKey), [statKey])
   const index = stepIndex(statKey, value)
@@ -234,7 +235,7 @@ export function RollReel({ statKey, value, onChange, innerRef }: RollReelP) {
     apply(stepIndex(statKey, value) + delta)
   }, [apply, statKey, value])
 
-  // the wheel has to be a non-passive listener to keep the page from scrolling
+  // the wheel listener is non-passive so it can prevent page scrolling
   useEffect(() => {
     const node = reelRef.current
     if (!node) return
@@ -358,7 +359,7 @@ interface EchoEditMdlP {
   portalTarget: HTMLElement | null
   echo: EchoInstance
   slotIndex: number
-// catalog and cost-budget props enable slot replacement; saved-echo edits omit them.
+// catalog and cost-budget props enable slot replacement; saved-echo edits omit them
   echoes?: EchoDef[]
   maxCost?: number
   onClear?: () => void
@@ -613,7 +614,7 @@ export function Edit({
 
           <footer className="amdl__foot">
             <span className="eec-tally">
-              <span>CV <b>{critValue.toFixed(1)}</b></span>
+              <span>CV <b>{formatTruncCompact(critValue, 1)}</b></span>
               <span>{topRolls} top {topRolls === 1 ? 'roll' : 'rolls'}</span>
               <span>{lclSbst.length} of {MAX_SUBSTATS} substats</span>
             </span>

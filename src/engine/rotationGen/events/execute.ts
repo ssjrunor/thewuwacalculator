@@ -8,20 +8,21 @@ import type { RuntimeValue } from '../types.ts'
 import { sourceTuneBreakBoost } from './sourceValues.ts'
 import { SPECTRO_FRAZZLE } from './rules.ts'
 import { emitResponse, eventCause } from './responses.ts'
-import { echoAction, eventAppliesToOwner } from '../gear/echo.ts'
+import { echoAction, equippedEchoActionId, eventAppliesToOwner } from '../gear/echo.ts'
 import { assertActionCoverage, PlanTranslationError } from '../planCoverage'
 import { maxOffTune, TUNE_BREAK_LOCKOUT_FRAMES } from './offTune.ts'
+import { omit } from '../omissions'
 
 const EPS = 1e-8
 const readPath = (root?: RuntimeValue, path?: RuntimeValue): RuntimeValue => path == null ? undefined : path.split('.').reduce((value?: RuntimeValue, key?: RuntimeValue): RuntimeValue => value?.[key], root)
-// writes require the parent path to exist; authored rule validation and member initialization establish those containers.
+// writes require the parent path to exist; authored rule validation and member initialization create those containers
 function writePath(root?: RuntimeValue, path?: RuntimeValue, value?: RuntimeValue): RuntimeValue {
   const keys: RuntimeValue = path.split('.')
   const last: RuntimeValue = keys.pop()
   const parent: RuntimeValue = keys.reduce((value?: RuntimeValue, key?: RuntimeValue): RuntimeValue => value[key], root)
   parent[last] = value
 }
-// rule comparisons read the current event and member state; EPS only adjusts inclusive numeric boundaries.
+// rule comparisons read the current event and member state; EPS only adjusts inclusive numeric boundaries
 function matchesRule(condition?: RuntimeValue, context?: RuntimeValue): RuntimeValue {
   if (condition.all) return condition.all.every((part?: RuntimeValue): RuntimeValue => matchesRule(part, context))
   if (condition.any) return condition.any.some((part?: RuntimeValue): RuntimeValue => matchesRule(part, context))
@@ -45,7 +46,7 @@ function matchesRule(condition?: RuntimeValue, context?: RuntimeValue): RuntimeV
     default: throw new Error(`Unknown condition ${condition.operator}`)
   }
 }
-// authored expressions combine path reads, defaults, conditional values, arithmetic, and bit-mask operations.
+// authored expressions combine path reads, defaults, conditional values, arithmetic, and bit-mask operations
 function resolveValue(value?: RuntimeValue, context?: RuntimeValue): RuntimeValue {
   if (value === 'targetCap') return SPECTRO_FRAZZLE.maxStacks
   if (value?.path) return readPath(context, value.path) ?? value.default ?? 0
@@ -69,12 +70,12 @@ function resolveValue(value?: RuntimeValue, context?: RuntimeValue): RuntimeValu
     (typeof part === 'string' ? readPath(context, part) : resolveValue(part, context)), 1)
   return value
 }
-// time-stop spans consume animation frames without advancing the shared fight clock.
+// time-stop spans consume animation frames without advancing the shared fight clock
 function worldFrame(local?: RuntimeValue, timeStop?: RuntimeValue): RuntimeValue {
   if (!timeStop) return local
   return local - Math.max(0, Math.min(local, timeStop[1]) - timeStop[0])
 }
-// clone declared initial values recursively; fields without an initial value are omitted.
+// clone declared initial values recursively; fields without an initial value are omitted
 function initialState(definition?: RuntimeValue): RuntimeValue {
   if (definition && typeof definition === 'object' && 'initial' in definition) {
     return structuredClone(definition.initial)
@@ -86,7 +87,7 @@ function initialState(definition?: RuntimeValue): RuntimeValue {
   }))
 }
 
-// initialize independent member state and shared effects from the scenario before dispatching combat-start rules.
+// initialize independent member state and shared effects from the scenario before dispatching combat-start rules
 export function createEffectState(rulesets?: RuntimeValue, combat?: RuntimeValue): RuntimeValue {
   if (!combat.members.some((member?: RuntimeValue): RuntimeValue => member.resonatorId === combat.initialOnFieldResonatorId)) {
     throw new Error('Team fight requires a selected initial member')
@@ -133,6 +134,7 @@ export function createEffectState(rulesets?: RuntimeValue, combat?: RuntimeValue
     }
   }
   const fight: RuntimeValue = { frame: 0, frameLimit: combat.maxFrames,
+    allowPartial: combat.allowPartial, omissions: combat.omissions ?? [],
     framesPerSecond: combat.framesPerSecond,
     readyAt: 0, active: combat.initialOnFieldResonatorId,
     members, memberOrder: combat.members.map((source: RuntimeValue) => source.resonatorId), effectDefinitions: effects, enemyStatuses, target: combat.target,
@@ -203,7 +205,8 @@ function enterField(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue {
   for (const effect of member.source.sonata.onFieldEntryEffects ?? []) grant(fight, member, { effect })
 }
 
-// build a read context for one source member while exposing the actual active member, event actor, and shared enemy state.
+// build a read context for one source member that exposes the actual active member, event actor, and shared enemy
+// state
 function ruleContext(fight?: RuntimeValue, member?: RuntimeValue, event: RuntimeValue = {}): RuntimeValue {
   const teamMembers = fight.memberViews
   const actorIndex = teamMembers.findIndex((source: RuntimeValue) => source.resonator.id === event.actor)
@@ -233,8 +236,8 @@ function ruleContext(fight?: RuntimeValue, member?: RuntimeValue, event: Runtime
 // each member's last projection, with the effect list, frame and lifetimes it was read at
 const projections = new WeakMap<object, { effects: RuntimeValue[]; entries: RuntimeValue[]; until: number[]; frame: number; result: RuntimeValue }>()
 // only unexpired effects applicable to this member are visible to its rule expressions. every rule context reads
-// this, often several at one frame between effect changes, so the last projection is reused while the list, each
-// entry, each lifetime and the frame are unchanged (the same result by construction). projections are shared and
+// this, often several times at one frame between effect changes, so the last projection is reused while the list,
+// each entry, each lifetime and the frame are unchanged (the same result by construction). projections are shared and
 // read-only, and grant copies before writing
 function projectedEffects(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue {
   const effects: RuntimeValue[] = fight.effects
@@ -262,7 +265,7 @@ function projectFrom(fight?: RuntimeValue, member?: RuntimeValue): RuntimeValue 
   }
   return result
 }
-// resolve the activation recipient and lifetime once, then update stacks and record the exact affected target.
+// resolve the activation recipient and lifetime once, then update stacks and record the exact affected target
 function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeValue, next?: RuntimeValue, sourceEvent: RuntimeValue = {}): RuntimeValue {
   const definition = fight.effectDefinitions[operation.effect]
   if (!definition) throw new Error(`Missing effect ${operation.effect}`)
@@ -280,14 +283,14 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
   const parent = definition.expiresWith == null ? null : fight.effects.find((effect?: RuntimeValue): RuntimeValue =>
     effect.id === definition.expiresWith && effect.owner === member.ruleset.resonatorId &&
     effect.until > fight.frame)
-  // a child cannot outlive a parent that was already removed by this action's earlier phase.
+  // a child cannot outlive a parent that this action's earlier phase removed
   if (definition.expiresWith != null && !parent) return
   const until = parent ? parent.until : duration == null ? Infinity : fight.frame + duration
   let active: RuntimeValue = fight.effects.find((effect?: RuntimeValue): RuntimeValue => effect.id === operation.effect && effect.target === target && effect.until > fight.frame)
   if (!active && operation.refreshOnly) active = fight.effects.find((effect?: RuntimeValue): RuntimeValue =>
     effect.id === operation.effect && effect.owner === member.ruleset.resonatorId && effect.until > fight.frame)
-  // governed effects are activated by the saved timeline. a retained grant rule
-  // may refresh a live effect, but must not invent an earlier activation.
+  // the saved timeline activates governed effects; a retained grant rule may refresh a live effect but creates no
+  // earlier activation
   if (operation.refreshOnly && !active) return
   const wasActive = Boolean(active)
   if (active && definition.status) active.stacks = fight.enemy[definition.status.key] ?? 0
@@ -307,13 +310,15 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
   }
   if (operation.distinctByAction) {
     if (sourceEvent.actionId == null) throw new Error(`Effect ${operation.effect} needs an action source`)
-    if (active.sources?.includes(sourceEvent.actionId)) {
+    const identity = sourceEvent.castIdentity ?? sourceEvent.actionId
+    if (active.sources?.includes(identity)) {
       // a repeated source earns no extra stack; at the cap, effects permitting refresh still renew their shared timer
       // (Law of Harmony)
       if (active.stacks < definition.maxStacks || definition.refreshOnGrant === false) return
-    } else active.sources = [...active.sources ?? [], sourceEvent.actionId]
+    } else active.sources = [...active.sources ?? [], identity]
   }
-  // refreshing a capped stack list replaces the earliest expiry; shared-duration effects follow their own refresh rule.
+  // refreshing a capped stack list replaces the earliest expiry; shared-duration effects follow their own refresh
+  // rule
   if (definition.stackDurationIndividually) {
     active.stackExpires = (active.stackExpires ?? []).filter((expiry?: RuntimeValue): RuntimeValue => expiry > fight.frame)
     const cap = maxStacks
@@ -350,9 +355,8 @@ function grant(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeV
     active.conditionalSourceValue = sourceTuneBreakBoost(fight, member)
   }
   fight.trace.push({ frame: fight.frame, type: 'effect', owner: member.ruleset.resonatorId,
-    // a refresh-only grant may find a timeline-held team/enemy/other-member
-    // effect through the owner fallback. Refresh that same holder in the
-    // trace too; a new target would survive when the real holder is cleared.
+    // a refresh-only grant may find a timeline-held team/enemy/other-member effect through the owner fallback;
+    // refresh that same holder in the trace too, because a new target would survive when the real holder is cleared
     target: active.target, effectId: operation.effect, recipient: active.recipient, effect: definition.name,
     stacks: active.stacks, until: active.until,
     ...(sourceEvent.actionId == null ? {} : { sourceOwner: sourceEvent.sourceOwner ?? sourceEvent.actor ?? member.ruleset.resonatorId }),
@@ -420,7 +424,7 @@ function traceEffect(fight: RuntimeValue, effect: RuntimeValue): void {
     target: effect.target, recipient: effect.recipient, stacks: effect.stacks, until: effect.until,
     ...(effect.endsOnSwap ? { endsOnSwap: true } : {}) })
 }
-// remove dependent effects transitively for the same source and synchronize any associated enemy counters.
+// remove dependent effects transitively for the same source and synchronize any associated enemy counters
 function removeEffect(fight: RuntimeValue, member: RuntimeValue, id: number, target?: number): void {
   const removed = new Set([id])
   let previous
@@ -440,7 +444,7 @@ function removeEffect(fight: RuntimeValue, member: RuntimeValue, id: number, tar
   }
   fight.effects = fight.effects.filter((effect: RuntimeValue) => effect.until > fight.frame)
 }
-// convert event offsets to fight frames and preserve insertion order when multiple events share a frame.
+// convert event offsets to fight frames and preserve insertion order when multiple events share a frame
 function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: RuntimeValue, at?: RuntimeValue, instance: RuntimeValue = fight.castInstance, responseId: RuntimeValue = null, keep?: (event: RuntimeValue) => boolean, hitOffsets?: Map<number, number>): RuntimeValue {
   const action = member.ruleset.actions[actionId] ??
     echoAction(member.source.echoes.main, actionId)
@@ -450,6 +454,8 @@ function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: Runtim
     if (!eventAppliesToOwner(event, member.ruleset.resonatorId)) continue
     if (keep && !keep(event)) continue
     fight.pending.push({ frame: at + (hitOffsets?.get(event.id) ?? worldFrame(event.at, action.timing.timeStop)),
+      capturedTimingShift: hitOffsets?.has(event.id) === true &&
+        hitOffsets.get(event.id) !== worldFrame(event.at, action.timing.timeStop),
       order: fight.order++, owner: member.ruleset.resonatorId, actionId,
       instance, event, stepId: fight.currentStepId, ...(responseId == null ? {} : { responseId }) })
   }
@@ -458,7 +464,7 @@ function schedule(fight?: RuntimeValue, member?: RuntimeValue, actionId?: Runtim
     event: { kind: 'afterAction' }, stepId: fight.currentStepId, ...(responseId == null ? {} : { responseId }) })
   fight.pending.sort((a?: RuntimeValue, b?: RuntimeValue): RuntimeValue => a.frame - b.frame || a.order - b.order)
 }
-// triggered actions receive a new cast instance and retain the response id that caused them.
+// triggered actions receive a new cast instance and retain the response id that caused them
 function triggerAction(fight?: RuntimeValue, member?: RuntimeValue, actionId?: RuntimeValue, response?: RuntimeValue): RuntimeValue {
   const action = member.ruleset.actions[actionId] ??
     echoAction(member.source.echoes.main, actionId)
@@ -478,7 +484,7 @@ function triggerAction(fight?: RuntimeValue, member?: RuntimeValue, actionId?: R
   }
   schedule(fight, member, actionId, fight.frame, instance, response.id)
 }
-// apply one authored state transition using a shared event record and operation-local snapshots.
+// apply one authored state transition using a shared event record and operation-local snapshots
 function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: RuntimeValue, local?: RuntimeValue, next?: RuntimeValue): RuntimeValue {
   const context: RuntimeValue = { ...ruleContext(fight, member, local.event), locals: local.locals ??= {} }
   if (operation.repeat != null) {
@@ -502,7 +508,8 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       break
     }
     case 'setIndexedState': member.state[operation.key][resolveValue(operation.index, context)] = resolveValue(operation.value, context); break
-    // record consumption by cast instance and source member so later hits and after-action rules read the same consumed amount.
+    // record consumption by cast instance and source member so later hits and after-action rules read the same
+    // consumed amount
     case 'consumeEffect': {
       const definition = fight.effectDefinitions[operation.effect]
       const status = definition?.status?.key
@@ -535,7 +542,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       local.event.casts = (local.event.casts ?? []).filter((cast: number) => cast !== operation.cast)
       break
     }
-    // each source marker contributes once to the cap; repeated updates replace that source's previous contribution.
+    // each source marker contributes once to the cap; repeated updates replace that source's previous contribution
     case 'increaseEffectCap': {
       const grants = fight.capGrants[operation.effect] ??= {}
       grants[`${member.ruleset.resonatorId}:${operation.source}`] = resolveValue(operation.amount, context)
@@ -551,9 +558,12 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       }
       break
     }
-    case 'translationGap': throw new PlanTranslationError({ code: 'missing-action-transition',
+    case 'translationGap': {
+      if (omit(fight, 'missing-action-transition', { resonatorId: String(member.ruleset.resonatorId), actionId: local.event.actionId, message: operation.message })) break
+      throw new PlanTranslationError({ code: 'missing-action-transition',
       resonatorId: String(member.ruleset.resonatorId), actionId: local.event.actionId,
       stepId: fight.currentStepId, message: operation.message })
+    }
     case 'setEffectStacks': {
       removeEffect(fight, member, operation.effect)
       const stacks = resolveValue(operation.stacks, context)
@@ -587,7 +597,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       ...(operation.targetOwner == null ? {} : { targetOwner: resolveValue(operation.targetOwner, context) }),
     }, next, local.event); break
     // `from` names whose Outro hands it over (a teammate's, for a held team effect such as
-    // Suisui's Undulating Mist); the effect stays the queuing member's own.
+    // Suisui's Undulating Mist); the effect stays the queuing member's own
     case 'queueHandoffEffect': fight.handoffEffects.push({ owner: member.ruleset.resonatorId,
       from: operation.from == null ? member.ruleset.resonatorId : Number(resolveValue(operation.from, context)),
       effect: operation.effect, introQte: operation.introQte === true, until: fight.frame + operation.frameLimit }); break
@@ -609,7 +619,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       if (status) recordStatus(fight, member.ruleset.resonatorId, status.key, active.stacks)
       break
     }
-    // signal a replayed application; the timeline supplies the stack count.
+    // signal a replayed application; the timeline supplies the stack count
     case 'signalStatus': {
       if (!operation.observed && local.event.observedInflictions?.some((row: RuntimeValue) =>
         row.owner === member.ruleset.resonatorId && row.status === operation.status)) break
@@ -618,7 +628,7 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
         local.event.negativeInflictedByOwner ??= {}
         local.event.negativeInflictedByOwner[member.ruleset.resonatorId] = true
       }
-      // what a grant would have recorded, so a rule asking whether this hit laid it still sees it
+      // what a grant records, so a rule asking whether this hit applied it still sees it
       if (operation.effect != null) {
         const owner = member.ruleset.resonatorId
         local.event.applied ??= {}
@@ -644,8 +654,8 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
         fight.statusOwners.spectroFrazzle = member.ruleset.resonatorId
         fight.frazzleOwner = member.ruleset.resonatorId
         fight.frazzleCause = eventCause(local.event)
-        // opening counters have no authored source/tick phase. the first infliction
-        // establishes both, even when the supplied opening counter was already positive.
+        // opening counters have no authored source/tick phase; the first infliction establishes both, even when the
+        // supplied opening counter is already positive
         if (fight.nextFrazzleTickAt == null && fight.enemy.spectroFrazzle) fight.nextFrazzleTickAt = fight.frame +
           frazzleInterval(fight)
         fight.trace.push({ frame: fight.frame, type: 'status', owner: member.ruleset.resonatorId,
@@ -778,18 +788,25 @@ function runOperation(fight?: RuntimeValue, member?: RuntimeValue, operation?: R
       const value = resolveValue(operation.value, context)
       member.source.initialControls[key] = value
       fight.trace.push({ type: 'control', frame: fight.frame, owner: member.ruleset.resonatorId,
-        path: operation.path, value, sourceWhen: local.when })
+        path: operation.path, value, sourceWhen: local.when,
+        ...(local.event?.isHit && ['beforeHit', 'afterDebuffs', 'beforeDamage'].includes(local.phase) ? {
+          sourceOwner: local.event.actor, sourceActionId: local.event.actionId,
+          sourceInstance: local.event.instance, sourceEventId: local.event.eventId,
+        } : {}) })
       break
     }
-    default: throw new Error(`Unsupported operation ${operation.op}`)
+    default: {
+      if (omit(fight, 'unsupported-operation', { resonatorId: String(member.ruleset.resonatorId), operation: operation.op })) break
+      throw new Error(`Unsupported operation ${operation.op}`)
+    }
   }
 }
-// source and team listeners share event details across phases; the late pass runs after ordinary rules.
+// source and team listeners share event details across phases; the late pass runs after ordinary rules
 function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeValue, actionId?: RuntimeValue, event?: RuntimeValue, phase: RuntimeValue = 'cast', extra: RuntimeValue = {}, next: RuntimeValue = null): RuntimeValue {
   const action = member.ruleset.actions[actionId] ??
     echoAction(member.source.echoes.main, actionId)
   const detail: RuntimeValue = extra.sharedDetail ?? { owner: member.ruleset.resonatorId, actor: member.ruleset.resonatorId,
-    actionId, eventId: event?.id,
+    actionId, castIdentity: action?.castIdentity ?? actionId, eventId: event?.id,
     index: event?.index, damageType: event?.damage?.type,
     cast: action?.cast, node: action?.node, nativeCast: action?.cast == null ? null : [1, 2, 3, 4, 5, 6, 7, 0, 8, 9, 10][action.cast],
     casts: [action?.cast, ...action?.additionalCasts ?? []], element: event?.element ?? member.source.element,
@@ -806,7 +823,7 @@ function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeVal
     }),
     concertoSpent: event?.concertoSpent ?? 0,
     ...(when === 'afterAction' ? fight.actionConsumptions[extra.instance] : {}), ...extra }
-  const local: RuntimeValue = { event: detail, locals: {}, when }
+  const local: RuntimeValue = { event: detail, locals: {}, when, phase }
   for (const rule of [...member.ruleset.rules, ...member.source.weapon.rules,
     ...(member.source.echoes.main.rules ?? []), ...member.source.sonata.rules]) {
     if (rule.when !== when || (rule.phase ?? 'cast') !== phase) continue
@@ -814,7 +831,7 @@ function dispatch(fight?: RuntimeValue, member?: RuntimeValue, when?: RuntimeVal
     if (Boolean(rule.late) !== Boolean(extra.latePass)) continue
     if (extra.sourceOwner != null &&
       extra.sourceOwner !== member.ruleset.resonatorId && !rule.listenTeam) continue
-    const cooldownKey = `${member.ruleset.resonatorId}:${rule.cooldownGroup ?? rule.id}${rule.cooldownByAction ? `:${actionId}` : ''}`
+    const cooldownKey = `${member.ruleset.resonatorId}:${rule.cooldownGroup ?? rule.id}${rule.cooldownByAction ? `:${detail.castIdentity ?? actionId}` : ''}`
     if (rule.cooldownFrames && fight.frame <
       (fight.triggerReadyAt[cooldownKey] ?? 0)) continue
     if (rule.actions && !rule.actions.includes(actionId)) continue
@@ -863,7 +880,7 @@ function frazzleInterval(fight?: RuntimeValue): RuntimeValue {
 function emitHit(fight?: RuntimeValue, member?: RuntimeValue, data?: RuntimeValue): RuntimeValue {
   fight.trace.push({ frame: fight.frame, type: 'hit', owner: member.ruleset.resonatorId, ...data })
 }
-// resolve debuffs and pre-damage rules before tracing the hit, then apply post-hit transitions.
+// resolve debuffs and pre-damage rules before tracing the hit, then apply post-hit transitions
 function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
   const member = fight.members[item.owner]
   if (item.introQteEffect) {
@@ -875,6 +892,7 @@ function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
   const event = item.event
   if (event.kind === 'triggerAction') { triggerAction(fight, member, item.actionId, item.response); return }
   if (event.kind === 'afterAction') {
+    if (member.interruptibleAction?.instance === item.instance) member.interruptibleAction = null
     dispatch(fight, member, 'afterAction', item.actionId, null, 'cast',
       { instance: item.instance, ...(item.responseId == null ? {} : { responseId: item.responseId }) })
     return
@@ -886,12 +904,20 @@ function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
       ...(event.healing ? { healing: event.healing } : {}) })
     return
   }
+  // captured hit-local target state governs gear triggers as well as emitted damage; a folded cast roster may already
+  // contain its later infliction
+  const observedTarget = fight.observedTargetStates?.[item.instance]?.[event.id] ?? {}
+  const standingTarget = Object.fromEntries(Object.keys(observedTarget).map(key => [key, fight.enemy[key]]))
+  Object.assign(fight.enemy, observedTarget)
   const targetStateBeforeHit: RuntimeValue = { ...fight.enemy }
   const observedInflictions = fight.observedInflictions?.[item.instance]?.[event.id]
-  const hitContext: RuntimeValue = { targetStateBeforeHit, instance: item.instance, observedInflictions,
+  const effectsBeforeHit = Object.fromEntries(Object.values(fight.members).map((source: RuntimeValue) =>
+    [source.ruleset.resonatorId, Object.fromEntries(Object.entries(projectedEffects(fight, source))
+      .map(([id, effect]: [string, RuntimeValue]) => [id, { stacks: effect.stacks }]))]))
+  const hitContext: RuntimeValue = { targetStateBeforeHit, effectsBeforeHit, instance: item.instance, observedInflictions,
     ...(item.responseId == null ? {} : { responseId: item.responseId }) }
   if (event.damage) buildOffTune(fight, member, item.actionId, event.id)
-  // one event record retains debuff applications and consumptions across all pre-damage phases.
+  // one event record retains debuff applications and consumptions across all pre-damage phases
   const beforeHit = dispatch(fight, member, event.kind, item.actionId, event, 'beforeHit', hitContext)
   for (const row of observedInflictions ?? []) {
     const source = fight.members[row.owner]
@@ -945,8 +971,10 @@ function processHit(fight?: RuntimeValue, item?: RuntimeValue): RuntimeValue {
           sourceInstance: item.instance, sourceEventId: event.id, ...statusEvents })
     }
   }
+  // hit snapshots are scoped observations and leave the shared timeline unchanged
+  Object.assign(fight.enemy, standingTarget)
 }
-// the latest credited inflictor receives the tick; decay updates both the enemy counter and active effect stacks.
+// the latest credited inflictor receives the tick; decay updates both the enemy counter and active effect stacks
 function tickFrazzle(fight?: RuntimeValue): RuntimeValue {
   const owner = fight.members[fight.frazzleOwner]
   if (!owner || !fight.enemy.spectroFrazzle) { fight.nextFrazzleTickAt = null; return }
@@ -969,7 +997,7 @@ function tickFrazzle(fight?: RuntimeValue): RuntimeValue {
   fight.nextFrazzleTickAt = fight.enemy.spectroFrazzle
     ? fight.frame + frazzleInterval(fight) : null
 }
-// individually timed stacks expire independently, and the final stack determines the effect lifetime.
+// individually timed stacks expire independently, and the final stack sets the effect lifetime
 function expireIndividualStacks(fight?: RuntimeValue): RuntimeValue {
   for (const effect of fight.effects) {
     if (!effect.stackExpires) continue
@@ -983,7 +1011,7 @@ function expireIndividualStacks(fight?: RuntimeValue): RuntimeValue {
       stacks: effect.stacks, until: effect.until, expiredStacks: before - effect.stacks })
   }
 }
-// each periodic application records its source clock or preceding response before applying the status.
+// each periodic application records its source clock or preceding response before applying the status
 function pulsePeriodicStatus(fight?: RuntimeValue, member?: RuntimeValue, clock?: RuntimeValue): RuntimeValue {
   const mode: RuntimeValue = readPath(member, clock.mode)
   const variant = clock.variants[mode]
@@ -1002,7 +1030,7 @@ function pulsePeriodicStatus(fight?: RuntimeValue, member?: RuntimeValue, clock?
   runOperation(fight, member, { op: 'applyStatus', status: variant.status },
     { event: sourceEvent }, null)
 }
-// clock rules have source-qualified cooldowns and create a response occurrence for every executed tick.
+// clock rules have source-qualified cooldowns and create a response occurrence for every executed tick
 function applyClockRules(fight?: RuntimeValue, member?: RuntimeValue, rules?: RuntimeValue): RuntimeValue {
   for (const rule of rules) {
     if (rule.when !== 'clock') continue
@@ -1023,8 +1051,9 @@ function applyClockRules(fight?: RuntimeValue, member?: RuntimeValue, rules?: Ru
       fight.frame + rule.cooldownFrames
   }
 }
-// advance monotonically through bounded frames; clock ticks precede expiry cleanup and queued hits at the same frame.
-export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeValue, deferTargetHits = false): RuntimeValue {
+// advance monotonically through bounded frames; clock ticks precede expiry cleanup and queued hits at the same frame
+export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeValue,
+  deferTargetHits: boolean | ((pending: RuntimeValue) => boolean) = false): RuntimeValue {
   if (!Number.isInteger(targetFrame) || targetFrame < fight.frame ||
     targetFrame > fight.frameLimit) throw new Error(`Invalid target frame ${targetFrame} (current ${fight.frame}, limit ${fight.frameLimit})`)
   while (fight.frame <= targetFrame) {
@@ -1120,9 +1149,14 @@ export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeVa
       }
     }
     if (fight.nextFrazzleTickAt === fight.frame) tickFrazzle(fight)
-    // queued events temporarily restore their originating step id; finally restores the outer step even when an event fails.
-    while (fight.pending[0]?.frame === fight.frame && !(deferTargetHits && fight.frame === targetFrame)) {
-      const item = fight.pending.shift(), stepId = fight.currentStepId
+    // queued events temporarily restore their originating step id; finally restores the outer step even when an event
+    // fails
+    while (fight.pending[0]?.frame === fight.frame) {
+      const next = fight.frame !== targetFrame ? 0 : typeof deferTargetHits === 'function'
+        ? fight.pending.findIndex((pending: RuntimeValue) => pending.frame === fight.frame && !deferTargetHits(pending))
+        : deferTargetHits ? -1 : 0
+      if (next < 0) break
+      const [item] = fight.pending.splice(next, 1), stepId = fight.currentStepId
       fight.currentStepId = item.stepId ?? stepId
       try { processHit(fight, item) } finally { fight.currentStepId = stepId }
     }
@@ -1131,7 +1165,7 @@ export function advanceEffectState(fight?: RuntimeValue, targetFrame?: RuntimeVa
   }
   return fight
 }
-/** an unknown binding is an output gap, never a resource/animation legality failure. */
+// an unknown binding is reported as an output gap
 export function findAction(member: RuntimeValue, reference: string | number, stepId?: string): [number, RuntimeValue] {
   const direct = member.ruleset.actions[reference] ?? echoAction(member.source.echoes.main, reference)
   if (direct) return [Number(reference), direct]
@@ -1148,7 +1182,7 @@ export function findAction(member: RuntimeValue, reference: string | number, ste
     message: `No unique action binding for ${member.ruleset.name}: ${reference}` })
   return [Number(found[0][0]), found[0][1]]
 }
-// input timestamps are shared by prescribed casts and saved-timeline casts.
+// input timestamps are shared by prescribed casts and saved-timeline casts
 function recordInputTime(member: RuntimeValue, action: RuntimeValue, frame: number): void {
   if (action.cast === member.ruleset.codes.cast.intro) member.lastIntroAt = frame
   if (action.input === 'basic') member.lastBasicAt = frame
@@ -1173,12 +1207,10 @@ function handoffEffect(fight: RuntimeValue, pending: RuntimeValue, target: numbe
   else grant(fight, fight.members[pending.owner], { effect: pending.effect, recipient: 'incomingMember' }, target)
 }
 
-// validate one prescribed input, dispatch its cast phases, and schedule its delayed events under a new cast instance.
-export function resolveAction(fight: RuntimeValue, owner: number, reference: string | number, options: RuntimeValue = {}): RuntimeValue {
-  const member = fight.members[owner]
-  const [id, action] = findAction(member, reference, fight.currentStepId)
-  // missing Echo hit timing blocks only builds with a rule that can react to those hits.
-  if (action.input === 'echo' && member.source.echoes.main.hitEventsUnavailable) {
+// validate one prescribed input, dispatch its cast phases, and schedule its delayed events under a new cast instance
+function assertEchoHitCoverage(fight: RuntimeValue, member: RuntimeValue, id: number, action: RuntimeValue, captured = false): void {
+  // missing Echo hit timing blocks only builds with a rule that can react to those hits
+  if (action.input === 'echo' && (action.recordedHit && !captured || action.hitEventsUnavailable || member.source.echoes.main.hitEventsUnavailable)) {
     const classification = { event: { cast: member.ruleset.codes.cast.echo, damageType: member.ruleset.codes.damage.echo } }
     const possible = (condition: RuntimeValue): boolean => condition.all ? condition.all.every(possible) :
       condition.any ? condition.any.some(possible) :
@@ -1189,12 +1221,32 @@ export function resolveAction(fight: RuntimeValue, owner: number, reference: str
         .some(rule => rule.when === other.ruleset.codes.event.hit &&
           (other === member || rule.listenTeam) && (!rule.actions || rule.actions.includes(id)) &&
           (!rule.conditions || rule.conditions.every(possible))))
-    if (needed) throw new PlanTranslationError({ code: 'missing-echo-hit-events', stepId: fight.currentStepId,
-      resonatorId: String(owner), echoId: String(member.source.echoes.main.id),
+    if (needed && !omit(fight, 'missing-echo-hit-events', { resonatorId: String(member.ruleset.resonatorId), echoId: String(member.source.echoes.main.id) })) throw new PlanTranslationError({ code: 'missing-echo-hit-events', stepId: fight.currentStepId,
+      resonatorId: String(member.ruleset.resonatorId), echoId: String(member.source.echoes.main.id),
       message: 'This build reacts to equipped Echo hits, but their event timing/count has not been translated.' })
   }
+}
+
+// transformations end at their natural boundary or when another input/swap interrupts them; the supplied hit stream
+// takes precedence, so the transformation's effect lifetime ends without inferring animation or packet cancellation
+// legality
+function interruptAction(fight: RuntimeValue, member: RuntimeValue): void {
+  const active = member.interruptibleAction
+  if (!active) return
+  member.interruptibleAction = null
+  fight.pending = fight.pending.filter((item: RuntimeValue) => item.owner !== member.ruleset.resonatorId || item.instance !== active.instance ||
+    item.event.damage)
+  dispatch(fight, member, 'afterAction', active.actionId, null, 'cast', { instance: active.instance })
+}
+
+export function resolveAction(fight: RuntimeValue, owner: number, reference: string | number, options: RuntimeValue = {}): RuntimeValue {
+  const member = fight.members[owner]
+  const selected = Number(reference) === member.source.echoes.main.actionId ? equippedEchoActionId(member) : reference
+  const [id, action] = findAction(member, selected, fight.currentStepId)
+  assertEchoHitCoverage(fight, member, id, action)
   assertActionCoverage(member, id, fight.currentStepId)
   if (fight.active !== owner && !options.triggered) throw new Error(`Action actor disagrees with the plan: ${owner}`)
+  if (!options.triggered) interruptAction(fight, member)
   const instance = ++fight.castInstance
   fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
     .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
@@ -1211,11 +1263,12 @@ export function resolveAction(fight: RuntimeValue, owner: number, reference: str
   if (cast) dispatch(fight, member, cast.kind, id, cast, 'cast', { instance, nextOwner: options.next }, options.next)
   if (cast) dispatch(fight, member, 'afterCast', id, cast, 'cast', { instance }, options.next)
   schedule(fight, member, id, fight.frame, instance)
+  if (action.endsOnNextInput) member.interruptibleAction = { actionId: id, instance }
   if (action.input !== 'echo') fight.readyAt = fight.frame + worldFrame(action.timing.duration ?? 0, action.timing.timeStop)
   return fight
 }
 
-/** whether a control is on: what the replay's own effects say, else the scenario's value. */
+// whether a control is on: what the replay's own effects say, else the scenario's value
 function controlOn(fight: RuntimeValue, member: RuntimeValue, key: string): boolean {
   const path = `runtime.state.controls.${key}`
   const bindings = fight.memberEffectControls[member.ruleset.resonatorId] ?? {}
@@ -1227,7 +1280,7 @@ function controlOn(fight: RuntimeValue, member: RuntimeValue, key: string): bool
       effect.owner === member.ruleset.resonatorId && effect.until > fight.frame && effect.stacks > 0))
 }
 
-/** a calculator effect condition, read against the replay: controls and the build. */
+// a calculator effect condition, read against the replay: controls and the build
 function matchesSource(fight: RuntimeValue, member: RuntimeValue, condition: RuntimeValue): boolean {
   if (!condition || condition.type === 'always') return true
   if (condition.type === 'and') return condition.values.every((part: RuntimeValue) => matchesSource(fight, member, part))
@@ -1241,7 +1294,7 @@ function matchesSource(fight: RuntimeValue, member: RuntimeValue, condition: Run
     condition.type === 'eq' ? base === condition.value : false
 }
 
-/** the hitter's Off-Tune Buildup Rate: 1, plus every buildup effect that reaches them. */
+// the hitter's Off-Tune Buildup Rate: 1, plus every buildup effect that reaches them
 function buildupRate(fight: RuntimeValue, hitter: RuntimeValue): number {
   let rate = 1
   for (const member of Object.values(fight.members) as RuntimeValue[]) {
@@ -1253,25 +1306,22 @@ function buildupRate(fight: RuntimeValue, hitter: RuntimeValue): number {
   return Math.max(0, rate)
 }
 
-// the buildup lockout rejects all hit contributions until the previous Tune Break cooldown ends.
+// the buildup lockout rejects all hit contributions until the previous Tune Break cooldown ends
 function buildOffTune(fight: RuntimeValue, member: RuntimeValue, actionId: RuntimeValue, eventId: RuntimeValue): void {
   const base = member.source.offTuneByAction?.[actionId]?.[eventId]
   if (!base || fight.frame < fight.offTune.blockedUntil) return
   fight.offTune.value = Math.min(fight.offTune.max, fight.offTune.value + base * buildupRate(fight, member))
 }
 
-/** cuts a break may come out behind (the reference's): none, a plain, instant, on-hit or mash
- *  cancel, or a dodge cut whose dodge the break takes the place of. */
+// cuts a break may come out behind (the reference's): none, a plain, instant, on-hit or mash cancel, or a dodge cut
+// whose dodge the break replaces
 const BREAK_AFTER = new Set([undefined, 'cancel', 'instant cancel', 'cancel on hit', 'mash cancel',
   'dodge cancel', 'instant dodge', 'dodge on hit'])
 
-/**
- * the reference's automatic Tune Break: once a press played on field leaves the bar full, the
- * on-field member breaks before the next input. never behind an Intro or a Liberation, a hold,
- * jump or swap cut, nor while the last break's Rupture/Hack Interfered window stands, nor (on a
- * team that lays a Shifting) before one is on the target; the bar stays full for the next press
- * that qualifies.
- */
+// the reference's automatic Tune Break: once a press played on field leaves the bar full, the on-field member breaks
+// before the next input. not behind an Intro or a Liberation, a hold, jump or swap cut, nor while the last break's
+// Rupture/Hack Interfered window is active, nor (on a team that lays a Shifting) before one is on the target; the bar
+// stays full for the next press that qualifies
 export function maybeTuneBreak(fight: RuntimeValue, actor: number, actionId: number, cut?: string): boolean {
   const member = fight.members[actor]
   if (fight.active !== actor || member.ruleset.tuneBreakAction == null) return false
@@ -1288,10 +1338,11 @@ export function maybeTuneBreak(fight: RuntimeValue, actor: number, actionId: num
   return true
 }
 
-/** handoffs are prescribed by the solved plan; no Concerto threshold is inferred here. */
+// handoffs are prescribed by the solved plan; no Concerto threshold is inferred here
 export function resolveSwap(fight: RuntimeValue, to: number, response?: { outro: string; intro: string }): RuntimeValue {
   const from = fight.active
   if (!fight.members[to] || to === from) throw new Error('Invalid prescribed swap')
+  interruptAction(fight, fight.members[from])
   expireSwapEffects(fight, from)
   if (response) {
     resolveAction(fight, from, response.outro, { next: to })
@@ -1313,7 +1364,7 @@ export function resolveSwap(fight: RuntimeValue, to: number, response?: { outro:
   return fight
 }
 
-// recipient-bound effects expire when that recipient leaves the field, including effects granted by another member.
+// recipient-bound effects expire when that recipient leaves the field, including effects granted by another member
 function expireSwapEffects(fight: RuntimeValue, recipient: number): void {
   for (const active of [...fight.effects]) if (active.target === recipient && active.until > fight.frame &&
     (active.endsOnSwap || fight.effectDefinitions[active.id]?.endsOn?.recipientSwap)) {
@@ -1321,29 +1372,44 @@ function expireSwapEffects(fight: RuntimeValue, recipient: number): void {
   }
 }
 
-// replay timeline casts and landed hits through weapon, echo, and sonata effects.
+// replay timeline casts and landed hits through weapon, echo, and sonata effects
 
-/** a timeline cast resolves its landed hit count or a matched sparse set of event ordinals. */
+// a timeline cast resolves its landed hit count or a matched sparse set of event ordinals
 export function playCast(fight: RuntimeValue, owner: number, actionId: number, landed: number, share?: number,
-  timelineEvent?: number, landedIndices?: number[], incomingOwner?: number, hitFrames?: number[], inflictions?: RuntimeValue[]): void {
+  timelineEvent?: number, landedIndices?: number[], incomingOwner?: number, hitFrames?: number[], inflictions?: RuntimeValue[]): RuntimeValue {
   const member = fight.members[owner]
   const action = member.ruleset.actions[actionId] ?? echoAction(member.source.echoes.main, actionId)
   if (!action) throw new Error(`Unknown timeline action ${owner}:${actionId}`)
+  // a channel's tick interval is not specified by its description; exact captured hits can supply it, and a
+  // full-channel guess cannot enable hit-triggered effects
+  if (action.recordedHit) {
+    const count = landedIndices?.length ?? landed
+    const captured = Number.isInteger(count) && count >= 0 && (count === 0 || hitFrames?.length === count)
+    action.events = action.events.filter((event: RuntimeValue) => !event.damage)
+    if (captured && count > 0) action.events.push(...hitFrames!.map((at: number, index: number) => ({
+      ...structuredClone(action.recordedHit), id: actionId + index + 1,
+      kind: member.ruleset.codes.event.hit, at, index: landedIndices?.[index] ?? index,
+    })))
+    action.hitEventsUnavailable = !captured
+  }
+  if (landed !== 0) assertEchoHitCoverage(fight, member, actionId, action, !action.hitEventsUnavailable)
+  interruptAction(fight, member)
   const instance = ++fight.castInstance
   fight.counterBeforeCast[instance] = Object.fromEntries([1, 2, 3, 4, 5]
     .map(index => [index, member.state[`outputCounter${index}`] ?? 0]))
   fight.trace.push({ frame: fight.frame, type: 'cast', owner, action: action.name, actionId, instance, stepId: fight.currentStepId,
     ...(share == null ? {} : { share }), ...(timelineEvent == null ? {} : { timelineEvent }),
     ...(landedIndices == null ? {} : { landedIndices }), ...(hitFrames == null ? {} : { hitFrames }) })
-  // what the timeline inflicts next, it inflicts with this cast
+  const castTrace = fight.trace.at(-1)
+  // what the timeline inflicts next is inflicted with this cast
   const span = Math.max(0, ...(hitFrames ?? action.events.filter((event: RuntimeValue) => event.damage).map((event: RuntimeValue) => event.at ?? 0)))
   member.timelineCast = { owner, actionId, instance, frame: fight.frame, span }
   fight.timelineCast = member.timelineCast
   recordInputTime(member, action, fight.frame)
   adoptIntroQteEffects(fight, owner, action)
   const cast = action.events.find((event: RuntimeValue) => event.kind === member.ruleset.codes.event.cast)
-  // a recorded Outro can precede or follow its same-frame swap. Equipment
-  // needs the actual recipient so swap-off expiry follows that teammate.
+  // a recorded Outro can precede or follow its same-frame swap; equipment needs the actual recipient so swap-off
+  // expiry follows that teammate
   const next = incomingOwner ?? (action.cast === member.ruleset.codes.cast.outro && fight.active !== owner ? fight.active : null)
   const detail = { instance, ...(next == null ? {} : { nextOwner: next }) }
   if (cast) dispatch(fight, member, cast.kind, actionId, cast, 'cast', detail, next)
@@ -1351,7 +1417,7 @@ export function playCast(fight: RuntimeValue, owner: number, actionId: number, l
   const damageHits = action.events.filter((event: RuntimeValue) => event.damage && eventAppliesToOwner(event, owner))
     .sort((a: RuntimeValue, b: RuntimeValue) => (a.index ?? 0) - (b.index ?? 0))
   const hits = new Set(landedIndices
-    ? damageHits.filter((_: RuntimeValue, index: number) => landedIndices.includes(index))
+    ? damageHits.filter((event: RuntimeValue, index: number) => landedIndices.includes(action.recordedHit ? event.index : index))
     : damageHits.slice(0, landed))
   if (inflictions?.length) {
     fight.observedInflictions ??= {}
@@ -1364,12 +1430,15 @@ export function playCast(fight: RuntimeValue, owner: number, actionId: number, l
   }
   const hitOffsets = hitFrames && new Map([...hits].map((event: RuntimeValue, index) => [event.id, hitFrames[index]]))
   schedule(fight, member, actionId, fight.frame, instance, null, (event) => !event.damage || hits.has(event), hitOffsets)
+  if (action.endsOnNextInput) member.interruptibleAction = { actionId, instance }
+  return castTrace
 }
 
-/** the field changes hands; equipment's swap and field-entry effects follow. */
+// the field changes hands; equipment's swap and field-entry effects follow
 export function playSwap(fight: RuntimeValue, to: number): void {
   const from = fight.active
   if (to === from) return
+  interruptAction(fight, fight.members[from])
   expireSwapEffects(fight, from)
   for (const pending of fight.handoffEffects) if (pending.from === from && pending.until >= fight.frame) {
     handoffEffect(fight, pending, to)
@@ -1385,11 +1454,9 @@ export function playSwap(fight: RuntimeValue, to: number): void {
 
 const BREAK_DEBUFF = /^Tune (Strain|Rupture|Hack) - (Shifting|Interfered)$/
 
-/**
- * apply a kit effect at the reference timeline's stack count; zero ends it.
- * `target` identifies a member, the team, or the enemy. `responseKind` identifies
- * a kit response when the stack count increases.
- */
+// apply a kit effect at the reference timeline's stack count; zero ends it.
+// `target` identifies a member, the team, or the enemy. `responseKind` identifies
+// a kit response when the stack count increases
 export function holdEffect(fight: RuntimeValue, owner: number, effectId: number, target: number | 'team' | 'enemy',
   stacks: number, responseKind?: string, cast?: RuntimeValue): void {
   // a change the cast before it made, in its frame: written after that cast's hits
@@ -1399,7 +1466,7 @@ export function holdEffect(fight: RuntimeValue, owner: number, effectId: number,
   const until = Infinity
   let active = fight.effects.find((effect: RuntimeValue) => effect.id === effectId && effect.target === targetId && effect.until > fight.frame)
   const before = active?.stacks ?? 0
-  // an ownership change closes the previous traced activation before the new source writes its stacks.
+  // an ownership change closes the previous traced activation before the new source writes its stacks
   if (active && (!stacks || active.owner !== owner)) {
     active.stacks = 0; active.until = fight.frame
     fight.trace.push({ type: 'effect', frame: fight.frame, owner: active.owner, effectId: active.id,
@@ -1409,7 +1476,7 @@ export function holdEffect(fight: RuntimeValue, owner: number, effectId: number,
   }
   const name: string = fight.effectDefinitions[effectId]?.name ?? ''
   const debuff = BREAK_DEBUFF.exec(name)
-  // timeline-governed break effects also update the interpreter flags read by automatic Tune Break eligibility.
+  // timeline-governed break effects also update the interpreter flags read by automatic Tune Break eligibility
   if (debuff) {
     fight.enemy[`tune${debuff[1]}${debuff[2]}`] = stacks > 0
     if (debuff[1] === 'Strain' && debuff[2] === 'Interfered') fight.enemy.tuneStrainInterferedStacks = stacks
@@ -1433,7 +1500,7 @@ export function holdEffect(fight: RuntimeValue, owner: number, effectId: number,
   }
 }
 
-/** a negative status at the timeline's stacks; a rise is an infliction equipment can answer. */
+// a negative status at the timeline's stacks; a rise is an infliction equipment can respond to
 export function holdStatus(fight: RuntimeValue, owner: number, status: string, stacks: number, traced: boolean, applies = true): void {
   const before = fight.enemy[status] ?? 0
   if (before === stacks) {
@@ -1444,7 +1511,7 @@ export function holdStatus(fight: RuntimeValue, owner: number, status: string, s
   if (traced) recordStatus(fight, owner, status, stacks)
   else fight.enemy[status] = stacks
   if (stacks <= before || !applies) return
-  // the reference names who inflicted it, not with what: that seat's latest cast (or the latest at all)
+  // the reference names only the inflicting seat: that seat's latest cast (or the latest at all)
   const source = fight.members[owner]?.timelineCast ?? fight.timelineCast
   for (const other of Object.values(fight.members) as RuntimeValue[]) {
     dispatch(fight, other, 'statusApplied', source?.actionId ?? null, null, 'cast',
@@ -1452,17 +1519,19 @@ export function holdStatus(fight: RuntimeValue, owner: number, status: string, s
   }
 }
 
-/** a negative status dealing its damage. */
+// a negative status dealing its damage
 export function playTick(fight: RuntimeValue, owner: number, status: string, stacks?: number, additionalStacks?: number): void {
   statusHit(fight, fight.members[owner], status, undefined, stacks, additionalStacks)
 }
 
-/** a heal or a shield the timeline's kit gave. */
-export function playSupport(fight: RuntimeValue, owner: number, kind: 'heal' | 'shield'): void {
+// a heal or a shield the timeline's kit gave
+export function playSupport(fight: RuntimeValue, owner: number, kind: 'heal' | 'shield', actionId?: number): void {
   const member = fight.members[owner]
-  // the reference names who healed, not with what: equipment reads that seat's running cast
-  // (Stellar Symphony answers a heal its wielder's Resonance Skill gives)
-  const cast = member.timelineCast
+  // the reference names only the healing seat: equipment reads that seat's running cast (Stellar Symphony
+  // responds to a heal its wielder's Resonance Skill gives)
+  const cast = actionId == null || actionId === member.timelineCast?.actionId ? member.timelineCast
+    : fight.trace.findLast((entry: RuntimeValue) => entry.type === 'cast' && entry.owner === owner && entry.actionId === actionId)
+      ?? { owner, actionId }
   if (kind === 'heal') dispatch(fight, member, 'heal', cast?.actionId ?? null, null, 'cast', { ...cast, actor: owner, heals: 1 })
   else dispatch(fight, member, 'shield', cast?.actionId ?? null, null, 'afterHit', { ...cast, actor: owner, shields: 1 })
   fight.trace.push({ frame: fight.frame, type: kind, owner })

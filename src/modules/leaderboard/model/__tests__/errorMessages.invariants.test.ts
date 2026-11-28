@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: verifies that API messages reach the UI unchanged and malformed
-               responses use a fallback without displaying response contents.
+  description: checks that API messages reach the UI unchanged and malformed responses use a fallback without
+               displaying response contents.
 */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -11,14 +11,13 @@ import { errorText } from '../cardTrack'
 
 afterEach(() => vi.restoreAllMocks())
 
-/** the service's error body (ApiError, which its errorResponse writes), built from the shared contract. */
+// the service's error body (ApiError, which its errorResponse writes), built from the shared contract
 const STATUS = { rate_limited: 429, duplicate: 409, muted: 403, bad_request: 400 } as const
 const errorResponse = (code: keyof typeof STATUS, message: string) =>
   new Response(JSON.stringify({ error: { code, message } } satisfies ApiError), { status: STATUS[code], headers: { 'content-type': 'application/json' } })
 
 describe('leaderboard error messages', () => {
   it.each([
-    ['rate_limited', 'your daily comment allowance has been used.'],
     ['rate_limited', 'your earlier uploads are awaiting staff review.'],
     ['duplicate', 'your appeal is awaiting a decision.'],
     ['muted', 'your account is muted until 2026-12-05: repeated spam.'],

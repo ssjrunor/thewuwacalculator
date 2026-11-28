@@ -12,7 +12,7 @@ import { HttpError, json, readJsonBody } from '../../lib/http.ts'
 import { getAccount, linkOf } from '../../db/accounts.ts'
 import { getPlayer, sessionHasUid, type PlayerRow } from '../../db/identity.ts'
 import {
-  BLOCK_CAP, blockCount, blockRows, blocks, blockStatement, commentAccount, FOLLOW_CAP, followCount, followedBoards, followedPlayers, followerCount,
+  BLOCK_CAP, blockCount, blockRows, blocks, blockStatement, FOLLOW_CAP, followCount, followedBoards, followedPlayers, followerCount,
   followsAny, followStatement, freshInFeed, isUid, playerByRef, setFeedSeenStatement, toRef, uidForRemoval, unblockStatement,
   unfollowStatement, type FollowKind,
 } from '../../db/social.ts'
@@ -31,7 +31,7 @@ async function follows(db: D1Database, accountId: string): Promise<FollowsRespon
   return { boards, players: players.map((row) => ({ ...toRef(row), buildId: row.ref_build!, faces: JSON.parse(row.faces) as string[] })) }
 }
 
-/** the listed player a ref names, or a 404. */
+// the listed player a ref names, or a 404
 async function playerOr404(db: D1Database, ref: string): Promise<PlayerRow> {
   const player = await playerByRef(db, ref)
   if (!player) throw new HttpError('not_found', "hmm... this player isn't available. check the UID; the profile may also be private or removed.")
@@ -42,13 +42,13 @@ async function underCap(db: D1Database, accountId: string, kind: FollowKind): Pr
   if (await followCount(db, accountId, kind) >= FOLLOW_CAP) throw new HttpError('bad_request', `your pinned ${kind}s are full! unpin one before adding another; the limit is ${FOLLOW_CAP} :P`)
 }
 
-/** GET /follows. */
+// GET /follows
 export async function listFollows(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   return json(await follows(context.env.LB, session.accountId))
 }
 
-/** PUT /follows/players/:ref. */
+// PUT /follows/players/:ref
 export async function followPlayer(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -59,8 +59,8 @@ export async function followPlayer(context: RouteContext): Promise<Response> {
   return json(await follows(db, session.accountId))
 }
 
-/** DELETE /follows/players/:ref: unpins the person by whichever of their uids was pinned; returns success either way,
-    which reveals nothing about a uid. */
+// DELETE /follows/players/:ref: unpins the person by whichever of their uids was pinned; returns success either way,
+// which reveals nothing about a uid
 export async function unfollowPlayer(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -72,7 +72,7 @@ export async function unfollowPlayer(context: RouteContext): Promise<Response> {
   return json(await follows(db, session.accountId))
 }
 
-/** PUT /follows/boards/:resonatorId. */
+// PUT /follows/boards/:resonatorId
 export async function followBoard(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -83,15 +83,15 @@ export async function followBoard(context: RouteContext): Promise<Response> {
   return json(await follows(db, session.accountId))
 }
 
-/** DELETE /follows/boards/:resonatorId. */
+// DELETE /follows/boards/:resonatorId
 export async function unfollowBoard(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   await unfollowStatement(context.env.LB, session.accountId, 'board', context.params.resonatorId).run()
   return json(await follows(context.env.LB, session.accountId))
 }
 
-/** POST /follows/import: merges the app's local pins, skipping pins of unlisted players and pins past the cap, and
-    returns the account's follows after the merge. */
+// POST /follows/import: merges the app's local pins, skipping pins of unlisted players and pins past the cap, and
+// returns the account's follows after the merge
 export async function importFollows(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   await rateLimit(context.env.SUBMIT_LIMIT, `follow-import:${session.accountId}`)
@@ -115,8 +115,8 @@ export async function importFollows(context: RouteContext): Promise<Response> {
   return json(await follows(db, session.accountId))
 }
 
-/** GET /players/:ref/social: a person's followers across their uids and whether the viewer follows or blocks them;
-    a hidden-uid player is requested by one of their builds, or by uid by themselves. */
+// GET /players/:ref/social: a person's followers across their uids and whether the viewer follows or blocks them;
+// a hidden-uid player is requested by one of their builds, or by uid by themselves
 export async function playerSocial(context: RouteContext): Promise<Response> {
   const db = context.env.LB
   const { ref } = context.params
@@ -134,7 +134,7 @@ export async function playerSocial(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** GET /feed: uploads from what the account follows, newest first, and how many came since it was last read. */
+// GET /feed: uploads from what the account follows, newest first, and how many came since it was last read
 export async function getFeed(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -147,7 +147,7 @@ export async function getFeed(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** POST /feed/seen: everything in the feed now counts as read. */
+// POST /feed/seen: marks everything in the feed as read
 export async function markFeedSeen(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   await setFeedSeenStatement(context.env.LB, session.accountId, context.now).run()
@@ -160,27 +160,26 @@ async function blockList(db: D1Database, accountId: string): Promise<BlocksRespo
   return { players: rows.map((row) => ({ id: row.id, ...refOf(row.blocked_account), at: row.created_at })) }
 }
 
-/** the account behind a ref: a uid's or a build's (any of them, for lifting), or a comment's writer, who may show no
-    uid at all. */
+// the account behind a ref: a uid's or a build's (any of them, for lifting)
 async function accountOfRef(db: D1Database, ref: string): Promise<string | null> {
   const uid = await uidForRemoval(db, ref)
-  return uid ? (await linkOf(db, uid))?.account_id ?? null : commentAccount(db, ref)
+  return uid ? (await linkOf(db, uid))?.account_id ?? null : null
 }
 
-/** GET /blocks. */
+// GET /blocks
 export async function listBlocks(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   return json(await blockList(context.env.LB, session.accountId))
 }
 
-/** PUT /blocks/:ref: blocks the person behind a listed player's uid or build, or behind a comment; uids on no account
-    cannot comment and have nothing to block. */
+// PUT /blocks/:ref: blocks the person behind a listed player's uid or build; uids on no account have nothing to
+// block
 export async function blockPlayer(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
   const { ref } = context.params
   const player = await playerByRef(db, ref)
-  const target = player ? (await linkOf(db, player.uid))?.account_id ?? null : await commentAccount(db, ref)
+  const target = player ? (await linkOf(db, player.uid))?.account_id ?? null : null
   if (!player && !target) throw new HttpError('not_found', "hmm... this player isn't available. check the UID; the profile may also be private or removed.")
   if (!target) throw new HttpError('bad_request', "hmm... this player isn't on an account, so there's nothing of theirs to block :P")
   if (target === session.accountId) throw new HttpError('bad_request', "that's you! choose another player for this action :P")
@@ -189,7 +188,7 @@ export async function blockPlayer(context: RouteContext): Promise<Response> {
   return json(await blockList(db, session.accountId))
 }
 
-/** DELETE /blocks/:ref: lifts a block, named by its id (from GET /blocks) or by a ref to the person. */
+// DELETE /blocks/:ref: lifts a block, named by its id (from GET /blocks) or by a ref to the person
 export async function unblockPlayer(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB

@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: what every Scope view reads from the page: who is viewing,
+  description: what every leaderboard view reads from the page: who is viewing,
                the boards' sizes, and how to move between pages.
 */
 

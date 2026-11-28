@@ -35,36 +35,38 @@ export async function cardLogin(context: RouteContext): Promise<Response> {
   // only a fresh card claims because only the uid's owner can draw one; stale cards are refused before storage
   const { card } = await takeCard(context, body.input, { mustBeFresh: true })
   if (card.status === 'blocked') throw new HttpError('blocked', "this card has been blocked from the boards. staff can review it if you think there has been a mistake.")
-  // the claim reads the card inline because the uid is required before it can be held.
+  // the claim reads the card inline because the uid is required before it can be held
   const reader = context.services.reader ?? browserReader(env.BROWSER, env.READER_URL, env.READ_MODE)
   const outcome = await ingestCard(env, card.id, { reader, freshLogin: true, byPlayer: true, now })
+    .finally(() => reader.release?.())
   if (outcome.kind === 'skipped') throw new HttpError('internal', "oopsies... this card could not be read right now. try again in a little while :(")
   if (outcome.kind === 'rejected' && outcome.reason === 'suspended') throw new HttpError('suspended', "this UID is suspended. check your account standing for details and appeals.")
   if (outcome.kind === 'rejected' && outcome.reason !== 'opted_out') {
     throw new HttpError(outcome.reason, outcome.reason === 'uid_unreadable' ? "uh oh... we could not read the UID on this card. generate a new card and send its original link :("
       : "hmm... we could not read enough of this card to save it. generate a new card and send its original link :(")
   }
-  // an opted-out uid may still log in, to opt back in; its build was not stored.
+  // an opted-out uid may still log in to opt back in; its build is not stored
   const uid = outcome.read.uid!
   const session = await optionalSession(context)
-  const claimed = await claimUid(context, session, { uid, cardId: card.id, name: outcome.read.snapshot?.name ?? null })
+  const claimed = await claimUid(context, session, { uid, cardId: card.id, name: outcome.read.snapshot?.name ?? null,
+    drawnAt: card.kuro_last_modified })
   const me = await meFor(env.LB, { tokenHash: claimed.tokenHash, accountId: session?.accountId ?? null, expiresAt: claimed.expiresAt }, now)
   return json(me, claimed.token ? { headers: { 'set-cookie': sessionCookie(claimed.token, SESSION_COOKIE_MAX_AGE_S) } } : {})
 }
 
-/** signing out unclaims every uid the session held. */
+// signing out unclaims every uid the session held
 export async function logout(context: RouteContext): Promise<Response> {
   const session = await optionalSession(context)
   if (session) await context.env.LB.batch(endSessionStatements(context, session.tokenHash))
   return json({ ok: true }, { headers: { 'set-cookie': clearedSessionCookie() } })
 }
 
-/** the signed-in account summary shown to its owner. */
+// the signed-in account summary shown to its owner
 export async function accountSummary(db: D1Database, accountId: string, now = Date.now()): Promise<AccountSummary | null> {
   const [account, logins, notifications, trust, stop] = await Promise.all([getAccount(db, accountId), loginsOf(db, accountId),
     unreadCount(db, accountId), trustOf(db, accountId, now), stoppedBy(db, 'account', accountId, now)])
   if (!account) return null
-  // until the feed is first read, what came after the account was made is new.
+  // before the first feed read, uploads after the account's creation count as new
   const feed = await freshInFeed(db, accountId, account.feed_seen_at ?? account.created_at)
   const suspension = stop ? { sanctionId: stop.id, kind: stop.kind as 'suspend' | 'ban', reason: stop.reason, expiresAt: stop.expires_at } : null
   return { id: account.id, role: account.role, unread: { notifications, feed }, trust, suspension,
@@ -78,7 +80,7 @@ export async function meFor(db: D1Database, session: Pick<SessionActor, 'tokenHa
       anonymous: row.anonymous === 1, optedOut: row.opted_out_at != null })) }
 }
 
-/** GET /me: a suspended account's session returns the account with its suspension and no actionable uids. */
+// GET /me: a suspended account's session returns the account with its suspension and no actionable uids
 export async function me(context: RouteContext): Promise<Response> {
   const session = await optionalSession(context, { stopped: true })
   if (!session) throw new HttpError('unauthorized', "hold on... sign in, or claim your UID with a fresh card first :P")
@@ -94,8 +96,8 @@ function uidFrom(value: unknown): string {
   return value
 }
 
-/** POST /auth/release { uid }: unclaims a uid this browser claimed and ends the claim session after the last one;
-    linked uids are removed with DELETE /account/uids/:uid. */
+// POST /auth/release { uid }: unclaims a uid this browser claimed and ends the claim session after the last one;
+// linked uids are removed with DELETE /account/uids/:uid
 export async function releaseUid(context: RouteContext): Promise<Response> {
   const session = await requireSession(context)
   const uid = uidFrom((await readJsonBody<Partial<UidRequest>>(context.request)).uid)
@@ -107,7 +109,7 @@ export async function releaseUid(context: RouteContext): Promise<Response> {
   return json(await meFor(context.env.LB, after, context.now))
 }
 
-/** PATCH /players/me/uids/:uid { hideUid?, anonymous? }. */
+// PATCH /players/me/uids/:uid { hideUid?, anonymous? }
 export async function patchPlayer(context: RouteContext): Promise<Response> {
   const uid = uidFrom(context.params.uid)
   const session = await requireOwnUid(context, uid)
@@ -129,8 +131,8 @@ export async function patchPlayer(context: RouteContext): Promise<Response> {
   return json(await meFor(db, session, context.now))
 }
 
-/** POST /players/me/uids/:uid/opt-out: refuses later submissions of the uid, erases its card images and removes
-    its builds from every board; the uid leaves the session and account, and rejoining needs a fresh card. */
+// POST /players/me/uids/:uid/opt-out: refuses later submissions of the uid, erases its card images and removes
+// its builds from every board; the uid leaves the session and account, and rejoining needs a fresh card
 export async function optOut(context: RouteContext): Promise<Response> {
   const { env, now } = context
   const uid = uidFrom(context.params.uid)
@@ -143,8 +145,8 @@ export async function optOut(context: RouteContext): Promise<Response> {
     auditStatement(env.LB, { actorKind: 'uid', actorId: uid, action: 'player.opt_out', subjectKind: 'player',
       subjectId: uid, data: { boards: resonators.length } }, now),
   ])
-  // the refusal is on record first; then each board deletes the uid's builds (their likes, comments and documents
-  // follow through its outbox), and every card read as the uid is refused and its image and evidence erased.
+  // record the refusal first; then each board deletes the uid's builds (their bookmarks and notifications are removed
+  // through its outbox), and every card read as the uid is refused with its image and evidence erased
   await Promise.all(resonators.map((resonator) => boardOf(env, resonator).deletePlayer(Number(resonator), Number(uid))))
   await eraseUidCards(env, uid, 'opted_out')
   const after = await optionalSession(context)
@@ -152,7 +154,7 @@ export async function optOut(context: RouteContext): Promise<Response> {
   return json(await meFor(env.LB, { ...session, expiresAt: after.expiresAt }, now))
 }
 
-/** DELETE /players/me/uids/:uid/opt-out: rejoining, for a uid claimed with a fresh card after the opt-out. */
+// DELETE /players/me/uids/:uid/opt-out: rejoining, for a uid claimed with a fresh card after the opt-out
 export async function optIn(context: RouteContext): Promise<Response> {
   const uid = uidFrom(context.params.uid)
   const session = await requireOwnUid(context, uid)

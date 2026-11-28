@@ -37,7 +37,7 @@ function statementsOf(db: D1Database, resonator: string, op: OutboxOp, now: numb
         .bind(resonator, op.rulesetId, op.total, JSON.stringify(op.top.map(publicId)), op.topQ == null ? null : fromQ(op.topQ),
           op.head ? JSON.stringify(op.head) : null, op.at)]
     case 'notify': {
-      // news reaches an account the uid is linked to; a uid with none hears nothing.
+      // notifications go to the account the uid is linked to; a uid on no account gets none
       const build = publicId(op.build)
       return [db.prepare(`INSERT INTO notifications (id, account_id, kind, subject_id, build_id, actor_uid, count, data, created_at, read_at)
           SELECT ?1, l.account_id, ?2, ?3, ?4, ?5, 1, ?6, ?7, NULL FROM account_uids l WHERE l.uid = ?8
@@ -47,22 +47,19 @@ function statementsOf(db: D1Database, resonator: string, op: OutboxOp, now: numb
           JSON.stringify(op.data), op.at, uidToText(op.uid))]
     }
     case 'build_gone': {
-      // what hung off a deleted build: its uploads row, likes, bookmarks, notifications, documents; its comments are emptied, kept for reports.
+      // rows attached to a deleted build: its uploads row, bookmarks and notifications
       const id = publicId(op.gbid)
       return [
         db.prepare('DELETE FROM recent_uploads WHERE build_id = ?').bind(id),
-        db.prepare('DELETE FROM likes WHERE build_id = ?').bind(id),
         db.prepare('DELETE FROM bookmarks WHERE build_id = ?').bind(id),
         db.prepare('DELETE FROM notifications WHERE build_id = ?').bind(id),
-        db.prepare(`DELETE FROM documents WHERE kind = 'build' AND owner_id = ?`).bind(id),
-        db.prepare(`UPDATE comments SET body = NULL, removed_at = ?, removed_by = 'author' WHERE build_id = ? AND removed_at IS NULL`).bind(now, id),
       ]
     }
   }
 }
 
-/** applies one board's ops oldest first and returns D1's last seq: this batch's, or the seq recorded by an earlier
-    copy of it. */
+// applies one board's ops oldest first and returns D1's last seq: this batch's, or the seq recorded by an earlier
+// copy of it
 export async function applyOutbox(db: D1Database, resonator: string, ops: Array<{ seq: number; op: OutboxOp }>, now: number): Promise<number> {
   if (!ops.length) return 0
   const first = ops[0].seq
@@ -81,6 +78,6 @@ export async function applyOutbox(db: D1Database, resonator: string, ops: Array<
   }
 }
 
-/** board_sync rows are needed only until their board has dropped the ops. */
+// board_sync rows are needed only until their board has dropped the ops
 export const pruneBoardSyncStatement = (db: D1Database, before: number, limit: number) => db.prepare(`DELETE FROM board_sync
   WHERE (resonator_id, first_seq) IN (SELECT resonator_id, first_seq FROM board_sync WHERE at < ? LIMIT ?)`).bind(before, limit)

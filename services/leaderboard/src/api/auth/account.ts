@@ -29,7 +29,7 @@ import { meFor } from './routes.ts'
 import { fillProfile } from './providerProfile.ts'
 import { optionalSession, requireAccount } from './sessions.ts'
 
-/** a pending sign-in lasts this long. */
+// a pending sign-in lasts this long
 const STATE_TTL_MS = 10 * 60 * 1000
 
 const providersOf = (context: RouteContext) => context.services.oauth ?? configuredProviders(context.env)
@@ -57,7 +57,7 @@ export async function getProviders(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** GET /auth/oauth/:provider/start?return=/path: off to the provider, remembering where to come back to. */
+// GET /auth/oauth/:provider/start?return=/path: redirects to the provider and stores the return path
 export async function startSignIn(context: RouteContext): Promise<Response> {
   const { env, now, url } = context
   await rateLimit(env.SUBMIT_LIMIT, `signin:${clientIp(context.request)}`)
@@ -70,7 +70,7 @@ export async function startSignIn(context: RouteContext): Promise<Response> {
   return redirect(provider.authorizeUrl({ state, challenge, redirectUri: redirectUri(context, id) }))
 }
 
-/** GET /auth/oauth/:provider/callback: finishes sign-in and redirects to the app with a `signin=` result. */
+// GET /auth/oauth/:provider/callback: finishes sign-in and redirects to the app with a `signin=` result
 export async function finishSignIn(context: RouteContext): Promise<Response> {
   const { env, now, url } = context
   const db = env.LB
@@ -91,7 +91,7 @@ export async function finishSignIn(context: RouteContext): Promise<Response> {
     return back('failed', state.return_to)
   }
 
-  // the sign-in joins the session that started it, and only that one: a sign-in finished in another browser starts afresh.
+  // the sign-in joins only the session that started it; a sign-in finished in another browser starts a new session
   const current = await optionalSession(context)
   const session = current && current.tokenHash === state.token_hash ? current : null
   const login = await loginFor(db, id, subject)
@@ -103,7 +103,7 @@ export async function finishSignIn(context: RouteContext): Promise<Response> {
     accountId = login.account_id
     statements.push(touchLoginStatement(db, { provider: id, subject, profile }, now), audit(accountId, 'account.sign_in', { provider: id }))
   } else if (session?.accountId) {
-    // signed in already: this provider becomes another way into the same account.
+    // already signed in: this provider is added as another login to the same account
     accountId = session.accountId
     statements.push(insertLoginStatement(db, { provider: id, subject, accountId, profile }, now), audit(accountId, 'account.login_add', { provider: id }))
   } else {
@@ -132,14 +132,14 @@ export async function finishSignIn(context: RouteContext): Promise<Response> {
     cookie = sessionCookie(made.token, SESSION_COOKIE_MAX_AGE_S)
   }
   await db.batch(statements)
-  // a stopped account still gets its session, which can only read its sanctions and appeal them.
+  // a suspended account receives a session that can only read and appeal its sanctions
   const stopped = await stoppedBy(db, 'account', accountId, now)
-  // a new account, or the first login to bring a profile, starts the account's profile from the provider's.
+  // a new account, or the first login that brings a profile, starts the account's profile from the provider's
   if (!stopped && profile && !login?.profile) await fillProfile(context, accountId)
   return back(stopped ? 'suspended' : 'ok', state.return_to, cookie)
 }
 
-/** DELETE /account/logins/:provider: removes one sign-in method while at least one remains. */
+// DELETE /account/logins/:provider: removes one sign-in method while at least one remains
 export async function removeLogin(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -152,8 +152,8 @@ export async function removeLogin(context: RouteContext): Promise<Response> {
   return json(await meFor(db, session))
 }
 
-/** DELETE /account/uids/:uid: unlinks the uid and removes its builds from the account's profile;
-    relinking it needs a fresh card. */
+// DELETE /account/uids/:uid: unlinks the uid and removes its builds from the account's profile;
+// relinking it needs a fresh card
 export async function unlinkUid(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
@@ -164,13 +164,13 @@ export async function unlinkUid(context: RouteContext): Promise<Response> {
   return json(await meFor(db, session, context.now))
 }
 
-/** DELETE /account: deletes the account, its sign-in methods, profile and links, and ends its sessions;
-    uids and their builds remain for a fresh card to claim. */
+// DELETE /account: deletes the account, its sign-in methods, profile and links, and ends its sessions;
+// uids and their builds remain for a fresh card to claim
 export async function deleteAccount(context: RouteContext): Promise<Response> {
   const session = await requireAccount(context)
   const db = context.env.LB
   const media = await mediaOf(db, session.accountId)
-  await db.batch([...deleteAccountSocialStatements(db, session.accountId, context.now), ...deleteAccountStatements(db, session.accountId, context.now),
+  await db.batch([...deleteAccountSocialStatements(db, session.accountId), ...deleteAccountStatements(db, session.accountId, context.now),
     auditStatement(db, { actorKind: 'account', actorId: session.accountId, action: 'account.delete', subjectKind: 'account',
       subjectId: session.accountId, data: { media: media.length } }, context.now)])
   // delete the media rows before their r2 objects; image reads look up the row first

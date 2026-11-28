@@ -51,14 +51,14 @@ export async function getBoardStats(context: RouteContext): Promise<Response> {
   return publicJson(read(context, boardVersion(context, resonator)), BOARD_CACHE_S, () => boardStats(context.env, resonator))
 }
 
-/** whether the request comes from a session that has this uid (held, or linked to its account). */
+// whether the request comes from a session that has this uid (held, or linked to its account)
 export async function viewerOwns(context: RouteContext, uid: string): Promise<boolean> {
   const session = await optionalSession(context)
   return session ? sessionHasUid(context.env.LB, session, uid) : false
 }
 
-/** returns a build the viewer may open: a kept build, not hidden, with a listed player, or any
-    kept build of the viewer's own. */
+// returns a build the viewer may open: a kept build, not hidden, with a listed player, or any
+// kept build of the viewer's own
 export async function visibleBuild(context: RouteContext): Promise<{ ref: BuildRef; view: BuildView; own: boolean; uid: string }> {
   const found = await buildViewOf(context.env, context.params.id)
   if (!found || found.view.row.state !== 'active') throw new HttpError('not_found', "hmm... this build isn't available. it may have been hidden or deleted.")
@@ -74,7 +74,7 @@ export async function getBuildDetail(context: RouteContext): Promise<Response> {
     () => buildDetail(context.env, ref.resonator, ref.id, view, own))
 }
 
-/** one cell's input and damage split for the app's cell card. */
+// one cell's input and damage split for the app's cell card
 export async function getCellDetail(context: RouteContext): Promise<Response> {
   const { ref, view, own } = await visibleBuild(context)
   if (!view.row.rulesetId) throw new HttpError('not_found', "no boards yet... scoring hasn't started. check back later :P")
@@ -91,8 +91,8 @@ export async function getBoards(context: RouteContext): Promise<Response> {
   return publicJson(read(context, () => boardsVersion(context.env.LB)), BOARD_CACHE_S, () => boards(context.env, rulesetId))
 }
 
-/** a public profile by uid; hidden uids are not looked up by their digits, which keeps hiding unprobeable, and
-    anonymous profiles return only to their owner. */
+// a public profile by uid; hidden uids are not looked up by their digits, so a hidden uid cannot be probed, and
+// anonymous profiles return only to their owner
 export async function getPlayerProfile(context: RouteContext): Promise<Response> {
   const { env, params } = context
   if (!/^\d{9}$/.test(params.uid)) throw new HttpError('bad_request', "hmm... a UID needs all 9 digits. check it and try again :P")
@@ -100,7 +100,8 @@ export async function getPlayerProfile(context: RouteContext): Promise<Response>
   const player = await getListedPlayer(env.LB, params.uid)
   if (!player) throw new HttpError('not_found', "hmm... this player isn't available. check the UID; the profile may also be private or removed.")
   if (player.hide_uid || isMasked(player)) {
-    // the uid's owner viewing their own profile is the exception; that response is not cached
+    // the uid's owner reads their own profile without the hidden and anonymous checks, and that response is not
+    // cached
     if (!await viewerOwns(context, params.uid)) throw new HttpError('not_found', "hmm... this player isn't available. check the UID; the profile may also be private or removed.")
     return json(await playerProfile(env, rulesetId, player, true, await personOf(env.LB, player.uid, { own: true })))
   }
@@ -108,7 +109,7 @@ export async function getPlayerProfile(context: RouteContext): Promise<Response>
   return publicJson(read(context, () => profileVersion(env.LB, person)), BOARD_CACHE_S, () => playerProfile(env, rulesetId, player, true, person))
 }
 
-/** the profile of a build's owner; reaches players with hidden uids, but not anonymous players. */
+// the profile of a build's owner; reaches players with hidden uids, but not anonymous players
 export async function getBuildPlayer(context: RouteContext): Promise<Response> {
   const { env } = context
   const rulesetId = await requireLiveRuleset(env.LB)
@@ -125,5 +126,9 @@ export async function getActivity(context: RouteContext): Promise<Response> {
   const raw = context.url.searchParams.get('limit')
   const limit = raw == null ? 20 : Number(raw)
   if (!Number.isInteger(limit) || limit < 1 || limit > ACTIVITY_LIMIT) throw new HttpError('bad_request', `limit is 1 to ${ACTIVITY_LIMIT}`)
-  return clockJson(context, 15_000, ACTIVITY_CACHE_S, () => activity(context.env, rulesetId, limit))
+  // `from`: the first moment the page shows, for its per-board counts (a local midnight, so one url a day per zone)
+  const rawFrom = context.url.searchParams.get('from')
+  const from = rawFrom == null ? undefined : Number(rawFrom)
+  if (from !== undefined && !Number.isSafeInteger(from)) throw new HttpError('bad_request', 'from is a time in milliseconds')
+  return clockJson(context, 15_000, ACTIVITY_CACHE_S, () => activity(context.env, rulesetId, limit, Date.now(), from))
 }

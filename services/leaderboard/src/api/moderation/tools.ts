@@ -8,7 +8,7 @@
 */
 
 import type {
-  HistoryEvent, HistoryResponse, MediaListResponse, ReportDetailResponse, ReportNote, RoleRequest, Sanction, SanctionRequest, StaffComment,
+  HistoryEvent, HistoryResponse, MediaListResponse, ReportDetailResponse, ReportNote, RoleRequest, Sanction, SanctionRequest,
   StaffDocumentsResponse, StaffReport,
 } from '@lb/contract/api'
 import { isDocumentKind, readDocument } from '@lb/contract/documents'
@@ -16,7 +16,6 @@ import { ROLES } from '@lb/contract/permissions'
 import { actionsBy, historyOf, type AuditRow, type SubjectKind } from '../../lib/audit.ts'
 import { HttpError, json, readJsonBody } from '../../lib/http.ts'
 import { getAccount, linkOf, setRoleStatement } from '../../db/accounts.ts'
-import { getComment, type CommentRow } from '../../db/comments.ts'
 import { notifyStatement } from '../../db/notifications.ts'
 import { deleteDocumentStatement, documentQueue, documentsOf, markReviewedStatement } from '../../db/documents.ts'
 import { getPlayer } from '../../db/identity.ts'
@@ -40,13 +39,9 @@ const DAY_MS = 86_400_000
 // shapes
 
 export const staffReport = (row: ReportRow): StaffReport => ({
-  id: row.id, buildId: row.build_id, reason: row.reason, details: row.details, status: row.status,
+  id: row.id, buildId: row.build_id, cardId: row.card_id, reason: row.reason, details: row.details, status: row.status,
   resolution: row.resolution, createdAt: row.created_at, resolvedAt: row.resolved_at, assignedTo: row.assigned_to, assignedAt: row.assigned_at,
-  commentId: row.comment_id,
 })
-
-export const staffComment = (row: CommentRow): StaffComment => ({ id: row.id, buildId: row.build_id, accountId: row.account_id,
-  body: row.body, createdAt: row.created_at, removedAt: row.removed_at, removedBy: row.removed_by })
 
 const reportNote = (row: ReportNoteRow): ReportNote => ({ id: row.id, author: row.author, body: row.body, createdAt: row.created_at })
 
@@ -67,20 +62,19 @@ async function reportOr404(db: D1Database, id: string): Promise<ReportRow> {
   return report
 }
 
-/** GET /admin/reports/:id: the report, its notes and its build's history. */
+// GET /admin/reports/:id: the report, its notes and its build's history
 export async function reportDetail(context: RouteContext): Promise<Response> {
   await authorize(context, 'reports.review')
   const db = context.env.LB
   const report = await reportOr404(db, context.params.id)
-  const [notes, history, comment] = await Promise.all([reportNotes(db, report.id),
-    report.comment_id ? historyOf(db, 'comment', report.comment_id, 100) : historyOf(db, 'build', report.build_id, 100),
-    report.comment_id ? getComment(db, report.comment_id) : null])
-  const body: ReportDetailResponse = { report: staffReport(report), comment: comment ? staffComment(comment) : null,
+  const [notes, history] = await Promise.all([reportNotes(db, report.id), report.build_id ? historyOf(db, 'build', report.build_id, 100)
+    : report.card_id ? historyOf(db, 'card', report.card_id, 100) : []])
+  const body: ReportDetailResponse = { report: staffReport(report),
     notes: notes.map(reportNote), history: history.map(historyEvent) }
   return json(body)
 }
 
-/** POST /admin/reports/:id/assign { take }: take the report, or let it go. */
+// POST /admin/reports/:id/assign { take }: take the report, or let it go
 export async function assignReport(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'reports.review')
   const db = context.env.LB
@@ -93,7 +87,7 @@ export async function assignReport(context: RouteContext): Promise<Response> {
   return json(staffReport((await getReport(db, report.id))!))
 }
 
-/** POST /admin/reports/:id/notes { body }. */
+// POST /admin/reports/:id/notes { body }
 export async function noteReport(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'reports.review')
   const db = context.env.LB
@@ -111,16 +105,16 @@ export async function noteReport(context: RouteContext): Promise<Response> {
 const SANCTION_KINDS: readonly SanctionKind[] = ['warn', 'mute', 'suspend', 'ban']
 const auditSubject = (kind: 'uid' | 'account'): SubjectKind => kind === 'uid' ? 'player' : 'account'
 
-/** whether a sanction changes how a uid's builds list: a uid ban does, on issue and on lift. */
+// whether a sanction changes how a uid's builds list: a uid ban does, on issue and on lift
 export const movesBoards = (row: Pick<SanctionRow, 'kind' | 'subject_kind'>) => row.kind === 'ban' && row.subject_kind === 'uid'
 
-/** statements for lifting a sanction: the lift, plus a players.ver bump for a uid ban so its boards resync. after the
-    batch, the uid is synced to its boards (syncPlayerBoards), and a uid banned by another sanction stays off. */
+// statements for lifting a sanction: the lift, plus a players.ver bump for a uid ban so its boards resync. after the
+// batch, the uid is synced to its boards (syncPlayerBoards), and a uid banned by another sanction stays off them
 export async function liftStatements(db: D1Database, row: SanctionRow, by: string, now: number): Promise<D1PreparedStatement[]> {
   return [liftSanctionStatement(db, row.id, by, now), ...(movesBoards(row) ? [bumpPlayerStatement(db, row.subject_id)] : [])]
 }
 
-/** POST /admin/sanctions. */
+// POST /admin/sanctions
 export async function issueSanction(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'sanctions.issue')
   const db = context.env.LB
@@ -142,13 +136,13 @@ export async function issueSanction(context: RouteContext): Promise<Response> {
   if (body.subjectKind === 'account') {
     const account = await getAccount(db, body.subjectId)
     if (!account) throw new HttpError('not_found', 'no such account')
-    // staff are sanctioned only by someone who can change their role.
+    // staff are sanctioned only by someone who can change their role
     if (account.role !== 'user') await authorize(context, 'roles.assign')
   }
   const expiresAt = (kind === 'suspend' || kind === 'mute') && body.days != null ? context.now + body.days * DAY_MS : null
   const made = insertSanctionStatement(db, { subjectKind: body.subjectKind, subjectId: body.subjectId, kind, reason: body.reason.trim(),
     reportId: body.reportId ?? null, issuedBy: staffName(who), expiresAt }, context.now)
-  // the account sanctioned, or the one a sanctioned uid is linked to, is told why and until when.
+  // notify the sanctioned account, or the account a sanctioned uid is linked to, with the reason and end time
   const told = body.subjectKind === 'account' ? body.subjectId : (await linkOf(db, body.subjectId))?.account_id
   await db.batch([made.statement,
     ...(told ? [notifyStatement(db, { accountId: told, kind: 'sanction', subjectId: made.id,
@@ -156,12 +150,12 @@ export async function issueSanction(context: RouteContext): Promise<Response> {
     ...(kind === 'ban' && body.subjectKind === 'uid' ? [bumpPlayerStatement(db, body.subjectId)] : []),
     audit(context, who, { action: 'sanction.issue', subjectKind: auditSubject(body.subjectKind), subjectId: body.subjectId,
       data: { sanctionId: made.id, kind, days: body.days ?? null, reportId: body.reportId ?? null } })])
-  // a banned uid leaves every board; D1's listed views already leave it out of everything else.
+  // a banned uid leaves every board; D1's listed views exclude it everywhere else
   if (kind === 'ban' && body.subjectKind === 'uid') await syncPlayerBoards(context.env, body.subjectId)
   return json(sanction((await getSanction(db, made.id))!), { status: 201 })
 }
 
-/** POST /admin/sanctions/:id/lift: lifting a uid ban restores its builds to their boards from stored scores. */
+// POST /admin/sanctions/:id/lift: lifting a uid ban restores its builds to their boards from stored scores
 export async function liftSanction(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'sanctions.issue')
   const db = context.env.LB
@@ -177,10 +171,10 @@ export async function liftSanction(context: RouteContext): Promise<Response> {
 
 // history
 
-const HISTORY_SUBJECTS: readonly SubjectKind[] = ['build', 'card', 'player', 'account', 'report', 'ruleset', 'sanction', 'media', 'document', 'score', 'comment']
+const HISTORY_SUBJECTS: readonly SubjectKind[] = ['build', 'card', 'player', 'account', 'report', 'ruleset', 'sanction', 'media', 'document', 'score']
 
-/** GET /admin/history/:kind/:id: what happened to a subject (and, for a player or an account, what it did),
-    with its sanctions and the reports about it. */
+// GET /admin/history/:kind/:id: what happened to a subject (and, for a player or an account, what it did),
+// with its sanctions and the reports about it
 export async function subjectHistory(context: RouteContext): Promise<Response> {
   await authorize(context, 'history.read')
   const db = context.env.LB
@@ -201,7 +195,7 @@ export async function subjectHistory(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** what a build's board or a card's registry shard recorded of it, as audit rows. */
+// what a build's board or a card's registry shard recorded of it, as audit rows
 async function heldHistory(context: RouteContext, kind: SubjectKind, id: string): Promise<AuditRow[]> {
   const asRow = (prefix: string) => (event: { at: number; kind: string; actor: string | null; data: string | null }, i: number): AuditRow => {
     const [actorKind, ...rest] = (event.actor ?? 'system').split(':')
@@ -221,7 +215,7 @@ async function heldHistory(context: RouteContext, kind: SubjectKind, id: string)
 
 // roles
 
-/** POST /admin/accounts/:id/role { role }. */
+// POST /admin/accounts/:id/role { role }
 export async function assignRole(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'roles.assign')
   const db = context.env.LB
@@ -237,7 +231,7 @@ export async function assignRole(context: RouteContext): Promise<Response> {
 
 // documents
 
-/** DELETE /admin/documents/:kind/:ownerId: clear a document someone wrote (its owner can write a new one). */
+// DELETE /admin/documents/:kind/:ownerId: clear a document someone wrote (its owner can write a new one)
 export async function clearDocument(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'documents.moderate')
   const { kind, ownerId } = context.params
@@ -248,8 +242,8 @@ export async function clearDocument(context: RouteContext): Promise<Response> {
   return json({ ok: true })
 }
 
-/** GET /admin/documents?status=unreviewed|reviewed&cursor=: public documents, newest write first; a write after a
-    review returns the document to the unreviewed queue. */
+// GET /admin/documents?status=unreviewed|reviewed&cursor=: public documents, newest write first; a write after a
+// review returns the document to the unreviewed queue
 export async function listDocuments(context: RouteContext): Promise<Response> {
   await authorize(context, 'documents.moderate')
   const status = context.url.searchParams.get('status') ?? 'unreviewed'
@@ -269,7 +263,8 @@ export async function listDocuments(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** POST /admin/documents/:kind/:ownerId/reviewed { updatedAt }: marks the read version reviewed; later writes are not covered. */
+// POST /admin/documents/:kind/:ownerId/reviewed { updatedAt }: marks the read version reviewed; later writes are not
+// covered
 export async function reviewDocument(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'documents.moderate')
   const { kind, ownerId } = context.params
@@ -286,7 +281,7 @@ export async function reviewDocument(context: RouteContext): Promise<Response> {
 
 // media
 
-/** GET /admin/media?status=pending|approved|rejected: the review queue, oldest first. */
+// GET /admin/media?status=pending|approved|rejected: the review queue, oldest first
 export async function listMedia(context: RouteContext): Promise<Response> {
   await authorize(context, 'media.review')
   const status = context.url.searchParams.get('status') ?? 'pending'
@@ -295,7 +290,7 @@ export async function listMedia(context: RouteContext): Promise<Response> {
   return json(body)
 }
 
-/** POST /admin/media/:id { status: approved | rejected }. a rejected image's bytes are erased. */
+// POST /admin/media/:id { status: approved | rejected }; a rejected image's bytes are erased
 export async function reviewMedia(context: RouteContext): Promise<Response> {
   const who = await authorize(context, 'media.review')
   const db = context.env.LB

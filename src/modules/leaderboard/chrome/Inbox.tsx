@@ -1,14 +1,12 @@
 /*
   Author: Runor Ewhro
-  description: the inbox dropdown from the header bell: the account's
-               notifications with today's first. opening one marks it read and
-               navigates to its build or profile.
+  description: the inbox dropdown of the account's notifications.
 */
 
 import { useRef, type RefObject } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AnchoredAppPopup, useAppPopupDismiss } from '@/shared/ui/AppPopup'
-import { Check, Crown, Heart, ImageIcon, MessageSquare, Shield, Trash2, Unlink, type LucideIcon } from 'lucide-react'
+import { Check, Crown, ImageIcon, Shield, Unlink, type LucideIcon } from 'lucide-react'
 import type { NotificationItem, NotificationKind } from '@/domain/leaderboard/api'
 import { APP_ROUTES } from '@/shared/lib/appRoutes'
 import { useNavX } from '@/shared/navigation/useNavX'
@@ -20,10 +18,9 @@ import { refreshMe } from './chrome'
 import { lbKeys, lbq } from '../api/queries'
 
 const GLYPH: Record<NotificationKind, LucideIcon> = {
-  scored: Check, dethroned: Crown, like: Heart, comment: MessageSquare, reply: MessageSquare,
-  comment_removed: Trash2, media: ImageIcon, sanction: Shield, appeal: Shield, uid_moved: Unlink,
+  scored: Check, dethroned: Crown, media: ImageIcon, sanction: Shield, appeal: Shield, uid_moved: Unlink,
 }
-const BAD = new Set<NotificationKind>(['dethroned', 'comment_removed', 'sanction', 'uid_moved'])
+const BAD = new Set<NotificationKind>(['dethroned', 'sanction', 'uid_moved'])
 
 type Data = Record<string, unknown> | null
 const num = (d: Data, key: string) => typeof d?.[key] === 'number' ? d[key] as number : null
@@ -44,14 +41,6 @@ function Line({ n }: { n: NotificationItem }) {
     }
     case 'dethroned':
       return <>{who} took #1 on {res ? named : 'a board'}{score != null ? <> with <em style={scoreInk(score)}>{score1(score)}</em></> : null}</>
-    case 'like':
-      return <>{who}{n.count > 1 ? ` and ${n.count - 1} other${n.count > 2 ? 's' : ''}` : ''} liked your {named}</>
-    case 'comment':
-      return <>{who} commented on your {named}{n.excerpt ? <q>{n.excerpt}</q> : null}</>
-    case 'reply':
-      return <>{who} replied to you on {named}{n.excerpt ? <q>{n.excerpt}</q> : null}</>
-    case 'comment_removed':
-      return <>staff removed your comment{res ? <> on {named}</> : null}</>
     case 'media':
       return <>your {str(d, 'purpose') ?? 'image'} was {str(d, 'status') === 'approved' ? 'approved' : 'rejected'}</>
     case 'sanction': {
@@ -82,7 +71,7 @@ function Row({ n, onOpen }: { n: NotificationItem; onOpen: (n: NotificationItem)
   )
 }
 
-export function InboxPop({ open: shown, host, trigger, onClose }: {
+export function Inbox({ open: shown, host, trigger, onClose }: {
   open: boolean
   host: RefObject<HTMLElement | null>
   trigger: RefObject<HTMLButtonElement | null>
@@ -105,9 +94,9 @@ export function InboxPop({ open: shown, host, trigger, onClose }: {
     if (!n.read) read([n.id])
     onClose()
     const LB = APP_ROUTES.leaderboard
-    navigate(n.kind === 'sanction' || n.kind === 'appeal' ? `${LB}/standing`
+    navigate(n.kind === 'sanction' || n.kind === 'appeal' ? `${LB}/me/account?s=status`
       : n.kind === 'dethroned' && n.resonatorId ? `${LB}/${n.resonatorId}`
-      : n.buildId && n.kind !== 'comment_removed' ? `${LB}/me?build=${n.buildId}` : `${LB}/me`)
+      : n.buildId ? `${LB}/me?build=${n.buildId}` : `${LB}/me`)
   }
 
   const startOfToday = new Date().setHours(0, 0, 0, 0)
@@ -125,7 +114,7 @@ export function InboxPop({ open: shown, host, trigger, onClose }: {
       <div className="lbi-list">
         {error ? <p className="lbi-none">{error}</p>
           : !items ? <p className="lbi-none">checking your inbox... :P</p>
-          : !items.length ? <p className="lbi-none">nothing here yet... scores, likes, replies and account updates will show up here :P</p>
+          : !items.length ? <p className="lbi-none">nothing here yet... scores and account updates will show up here :P</p>
           : <>
             {today.length ? <><h6>Today</h6>{today.map((n) => <Row key={n.id} n={n} onOpen={open} />)}</> : null}
             {earlier.length ? <><h6>Earlier</h6>{earlier.map((n) => <Row key={n.id} n={n} onOpen={open} />)}</> : null}

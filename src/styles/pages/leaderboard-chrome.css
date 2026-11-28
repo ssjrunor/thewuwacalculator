@@ -249,3 +249,11 @@
 .ped-note { font-size: .74rem; color: var(--amdl-bad) }
 .ped-foot { font: 500 .6rem var(--amdl-mono); color: var(--whisper) }
 .reduce-animation .ped-tg i, .reduce-animation .ped-tg i::after { transition: none }
+
+.pfm { min-width: 11rem; padding: .3rem; }
+.pfm-i { display: flex; align-items: center; gap: .55rem; width: 100%; height: 2.1rem; padding: 0 .7rem; border: 0; border-radius: .45rem; background: none;
+  font: 600 .78rem/1 var(--body-font, inherit); color: var(--text); text-align: left; cursor: pointer }
+.pfm-i svg { width: .85rem; height: .85rem; flex: none }
+.pfm-i:hover, .pfm-i:focus-visible { background: color-mix(in srgb, var(--text) 6%, transparent); outline: 0 }
+.pfm-i.warn { color: var(--danger, crimson) }
+.pfm-i.warn:hover { background: color-mix(in srgb, var(--danger, crimson) 9%, transparent) }

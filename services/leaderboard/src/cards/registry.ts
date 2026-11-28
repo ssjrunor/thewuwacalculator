@@ -14,7 +14,7 @@ import type { SqlLike } from '../board/sql.ts'
 export type CardStatusCode = 'pending' | 'read' | 'rejected' | 'blocked'
 
 export interface CardRecord {
-  /** the card's public id. */
+  // the card's public id
   id: string
   no: number
   link_hash: string
@@ -27,10 +27,10 @@ export interface CardRecord {
   status: CardStatusCode
   reject_reason: string | null
   image_erased_at: number | null
-  /** what its accepted read said, once read. */
+  // what its accepted read said, once read
   uid: number | null
   resonator: number | null
-  /** the build it made, once placed. */
+  // the build it made, once placed
   build: string | null
   read_ver: string | null
 }
@@ -41,6 +41,20 @@ export interface NewCard {
   byteSize: number
   imageSha256: string
   lastModified: number
+}
+
+// a card refused at its read, as the health report lists it
+export interface RefusedCard {
+  id: string
+  reason: string
+  // when it was last refused
+  at: number
+  // the uid its newest read named, if any
+  uid: number | null
+  // the R2 key of its newest read's evidence; null when no read finished (read_failed)
+  evidence: string | null
+  // whether its image is still kept (retention erases it)
+  imageKept: boolean
 }
 
 export interface ReadSummary {
@@ -101,7 +115,7 @@ export class RegistryStore {
     return this.withId(this.sql.first<Row>(`SELECT * FROM cards WHERE link_hash = ?`, linkHash))
   }
 
-  /** records a new card pending its read; a known link returns its existing card. */
+  // records a new card pending its read; a known link returns its existing card
   record(card: NewCard, now: number): { card: CardRecord; inserted: boolean } {
     return this.sql.transaction(() => {
       const known = this.byLink(card.linkHash)
@@ -117,14 +131,14 @@ export class RegistryStore {
 
   setStatus(no: number, status: CardStatusCode, reason: string | null, now: number, actor: string | null = null): void {
     this.sql.transaction(() => {
-      // a blocked card stays blocked: only block() and nothing after it sets that.
+      // a blocked card stays blocked: only block() sets that state, and nothing after it changes it
       this.sql.run(`UPDATE cards SET status = ?, reject_reason = ? WHERE no = ? AND (status <> 'blocked' OR ? = 'blocked')`,
         status, reason, no, status)
       this.event(no, status === 'rejected' ? 'card.reject' : `card.${status}`, actor, reason == null ? null : { reason }, now)
     })
   }
 
-  /** a card's image is stored again (it was erased): back to pending for a fresh read. */
+  // a card's image is stored again after it was erased: it returns to pending for a fresh read
   restoreImage(no: number, now: number): void {
     this.sql.transaction(() => {
       this.sql.run(`UPDATE cards SET status = 'pending', reject_reason = NULL, image_erased_at = NULL WHERE no = ? AND status <> 'blocked'`, no)
@@ -139,7 +153,7 @@ export class RegistryStore {
     })
   }
 
-  /** records a read once per parser version (evidence is in R2); an accepted read marks the card read. */
+  // records a read once per parser version (evidence is in R2); an accepted read marks the card read
   recordRead(no: number, read: ReadSummary, now: number): void {
     this.sql.transaction(() => {
       this.sql.run(`INSERT INTO reads (card, parser_ver, outcome, uid, resonator, at) VALUES (?, ?, ?, ?, ?, ?)
@@ -148,7 +162,7 @@ export class RegistryStore {
     })
   }
 
-  /** the card is read as this player's build: it is `read`, and names the build it made. */
+  // the card is read as this player's build: it is `read`, and names the build it made
   setPlaced(no: number, uid: number, resonator: number, build: string, now: number): void {
     this.sql.transaction(() => {
       this.sql.run(`UPDATE cards SET status = 'read', reject_reason = NULL, uid = ?, resonator = ?, build = ? WHERE no = ? AND status <> 'blocked'`,
@@ -162,12 +176,12 @@ export class RegistryStore {
     return this.get(no)
   }
 
-  /** the uid a card's newest read named, for a card refused before it was placed. */
+  // the uid a card's newest read named, for a card refused before it was placed
   readUid(no: number): number | null {
     return this.sql.first<{ uid: number | null }>(`SELECT uid FROM reads WHERE card = ? AND uid IS NOT NULL ORDER BY at DESC LIMIT 1`, no)?.uid ?? null
   }
 
-  /** every card read as this uid (an opt-out erases them). */
+  // every card read as this uid (an opt-out erases them)
   cardsOfUid(uid: number): CardRecord[] {
     const nos = new Set([
       ...this.sql.all<{ no: number }>(`SELECT no FROM cards WHERE uid = ?`, uid).map((row) => row.no),
@@ -176,13 +190,30 @@ export class RegistryStore {
     return [...nos].flatMap((no) => this.get(no) ?? [])
   }
 
-  /** cards refused for one of `reasons` whose images are kept past `before`: retention erases them. */
+  // cards refused for one of `reasons` whose images are kept past `before`: retention erases them
   refusedImages(before: number, limit: number, reasons: readonly string[]): CardRecord[] {
     return this.sql.all<Row>(`SELECT * FROM cards WHERE status = 'rejected' AND fetched_at < ? AND image_erased_at IS NULL
       AND reject_reason IN (SELECT value FROM json_each(?)) LIMIT ?`, before, JSON.stringify(reasons), limit).map((row) => this.withId(row)!)
   }
 
-  /** cards still pending a read since `before`: their read message was lost. */
+  // cards refused for one of `reasons` and last refused at or after `since`: a count per reason, and the newest
+  // `limit`. refused cards are few, so they are walked on the status index and dated by their last refusal
+  refusals(since: number, reasons: readonly string[], limit: number): { counts: Record<string, number>; recent: RefusedCard[] } {
+    const rows = this.sql.all<Row & { refused_at: number }>(`SELECT * FROM (SELECT c.*,
+        (SELECT MAX(e.at) FROM events e WHERE e.card = c.no AND e.kind = 'card.reject') AS refused_at
+      FROM cards c WHERE c.status = 'rejected' AND c.reject_reason IN (SELECT value FROM json_each(?)))
+      WHERE refused_at >= ? ORDER BY refused_at DESC`, JSON.stringify(reasons), since)
+    const counts: Record<string, number> = {}
+    for (const row of rows) counts[row.reject_reason!] = (counts[row.reject_reason!] ?? 0) + 1
+    const recent = rows.slice(0, limit).map((row): RefusedCard => {
+      const card = this.withId(row)!
+      return { id: card.id, reason: row.reject_reason!, at: row.refused_at, uid: this.readUid(row.no),
+        evidence: row.read_ver ? cardReadKey(card.id, row.read_ver) : null, imageKept: row.image_erased_at == null }
+    })
+    return { counts, recent }
+  }
+
+  // cards still pending a read since `before`: their read message was lost
   stuckPending(before: number, limit: number): CardRecord[] {
     return this.sql.all<Row>(`SELECT * FROM cards WHERE status = 'pending' AND fetched_at < ? LIMIT ?`, before, limit)
       .map((row) => this.withId(row)!)

@@ -24,6 +24,7 @@ import {
 } from '@/modules/simulation/surfaces/suggestions/lib/suggestions.ts'
 import { getSetPlanDisplay, groupWeaponSuggestions, sameSetPlanCandidate } from '../lib/results.ts'
 import type { SuggKind } from '@/modules/simulation/surfaces/suggestions/lib/useSuggRuns.ts'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 export { materializeWeaponSuggestion } from '../lib/results.ts'
 
@@ -57,7 +58,7 @@ export interface EchoSlot {
   lead: string
   leadUnit: string
   coins: Array<string | null>
-  /** one semantic label per alternative represented by `coins`. */
+  // one semantic label per alternative represented by `coins`
   names: string[]
   name: string | null
   primary: { icon: string | null; value: string } | null
@@ -65,21 +66,21 @@ export interface EchoSlot {
   held: boolean
 }
 
-/* the lead passive-state variant determines a weapon row's rank. */
+// the lead passive-state variant determines a weapon row's rank
 export interface WeaponVariant {
   mode: WeaponEntry['mode']
   damage: number
   delta: number
 }
 
-/* the Main Echo and concrete set-plan slot used by candidate scoring. */
+// the Main Echo and concrete set-plan slot used by candidate scoring
 export interface RowEcho {
   id: string
   name: string
   icon: string | null
   color: string | null
   worn: boolean
-  /** index into `trays`, or -1 when the scored Echo belongs to no plan entry. */
+  // index into `trays`, or -1 when the scored Echo belongs to no plan entry
   seat: number
 }
 
@@ -87,7 +88,7 @@ export interface Row {
   key: string
   rank: number
   now: boolean
-  /** already on the build: the worn recipe or set plan, or the weapon in hand. */
+  // already on the build: the worn recipe or set plan, or the weapon in hand
   equipped: boolean
   color: string | null
   damage: number
@@ -110,7 +111,7 @@ export interface WornMainStat {
   secondary: { key: string, value: number }
 }
 
-/* recipes have no slot identity, so compare equipped main stats as a multiset. */
+// recipes have no slot identity, so compare equipped main stats as a multiset
 export function wornMainStats(echoes: Array<EchoInstance | null>): WornMainStat[] {
   const out: WornMainStat[] = []
   for (const echo of echoes) {
@@ -154,7 +155,7 @@ function statTray(key: string, cost: number, held: boolean): EchoSlot {
   }
 }
 
-/* consume matching multiset entries so repeated cost/stat pairs remain distinct. */
+// consume matching multiset entries so repeated cost/stat pairs remain distinct
 function mainStatRows(
   results: MainStatSugg[],
   base: number,
@@ -215,14 +216,14 @@ function setPlanRows(
       have.set(entry.setId, (have.get(entry.setId) ?? 0) + entry.pieces)
     }
 
-    // materialize the scored plan; displayPlan contains only score-equivalent alternatives.
+    // materialize the scored plan; displayPlan contains only score-equivalent alternatives
     const setPlan = result.setPlan
     const displayPlan = getSetPlanDisplay(result)
 
     const marks: Change[] = []
     const trays: EchoSlot[] = []
 
-    // equivalence metadata must never replace the concrete plan used for mutation.
+    // the concrete plan used for mutation comes from the scored plan
     for (const entry of setPlan) {
       const held = (have.get(entry.setId) ?? 0) >= entry.pieces
       if (held) have.set(entry.setId, (have.get(entry.setId) ?? 0) - entry.pieces)
@@ -299,7 +300,7 @@ function setPlanRows(
   })
 }
 
-/* fold passive variants by weapon while keeping the configured ranking variant first. */
+// fold passive variants by weapon while keeping the configured ranking variant first
 function weaponRows(
   results: WeaponEntry[],
   base: number,
@@ -334,7 +335,7 @@ function weaponRows(
         coins: [],
         names: [],
         name: null,
-        primary: { icon: null, value: `${plan.damage > base ? '+' : ''}${percentDiff(plan.damage, base).toFixed(1)}%` },
+        primary: { icon: null, value: `${plan.damage > base ? '+' : ''}${formatTruncCompact(percentDiff(plan.damage, base), 1)}%` },
         secondary: null,
         held: false,
       })),

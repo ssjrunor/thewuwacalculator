@@ -1,7 +1,7 @@
 /*
   Author: Runor Ewhro
-  description: protects the leaderboard's strict reading rules: only a card
-               with a verified uid, a resolved resonator and weapon, identified equipped echoes and exact substats yields a snapshot.
+  description: protects the leaderboard's strict reading rules: only a card with a verified uid, a resolved resonator
+               and weapon, identified equipped echoes and exact substats yields a snapshot.
 */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -92,7 +92,7 @@ describe('leaderboard card read', () => {
       main: { primary: { key: 'critRate', value: 22 }, secondary: { key: 'atkFlat', value: 150 } },
       substats: { critDmg: 21, atkPercent: 9.4 },
     })
-    // saved snapshots exclude parser-local Echo UIDs.
+    // saved snapshots exclude parser-local Echo UIDs
     expect(JSON.stringify(read.snapshot)).not.toContain('"u0"')
   })
 
@@ -101,6 +101,15 @@ describe('leaderboard card read', () => {
     expect(read.outcome).toBe('uid_unreadable')
     expect(read.uid).toBeNull()
     expect(read.snapshot).toBeNull()
+    // the rest read, so staff can place it under the uid they read off the card
+    expect(read.awaitingUid).toMatchObject({ uid: '500395087', name: 'xuri' })
+  })
+
+  it('stores no build for staff when more than the uid was missed', () => {
+    const read = makeCardRead(parsedCard({ player: { id: 'xuri', uid: null, uidAgreed: false },
+      resonator: { ...parsedCard().resonator, id: null, candidateIds: ['1102', '1406'] } }), 'v', 0)
+    expect(read.confidence.issues).toEqual(['uid_unverified', 'resonator_unresolved'])
+    expect(read.awaitingUid).toBeUndefined()
   })
 
   it('treats a card that is not the bot frame as unreadable first', () => {
@@ -156,9 +165,11 @@ describe('leaderboard card read', () => {
     expect(read.snapshot!.echoes).toEqual([])
   })
 
-  it('requires a resolved weapon and resonator', () => {
+  it('accepts a card that drew no weapon, flagged, and requires a resolved resonator', () => {
     const read = makeCardRead(parsedCard({ weapon: { id: null, name: 'Blazing', level: 90 } }), 'v', 0)
-    expect(read.confidence.issues).toEqual(['weapon_unresolved'])
+    expect(read.outcome).toBe('ok')
+    expect(read.snapshot?.weapon).toEqual({ id: null, level: 90 })
+    expect(read.confidence.flags).toContain('weapon_unread')
     const noRes = makeCardRead(parsedCard({
       resonator: { ...parsedCard().resonator, id: null, candidateIds: ['1102', '1406'] },
     }), 'v', 0)
@@ -172,6 +183,50 @@ describe('leaderboard card read', () => {
     expect(read.outcome).toBe('ok')
     expect(read.resonatorId).toBe('1406')
     expect(read.confidence.resonatorCandidates).toEqual(['1408', '1406'])
+  })
+
+  it('flags no doubts on a clean card', () => {
+    expect(makeCardRead(parsedCard(), 'v', 0).confidence.flags).toBeUndefined()
+  })
+
+  it('flags a missing name by the name span contents', () => {
+    const flagsFor = (nameInk?: 'none' | 'obscured' | 'clear') =>
+      makeCardRead(parsedCard({ player: { id: null, uid: '500395087', uidAgreed: true, nameInk } }), 'v', 0).confidence.flags
+    expect(flagsFor('none')).toEqual(['name_blank'])
+    expect(flagsFor('obscured')).toEqual(['name_obscured'])
+    expect(flagsFor('clear')).toEqual(['name_unread'])
+    expect(flagsFor()).toEqual(['name_unread'])
+  })
+
+  it('flags a name with edge punctuation a decoration may have been read as', () => {
+    const flagsFor = (id: string) =>
+      makeCardRead(parsedCard({ player: { id, uid: '500395087', uidAgreed: true } }), 'v', 0).confidence.flags
+    expect(flagsFor('Marmalade-')).toEqual(['name_edge'])
+    expect(flagsFor('_xuri')).toEqual(['name_edge'])
+    expect(flagsFor('~Marmalade~')).toBeUndefined()
+    expect(flagsFor('Tea-Time')).toBeUndefined()
+  })
+
+  it('flags a name no second read confirmed', () => {
+    const read = makeCardRead(parsedCard({ player: { id: 'Λξεα', uid: '500395087', uidAgreed: true, nameUnconfirmed: true } }), 'v', 0)
+    expect(read.outcome).toBe('ok')
+    expect(read.confidence.flags).toEqual(['name_unconfirmed'])
+  })
+
+  it('flags guessed matches and unread levels on an accepted read', () => {
+    const base = parsedCard()
+    const read = makeCardRead(parsedCard({
+      resonator: { ...base.resonator, byArt: true, level: null, skillLevels: { ...base.resonator.skillLevels, forteCircuit: null } },
+      weapon: { ...base.weapon, level: null, iconOverrode: true },
+    }), 'v', 0)
+    expect(read.outcome).toBe('ok')
+    expect(read.confidence.flags).toEqual(['resonator_by_art', 'weapon_disagrees', 'level_unread', 'weapon_level_unread', 'skill_unread'])
+  })
+
+  it('leaves a refused read unflagged', () => {
+    const read = makeCardRead(parsedCard({ player: { id: null, uid: '500395087', uidAgreed: false, nameInk: 'none' } }), 'v', 0)
+    expect(read.outcome).toBe('uid_unreadable')
+    expect(read.confidence.flags).toBeUndefined()
   })
 
   it('reports a parser failure as unreadable', () => {

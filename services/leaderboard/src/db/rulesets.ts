@@ -21,11 +21,11 @@ export interface RulesetRow {
   created_at: number
   live_at: number | null
   archived_at: number | null
-  /** tools/lib/fingerprint.mjs: the scorer bundle and ruleset data it was built from. */
+  // tools/lib/fingerprint.mjs: the scorer bundle and ruleset data it was built from
   fingerprint?: string | null
-  /** the scorer bundle's hash it was published with. */
+  // the scorer bundle's hash it was published with
   scorer?: string | null
-  /** the scorer's hash in parts: its generator (src/engine/rotationGen) and everything else it scores with. */
+  // the scorer's hash in parts: its generator (src/engine/rotationGen) and everything else it scores with
   generator_fp?: string | null
   evaluation_fp?: string | null
 }
@@ -43,7 +43,7 @@ export interface ScenarioRow {
   weapon_id: string
   weapon_rank: number
   weapon_role: ScenarioDef['weapon']['role']
-  /** json: member resonator ids in slot order. */
+  // json: member resonator ids in slot order
   members: string
   fingerprint: string | null
   data_fingerprint: string | null
@@ -61,7 +61,7 @@ export const getRuleset = (db: D1Database, id: string) =>
 
 export const rulesetKey = (id: string, path: string) => `rulesets/${id}/${path}`
 
-/** the key of a scenario within its ruleset: '<resonator>:<team>:<weapon>'. */
+// the key of a scenario within its ruleset: '<resonator>:<team>:<weapon>'
 export const scenarioKey = (row: Pick<ScenarioRow, 'id' | 'ruleset_id'>) => row.id.slice(row.ruleset_id.length + 1)
 
 export function summaryOf(row: ScenarioRow): ScenarioSummary {
@@ -75,7 +75,7 @@ export async function rulesetScenarios(db: D1Database, rulesetId: string): Promi
   return results
 }
 
-/** a ruleset's scenarios by id, read once per isolate and ruleset since published rulesets do not change. */
+// a ruleset's scenarios by id, read once per isolate and ruleset because published rulesets do not change
 const catalogs = new Map<string, Promise<Map<string, ScenarioRow>>>()
 export function scenarioCatalog(db: D1Database, rulesetId: string): Promise<Map<string, ScenarioRow>> {
   let found = catalogs.get(rulesetId)
@@ -89,7 +89,7 @@ export function scenarioCatalog(db: D1Database, rulesetId: string): Promise<Map<
   return found
 }
 
-/** each resonator's scenarios numbered into cells: best team first, then the weapon's rank, then the id. */
+// each resonator's scenarios numbered into cells: best team first, then the weapon's rank, then the id
 export function numberCells(scenarios: ScenarioDef[]): Map<string, number> {
   const byResonator = new Map<string, ScenarioDef[]>()
   for (const def of scenarios) byResonator.set(def.resonatorId, [...byResonator.get(def.resonatorId) ?? [], def])
@@ -101,12 +101,12 @@ export function numberCells(scenarios: ScenarioDef[]): Map<string, number> {
   return cells
 }
 
-/** the next ruleset number, one past every number issued, which keeps board table names unique. */
+// the next ruleset number, one past every number issued, so board table names stay unique
 export async function nextRulesetNo(db: D1Database): Promise<number> {
   return ((await db.prepare('SELECT MAX(no) AS no FROM rulesets').first<{ no: number | null }>())?.no ?? 0) + 1
 }
 
-/** the statements that publish a ruleset as `building`. run them in batches. */
+// the statements that publish a ruleset as `building`, run in batches
 export function publishStatements(db: D1Database, manifest: RulesetManifest, manifestSha256: string, no: number, now: number): D1PreparedStatement[] {
   const statements = [db.prepare(`INSERT INTO rulesets (id, no, game_ver, engine_ver, rotation_ver, manifest_key, manifest_sha256,
       status, created_at, live_at, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'building', ?, NULL, NULL)`)
@@ -123,7 +123,7 @@ export function publishStatements(db: D1Database, manifest: RulesetManifest, man
   return statements
 }
 
-/** makes `id` live and archives the previous ruleset in one batch; each board follows on its next catalog sync. */
+// makes `id` live and archives the previous ruleset in one batch; each board applies it on its next catalog sync
 export function goLiveStatements(db: D1Database, id: string, now: number): D1PreparedStatement[] {
   return [
     db.prepare(`UPDATE rulesets SET status = 'archived', archived_at = ? WHERE status = 'live' AND id <> ?`).bind(now, id),
@@ -133,20 +133,20 @@ export function goLiveStatements(db: D1Database, id: string, now: number): D1Pre
   ]
 }
 
-/** the resonators a ruleset scores. */
+// the resonators a ruleset scores
 export async function rulesetResonators(db: D1Database, rulesetId: string): Promise<string[]> {
   const { results } = await db.prepare('SELECT DISTINCT resonator_id FROM scenarios WHERE ruleset_id = ? ORDER BY resonator_id')
     .bind(rulesetId).all<{ resonator_id: string }>()
   return results.map((row) => row.resonator_id)
 }
 
-/** a body carrying every scenario's fingerprint: about 90 bytes each. */
+// a body with every scenario's fingerprint: about 90 bytes each
 export const FINGERPRINT_BODY_BYTES = 2_000_000
 
-/** a sha256 hex string, or null. */
+// a sha256 hex string, or null
 export const hexOr = (value: unknown): string | null => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value) ? value : null
 
-/** a scenario's fingerprint is 64 hex characters, keyed by its id without the ruleset ('<resonator>:<team>:<weapon>'). */
+// a scenario's fingerprint is 64 hex characters, keyed by its id without the ruleset ('<resonator>:<team>:<weapon>')
 export function validScenarioFingerprints(value: unknown): Record<string, string> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const entries = Object.entries(value as Record<string, unknown>)
@@ -154,17 +154,17 @@ export function validScenarioFingerprints(value: unknown): Record<string, string
     ? Object.fromEntries(entries) as Record<string, string> : null
 }
 
-/** which of a scenario's fingerprints: with the scorer, or of its data alone. */
+// which of a scenario's fingerprints: with the scorer, or of its data alone
 export type ScenarioFingerprintColumn = 'fingerprint' | 'data_fingerprint'
 
-/** records scenario fingerprints on a ruleset's scenarios, leaving existing values unchanged. */
+// records scenario fingerprints on a ruleset's scenarios, leaving existing values unchanged
 export const scenarioFingerprintsStatement = (db: D1Database, rulesetId: string, fingerprints: Record<string, string>,
-  column: ScenarioFingerprintColumn = 'fingerprint') =>
+  column: ScenarioFingerprintColumn = 'fingerprint', { replace = false } = {}) =>
   db.prepare(`UPDATE scenarios SET ${column} = (SELECT value FROM json_each(?2) WHERE key = substr(scenarios.id, length(?1) + 2))
-    WHERE ruleset_id = ?1 AND ${column} IS NULL AND substr(id, length(?1) + 2) IN (SELECT key FROM json_each(?2))`)
+    WHERE ruleset_id = ?1${replace ? '' : ` AND ${column} IS NULL`} AND substr(id, length(?1) + 2) IN (SELECT key FROM json_each(?2))`)
     .bind(rulesetId, JSON.stringify(fingerprints))
 
-/** a ruleset's recorded fingerprint counts: with the scorer, and of data alone. */
+// a ruleset's recorded fingerprint counts: with the scorer, and of data alone
 export async function fingerprintCounts(db: D1Database, rulesetId: string): Promise<{ scenarios: number; data: number }> {
   const row = await db.prepare('SELECT COUNT(fingerprint) AS scenarios, COUNT(data_fingerprint) AS data FROM scenarios WHERE ruleset_id = ?')
     .bind(rulesetId).first<{ scenarios: number; data: number }>()

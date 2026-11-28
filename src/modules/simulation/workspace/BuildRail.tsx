@@ -37,6 +37,7 @@ import { DetailedCard, rarityVars } from '@/modules/simulation/surfaces/showcase
 import { getRarityColor } from '@/modules/simulation/model/display.ts'
 import { useShowcaseImageContrast } from '@/modules/simulation/surfaces/showcase/showcaseImageContrast.ts'
 import Thewuwacalculator from '@/assets/thewuwacalculator.svg?react'
+import { truncTo } from '@/shared/lib/number'
 
 interface SonataToken {
   id?: number
@@ -92,8 +93,8 @@ export interface ShowcaseBuildModel {
   sonataSets: Array<{ setId: number; pieces: number; icon: string | null; name: string }>
 }
 
-/* stat families cross separate subtrees, so one delegated root updates their
-   dom classes without introducing transient react state. */
+// stat families cross separate subtrees, so one delegated root updates their dom classes without transient react
+// state
 function applyStatFocus(root: HTMLElement, family: string): void {
   if ((root.dataset.statFocus ?? '') === family) return
   if (family) root.dataset.statFocus = family
@@ -193,7 +194,7 @@ export const BuildRail = memo(function BuildRail({
   const weaponLevel = railModel.weaponState?.level ?? 1
   const weaponStats = railModel.weapon ? weaponStatsAt(railModel.weapon, weaponLevel) : null
   const seqRailHidden = isShowcase && cardHidden.seqRail
-  // layout preference is showcase-only; shared workspace rails remain classic.
+  // layout preference is showcase-only; shared workspace rails stay classic
   const detailed = isShowcase && layout === 'seal'
   const contrastWatchKey = `${railResId ?? ''}:${JSON.stringify(backdropStyle)}:${railStyle['--bg']}:${layout}:${customCss ?? ''}`
   const imageContrastVars = useShowcaseImageContrast(
@@ -207,7 +208,7 @@ export const BuildRail = memo(function BuildRail({
   )
 
   const updResRt = useAppStore((state) => state.updResRt)
-  // activating the current sequence node steps back one; another node selects its prefix.
+  // activating the current sequence node steps back one; another node selects its prefix
   const setSequence = useCallback((node: number) => {
     if (!editable || !railResId) return
     const update = onRuntimeUpdate ?? updResRt
@@ -257,7 +258,7 @@ export const BuildRail = memo(function BuildRail({
               <span className="wk-weapon-stat-item" data-stat-family={statFamily('atk')}>
                 <StatGlyph statKey="atk" size={1.25} />
                 <span className="wk-weapon-stat-figure">
-                  <span className="wk-weapon-stat-value">{Math.round(weaponStats?.atk ?? railModel.weapon.baseAtk)}</span>
+                  <span className="wk-weapon-stat-value">{truncTo(weaponStats?.atk ?? railModel.weapon.baseAtk)}</span>
                   <span className="wk-weapon-stat-label">Base ATK</span>
                 </span>
               </span>
@@ -333,7 +334,7 @@ export const BuildRail = memo(function BuildRail({
           aria-label={onAnimatedPortraitsChange ? 'Animated portrait' : undefined}
           tabIndex={onAnimatedPortraitsChange ? 0 : undefined}
           onClick={onAnimatedPortraitsChange ? (event) => {
-            // nested controls activate independently of playback.
+            // nested controls activate independently of playback
             if ((event.target as HTMLElement).closest('button, a, input, [role="button"], [role="radio"]')) return
             onAnimatedPortraitsChange(!animatedPortraits)
           } : undefined}
@@ -561,8 +562,8 @@ function TeamBlock({
           team={scenario.team.members.map((member) => member.resonatorId)}
           onClose={closePicker}
           onCommit={(supports) => {
-            // the store write renders synchronously, so commit the closing
-            // phase first or the new team remounts an open picker.
+            // the store write renders synchronously, so commit the closing phase first, before the new team remounts
+            // an open picker
             flushSync(() => closePicker())
             setTeam(supports)
           }}

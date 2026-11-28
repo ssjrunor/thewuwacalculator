@@ -6,7 +6,7 @@
                step that cannot continue ends the row as `unsupported` (build or
                kit outside what can be scored) or `error` (a failure), with no
                zero score. running the program for damage is the injected
-               `execute` step, which lets callers pick the executor.
+               `execute` step, so callers pick the executor.
 */
 
 import type { CombatScenario } from '@/domain/entities/combatScenario'
@@ -25,80 +25,84 @@ import { buildScore } from './scoreFormula'
 import { scenarioBuildStats } from './buildStats'
 import type { ResolvedTeammate } from './teammateBuilds'
 import { hasScoringData } from './coverage'
+import { catalogRotationFallback } from '@/engine/rotationGen'
 import type { ScoreAnchors } from './scoreFormula'
 import { withInputPeaks, type PeakControls } from './peakControls'
 import { scenarioReads } from './scoreReads'
 import type { ErRepair } from '@/engine/evaluation/erRepair'
 import type { ProgramShelf } from './rotationStore'
 
-/** milliseconds per scoring stage, used only for health and cost ordering and not stored with the score; in a worker
-    isolate the clock advances only on i/o, so stages there read 0. */
+// milliseconds per scoring stage, used only for health and cost ordering and not stored with the score; in a worker
+// isolate the clock advances only on i/o, so stages there read 0
 export type ScoreTiming = Record<string, number>
 
 const clock = () => globalThis.performance?.now() ?? Date.now()
 
-/** the group a build is scored in (scoreScenarioGroup), with the state an executor may share across its builds; one
-    object per group, so executors distinguish groups by identity. */
+// the group a build is scored in (scoreScenarioGroup), with the state an executor may share across its builds; one
+// object per group, so executors distinguish groups by identity
 export interface ExecutionGroup {
-  /** every (echo id, set) pair the group's builds wear in the scored seat. */
+  // every (echo id, set) pair the group's builds wear in the scored seat
   worn: ReadonlyArray<readonly [string, number]>
-  /** the group's builds still to execute, this one included. */
+  // the group's builds still to execute, this one included
   left(): number
-  /** the share (0 to 1) of builds measured compiled that are also replayed and compared. */
+  // the share (0 to 1) of builds measured compiled that are also replayed and compared
   damageCheck: number
-  /** minimum remaining builds for compiling to pay off; the executor's default when absent. */
+  // minimum remaining builds for compiling to pay off; the executor's default when absent
   compileMin?: number
   random: () => number
 }
 
-/** what the executor is handed: the scenario with its generated program. */
+// what the executor is handed: the scenario with its generated program
 export interface ExecutionRequest {
+  // partial programs search anchors on their supported mechanics; full programs use the frozen full-model anchors
+  omissions?: Array<{ code: string; [key: string]: unknown }>
   def: ScenarioDef
   input: ScenarioInput
   scenario: CombatScenario
-  /** absent when the build is scored alone. */
+  // absent when the build is scored alone
   group?: ExecutionGroup
-  /** 'lean' lets an executor skip breakdown-only work (the run's contribution, contribution.team and peaks) when it can
-        compute the scored seat's DPR without them; full when absent. */
+  // 'lean' allows an executor to skip breakdown-only work (the run's contribution, contribution.team and peaks) when
+  // it can compute the scored seat's DPR without them; full when absent
   detail?: 'full' | 'lean'
 }
 
 export type ExecutionResult =
   | { status: 'ok'; damage: number; score?: number; anchors?: ScoreAnchors; contribution?: ScoredContribution
-      /** the offline anchor state the score used (offlineAnchors.ts anchorStateKey); absent when anchors were searched. */
+      omissions?: Array<{ code: string; [key: string]: unknown }>
+      // the offline anchor state the score used (offlineAnchors.ts anchorStateKey); absent when anchors were searched
       anchorKey?: string
-      /** the build's final energy regen, when the executor measured it. */
+      // the build's final energy regen, when the executor measured it
       energyRegen?: number
-      /** each member's conditions at the highest value the run held them; kept on the stored input. */
+      // each member's conditions at the highest value the run held them; kept on the stored input
       peaks?: PeakControls
-      /** the energy regen repair the score was taken on (evaluation/erRepair.ts); absent when none was needed. */
+      // the energy regen repair the score was taken on (evaluation/erRepair.ts); absent when none was needed
       erRepair?: ErRepair
-      /** the executor's stage timings (execute.ts): run, damage, search. */
+      // the executor's stage timings (execute.ts): run, damage, search
       timing?: ScoreTiming
-      /** how damage was measured (execute.ts measureFor): the program replayed, or compiled for the group. */
+      // how damage was measured (execute.ts measureFor): the program replayed, or compiled for the group
       damageModel?: 'replay' | 'compiled'
-      /** the compiled program measured a build unlike the replay: it and the rest of its group were replayed. */
+      // the compiled program measured a build unlike the replay: it and the rest of its group were replayed
       damageMismatch?: true
-      /** the scored seat's own damage per rotation from its breakdown (contribution.damage), set without a contribution
-                on a lean result. */
+      // the scored seat's own damage per rotation from its breakdown (contribution.damage), set without a
+      // contribution on a lean result
       dpr?: number
-      /** a lean result: no contribution or peaks; `dpr` stands for the contribution's damage. */
+      // a lean result: no contribution or peaks; `dpr` is the contribution's damage
       lean?: true
-      /** the compiled DPR differed from a full run's: the context went back to full runs. */
+      // the compiled DPR differed from a full run's: the context returned to full runs
       dprMismatch?: true }
   | { status: 'unsupported' | 'error'; reason: string; detail?: unknown; timing?: ScoreTiming }
 
-/** runs a generated program and totals its damage. */
+// runs a generated program and totals its damage
 export type RotationExecutor = (request: ExecutionRequest) => Promise<ExecutionResult>
 
-/** the executor until rotation execution is connected: every program is reported, nothing is scored. */
+// the executor used while rotation execution is not connected: every program is reported and nothing is scored
 export const pendingRotationExecutor: RotationExecutor = async () =>
   ({ status: 'unsupported', reason: 'rotation_execution_pending' })
 
-/** generates a team's program on a scenario; the rotation generator unless a caller substitutes one. */
+// generates a team's program on a scenario; the rotation generator unless a caller substitutes one
 export type RotationGenerator = (plan: ActionPlan, scenario: CombatScenario) => Promise<InterpretationResult>
 
-/** the stored, content-addressed rotation behind a score (LB_DATA rotations/<sha256>.json). */
+// the stored, content-addressed rotation behind a score (LB_DATA rotations/<sha256>.json)
 export interface ProgramDocument {
   v: 1
   scenarioId: string
@@ -106,6 +110,7 @@ export interface ProgramDocument {
   initialOnFieldMemberId: string
   members: Array<{ id: string; resonatorId: string }>
   program: CombatScenario['program']['program']
+  omissions?: Array<Record<string, unknown>>
 }
 
 export interface ScenarioScore {
@@ -113,82 +118,84 @@ export interface ScenarioScore {
   status: 'ok' | 'unsupported' | 'error'
   damage: number | null
   contribution: ScoredContribution | null
-  /** null when evaluation is unsupported or an injected executor supplies no usable score. */
+  // null when evaluation is unsupported or an injected executor supplies no usable score
   score: number | null
   program: ProgramDocument | null
   programText: string | null
   programSha256: string | null
-  /** the scored seat's build stats; null when the scenario input could not be built. */
+  // the scored seat's build stats; null when the scenario input could not be built
   stats: BuildStats | null
   input: ScenarioInput | null
   anchors: ScoreAnchors | null
-  /** the offline anchor state behind `anchors`, null when they were searched or read from refs. */
+  // the offline anchor state behind `anchors`, null when they were searched or read from refs
   anchorKey: string | null
-  /** the scored build's final energy regen, when the executor measured it (after any energy regen repair). */
+  // the scored build's final energy regen, when the executor measured it (after any energy regen repair)
   energyRegen: number | null
-  /** the energy regen repair used for the score; null when the build met its case's requirement. a short repair scores
-        0 because the build cannot sustain the rotation, and `contribution` stays the submitted build's. */
+  // the energy regen repair used for the score; null when the build met its case's requirement. a short repair scores
+  // 0 because the build cannot sustain the rotation, and `contribution` stays the submitted build's
   erRepair: ErRepair | null
-  /** the scored seat's own damage per rotation (the board's DPR): contribution.damage, or the compiled figure on a lean
-        score; null without either. */
+  // the scored seat's own damage per rotation (the board's DPR): contribution.damage, or the compiled figure on a
+  // lean score; null without either
   dpr: number | null
-  /** scored lean (ExecutionRequest.detail): no contribution or peaks; they are made when the breakdown is asked for. */
+  // scored lean (ExecutionRequest.detail): no contribution or peaks; they are computed when the breakdown is
+  // requested
   lean?: true
-  /** source of `anchors`: the ruleset's offline anchors, the executor's own search, or the ruleset's refs. */
+  // source of `anchors`: the ruleset's offline anchors, the executor's own search, or the ruleset's refs
   anchorSource: 'offline' | 'search' | 'refs' | null
-  /** the ruleset units the score read (scoreReads.ts); null when the scenario input could not be built. */
+  // the ruleset units the score read (scoreReads.ts); null when the scenario input could not be built
   reads: string[] | null
-  /** why the row is not ok: a short code, e.g. 'scenario_input', 'unconverted-character-rules'. */
+  // why the row is not ok: a short code, e.g. 'scenario_input', 'unconverted-character-rules'
   reason: string | null
   detail: unknown
-  /** where the time went (ScoreTiming); absent on rows that stopped before any stage ran. */
+  // where the time went (ScoreTiming); absent on rows that stopped before any stage ran
   timing?: ScoreTiming
-  /** source of the program: generated for this build, read from the store, or shared by an earlier build of the
-        group; absent when no program was reached. */
+  // source of the program: generated for this build, read from the store, or shared by an earlier build of the
+  // group; absent when no program was reached
   programSource?: 'generated' | 'stored' | 'shared'
-  /** set when a reused program was checked against the build's own and differed; the score used the build's own. */
+  // set when a reused program was checked against the build's own and differed; the score used the build's own
   programMismatch?: boolean
-  /** how the executor measured damage; absent when it does not say. */
+  // how the executor measured damage; absent when it does not say
   damageModel?: 'replay' | 'compiled'
-  /** the compiled program disagreed with the replay on this build; its score is the replay's. */
+  // the compiled program disagreed with the replay on this build; its score is the replay's
   damageMismatch?: boolean
-  /** the compiled DPR differed from a full run's on this build's context (execute.ts). */
+  // the compiled DPR differed from a full run's on this build's context (execute.ts)
   dprMismatch?: boolean
 }
 
 export interface ScenarioScoringContext {
   interpreter: InterpreterEnvironment
-  /** defaults to interpretTeamActions on `interpreter`. */
+  // defaults to interpretTeamActions on `interpreter`
   generate?: RotationGenerator
   plans: Readonly<Record<string, ActionPlan>>
   teammates: ReadonlyMap<string, ResolvedTeammate>
   deps: ScenarioInputDeps
   refsFor(scenarioId: string, sequence: number): ScenarioRefs | null
   execute: RotationExecutor
-  /** where programs are found and kept (rotationStore.ts withStoredRotations); without it every build generates. */
+  // where programs are found and kept (rotationStore.ts withStoredRotations); without it every build generates
   programs?: ProgramShelf
 }
 
-/** how a group checks the programs it reuses. */
+// how a group checks the programs it reuses
 export interface GroupScoringOptions {
-  /** share (0 to 1) of builds given a reused program that also generate their own and compare; default 0. */
+  // share (0 to 1) of builds given a reused program that also generate their own and compare; default 0
   programCheck?: number
-  /** the draw behind programCheck; Math.random by default. */
+  // the draw behind programCheck; Math.random by default
   random?: () => number
-  /** called for each build's score as it finishes, in order. */
+  // called for each build's score as it finishes, in order
   onScore?: (score: ScenarioScore, index: number) => void
-  /** share (0 to 1) of builds measured by a compiled program that are also replayed and compared; default 0. the first
-        build of a group on each evaluation context is always compared (execute.ts measureFor). */
+  // share (0 to 1) of builds measured by a compiled program that are also replayed and compared; default 0. the first
+  // build of a group on each evaluation context is always compared (execute.ts measureFor)
   damageCheck?: number
-  /** minimum remaining builds in the group for an executor to compile a program; the executor's default when unset. */
+  // minimum remaining builds in the group for an executor to compile a program; the executor's default when unset
   compileMin?: number
-  /** detail level of each build's score (ExecutionRequest.detail): one for the group or one per snapshot; full when unset. */
+  // detail level of each build's score (ExecutionRequest.detail): one for the group or one per snapshot; full when
+  // unset
   detail?: 'full' | 'lean' | ReadonlyArray<'full' | 'lean'>
 }
 
-/** a group's cached result per program key: the program, or the generator's refusal. */
+// a group's cached result per program key: the program, or the generator's refusal
 type Remembered = { program: InterpretedProgram } | { refused: Extract<InterpretationResult, { status: 'unsupported' }> }
-/** the programs a run of scores has made or read, by key: builds after the first take them from here. */
+// the programs a run of scores has made or read, by key: builds after the first take them from here
 export type ProgramMemo = Map<string, Remembered>
 
 function row(def: ScenarioDef, status: ScenarioScore['status'], reason: string | null, detail: unknown,
@@ -203,20 +210,18 @@ export async function scoreScenario(snapshot: BuildSnapshot, def: ScenarioDef,
   return (await scoreScenarioGroup([snapshot], def, context))[0]
 }
 
-/**
- * scores builds in one scenario in order. builds whose scored seat the generator reads the same way (programKey.ts)
- * share one program, generated once or read from `context.programs` and rebased onto each build's scenario; programs
- * the generator marks as reading build stats are not shared. each score has its own timing, with generation counted
- * on the build that generated the program.
- */
+// scores builds in one scenario in order. builds whose scored seat the generator reads the same way (programKey.ts)
+// share one program, generated once or read from `context.programs` and rebased onto each build's scenario; programs
+// the generator marks as reading build stats are not shared. each score has its own timing, with generation counted
+// on the build that generated the program
 export async function scoreScenarioGroup(snapshots: readonly BuildSnapshot[], def: ScenarioDef, context: ScenarioScoringContext,
   options: GroupScoringOptions = {}): Promise<ScenarioScore[]> {
   const remembered = new Map<string, Remembered>()
   const scores: ScenarioScore[] = []
   // a ruleset parses its plans on each read (rulesetReader.ts): the group reads its scenario's once, and every build
-  // keys, rebases and generates on that one (read-only) object.
+  // keys, rebases and generates on that one (read-only) object
   const plan = context.plans[def.teamId]
-  // (spreading plans would read, and parse, every one: the others stay behind the ruleset's getters.)
+  // (spreading plans would read and parse every one; the others stay behind the ruleset's getters)
   const planned: ScenarioScoringContext = plan ? { ...context,
     plans: Object.create(context.plans, { [def.teamId]: { value: plan, enumerable: true } }) as Record<string, ActionPlan> } : context
   let at = 0
@@ -240,17 +245,15 @@ export async function scoreScenarioGroup(snapshots: readonly BuildSnapshot[], de
   return scores
 }
 
-/** the program text compared between a reused program and the build's own. */
+// the program text compared between a reused program and the build's own
 const programIdentity = (result: Extract<InterpretationResult, { status: 'interpreted' }>) =>
   canonicalJson({ opener: result.scenario.initialOnFieldMemberId, program: result.scenario.program.program })
 
-/**
- * the build's interpretation: the group's or the store's program for its key when there is one, else generated
- * (and kept under the key when it may be shared).
- */
+// the build's interpretation: the group's or the store's program for its key when there is one, else generated
+// (and kept under the key when it may be shared)
 async function programFor(plan: ActionPlan, scenario: CombatScenario, context: ScenarioScoringContext,
   remembered: Map<string, Remembered>, options: GroupScoringOptions): Promise<{ result: InterpretationResult; source: 'generated' | 'stored' | 'shared'; mismatch?: boolean }> {
-  const generate = context.generate ?? ((teamPlan, teamScenario) => interpretTeamActions(context.interpreter, teamPlan, teamScenario))
+  const generate = context.generate ?? ((teamPlan, teamScenario) => interpretTeamActions(context.interpreter, teamPlan, teamScenario, { allowPartial: true }))
   const shelf = context.programs
   const key = shelf ? await shelf.keyOf(plan, scenario, true) : null
   let reused: { program: InterpretedProgram; source: 'stored' | 'shared' } | null = null
@@ -280,8 +283,8 @@ async function programFor(plan: ActionPlan, scenario: CombatScenario, context: S
     if ((options.programCheck ?? 0) > 0 && (options.random ?? Math.random)() < options.programCheck!) {
       const own = await generate(plan, scenario)
       if (own.status !== 'interpreted' || programIdentity(own) !== programIdentity(result)) {
-        // the key missed something this scenario's generator reads, so every later build generates its own, here and through
-        // the store; builds that used the shared program earlier keep their scores
+        // the key missed something this scenario's generator reads, so every later build generates its own, here and
+        // through the store; builds that used the shared program earlier keep their scores
         const unshared = { ...reused.program, diagnostics: { ...reused.program.diagnostics, readsBuildStats: true } }
         remembered.set(key!, { program: unshared })
         await shelf!.put(key!, unshared)
@@ -302,8 +305,8 @@ async function programFor(plan: ActionPlan, scenario: CombatScenario, context: S
   return { result, source: 'generated' }
 }
 
-/** the generator's output for evaluation as a score records it: the opener, the seats in order and the program. */
-function programDocumentOf(def: ScenarioDef, scenario: CombatScenario): ProgramDocument {
+// the generator's output for evaluation as a score records it: the opener, the seats in order and the program
+function programDocumentOf(def: ScenarioDef, scenario: CombatScenario, omissions?: Array<Record<string, unknown>>): ProgramDocument {
   return {
     v: 1,
     scenarioId: def.id,
@@ -311,28 +314,30 @@ function programDocumentOf(def: ScenarioDef, scenario: CombatScenario): ProgramD
     initialOnFieldMemberId: scenario.initialOnFieldMemberId,
     members: scenario.team.members.map((member) => ({ id: member.id, resonatorId: member.resonatorId })),
     program: scenario.program.program,
+    ...(omissions?.length ? { omissions } : {}),
   }
 }
 
-/**
- * hash of the program document a build would be scored with in a scenario (ScenarioScore.programSha256), using the
- * stored or shared program for its key when present, as scoring does. a rollout whose scorer changed only its
- * generator keeps old scores whose hash still matches. null when the build has no program there; `memo` caches
- * programs between calls (one per scenario).
- */
+// hash of the program document a build would be scored with in a scenario (ScenarioScore.programSha256), using the
+// stored or shared program for its key when present, as scoring does. a rollout whose scorer differs only in its
+// generator reuses old scores whose hash matches. null when the build has no program there; `memo` caches programs
+// between calls (one per scenario)
 export async function scenarioProgramSha(snapshot: BuildSnapshot, def: ScenarioDef, context: ScenarioScoringContext,
   memo: ProgramMemo = new Map()): Promise<string | null> {
   if (!hasScoringData(def)) return null
-  const built = buildScenarioInput(snapshot, def, context.teammates, context.deps)
+  const built = buildScenarioInput(snapshot, def, context.teammates, context.deps, { allowPartial: true })
   const plan = context.plans[def.teamId]
-  if (!built.ok || !plan) return null
+  if (!built.ok) return null
   await ensureResonatorData(scenarioResonatorIds(built.input))
-  const made = await programFor(plan, createScenario(built.input), context, memo, {})
-  return made.result.status === 'interpreted' ? (await programDocumentText(programDocumentOf(def, made.result.scenario))).sha : null
+  const made = plan ? await programFor(plan, createScenario(built.input), context, memo, {})
+    : { result: await catalogRotationFallback(context.interpreter, createScenario(built.input), { code: 'missing-action-plan', teamId: def.teamId }) }
+  return made.result.status === 'interpreted' ? (await programDocumentText(programDocumentOf(def, made.result.scenario,
+    [...built.input.omissions ?? [], ...made.result.diagnostics.omissions ?? []]))).sha : null
 }
 
-/** each shared program's document texts and hashes, keyed by the document's other contents: builds rebasing one
-    program write one document, which is serialized and hashed once. shared programs are read-only (rebaseInterpretation). */
+// each shared program's document texts and hashes, keyed by the document's other contents: builds rebasing one
+// program write one document, which is serialized and hashed once. shared programs are read-only
+// (rebaseInterpretation)
 const documentTexts = new WeakMap<object, Map<string, { text: string; sha: string }>>()
 
 async function programDocumentText(document: ProgramDocument): Promise<{ text: string; sha: string }> {
@@ -353,20 +358,20 @@ async function scoreTimed(snapshot: BuildSnapshot, def: ScenarioDef, context: Sc
   group: ExecutionGroup | undefined, detail: 'full' | 'lean'): Promise<ScenarioScore> {
   if (!hasScoringData(def)) return row(def, 'unsupported', 'insufficient_data', { case: `${def.resonatorId}:${def.teamId}:${def.weapon.id}` })
   try {
-    const built = buildScenarioInput(snapshot, def, context.teammates, context.deps)
+    const built = buildScenarioInput(snapshot, def, context.teammates, context.deps, { allowPartial: true })
     if (!built.ok) return row(def, 'unsupported', 'scenario_input', { issues: built.issues, detail: built.detail })
     const input = structuredClone(built.input)
     const reads = scenarioReads(def, context.teammates, context.deps, snapshot.echoes)
     await ensureResonatorData(scenarioResonatorIds(built.input))
-    // stats apply to the build regardless of its rotation, so every later row includes them; one scenario serves both,
-    // since stats only read it and generation seats a copy (rebaseInterpretation)
+    // stats apply to the build regardless of its rotation, so every later row includes them; one scenario serves
+    // both, because stats only read it and generation seats a copy (rebaseInterpretation)
     const created = createScenario(built.input)
     const stats = scenarioBuildStats(built.input, created)
     const plan = context.plans[def.teamId]
-    if (!plan) return row(def, 'error', 'no_action_plan', { teamId: def.teamId }, { stats, reads })
     lap('input')
 
-    const made = await programFor(plan, created, context, remembered, options)
+    const made = plan ? await programFor(plan, created, context, remembered, options)
+      : { result: await catalogRotationFallback(context.interpreter, created, { code: 'missing-action-plan', teamId: def.teamId }), source: 'generated' as const, mismatch: false }
     const interpreted = made.result
     lap(made.source === 'generated' ? 'generate' : 'rebase')
     const provenance = { programSource: made.source, ...(made.mismatch ? { programMismatch: true } : {}) }
@@ -375,16 +380,19 @@ async function scoreTimed(snapshot: BuildSnapshot, def: ScenarioDef, context: Sc
     }
 
     const { scenario } = interpreted
-    const program = programDocumentOf(def, scenario)
+    const omissions = [...input.omissions ?? [], ...interpreted.diagnostics.omissions ?? []]
+    if (omissions.length) input.omissions = omissions
+    const program = programDocumentOf(def, scenario, omissions)
     const { text: programText, sha: programSha256 } = await programDocumentText(program)
     const generated = { program, programText, programSha256, stats, input, reads, ...provenance }
     lap('program')
 
-    const executed = await context.execute({ def, input: built.input, scenario, ...(group ? { group } : {}),
+    const executed = await context.execute({ def, input: built.input, scenario, ...(omissions.length ? { omissions } : {}), ...(group ? { group } : {}),
       ...(detail === 'lean' ? { detail } : {}) })
     lap('execute')
     if (executed.timing) for (const [stage, ms] of Object.entries(executed.timing)) timing[`execute.${stage}`] = ms
     if (executed.status !== 'ok') return row(def, executed.status, executed.reason, executed.detail ?? null, generated)
+    if (executed.omissions?.length) input.omissions = [...input.omissions ?? [], ...executed.omissions]
     const measured = { ...(executed.damageModel ? { damageModel: executed.damageModel } : {}),
       ...(executed.damageMismatch ? { damageMismatch: true } : {}), ...(executed.dprMismatch ? { dprMismatch: true } : {}),
       ...(executed.lean ? { lean: true as const } : {}) }
@@ -398,7 +406,7 @@ async function scoreTimed(snapshot: BuildSnapshot, def: ScenarioDef, context: Sc
     const anchors = executed.anchors ?? (refs?.status === 'ok' ? {
       baselineDamage: refs.baselineDamage, benchDamage: refs.benchDamage, perfectDamage: refs.perfectDamage,
     } : null)
-    return row(def, 'ok', score == null ? 'no_refs' : null, null,
+    return row(def, 'ok', score == null ? 'no_refs' : input.omissions?.length ? 'partial_data' : null, input.omissions ?? null,
       { ...generated, input: executed.peaks ? withInputPeaks(input, executed.peaks) : input,
         damage: executed.damage, score, anchors, anchorKey: executed.anchorKey ?? null, energyRegen: executed.energyRegen ?? null,
         erRepair: executed.erRepair ?? null,

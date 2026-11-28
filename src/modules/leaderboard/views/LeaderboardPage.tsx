@@ -1,11 +1,11 @@
 /*
   Author: Runor Ewhro
-  description: the leaderboard (Scope): a sticky channel band (a well per page,
-               the finder and the Pinned channel) over its pages.
+  description: the leaderboard page: the page navigation over the routed view.
 
   routes: /leaderboard                        latest activity, the main page
           /leaderboard/boards                 the top build on every board
-          /leaderboard/:resonatorId           one board, its dial folding into a sticky bar
+          /leaderboard/profiles               every uid with a profile, to browse
+          /leaderboard/:resonatorId           one board
           /leaderboard/me                     the viewer's profile
           /leaderboard/staff                  the staff queues (tab shown to moderators and admins)
           /leaderboard/player/:uid            a player
@@ -28,17 +28,19 @@ import { seenPlayers } from '../model/seen'
 import { ActivityView } from './ActivityView'
 import { BoardsView } from './BoardsView'
 import { BoardView } from './BoardView'
+import { ProfilesView } from './ProfilesView'
 import { preloadFigures } from '../components/build/BuildRow'
 import { markPage } from '@/shared/lib/timingLog'
 import { ProfileView } from './ProfileView'
 import { StaffView } from './StaffView'
 import { PreviewLayer } from '../components/Preview'
 import { KitHoverLayer } from '../components/build/KitHover'
-import { Channels, type Tab } from '../components/Channels'
+import { Nav, type Tab } from '../components/Nav'
 
 type View =
   | { page: 'activity' }
   | { page: 'boards' }
+  | { page: 'profiles' }
   | { page: 'board'; resonatorId: string }
   | { page: 'me' }
   | { page: 'staff' }
@@ -47,6 +49,7 @@ type View =
 function viewOf(pathname: string): View {
   const rest = pathname.slice(LB.length).split('/').filter(Boolean)
   if (rest[0] === 'boards') return { page: 'boards' }
+  if (rest[0] === 'profiles') return { page: 'profiles' }
   if (rest[0] === 'me') return { page: 'me' }
   if (rest[0] === 'staff') return { page: 'staff' }
   if (rest[0] === 'player') return rest[1] === 'build' ? { page: 'player', who: { uid: null, buildId: rest[2] ?? '' } } : { page: 'player', who: { uid: rest[1] ?? null, buildId: '' } }
@@ -54,7 +57,7 @@ function viewOf(pathname: string): View {
   return { page: 'activity' }
 }
 
-/** the Activity channel's count: today's uploads from the activity strip's quarter hours. */
+// the Activity channel's count: today's uploads from the activity strip's quarter hours
 const todayOf = (r: { slots: Array<{ at: number; entries: number }> }) => {
   const day = dayKey(Date.now())
   return r.slots.filter((s) => dayKey(s.at) === day).reduce((n, s) => n + s.entries, 0)
@@ -105,18 +108,18 @@ function Finder({ ctx }: { ctx: ScopeCtxValue }) {
   )
 }
 
-export function ScopePage() {
+export function LeaderboardPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const view = viewOf(location.pathname)
-  // the opened-build code comes after the page has painted, before anyone opens a row.
+  // the opened-build code loads after the page has painted, before any row opens
   useEffect(() => {
     markPage('leaderboard page mounted')
     preloadFigures()
   }, [])
 
   // the viewer comes from the chrome's single /me observer (started by the header on every page); each region below
-  // reads its own key and draws when it loads, independent of the others. a settled card from the submit dock or a
+  // reads its own key and renders when it loads, independent of the others. a settled card from the submit dock or a
   // viewer change invalidates every key (chrome noteSettled, changed below), and lists others write to refetch each
   // minute in view
   useEffect(() => watchMe(), [])
@@ -146,16 +149,17 @@ export function ScopePage() {
   const ctx = useMemo<ScopeCtxValue>(() => ({ me, session, mine, boards, live, go, playerTo, changed, toast }),
     [me, session, mine, boards, live, go, playerTo, changed, toast])
 
-  const tab: Tab = view.page === 'activity' ? 'activity' : view.page === 'boards' || view.page === 'board' ? 'boards' : view.page === 'me' ? 'me'
+  const tab: Tab = view.page === 'activity' ? 'activity' : view.page === 'boards' || view.page === 'board' ? 'boards' : view.page === 'profiles' ? 'profiles' : view.page === 'me' ? 'me'
     : view.page === 'staff' ? 'staff' : null
   const staff = can(me?.account?.role ?? 'user', 'reports.review')
 
   return (
     <ScopeCtx.Provider value={ctx}>
       <div className="lbs">
-        <Channels ctx={ctx} tab={tab} staff={staff} today={today} finder={<Finder ctx={ctx} />} />
+        <Nav ctx={ctx} tab={tab} staff={staff} today={today} finder={<Finder ctx={ctx} />} />
         {view.page === 'activity' ? <ActivityView />
           : view.page === 'boards' ? <BoardsView />
+          : view.page === 'profiles' ? <ProfilesView />
           : view.page === 'board' ? <BoardView key={view.resonatorId} resonatorId={view.resonatorId} />
           : view.page === 'me' ? <ProfileView who={null} own />
           : view.page === 'staff' ? <StaffView />
@@ -167,4 +171,4 @@ export function ScopePage() {
   )
 }
 
-export default ScopePage
+export default LeaderboardPage

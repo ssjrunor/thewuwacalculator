@@ -1,6 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the Scope leaderboard's listed build shape. board rows and each
+  description: the leaderboard's listed build shape. board rows and each
                board's #1 are a Listed (ranked); a player's builds and activity
                entries are a Row, which may be unranked. every list renders both
                with the build row.
@@ -13,44 +13,44 @@ export interface Listed {
   buildId: string
   resonatorId: string
   rank: number
-  /** the board's size; 0 when unknown. */
+  // the board's size; 0 when unknown
   total: number
-  /** null when the player hides their uid. */
+  // null when the player hides their uid
   uid: string | null
   name: string | null
   region: string | null
-  /** the player shows as Anonymous: only the region, no profile to open. */
+  // the player shows as Anonymous: only the region, no profile to open
   anonymous?: boolean
   sequence: number
   score: number
-  /** the board's damage figure, unused for ranking. */
+  // the board's damage figure, unused for ranking
   damage: number
-  /** the loop average, the DPR a row shows; null until scored. */
+  // the loop average, the DPR a row shows; null until scored
   dpr: number | null
   scenario: ScenarioSummary
   stats: BuildStats | null
   sets: SetPieces[]
-  /** when kuro first drew the card, or when an activity entry was uploaded. */
+  // when kuro first drew the card, or when an activity entry was uploaded
   at: number
-  /** a tuned player's look, worn by rows listed outside their profile; absent on the profile itself. */
+  // a tuned player's look, worn by rows listed outside their profile; absent on the profile itself
   look?: RowLook | null
 }
 
-/** a listed build that may have no board rank (still scoring, or no verified team scores it); it lists like any
-    other build with rank and score blank. */
+// a listed build that may have no board rank (still scoring, or no verified team scores it); it lists like any
+// other build with rank and score blank
 export interface Row extends Omit<Listed, 'rank' | 'score' | 'damage' | 'scenario'> {
   rank: number | null
   score: number | null
   damage: number | null
   scenario: ScenarioSummary | null
-  /** the weapon the card was read with; a row with no scenario shows it alone. */
+  // the weapon the card was read with; a row with no scenario shows it alone
   weaponId?: string | null
   scoring?: boolean
-  /** set only on the viewer's own profile: the viewer hid this build from everyone else. */
+  // set only on the viewer's own profile: the viewer hid this build from everyone else
   hidden?: boolean
 }
 
-/** one-word reason a row has no rank; null when ranked. */
+// one-word reason a row has no rank; null when ranked
 export const unrankedWord = (x: Pick<Row, 'rank' | 'scoring'>): string | null => x.rank != null ? null
   : x.scoring ? 'Scoring' : 'Unranked'
 
@@ -66,7 +66,7 @@ export const fromPlayer = (profile: PlayerProfileResponse, build: PlayerBuild): 
   weaponId: build.weaponId, scoring: build.scoring, hidden: build.hidden,
 })
 
-/** every upload lists as a build; one off its board (scoring, or no team can score it) is unranked. */
+// every upload lists as a build; one off its board (scoring, or no team can score it) is unranked
 export const fromActivity = (row: ActivityRow): Row => ({
   buildId: row.buildId, resonatorId: row.resonatorId, rank: row.score != null ? row.rank : null,
   total: row.total ?? 0, uid: row.uid, name: row.name, region: row.region, anonymous: row.anonymous, sequence: row.sequence ?? 0,
@@ -74,26 +74,42 @@ export const fromActivity = (row: ActivityRow): Row => ({
   at: row.at, weaponId: row.weaponId, scoring: row.scoring, look: row.look ?? null,
 })
 
-/** one hue per sequence, S1 to S6, with S0 (the standard) in plain text colour. hues distinguish sequences without
-    ranking them: the css draws every hue at one lightness and chroma, the hues are far apart, and the order is
-    shuffled to avoid a ramp. */
+// one hue per sequence, S1 to S6, with S0 (the standard) in plain text colour; the css draws every hue at one
+// lightness and chroma, so hues distinguish sequences without ranking them, and the order is shuffled so they form no
+// ramp
 export const SEQ_HUE: Array<number | null> = [null, 60, 310, 145, 15, 265, 100]
 
-/** text colour per server, keyed by the uid's first digit. */
+// text colour per server, keyed by the uid's first digit
 export const SERVER_INK: Record<string, string> = { 5: '#d9822b', 6: '#5865f2', 7: '#c2457a', 8: '#2f9e8f', 9: '#8a63d2' }
 
-/** the share of a board at or above a rank as "top x%" shows it: "24", "4.2", "0.37", "0.004". rounded up, so a
-    top 24% build never shows 23; smaller shares keep more decimals, up to three, with trailing zeros dropped and a
-    floor of 0.001. */
+// a player's run of builds, as the profile band and the player hover card both show it: featured builds lead in the
+// owner's order, then each other board's best scored build (a player may keep several on one), best first
+export function runOf<T extends { buildId: string; resonatorId: string; score: number | null }>(builds: T[], featured: readonly string[],
+  at: (x: T) => number): { picked: T[]; run: T[] } {
+  const byId = new Map(builds.map((x) => [x.buildId, x]))
+  const picked = featured.map((id) => byId.get(id)).filter((x): x is T => Boolean(x))
+  const held = new Set(picked.map((x) => x.resonatorId))
+  const best = new Map<string, T>()
+  for (const x of builds) {
+    if (x.score == null || held.has(x.resonatorId)) continue
+    const was = best.get(x.resonatorId)
+    if (!was || x.score > was.score! || (x.score === was.score && at(x) > at(was))) best.set(x.resonatorId, x)
+  }
+  return { picked, run: [...picked, ...[...best.values()].sort((a, b) => b.score! - a.score!)] }
+}
+
+// the share of a board at or above a rank as "top x%" shows it: "24", "4.2", "0.37", "0.004". rounded up, so a
+// top 24% build never shows 23; smaller shares keep more decimals, up to three, with trailing zeros dropped and a
+// floor of 0.001
 export function share(rank: number, of: number): string {
   const p = rank / Math.max(1, of) * 100
   const places = p >= 10 ? 0 : p >= 1 ? 1 : p >= .1 ? 2 : 3
   const k = 10 ** places
-  // the epsilon keeps exact shares (25 of 100) from rounding up a step on float noise
+  // with the epsilon, exact shares (25 of 100) do not round up a step on float noise
   return String(Math.max(1, Math.ceil(p * k - 1e-9)) / k)
 }
 
-/** "Top 24%" for one share, "Top 24–25%" for a run of ranks. */
+// "Top 24%" for one share, "Top 24–25%" for a run of ranks
 export function shareSpan(a: number, b: number, of: number): string {
   const x = share(a, of), y = share(b, of)
   return x === y ? `Top ${x}%` : `Top ${x}–${y}%`
@@ -124,6 +140,6 @@ export const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 export const eio = (t: number) => t < .5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
 export const eout = (t: number) => 1 - (1 - t) ** 3
 
-/** the app's scroll container (main content scrolls, the window does not). */
+// the app's scroll container (main content scrolls, the window does not)
 export const scroller = (): HTMLElement | null => document.querySelector('.main-content')
 export const reduced = () => document.documentElement.classList.contains('reduce-animation') || document.documentElement.classList.contains('no-entrance-anim')

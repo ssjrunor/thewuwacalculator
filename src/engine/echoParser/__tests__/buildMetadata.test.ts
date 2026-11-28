@@ -12,6 +12,10 @@ import {
   resolveBuildScreenshotMetadata,
   settleResonatorArt,
   settleWeapon,
+  settleZhName,
+  smallKana,
+  tidyName,
+  trustName,
   type RawBuildScreenshotReadings,
 } from '@/engine/echoParser/buildMetadata'
 
@@ -83,7 +87,7 @@ describe('build screenshot metadata', () => {
       makeReadings({ uidCheckText }), { resonators, weapons },
     ).player
     expect(read('500395087')).toEqual({ id: 'xuri', uid: '500395087', uidAgreed: true })
-    // an incomplete check keeps the app's lenient uid but is not agreement
+    // an incomplete check retains the app's lenient uid without marking agreement
     expect(read('5003950')).toEqual({ id: 'xuri', uid: '500395087', uidAgreed: false })
     expect(read('500395081')).toEqual({ id: 'xuri', uid: null, uidAgreed: false })
   })
@@ -129,7 +133,7 @@ describe('build screenshot metadata', () => {
     })
   })
 
-  it('lets the read variant name outrank a misread Rover attribute', () => {
+  it('ranks the read variant name over a misread Rover attribute', () => {
     const parsed = resolveBuildScreenshotMetadata(makeReadings({
       resonatorNameText: 'Rover: Electro',
       attribute: 'havoc',
@@ -145,7 +149,7 @@ describe('build screenshot metadata', () => {
     expect(parsed.resonator).toMatchObject({ id: '1608', name: 'Rover: Electro' })
   })
 
-  it('keeps a uid only when its two reads agree', () => {
+  it('accepts a uid only when its two reads agree', () => {
     const settle = (uidText: string, uidCheckText?: string) => resolveBuildScreenshotMetadata(
       makeReadings({ uidText, uidCheckText }),
       { resonators, weapons },
@@ -205,8 +209,93 @@ describe('art and icon matching', () => {
     }
   })
 
-  it('keeps the name line when the icon is not clear', () => {
+  it('marks an icon that overrode a different name match', () => {
+    const read = { id: '21020076', name: 'Everbright Polestar', level: 90 }
+    expect(settleWeapon(read, [{ id: '21020046', score: 500 }, { id: '21020076', score: 4000 }], weapons))
+      .toEqual({ id: '21020046', name: "Bloodpact's Pledge", level: 90, iconOverrode: true })
+    const same = { id: '21020046', name: "Bloodpact's Pledge", level: 90 }
+    expect(settleWeapon(same, [{ id: '21020046', score: 500 }, { id: '21020076', score: 4000 }], weapons)).toEqual(same)
+  })
+
+  it('uses the name line when the icon is not clear', () => {
     const read = { id: '21020076', name: 'Everbright Polestar', level: 90 }
     expect(settleWeapon(read, [{ id: '21020046', score: 500 }, { id: '21020076', score: 600 }], weapons)).toBe(read)
+  })
+})
+
+describe('player name trust', () => {
+  it('retains a full-size card\'s marks', () => {
+    expect(trustName('~Marmalade~', false)).toBe('~Marmalade~')
+    expect(trustName('Chinatsu.', false)).toBe('Chinatsu.')
+  })
+
+  it('leaves a shrunk card\'s name blank when a mark sits at either end', () => {
+    expect(trustName('~Marmalade-', true)).toBeNull()
+    expect(trustName('-TETHYS-C3FM', true)).toBeNull()
+    expect(trustName('Chinatsu.', true)).toBeNull()
+  })
+
+  it('retains a shrunk card\'s name with marks only inside it', () => {
+    expect(trustName('TETHYS-C3FM', true)).toBe('TETHYS-C3FM')
+    expect(trustName('xuri', true)).toBe('xuri')
+    expect(trustName(null, true)).toBeNull()
+  })
+})
+
+// reads the three models returned on the local leaderboard's chinese cards
+describe('chinese card names', () => {
+  const vote = (english: string[], chinese: [string, string], japanese: string) => settleZhName({ english, chinese, japanese })
+
+  it('retains a space only between latin letters or digits', () => {
+    expect(tidyName(' Dan  Heng ')).toBe('Dan Heng')
+    expect(tidyName('本 源 之 心')).toBe('本源之心')
+    expect(tidyName('老婆 <3')).toBe('老婆<3')
+  })
+
+  it('confirms a latin name two models read alike, in the english letters', () => {
+    expect(vote(['Kazusa0l', 'Kazusa0l', 'Kazusa0l'], ['Kazusa01', 'KazuSsa01'], 'Kazusa01')).toEqual({ name: 'Kazusa01', confirmed: false, askGreek: false })
+    expect(vote(['Tielle', 'Tielle', 'Tielle'], ['Tiellte', 'Tielle'], 'Tielle')).toEqual({ name: 'Tielle', confirmed: true, askGreek: false })
+    expect(vote(['Beboo.', 'Beboo', 'Beboo'], ['Beboo', 'Bebog'], 'Bebodi')).toEqual({ name: 'Beboo', confirmed: true, askGreek: false })
+    expect(vote(['sito', 'sito', 'sito'], ['Sito', 'Sito'], 'sito').name).toBe('sito')
+    expect(vote(['Dan Heng', 'Dan Heng', 'Dan Heng'], ['Dan Heng', 'Dan Heng'], 'Dan Heng').name).toBe('Dan Heng')
+  })
+
+  it('leaves names in chinese characters unconfirmed, even when two models agree', () => {
+    // both read the rare "暝" as "暖"
+    expect(vote(['BRAY', 'BRAY', 'BRAY'], ['暖 紋', '蝦 紋'], '暖 紋')).toEqual({ name: '暖紋', confirmed: false, askGreek: false })
+    expect(vote(['173', '173', ''], ['灰', '灰'], 'リツ')).toEqual({ name: '灰', confirmed: false, askGreek: false })
+  })
+
+  it('takes kana from the japanese model when the chinese one cannot resolve it', () => {
+    expect(vote(['yOv k', 'ely bk', 'yay bk'], ['鎊 銜 兒 口 導 上', '錠 和 悶 兒 口 層 下'], 'シャ ル ロ ッ ト').name).toBe('シャルロット')
+    expect(vote(['Doggy F', 'Doggy F', 'Doggy FF'], ['Doggy 下 十', 'Doggy 下 竺'], 'Doggy ド キ').name).toBe('Doggyドキ')
+  })
+
+  it('drops a lone english read the chinese model did not see as latin', () => {
+    expect(vote(['ER', '', ''], ['', ''], '').name).toBe('')
+    expect(vote(['2', '', 'EE'], ['', '墨 管'], '').name).toBe('墨管')
+    expect(vote(['', 'bd', 'bd'], ['7', '自'], 'テッ')).toEqual({ name: '自', confirmed: false, askGreek: false })
+  })
+
+  it('runs the greek model only when the latin reads share little', () => {
+    expect(vote(['Nea', 'Nea', 'Nea'], ['Aaet', 'AaeQ'], 'ハ asa')).toEqual({ name: 'Nea', confirmed: false, askGreek: true })
+    expect(vote(['OhMyJ4rJer', 'OhMyJdrJer', 'OhMyJ4rJer'], ['OhMyJrJer', 'OhMyJArJer'], 'OhMyJarJer')).toEqual({ name: 'OhMyJ4rJer', confirmed: false, askGreek: false })
+  })
+})
+
+// cell ink heights measured on the local leaderboard's japanese cards
+describe('small kana', () => {
+  it('sets a kana well short of the line to its small form', () => {
+    expect(smallKana('ひいちゃ', [14, 9, 15, 13])).toBe('ひぃちゃ')
+  })
+
+  it('retains a full kana a little short of the line', () => {
+    expect(smallKana('あいにゃす', [15, 13, 15, 13, 15])).toBe('あいにゃす')
+    expect(smallKana('どらぐん', [15, 15, 15, 15])).toBe('どらぐん')
+  })
+
+  it('leaves a name that does not fit the cells unchanged', () => {
+    expect(smallKana('ひいちゃ', [])).toBe('ひいちゃ')
+    expect(smallKana('Ponsan', [14, 9, 9, 9, 9, 9])).toBe('Ponsan')
   })
 })

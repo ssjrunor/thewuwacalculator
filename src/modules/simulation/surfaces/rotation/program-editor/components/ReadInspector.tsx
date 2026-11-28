@@ -30,6 +30,7 @@ import {
   BuffRows,
   InspectorSection,
 } from '@/modules/simulation/surfaces/rotation/program-editor/components/InspectorPrimitives.tsx'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 const STAT_ORDER = Object.keys(STAT_NAMES) as StatKey[]
 
@@ -100,9 +101,7 @@ function ReadRefs({ rows }: { rows: Array<{ key: string; label: string; run: str
   )
 }
 
-/**
- * render the head, figure, and available sections for a compared node.
- */
+// render the head, figure, and available sections for a compared node
 export function ReadInspector({
   node,
   decimals,
@@ -121,8 +120,6 @@ export function ReadInspector({
   return (
     <>
       <div className="rte-inspector__head">
-        {/* the slot the totals / node strip held: what is being read, and where
-            in the rotation it stands */}
         <div className="rte-readline">
           <i className="rte-readline__dot" aria-hidden="true" />
           <span>Details . {node.kindLabel}</span>
@@ -206,7 +203,6 @@ export function ReadInspector({
           </div>
         )}
 
-        {/* handoffs deal no damage and display no damage figure. */}
         {note ? (
           <div className="rte-figure rte-figure--state">
             <b>{node.words}</b>
@@ -235,7 +231,7 @@ export function ReadInspector({
           <div className="rte-figure">
             <b>{formatDamage(node.figure, decimals)}</b>
             <span className="rte-figure__unit">avg</span>
-            <span className="rte-figure__share">{node.share.toFixed(1)}%</span>
+            <span className="rte-figure__share">{formatTruncCompact(node.share, 1)}%</span>
           </div>
         ) : null}
       </div>

@@ -13,16 +13,16 @@
 
 import type { BuildSnapshot, SnapshotEcho, SnapshotStat } from '@lb/contract/snapshot'
 
-/** the packed format's version, the first byte. */
+// the packed format's version, the first byte
 const FORMAT = 1
 
-/** stat keys by code, append only. */
+// stat keys by code; new keys are appended
 const STAT_KEYS = Object.freeze([
   'atkFlat', 'atkPercent', 'hpFlat', 'hpPercent', 'defFlat', 'defPercent', 'critRate', 'critDmg', 'energyRegen',
   'healingBonus', 'basicAtk', 'heavyAtk', 'resonanceSkill', 'resonanceLiberation', 'glacio', 'fusion', 'electro',
   'aero', 'spectro', 'havoc',
 ])
-/** skill level keys by code, append only. */
+// skill level keys by code; new keys are appended
 const SKILL_KEYS = Object.freeze(['normalAttack', 'resonanceSkill', 'forteCircuit', 'resonanceLiberation', 'introSkill'])
 
 const statCode = new Map(STAT_KEYS.map((key, code) => [key, code]))
@@ -47,7 +47,7 @@ class Writer {
     this.bytes[this.at++] = value
   }
 
-  /** an unsigned integer up to 2^53, 7 bits a byte. */
+  // an unsigned integer up to 2^53, 7 bits a byte
   varint(value: number) {
     if (!Number.isSafeInteger(value) || value < 0) throw new Error(`snapshotPack: ${value} is not a varint`)
     this.room(8)
@@ -121,7 +121,7 @@ class Reader {
   }
 }
 
-/** decimal ids without leading zeros are written as varints and other ids as text, with the low bit marking which. */
+// decimal ids without leading zeros are written as varints and other ids as text, with the low bit marking which
 const NUMERIC_ID = /^[1-9]\d{0,14}$/
 
 function writeId(out: Writer, id: string) {
@@ -142,7 +142,7 @@ function readId(input: Reader): string {
   return decoder.decode(raw)
 }
 
-/** a dictionary key: its code + 1, or 0 then the text. */
+// a dictionary key: its code + 1, or 0 then the text
 function writeKey(out: Writer, codes: Map<string, number>, key: string) {
   const code = codes.get(key)
   if (code === undefined) {
@@ -159,7 +159,7 @@ function readKey(input: Reader, keys: readonly string[]): string {
   return key
 }
 
-/** a card value: tenths as an even varint when exact and not negative, else odd marker + float64. */
+// a card value: tenths as an even varint when exact and not negative, else odd marker + float64
 function writeValue(out: Writer, value: number) {
   const tenths = Math.round(value * 10)
   if (value >= 0 && Number.isSafeInteger(tenths * 2) && tenths / 10 === value && !Object.is(value, -0)) out.varint(tenths * 2)
@@ -176,7 +176,7 @@ function readValue(input: Reader): number {
   return head / 2 / 10
 }
 
-/** an optional small integer: 0 for null, else value + 1 (values are safe non-negative integers). */
+// an optional small integer: 0 for null, else value + 1 (values are safe non-negative integers)
 function writeMaybe(out: Writer, value: number | null) {
   if (value === null) out.varint(0)
   else if (Number.isSafeInteger(value) && value >= 0) out.varint(value + 2)
@@ -203,7 +203,7 @@ function readStat(input: Reader): SnapshotStat {
   return { key, value: readValue(input) }
 }
 
-/** packs a snapshot, throwing on an unknown version and dropping no field. */
+// packs a snapshot, throwing on an unknown version and dropping no field
 export function packSnapshot(snapshot: BuildSnapshot): Uint8Array {
   if (snapshot.v !== 1) throw new Error(`snapshotPack: snapshot v${String((snapshot as { v: unknown }).v)} is not packable`)
   const out = new Writer()
@@ -225,7 +225,8 @@ export function packSnapshot(snapshot: BuildSnapshot): Uint8Array {
     writeKey(out, skillCode, key)
     writeMaybe(out, level)
   }
-  writeId(out, weapon.id)
+  // no weapon packs as the empty id, which no real weapon has
+  writeId(out, weapon.id ?? '')
   writeMaybe(out, weapon.level)
   out.varint(echoes.length)
   for (const echo of echoes) {
@@ -242,7 +243,7 @@ export function packSnapshot(snapshot: BuildSnapshot): Uint8Array {
   return out.done()
 }
 
-/** the snapshot a packed one was made from, field for field. */
+// the snapshot a packed one was made from, field for field
 export function unpackSnapshot(bytes: Uint8Array): BuildSnapshot {
   const input = new Reader(bytes)
   const format = input.byte()
@@ -258,7 +259,7 @@ export function unpackSnapshot(bytes: Uint8Array): BuildSnapshot {
     const key = readKey(input, SKILL_KEYS)
     skillLevels[key] = readMaybe(input)
   }
-  const weapon = { id: readId(input), level: readMaybe(input) }
+  const weapon = { id: readId(input) || null, level: readMaybe(input) }
   const echoes: SnapshotEcho[] = []
   for (let count = input.varint(); count > 0; count -= 1) {
     const slot = input.varint()
@@ -278,7 +279,7 @@ export function unpackSnapshot(bytes: Uint8Array): BuildSnapshot {
   return { v: 1, gameVer, uid, name, resonator: { id, level, sequence, skillLevels }, weapon, echoes }
 }
 
-/** each echo's id and sonata set, in card order: what a board row's set pieces are counted from. */
+// each echo's id and sonata set, in card order: what a board row's set pieces are counted from
 export function snapshotEchoSets(snapshot: BuildSnapshot): Array<{ id: string; set: number }> {
   return snapshot.echoes.map((echo) => ({ id: echo.id, set: echo.set }))
 }

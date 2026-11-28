@@ -1,17 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: one board. the dial draws every build as one line, ranked
-               clockwise from the top, longer for a higher build score. the head
-               scrolls with the page; the Builds bar and the column head stick
-               under the band, and once stuck the bar shows the board's face and
-               name, with a map line under the column head showing the rows in
-               view, the viewer's build and the top % marks (press or drag it to
-               move). the list is the whole board, with pages loaded where the
-               viewer looks. G, Y, J and K go to the top, the viewer's build, and
-               row by row; the find field accepts a rank (#500), a share (10%) or
-               "me", or filters loaded rows by player. team wells (keys 1-5),
-               weapon wells (Q W E R T), server and sequence filter on the
-               service, and signed-in viewers can save filters as named views.
+  description: one board as a paged list with its score chart, filters, saved views and rank jumps.
 */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
@@ -22,7 +11,7 @@ import { getAttributeIconSrc } from '@/domain/gameData/attributeDisplay'
 import { queryClient } from '@/shared/lib/queryClient'
 import { LIVE_MS, lbq } from '../api/queries'
 import { errorText, noRuleset } from '../model/cardTrack'
-import { grp, resAttr, resColor, resFace, resName, SERVERS, wpnOf } from '../model/format'
+import { grp, resAttr, resColor, resFace, resName, scaleStat, SERVERS, wpnOf } from '../model/format'
 import { boardPinned, toggleBoardPin, usePins } from '../model/pins'
 import { playerName, rankedOf } from '../model/players'
 import { PinIb } from '../components/IconButtons'
@@ -35,19 +24,21 @@ import { clamp, eout, fromBoard, lerp, plural, reduced, scroller, share, shareSp
 import { seeRows } from '../model/seen'
 import { useOpen } from '../state/useOpen'
 import { ownsUid } from '../chrome/chrome'
+import { formatTruncCompact } from '@/shared/lib/number'
 
 const PAGE = 100
 const DIAL = { cx: 584, cy: 252, r0: 126, L: 58 }
 const ang = (i: number, N: number) => (270 + i / N * 340) * Math.PI / 180
 const polarAt = (i: number, N: number, r: number): [number, number] => [DIAL.cx + Math.cos(ang(i, N)) * r, DIAL.cy + Math.sin(ang(i, N)) * r]
 
-/** width in rem of a row of n wells (.lbs .wells: 3.4rem wells, 1rem apart); a ruleset has at most 5 teams and 5 weapons per resonator. */
+// width in rem of a row of n wells (.lbs .wells: 3.4rem wells, 1rem apart); a ruleset has at most 5 teams and 5
+// weapons per resonator
 const wellsRem = (n: number) => Math.max(0, n * 4.4 - 1)
 const WELLS = 5
 
 interface Tick { v: number; cls: string; row: Listed | null; rank: number; score: number }
 
-/** the dial's lines, drawn straight to the DOM: they grow in, and hover runs every frame. */
+// the dial's lines, written straight to the DOM because hover updates them every frame
 class Dial {
   ticks: Tick[] = []
   G = 0
@@ -108,14 +99,14 @@ class Dial {
 
 
 const SEQS: Array<[number | null, string]> = [[null, 'Any'], [0, 'S0'], [1, 'S1'], [2, 'S2'], [3, 'S3'], [4, 'S4'], [5, 'S5'], [6, 'S6']]
-type Sort = 'rank' | 'cv' | 'atk' | 'er' | 'dmg' | 'score'
+type Sort = 'rank' | 'cv' | 'stat' | 'er' | 'dmg' | 'score'
 const SORT_BY: Record<Sort, (x: Listed) => number> = {
-  rank: (x) => -x.rank, cv: (x) => x.stats?.critValue ?? -1, atk: (x) => x.stats?.atk ?? -1, er: (x) => x.stats?.energyRegen ?? -1,
+  rank: (x) => -x.rank, cv: (x) => x.stats?.critValue ?? -1, stat: (x) => x.stats?.[scaleStat(x.resonatorId)] ?? -1, er: (x) => x.stats?.energyRegen ?? -1,
   dmg: (x) => x.dpr ?? -1, score: (x) => x.score,
 }
 const teamName = (s: ScenarioSummary, rid: string) => s.members.filter((id) => id !== rid).map(resName).join(' + ')
-const pct = (v: number) => `${v.toFixed(1)}%`
-/** the top % marks on the map line. */
+const pct = (v: number) => `${formatTruncCompact(v, 1)}%`
+// the top % marks on the map line
 const CUTS = [1, 5, 10, 25, 50]
 
 interface Filter { team: string | null; weapon: string | null; region: string | null; sequence: number | null }
@@ -125,7 +116,7 @@ const query = (resonatorId: string, f: Filter, offset?: number) => ({
   offset: offset || undefined, limit: PAGE,
 })
 
-/** a find-field target: a rank ("#500"), the edge of a share ("10%", "top 10%") or the viewer's build ("me"). */
+// a find-field target: a rank ("#500"), the edge of a share ("10%", "top 10%") or the viewer's build ("me")
 type Seek = { kind: 'rank' | 'share' | 'me'; rank: number; label: string }
 function seekOf(q: string, n: number, mine: number | null): Seek | null {
   const s = q.trim().toLowerCase()
@@ -134,7 +125,7 @@ function seekOf(q: string, n: number, mine: number | null): Seek | null {
   if (r) { const rank = clamp(Number(r[1]), 1, n); return { kind: 'rank', rank, label: `Go to #${grp(rank)}, top ${share(rank, n)}%` } }
   const p = /^(?:top\s*)?(\d{1,3}(?:\.\d{1,3})?)\s*%$/.exec(s)
   if (p && Number(p[1]) > 0 && Number(p[1]) <= 100) {
-    // the last build still inside that share.
+    // the last build inside that share
     const rank = clamp(Math.floor(n * Number(p[1]) / 100 + 1e-9), 1, n)
     return { kind: 'share', rank, label: `Go to the edge of the top ${p[1]}%, #${grp(rank)}` }
   }
@@ -142,13 +133,13 @@ function seekOf(q: string, n: number, mine: number | null): Seek | null {
   return null
 }
 
-/** the board's loaded pages for one filter set, each read through its own query key (lbq.board). a new revision
-    (gen: the first page refetched after an invalidation or the minute refetch) moves the pages to stale, shown until
-    new copies load; a page requested under an older revision still lands as stale and is refetched. */
+// the board's loaded pages for one filter set, each read through its own query key (lbq.board). a new revision
+// (gen: the first page refetched after an invalidation or the minute refetch) moves the pages to stale, shown until
+// new copies load; a page requested under an older revision still lands as stale and is refetched
 interface Pages { key: string; gen: number; total: number | null; pages: Map<number, Listed[]>; stale: Map<number, Listed[]>; asked: Map<number, number> }
 const fresh = (key: string): Pages => ({ key, gen: 0, total: null, pages: new Map(), stale: new Map(), asked: new Map() })
 
-/** a new list seeded with the cached first page (stored from the last visit or fetched earlier) as stale rows. */
+// a new list seeded with the cached first page (stored from the last visit or fetched earlier) as stale rows
 function withKept(pages: Pages, rid: string, filter: Filter): Pages {
   const kept = queryClient.getQueryData(lbq.board(query(rid, filter, 0)).queryKey)
   if (kept) {
@@ -189,7 +180,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   // the first page for these filters, refetched each minute in view; each new response is a new revision
   const rev = useQuery({ ...lbq.board(query(rid, filter, 0)), refetchInterval: LIVE_MS }).dataUpdatedAt
 
-  /** load the pages covering rows first to last that are not loaded or asked for. */
+  // load the pages covering rows first to last that are not loaded or asked for
   const need = useCallback((first: number, last: number) => {
     const d = data.current
     for (let pg = Math.max(0, Math.floor(first / PAGE)); pg <= Math.floor(Math.max(first, last) / PAGE); pg++) {
@@ -220,7 +211,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     const [a, b] = range.current
     need(0, 0)
     if (data.current.total != null) need(a - 1, b - 1)
-    // rid and filter change with need, and filter with key.
+    // rid and filter change with need, and filter with key
   }, [key, rev, need, rid, filter])
 
   const rowAt = useCallback((i: number): Listed | null => {
@@ -258,7 +249,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   const N = field.length
   const hi = field[0] ?? 0, lo = field[N - 1] ?? 0
   const posOf = useCallback((i: number) => N === T || N < 2 ? i : Math.round(i * (T - 1) / (N - 1)), [N, T])
-  /** the line a score would stand at: the first one at or below it. */
+  // the line a score would stand at: the first one at or below it
   const tickOf = useCallback((score: number) => {
     let a = 0, b = N - 1
     while (a < b) { const m = (a + b) >> 1; if (field[m] <= score + 1e-6) b = m; else a = m + 1 }
@@ -270,7 +261,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   const myRank = !filtered ? myBuild?.rank ?? null : loaded.find((x) => ownsUid(me, x.uid))?.rank ?? null
   const seek = seekOf(q, n, myRank)
   const term = seek ? '' : q.trim().toLowerCase().replace(/\s/g, '')
-  // the list is the whole board in its order; sorting by another column or filtering by name lists the loaded rows.
+  // the list is the whole board in its order; sorting by another column or filtering by name lists the loaded rows
   const whole = (sort === 'score' || sort === 'rank') && !term
   const picked = useMemo(() => whole ? [] : loaded.filter((x) => !term || (x.name ?? '').toLowerCase().replace(/\s/g, '').includes(term) || (x.uid ?? '').includes(term))
     .sort((a, b) => SORT_BY[sort](b) - SORT_BY[sort](a)), [whole, loaded, term, sort])
@@ -294,14 +285,14 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   const marks = (N >= 12 ? [[Math.ceil(N * .01), 'Top 1%'], [Math.ceil(N * .25), 'Top 25%']] as Array<[number, string]> : [])
     .concat(N >= 3 ? [[Math.round(N / 2), 'Median'], [N - 1, 'Lowest']] : [])
 
-  /** the map line and readouts follow the rows in view: drawn straight to the DOM, they move with every scroll. */
+  // the map line and readouts follow the rows in view, written straight to the DOM on every scroll
   const paint = useCallback(() => {
     // first and last list positions in view; tied builds share a rank, so the readout uses the rows' ranks
     const [a, b] = range.current
     const ra = rowAt(a - 1)?.rank ?? a, rb = rowAt(b - 1)?.rank ?? b
     const say = n ? shareSpan(ra, rb, n) : ''
     if (toolRead.current) toolRead.current.innerHTML = whole && n ? `<span class="shr">${say}</span>#${grp(ra)}–${grp(rb)} of ${grp(n)}` : `${grp(picked.length)} shown`
-    // the line is the list as it stands: its first place at the left edge, its last at the right.
+    // the line is the list as it stands: its first place at the left edge, its last at the right
     const at = (r: number) => `${(clamp((r - 1) / Math.max(1, n - 1)) * 100).toFixed(3)}%`
     const w = winRef.current
     if (w) {
@@ -320,7 +311,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   const onRange = useCallback((a: number, b: number) => { range.current = [a, b]; paint() }, [paint])
   const bindList = useCallback((api: ListApi) => { list.current = api }, [])
 
-  // the dial: made once, fed the ticks.
+  // the dial: created once, then fed the ticks
   useLayoutEffect(() => {
     if (!scRef.current || !tipRef.current) return
     const d = new Dial(scRef.current, tipRef.current)
@@ -337,7 +328,8 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     paint()
   })
 
-  // the head scrolls away with the page; once the Builds bar sticks under the band it takes the board's name and the map line.
+  // the head scrolls away with the page; once the Builds bar sticks under the band it shows the board's name and the
+  // map line
   useEffect(() => {
     const s = scroller(), el = stkRef.current
     if (!s || !el) return
@@ -361,10 +353,10 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     if (hov >= 0) d.placeTip()
   }, [hov])
 
-  /** how deep the band and the stuck Builds bar reach over the list. */
+  // how deep the band and the stuck Builds bar reach over the list
   const cover = useCallback(() => (document.querySelector<HTMLElement>('.lbs .chb')?.offsetHeight ?? 0) + (stkRef.current?.offsetHeight ?? 0), [])
 
-  // a jump asked for while the list showed loaded rows sorted or found by name waits for the whole list to draw.
+  // a jump requested while the list shows loaded rows sorted or found by name waits for the whole list to render
   const later = useRef<{ rank: number; open?: string } | null>(null)
   const jumpTo = useCallback((rank: number, how: { instant?: boolean; open?: string } = {}) => {
     if (!n) return
@@ -381,7 +373,8 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
   useEffect(() => { if (whole && later.current) { const j = later.current; later.current = null; requestAnimationFrame(() => jumpTo(j.rank, { open: j.open })) } }, [whole, jumpTo])
   useEffect(() => { if (flash == null) return; const t = window.setTimeout(() => setFlash(null), 1700); return () => window.clearTimeout(t) }, [flash])
 
-  // arriving at a ?build= link: find its row among the first pages, bring it into the list, and useOpen lays it under the bars.
+  // arriving at a ?build= link: find its row among the first pages, bring it into the list, and useOpen lays it under
+  // the bars
   const arrival = useRef(open)
   useEffect(() => {
     const id = arrival.current
@@ -392,7 +385,8 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     if (next < 10 && next * PAGE < n) need(next * PAGE, next * PAGE); else arrival.current = null
   }, [loaded, n, need, jumpTo])
 
-  // keys: 1-5 pick a team, Q W E R T a weapon; G the top, shift G the bottom, Y the viewer's build, J and K a row down and up
+  // keys: 1-5 pick a team, Q W E R T a weapon; G the top, shift G the bottom, Y the viewer's build, J and K a row
+  // down and up
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || (event.target as HTMLElement).closest?.('input, textarea, select, [contenteditable]')) return
@@ -410,7 +404,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [teams, weapons, counts, jumpTo, n, myRank])
 
-  // the dial: hover names a build; a click goes to it and opens it.
+  // the dial: hover names a build, and a click goes to it and opens it
   const point = (event: MouseEvent<HTMLDivElement>) => {
     const r = event.currentTarget.getBoundingClientRect()
     return dial.current?.hit(event.clientX - r.left, event.clientY - r.top) ?? -1
@@ -420,7 +414,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
     if (r) jumpTo(r, { open: ticks[i]?.row?.buildId })
   }
 
-  // the map line under the stuck bar: a press or drag moves the list there; near a share mark it lands on its edge.
+  // the map line under the stuck bar: a press or drag moves the list there; near a share mark it lands on its edge
   const dragging = useRef(false)
   const lineGo = (event: PointerEvent<HTMLDivElement>) => {
     const el = lineRef.current
@@ -557,7 +551,7 @@ export function BoardView({ resonatorId: rid }: { resonatorId: string }) {
                 if (event.key === 'Escape') { setQ(''); event.currentTarget.blur() }
               }} /></label>
         </div>
-        <BuildHead o={{}} sort={sort} onSort={(k) => setSort((cur) => cur === k ? 'score' : k as Sort)} />
+        <BuildHead o={{}} stat={scaleStat(rid)} sort={sort} onSort={(k) => setSort((cur) => cur === k ? 'score' : k as Sort)} />
         <div className="bline" ref={lineRef} title="click or drag to jump to a position on the board :P"
           onPointerDown={(event) => { if (event.button) return; event.currentTarget.setPointerCapture(event.pointerId); dragging.current = true; lineGo(event) }}
           onPointerMove={(event) => { if (dragging.current) lineGo(event) }}

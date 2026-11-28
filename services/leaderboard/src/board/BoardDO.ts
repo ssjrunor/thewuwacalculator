@@ -24,82 +24,80 @@ import * as reads from './reads.ts'
 import type { SrFilter } from './rank.ts'
 import type { CellDef, CellResult, JobOrder, Lane, PlaceInput, PlaceResult, PlayerFacts, RecordAck, RescoreRequest, SeedInput, SeedPlaced } from './types.ts'
 
-/** a job with no new result for this long is sent again (its missing cells only). */
+// a job with no new result for this long is sent again (its missing cells only)
 export const STALL_MS = 30 * 60_000
-/** resumes before a job is given up on and finishes on what did score. */
+// resumes before a job is given up on and finishes on what did score
 export const MAX_RESUMES = 3
-/** interval of the board's D1 catalog sync (rulesets going live, rolling out, cancelled). */
+// interval of the board's D1 catalog sync (rulesets going live, rolling out, cancelled)
 const CATALOG_MS = 30_000
-/** builds a rollout fans out per alarm. */
+// builds a rollout fans out per alarm
 const ROLLOUT_SLICE = 300
-/** outbox ops per D1 batch (each op is up to five statements; a batch takes at most a few hundred). */
+// outbox ops per D1 batch (each op is up to five statements; a batch takes at most a few hundred)
 const OUTBOX_BATCH = 120
-/** how soon the alarm runs after a write that left work for it. */
+// how soon the alarm runs after a write that left work for it
 const SOON_MS = 50
-/** while jobs are open, the alarm looks in this often. */
+// while jobs are open, the alarm looks in this often
 const WATCH_MS = 60_000
-/** detail objects of an ended ruleset deleted per alarm. */
+// detail objects of an ended ruleset deleted per alarm
 const PURGE_SLICE = 500
-/** a written seed batch left the entries stale this long ago with no more chunks: the alarm writes them (a tool that
-    stopped before it said the batch was done). */
+// a written seed batch left the entries stale this long ago with no more chunks: the alarm writes them (a tool that
+// stopped before it marked the batch done)
 const SEED_QUIET_MS = 60_000
-/** builds staged per entry rebuild step (store.rebuildEntries; a sort step copies SORT_ROWS entries). */
+// builds staged per entry rebuild step (store.rebuildEntries; a sort step copies SORT_ROWS entries)
 const REBUILD_BUILDS = 5_000
-/** players rechecked per go-live step (store.standingsSlice). */
+// players rechecked per go-live step (store.standingsSlice)
 const STANDINGS_SLICE = 2_000
-/** extra random delay, up to this, before a board that missed its heavy-step turn retries, which spreads retries
-    of boards waiting together. */
+// extra random delay, up to this, before a board that missed its heavy-step turn retries, which spreads the retries
+// of boards waiting together
 const TURN_JITTER_MS = 250
 
-/**
- * the board's heavy background tasks, most urgent first, each with a check (wants) and one bounded step (step). the
- * alarm runs at most one per call, and only on this isolate's heavy-step turn (pace.ts), which keeps each alarm short
- * and lets boards on one thread take turns. player-facing work (outbox, detail objects, scoring messages) runs on
- * every alarm before these.
- */
+// the board's heavy background tasks, most urgent first, each with a check (wants) and one bounded step (step). the
+// alarm runs at most one per call, and only on this isolate's heavy-step turn (pace.ts), so each alarm stays short
+// and boards on one thread take turns. player-facing work (outbox, detail objects, scoring messages) runs on every
+// alarm before these
 const BACKGROUND: Array<{ name: string; wants: (store: BoardStore, now: number) => boolean; step: (store: BoardStore, now: number) => void }> = [
   // after a go-live: reread every player's best build on the live ruleset
   { name: 'standings', wants: (store) => store.standingsPending(), step: (store) => { store.standingsSlice(STANDINGS_SLICE) } },
-  // a rollout's walk is done: its entries are written now (the rebuild below), the deferral ended.
+  // a rollout's walk is done: its entries are written by the rebuild below, which ends the deferral
   { name: 'deferred', wants: (store) => store.deferralsDue().length > 0, step: (store) => { store.endDeferrals() } },
   { name: 'entries', wants: (store, now) => entriesDue(store, now), step: (store) => { store.rebuildEntries(1, REBUILD_BUILDS) } },
   { name: 'timings', wants: (store, now) => store.timingsToPrune(now), step: (store, now) => { store.pruneTimings(now) } },
 ]
 
-/** a stale board's entries are rebuilt once its seed batch has gone quiet (or said it was done). */
+// a stale board's entries are rebuilt once its seed batch has gone quiet (or said it was done)
 function entriesDue(store: BoardStore, now: number): boolean {
   const stale = store.entriesStaleSince()
   return stale != null && stale + SEED_QUIET_MS <= now
 }
-/** a queue send takes 256 KB of messages; a little is left for what the queue adds to each. */
+// a queue send takes 256 KB of messages; a little is left for what the queue adds to each
 const SEND_BATCH_BYTES = 240_000
 
 export interface CatalogRuleset {
   rs: number
   id: string
-  /** live, or rolling (being scored by a rollout). */
+  // live, or rolling (being scored by a rollout)
   state: 'live' | 'rolling'
-  /** for a rollout: the ruleset whose scores the scorer may keep, or null (scorer/reuse.ts). */
+  // for a rollout: the ruleset whose scores the scorer may keep, or null (scorer/reuse.ts)
   reuse_from: number | null
 }
 
 type Env = Pick<ApiEnv, 'LB' | 'LB_DATA' | 'SCORE_QUEUE' | 'SCORE_BULK_QUEUE' | 'LOCAL_SCORER_URL' | 'GROUP_WAIT_MS' | 'SCORER'>
 
-/** a lean cell a fill makes the breakdown of: build, cell, on a ruleset by its number here. */
+// a lean cell a fill makes the breakdown of: build, cell, on a ruleset by its number here
 interface FillItem { rs: number; local: number; cell: number }
-/** the most lean cells one alarm fills, and how long a fill may take before its cells may be asked for again. */
+// the most lean cells one alarm fills, and how long a fill may take before its cells may be asked for again
 const FILL_SLICE = 200
 const FILL_TIMEOUT_MS = 60_000
 
 export class BoardDO extends DurableObject<Env> {
   private store: BoardStore | null = null
   private catalogAt = 0
-  /** lean cells a page read requested fills for, run by the alarm (memory only; a page read requests again). */
+  // lean cells a page read requested fills for, run by the alarm (memory only; a page read requests again)
   private readonly fillWanted = new Map<string, FillItem>()
-  /** fills in progress by cell; repeated requests await the first. */
+  // fills in progress by cell; repeated requests await the first
   private readonly filling = new Map<string, Promise<CellDetail | null>>()
-  /** per R2 detail object, a promise chain that serializes patches, which keeps two fills of one build from
-      overwriting each other. */
+  // per R2 detail object, a promise chain that serializes patches, so two fills of one build never overwrite each
+  // other
   private readonly objectTurns = new Map<string, Promise<unknown>>()
 
   private board(resonator: number): BoardStore {
@@ -110,24 +108,42 @@ export class BoardDO extends DurableObject<Env> {
 
   // catalog
 
-  /** syncs the board's rulesets with D1: installs live and rolling rulesets (with this resonator's cells), makes live
-        the ones that went live, and drops cancelled rollouts; runs at most every CATALOG_MS unless forced. */
+  // syncs the board's rulesets with D1: installs live and rolling rulesets (with this resonator's cells), makes live
+  // the ones that went live, and drops cancelled rollouts; runs at most every CATALOG_MS unless forced
   async syncCatalog(resonator: number, { force = false } = {}): Promise<void> {
     const store = this.board(resonator)
     const now = Date.now()
     if (!force && now - this.catalogAt < CATALOG_MS) return
-    // a rollout keeps scores from the ruleset it replaces when the scorer is unchanged ('scenario'); with a new scorer,
-    // on scenarios its sample check found scoring the same ('data', cellsOf), or, when only the generator changed (the
-    // evaluation fingerprints match), for builds with an unchanged program. the scorer then checks each score's reads
+    // a rollout reuses scores from the ruleset it replaces when the scorer is unchanged ('scenario'); with a new
+    // scorer, on scenarios its sample check found scoring the same ('data', cellsOf), or, when only the generator
+    // differs (the evaluation fingerprints match), for builds with an unchanged program. the scorer then checks each
+    // score's reads
     const { results } = await this.env.LB.prepare(`SELECT r.no AS rs, r.id, CASE WHEN r.status = 'live' THEN 'live' ELSE 'rolling' END AS state,
         CASE WHEN o.keep = 'data' OR (o.keep = 'scenario' AND r.scorer IS NOT NULL AND (r.scorer = f.scorer
           OR (r.evaluation_fp IS NOT NULL AND r.evaluation_fp = f.evaluation_fp))) THEN f.no END AS reuse_from
       FROM rulesets r LEFT JOIN rollouts o ON o.ruleset_id = r.id AND o.status = 'scoring' LEFT JOIN rulesets f ON f.id = o.from_ruleset
       WHERE r.status = 'live' OR o.ruleset_id IS NOT NULL`).all<CatalogRuleset>()
+    const carried = await this.carriedHere(resonator)
     for (const ruleset of results) {
+      // a board the rollout carries over (api/moderation/carry.ts) installs nothing while it rolls out, and at
+      // go-live renames the live ruleset's tables to the new one; cells that differ from what the rollout compared
+      // install as they do on any board
+      if (!store.ruleset(ruleset.rs) && store.liveRs != null && carried.get(ruleset.id) === store.liveRs) {
+        const cells = await this.cellsOf(ruleset.rs, resonator)
+        if (store.carries(cells)) {
+          if (ruleset.state === 'live') {
+            // an entries rebuild names the rulesets it walks: the carry waits for it while the board serves the old
+            // tables
+            if (!store.carryReady()) continue
+            store.carryLive({ rs: ruleset.rs, id: ruleset.id, cells, reuseFrom: null }, now)
+          }
+          continue
+        }
+        console.warn('carry refused', JSON.stringify({ resonator, ruleset: ruleset.id, reason: 'cells differ' }))
+      }
       if (!store.ruleset(ruleset.rs)) {
         const cells = await this.cellsOf(ruleset.rs, resonator)
-        // a ruleset that does not score this resonator has nothing to install here.
+        // a ruleset that does not score this resonator has nothing to install here
         if (!cells.length) continue
         store.installRuleset({ rs: ruleset.rs, id: ruleset.id, cells, reuseFrom: ruleset.reuse_from }, now, { live: ruleset.state === 'live' })
       }
@@ -139,10 +155,18 @@ export class BoardDO extends DurableObject<Env> {
     await this.wake()
   }
 
+  // the rulesets this board is carried to, by id, each with the number of the ruleset it is carried from
+  private async carriedHere(resonator: number): Promise<Map<string, number>> {
+    const { results } = await this.env.LB.prepare(`SELECT c.ruleset_id AS id, f.no AS rs FROM rollout_carry c
+        JOIN rollouts o ON o.ruleset_id = c.ruleset_id JOIN rulesets f ON f.id = o.from_ruleset
+      WHERE c.resonator_id = ? AND o.status IN ('scoring', 'done')`).bind(String(resonator)).all<{ id: string; rs: number }>()
+    return new Map(results.map((row) => [row.id, row.rs]))
+  }
+
   private async cellsOf(rs: number, resonator: number): Promise<CellDef[]> {
     // reuse: whether a rollout may offer the cell's old score. with the same scorer the scorer checks it; with a new
-    // scorer every sample of the scenario must pass its check (moderation/checks.ts); a scorer with the old evaluation
-    // (only the generator changed) offers it by program (2)
+    // scorer every sample of the scenario must pass its check (moderation/checks.ts); a scorer with the same
+    // evaluation (only the generator differs) offers it by program (2)
     const { results } = await this.env.LB.prepare(`SELECT s.cell, substr(s.id, length(s.ruleset_id) + 2) AS key, s.team_id, s.team_key,
         s.team_rank, s.weapon_id, s.weapon_rank, s.weapon_role, s.members,
         CASE WHEN o.ruleset_id IS NULL OR f.scorer = r.scorer OR (c.samples > 0 AND c.differing = 0) THEN 1
@@ -169,7 +193,7 @@ export class BoardDO extends DurableObject<Env> {
     return result
   }
 
-  /** records results and stages the cells reuse messages did not keep (`rescore`) for group scoring. */
+  // records results and stages the cells reuse messages did not keep (`rescore`) for group scoring
   async recordScores(resonator: number, results: CellResult[], rescore: RescoreRequest[] = []): Promise<RecordAck[]> {
     const store = this.board(resonator)
     const outcome = store.recordScores(results, Date.now(), rescore)
@@ -178,7 +202,7 @@ export class BoardDO extends DurableObject<Env> {
     return outcome.acks
   }
 
-  /** a setup uid's build sent by its player: an upload from now (store.claimSetup). */
+  // a setup uid's build sent by its player: recorded as uploaded at this time (store.claimSetup)
   async claimSetup(resonator: number, local: number, uid: number, card: string): Promise<boolean> {
     const claimed = this.board(resonator).claimSetup(local, uid, card, Date.now())
     await this.wake()
@@ -196,7 +220,7 @@ export class BoardDO extends DurableObject<Env> {
     return done
   }
 
-  /** deletes an owner's build (uid given) or hides one for staff; returns the build as it was, or null. */
+  // deletes an owner's build (uid given) or hides one for staff; returns the build as it was, or null
   async endBuild(resonator: number, local: number, state: 'deleted' | 'hidden', actor: string, uid?: number) {
     const build = this.board(resonator).endBuild(local, state, actor, Date.now(), uid == null ? {} : { uid })
     await this.wake()
@@ -211,7 +235,7 @@ export class BoardDO extends DurableObject<Env> {
     return orders != null
   }
 
-  /** deletes an opted-out player's builds on this board and returns their cards for the registry. */
+  // deletes an opted-out player's builds on this board and returns their cards for the registry
   async deletePlayer(resonator: number, uid: number): Promise<string[]> {
     const store = this.board(resonator)
     const cards = store.sql.all<{ card: string }>(`SELECT DISTINCT card FROM builds WHERE uid = ?`, uid).map((row) => row.card)
@@ -220,11 +244,13 @@ export class BoardDO extends DurableObject<Env> {
     return cards
   }
 
-  /** rescores builds on a ruleset (a moderator request), restarting each job there on the given lane; 'all' runs a
-        paced bulk-lane walk (store.startRescoreWalk) with its first slice now and the rest from the alarm. */
+  // rescores builds on a ruleset (a moderator request), restarting each job there on the given lane; 'all' runs a
+  // paced bulk-lane walk (store.startRescoreWalk) with its first slice now and the rest from the alarm
   async rescore(resonator: number, rs: number, locals: number[] | 'all', lane: Lane): Promise<number> {
     await this.syncCatalog(resonator, { force: true })
     const store = this.board(resonator)
+    // a carried board has no tables for a rolling ruleset: its live scores are the ones it carries
+    if (!store.ruleset(rs)) return 0
     if (locals === 'all') {
       const count = store.startRescoreWalk(rs)
       await this.send(store.rescoreSlice(rs, ROLLOUT_SLICE, Date.now()))
@@ -243,21 +269,21 @@ export class BoardDO extends DurableObject<Env> {
 
   // test data
 
-  /** a chunk of a seed batch's builds (api/moderation/seed.ts): written ones are on the board at once, the rest go
-      to the scorer on the bulk lane as a paced walk (store.walkSlice 'fill'). */
+  // a chunk of a seed batch's builds (api/moderation/seed.ts): written ones are on the board at once, the rest go
+  // to the scorer on the bulk lane as a paced walk (store.walkSlice 'fill')
   async seed(resonator: number, input: SeedInput): Promise<SeedPlaced> {
     await this.syncCatalog(resonator, { force: true })
     const store = this.board(resonator)
     const placed = store.seed(input)
     await this.send(placed.orders)
-    // unscored builds wait for the fill walk; its first slice goes now.
+    // unscored builds wait for the fill walk; its first slice runs now
     await this.walk(store)
     await this.wake()
     return { ...placed, orders: [] }
   }
 
-  /** marks a seed batch complete; the alarm writes its entries a slice at a time (store.rebuildEntries). returns
-        whether entries remain to write. */
+  // marks a seed batch complete; the alarm writes its entries a slice at a time (store.rebuildEntries). returns
+  // whether entries remain to write
   async finishSeeds(resonator: number): Promise<boolean> {
     const store = this.board(resonator)
     if (!store.entriesStale()) return false
@@ -266,7 +292,7 @@ export class BoardDO extends DurableObject<Env> {
     return true
   }
 
-  /** a seed batch out: its builds and players here, and the detail objects its scored builds had. */
+  // a seed batch out: its builds and players here, and the detail objects its scored builds had
   async purgeSeeds(resonator: number, range: [number, number], uids: [number, number]): Promise<{ builds: number; players: number }> {
     const store = this.board(resonator)
     const purged = store.purgeSeeds(range, uids)
@@ -282,7 +308,7 @@ export class BoardDO extends DurableObject<Env> {
     await this.syncCatalog(resonator)
     const store = this.board(resonator)
     const page = reads.page(store, query)
-    // the page's lean rows get their breakdowns while the viewer looks: what a row's hover or build page shows.
+    // fill the page's lean rows with breakdowns while the viewer reads it, for what a row's hover or build page shows
     const live = store.liveRs
     if (page && live != null && this.env.SCORER) {
       const lean = store.leanCells(live, page.rows.map((row) => ({ local: row.local, cell: row.cell })))
@@ -295,8 +321,8 @@ export class BoardDO extends DurableObject<Env> {
     return page
   }
 
-  /** one lean cell's breakdown for a build page or cell detail, computed now or by a fill in progress; null when the
-        cell is not lean (its detail has the breakdown) or the fill failed. */
+  // one lean cell's breakdown for a build page or cell detail, computed now or by a fill in progress; null when the
+  // cell is not lean (its detail has the breakdown) or the fill failed
   async fillCell(resonator: number, local: number, key: string): Promise<CellDetail | null> {
     await this.syncCatalog(resonator)
     const store = this.board(resonator)
@@ -307,14 +333,14 @@ export class BoardDO extends DurableObject<Env> {
     return (await this.fill(store, [{ rs: live, local, cell }])).get(`${live}:${local}:${cell}`) ?? null
   }
 
-  /** the alarm sooner than it would be: fills wait on it. */
+  // bring the alarm forward, because fills wait on it
   private async soon(): Promise<void> {
     const at = Date.now() + SOON_MS
     const current = await this.ctx.storage.getAlarm()
     if (current == null || current > at) await this.ctx.storage.setAlarm(at)
   }
 
-  /** the wanted fills, a slice per alarm. */
+  // the wanted fills, a slice per alarm
   private async fillWantedSlice(store: BoardStore): Promise<void> {
     if (!this.fillWanted.size) return
     const items = [...this.fillWanted.values()].slice(0, FILL_SLICE)
@@ -322,11 +348,9 @@ export class BoardDO extends DurableObject<Env> {
     await this.fill(store, items)
   }
 
-  /**
-     * rescores lean cells with breakdowns (the scorer's POST /fill), one request per cell, and records each detail in
-     * its staged body or patches it into the build's R2 object; returns each item's detail, with nothing for cells that
-     * are not lean or failed.
-     */
+  // rescores lean cells with breakdowns (the scorer's POST /fill), one request per cell, and records each detail in
+  // its staged body or patches it into the build's R2 object; returns each item's detail, with nothing for cells that
+  // are not lean or failed
   private async fill(store: BoardStore, items: FillItem[]): Promise<Map<string, CellDetail | null>> {
     const out = new Map<string, CellDetail | null>()
     const waits: Array<Promise<void>> = []
@@ -359,7 +383,7 @@ export class BoardDO extends DurableObject<Env> {
     return out
   }
 
-  /** fills one group through the scorer and records each build's detail; returns the details by build. */
+  // fills one group through the scorer and records each build's detail; returns the details by build
   private async fillGroup(store: BoardStore, message: GroupMessage): Promise<Map<number, CellDetail>> {
     const response = await this.env.SCORER!.fetch('https://scorer/fill', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(message), signal: AbortSignal.timeout(FILL_TIMEOUT_MS) })
@@ -375,7 +399,8 @@ export class BoardDO extends DurableObject<Env> {
     return details
   }
 
-  /** records a fill's detail where its cell's detail is stored: the staged body, or the build's R2 object, patched in turn. */
+  // records a fill's detail where its cell's detail is stored: the staged body, or the build's R2 object, patched in
+  // turn
   private async recordFill(store: BoardStore, result: CellResult, detail: CellDetail): Promise<boolean> {
     const target = store.fillTarget(result.rs, result.local, result.gen, result.cell)
     if (target === 'staged') return store.filled(result.rs, result.local, result.gen, result.cell, result.detail!)
@@ -415,7 +440,28 @@ export class BoardDO extends DurableObject<Env> {
     return reads.buildView(this.board(resonator), local)
   }
 
-  /** builds' standings, by local id: profiles, the feed and history read them. */
+  // a build's card and stored snapshot, whatever its state: staff inspect and edit it
+  async buildRecord(resonator: number, local: number): Promise<{ uid: number; card: string; snap: Uint8Array; snapHash: string; state: number } | null> {
+    const build = this.board(resonator).build(local)
+    return build ? { uid: build.uid, card: build.card, snap: build.snap, snapHash: build.snap_h, state: build.state } : null
+  }
+
+  async editSnapshot(resonator: number, local: number, snap: Uint8Array, snapHash: string, expect: string, actor: string, fields: string[]) {
+    const done = this.board(resonator).editSnapshot(local, snap, snapHash, expect, actor, fields, Date.now())
+    await this.wake()
+    return done
+  }
+
+  // a re-read placed its card as another build: remove the card's earlier build, unless another card is its own
+  async retireCardBuild(resonator: number, local: number, card: string): Promise<boolean> {
+    const store = this.board(resonator)
+    if (store.build(local)?.card !== card) return false
+    const ended = store.endBuild(local, 'deleted', 'system:reread', Date.now()) != null
+    await this.wake()
+    return ended
+  }
+
+  // builds' standings, by local id: profiles and the feed read them
   async standings(resonator: number, locals: number[]) {
     const store = this.board(resonator)
     return locals.map((local) => reads.rowView(store, local))
@@ -426,30 +472,31 @@ export class BoardDO extends DurableObject<Env> {
     return reads.playerBuilds(store, uid, { withHidden }).map((standing) => reads.rowView(store, standing.local)!)
   }
 
-  async history(resonator: number, uid: number, withHidden: boolean) {
-    return reads.history(this.board(resonator), uid, withHidden)
-  }
-
   async cardBuild(resonator: number, card: string) {
     const store = this.board(resonator)
     const [build] = store.buildsOfCard(card)
     return build ? reads.standing(store, build.id) : null
   }
 
-  /** a ruleset's jobs here by status, or null when the board has not installed it. */
+  // a ruleset's jobs here by status, or null when the board has not installed it
   async jobs(resonator: number, rulesetId: string, { force = false } = {}) {
     await this.syncCatalog(resonator, { force })
     const store = this.board(resonator)
     const info = store.rulesetById(rulesetId)
-    if (!info) return null
-    return { ...store.jobCounts(info.rs), builds: store.keptBuilds(), settled: store.rulesetSettled(info.rs) }
+    if (!info) {
+      // a carried board: the live ruleset's jobs count for the new one's until go-live renames them, and it is
+      // settled once none of them is scoring
+      const from = (await this.carriedHere(resonator)).get(rulesetId)
+      if (from == null || from !== store.liveRs) return null
+      const counts = store.jobCounts(from)
+      return { ...counts, builds: store.keptBuilds(), settled: counts.scoring === 0, carried: true }
+    }
+    return { ...store.jobCounts(info.rs), builds: store.keptBuilds(), settled: store.rulesetSettled(info.rs), carried: false }
   }
 
-  /**
-     * a sample check's draw (moderation/checks.ts): up to `per` random ok scores of the ruleset per named scenario,
-     * from active builds with finished jobs there, each with its build's packed snapshot; `eligible` counts the source
-     * builds.
-     */
+  // a sample check's draw (moderation/checks.ts): up to `per` random ok scores of the ruleset per named scenario,
+  // from active builds with finished jobs there, each with its build's packed snapshot; `eligible` counts the source
+  // builds
   async samples(resonator: number, rulesetId: string, keys: string[], per: number) {
     const store = this.board(resonator)
     const info = store.rulesetById(rulesetId)
@@ -458,7 +505,7 @@ export class BoardDO extends DurableObject<Env> {
     return store.sampleScores(info.rs, cells.map((cell) => cell.cell), per)
   }
 
-  /** one stored score as a sample check compares it (samples' rule), or null when it is not one. */
+  // one stored score as a sample check compares it (samples' rule), or null when it is not one
   async storedCell(resonator: number, rulesetId: string, local: number, key: string) {
     const store = this.board(resonator)
     const info = store.rulesetById(rulesetId)
@@ -473,14 +520,14 @@ export class BoardDO extends DurableObject<Env> {
       reason: store.reasonText(row.reason), stats: stats ? toBase64(stats.stats) : null, detailId: store.detailIdOf(info.rs, local) ?? rulesetId }
   }
 
-  /** the scoring times recorded here since `since` (14 days are kept), each with its scenario key (staff timings). */
+  // the scoring times recorded here since `since` (14 days are kept), each with its scenario key (staff timings)
   async timings(resonator: number, since: number) {
     return this.board(resonator).sql.all<{ key: string | null; lane: number; runner: string; status: number; ms: number; wall_ms: number | null
       stages: string | null; anchor: string | null }>(`SELECT c.key, t.lane, t.runner, t.status, t.ms, t.wall_ms, t.stages, t.anchor FROM timings t
       LEFT JOIN cells c ON c.rs = t.rs AND c.cell = t.cell WHERE t.at >= ?`, since)
   }
 
-  /** a build's lifecycle events here, oldest first (staff history). */
+  // a build's lifecycle events here, oldest first (staff history)
   async events(resonator: number, local: number) {
     return this.board(resonator).sql.all<{ at: number; kind: string; actor: string | null; data: string | null }>(
       `SELECT at, kind, actor, data FROM events WHERE build = ? ORDER BY at`, local)
@@ -496,7 +543,7 @@ export class BoardDO extends DurableObject<Env> {
       resonator, ver: store.ver, live: store.liveRs,
       rulesets: store.activeRulesets().map((info) => ({ rs: info.rs, id: info.id, state: info.state, cells: info.cells.size,
         listed: store.rank(info.rs).total(0), settled: store.rulesetSettled(info.rs),
-        // a rollout's entries: waiting for its walk, being written once it is done, or written.
+        // a rollout's entries: waiting for its walk, being written once it is done, or written
         entries: store.deferredRulesets().includes(info.rs) ? 'deferred' : store.entriesWaiting(info.rs) ? 'writing' : 'ready' })),
       builds: store.keptBuilds(),
       outbox: store.sql.first<{ n: number }>(`SELECT COUNT(*) AS n FROM outbox`)!.n,
@@ -506,7 +553,7 @@ export class BoardDO extends DurableObject<Env> {
     }
   }
 
-  /** live-ruleset cells that failed to score, and scores above the perfect build (an anchor defect). */
+  // live-ruleset cells that failed to score, and scores above the perfect build (an anchor defect)
   private scoreDefects(store: BoardStore) {
     const rs = store.liveRs
     const info = rs == null ? null : store.ruleset(rs)
@@ -522,7 +569,7 @@ export class BoardDO extends DurableObject<Env> {
   private async send(orders: JobOrder[]): Promise<void> {
     if (!orders.length || !this.store) return
     const store = this.store
-    // bulk work without a reuse offer is staged and goes as groups; the rest goes now, a message per cell or job.
+    // bulk work without a reuse offer is staged and sent as groups; the rest is sent now, a message per cell or job
     const staged = orders.filter((order) => order.lane === 'bulk' && !order.reuse)
     const direct = orders.filter((order) => !(order.lane === 'bulk' && !order.reuse))
     for (const lane of ['interactive', 'bulk'] as const) {
@@ -532,7 +579,7 @@ export class BoardDO extends DurableObject<Env> {
         if (!build) continue
         const snap = toBase64(build.snap)
         if (order.reuse && lane === 'bulk') {
-          // the whole job in one message; the scorer keeps what it can and forwards the rest as cells
+          // the whole job in one message; the scorer scores what it can and forwards the rest as cells
           messages.push({ k: 'r', res: store.resonator, local: order.local, gen: order.gen, rs: order.rs, rid: order.rulesetId,
             from: order.reuse.from, fid: order.reuse.fromId, ...(order.reuse.detailId !== order.reuse.fromId ? { did: order.reuse.detailId } : {}),
             lane: 'bulk', snap, cells: order.cells,
@@ -552,13 +599,13 @@ export class BoardDO extends DurableObject<Env> {
     }
   }
 
-  /** how long staged cells wait for more builds of their program (GROUP_WAIT_MS, else the store's default). */
+  // how long staged cells wait for more builds of their program (GROUP_WAIT_MS, else the store's default)
   private groupWait(): number {
     const value = Number(this.env.GROUP_WAIT_MS)
     return this.env.GROUP_WAIT_MS != null && Number.isFinite(value) && value >= 0 ? value : GROUP_WAIT_MS
   }
 
-  /** staged bulk cells sent as group messages: full groups at once, the rest once they have waited (store.cutGroups). */
+  // staged bulk cells sent as group messages: full groups at once, the rest once they have waited (store.cutGroups)
   private async sendGroups(store: BoardStore, flush = false): Promise<void> {
     const queue = this.env.SCORE_BULK_QUEUE ?? this.env.SCORE_QUEUE
     for (;;) {
@@ -576,14 +623,15 @@ export class BoardDO extends DurableObject<Env> {
 
   // alarm
 
-  /** schedules the alarm soon when work is pending. */
+  // schedules the alarm soon when work is pending
   private async wake(): Promise<void> {
     const store = this.store
     if (!store) return
     const now = Date.now()
     const pending = store.outbox(1).length > 0 || store.pendingDetail(1).length > 0 || store.hasRolloutWork() || store.detailPurges().length > 0
       || this.fillWanted.size > 0
-    // heavy work waits for this isolate's next turn (pace.ts), and a stale board's entries wait for its seed's quiet window
+    // heavy work waits for this isolate's next turn (pace.ts), and a stale board's entries wait for its seed's quiet
+    // window
     const background = BACKGROUND.some((task) => task.wants(store, now))
     const stale = store.entriesStaleSince()
     const staged = store.stagedSince()
@@ -601,7 +649,7 @@ export class BoardDO extends DurableObject<Env> {
     if (resonator == null) return
     const store = this.board(resonator)
     await this.syncCatalog(resonator)
-    // what players wait on, every alarm: each pass bounded (a slice of builds, a batch of ops or objects).
+    // player-facing work runs on every alarm, each pass bounded (a slice of builds, a batch of ops or objects)
     await this.flushDetail(store)
     await this.fillWantedSlice(store)
     await this.flushOutbox(store)
@@ -609,7 +657,7 @@ export class BoardDO extends DurableObject<Env> {
     await this.sendGroups(store)
     await this.purgeDetail(store)
     await this.sweep(store, Date.now())
-    // then one heavy step, the most urgent, if this isolate has a turn for it.
+    // then one heavy step, the most urgent, if this isolate has a turn for it
     const now = Date.now()
     const task = BACKGROUND.find((candidate) => candidate.wants(store, now))
     if (task) await heavyStep(now, () => task.step(store, now))
@@ -617,7 +665,7 @@ export class BoardDO extends DurableObject<Env> {
     await this.wake()
   }
 
-  /** each finished job's staged detail as its one R2 object. */
+  // each finished job's staged detail as its one R2 object
   private async flushDetail(store: BoardStore): Promise<void> {
     for (const pending of store.pendingDetail(25)) {
       const info = store.ruleset(pending.rs)
@@ -632,13 +680,13 @@ export class BoardDO extends DurableObject<Env> {
     }
   }
 
-  /** an ended ruleset's detail objects on this board, a slice per alarm until none is left. */
+  // an ended ruleset's detail objects on this board, a slice per alarm until none is left
   private async purgeDetail(store: BoardStore): Promise<void> {
     const [id] = store.detailPurges()
     if (id == null) return
     const after = store.detailPurgeAfter()
     const listed = await this.env.LB_DATA.list({ prefix: `detail/${id}/${store.resonator}/`, limit: PURGE_SLICE, ...(after ? { startAfter: after } : {}) })
-    // an object a later ruleset's job still reads stays (a rollout kept that build's every cell); the purge moves past it.
+    // an object a later ruleset's job still reads is skipped (a rollout kept that build's every cell)
     const locals = listed.objects.map((object) => parseBuildId(object.key.slice(object.key.lastIndexOf('/') + 1).replace(/\.json\.gz$/, ''))?.local ?? -1)
     const readers = store.detailReaders(id, locals.filter((local) => local >= 0))
     const doomed = listed.objects.filter((_, index) => !readers.has(locals[index])).map((object) => object.key)
@@ -656,7 +704,7 @@ export class BoardDO extends DurableObject<Env> {
     }
   }
 
-  /** a rolling-out ruleset walks the board a slice per alarm; once it has passed every build its jobs are scoring. */
+  // a rolling-out ruleset walks the board a slice per alarm; once it has passed every build its jobs are scoring
   private async rollOut(store: BoardStore): Promise<void> {
     for (const info of store.activeRulesets()) {
       if (info.rs === store.liveRs) continue
@@ -666,15 +714,15 @@ export class BoardDO extends DurableObject<Env> {
     await this.walk(store)
   }
 
-  /** a rescore of every build, and a seed batch's unscored builds, walk the board as a rollout does: a slice each. */
+  // a rescore of every build, and a seed batch's unscored builds, walk the board as a rollout does: a slice each
   private async walk(store: BoardStore): Promise<void> {
     for (const kind of WALKS) {
       for (const rs of Object.keys(store.walks(kind)).map(Number)) await this.send(store.walkSlice(kind, rs, ROLLOUT_SLICE, Date.now()))
     }
   }
 
-  /** sends unsent orders and resumes stalled jobs, finishing them on their scored cells after MAX_RESUMES. local dev
-        skips this while its node scorer is busy, where a long queue is not a stall. */
+  // sends unsent orders and resumes stalled jobs, finishing them on their scored cells after MAX_RESUMES. local dev
+  // skips this while its node scorer is busy, because a long queue there is not a stall
   private async sweep(store: BoardStore, now: number, stallMs = STALL_MS): Promise<{ unsent: number; resumed: number; abandoned: number }> {
     const report = { unsent: 0, resumed: 0, abandoned: 0 }
     const unsent = store.unsentOrders()
@@ -695,9 +743,10 @@ export class BoardDO extends DurableObject<Env> {
     return report
   }
 
-  /** the upkeep pass on demand (maintenance, local dev's startup): `stallMs` 0 resumes every open job. */
-  async upkeep(resonator: number, stallMs = STALL_MS) {
+  // the upkeep pass on demand (maintenance, local dev's startup): `stallMs` 0 resumes every open job
+  async upkeep(resonator: number, stallMs = STALL_MS, { standings = false }: { standings?: boolean } = {}) {
     const store = this.board(resonator)
+    if (standings) store.recheckStandings()
     await this.syncCatalog(resonator, { force: true })
     await this.flushDetail(store)
     await this.rollOut(store)
@@ -708,7 +757,7 @@ export class BoardDO extends DurableObject<Env> {
     return report
   }
 
-  /** a job whose cell dead-lettered: that cell is an error row, and the job finishes once it is the last. */
+  // a job whose cell dead-lettered: that cell is an error row, and the job finishes once it is the last
   async deadCell(resonator: number, message: Pick<CellMessage, 'rs' | 'local' | 'gen' | 'cell'>): Promise<RecordAck> {
     const store = this.board(resonator)
     const info = store.ruleset(message.rs)
@@ -730,12 +779,12 @@ async function localScorerBusy(url: string): Promise<boolean> {
     const waiting = Object.values(health.waiting ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
     return (Number(health.busy) || 0) > 0 || waiting > 0
   } catch {
-    // a scorer that is down cannot be waited on productively; resuming only queues the same work again.
+    // resuming jobs while the scorer is down only queues the same work again
     return true
   }
 }
 
-/** messages to a queue in batches a send takes: at most 100 messages and about 240 KB of bodies each. */
+// messages to a queue in batches a send takes: at most 100 messages and about 240 KB of bodies each
 async function sendAll(queue: Queue, messages: ScoreMessage[]): Promise<void> {
   let batch: ScoreMessage[] = []
   let bytes = 0

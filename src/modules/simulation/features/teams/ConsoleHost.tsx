@@ -20,8 +20,8 @@ import { useResonatorData } from '@/application/hooks/useResonatorData'
 import AppLoaderOverlay from '@/shared/ui/AppLoaderOverlay'
 
 // defer the member-editor module while keeping modal lifecycle state in this host.
-const MemberStage = lazy(async () => ({
-  default: (await import('@/modules/simulation/features/teams/stage/MemberStage.tsx')).MemberStage,
+const MemberConfig = lazy(async () => ({
+  default: (await import('@/modules/simulation/features/teams/member/MemberConfig.tsx')).MemberConfig,
 }))
 
 // load the console only after a request and retain it until close completion.
@@ -126,7 +126,7 @@ function ConsoleView({
       } as CSSProperties}
       onClose={closeConsole}
     >
-      <MemberStage
+      <MemberConfig
         portalTarget={mainPortal()}
         member={member}
         roster={model.roster}

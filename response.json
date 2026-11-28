@@ -1,0 +1,1969 @@
+{
+  "analytics_id": "c2ee7806e4b032f3d3522caac03fc4bf",
+  "messages": [
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1535850574984249445",
+            "filename": "screenshot.png",
+            "size": 1662821,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1535850574984249445/screenshot.png?ex=6b09a00f&is=6b084e8f&hm=fa00f01a215b05ac1871ade95aa16e35f2332d09d8cc0582306e1ae3b13fd3e0&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1535850574984249445/screenshot.png?ex=6b09a00f&is=6b084e8f&hm=fa00f01a215b05ac1871ade95aa16e35f2332d09d8cc0582306e1ae3b13fd3e0&",
+            "width": 3420,
+            "height": 1902,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "ygcCBIDfaUQuJEZ5WIx/Wrr5zQ==",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/8/9 上午11:20:36",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "714177061",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/43/43043e8b56f8466f72db8c1451b56abe3ca13c18.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "套裝以及c3屬性錯誤，3+2暗套被辨認成光套了\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1710x951"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-08-09T03:21:51.635000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1535850574291935358",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1534759803002290290",
+            "filename": "screenshot.png",
+            "size": 2218479,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1534759803002290290/screenshot.png?ex=6b099cb3&is=6b084b33&hm=2cbcdbfa0ade29e0ebdcd70b67c24fa53586463cd49d6aabdd37c55064a6394f&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1534759803002290290/screenshot.png?ex=6b099cb3&is=6b084b33&hm=2cbcdbfa0ade29e0ebdcd70b67c24fa53586463cd49d6aabdd37c55064a6394f&",
+            "width": 4800,
+            "height": 2240,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "wwcGA4DPeWaZeJeINTmf1/o=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [其他]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/8/6 上午11:06:14",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "800099057",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "其他",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/df/dfbd087c7443acb15436d0d5b1ec5912ba4a0493.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "秧秧SP識別了做舊秧秧",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2400x1120"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-08-06T03:07:31.362000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1534759802448777230",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1533146816806260938",
+            "filename": "screenshot.png",
+            "size": 1731111,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1533146816806260938/screenshot.png?ex=6b09ad3d&is=6b085bbd&hm=b949d83e50973dde632fd9d756e8293c24367b5a1a96bd3788b4ce05a5729338&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1533146816806260938/screenshot.png?ex=6b09ad3d&is=6b085bbd&hm=b949d83e50973dde632fd9d756e8293c24367b5a1a96bd3788b4ce05a5729338&",
+            "width": 3840,
+            "height": 1822,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4C7WIa5WQeCn3n97Mw=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/8/2 上午12:17:01",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "716656216",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/60/605d6f14e52db02b14b98c25257d2e184c55dd99.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "我用的千咲圖片，但不知道為啥聲骸和評分、詞條都是顯示其他角色的\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x911"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-08-01T16:18:05.527000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1533146816428900719",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [UI顯示]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/8/1 下午11:58:01",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "800026199",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "UI顯示",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/c9/c9b9c67518fe7d8e09823cd265d9e8f3fd079e1a.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "UID 讀取錯誤",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2752x983"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-08-01T15:58:29.642000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1533141884409610492",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1532973626587090944",
+            "filename": "screenshot.png",
+            "size": 2200691,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1532973626587090944/screenshot.png?ex=6b090bf1&is=6b07ba71&hm=4deb33da41963e623d7cf78e9be81337dad0fbae12db19ceceaab95a91307e1d&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1532973626587090944/screenshot.png?ex=6b090bf1&is=6b07ba71&hm=4deb33da41963e623d7cf78e9be81337dad0fbae12db19ceceaab95a91307e1d&",
+            "width": 5104,
+            "height": 2744,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcGBIB3d4aEiGeOiHBHDvH9vQ==",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/8/1 下午12:49:32",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "800593943",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/ca/ca20100ee0a895ee21f39adecefa5fbbe5a4f16d.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "武器辨識錯誤\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2552x1322"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-08-01T04:49:53.733000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1532973626092159012",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1532877959218860212",
+            "filename": "screenshot.png",
+            "size": 1186778,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1532877959218860212/screenshot.png?ex=6b095b98&is=6b080a18&hm=8ec06d743b2c7d593c6ea565575a280e6b3530ed0deba0c25e2d9a62b242a981&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1532877959218860212/screenshot.png?ex=6b095b98&is=6b080a18&hm=8ec06d743b2c7d593c6ea565575a280e6b3530ed0deba0c25e2d9a62b242a981&",
+            "width": 1122,
+            "height": 3462,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "ygcGAgCVbod2i4MEdDBl4JM=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/31 18:29:23",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "506075359",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/27/2756a7b92e8fe29722b06349c3b90efd310aecfd.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "4c暴击识别成生命\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 561x1103"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-31T22:29:44.907000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1532877958941905151",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1531624929311588465",
+            "filename": "screenshot.png",
+            "size": 1336124,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1531624929311588465/screenshot.png?ex=6b0969df&is=6b08185f&hm=fb3c8be3b598ba4e3d624c521ba917c50bc17f9effc39cf9a026adb7b24416be&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1531624929311588465/screenshot.png?ex=6b0969df&is=6b08185f&hm=fb3c8be3b598ba4e3d624c521ba917c50bc17f9effc39cf9a026adb7b24416be&",
+            "width": 3414,
+            "height": 1554,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcGC4Krd3V0WPeGd4J/Rvo=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [其他]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/28 下午7:29:52",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "717035619",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "其他",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/62/62ce87c1c7ed68e9d98496315f6d750f197aff0f.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "露西變成穗穗",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1707x777"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-28T11:30:39.278000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1531624928955203648",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1530065811681710180",
+            "filename": "screenshot.png",
+            "size": 1687729,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1530065811681710180/screenshot.png?ex=6b09ac94&is=6b085b14&hm=4df5bea553148e082ee16513384ae6840af6597d69f3ad11f921fd100a892923&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1530065811681710180/screenshot.png?ex=6b09ac94&is=6b085b14&hm=4df5bea553148e082ee16513384ae6840af6597d69f3ad11f921fd100a892923&",
+            "width": 3840,
+            "height": 1580,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "CggCA4C/fHaHiDZ4AQCGB6M=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/24 下午12:13:27",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "700821506",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/60/60105fe89245adfe1cd19448516f069fa7a136d0.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "如圖所示，左邊一欄顯示的頭像並非玄翎而是秧秧，個人認為辨識成秧秧而非玄翎\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x790"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-24T04:15:16.688000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1530065811409076406",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "<@742628935434502144>請使用網站回報或貼上https://wutheringwaves-dc.kurogames-global.com/back/....的圖片",
+        "mentions": [
+          {
+            "id": "742628935434502144",
+            "username": "ronnie_x10",
+            "avatar": null,
+            "discriminator": "0",
+            "public_flags": 0,
+            "flags": 0,
+            "banner": null,
+            "accent_color": null,
+            "global_name": "Ronnie",
+            "avatar_decoration_data": null,
+            "collectibles": null,
+            "display_name_styles": null,
+            "banner_color": null,
+            "clan": null,
+            "primary_guild": null
+          }
+        ],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [],
+        "timestamp": "2026-07-23T12:41:26.944000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529830805629829140",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "742597619645284453",
+          "username": "muatsi.",
+          "avatar": "81a1e420ff6f886c7f283823bbe07192",
+          "discriminator": "0",
+          "public_flags": 0,
+          "flags": 0,
+          "banner": null,
+          "accent_color": null,
+          "global_name": "灰神在此",
+          "avatar_decoration_data": {
+            "asset": "a_0755beb047355c0db919fc5eddc2322a",
+            "sku_id": "1554525949758804089",
+            "expires_at": 1796601600
+          },
+          "collectibles": {
+            "nameplate": {
+              "sku_id": "1417311919689170984",
+              "asset": "nameplates/nameplate_bonanza/planet_rings/",
+              "label": "COLLECTIBLES_NAMEPLATE_BONANZA_PLANET_RINGS_NP_A11Y",
+              "palette": "cobalt"
+            }
+          },
+          "display_name_styles": null,
+          "banner_color": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1529747937289048094",
+            "filename": "screenshot.png",
+            "size": 2040045,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1529747937289048094/screenshot.png?ex=6b092d49&is=6b07dbc9&hm=8d94196244a58d86194cc6875264757cb113b35fa74d212f06294ba3fdb130c8&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1529747937289048094/screenshot.png?ex=6b092d49&is=6b07dbc9&hm=8d94196244a58d86194cc6875264757cb113b35fa74d212f06294ba3fdb130c8&",
+            "width": 4570,
+            "height": 2588,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yAcCBIAldmT/mibEfHBmbOD8nw==",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/23 下午3:11:52",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "700055260",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/e7/e75f911490c6c92cc7e4dc257423f94199b728a9.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "角色辨識不出來\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2285x1294"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-23T07:12:09.400000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529747936483872772",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1529646288545517658",
+            "filename": "screenshot.png",
+            "size": 1938843,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1529646288545517658/screenshot.png?ex=6b09775e&is=6b0825de&hm=9a167ded58d6910940378f1be5dd91a6957abbece2b7d7abfd55e7107e1da3ef&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1529646288545517658/screenshot.png?ex=6b09775e&is=6b0825de&hm=9a167ded58d6910940378f1be5dd91a6957abbece2b7d7abfd55e7107e1da3ef&",
+            "width": 3984,
+            "height": 1910,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4DPeJVWNleqCWb+7N0=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [功能建議]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/22 下午3:41:19",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "800904442",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "功能建議",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/d2/d2f344adc21bc0e025d8134e615a209af8dd3b87.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "部分角色會需要兩套聲骸套裝\n會被判定為重複角色，洗掉評分等級較低的套裝紀錄\n是否可以新增，同角色不同名聲骸是否保留的選項?",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1992x955"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-23T00:28:14.528000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529646288063434815",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "https://wutheringwaves-dc.kurogames-global.com/back/cd/cd0f22bde12f377c3edcc246309e7b7fa4f95816.jpeg",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [
+          {
+            "type": "image",
+            "url": "https://wutheringwaves-dc.kurogames-global.com/back/cd/cd0f22bde12f377c3edcc246309e7b7fa4f95816.jpeg",
+            "thumbnail": {
+              "url": "https://wutheringwaves-dc.kurogames-global.com/back/cd/cd0f22bde12f377c3edcc246309e7b7fa4f95816.jpeg",
+              "proxy_url": "https://images-ext-1.discordapp.net/external/kC6dhGcL_QYjceEyte2RUsJRmvVfvaSuAW_pHjSZ5cM/https/wutheringwaves-dc.kurogames-global.com/back/cd/cd0f22bde12f377c3edcc246309e7b7fa4f95816.jpeg",
+              "width": 1920,
+              "height": 1080,
+              "content_type": "image/jpeg",
+              "placeholder": "zQcGDIClBiZ+eoVWiViwhKb9bw==",
+              "placeholder_version": 1,
+              "flags": 0
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-22T10:49:14.539000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529440180010750145",
+        "channel_id": "1471464673827229720",
+        "author": {
+          "id": "669204227733848101",
+          "username": "oouahterritoryyeah",
+          "avatar": "0e0d0cdefed7f60b5d76c2bf1d3397d5",
+          "discriminator": "0",
+          "public_flags": 0,
+          "flags": 0,
+          "banner": null,
+          "accent_color": null,
+          "global_name": "法輪大輪凱蚊墓",
+          "avatar_decoration_data": null,
+          "collectibles": null,
+          "display_name_styles": null,
+          "banner_color": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1529392790390181888",
+            "filename": "screenshot.png",
+            "size": 1243067,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1529392790390181888/screenshot.png?ex=6b093407&is=6b07e287&hm=c2071e3d09cfe1cc44f72f5be03fe062c83fa2a591e732e966eb6fc3a02ddd48&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1529392790390181888/screenshot.png?ex=6b093407&is=6b07e287&hm=c2071e3d09cfe1cc44f72f5be03fe062c83fa2a591e732e966eb6fc3a02ddd48&",
+            "width": 3444,
+            "height": 1910,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "xgcCBIArBgZthodwiaL2ifxrZg==",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [功能建議]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/22 下午3:37:48",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "800904442",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "功能建議",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/52/52a64bed2ba1ef410d0ae6d946152ea8e9f63811.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "達尼婭聲骸是泡沫套，卻安排集諧隊\n是否能參考聲骸套裝去安排隊伍呢?",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1722x955"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-22T07:40:55.819000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529392789744517142",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1529176676536156320",
+            "filename": "screenshot.png",
+            "size": 1767524,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1529176676536156320/screenshot.png?ex=6b091382&is=6b07c202&hm=f5760970bad5f0c27b8620e4e68567aa8684c7234865c8592f1f74c44883b021&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1529176676536156320/screenshot.png?ex=6b091382&is=6b07c202&hm=f5760970bad5f0c27b8620e4e68567aa8684c7234865c8592f1f74c44883b021&",
+            "width": 3840,
+            "height": 1870,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "zAcGA4CZeIdweOeHR5L/a1k=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/22 上午1:21:52",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "801965266",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/1d/1d7a3d95e8382223a47d43c3a65eca7656a1d573.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "C4主詞條是暴擊，但辨識成攻擊\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x882"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-21T17:22:10.287000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529176675999547565",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1529176032949698591",
+            "filename": "screenshot.png",
+            "size": 1751394,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1529176032949698591/screenshot.png?ex=6b0912e8&is=6b07c168&hm=234adcc1c8523bc52290246c24308694aea842050eb2cb5ebab0be60b2666261&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1529176032949698591/screenshot.png?ex=6b0912e8&is=6b07c168&hm=234adcc1c8523bc52290246c24308694aea842050eb2cb5ebab0be60b2666261&",
+            "width": 3840,
+            "height": 1870,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "zAcGA4CZeIdweOeHR4P/jGo=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/22 上午1:19:01",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "801965266",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/2e/2e55b7bc951407d4c4d67019f3c966a91d3fd810.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "C4聲骸主詞條是暴擊，辨識成攻擊\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x882"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-21T17:19:36.815000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1529176032291066179",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "https://wutheringwaves-dc.kurogames-global.com/back/c5/c59fc4926569de9bfceaf6907ceb9bdd2757e1cb.jpeg",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [
+          {
+            "type": "image",
+            "url": "https://wutheringwaves-dc.kurogames-global.com/back/c5/c59fc4926569de9bfceaf6907ceb9bdd2757e1cb.jpeg",
+            "thumbnail": {
+              "url": "https://wutheringwaves-dc.kurogames-global.com/back/c5/c59fc4926569de9bfceaf6907ceb9bdd2757e1cb.jpeg",
+              "proxy_url": "https://images-ext-1.discordapp.net/external/ExZKQWEQcgrCN_tZusy4aMY_hVYdshq4rcZYuZuccZ0/https/wutheringwaves-dc.kurogames-global.com/back/c5/c59fc4926569de9bfceaf6907ceb9bdd2757e1cb.jpeg",
+              "width": 580,
+              "height": 660,
+              "content_type": "image/jpeg",
+              "placeholder": "1QcODgSFlmh3iIeJeId4dpcHz8Prlv0=",
+              "placeholder_version": 1,
+              "flags": 0
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-20T07:04:46.699000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1528658916064362537",
+        "channel_id": "1471465897347514409",
+        "author": {
+          "id": "823575370934124584",
+          "username": "ajian0291tyuchegdgy",
+          "avatar": "ce25faa5b5edd17d6a28c39b42a7f7c2",
+          "discriminator": "0",
+          "public_flags": 0,
+          "flags": 0,
+          "banner": null,
+          "accent_color": null,
+          "global_name": "阿建",
+          "avatar_decoration_data": null,
+          "collectibles": null,
+          "display_name_styles": null,
+          "banner_color": null,
+          "clan": {
+            "identity_guild_id": "1370277053559083108",
+            "identity_enabled": true,
+            "tag": "一灘爛泥",
+            "badge": "813846ce33ed1c30a15d1569fd2e4fd9"
+          },
+          "primary_guild": {
+            "identity_guild_id": "1370277053559083108",
+            "identity_enabled": true,
+            "tag": "一灘爛泥",
+            "badge": "813846ce33ed1c30a15d1569fd2e4fd9"
+          }
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1528413027974778940",
+            "filename": "screenshot.png",
+            "size": 2142427,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1528413027974778940/screenshot.png?ex=6b09980e&is=6b08468e&hm=d7d25805bf3b64de6e3ae2c1f2c815b0ce3f32a1aa103c0e044b04b008c1ad26&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1528413027974778940/screenshot.png?ex=6b09980e&is=6b08468e&hm=d7d25805bf3b64de6e3ae2c1f2c815b0ce3f32a1aa103c0e044b04b008c1ad26&",
+            "width": 4608,
+            "height": 1964,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yAcCA4Dva4JKRzaXNwP87p0=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "7/19/2026, 10:47:00 PM",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "901056618",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/04/04045fc19137de2b7b605774757ebbe0589f4b5a.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "我的明明上传千肖，但是系统给到的名字是椿的，我该怎么修正？\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2304x982"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-19T14:47:42.316000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1528413027580252252",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1528379440139075614",
+            "filename": "screenshot.png",
+            "size": 2611641,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1528379440139075614/screenshot.png?ex=6b0978c6&is=6b082746&hm=c9f1a832b41d8e88263a3d7c6d7a06f84a14cc8c3562454e3186c48f566bd88a&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1528379440139075614/screenshot.png?ex=6b0978c6&is=6b082746&hm=c9f1a832b41d8e88263a3d7c6d7a06f84a14cc8c3562454e3186c48f566bd88a&",
+            "width": 5120,
+            "height": 2542,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4DPe4NYZmaoeVjw3H8=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/19 下午8:33:44",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "710181180",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/f9/f9d045ec216ce0ebd3350c695151fd2a7fb4fa63.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "辨識折枝，結果覆蓋去柯萊塔\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2560x1271"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-19T12:34:14.332000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1528379439660929076",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1528376793873256612",
+            "filename": "screenshot.png",
+            "size": 1622662,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1528376793873256612/screenshot.png?ex=6b09764f&is=6b0824cf&hm=42878d4f0afb2bea2dc81468f1bd9ae22ccc798793eb2bf3fde70ab9fc87bca8&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1528376793873256612/screenshot.png?ex=6b09764f&is=6b0824cf&hm=42878d4f0afb2bea2dc81468f1bd9ae22ccc798793eb2bf3fde70ab9fc87bca8&",
+            "width": 3840,
+            "height": 1580,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4DfSWJIOTaYWHnf+rw=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/19 下午8:23:01",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "710181180",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/29/296ceb8f3356156c10d449756cc6cc14034ecd3e.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "千咲一直辨識失敗，會覆蓋成到其他角色\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x790"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-19T12:23:43.405000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1528376793361420441",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1528247871185485884",
+            "filename": "screenshot.png",
+            "size": 1750053,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1528247871185485884/screenshot.png?ex=6b09a6fd&is=6b08557d&hm=5ac053bb77ebe02c1461b8349ebd8306d268534a51da0599d7ce68d5fc15faf3&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1528247871185485884/screenshot.png?ex=6b09a6fd&is=6b08557d&hm=5ac053bb77ebe02c1461b8349ebd8306d268534a51da0599d7ce68d5fc15faf3&",
+            "width": 3840,
+            "height": 1890,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4B5SIb9fxWTf6j/3cw=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [功能建議]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "7/19/2026, 11:50:43 AM",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "700604533",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "功能建議",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/ac/acd1c660cbe2a439ebe1bdd3a35ceb00b569c855.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "自訂權重切換角色就會跑掉，是否能至少暫存於cookie？",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1920x945"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-19T03:51:25.883000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1528247870849810515",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "🐛 OCR 評分錯誤回報 來自 <@432383194596376577>",
+            "description": "**發送時間**: 2026/7/18 03:34:22\n**問題說明**: 聲骸2和3的詞條顯示不正確，圖片為攻擊百分比卻讀成生命百分比\n**用戶補充圖/連結**: https://wutheringwaves-dc.kurogames-global.com/back/c9/c986e073ee41771fdfbe75aab04a86b15953b394.jpeg\n**--- 以下為系統自動帶入之分析除錯資訊 ---**\n**UID**: `710168721`\n**角色**: `緋雪`\n**當次分析圖片**: https://wutheringwaves-dc.kurogames-global.com/back/c9/c986e073ee41771fdfbe75aab04a86b15953b394.jpeg\n**COST 序列**: `43311`",
+            "color": 16733525,
+            "fields": [
+              {
+                "name": "🔬 解碼後詞條 (25 個)",
+                "value": "```\n聲骸#1.詞1: 共鳴效率 11.6%\n聲骸#1.詞2: 共鳴解放傷害加成 9.4%\n聲骸#1.詞3: 暴擊 6.3%\n聲骸#1.詞4: 暴擊傷害 16.2%\n聲骸#1.詞5: 攻擊百分比 11.6%\n聲骸#2.詞1: 共鳴效率 9.2%\n聲骸#2.詞2: 暴擊 8.1%\n聲骸#2.詞3: 生命百分比 9.4%\n聲骸#2.詞4: 攻擊 40\n聲骸#2.詞5: 暴擊傷害 12.6%\n聲骸#3.詞1: 生命百分比 7.9%\n聲骸#3.詞2: 暴擊傷害 13.8%\n聲骸#3.詞3: 生命 430\n聲骸#3.詞4: 防禦百分比 8.1%\n聲骸#3.詞5: 暴擊 10.5%\n聲骸#4.詞1: 攻擊百分比 10.1%\n聲骸#4.詞2: 暴擊 7.5%\n聲骸#4.詞3: 共鳴效率 9.2%\n聲骸#4.詞4: 普攻傷害加成 10.9%\n聲骸#4.詞5: 暴擊傷害 21.0%\n聲骸#5.詞1: 暴擊傷害 18.6%\n聲骸#5.詞2: 普攻傷害加成 10.1%\n聲骸#5.詞3: 共鳴效率 10.8%\n聲骸#5.詞4: 攻擊百分比 7.1%\n聲骸#5.詞5: 暴擊 9.9%\n```",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "statCode: 81c30714208404433217451654670022058491101292822601"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-17T19:34:22.195000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1527760393370603672",
+        "channel_id": "1478408985634930751",
+        "author": {
+          "id": "1478409020044742736",
+          "username": "BOT",
+          "avatar": null,
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1478409020044742736",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1527709561526554674",
+            "filename": "screenshot.png",
+            "size": 2552097,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1527709561526554674/screenshot.png?ex=6b09abe6&is=6b085a66&hm=3cb47da7b804f4a5f4be48c519d48374a81dc8bd62833843b84152334a102a22&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1527709561526554674/screenshot.png?ex=6b09abe6&is=6b085a66&hm=3cb47da7b804f4a5f4be48c519d48374a81dc8bd62833843b84152334a102a22&",
+            "width": 5120,
+            "height": 2542,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4C/mmOPiSliZxuw2fo=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [其他]",
+            "color": 6402031,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "7/18/2026, 12:11:21 AM",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "707289662",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "其他",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/7a/7af826f664c749fed062ae44f75cf74374989820.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "你好，新的泱泱詞條那裡你們是不是計算錯誤了？共鳴解放是計算在重擊傷害裡的，所以重擊傷害才是有效詞條，共鳴解放沒有用的。請你們看一下，然後改一下。",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 2560x1271"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-17T16:12:22.835000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1527709561090211882",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "https://wutheringwaves-dc.kurogames-global.com/back/b1/b1928d207d60b685e37ba6c30d53b44888096ee3.jpeg",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [],
+        "embeds": [
+          {
+            "type": "image",
+            "url": "https://wutheringwaves-dc.kurogames-global.com/back/b1/b1928d207d60b685e37ba6c30d53b44888096ee3.jpeg",
+            "thumbnail": {
+              "url": "https://wutheringwaves-dc.kurogames-global.com/back/b1/b1928d207d60b685e37ba6c30d53b44888096ee3.jpeg",
+              "proxy_url": "https://images-ext-1.discordapp.net/external/QWrDNKo3R4Wv_c8ZAKYT_au5CJvWeB0QyOOYYSZ3NC8/https/wutheringwaves-dc.kurogames-global.com/back/b1/b1928d207d60b685e37ba6c30d53b44888096ee3.jpeg",
+              "width": 1920,
+              "height": 1080,
+              "content_type": "image/jpeg",
+              "placeholder": "zQcGDIC2GBaPeXRGiFZwUrfzqw==",
+              "placeholder_version": 1,
+              "flags": 0
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-17T10:14:31.878000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1527619505369387031",
+        "channel_id": "1471464673827229720",
+        "author": {
+          "id": "258616748687884288",
+          "username": "kazusa01",
+          "avatar": "6df77baa773f74c67748d57c421f0c6d",
+          "discriminator": "0",
+          "public_flags": 0,
+          "flags": 0,
+          "banner": null,
+          "accent_color": null,
+          "global_name": "kazusa01",
+          "avatar_decoration_data": null,
+          "collectibles": null,
+          "display_name_styles": null,
+          "banner_color": null,
+          "clan": {
+            "identity_guild_id": "857168143197011968",
+            "identity_enabled": true,
+            "tag": "BBQ~",
+            "badge": "ec60c5e6d1f14d3bbff586e2e0b9e54e"
+          },
+          "primary_guild": {
+            "identity_guild_id": "857168143197011968",
+            "identity_enabled": true,
+            "tag": "BBQ~",
+            "badge": "ec60c5e6d1f14d3bbff586e2e0b9e54e"
+          }
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1527339526681268404",
+            "filename": "screenshot.png",
+            "size": 1445503,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1527339526681268404/screenshot.png?ex=6b09a4c7&is=6b085347&hm=1a937c10d0281925b8e950a85a606444ab0b413d2038e92fdbcc8fd7e2542ebe&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1527339526681268404/screenshot.png?ex=6b09a4c7&is=6b085347&hm=1a937c10d0281925b8e950a85a606444ab0b413d2038e92fdbcc8fd7e2542ebe&",
+            "width": 3072,
+            "height": 1652,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "ygcCBIDviXZUOHaYWnZbkB4wtg==",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/16 下午11:40:54",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "703460338",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/8a/8ae96bbabd24a45df44b172d8393ef9f2af54ba0.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "泱泱的重擊傷害也是有效磁條，建議可以加進去\n\n--- OCR Debug Info ---\nN/A",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1536x826"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-16T15:41:59.643000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1527339526203379796",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ],
+    [
+      {
+        "type": 0,
+        "content": "",
+        "mentions": [],
+        "mention_roles": [],
+        "attachments": [
+          {
+            "id": "1527310899398840380",
+            "filename": "screenshot.png",
+            "size": 1841315,
+            "url": "https://cdn.discordapp.com/attachments/1471466429411885166/1527310899398840380/screenshot.png?ex=6b098a1e&is=6b08389e&hm=c2a33579e41f4e62fd310900c4e95a0546b72511aa3236cc45c06202ff6a9137&",
+            "proxy_url": "https://media.discordapp.net/attachments/1471466429411885166/1527310899398840380/screenshot.png?ex=6b098a1e&is=6b08389e&hm=c2a33579e41f4e62fd310900c4e95a0546b72511aa3236cc45c06202ff6a9137&",
+            "width": 3824,
+            "height": 1896,
+            "content_type": "image/png",
+            "content_scan_version": 4,
+            "placeholder": "yQcCA4DfamSJWDZ3zPXK3L8=",
+            "placeholder_version": 1
+          }
+        ],
+        "embeds": [
+          {
+            "type": "rich",
+            "title": "💎 用戶回饋 [OCR辨識]",
+            "color": 16731469,
+            "fields": [
+              {
+                "name": "時間",
+                "value": "2026/7/16 下午9:45:13",
+                "inline": true
+              },
+              {
+                "name": "UID",
+                "value": "701906530",
+                "inline": true
+              },
+              {
+                "name": "類別",
+                "value": "OCR辨識",
+                "inline": true
+              },
+              {
+                "name": "圖片網址",
+                "value": "https://wutheringwaves-dc.kurogames-global.com/back/ca/ca72cd2ce862fb495e16cc118f5fdad9bd1b82de.jpeg",
+                "inline": false
+              },
+              {
+                "name": "描述",
+                "value": "C4首位聲骸的第一條副詞條無法正確識別為\"暴擊\"，且無法自行修改，固定為\"攻擊\"\n\n--- OCR Debug Info ---\n+ 暴 擊\n\n+ 共鳴 解放 傷害 加 成\n+ 暴 擊 傷害\n\n+ 共鳴 技能 傷害 加 成\n+ 共鳴 效率",
+                "inline": false
+              }
+            ],
+            "footer": {
+              "text": "Device: 1912x948"
+            },
+            "content_scan_version": 4
+          }
+        ],
+        "timestamp": "2026-07-16T13:48:14.381000+00:00",
+        "edited_timestamp": null,
+        "flags": 0,
+        "components": [],
+        "id": "1527310898979541035",
+        "channel_id": "1471466429411885166",
+        "author": {
+          "id": "1509919230626238654",
+          "username": "網站回報",
+          "avatar": "001198cb1f3558d426ceffa07b31ea23",
+          "discriminator": "0000",
+          "public_flags": 0,
+          "flags": 0,
+          "bot": true,
+          "global_name": null,
+          "clan": null,
+          "primary_guild": null
+        },
+        "pinned": false,
+        "mention_everyone": false,
+        "tts": false,
+        "webhook_id": "1509919230626238654",
+        "hit": true
+      }
+    ]
+  ],
+  "doing_deep_historical_index": false,
+  "total_results": 300
+}

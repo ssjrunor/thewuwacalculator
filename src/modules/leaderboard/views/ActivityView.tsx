@@ -1,12 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: the leaderboard main page with the latest board entries: a strip
-               of fifteen days in two-hour cells shaded by upload count (hover a
-               cell or day to read it, click a day to jump to it), kind filters,
-               and every upload under day headings as a build row. the sticky bar
-               shows a small copy of the days with the day at the top of the list
-               lit, and a click jumps to another. builds off their board (scoring,
-               or no team scores them yet) list the same way, unranked.
+  description: the leaderboard activity page: daily upload counts and recent uploads.
 */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
@@ -14,9 +8,9 @@ import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import type { ActivityRow } from '@/domain/leaderboard/api'
-import { ACTIVITY_ROWS, LIVE_MS, lbq } from '../api/queries'
+import { ACTIVITY_DAYS, ACTIVITY_ROWS, LIVE_MS, activityFrom, lbq } from '../api/queries'
 import { errorText, noRuleset } from '../model/cardTrack'
-import { resName } from '../model/format'
+import { grp, resName } from '../model/format'
 import { usePins } from '../model/pins'
 import { BuildHead, BuildRow } from '../components/build/BuildRow'
 import { useScope } from '../state/ctx'
@@ -28,11 +22,10 @@ import { toggler, useOpen } from '../state/useOpen'
 import { ownsUid } from '../chrome/chrome'
 
 const LIMIT = ACTIVITY_ROWS
-const MAX_DAYS = 15
 type Kind = '' | 'top' | 'top10' | 'pins' | 'mine'
 const KINDS: Array<[Kind, string]> = [['', 'Everything'], ['top', 'At #1'], ['top10', 'Top 10'], ['pins', 'Pinned'], ['mine', 'Yours']]
 
-/** an upload and its row; one off its board lists unranked. */
+// an upload and its row; one off its board lists unranked
 interface Item { row: ActivityRow; x: Row }
 
 export function Rule({ word }: { word: string }) {
@@ -41,13 +34,13 @@ export function Rule({ word }: { word: string }) {
 
 interface Cell { entries: number; tops: number; me: boolean }
 interface Day { key: string; t: number; entries: number; tops: number; cells: Cell[] }
-/** a day is twelve two-hour cells. */
+// a day is twelve two-hour cells
 const CELLS = 12
 const clock = (h: number) => `${String(h).padStart(2, '0')}:00`
 
 function Strip({ days, day, onDay }: { days: Day[]; day: string | null; onDay: (key: string) => void }) {
   const [hover, setHover] = useState<{ d: Day; h: number | null } | null>(null)
-  // square-root ink: a burst in one cell stays the brightest without blanking the quiet ones.
+  // square-root ink: a burst in one cell stays the brightest without blanking the quiet ones
   const mx = Math.max(1, ...days.flatMap((d) => d.cells.map((x) => x.entries)))
   const all = days.reduce((n, d) => n + d.entries, 0)
   const tops = days.reduce((n, d) => n + d.tops, 0)
@@ -90,11 +83,13 @@ export function ActivityView() {
   const { me, boards } = useScope()
   const pins = usePins()
   // other players' uploads appear here too: refetch each minute in view while showing the last data
-  const activity = useQuery({ ...lbq.activity(LIMIT), refetchInterval: LIVE_MS, placeholderData: keepPreviousData })
+  // the per-board counts cover the strip's days; the key moves at local midnight with the strip
+  const from = activityFrom()
+  const activity = useQuery({ ...lbq.activity(LIMIT, from), refetchInterval: LIVE_MS, placeholderData: keepPreviousData })
   const data = activity.data ?? null
   const error = activity.error
   const [params] = useSearchParams()
-  // the Pinned list's "show their builds" lands here with ?kind=pins.
+  // the Pinned list's "show their builds" links here with ?kind=pins
   const [kind, setKind] = useState<Kind>(() => KINDS.find(([k]) => k && k === params.get('kind'))?.[0] ?? '')
   const [cur, setCur] = useState<string | null>(null)
   const [day, setDay] = useState<string | null>(null)
@@ -103,7 +98,7 @@ export function ActivityView() {
   const toggle = toggler(open, setOpen)
 
   const items = useMemo<Item[]>(() => {
-    // an entry's board size can lag the index; the index is the newer count.
+    // an entry's board size can lag the index; the index is the newer count
     const totals = new Map((boards?.boards ?? []).map((b) => [b.resonatorId, b.total]))
     return (data?.rows ?? []).map((row) => {
       const x = fromActivity(row)
@@ -114,12 +109,12 @@ export function ActivityView() {
   const rows = useMemo(() => items.map((it) => it.row), [items])
 
   const days = useMemo<Day[]>(() => {
-    // the strip counts every write from the server's quarter hours; rows are only the newest few.
+    // the strip counts every write from the server's quarter hours; rows are only the newest few
     const slots = data?.slots ?? rows.map((x) => ({ at: x.at, entries: 1, tops: x.rank === 1 ? 1 : 0 }))
     const end = new Date(); end.setHours(0, 0, 0, 0)
     const out: Day[] = []
-    // step by calendar day, which keeps daylight saving changes from repeating a date
-    for (const c = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (MAX_DAYS - 1)); c <= end; c.setDate(c.getDate() + 1)) {
+    // step by calendar day, so daylight saving changes never repeat a date
+    for (const c = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (ACTIVITY_DAYS - 1)); c <= end; c.setDate(c.getDate() + 1)) {
       out.push({ key: dayKey(c.getTime()), t: c.getTime(), entries: 0, tops: 0, cells: Array.from({ length: CELLS }, () => ({ entries: 0, tops: 0, me: false })) })
     }
     const byKey = new Map(out.map((d) => [d.key, d]))
@@ -156,14 +151,14 @@ export function ActivityView() {
   }
 
   const here = new Set(groups.map((g) => g.key))
-  /** go to a day's entries, under the sticky bars; a day older than the loaded entries is kept as a filter instead. */
+  // go to a day's entries, under the sticky bars; a day older than the loaded entries is applied as a filter
   const goDay = (key: string) => {
     const s = scroller(), el = s?.querySelector<HTMLElement>(`.feed [data-day="${key}"]`)
     if (!s || !el || day) { setDay((d) => d === key ? null : key); setOpen(null); return }
     const bars = ['.chb', '.av-bar', '.av-bar + .colh'].reduce((h, sel) => h + (s.querySelector<HTMLElement>(`.lbs ${sel}`)?.offsetHeight ?? 0), 0)
     s.scrollTo({ top: el.getBoundingClientRect().top - s.getBoundingClientRect().top + s.scrollTop - bars, behavior: 'smooth' })
   }
-  // the day at the top of the list, for the bar's strip.
+  // the day at the top of the list, for the bar's strip
   const track = useCallback(() => {
     const s = scroller()
     if (!s) return
@@ -184,8 +179,16 @@ export function ActivityView() {
   const curDay = days.find((d) => d.key === (cur ?? groups[0]?.key)) ?? null
 
   const latest = rows[0] ?? null
-  const atOne = rows.filter((x) => x.rank === 1)
-  const busy = [...rows.reduce((m, x) => m.set(x.resonatorId, (m.get(x.resonatorId) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]
+  // every upload over the strip's days, per board, loaded rows or not: the figures match the header's count
+  const counts = data?.boards.counts ?? []
+  const most = Math.max(0, ...counts.map((b) => b.entries))
+  const busiest = counts.filter((b) => b.entries === most).sort((a, b) => resName(a.resonatorId).localeCompare(resName(b.resonatorId)))
+  const busy = most ? busiest[0] : null
+  // a day's loaded rows against its count on the strip: the oldest loaded day is often only partly loaded
+  const dayCount = (key: string, shown: number) => {
+    const all = days.find((d) => d.key === key)?.entries ?? 0
+    return !kind && !term && all > shown ? `${shown} of ${entries(all)}` : entries(shown)
+  }
   const clear = () => { setKind(''); setDay(null); setQ('') }
   let n = 0
 
@@ -193,12 +196,12 @@ export function ActivityView() {
     <main className="lpage av">
       <section className="av-top">
         <div><Rule word="Leaderboard" /><h1 className="pg-h1">Latest activity</h1>
-          <span className="k-read">{total ? `${entries(total)} over ${plural(days.length, 'day')}` : ' '}</span></div>
+          <span className="k-read">{data ? `${plural(data.builds.ranked + data.builds.unranked, 'build')}: ${grp(data.builds.ranked)} ranked, ${grp(data.builds.unranked)} unranked` : ' '}</span></div>
         {latest ? (
           <div className="av-cells">
             <div><span>Last upload</span><b>{agoLong(latest.at)}</b><em><PlayerRef who={latest}>{playerName(latest)}</PlayerRef> on <BoardRef id={latest.resonatorId}>{resName(latest.resonatorId)}</BoardRef></em></div>
-            <div><span>At #1</span><b>{atOne.length}</b><em>across {plural(new Set(atOne.map((x) => x.resonatorId)).size, 'board')}</em></div>
-            {busy ? <div><span>Busiest board</span><b><BoardRef id={busy[0]}>{resName(busy[0])}</BoardRef></b><em>{entries(busy[1])}</em></div> : null}
+            {busy ? <div><span>Busiest board</span><b><BoardRef id={busy.resonatorId}>{resName(busy.resonatorId)}</BoardRef></b>
+              <em>{entries(busy.entries)}{busiest.length > 1 ? `, tied with ${busiest.length - 1}` : ''}</em></div> : null}
           </div>
         ) : null}
       </section>
@@ -226,7 +229,7 @@ export function ActivityView() {
           : !data ? <div className="empty">assembling the latest entries... :P</div>
           : groups.length ? groups.map((g) => (
             <div key={g.key} data-day={g.key}>
-              <div className="day"><b>{dayLabel(g.t)}</b><span>{entries(g.rows.length)}</span><i /></div>
+              <div className="day"><b>{dayLabel(g.t)}</b><span>{dayCount(g.key, g.rows.length)}</span><i /></div>
               {g.rows.map(({ x }) => (
                 <BuildRow key={x.buildId} x={x} i={n++} open={open === x.buildId} onToggle={toggle(x.buildId)}
                   o={{ lead: { kind: x.rank === 1 ? 'top' : 'up', text: hm(x.at) }, res: true }} />))}

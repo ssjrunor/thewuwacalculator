@@ -2,8 +2,7 @@
   Author: Runor Ewhro
   description: anonymous players (rows show only the region, the profile opens
                only for them) and setup uids (filler builds: anonymous, out of
-               the uploads, no likes or comments, and taken by the first player
-               to send one), through the real routes and sql.
+               the uploads, and taken by the first player to send one), through the real routes and sql.
 */
 
 import { describe, expect, it } from 'vitest'
@@ -19,7 +18,7 @@ const rows = async (query = '') => (await call('GET', `/boards/1108${query}`)).b
 const rowOf = async (buildId: string, query = '') => (await rows(query)).find((row) => row.buildId === buildId)
 const uploads = async () => ((await call('GET', '/activity')).body.rows as Row[]).map((row) => row.buildId)
 const player = (uid: string) => env.LB.sqlite.prepare('SELECT * FROM players WHERE uid = ?').get(uid) as { setup_at: number | null; anonymous: number }
-/** marks a uid as setup, as the local tool does: the player moves on (ver) and its boards hear of it. */
+// marks a uid as setup, as the local tool does: the player's ver is bumped and its boards sync it
 const setup = async (uid: string) => {
   env.LB.sqlite.prepare('UPDATE players SET setup_at = 5, ver = ver + 1 WHERE uid = ?').run(uid)
   await syncPlayerBoards(env, uid)
@@ -27,7 +26,7 @@ const setup = async (uid: string) => {
 }
 
 const LINK = `https://kuro.example.test/back/d6/${'d6'.padEnd(40, '0')}.jpeg`
-/** LINK's link hash, which makes a card seeded with it the card LINK resends. */
+// LINK's link hash, so a card seeded with it is the card LINK resends
 async function linkHash(): Promise<string> {
   const identified = await identifyCard(LINK, { linkHashKey: env.LINK_HASH_KEY, rules: { host: env.KURO_CARD_HOST, pathPrefix: env.KURO_CARD_PATH_PREFIX } })
   if (!identified.ok) throw new Error(identified.message)
@@ -36,7 +35,7 @@ async function linkHash(): Promise<string> {
 const send = (options: { admin?: boolean; cookie?: string } = {}) => call('POST', '/cards', { ...options, body: { input: LINK, turnstileToken: 't' } })
 
 describe('anonymous players', () => {
-  it('shows only the region on rows, and keeps the profile to its owner', async () => {
+  it('shows only the region on rows, and shows the profile only to its owner', async () => {
     const mine = await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
     const cookie = await claimSession(A)
@@ -50,16 +49,15 @@ describe('anonymous players', () => {
 
     expect((await call('GET', `/players/${A}`)).status).toBe(404)
     expect((await call('GET', `/builds/${mine}/player`)).status).toBe(404)
-    expect((await call('GET', `/players/${mine}/history`)).status).toBe(404)
     expect((await call('GET', `/players/${A}`, { cookie })).body).toMatchObject({ uid: A, name: 'Alpha', anonymous: true })
 
-    // the build still opens, with nothing that names them.
+    // the build still opens, with nothing that names them
     const detail = (await call('GET', `/builds/${mine}`)).body
     expect(detail).toMatchObject({ uid: null, name: null, anonymous: true })
     expect(detail.snapshot).toMatchObject({ uid: '', name: null })
     expect((await call('GET', `/builds/${mine}`, { cookie })).body).toMatchObject({ uid: A, name: 'Alpha' })
 
-    // no one follows them, by uid or through a build.
+    // no one follows them, by uid or through a build
     const other = (await signIn('bea', await claimSession(B))).cookie!
     expect((await call('PUT', `/follows/players/${mine}`, { cookie: other })).status).toBe(404)
     expect((await call('PUT', `/follows/players/${A}`, { cookie: other })).status).toBe(404)
@@ -72,23 +70,12 @@ describe('anonymous players', () => {
     expect((await call('GET', '/feed', { cookie: other })).body.rows).toEqual([])
   })
 
-  it('names a commenter by their account, never through an anonymous uid of theirs', async () => {
-    const theirs = await seedPlayer(B, 'Beta', 110)
-    await seedPlayer(A, 'Alpha', 120)
-    const writer = (await signIn('ana', await claimSession(A))).cookie!
-    await call('PATCH', `/players/me/uids/${A}`, { cookie: writer, body: { anonymous: true } })
-    expect((await call('POST', `/builds/${theirs}/comments`, { cookie: writer, body: { body: 'nice' } })).status).toBe(201)
-    const [comment] = (await call('GET', `/builds/${theirs}/comments`)).body.comments
-    // the account's name with no uid or build link; the anonymous uid stays unnamed
-    expect(comment.author).toEqual({ uid: null, buildId: null, name: 'Discord ana' })
-  })
-
   it('refuses a patch with nothing to change', async () => {
     await seedPlayer(A, 'Alpha', 120)
     const cookie = await claimSession(A)
     expect((await call('PATCH', `/players/me/uids/${A}`, { cookie, body: {} })).status).toBe(400)
     expect((await call('PATCH', `/players/me/uids/${A}`, { cookie, body: { anonymous: 'yes' } })).status).toBe(400)
-    // a uid the session does not have is not its to change.
+    // a session cannot change a uid it does not have
     expect((await call('PATCH', `/players/me/uids/${B}`, { cookie, body: { anonymous: true } })).status).toBe(404)
   })
 })
@@ -102,18 +89,13 @@ describe('setup uids', () => {
     expect((await rows()).map((row) => row.buildId)).toEqual([filler, buildOf(B)])
     expect(await uploads()).toEqual([filler, buildOf(B)])
     expect((await call('GET', `/builds/${filler}/player`)).status).toBe(404)
-
-    const viewer = (await signIn('bea', await claimSession(B))).cookie!
-    expect((await call('PUT', `/builds/${filler}/like`, { cookie: viewer })).status).toBe(403)
-    expect((await call('GET', `/builds/${filler}/social`, { cookie: viewer })).body.commentsOpen).toBe(false)
-    expect((await call('POST', `/builds/${filler}/comments`, { cookie: viewer, body: { body: 'hi' } })).status).toBe(403)
   })
 
   it('takes a card sent again by a player as new, with the scores it has, and ends the setup', async () => {
     const filler = await seedPlayer(A, 'Alpha', 120, { at: 50, linkHash: await linkHash() })
     await setup(A)
 
-    // staff sending it again is still a card the boards already have.
+    // a staff resend is still a card the boards already have
     const staff = await send({ admin: true })
     expect(staff).toMatchObject({ status: 200, body: { duplicate: true } })
     expect(player(A).setup_at).toBe(5)
@@ -122,10 +104,10 @@ describe('setup uids', () => {
     expect(sent.status).toBe(202)
     expect(sent.body).toMatchObject({ duplicate: false, status: 'scored', buildId: filler, active: true })
     expect(player(A).setup_at).toBeNull()
-    // nothing is read or scored again.
+    // nothing is read or scored again
     expect((env.READ_QUEUE as unknown as { sent: unknown[] }).sent).toEqual([])
     expect((env.SCORE_QUEUE as unknown as { sent: unknown[] }).sent).toEqual([])
-    // it is a fresh upload now, from a named player.
+    // it is a fresh upload from a named player
     expect((await call('GET', '/activity')).body.rows[0]).toMatchObject({ buildId: filler, uid: A, name: 'Alpha', at: expect.any(Number) })
     expect(await rowOf(filler)).toMatchObject({ uid: A, name: 'Alpha' })
 
@@ -145,7 +127,7 @@ describe('setup uids', () => {
     expect(boardDb().prepare('SELECT created_at FROM builds WHERE id = ?').get(local)).toEqual({ created_at: 900 })
   })
 
-  it('are marked by the local tool only, never a uid a player took', async () => {
+  it('are marked only by the local tool, on uids no player took', async () => {
     await seedPlayer(A, 'Alpha', 120)
     await seedPlayer(B, 'Beta', 110)
     await claimSession(B)

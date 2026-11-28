@@ -1,11 +1,6 @@
 /*
   Author: Runor Ewhro
-  description: staff queues for moderators and admins: reports, appeals, profile
-               text and uploaded images, one queue at a time beside the selected
-               item. reports can be claimed, noted, dismissed or resolved (hiding
-               the build or removing the comment), with the player warned, muted,
-               suspended or banned; appeals are upheld or granted with a reply;
-               text is marked reviewed or cleared; images approved or rejected.
+  description: staff queues for reports, appeals, profile text and uploaded images.
 */
 
 import { useEffect, useState, type ReactNode } from 'react'
@@ -18,6 +13,7 @@ import { errorText } from '../model/cardTrack'
 import { agoText, dayText, resFace, resName } from '../model/format'
 import { useScope } from '../state/ctx'
 import { fmtUid } from '../model/listed'
+import { CardCheck } from '../components/build/CardCheck'
 
 type Queue = 'reports' | 'appeals' | 'profiles' | 'media'
 const QUEUES: Array<[Queue, string]> = [['reports', 'Reports'], ['appeals', 'Appeals'], ['profiles', 'Profiles'], ['media', 'Images']]
@@ -30,10 +26,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="stf-f"><span>{label}</span><div>{children}</div></div>
 }
 
-/** warn, mute, suspend or ban the player behind a report. */
-/** what a sanction falls on: a comment's account, or a build's uid. */
+// what a sanction applies to: an account, or a build's uid
 type Subject = { kind: 'uid' | 'account'; id: string }
 
+// warn, mute, suspend or ban the player behind a report
 function Sanction({ subject, reportId, onDone }: { subject: Subject; reportId: string; onDone: (message: string) => void }) {
   const [kind, setKind] = useState<SanctionKind>('warn')
   const [days, setDays] = useState<number | null>(3)
@@ -64,8 +60,9 @@ function ReportPane({ r, onDone }: { r: StaffReport; onDone: (message: string) =
   const { toast } = useScope()
   const detailRead = useQuery(lbq.staffReport(r.id))
   const detail: ReportDetailResponse | null = detailRead.data ?? null
-  const buildRead = useQuery(lbq.build(r.buildId))
-  // undefined while asking; null when it could not be read.
+  // a card report has no build until staff enter the uid the reader missed
+  const buildRead = useQuery({ ...lbq.build(r.buildId ?? ''), enabled: r.buildId != null })
+  // undefined while loading; null when it could not be read
   const build: BuildDetailResponse | null | undefined = buildRead.isError ? null : buildRead.data
   const [resolution, setResolution] = useState('')
   const [hide, setHide] = useState(false)
@@ -75,31 +72,32 @@ function ReportPane({ r, onDone }: { r: StaffReport; onDone: (message: string) =
 
   const close = (status: 'resolved' | 'dismissed') => lbApi.staff.resolve(r.id, {
     status, ...(resolution.trim() ? { resolution: resolution.trim() } : {}),
-    ...(status === 'resolved' && hide ? (r.commentId ? { removeComment: true } : { hideBuild: true }) : {}),
+    ...(status === 'resolved' && hide ? { hideBuild: true } : {}),
   }).then(() => {
-    // a hidden build or removed comment changes what every board and profile shows.
+    // a hidden build changes what every board and profile shows
     if (status === 'resolved' && hide) void invalidateLb()
     onDone(status === 'resolved' ? 'report resolved! thanks for reviewing it.' : 'report dismissed.')
   }, (e: unknown) => toast(errorText(e), true))
   const take = () => lbApi.staff.take(r.id, !r.assignedTo).then(() => onDone(r.assignedTo ? 'report unassigned.' : 'report assigned to you! :P'), (e: unknown) => toast(errorText(e), true))
   const note = () => lbApi.staff.note(r.id, noteText.trim()).then(() => { setNoteText(''); void invalidate(lbKeys.staffReport(r.id)) },
     (e: unknown) => toast(errorText(e), true))
-  // a comment is its account's words; a build is its uid's.
-  const subject: Subject | null = r.commentId ? (detail?.comment?.accountId ? { kind: 'account', id: detail.comment.accountId } : null)
-    : build?.uid ? { kind: 'uid', id: build.uid } : null
+  // a build belongs to its uid
+  const subject: Subject | null = build?.uid ? { kind: 'uid', id: build.uid } : null
 
   return (
     <div className="stf-d">
-      <header><h4>{r.commentId ? 'Comment report' : 'Build report'}</h4><span className="stf-tag">{REASON[r.reason]}</span>
+      <header><h4>{r.buildId ? 'Build report' : 'Card report'}</h4><span className="stf-tag">{REASON[r.reason]}</span>
         <button type="button" className="lk" onClick={() => void take()}>{r.assignedTo ? `Taken by ${r.assignedTo}. Release` : 'Assign to me'}</button></header>
       <div className="stf-ctx">
-        {build ? <><img src={resFace(build.snapshot.resonator.id)} alt="" /><span><b>{build.name ?? 'Unnamed'}</b>
+        {!r.buildId ? <span className="quiet">card {r.cardId} was refused, so there is no build until its UID is entered below.</span>
+          : build ? <><img src={resFace(build.snapshot.resonator.id)} alt="" /><span><b>{build.name ?? 'Unnamed'}</b>
           <small>{resName(build.snapshot.resonator.id)}{build.uid ? `, UID ${fmtUid(build.uid)}` : ''}</small></span></>
           : build === null ? <span className="quiet">hmm... this build is unavailable. it may be hidden or deleted.</span> : <span className="quiet">loading the reported build...</span>}
       </div>
-      {r.details ? <Field label="Reporter says"><q>{r.details}</q></Field> : null}
-      {detail?.comment ? <Field label={detail.comment.removedAt ? 'Comment (removed)' : 'Comment'}><q>{detail.comment.body ?? '(empty)'}</q></Field> : null}
+      {/* the card reader files its own checks with an "Automatic:" lead (services/leaderboard/src/api/read/ingest.ts) */}
+      {r.details ? <Field label={r.details.startsWith('Automatic:') ? 'Card reader says' : 'Reporter says'}><q>{r.details}</q></Field> : null}
       <Field label="Reported">{agoText(r.createdAt)}</Field>
+      <Field label="Card"><CardCheck buildId={r.buildId} cardId={r.cardId} fixes={r.reason === 'misread'} /></Field>
       {detail?.notes.length ? <Field label="Notes">{detail.notes.map((n) => <p key={n.id} className="stf-note"><b>{n.author}</b> {n.body}</p>)}</Field> : null}
       <div className="stf-addnote">
         <input value={noteText} maxLength={2000} placeholder="Add a note for staff" aria-label="Note" onChange={(event) => setNoteText(event.target.value)}
@@ -107,11 +105,11 @@ function ReportPane({ r, onDone }: { r: StaffReport; onDone: (message: string) =
       </div>
       <div className="stf-close">
         <input value={resolution} maxLength={500} placeholder="Resolution (optional)" aria-label="Resolution" onChange={(event) => setResolution(event.target.value)} />
-        <label className="stf-chk"><input type="checkbox" checked={hide} onChange={(event) => setHide(event.target.checked)} />{r.commentId ? 'Remove the comment' : 'Hide the build'}</label>
+        {r.buildId ? <label className="stf-chk"><input type="checkbox" checked={hide} onChange={(event) => setHide(event.target.checked)} />Hide the build</label> : null}
         <div className="stf-acts"><button type="button" className="act" onClick={() => void close('dismissed')}>Dismiss</button>
           <button type="button" className="act go" onClick={() => void close('resolved')}>Resolve</button></div>
       </div>
-      {subject ? <Field label={subject.kind === 'account' ? "Sanction the commenter's account" : `Sanction UID ${fmtUid(subject.id)}`}>
+      {subject ? <Field label={`Sanction UID ${fmtUid(subject.id)}`}>
         <Sanction subject={subject} reportId={r.id} onDone={onDone} /></Field> : null}
     </div>
   )
@@ -148,11 +146,9 @@ function DocPane({ doc, onDone }: { doc: StaffDocument; onDone: (message: string
   const links = Array.isArray(body?.links) ? body.links as Array<{ label: string; url: string }> : []
   return (
     <div className="stf-d">
-      <header><h4>{doc.kind === 'profile' ? 'Profile' : doc.kind === 'build' ? 'Build notes' : doc.kind}</h4><span className="stf-tag">{doc.kind === 'profile' ? `UID ${fmtUid(doc.ownerId)}` : doc.ownerId.slice(0, 8)}</span></header>
+      <header><h4>{doc.kind === 'profile' ? 'Profile' : doc.kind === 'card' ? 'Card look' : doc.kind}</h4><span className="stf-tag">{doc.kind === 'profile' ? `UID ${fmtUid(doc.ownerId)}` : doc.ownerId.slice(0, 8)}</span></header>
       {text('displayName') ? <Field label="Display name">{text('displayName')}</Field> : null}
       {text('bio') ? <Field label="Signature"><q>{text('bio')}</q></Field> : null}
-      {text('title') ? <Field label="Title">{text('title')}</Field> : null}
-      {text('note') ? <Field label="Note"><q>{text('note')}</q></Field> : null}
       {links.length ? <Field label="Links">{links.map((l) => <p key={l.url}>{l.label}: <code>{l.url}</code></p>)}</Field> : null}
       <Field label="Written">{agoText(doc.updatedAt)}</Field>
       <div className="stf-acts">
@@ -199,9 +195,9 @@ export function StaffView() {
   const done = (message: string) => { toast(message); setPick(null); void invalidate(lbKeys.staff()) }
   const keyOf = (x: { id?: string; kind?: string; ownerId?: string }) => x.id ?? `${x.kind}:${x.ownerId}`
   const list: Array<{ key: string; face: string | null; title: string; sub: string; at: number }> =
-    queue === 'reports' ? (lists.reports ?? []).map((r) => ({ key: r.id, face: null, title: r.commentId ? 'Comment report' : 'Build report', sub: `${REASON[r.reason]}${r.details ? `: ${r.details}` : ''}`, at: r.createdAt }))
+    queue === 'reports' ? (lists.reports ?? []).map((r) => ({ key: r.id, face: null, title: r.buildId ? 'Build report' : 'Card report', sub: `${REASON[r.reason]}${r.details ? `: ${r.details}` : ''}`, at: r.createdAt }))
     : queue === 'appeals' ? (lists.appeals ?? []).map((a) => ({ key: a.id, face: null, title: `${SANCTION[a.sanction.kind]} appeal`, sub: a.body, at: a.createdAt }))
-    : queue === 'profiles' ? (lists.profiles ?? []).map((d) => ({ key: keyOf(d), face: null, title: d.kind === 'profile' ? `Profile, UID ${fmtUid(d.ownerId)}` : 'Build notes', sub: 'Waiting for review', at: d.updatedAt }))
+    : queue === 'profiles' ? (lists.profiles ?? []).map((d) => ({ key: keyOf(d), face: null, title: d.kind === 'profile' ? `Profile, UID ${fmtUid(d.ownerId)}` : 'Card look', sub: 'Waiting for review', at: d.updatedAt }))
     : (lists.media ?? []).map((m) => ({ key: m.id, face: lbApi.mediaUrl(m.id), title: m.purpose === 'avatar' ? 'Avatar' : m.purpose === 'banner' ? 'Banner' : 'Card image', sub: 'Waiting for review', at: m.createdAt }))
   const picked = pick ?? list[0]?.key ?? null
   const count = (q: Queue) => (q === 'reports' ? lists.reports : q === 'appeals' ? lists.appeals : q === 'profiles' ? lists.profiles : lists.media)?.length
